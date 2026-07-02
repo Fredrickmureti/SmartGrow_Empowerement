@@ -239,7 +239,7 @@ export default function Expenses() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams, showDialog, expenses, setSearchParams]);
+  }, [searchParams, showDialog, setSearchParams, setPeekId]);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
