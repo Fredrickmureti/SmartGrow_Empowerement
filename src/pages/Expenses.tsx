@@ -424,34 +424,23 @@ export default function Expenses() {
     setEditingExpense(null);
   };
 
+  // Routes to the new dedicated create/edit pages. The inline
+  // `<Dialog>` create/edit surface was retired as part of the ERP-wide
+  // interaction standard — every record form is now a full page mounted
+  // on `RecordFormShell`.
   const handleOpenDialog = (expense?: Expense) => {
     if (expense) {
-      // Guard: don't allow editing approved/paid expenses (accounting lock)
+      // Accounting lock: approved/paid expenses stay read-only in peek.
       if (expense.status !== "pending") {
         setPeekId(expense.id);
         return;
       }
-      setEditingExpense(expense);
-      setFormData({
-        expense_date: expense.expense_date,
-        amount: expense.amount,
-        tax_amount: expense.tax_amount,
-        description: expense.description,
-        reference: expense.reference || "",
-        category_id: expense.category_id || "",
-        vendor_id: expense.vendor_id || "",
-        is_billable: expense.is_billable,
-        receipt_url: expense.receipt_url || null,
-        currency: expense.currency || baseCurrency,
-        payment_method: expense.payment_method || "cash",
-        payment_account_id: expense.payment_account_id || "",
-        project_id: (expense as unknown as { project_id?: string | null }).project_id ?? null,
-      });
-    } else {
-      resetForm();
+      navigate(`/purchases/expenses/${expense.id}/edit`);
+      return;
     }
-    setShowDialog(true);
+    navigate("/purchases/expenses/new");
   };
+
 
   // Detect if selected payment account is AP
   const isAPSelected = !!(formData.payment_account_id && defaultAccounts.accounts_payable_id && formData.payment_account_id === defaultAccounts.accounts_payable_id);
