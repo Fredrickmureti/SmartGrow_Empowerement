@@ -33,6 +33,12 @@ const BillEditPage = lazy(
 const PurchaseOrderEditPage = lazy(
   () => import("@/features/purchases/orders/PurchaseOrderEditPage"),
 );
+const ExpenseCreatePage = lazy(
+  () => import("@/features/purchases/expenses/ExpenseCreatePage"),
+);
+const ExpenseEditPage = lazy(
+  () => import("@/features/purchases/expenses/ExpenseEditPage"),
+);
 const GoodsReceiptWizardPage = lazy(
   () => import("@/features/purchases/goods-receipt/GoodsReceiptWizardPage"),
 );
