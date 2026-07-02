@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import { usePeekParam } from "@/design-system";
+import { VendorStatementPeekSheet } from "@/features/purchases/statements/VendorStatementPeekSheet";
 
 import { useVendorStatements, VendorStatementData } from "@/hooks/useVendorStatements";
 import { useContacts } from "@/hooks/useContacts";
@@ -77,6 +79,7 @@ import { normalizeError } from "@/services/resilience";
 export default function VendorStatements() {
   const [searchParams, setSearchParams] = useSearchParams();
   const autoActionRef = useRef(false);
+  const [peekId, setPeekId] = usePeekParam();
   const { statements, isLoading, generateStatementData, saveStatement, deleteStatement } = useVendorStatements();
   const { contacts } = useContacts();
   const { formatCurrency } = useCurrency();
