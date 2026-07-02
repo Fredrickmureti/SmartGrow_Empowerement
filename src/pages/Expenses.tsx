@@ -425,7 +425,7 @@ export default function Expenses() {
     if (expense) {
       // Guard: don't allow editing approved/paid expenses (accounting lock)
       if (expense.status !== "pending") {
-        setViewingExpense(expense);
+        setPeekId(expense.id);
         return;
       }
       setEditingExpense(expense);
@@ -946,7 +946,7 @@ export default function Expenses() {
                 </TableHeader>
                 <TableBody>
                   {expenses.map((expense) => (
-                    <TableRow key={expense.id} className={`cursor-pointer ${selectedExpenses.has(expense.id) ? "bg-muted/50" : ""}`} onClick={() => setViewingExpense(expense)}>
+                    <TableRow key={expense.id} className={`cursor-pointer ${selectedExpenses.has(expense.id) ? "bg-muted/50" : ""}`} onClick={() => setPeekId(expense.id)}>
                       {isAdmin && (
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Checkbox
@@ -1024,7 +1024,7 @@ export default function Expenses() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {/* View — always available */}
-                              <DropdownMenuItem onClick={() => setViewingExpense(expense)}>
+                              <DropdownMenuItem onClick={() => setPeekId(expense.id)}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>
