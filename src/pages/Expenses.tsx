@@ -3,7 +3,7 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { EXPENSE_IMPORT_FIELDS } from "@/lib/importConfigs/expenseImportConfig";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useExpensesPaginated, Expense, ExpenseCategory } from "@/hooks/useExpensesPaginated";
