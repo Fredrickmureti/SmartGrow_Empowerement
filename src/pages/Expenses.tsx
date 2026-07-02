@@ -207,23 +207,8 @@ export default function Expenses() {
       }
     };
 
-    const openExpenseRecord = async (expenseId: string) => {
-      const localExpense = expenses.find((expense) => expense.id === expenseId);
-      if (localExpense) {
-        if (cancelled) return true;
-        setViewingExpense(localExpense);
-        return true;
-      }
-
-      const { data, error } = await supabase
-        .from("expenses")
-        .select("*, category:expense_categories(*), vendor:contacts(name), payment_account:accounts!expenses_payment_account_id_fkey(id, name, code)")
-        .eq("id", expenseId)
-        .maybeSingle();
-
-      if (cancelled || error || !data) return false;
-
-      setViewingExpense(data as unknown as Expense);
+    const openExpenseRecord = (expenseId: string) => {
+      setPeekId(expenseId);
       return true;
     };
 
