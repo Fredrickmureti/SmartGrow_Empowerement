@@ -186,6 +186,7 @@ export default function Expenses() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [peekId, setPeekId] = usePeekParam();
 
   // Handle deep-link URL params
   useEffect(() => {
