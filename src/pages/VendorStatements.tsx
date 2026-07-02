@@ -789,6 +789,14 @@ export default function VendorStatements() {
       open={contactDrawerOpen}
       onOpenChange={setContactDrawerOpen}
     />
+
+    {/* Standard peek surface — retires the inline preview dialog for
+        the VIEW path. The Generate flow keeps its own preview because
+        it operates on unsaved computed data. */}
+    <VendorStatementPeekSheet
+      statementId={peekId}
+      onOpenChange={(o) => !o && setPeekId(null)}
+    />
     </>
   );
 }
