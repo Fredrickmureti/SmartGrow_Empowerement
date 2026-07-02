@@ -141,7 +141,6 @@ export default function ExpenseEditPage() {
         title="Expense not found"
         description="This expense may have been deleted or you no longer have access."
         onRetry={() => navigate("/purchases/expenses")}
-        retryLabel="Back to Expenses"
       />
     );
   }
@@ -151,7 +150,6 @@ export default function ExpenseEditPage() {
         title="This expense can no longer be edited"
         description={`Only pending expenses can be edited. This expense is ${record.status}. Void or delete it first if you need to change the amount.`}
         onRetry={() => navigate("/purchases/expenses")}
-        retryLabel="Back to Expenses"
       />
     );
   }
