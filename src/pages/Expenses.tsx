@@ -184,7 +184,7 @@ export default function Expenses() {
   const { userRole, currentOrg } = useOrganization();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showDialog, setShowDialog] = useState(false);
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [peekId, setPeekId] = usePeekParam();
 
