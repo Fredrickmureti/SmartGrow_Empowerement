@@ -37,9 +37,7 @@ const PURCHASES_GLOBS = [
  * remove its entry here. New Purchases record dialogs MAY NOT be added to
  * this list — this list only shrinks.
  */
-const LEGACY_DIALOG_ALLOWLIST = new Set<string>([
-  "src/components/expenses/ExpenseDetailDialog.tsx",
-]);
+const LEGACY_DIALOG_ALLOWLIST = new Set<string>([]);
 
 function scanRecordDialogs(): string[] {
   const existing = PURCHASES_GLOBS.filter((g) => existsSync(g));
