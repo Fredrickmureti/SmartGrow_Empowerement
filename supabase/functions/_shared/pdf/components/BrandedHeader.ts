@@ -1,0 +1,342 @@
+/**
+ * BrandedHeader — masthead drawn at the top of every page.
+ *
+ * Layout (matches existing financial-report layout exactly):
+ *   ┌─────────────────────────────────────────────────────────┐
+ *   │ [logo]                              <Title>             │
+ *   │ Org Name                            Date Range          │
+ *   │ Address                             Generated: ...      │
+ *   │ City, State                                              │
+ *   │ Phone                                                    │
+ *   │ Email                                                    │
+ *   │ Tax ID                                                   │
+ *   │ ─────────────────────────────────────────────────────── │
+ *   └─────────────────────────────────────────────────────────┘
+ *
+ * Returns the Y position immediately below the separator, ready for
+ * the body to start drawing.
+ */
+
+import { PDFImage, PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
+import { PdfBuilder } from "../PdfBuilder.ts";
+import { theme } from "../themes/accountantMono.ts";
+import { winansiSafe } from "../winansi.ts";
+import type { OrganizationBranding } from "../../branding/index.ts";
+
+export interface BrandedHeaderConfig {
+  title: string;
+  dateRange?: string;
+  organization?: OrganizationBranding | null;
+  /** Fallback when organization is missing. */
+  companyName?: string;
+  /** Pre-embedded logo image + scaled dimensions (callers embed once). */
+  logo?: { image: PDFImage; width: number; height: number } | null;
+  /** Override the generation timestamp (defaults to builder's). */
+  generatedStamp?: string;
+  /**
+   * Stage 3: layout style.
+   *   - "operational" (default): logo left, title right (existing layout).
+   *   - "financial": centered statutory masthead in the order
+   *       COMPANY NAME → Title → Period/As-of → Subtitle → Prepared on.
+   *     Logo is omitted from the masthead in this profile (statutory
+   *     reports lead with the legal entity name, not branding).
+   */
+  formatProfile?: "operational" | "financial";
+  /** Optional subtitle (financial profile only, e.g. "Accrual Basis"). */
+  subtitle?: string;
+}
+
+export interface DrawnHeader {
+  /** Y position below the separator line — body starts here. */
+  bodyY: number;
+  /** Y position of the separator line itself (for amount-due alignment). */
+  separatorY: number;
+}
+
+/**
+ * Embed an organization logo, returning the embedded image and the
+ * pdf-lib-scaled dimensions (constrained to theme.logoMaxW/H).
+ *
+ * Caller is responsible for fetching bytes via fetchLogoBytes().
+ * Returns null on any failure (missing bytes, invalid image, etc.).
+ */
+export async function embedLogo(
+  builder: PdfBuilder,
+  bytes: Uint8Array | null,
+): Promise<{ image: PDFImage; width: number; height: number } | null> {
+  if (!bytes) return null;
+  let image: PDFImage | null = null;
+  try {
+    image = await builder.doc.embedPng(bytes);
+  } catch {
+    try {
+      image = await builder.doc.embedJpg(bytes);
+    } catch (e) {
+      console.warn("[BrandedHeader] logo embed failed:", (e as Error).message);
+      return null;
+    }
+  }
+  if (!image) return null;
+  const scale = Math.min(theme.logoMaxW / image.width, theme.logoMaxH / image.height);
+  return {
+    image,
+    width: image.width * scale,
+    height: image.height * scale,
+  };
+}
+
+export function drawBrandedHeader(
+  builder: PdfBuilder,
+  page: PDFPage,
+  config: BrandedHeaderConfig,
+): DrawnHeader {
+  // V2 (ADR-0008): on thermal/narrow paper, draw a single-column stacked
+  // masthead. The wide layout's right-aligned title and bottom-right
+  // generation stamp would render off-canvas at 80mm/58mm.
+  if (builder.state.density === "narrow") {
+    return drawNarrowHeader(builder, page, config);
+  }
+  if (config.formatProfile === "financial") {
+    return drawFinancialMasthead(builder, page, config);
+  }
+  return drawOperationalHeader(builder, page, config);
+}
+
+/**
+ * Narrow (thermal) masthead — everything stacked, centered, single column.
+ * Skips logo (rarely fits readably on 58mm) and tax-id/email lines that
+ * push the receipt past one screen of paper. Keeps title + org name +
+ * one address line + phone.
+ */
+function drawNarrowHeader(
+  builder: PdfBuilder,
+  page: PDFPage,
+  config: BrandedHeaderConfig,
+): DrawnHeader {
+  const { state, fontRegular, fontBold } = builder;
+  const { pageWidth, pageHeight, margin } = state;
+  const { title, organization, companyName } = config;
+  const stamp = config.generatedStamp ?? state.generatedStamp;
+
+  const orgName = organization?.name || companyName || "";
+  const center = pageWidth / 2;
+  const drawCentered = (
+    text: string,
+    y: number,
+    size: number,
+    bold: boolean,
+    color = theme.color.text,
+  ) => {
+    if (!text) return;
+    const font = bold ? fontBold : fontRegular;
+    // Truncate (not shrink) — narrow paper has hard width limits.
+    let t = winansiSafe(text);
+    const maxW = pageWidth - margin * 2;
+    while (font.widthOfTextAtSize(t, size) > maxW && t.length > 1) {
+      t = t.slice(0, -1);
+    }
+    const w = font.widthOfTextAtSize(t, size);
+    page.drawText(t, { x: center - w / 2, y, size, font, color });
+  };
+
+  let y = pageHeight - margin;
+
+  if (orgName) {
+    drawCentered(orgName, y, 10, true);
+    y -= 12;
+  }
+
+  // One address line if present (city only — full address rarely fits).
+  const cityLine = [organization?.city, organization?.state].filter(Boolean).join(", ");
+  if (cityLine) {
+    drawCentered(cityLine, y, 7, false, theme.color.medGray);
+    y -= 9;
+  }
+  if (organization?.phone) {
+    drawCentered(organization.phone, y, 7, false, theme.color.medGray);
+    y -= 9;
+  }
+
+  // Title centered, bigger.
+  y -= 2;
+  drawCentered(title.toUpperCase(), y, 9, true);
+  y -= 12;
+
+  drawCentered(stamp, y, 6, false, theme.color.lightGray);
+  y -= 8;
+
+  const separatorY = y - 2;
+  page.drawLine({
+    start: { x: margin, y: separatorY },
+    end: { x: pageWidth - margin, y: separatorY },
+    thickness: 0.5,
+    color: theme.color.text,
+  });
+
+  return { bodyY: separatorY - 10, separatorY };
+}
+
+/**
+ * Original logo-left / title-right layout. Used for invoices, statements,
+ * operational reports, ageing, etc.
+ */
+function drawOperationalHeader(
+  builder: PdfBuilder,
+  page: PDFPage,
+  config: BrandedHeaderConfig,
+): DrawnHeader {
+  const { state, fontRegular, fontBold } = builder;
+  const { pageWidth, pageHeight, margin } = state;
+  const { title, dateRange, organization, companyName, logo } = config;
+  const stamp = config.generatedStamp ?? state.generatedStamp;
+
+  const orgName = organization?.name || companyName || "";
+  const topY = pageHeight - margin;
+
+  if (logo) {
+    page.drawImage(logo.image, {
+      x: margin,
+      y: topY - logo.height,
+      width: logo.width,
+      height: logo.height,
+    });
+  }
+
+  let infoY = logo ? topY - logo.height - 14 : topY;
+
+  if (orgName) {
+    page.drawText(winansiSafe(orgName), {
+      x: margin, y: infoY,
+      size: theme.size.orgName, font: fontBold, color: theme.color.text,
+    });
+    infoY -= 14;
+  }
+
+  const orgDetails: string[] = [];
+  if (organization?.address) orgDetails.push(organization.address);
+  const cityLine = [organization?.city, organization?.state, organization?.country]
+    .filter(Boolean)
+    .join(", ");
+  if (cityLine) orgDetails.push(cityLine);
+  if (organization?.phone) orgDetails.push(organization.phone);
+  if (organization?.email) orgDetails.push(organization.email);
+  if (organization?.tax_id) orgDetails.push(`Tax ID: ${organization.tax_id}`);
+
+  for (const detail of orgDetails) {
+    page.drawText(winansiSafe(detail), {
+      x: margin, y: infoY,
+      size: theme.size.orgDetail, font: fontRegular, color: theme.color.medGray,
+    });
+    infoY -= 11;
+  }
+
+  const safeTitle = winansiSafe(title);
+  const titleSize = safeTitle.length > 25 ? theme.size.titleSmall : theme.size.title;
+  const titleWidth = fontBold.widthOfTextAtSize(safeTitle, titleSize);
+  page.drawText(safeTitle, {
+    x: pageWidth - margin - titleWidth,
+    y: topY,
+    size: titleSize, font: fontBold, color: theme.color.text,
+  });
+
+  if (dateRange) {
+    const safeDateRange = winansiSafe(dateRange);
+    const drWidth = fontRegular.widthOfTextAtSize(safeDateRange, theme.size.dateRange);
+    page.drawText(safeDateRange, {
+      x: pageWidth - margin - drWidth,
+      y: topY - 20,
+      size: theme.size.dateRange, font: fontRegular, color: theme.color.medGray,
+    });
+  }
+
+  const safeStamp = winansiSafe(stamp);
+  const stampWidth = fontRegular.widthOfTextAtSize(safeStamp, theme.size.timestamp);
+  page.drawText(safeStamp, {
+    x: pageWidth - margin - stampWidth,
+    y: topY - (dateRange ? 33 : 20),
+    size: theme.size.timestamp, font: fontRegular, color: theme.color.lightGray,
+  });
+
+  const separatorY = Math.min(infoY, topY - 48) - 8;
+  page.drawLine({
+    start: { x: margin, y: separatorY },
+    end: { x: pageWidth - margin, y: separatorY },
+    thickness: 1.5,
+    color: theme.color.text,
+  });
+
+  return { bodyY: separatorY - 16, separatorY };
+}
+
+/**
+ * Statutory financial-statement masthead — centered, no logo, in the
+ * order accountants expect:
+ *   1. COMPANY NAME (uppercase, bold)
+ *   2. Report title (bold)
+ *   3. Period ("For the period …") OR As-of ("As of …")
+ *   4. Optional subtitle (italic-style, e.g. "Accrual Basis")
+ *   5. Prepared on {timestamp}
+ *
+ * This matches the React `FinancialReportHeader` exactly, so on-screen
+ * preview and printed PDF read identically.
+ */
+function drawFinancialMasthead(
+  builder: PdfBuilder,
+  page: PDFPage,
+  config: BrandedHeaderConfig,
+): DrawnHeader {
+  const { state, fontRegular, fontBold } = builder;
+  const { pageWidth, pageHeight, margin } = state;
+  const { title, dateRange, organization, companyName, subtitle } = config;
+  const stamp = config.generatedStamp ?? state.generatedStamp;
+
+  const orgName = (organization?.name || companyName || "").toUpperCase();
+  const center = pageWidth / 2;
+
+  const drawCentered = (
+    text: string,
+    y: number,
+    size: number,
+    bold: boolean,
+    color = theme.color.text,
+  ) => {
+    if (!text) return;
+    const font = bold ? fontBold : fontRegular;
+    const safeText = winansiSafe(text);
+    const w = font.widthOfTextAtSize(safeText, size);
+    page.drawText(safeText, { x: center - w / 2, y, size, font, color });
+  };
+
+  let y = pageHeight - margin;
+
+  if (orgName) {
+    drawCentered(orgName, y, theme.size.orgName + 1, true);
+    y -= 16;
+  }
+
+  drawCentered(title, y, theme.size.title, true);
+  y -= 14;
+
+  if (dateRange) {
+    drawCentered(`For the period ${dateRange}`, y, theme.size.dateRange, false, theme.color.medGray);
+    y -= 12;
+  }
+
+  if (subtitle) {
+    drawCentered(subtitle, y, theme.size.orgDetail, false, theme.color.medGray);
+    y -= 11;
+  }
+
+  drawCentered(stamp, y, theme.size.timestamp, false, theme.color.lightGray);
+  y -= 10;
+
+  const separatorY = y - 6;
+  page.drawLine({
+    start: { x: margin, y: separatorY },
+    end: { x: pageWidth - margin, y: separatorY },
+    thickness: 1.5,
+    color: theme.color.text,
+  });
+
+  return { bodyY: separatorY - 16, separatorY };
+}

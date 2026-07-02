@@ -1,0 +1,80 @@
+/**
+ * PDF Report Cache
+ * 
+ * L2 FIX: Simple in-memory cache for generated PDFs with TTL.
+ * Prevents redundant edge function calls for the same report config.
+ */
+
+interface CacheEntry {
+  blob: Blob;
+  expiresAt: number;
+}
+
+const PDF_CACHE = new Map<string, CacheEntry>();
+const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Generates a cache key from report export config.
+ */
+function getCacheKey(config: {
+  title?: string;
+  dateRange?: string;
+  organizationId?: string;
+  columns?: any[];
+  rows?: any[];
+}): string {
+  return JSON.stringify({
+    t: config.title,
+    d: config.dateRange,
+    o: config.organizationId,
+    c: config.columns?.length,
+    r: config.rows?.length,
+    // Include a hash of first/last rows for change detection
+    f: config.rows?.[0],
+    l: config.rows?.[config.rows.length - 1],
+  });
+}
+
+/**
+ * Retrieve a cached PDF blob if it exists and hasn't expired.
+ */
+export function getCachedPdf(config: Parameters<typeof getCacheKey>[0]): Blob | null {
+  const key = getCacheKey(config);
+  const entry = PDF_CACHE.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    PDF_CACHE.delete(key);
+    return null;
+  }
+  return entry.blob;
+}
+
+/**
+ * Store a PDF blob in cache with optional TTL.
+ */
+export function cachePdf(
+  config: Parameters<typeof getCacheKey>[0],
+  blob: Blob,
+  ttlMs: number = DEFAULT_TTL_MS
+): void {
+  const key = getCacheKey(config);
+  PDF_CACHE.set(key, {
+    blob,
+    expiresAt: Date.now() + ttlMs,
+  });
+
+  // Evict old entries if cache gets too large
+  if (PDF_CACHE.size > 20) {
+    const now = Date.now();
+    for (const [k, v] of PDF_CACHE) {
+      if (now > v.expiresAt) PDF_CACHE.delete(k);
+    }
+  }
+}
+
+/**
+ * Clear all cached PDFs.
+ */
+export function clearPdfCache(): void {
+  PDF_CACHE.clear();
+}

@@ -1,0 +1,2 @@
+ALTER TABLE public.payroll_readiness_findings DROP CONSTRAINT IF EXISTS payroll_readiness_findings_status_check;
+ALTER TABLE public.payroll_readiness_findings ADD CONSTRAINT payroll_readiness_findings_status_check CHECK (status = ANY (ARRAY['pass'::text, 'fail'::text, 'warn'::text, 'skip'::text, 'na'::text]));

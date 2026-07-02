@@ -1,0 +1,277 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design system tokens — must be imported AFTER the @tailwind directives so
+ * `:root` lands in the cascade above .dark/[data-density] overrides below.
+ * Every workspace, primitive, and module consumes these. */
+@import "./design-system/tokens.css";
+
+/* Enterprise Accounting SaaS Design System */
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 262 83% 58%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 210 40% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 16%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 222 47% 18%;
+    --sidebar-ring: 221 83% 53%;
+
+    --chart-1: 221 83% 53%;
+    --chart-2: 262 83% 58%;
+    --chart-3: 142 76% 36%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 0 84% 60%;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 262 83% 58%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 210 40% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 221 83% 53%;
+
+    --sidebar-background: 222 47% 6%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 12%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 222 47% 14%;
+    --sidebar-ring: 221 83% 53%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+
+/* Landing page navigation dropdown override */
+.landing-nav [data-radix-navigation-menu-viewport] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Fix dropdown content for light mode */
+.landing-nav .bg-slate-900\/98 {
+  background-color: #fff !important;
+  color: #222 !important;
+}
+.landing-nav .text-white,
+.landing-nav .text-white\/60,
+.landing-nav .text-white\/50 {
+  color: #222 !important;
+}
+.landing-nav .text-purple-400,
+.landing-nav .text-cyan-400 {
+  color: #7c3aed !important;
+}
+.landing-nav .hover\:text-white:hover {
+  color: #000 !important;
+}
+.landing-nav .hover\:bg-white\/5:hover {
+  background-color: #f3f4f6 !important;
+}
+.landing-nav .border-white\/10 {
+  border-color: #e5e7eb !important;
+}
+
+/* Print styles removed — all documents now use server-side PDF generation */
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  /* Responsive table container for horizontal scrolling */
+  .table-container {
+    @apply w-full overflow-x-auto;
+  }
+  
+  /* Page header responsive layout */
+  .page-header {
+    @apply flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between;
+  }
+  
+  /* Action buttons group - wraps on mobile */
+  .action-buttons {
+    @apply flex flex-wrap gap-2 sm:gap-3;
+  }
+  
+  /* Filter bar - stacks on mobile */
+  .filter-bar {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4;
+  }
+  
+  /* Stats grid - responsive columns */
+  /* 1 column on mobile (full width for large figures), 2 on tablets, 4 on desktop */
+  .stats-grid {
+    @apply grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4;
+  }
+  
+  /* Responsive text scaling */
+  .page-title {
+    @apply text-2xl sm:text-3xl font-bold;
+  }
+  
+  /* Responsive stat card values - no longer needs truncate with 1-col mobile layout */
+  .stat-value {
+    @apply text-xl sm:text-2xl font-bold break-words;
+  }
+  
+  .stat-value-lg {
+    @apply text-2xl sm:text-3xl font-bold break-words;
+  }
+  
+  /* Card content with better mobile padding */
+  .card-responsive {
+    @apply p-4 sm:p-6;
+  }
+  
+  /* Responsive form grid for dialogs */
+  .dialog-form-grid {
+    @apply grid gap-4 grid-cols-1 sm:grid-cols-2;
+  }
+  
+  /* Mobile-friendly line items container */
+  .line-items-mobile {
+    @apply flex flex-col gap-3;
+  }
+  
+  .line-item-card {
+    @apply p-3 border rounded-lg space-y-3;
+  }
+  
+  /* Responsive dialog content - ensures dialogs don't overflow on mobile */
+  .dialog-responsive {
+    @apply w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6;
+  }
+  
+  /* Bulk actions toolbar - responsive */
+  .bulk-toolbar {
+    @apply flex flex-col sm:flex-row items-start sm:items-center gap-2 bg-muted px-3 py-2 rounded-lg;
+  }
+  
+  /* Hide scrollbar for horizontal scroll on mobile */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  /* Mobile card layout for tables */
+  .mobile-card-list {
+    @apply flex flex-col gap-3;
+  }
+  
+  .mobile-card {
+    @apply p-4 border rounded-lg bg-card;
+  }
+  
+  /* Touch-friendly targets - min 44px for accessibility */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  
+  /* Responsive tabs - horizontal scrollable */
+  .responsive-tabs {
+    @apply flex flex-wrap h-auto gap-1 p-1;
+  }
+  
+  /* Hide on mobile, show on tablet+ */
+  .hide-mobile {
+    @apply hidden sm:table-cell;
+  }
+  
+  /* Show only on mobile */
+  .show-mobile-only {
+    @apply sm:hidden;
+  }
+  
+  /* Request/approval card for mobile leave views */
+  .request-card {
+    @apply p-4 border rounded-lg bg-card space-y-3;
+  }
+  
+  /* Responsive dialog - full width on mobile */
+  .dialog-full-mobile {
+    @apply w-[95vw] max-w-4xl;
+  }
+}

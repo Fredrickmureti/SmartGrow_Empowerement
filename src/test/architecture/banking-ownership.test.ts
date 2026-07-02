@@ -1,0 +1,79 @@
+/**
+ * Banking ownership boundary — architecture guards.
+ *
+ * Backstop for the invariants enforced by the 2026-05-16 migration:
+ *   R1/R2 — duplicate bank-connection prevention (DB unique indexes)
+ *   R3    — bank_transactions scope inherits from parent bank_account (trigger)
+ *   R5    — is_shared ⇔ branch_id IS NULL (CHECK)
+ *   R7    — sync edge function explicitly stamps business_id + branch_id
+ *
+ * These tests prevent regressions where a future agent removes the
+ * scope-stamping or reintroduces an unscoped insert path.
+ */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, it, expect } from "vitest";
+
+const root = process.cwd();
+
+describe("banking ownership architecture", () => {
+  it("sync-bank-transactions stamps business_id and branch_id on inserts (R7)", () => {
+    const src = readFileSync(
+      join(root, "supabase/functions/sync-bank-transactions/index.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(/business_id:\s*\(account as any\)\.business_id/);
+    expect(src).toMatch(/branch_id:\s*\(account as any\)\.branch_id/);
+  });
+
+  it("useBankAccounts maps the new DB friendly errors (R1/R2/R5)", () => {
+    const src = readFileSync(join(root, "src/hooks/useBankAccounts.ts"), "utf8");
+    expect(src).toContain("bank_accounts_external_unique");
+    expect(src).toContain("bank_accounts_manual_unique");
+    expect(src).toContain("bank_accounts_shared_branch_consistency");
+  });
+
+  it("useReconciliationSessions maps the open-session unique violation (R4)", () => {
+    const src = readFileSync(
+      join(root, "src/hooks/useReconciliationSessions.ts"),
+      "utf8",
+    );
+    expect(src).toContain("bank_reconciliation_one_open_per_account");
+  });
+
+  it("ConnectBankDialog locks the branch selector for non-HQ branch users", () => {
+    const src = readFileSync(
+      join(root, "src/components/banking/ConnectBankDialog.tsx"),
+      "utf8",
+    );
+    expect(src).toContain("branchSelectorLocked");
+    expect(src).toContain("is_shared");
+  });
+
+  it("EditBankAccountDialog enforces branch lock + re-attribute confirmation (G1)", () => {
+    const src = readFileSync(
+      join(root, "src/components/banking/EditBankAccountDialog.tsx"),
+      "utf8",
+    );
+    expect(src).toContain("branchSelectorLocked");
+    expect(src).toContain("requiresReattributeConfirm");
+    expect(src).toContain("reattributeConfirmed");
+    expect(src).toMatch(/is_shared:\s*resolvedBranchId === null/);
+  });
+
+  it("StartReconciliationDialog surfaces Resume CTA for an existing open session (G2)", () => {
+    const src = readFileSync(
+      join(root, "src/components/banking/StartReconciliationDialog.tsx"),
+      "utf8",
+    );
+    expect(src).toContain("useReconciliationSessions");
+    expect(src).toContain("openSessionForAccount");
+    expect(src).toContain("Resume reconciliation");
+  });
+
+  it("useBankAccounts duplicate toast deep-links to /banking (G3)", () => {
+    const src = readFileSync(join(root, "src/hooks/useBankAccounts.ts"), "utf8");
+    expect(src).toContain("bank_accounts_manual_no_provider_unique");
+    expect(src).toMatch(/label:\s*"Open bank accounts"/);
+  });
+});

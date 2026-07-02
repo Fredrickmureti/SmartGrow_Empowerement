@@ -1,0 +1,65 @@
+Enterprise ERP & Accounting Platform
+=====================================
+
+Designed and built a full-stack, production-grade ERP and double-entry accounting system serving as a unified business management platform for SMEs and growing enterprises.
+
+Core Platform
+─────────────
+• Multi-tenant architecture with strict per-business data isolation, row-level security, and role-based access control across organizations, businesses, and branches.
+• Real-time collaboration with live presence indicators, WebSocket-powered data sync, and optimistic UI updates.
+• Subscription and permission gating with tiered feature access.
+
+Financial Accounting (Odoo/QuickBooks-grade)
+────────────────────────────────────────────
+• Full double-entry General Ledger with hierarchical chart of accounts, journal entries, and automatic balancing.
+• Financial reporting suite: Balance Sheet, Income Statement (P&L), Cash Flow (indirect method), Trial Balance, General Ledger, Partner Ledger, Budget vs. Actual, and Depreciation Schedules.
+• Bank reconciliation with transaction matching, multi-currency support, and fiscal year/period management.
+• Accounts Payable & Receivable: vendor bills, bill payments, invoice aging, and aged payables tracking.
+• Fixed asset management with configurable depreciation methods, maintenance tracking, and disposal workflows.
+• Budgeting engine with monthly allocations, variance analysis, and KPI dashboards.
+• Analytic accounting with cost centers, distribution rules, and cross-dimensional reporting.
+
+Sales & CRM
+────────────
+• End-to-end sales pipeline: leads, opportunities, quotations, sales orders, and invoicing.
+• Customer management with contact segmentation, communication history, and activity tracking.
+• Configurable approval workflows for quotes and orders with multi-step authorization chains.
+
+Inventory & Supply Chain
+────────────────────────
+• Multi-warehouse inventory with real-time stock levels, lot/serial tracking, and automated reorder points.
+• Purchase management: purchase orders, goods receipts, vendor management, and backorder handling.
+• Stock valuation with FIFO/LIFO/average costing methods.
+
+Point of Sale (POS)
+───────────────────
+• Full-featured POS terminal with barcode scanning, split payments, discounts, and receipt printing.
+• Restaurant mode: interactive floor plan with table management, kitchen display system (KDS) with real-time order routing by station (kitchen, bar, grill, dessert), table session tracking, and guest management.
+• Booking/reservation system with calendar integration.
+• Shift management with cash-up reconciliation.
+
+Business Intelligence & Spreadsheets
+─────────────────────────────────────
+• Built-in spreadsheet engine with formula support (powered by HyperFormula), cell formatting, embedded charts, and real-time multi-user collaboration.
+• Shareable spreadsheets with granular permission controls (view/edit/admin), token-based access links, expiration policies, and public access toggles.
+• Scheduled report automation: generates and emails financial/operational reports (PDF, CSV, Excel) on configurable schedules — daily, weekly, monthly, quarterly, or yearly.
+• Interactive dashboards with drill-down analytics and customizable KPI cards.
+
+AI-Powered Features
+───────────────────
+• Multi-provider AI integration (configurable API keys with automatic failover and rate-limit handling).
+• AI-assisted bank transaction categorization with confidence scoring.
+• Intelligent financial insights caching for performance optimization.
+
+Platform & Operations
+─────────────────────
+• Comprehensive audit trail with before/after snapshots, IP logging, and user attribution.
+• Automated server actions with configurable triggers, multi-step workflows, retry logic, and execution logging.
+• Document management with file attachments, storage buckets, and access policies.
+• Admin tooling: platform-wide user management, email broadcasting, and system configuration.
+
+Technology Stack
+────────────────
+React 18 · TypeScript · Vite · Tailwind CSS · shadcn/ui · Framer Motion · TanStack Query · Supabase (PostgreSQL, Auth, Edge Functions, Realtime, Storage) · HyperFormula · Recharts · PDF generation · PWA-ready
+
+This system is fully deployed in production, not a demo or prototype. It is architected for real-world multi-business use with enterprise-grade data integrity, security, and scalability.

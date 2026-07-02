@@ -1,0 +1,1 @@
+ALTER VIEW public.v_employee_setup_health SET (security_invoker = true);

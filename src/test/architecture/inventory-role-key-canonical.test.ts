@@ -1,0 +1,165 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync } from "fs";
+import { join } from "path";
+
+/**
+ * Guard against the inventory account-role naming drift that broke fresh
+ * tenants in May 2026:
+ *   - system_account_roles.role_key uses canonical 'inventory'.
+ *   - default_account_settings.setting_key must use the same canonical key.
+ *   - A prior migration (20260517143924_*) wrote 'inventory_asset' instead,
+ *     which the validate_default_account_setting trigger correctly rejected.
+ *
+ * Any migration that introduces 'inventory_asset' as a real key (rather
+ * than as an alias in canonicalize_role_key or a backfill that COLLAPSES
+ * the legacy spelling) must fail this test.
+ */
+describe("inventory role-key canonicalization", () => {
+  const MIGRATIONS_DIR = "supabase/migrations";
+  const ALIAS_MIGRATION = "_inventory_role_key_canonical";
+
+  const allMigrations = readdirSync(MIGRATIONS_DIR).filter((f) =>
+    f.endsWith(".sql"),
+  );
+
+  // The alias migration is identified by content (auto-named timestamp+uuid
+  // files don't carry semantic filenames). Any migration that BOTH defines
+  // canonicalize_role_key AND contains the 'inventory_asset' → 'inventory'
+  // CASE branch is considered an alias migration.
+  const aliasMigrations = allMigrations.filter((f) => {
+    const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+    return (
+      /CREATE OR REPLACE FUNCTION public\.canonicalize_role_key/.test(sql) &&
+      /'inventory_asset'\s+THEN\s+'inventory'/.test(sql)
+    );
+  });
+
+  it("no migration writes setting_key='inventory_asset' as a canonical key", () => {
+    const offenders: string[] = [];
+
+    for (const file of allMigrations) {
+      const path = join(MIGRATIONS_DIR, file);
+      const sql = readFileSync(path, "utf8");
+
+      if (!sql.includes("inventory_asset")) continue;
+
+      // Alias migrations are allowed to mention the legacy spelling (case
+      // branch + idempotent backfill that collapses it onto the canonical
+      // key).
+      if (aliasMigrations.includes(file)) continue;
+
+      // The original drift migration is part of project history; it is
+      // superseded by the alias migration. Allow it explicitly so the test
+      // stays focused on FUTURE regressions.
+      if (file.startsWith("20260517143924")) continue;
+
+      offenders.push(file);
+    }
+
+    expect(
+      offenders,
+      `Migrations referencing 'inventory_asset' outside the canonicalization alias:\n` +
+        offenders.join("\n") +
+        `\nUse setting_key='inventory' (canonical) instead.`,
+    ).toEqual([]);
+  });
+
+  it("a canonicalization alias migration is present and writes the canonical key", () => {
+    expect(
+      aliasMigrations.length,
+      "Expected at least one migration that aliases inventory_asset → inventory and uses the canonical key",
+    ).toBeGreaterThan(0);
+
+    // At least one alias migration must also write setting_key='inventory'
+    // via ensure_inventory_gl_accounts (the auto-provisioning UPSERT).
+    const hasCanonicalUpsert = aliasMigrations.some((f) => {
+      const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+      return /VALUES\s*\([^)]*'inventory'\s*,\s*v_inv\s*\)/.test(sql);
+    });
+    expect(
+      hasCanonicalUpsert,
+      "Expected an alias migration to UPSERT default_account_settings with setting_key='inventory'",
+    ).toBe(true);
+  });
+
+  it("ensure_inventory_gl_accounts never creates an adjustment account with an ineligible detail_type", () => {
+    // account_role_eligibility seeds role_key='inventory_adjustment' with
+    // detail_types: other_business_expenses, cost_of_sales_other, other_expense.
+    // If a migration's ensure_inventory_gl_accounts body inserts an account
+    // tied to setting_key='inventory_adjustment' using detail_type
+    // 'inventory_adjustment' (or any other non-eligible value), the
+    // validate_default_account_setting trigger will reject the UPSERT and
+    // opening-stock posting will fail. Guard against regressing.
+    const ELIGIBLE = new Set([
+      "other_business_expenses",
+      "cost_of_sales_other",
+      "other_expense",
+    ]);
+
+    const helperDefiners = allMigrations.filter((f) => {
+      const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+      return /CREATE OR REPLACE FUNCTION public\.ensure_inventory_gl_accounts/.test(
+        sql,
+      );
+    });
+
+    // Only the latest definer is authoritative; older ones are superseded.
+    const latest = helperDefiners.sort()[helperDefiners.length - 1];
+    expect(
+      latest,
+      "Expected at least one ensure_inventory_gl_accounts definer migration",
+    ).toBeTruthy();
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, latest!), "utf8");
+
+    // Locate every INSERT that targets v_adj by splitting on the RETURNING
+    // sentinel and walking backwards to the most recent VALUES block. A
+    // single regex won't do because the description literal can contain
+    // parentheses ("auto-provisioned"), defeating naive [^)]* captures.
+    const segments = sql.split(/RETURNING id INTO v_adj/);
+    const adjInserts: string[] = [];
+    for (let i = 0; i < segments.length - 1; i++) {
+      const head = segments[i];
+      const valuesIdx = head.lastIndexOf("VALUES");
+      if (valuesIdx < 0) continue;
+      adjInserts.push(head.slice(valuesIdx));
+    }
+
+    expect(
+      adjInserts.length,
+      "Expected ensure_inventory_gl_accounts to contain at least one v_adj INSERT",
+    ).toBeGreaterThan(0);
+
+    for (const block of adjInserts) {
+      // detail_type is the literal immediately preceding `v_code` in the
+      // canonical (account_type, detail_type, code, ...) ordering.
+      const detailTypeMatch = block.match(/'([a-z_]+)'\s*,\s*v_code/);
+      expect(
+        detailTypeMatch,
+        `Could not locate detail_type literal in adjustment INSERT:\n${block.slice(0, 400)}`,
+      ).toBeTruthy();
+      const dt = detailTypeMatch![1];
+      expect(
+        ELIGIBLE.has(dt),
+        `ensure_inventory_gl_accounts adjustment INSERT uses detail_type='${dt}', which is not in account_role_eligibility for role 'inventory_adjustment' (allowed: ${[...ELIGIBLE].join(", ")}).`,
+      ).toBe(true);
+    }
+  });
+
+  it("ensure_inventory_gl_accounts provisions the cogs role alongside inventory + inventory_adjustment", () => {
+    const helperDefiners = allMigrations.filter((f) => {
+      const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+      return /CREATE OR REPLACE FUNCTION public\.ensure_inventory_gl_accounts/.test(
+        sql,
+      );
+    });
+    const latest = helperDefiners.sort()[helperDefiners.length - 1]!;
+    const sql = readFileSync(join(MIGRATIONS_DIR, latest), "utf8");
+
+    expect(
+      /'cogs'\s*,\s*v_cogs/.test(sql),
+      "Expected ensure_inventory_gl_accounts to UPSERT default_account_settings with setting_key='cogs'",
+    ).toBe(true);
+  });
+});
+

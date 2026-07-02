@@ -1,0 +1,83 @@
+# AccrualFlow Production Docker Compose
+# For production deployment with external Supabase
+#
+# Usage:
+#   docker-compose -f docker-compose.prod.yml up -d
+#
+# Required environment variables:
+#   SUPABASE_URL - Your Supabase project URL
+#   SUPABASE_ANON_KEY - Your Supabase anon/public key
+#   SENTRY_DSN - (Optional) Sentry error tracking DSN
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # Web Application (Nginx + Static Files)
+  # ==========================================================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_ANON_KEY}
+        SENTRY_DSN: ${SENTRY_DSN:-}
+    container_name: accrualflow-web
+    ports:
+      - "80:80"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - accrualflow-prod-network
+
+  # ==========================================================================
+  # (Optional) Redis for caching - uncomment if needed
+  # ==========================================================================
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: accrualflow-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   restart: always
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - accrualflow-prod-network
+
+# ==========================================================================
+# Volumes
+# ==========================================================================
+# volumes:
+#   redis-data:
+#     driver: local
+
+# ==========================================================================
+# Networks
+# ==========================================================================
+networks:
+  accrualflow-prod-network:
+    driver: bridge

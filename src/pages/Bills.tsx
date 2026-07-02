@@ -1,0 +1,1211 @@
+import { useState, useRef, useEffect, useMemo } from "react";
+import { BILL_IMPORT_FIELDS } from "@/lib/importConfigs/billImportConfig";
+import { ClickableEntity } from "@/components/common/ClickableEntity";
+import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useBills, BillItem, Bill } from "@/hooks/useBills";
+import { useContacts } from "@/hooks/useContacts";
+import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
+import { useProducts } from "@/hooks/useProducts";
+import { useCurrency } from "@/hooks/useCurrency";
+import { useToast } from "@/hooks/use-toast";
+import { useExport } from "@/hooks/useExport";
+import { useViewMode } from "@/hooks/useViewMode";
+import { useListViewColumns, DefaultColumn } from "@/hooks/useListViewColumns";
+import { useCoreFieldDisplay } from "@/hooks/useCoreFieldDisplay";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { RefreshButton } from "@/components/ui/RefreshButton";
+import { queryKeys } from "@/lib/queryKeys";
+import { usePaymentTerms } from "@/hooks/usePaymentTerms";
+import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { ViewSwitcher } from "@/components/common/ViewSwitcher";
+import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
+import { DynamicViewsRenderer } from "@/components/common/DynamicViewsRenderer";
+import { CustomFieldFilters } from "@/components/common/CustomFieldFilters";
+import { useCustomFieldFiltering } from "@/hooks/useCustomFieldFiltering";
+import { StudioQuickPanelTrigger } from "@/components/studio/StudioQuickPanelTrigger";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Plus,
+  Search,
+  MoreHorizontal,
+  Trash2,
+  CreditCard,
+  Download,
+  Upload,
+  AlertCircle,
+  Eye,
+  Loader2,
+  Pencil,
+  Printer,
+  Mail,
+  Ban,
+  History,
+  RotateCcw,
+} from "lucide-react";
+import { ImportWizard } from "@/components/common/ImportWizard";
+import { FieldDefinition } from "@/lib/importUtils";
+import { ContactResolver, ProductResolver } from "@/lib/entityResolver";
+import { format, isWithinInterval, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
+import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
+import { BillPeekSheet } from "@/features/purchases/bills/BillPeekSheet";
+import { usePeekParam } from "@/design-system";
+// EditBillDialog retired — editing is now the RecordShell route at
+// /purchases/bills/:id/edit. See src/features/purchases/bills/BillEditPage.tsx.
+import { RecordBillPaymentDialog } from "@/components/bills/RecordBillPaymentDialog";
+import { BillPaymentHistoryDialog } from "@/components/bills/BillPaymentHistoryDialog";
+import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
+import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
+import { supabase } from "@/integrations/supabase/client";
+import { normalizeError } from "@/services/resilience";
+import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+
+// Workflow pipeline for Bills
+function BillWorkflowPipeline({ status }: { status: string }) {
+  const steps = [
+    { key: "draft", label: "Draft" },
+    { key: "received", label: "Confirmed" },
+    { key: "partial", label: "Partial" },
+    { key: "paid", label: "Paid" },
+  ];
+
+  const getActiveStep = () => {
+    if (status === "void") return -1;
+    if (status === "draft") return 0;
+    if (status === "received" || status === "overdue") return 1;
+    if (status === "partial") return 2;
+    if (status === "paid") return 3;
+    return 0;
+  };
+
+  const activeStep = getActiveStep();
+
+  if (status === "void") {
+    return (
+      <div className="flex items-center gap-1">
+        <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+        <span className="text-xs text-destructive font-medium">Void</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-0.5">
+      {steps.map((step, i) => (
+        <div key={step.key} className="flex items-center gap-0.5">
+          <div
+            className={`h-2 w-2 rounded-full transition-colors ${
+              i <= activeStep
+                ? i === activeStep
+                  ? status === "overdue"
+                    ? "bg-destructive ring-2 ring-destructive/30"
+                    : "bg-primary ring-2 ring-primary/30"
+                  : "bg-primary"
+                : "bg-muted-foreground/20"
+            }`}
+            title={step.label + (status === "overdue" && i === activeStep ? " (Overdue)" : "")}
+          />
+          {i < steps.length - 1 && (
+            <div className={`h-[1.5px] w-3 ${i < activeStep ? "bg-primary" : "bg-muted-foreground/20"}`} />
+          )}
+        </div>
+      ))}
+      {status === "overdue" && (
+        <span className="text-[10px] text-destructive font-medium ml-1">Overdue</span>
+      )}
+    </div>
+  );
+}
+
+export default function Bills() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  // View mode state
+  const { currentView, selectedSavedView, setView } = useViewMode({ entityType: "bill" });
+  
+  // Core field display overrides from Studio
+  const coreFieldDisplay = useCoreFieldDisplay("bill");
+
+  // Default list columns - can be overridden by saved list views in Studio
+  const defaultBillColumns: DefaultColumn[] = coreFieldDisplay.applyToColumns([
+    { field: "bill_number", label: "Bill #", visible: true },
+    { field: "supplier", label: "Supplier", visible: true },
+    { field: "bill_date", label: "Bill Date", visible: true },
+    { field: "due_date", label: "Due Date", visible: true },
+    { field: "pipeline", label: "Pipeline", visible: true },
+    { field: "amount", label: "Amount", visible: true },
+    { field: "balance", label: "Balance", visible: true },
+  ]);
+  const { visibleColumns } = useListViewColumns("bill", defaultBillColumns);
+
+  // Custom field filtering
+  const { filters: customFieldFilters, setFilters: setCustomFieldFilters, filterEntityIds, isFiltering: isCustomFiltering } = useCustomFieldFiltering("bill");
+
+  const { bills, isLoading, getNextBillNumber, createBill, confirmBill, updateBill, deleteBill, voidBill, recordBillPayment, getDefaultDueDate } = useBills();
+  const navigate = useNavigate();
+  const { paymentTerms, defaultPaymentTerm } = usePaymentTerms();
+  const { contacts } = useContacts();
+  const { products } = useProducts();
+  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
+  const { toast } = useToast();
+  const { exportBills } = useExport();
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const { canManagePurchases, canManageFinancials } = usePermissions();
+  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
+
+  // Check if user is admin/owner
+  const userRole = currentOrg?.role;
+  const isAdmin = userRole === "owner" || userRole === "admin" || userRole === "super_admin";
+
+  // Print & Email support
+  const {
+    printPreviewOpen,
+    setPrintPreviewOpen,
+    printPreviewTitle,
+    printDocumentType,
+    printDocumentId,
+    printCommunication,
+    isGeneratingPdf,
+    generateDocument,
+  } = useDocumentPrint();
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
+  const [isPrinting, setIsPrinting] = useState<string | null>(null);
+
+  const [showDialog, setShowDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [selectedBillForPayment, setSelectedBillForPayment] = useState<Bill | null>(null);
+  const [peekId, setPeekId] = usePeekParam();
+  const [showBillPaymentHistory, setShowBillPaymentHistory] = useState(false);
+  const [selectedBillForHistory, setSelectedBillForHistory] = useState<Bill | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const urlStatus = new URLSearchParams(window.location.search).get("status");
+    return urlStatus || "all";
+  });
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [previewContactId, setPreviewContactId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showImportWizard, setShowImportWizard] = useState(false);
+  const contactResolverRef = useRef<ContactResolver | null>(null);
+  const productResolverRef = useRef<ProductResolver | null>(null);
+  
+  // Multi-select state
+  const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  const handlePrintBill = async (bill: Bill) => {
+    setIsPrinting(bill.id);
+    const vendor = contacts.find((c) => c.id === bill.vendor_id);
+    await generateDocument("bill", bill.id, `Bill ${bill.bill_number}`, {
+      entityType: "bill",
+      entityId: bill.id,
+      businessId: currentBusiness?.id,
+      recipientPhone: vendor?.phone ?? null,
+      recipientName: vendor?.name ?? bill.vendor?.name ?? null,
+      variables: {
+        bill_number: bill.bill_number ?? "",
+        amount: String(bill.total ?? 0),
+        due_date: bill.due_date ?? "",
+        customer_name: vendor?.name ?? bill.vendor?.name ?? "",
+      },
+    });
+    setIsPrinting(null);
+  };
+
+  const handleVoidBill = async (id: string) => {
+    try {
+      await voidBill(id);
+    } catch (error: any) {
+      toast({ title: "Error voiding bill", description: normalizeError(error).message, variant: "destructive" });
+    }
+  };
+
+  // Handle deep-link URL params — legacy ?id=<billId> is migrated to
+  // the canonical ?peek=<billId> the moment the page mounts, so both
+  // legacy shortcuts and freshly-shared links resolve to the same peek
+  // surface (usePeekParam handles the storage side).
+  useEffect(() => {
+    let cancelled = false;
+
+    const consumeParams = (keys: string[]) => {
+      const next = new URLSearchParams(searchParams);
+      let changed = false;
+      keys.forEach((key) => {
+        if (next.has(key)) {
+          next.delete(key);
+          changed = true;
+        }
+      });
+      if (changed) {
+        setSearchParams(next, { replace: true });
+      }
+    };
+
+    const handleDeepLinks = async () => {
+      if (searchParams.get("action") === "create" && !showDialog) {
+        const prefillContactId = searchParams.get("contact_id");
+        if (prefillContactId) {
+          setFormData((prev) => ({ ...prev, vendor_id: prefillContactId }));
+        }
+        setShowDialog(true);
+      }
+
+      const legacyBillId = searchParams.get("id");
+      if (legacyBillId) {
+        if (!cancelled) setPeekId(legacyBillId);
+        consumeParams(["id"]);
+        return;
+      }
+
+      const paymentId = searchParams.get("payment");
+      if (!paymentId) return;
+
+      const { data: alloc, error } = await supabase
+        .from("bill_payment_allocations")
+        .select("bill_id")
+        .eq("bill_payment_id", paymentId)
+        .limit(1)
+        .maybeSingle();
+
+      if (cancelled || error || !alloc?.bill_id) return;
+      setPeekId(alloc.bill_id);
+      consumeParams(["payment"]);
+    };
+
+    void handleDeepLinks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, showDialog, setSearchParams, setPeekId]);
+
+
+  const billFieldDefinitions = BILL_IMPORT_FIELDS;
+
+  const handleImportBill = async (row: Record<string, any>) => {
+    if (!currentOrg) throw new Error("No organization selected");
+    if (!currentBusiness) throw new Error("No company selected. Pick a company before importing.");
+
+    if (!contactResolverRef.current) {
+      contactResolverRef.current = new ContactResolver(currentOrg.id, currentBusiness.id, "supplier", contacts.filter(c => c.type === "supplier" || c.type === "both"));
+    }
+
+    const resolved = await contactResolverRef.current.resolve(row.vendor_name);
+    const vendorId = resolved.id;
+
+    const quantity = Number(row.quantity) || 1;
+    const unitPrice = Number(row.unit_price) || 0;
+    const taxRate = Number(row.tax_rate) || 0;
+    const lineTotal = quantity * unitPrice;
+    const taxAmount = lineTotal * (taxRate / 100);
+
+    const billNumber = await getNextBillNumber();
+    const billDate = row.bill_date || new Date().toISOString().split("T")[0];
+
+    await createBill(
+      {
+        bill_number: billNumber,
+        vendor_id: vendorId,
+        vendor_invoice_number: row.vendor_invoice_number || null,
+        account_id: null,
+        status: "received",
+        bill_date: billDate,
+        due_date: row.due_date || getDefaultDueDate(billDate),
+        subtotal: 0,
+        tax_amount: 0,
+        discount_amount: 0,
+        total: 0,
+        amount_paid: 0,
+        currency: baseCurrency,
+        notes: row.notes || null,
+        attachment_url: null,
+      },
+      [
+        {
+          account_id: null,
+          product_id: null,
+          description: row.item_description,
+          quantity,
+          unit_price: unitPrice,
+          tax_rate: taxRate,
+          tax_amount: taxAmount,
+          line_total: lineTotal,
+          sort_order: 0,
+        },
+      ]
+    );
+  };
+
+  const handleImportComplete = () => {
+    contactResolverRef.current = null;
+    productResolverRef.current = null;
+  };
+
+  const [formData, setFormData] = useState({
+    vendor_id: "",
+    vendor_invoice_number: "",
+    bill_date: new Date().toISOString().split("T")[0],
+    due_date: "",
+    notes: "",
+    discount_amount: 0,
+  });
+
+  // Payment data removed — using shared RecordBillPaymentDialog
+
+  const [lineItems, setLineItems] = useState<Omit<BillItem, "id" | "bill_id">[]>([
+    { account_id: null, product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, line_total: 0, sort_order: 0 },
+  ]);
+
+  const vendors = contacts.filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active);
+
+  const resetForm = () => {
+    setFormData({ vendor_id: "", vendor_invoice_number: "", bill_date: new Date().toISOString().split("T")[0], due_date: "", notes: "", discount_amount: 0 });
+    setLineItems([{ account_id: null, product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, line_total: 0, sort_order: 0 }]);
+  };
+
+  const calculateLineTotal = (item: typeof lineItems[0]) => {
+    const subtotal = item.quantity * item.unit_price;
+    const tax = subtotal * (item.tax_rate / 100);
+    return { lineTotal: subtotal, taxAmount: tax };
+  };
+
+  const updateLineItem = (index: number, field: string, value: any) => {
+    const updated = [...lineItems];
+    updated[index] = { ...updated[index], [field]: value };
+
+    if (field === "product_id" && value) {
+      const product = products.find((p) => p.id === value);
+      if (product) {
+        updated[index].description = product.name;
+        updated[index].unit_price = product.cost_price || product.unit_price;
+        updated[index].tax_rate = product.tax_rate || 0;
+      }
+    }
+
+    const { lineTotal, taxAmount } = calculateLineTotal(updated[index]);
+    updated[index].line_total = lineTotal;
+    updated[index].tax_amount = taxAmount;
+
+    setLineItems(updated);
+  };
+
+  const addLineItem = () => {
+    setLineItems([...lineItems, { account_id: null, product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, line_total: 0, sort_order: lineItems.length }]);
+  };
+
+  const removeLineItem = (index: number) => {
+    if (lineItems.length > 1) {
+      setLineItems(lineItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.vendor_id || lineItems.every((item) => !item.description)) {
+      toast({ title: "Please fill required fields", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const billNumber = await getNextBillNumber();
+      await createBill(
+        {
+          bill_number: billNumber,
+          vendor_id: formData.vendor_id,
+          project_id: searchParams.get("project_id") || null,
+          vendor_invoice_number: formData.vendor_invoice_number || null,
+          account_id: null,
+          status: "received",
+          bill_date: formData.bill_date,
+          due_date: formData.due_date || getDefaultDueDate(formData.bill_date),
+          subtotal: 0,
+          tax_amount: 0,
+          discount_amount: formData.discount_amount,
+          total: 0,
+          amount_paid: 0,
+          currency: baseCurrency,
+          notes: formData.notes || null,
+          attachment_url: null,
+        },
+        lineItems.filter((item) => item.description)
+      );
+      toast({ title: "Bill created successfully" });
+      setShowDialog(false);
+      resetForm();
+    } catch (error: any) {
+      toast({ title: "Error creating bill", description: normalizeError(error).message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // handleRecordPayment removed — using shared RecordBillPaymentDialog
+
+  const openPaymentDialog = (billId: string) => {
+    const bill = bills.find((b) => b.id === billId);
+    if (bill) {
+      setSelectedBillForPayment(bill);
+      setShowPaymentDialog(true);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteBill(id);
+      setSelectedBills((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      toast({ title: "Bill deleted" });
+    } catch (error: any) {
+      toast({ title: "Error deleting bill", description: normalizeError(error).message, variant: "destructive" });
+    }
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedBills.size === 0) return;
+    
+    setIsBulkDeleting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const billId of selectedBills) {
+      try {
+        await deleteBill(billId);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete bill ${billId}:`, error);
+        errorCount++;
+      }
+    }
+
+    setSelectedBills(new Set());
+    setShowBulkDeleteDialog(false);
+    setIsBulkDeleting(false);
+
+    if (successCount > 0) {
+      toast({ title: `${successCount} bill(s) deleted successfully` });
+    }
+    if (errorCount > 0) {
+      toast({ 
+        title: `Failed to delete ${errorCount} bill(s)`, 
+        variant: "destructive" 
+      });
+    }
+  };
+
+  // Selection helpers
+  const toggleSelectAll = () => {
+    if (selectedBills.size === filteredBills.length) {
+      setSelectedBills(new Set());
+    } else {
+      setSelectedBills(new Set(filteredBills.map((b) => b.id)));
+    }
+  };
+
+  const toggleSelectBill = (billId: string) => {
+    setSelectedBills((prev) => {
+      const next = new Set(prev);
+      if (next.has(billId)) {
+        next.delete(billId);
+      } else {
+        next.add(billId);
+      }
+      return next;
+    });
+  };
+
+  // Export selected bills
+  const handleExportSelected = () => {
+    const billsToExport = selectedBills.size > 0 
+      ? bills.filter((b) => selectedBills.has(b.id))
+      : bills;
+    exportBills(billsToExport);
+  };
+
+  const filteredBills = bills.filter((bill) => {
+    const matchesSearch =
+      bill.bill_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      bill.vendor?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || bill.status === statusFilter;
+    let matchesDate = true;
+    if (dateFrom) {
+      matchesDate = matchesDate && bill.bill_date >= dateFrom;
+    }
+    if (dateTo) {
+      matchesDate = matchesDate && bill.bill_date <= dateTo;
+    }
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      draft: "secondary",
+      received: "default",
+      partial: "outline",
+      paid: "default",
+      overdue: "destructive",
+      void: "secondary",
+    };
+    const colors: Record<string, string> = { paid: "bg-green-500", overdue: "bg-red-500" };
+    return <Badge variant={variants[status]} className={colors[status]}>{status}</Badge>;
+  };
+
+  const totals = {
+    total: filteredBills.reduce((sum, b) => sum + b.total, 0),
+    outstanding: filteredBills.filter((b) => ["received", "partial", "overdue"].includes(b.status)).reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0),
+    overdue: filteredBills.filter((b) => b.status === "overdue").reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0),
+  };
+
+  const subtotal = lineItems.reduce((sum, item) => sum + item.line_total, 0);
+  const totalTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
+  const grandTotal = subtotal + totalTax - formData.discount_amount;
+
+  return (
+    <>
+      <div className="space-y-4 sm:space-y-6">
+        <div className="page-header">
+          <div className="flex items-center gap-2">
+            <div>
+              <h1 className="page-title">Bills</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">Track bills from your suppliers</p>
+            </div>
+            <RefreshButton
+              queryKeyPrefixes={[
+                queryKeys.bills.all(currentOrg?.id || ""),
+                queryKeys.reports.aging(currentOrg?.id || ""),
+              ]}
+              tooltip="Refresh bills"
+            />
+          </div>
+          <div className="action-buttons w-full sm:w-auto">
+            <CustomizeFieldsButton entityType="bill" />
+            <StudioQuickPanelTrigger entityType="bill" />
+            <ViewSwitcher
+              entityType="bill"
+              currentView={currentView}
+              onViewChange={setView}
+            />
+            <ReportExportButtons
+              compact
+              formats={["excel", "csv", "print", "pdf"]}
+              getExportConfig={() => {
+                const billData = selectedBills.size > 0
+                  ? bills.filter((b) => selectedBills.has(b.id))
+                  : bills;
+                const cols: ExportColumn[] = [
+                  { key: "bill_number", header: "Bill #", width: 14 },
+                  { key: "date", header: "Bill Date", width: 12 },
+                  { key: "due_date", header: "Due Date", width: 12 },
+                  { key: "vendor", header: "Vendor", width: 20 },
+                  { key: "status", header: "Status", width: 10 },
+                  { key: "subtotal", header: "Subtotal", format: "currency", width: 14, align: "right" },
+                  { key: "tax", header: "Tax", format: "currency", width: 12, align: "right" },
+                  { key: "total", header: "Total", format: "currency", width: 14, align: "right" },
+                  { key: "paid", header: "Paid", format: "currency", width: 14, align: "right" },
+                  { key: "balance", header: "Balance", format: "currency", width: 14, align: "right" },
+                ];
+                const rows = billData.map((b) => ({
+                  bill_number: b.bill_number,
+                  date: b.bill_date,
+                  due_date: b.due_date,
+                  vendor: b.vendor?.name || "",
+                  status: b.status,
+                  subtotal: b.subtotal,
+                  tax: b.tax_amount || 0,
+                  total: b.total,
+                  paid: b.amount_paid || 0,
+                  balance: b.total - (b.amount_paid || 0),
+                }));
+                return {
+                  title: "Bills Report",
+                  companyName: currentOrg?.name,
+                  columns: cols,
+                  rows,
+                  currency: baseCurrency,
+                  organizationId: currentOrg?.id,
+                } as ExportConfig;
+              }}
+            />
+            {(canManagePurchases || canManageFinancials) && (
+              <>
+                <Button variant="outline" onClick={() => setShowImportWizard(true)} className="flex-1 sm:flex-none">
+                  <Upload className="mr-2 h-4 w-4" /> Import
+                </Button>
+                <Button onClick={() => setShowDialog(true)} className="flex-1 sm:flex-none">
+                  <Plus className="mr-2 h-4 w-4" /> Add Bill
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Bulk Actions Bar - Admin Only */}
+        {isAdmin && selectedBills.size > 0 && (
+          <div className="flex items-center justify-between bg-muted/50 border rounded-lg p-3">
+            <span className="text-sm font-medium">
+              {selectedBills.size} bill{selectedBills.size > 1 ? "s" : ""} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedBills(new Set())}
+              >
+                Clear Selection
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowBulkDeleteDialog(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Selected
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="stats-grid grid-cols-2 sm:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Bills</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(totals.total, baseCurrency)}</div>
+              <p className="text-xs text-muted-foreground">{filteredBills.length} bills</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Draft</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-muted-foreground">
+                {filteredBills.filter(b => b.status === "draft").length}
+              </div>
+              <p className="text-xs text-muted-foreground">Awaiting confirmation — no GL impact</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">{formatCurrency(totals.outstanding, baseCurrency)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                <AlertCircle className="h-4 w-4 text-destructive" /> Overdue
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">{formatCurrency(totals.overdue, baseCurrency)}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="filter-bar flex-wrap">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search bills..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 w-full" />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="received">Received</SelectItem>
+              <SelectItem value="partial">Partial</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            placeholder="From"
+            className="w-full sm:w-[150px]"
+          />
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            placeholder="To"
+            className="w-full sm:w-[150px]"
+          />
+          {(dateFrom || dateTo) && (
+            <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+              Clear dates
+            </Button>
+          )}
+        </div>
+
+        <CustomFieldFilters entityType="bill" filters={customFieldFilters} onFiltersChange={setCustomFieldFilters} />
+
+        {/* Dynamic Views */}
+        <DynamicViewsRenderer
+          currentView={currentView}
+          selectedSavedView={selectedSavedView}
+          data={filteredBills as unknown as Record<string, unknown>[]}
+        />
+
+        {currentView === "list" && <div className="table-container rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {isAdmin && (
+                  <TableHead className="w-[50px]">
+                    <Checkbox
+                      checked={filteredBills.length > 0 && selectedBills.size === filteredBills.length}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
+                )}
+                <TableHead>Bill #</TableHead>
+                <TableHead>Supplier</TableHead>
+                <TableHead>Bill Date</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead>Pipeline</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="text-right">Balance</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(isLoading || !currencyReady) ? (
+                <TableRow><TableCell colSpan={isAdmin ? 10 : 9} className="text-center py-8">Loading...</TableCell></TableRow>
+              ) : filteredBills.length === 0 ? (
+                <TableRow><TableCell colSpan={isAdmin ? 10 : 9} className="text-center py-8 text-muted-foreground">No bills found</TableCell></TableRow>
+              ) : (
+                filteredBills.map((bill) => (
+                  <TableRow key={bill.id} className={`cursor-pointer ${selectedBills.has(bill.id) ? "bg-muted/50" : ""}`} onClick={() => setPeekId(bill.id)}>
+                    {isAdmin && (
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedBills.has(bill.id)}
+                          onCheckedChange={() => toggleSelectBill(bill.id)}
+                          aria-label={`Select ${bill.bill_number}`}
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell className="font-medium">{bill.bill_number}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {bill.vendor ? (
+                        <ClickableEntity onClick={() => setPreviewContactId(bill.vendor_id)}>
+                          {bill.vendor.name}
+                        </ClickableEntity>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell>{format(new Date(bill.bill_date), "MMM d, yyyy")}</TableCell>
+                    <TableCell>{format(new Date(bill.due_date), "MMM d, yyyy")}</TableCell>
+                    <TableCell><BillWorkflowPipeline status={bill.status} /></TableCell>
+                    <TableCell className="text-right">{formatCurrency(bill.total, bill.currency)}</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(bill.total - (bill.amount_paid || 0), bill.currency)}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setPeekId(bill.id)}>
+                            <Eye className="mr-2 h-4 w-4" /> View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handlePrintBill(bill)}
+                            disabled={isPrinting === bill.id}
+                          >
+                            {isPrinting === bill.id ? (
+                              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</>
+                            ) : (
+                              <><Printer className="mr-2 h-4 w-4" /> Print / Preview</>
+                            )}
+                          </DropdownMenuItem>
+                          {bill.vendor_id && (
+                            <DropdownMenuItem onClick={() => {
+                              const vendor = contacts.find(c => c.id === bill.vendor_id);
+                              setEmailDocument({
+                                documentType: "bill",
+                                documentId: bill.id,
+                                documentNumber: bill.bill_number,
+                                recipientEmail: vendor?.email || "",
+                                recipientName: vendor?.name || "",
+                                total: bill.total,
+                                currency: bill.currency,
+                              });
+                              setShowEmailDialog(true);
+                            }}>
+                              <Mail className="mr-2 h-4 w-4" /> Email
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          {bill.status !== "paid" && bill.status !== "void" && (
+                            <DropdownMenuItem onClick={() => {
+                              navigate(`/purchases/bills/${bill.id}/edit`);
+                            }}>
+                              <Pencil className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                          )}
+                          {bill.status !== "paid" && bill.status !== "void" && (
+                            <DropdownMenuItem onClick={() => openPaymentDialog(bill.id)}>
+                              <CreditCard className="mr-2 h-4 w-4" /> Record Payment
+                            </DropdownMenuItem>
+                          )}
+                          {(bill.amount_paid || 0) > 0 && (
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedBillForHistory(bill);
+                              setShowBillPaymentHistory(true);
+                            }}>
+                              <History className="mr-2 h-4 w-4" /> Payment History
+                            </DropdownMenuItem>
+                          )}
+                          {(bill.status === "received" || bill.status === "partial") && (
+                            <>
+                            <DropdownMenuItem onClick={() => handleVoidBill(bill.id)} className="text-destructive">
+                              <Ban className="mr-2 h-4 w-4" /> Void Bill
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              window.location.href = `/purchases/returns?action=create&contact_id=${bill.vendor_id || ""}`;
+                            }}>
+                              <RotateCcw className="mr-2 h-4 w-4" /> Create Purchase Return
+                            </DropdownMenuItem>
+                            </>
+                          )}
+                          {isAdmin && bill.status === "draft" && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDelete(bill.id)} className="text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>}
+      </div>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedBills.size} Bill{selectedBills.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected bills regardless of their status (including overdue, received, partial, or paid). 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBulkDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                `Delete ${selectedBills.size} Bill${selectedBills.size > 1 ? "s" : ""}`
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bill Payment History Dialog */}
+      <BillPaymentHistoryDialog
+        bill={selectedBillForHistory}
+        open={showBillPaymentHistory}
+        onOpenChange={setShowBillPaymentHistory}
+      />
+
+      {/* Create Bill Dialog */}
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        setShowDialog(open);
+        if (!open) {
+          const next = new URLSearchParams(searchParams);
+          if (next.has("action") || next.has("contact_id")) {
+            next.delete("action");
+            next.delete("contact_id");
+            setSearchParams(next, { replace: true });
+          }
+          resetForm();
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Bill</DialogTitle>
+            <DialogDescription>Record a new bill from a supplier</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Supplier *</Label>
+                <Select value={formData.vendor_id} onValueChange={async (v) => {
+                  setFormData((prev) => ({ ...prev, vendor_id: v }));
+                  // Auto-populate payment terms from vendor contact defaults
+                  try {
+                    const defaults = await fetchContactDefaults(v);
+                    if (defaults.payment_term_id) {
+                      const term = paymentTerms.find((t) => t.id === defaults.payment_term_id);
+                      if (term && formData.bill_date) {
+                        const d = new Date(formData.bill_date);
+                        d.setDate(d.getDate() + term.days);
+                        setFormData((prev) => ({ ...prev, due_date: d.toISOString().split("T")[0] }));
+                      }
+                    }
+                  } catch (e) {
+                    console.error("Failed to fetch vendor defaults:", e);
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((v) => (<SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Vendor Invoice #</Label>
+                <Input value={formData.vendor_invoice_number} onChange={(e) => setFormData({ ...formData, vendor_invoice_number: e.target.value })} placeholder="Original invoice number" />
+              </div>
+              <div className="space-y-2">
+                <Label>Bill Date</Label>
+                <Input type="date" value={formData.bill_date} onChange={(e) => setFormData({ ...formData, bill_date: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Terms</Label>
+                <Select value="" onValueChange={(termId) => {
+                  const term = paymentTerms.find((t) => t.id === termId);
+                  if (term && formData.bill_date) {
+                    const d = new Date(formData.bill_date);
+                    d.setDate(d.getDate() + term.days);
+                    setFormData({ ...formData, due_date: d.toISOString().split("T")[0] });
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select terms (optional)" /></SelectTrigger>
+                  <SelectContent>
+                    {paymentTerms.map((t) => (<SelectItem key={t.id} value={t.id}>{t.name} ({t.days} days)</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Due Date</Label>
+                <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Line Items</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addLineItem}><Plus className="mr-1 h-3 w-3" /> Add Item</Button>
+              </div>
+              <div className="space-y-3">
+                {lineItems.map((item, index) => (
+                  <div key={index} className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-end border rounded-lg p-3 sm:border-0 sm:p-0">
+                    <div className="sm:col-span-4">
+                      <Label className="text-xs text-muted-foreground sm:hidden">Product</Label>
+                      <Select value={item.product_id || ""} onValueChange={(v) => updateLineItem(index, "product_id", v)}>
+                        <SelectTrigger><SelectValue placeholder="Product (optional)" /></SelectTrigger>
+                        <SelectContent>
+                          {products.filter((p) => p.is_active).map((p) => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-3">
+                      <Label className="text-xs text-muted-foreground sm:hidden">Description</Label>
+                      <Input placeholder="Description" value={item.description} onChange={(e) => updateLineItem(index, "description", e.target.value)} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 sm:contents">
+                      <div className="sm:col-span-1">
+                        <Label className="text-xs text-muted-foreground sm:hidden">Qty</Label>
+                        <PackagedQtyCell
+                          productId={item.product_id}
+                          value={item}
+                          onChange={(patch) => setLineItems((prev) => {
+                            const next = [...prev];
+                            const merged = { ...next[index], ...patch };
+                            const { lineTotal, taxAmount } = calculateLineTotal(merged);
+                            next[index] = { ...merged, line_total: lineTotal, tax_amount: taxAmount };
+                            return next;
+                          })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label className="text-xs text-muted-foreground sm:hidden">Price</Label>
+                        <NumericInput placeholder="Price" value={item.unit_price} onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)} />
+                      </div>
+                      <div className="sm:col-span-1">
+                        <Label className="text-xs text-muted-foreground sm:hidden">Tax %</Label>
+                        <NumericInput placeholder="Tax %" value={item.tax_rate} onValueChange={(v) => updateLineItem(index, "tax_rate", v ?? 0)} />
+                      </div>
+                    </div>
+                    <div className="sm:col-span-1 flex justify-end">
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeLineItem(index)} disabled={lineItems.length === 1}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <div className="w-full sm:w-64 space-y-2 text-sm">
+                <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(subtotal)}</span></div>
+                <div className="flex justify-between"><span>Tax:</span><span>{formatCurrency(totalTax)}</span></div>
+                <div className="flex justify-between items-center">
+                  <span>Discount:</span>
+                  <Input type="number" className="w-24 h-8" value={formData.discount_amount} onChange={(e) => setFormData({ ...formData, discount_amount: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div className="flex justify-between font-bold text-lg border-t pt-2">
+                  <span>Total:</span><span>{formatCurrency(grandTotal)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Internal notes..." />
+            </div>
+
+            {/* Custom Fields */}
+            <CustomFieldsSection
+              entityType="bill"
+              entityId={null}
+              formValues={formData}
+              disabled={isSubmitting}
+            />
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create Bill"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Payment Dialog — shared component */}
+      <RecordBillPaymentDialog
+        bill={selectedBillForPayment}
+        open={showPaymentDialog}
+        onOpenChange={setShowPaymentDialog}
+        onSuccess={() => {
+          setSelectedBillForPayment(null);
+        }}
+      />
+
+      <BillPeekSheet
+        billId={peekId}
+        onOpenChange={(open) => { if (!open) setPeekId(null); }}
+      />
+
+
+
+      {/* Print Preview Dialog */}
+      <PrintPreviewDialog
+        open={printPreviewOpen}
+        onOpenChange={setPrintPreviewOpen}
+        title={printPreviewTitle}
+        documentType={printDocumentType}
+        documentId={printDocumentId}
+        filename={`bill-${printDocumentId}`}
+        communication={printCommunication}
+      />
+
+      {/* Email Dialog */}
+      <SendDocumentDialog
+        open={showEmailDialog}
+        onOpenChange={setShowEmailDialog}
+        document={emailDocument}
+      />
+
+      {/* Import Wizard */}
+      <ImportWizard
+        open={showImportWizard}
+        onOpenChange={setShowImportWizard}
+        entityName="Bill"
+        fieldDefinitions={billFieldDefinitions}
+        onImport={handleImportBill}
+        onComplete={handleImportComplete}
+      />
+
+      <ContactPreviewDrawer
+        open={!!previewContactId}
+        onOpenChange={(open) => { if (!open) setPreviewContactId(null); }}
+        contactId={previewContactId}
+      />
+    </>
+  );
+}

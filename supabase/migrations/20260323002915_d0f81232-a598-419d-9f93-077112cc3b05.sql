@@ -1,0 +1,1 @@
+ALTER TABLE public.contacts ADD COLUMN IF NOT EXISTS default_receivable_account_id UUID REFERENCES public.accounts(id) ON DELETE SET NULL;

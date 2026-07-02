@@ -1,0 +1,75 @@
+
+-- Create a trigger function that dispatches notification emails via pg_net
+CREATE OR REPLACE FUNCTION public.dispatch_notification_email()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, net
+AS $$
+DECLARE
+  v_supabase_url TEXT;
+  v_service_role_key TEXT;
+BEGIN
+  -- Get Supabase URL and service role key from vault or settings
+  v_supabase_url := current_setting('app.settings.supabase_url', true);
+  v_service_role_key := current_setting('app.settings.supabase_service_role_key', true);
+
+  -- Fallback to hardcoded project URL if settings not available
+  IF v_supabase_url IS NULL OR v_supabase_url = '' THEN
+    v_supabase_url := 'https://jkszmrroyjfdwokbkzis.supabase.co';
+  END IF;
+
+  -- Only proceed if we have the service role key
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    -- Try alternative setting path
+    v_service_role_key := current_setting('supabase.service_role_key', true);
+  END IF;
+
+  -- If still no key, try from supabase_functions schema secrets
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    BEGIN
+      SELECT decrypted_secret INTO v_service_role_key
+      FROM vault.decrypted_secrets
+      WHERE name = 'supabase_service_role_key'
+      LIMIT 1;
+    EXCEPTION WHEN OTHERS THEN
+      -- vault not accessible, skip email dispatch
+      RAISE WARNING '[dispatch_notification_email] Cannot access service role key, skipping email dispatch';
+      RETURN NEW;
+    END;
+  END IF;
+
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    RAISE WARNING '[dispatch_notification_email] No service role key available, skipping email dispatch';
+    RETURN NEW;
+  END IF;
+
+  -- Fire async HTTP request to the send-notification-email edge function
+  PERFORM net.http_post(
+    url := v_supabase_url || '/functions/v1/send-notification-email',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || v_service_role_key
+    ),
+    body := jsonb_build_object(
+      'user_id', NEW.user_id,
+      'organization_id', NEW.organization_id,
+      'category', NEW.category,
+      'title', NEW.title,
+      'message', NEW.message,
+      'link', NEW.link,
+      'entity_type', NEW.entity_type,
+      'entity_id', NEW.entity_id
+    )
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+-- Create the AFTER INSERT trigger on notifications table
+DROP TRIGGER IF EXISTS trigger_dispatch_notification_email ON public.notifications;
+CREATE TRIGGER trigger_dispatch_notification_email
+  AFTER INSERT ON public.notifications
+  FOR EACH ROW
+  EXECUTE FUNCTION public.dispatch_notification_email();

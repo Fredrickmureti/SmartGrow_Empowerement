@@ -1,0 +1,176 @@
+import js from "@eslint/js";
+import globals from "globals";
+import reactHooks from "eslint-plugin-react-hooks";
+import reactRefresh from "eslint-plugin-react-refresh";
+import tseslint from "typescript-eslint";
+import requireBusinessScope from "./eslint-rules/require-business-scope.js";
+import noConditionalRadixOverlay from "./eslint-rules/no-conditional-radix-overlay.js";
+import noLiteralRuleCodesInEngines from "./eslint-rules/no-literal-rule-codes-in-engines.js";
+import noRawReceivedByRender from "./eslint-rules/no-raw-received-by-render.js";
+import noRawHardwareIpc from "./eslint-rules/no-raw-hardware-ipc.js";
+import noRawErrorMessageInToast from "./eslint-rules/no-raw-error-message-in-toast.js";
+import noDirectPdfIframe from "./eslint-rules/no-direct-pdf-iframe.js";
+import noRawInstalledAppsLoadingGate from "./eslint-rules/no-raw-installed-apps-loading-gate.js";
+import noNavigateForLoadingState from "./eslint-rules/no-navigate-for-loading-state.js";
+import noPrintserviceShim from "./eslint-rules/no-printservice-shim.js";
+import noDirectWindowPrint from "./eslint-rules/no-direct-window-print.js";
+import noDocumentPrintShadowPath from "./eslint-rules/no-document-print-shadow-path.js";
+import noRawZplOutsidePrinting from "./eslint-rules/no-raw-zpl-outside-printing.js";
+import noDirectEmployeesBranchWrite from "./eslint-rules/no-direct-employees-branch-write.js";
+
+
+export default tseslint.config(
+  { ignores: ["dist"] },
+  {
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+    },
+    plugins: {
+      "react-hooks": reactHooks,
+      "react-refresh": reactRefresh,
+      local: {
+        rules: {
+          "require-business-scope": requireBusinessScope,
+          "no-conditional-radix-overlay": noConditionalRadixOverlay,
+          "no-literal-rule-codes-in-engines": noLiteralRuleCodesInEngines,
+          "no-raw-received-by-render": noRawReceivedByRender,
+          "no-raw-hardware-ipc": noRawHardwareIpc,
+          "no-raw-error-message-in-toast": noRawErrorMessageInToast,
+          "no-direct-pdf-iframe": noDirectPdfIframe,
+          "no-raw-installed-apps-loading-gate": noRawInstalledAppsLoadingGate,
+          "no-navigate-for-loading-state": noNavigateForLoadingState,
+          "no-printservice-shim": noPrintserviceShim,
+          "no-direct-window-print": noDirectWindowPrint,
+          "no-document-print-shadow-path": noDocumentPrintShadowPath,
+          "no-raw-zpl-outside-printing": noRawZplOutsidePrinting,
+          "no-direct-employees-branch-write": noDirectEmployeesBranchWrite,
+
+        },
+      },
+    },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      "@typescript-eslint/no-unused-vars": "off",
+      // Architecture guard: every .eq("organization_id", ...) on a multi-tenant
+      // table must be paired with .eq("business_id", ...) in the same chain,
+      // or carry a // SCOPE-EXEMPT: <reason> marker. See architecture audit B1.
+      // Phase 1C of Zero-Trust audit: escalated from `warn` to `error` so CI
+      // fails on every unscoped query.
+      "local/require-business-scope": "error",
+      // Overlay guard: forbids `cond && <Dialog/Sheet/AlertDialog/Drawer>`,
+      // which leaks Radix's body `pointer-events: none` and freezes the UI.
+      // See docs/architecture/OVERLAYS.md.
+      "local/no-conditional-radix-overlay": "error",
+      // Round 5: raw `.received_by` renders are UUID-leak risks. Resolve
+      // through @/lib/recipientName before display.
+      "local/no-raw-received-by-render": "error",
+      // ADR-0014 Track H2 — escalated from `warn` to `error` after the
+      // legacy `window.electronAPI` surface was removed from preload and
+      // every src/ consumer was migrated to `window.pos.*`.
+      "local/no-raw-hardware-ipc": "error",
+      // Resilience guard: every error surfaced to users must go through
+      // normalizeError() from @/services/resilience. Codemod swept all
+      // 320 sites (2026-05-19); rule is now enforced at error-level.
+      "local/no-raw-error-message-in-toast": "error",
+      // ADR-0015 (Electron document preview): every PDF/HTML preview must
+      // funnel through SafePdfViewer / SafeHtmlPreview. Raw <iframe> blob
+      // previews silently break under Electron file://.
+      "local/no-direct-pdf-iframe": "error",
+      // Workspace install-state hydration guard: gating install-aware UI
+      // on useInstalledApps().isLoading races against the React Query
+      // hydration window. Use useWorkspaceContextReady({ appId }) instead.
+      // See .lovable/plan.md → "Workspace install-state hydration".
+      "local/no-raw-installed-apps-loading-gate": "error",
+      // ADR-0034: URL = user intent, not loading bookkeeping. Route guards
+      // must never <Navigate to="/select-organization"> to signal loading
+      // / empty workspace state — render <NoWorkspaceEmptyState/> in place
+      // via useWorkspaceRouting instead.
+      "local/no-navigate-for-loading-state": "error",
+      // ADR-0026 (cross-app print router) — lock the PrintClient chokepoint:
+      // (1) reject print-service shims outside src/services/printing/, (2)
+      // reject direct window.print() outside pdfUtils, (3) freeze the
+      // useDocumentPrint shadow path to its current allowlisted surfaces
+      // (entries removed as Wave B1 Step 3 migrates them).
+      "local/no-printservice-shim": "error",
+      "local/no-direct-window-print": "error",
+      "local/no-document-print-shadow-path": "error",
+      // Wave B2.2 — raw ZPL string literals are forbidden in src/ except the
+      // printing dispatcher and the driver layer. Forces every label body
+      // through label_templates + printLabelByTemplate so branch overrides
+      // and template versioning actually take effect.
+      "local/no-raw-zpl-outside-printing": "error",
+
+      // HR Architecture Review — branch is a 0..N assignment, not an
+      // ownership column. All writes go through assign_employee_to_branch /
+      // transfer_employee_primary_branch. DB trigger enforces the same.
+      "local/no-direct-employees-branch-write": "error",
+
+
+
+      // Platform stewardship — Phase F guardrail.
+      // The unified workspace shell is `@/components/layout/shell/PlatformShell`
+      // (re-exported from `@/design-system`). The pre-consolidation shell
+      // components below are deprecated and exist only so unmigrated legacy
+      // modules keep working during the workspace-by-workspace migration.
+      // New code MUST NOT import them — compose pages from PlatformShell +
+      // design-system primitives instead. See docs/design-system.md.
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "@/components/navigation/AppLayout", message: "Deprecated shell. Use PlatformShell from @/design-system." },
+            { name: "@/components/navigation/AppAwareSidebar", message: "Deprecated sidebar. Use PlatformShell + per-workspace nav.ts." },
+            { name: "@/components/navigation/AppTopNavbar", message: "Deprecated topbar. PlatformShell renders the unified WorkspaceTopBar." },
+            { name: "@/components/navigation/AppNavbar", message: "Deprecated topbar. Use PlatformShell from @/design-system." },
+            { name: "@/components/navigation/AppModuleTabs", message: "Horizontal module tabs are no longer the primary nav. Use per-workspace nav.ts groups." },
+            { name: "@/components/navigation/ReportsSubNav", message: "Reports live under each workspace's nav.ts plus the cross-domain Reports workspace." },
+            { name: "@/components/navigation/NavigationModeToggle", message: "Navigation mode is unified; the toggle is deprecated." },
+          ],
+          patterns: [
+            { group: ["@/components/navigation"], message: "Import shell pieces from @/design-system (PlatformShell, primitives) instead of the legacy navigation barrel." },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Legacy-shell allowlist: the modules below have not yet been migrated to
+  // PlatformShell. They keep importing the deprecated nav components until
+  // their workspace is migrated workspace-by-workspace. Remove entries here
+  // as each module moves over — do not extend this list.
+  {
+    files: [
+      "src/apps/reports/ReportsLayout.tsx",
+      "src/components/navigation/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
+  // Localization-pack engine guard: payroll/statutory engines must not
+  // branch on hard-coded rule_code literals (PAYE/NSSF/SHIF/AHL/NHIF/VAT…).
+  // Use validated rule.parameters / computation_method dispatch instead.
+  // See docs/adr/0010-localization-pack-versioning-and-tokens.md.
+  {
+    files: [
+      "supabase/functions/compute-payroll/**/*.ts",
+      "supabase/functions/generate-tax-certificate/**/*.ts",
+      "supabase/functions/generate-statutory-return/**/*.ts",
+      "supabase/functions/generate-localization-statutory-document/**/*.ts",
+    ],
+    plugins: {
+      local: {
+        rules: {
+          "no-literal-rule-codes-in-engines": noLiteralRuleCodesInEngines,
+        },
+      },
+    },
+    rules: {
+      "local/no-literal-rule-codes-in-engines": "error",
+    },
+  },
+);

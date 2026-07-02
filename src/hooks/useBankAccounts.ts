@@ -1,0 +1,355 @@
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "./useBusinesses";
+import { toast } from "sonner";
+import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
+import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import type { BankProvider } from "./useBankProviders";
+
+export interface BankAccount {
+  id: string;
+  organization_id: string;
+  business_id: string | null;
+  branch_id: string | null;
+  name: string;
+  bank_name: string | null;
+  account_number: string | null;
+  routing_number: string | null;
+  currency: string | null;
+  current_balance: number | null;
+  is_active: boolean | null;
+  is_primary: boolean | null;
+  account_id: string | null;
+  provider_id: string | null;
+  external_account_id: string | null;
+  last_sync_at: string | null;
+  sync_status: string | null;
+  sync_error: string | null;
+  sync_from_date: string | null;
+  created_at: string;
+  updated_at: string;
+  provider?: BankProvider;
+}
+
+export interface CreateBankAccountData {
+  name: string;
+  bank_name?: string;
+  account_number?: string;
+  routing_number?: string;
+  currency?: string;
+  current_balance?: number;
+  opening_balance?: number;
+  opening_balance_date?: string;
+  account_type?: string;
+  account_id?: string;
+  is_primary?: boolean;
+  is_active?: boolean;
+  provider_id?: string;
+  external_account_id?: string;
+  /**
+   * Optional explicit branch override. If omitted the active finance scope's
+   * branch is stamped (NULL when consolidated / "All branches"). The DB
+   * trigger `enforce_branch_business_match` validates the pairing.
+   */
+  branch_id?: string | null;
+  /**
+   * R5: is_shared must equal (branch_id IS NULL). DB CHECK
+   * `bank_accounts_shared_branch_consistency` enforces this.
+   */
+  is_shared?: boolean;
+}
+
+/**
+ * Phase 11 — Banking. Branch-aware reads + business-level mutator gating.
+ *
+ * Reads: filtered to `branch_id = currentBranch OR branch_id IS NULL` for
+ * branch users; HQ / consolidated returns the full set (RLS still enforces
+ * `finance.view_consolidated` for cross-branch access).
+ *
+ * Writes: stamped with the active scope's `business_id` and `branch_id`.
+ * RLS additionally requires `finance.manage_bank_accounts` for the parent
+ * business, so a branch-only user without the permission gets a friendly
+ * `INSUFFICIENT_PRIVILEGE_BANK_MANAGE` toast instead of a raw RLS error.
+ */
+export function useBankAccounts() {
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const scope = useFinanceScope();
+  const { allowed: canManage } = useFinancePermission("finance.manage_bank_accounts");
+
+  const lastOrgIdRef = useRef<string | null>(null);
+  const lastBusinessIdRef = useRef<string | null>(null);
+  const lastBranchIdRef = useRef<string | null>(null);
+  const hasFetchedRef = useRef(false);
+
+  const fetchAccounts = useCallback(async () => {
+    if (!currentOrg?.id || !currentBusiness?.id) {
+      setAccounts([]);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      let q = supabase
+        .from("bank_accounts")
+        .select(`*, provider:platform_bank_providers(*)`)
+        .eq("organization_id", currentOrg.id)
+        .eq("business_id", currentBusiness.id);
+
+      // Branch scope filter: when a specific branch is active, return rows
+      // for that branch + company-wide (NULL) rows. Consolidated mode returns
+      // everything the user is allowed to see (RLS enforces the cap).
+      if (scope.branchId) {
+        q = q.or(`branch_id.eq.${scope.branchId},branch_id.is.null`);
+      }
+
+      const { data, error } = await q
+        .order("is_primary", { ascending: false })
+        .order("name");
+
+      if (error) throw error;
+      setAccounts((data as unknown as BankAccount[]) || []);
+    } catch (error: unknown) {
+      console.error("Error fetching bank accounts:", error);
+      toast.error("Failed to load bank accounts");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentOrg?.id, currentBusiness?.id, scope.branchId]);
+
+  useEffect(() => {
+    const orgId = currentOrg?.id ?? null;
+    const businessId = currentBusiness?.id ?? null;
+    const branchId = scope.branchId ?? null;
+
+    if (!currentOrg?.id) {
+      setAccounts([]);
+      setIsLoading(false);
+      lastOrgIdRef.current = null;
+      lastBusinessIdRef.current = null;
+      lastBranchIdRef.current = null;
+      hasFetchedRef.current = false;
+      return;
+    }
+
+    if (
+      lastOrgIdRef.current !== orgId ||
+      lastBusinessIdRef.current !== businessId ||
+      lastBranchIdRef.current !== branchId ||
+      !hasFetchedRef.current
+    ) {
+      lastOrgIdRef.current = orgId;
+      lastBusinessIdRef.current = businessId;
+      lastBranchIdRef.current = branchId;
+      hasFetchedRef.current = true;
+      fetchAccounts();
+    }
+  }, [currentOrg?.id, currentBusiness?.id, scope.branchId, fetchAccounts]);
+
+  const mapPermErr = (error: unknown): string | null => {
+    const msg = (error as { message?: string })?.message ?? "";
+    const code = (error as { code?: string })?.code ?? "";
+    if (
+      msg.includes("INSUFFICIENT_PRIVILEGE_BANK_MANAGE") ||
+      (code === "42501" && msg.includes("finance.manage_bank_accounts"))
+    ) {
+      return "You don't have permission to manage bank accounts for this business. Ask a finance admin (owner/admin/accountant).";
+    }
+    if (code === "42501") {
+      return "You don't have permission to perform this action on bank accounts.";
+    }
+    // R1/R2 — duplicate connection guards
+    if (code === "23505" && msg.includes("bank_accounts_external_unique")) {
+      return "This bank account is already connected for this business. Open the existing account to manage it instead of adding a duplicate.";
+    }
+    if (code === "23505" && msg.includes("bank_accounts_manual_unique")) {
+      return "A manual bank account with this number already exists for this provider. Open it instead of adding a duplicate.";
+    }
+    // R5 — is_shared / branch_id consistency
+    if (code === "23514" && msg.includes("bank_accounts_shared_branch_consistency")) {
+      return "Shared-across-branches accounts cannot also be tagged to a single branch. Pick one.";
+    }
+    return null;
+  };
+
+  const createAccount = async (data: CreateBankAccountData) => {
+    if (!currentOrg?.id || !currentBusiness?.id) return;
+
+    try {
+      setIsSaving(true);
+
+      if (data.account_number && data.provider_id) {
+        const { data: existing } = await supabase
+          .from("bank_accounts")
+          .select("id, name")
+          .eq("organization_id", currentOrg.id)
+          .eq("business_id", currentBusiness.id)
+          .eq("account_number", data.account_number)
+          .eq("provider_id", data.provider_id)
+          .maybeSingle();
+
+        if (existing) {
+          toast.error(`This account is already connected as "${existing.name}"`);
+          return;
+        }
+      }
+
+      // Default branch_id to the active scope branch (NULL = company-wide).
+      const branch_id = data.branch_id !== undefined ? data.branch_id : scope.branchId;
+
+      const { data: created, error } = await supabase
+        .from("bank_accounts")
+        .insert({
+          organization_id: currentOrg.id,
+          business_id: currentBusiness.id,
+          ...data,
+          branch_id,
+        })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      toast.success("Bank account added successfully");
+      await fetchAccounts();
+      return created;
+    } catch (error: unknown) {
+      console.error("Error creating bank account:", error);
+      const friendly = mapPermErr(error);
+      const msg = (error as { message?: string })?.message ?? "";
+      const code = (error as { code?: string })?.code ?? "";
+      // G3 — duplicate-connection toasts deep-link to /banking so the user
+      // can open the existing account instead of creating another.
+      if (
+        code === "23505" &&
+        (msg.includes("bank_accounts_external_unique") ||
+          msg.includes("bank_accounts_manual_unique") ||
+          msg.includes("bank_accounts_manual_no_provider_unique"))
+      ) {
+        toast.error(friendly ?? "This bank account is already connected.", {
+          action: {
+            label: "Open bank accounts",
+            onClick: () => {
+              window.location.href = "/banking";
+            },
+          },
+        });
+      } else {
+        toast.error(friendly ?? "Failed to add bank account");
+      }
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateAccount = async (id: string, data: Partial<CreateBankAccountData>) => {
+    try {
+      setIsSaving(true);
+      const { error } = await supabase
+        .from("bank_accounts")
+        .update({
+          ...data,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (error) throw error;
+      toast.success("Bank account updated successfully");
+      await fetchAccounts();
+    } catch (error: unknown) {
+      console.error("Error updating bank account:", error);
+      const friendly = mapPermErr(error);
+      toast.error(friendly ?? "Failed to update bank account");
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteAccount = async (id: string) => {
+    try {
+      setIsSaving(true);
+      const { error } = await supabase
+        .from("bank_accounts")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      toast.success("Bank account deleted successfully");
+      await fetchAccounts();
+    } catch (error: unknown) {
+      console.error("Error deleting bank account:", error);
+      const friendly = mapPermErr(error);
+      toast.error(friendly ?? "Failed to delete bank account");
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const syncTransactions = async (accountId: string) => {
+    if (!currentOrg?.id) return;
+
+    try {
+      setIsSaving(true);
+
+      await supabase
+        .from("bank_accounts")
+        .update({ sync_status: "syncing", sync_error: null })
+        .eq("id", accountId);
+
+      const { data, error } = await supabase.functions.invoke("sync-bank-transactions", {
+        body: { bank_account_id: accountId, organization_id: currentOrg.id },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(`Synced ${data.transactionCount || 0} transactions`);
+      } else {
+        toast.error(data?.message || "Sync failed");
+      }
+
+      await fetchAccounts();
+    } catch (error: unknown) {
+      console.error("Error syncing transactions:", error);
+      toast.error("Failed to sync transactions");
+
+      await supabase
+        .from("bank_accounts")
+        .update({
+          sync_status: "error",
+          sync_error: error instanceof Error ? error.message : "Unknown error",
+        })
+        .eq("id", accountId);
+
+      await fetchAccounts();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Stable identity to play nicely with downstream hooks/memos.
+  const value = useMemo(
+    () => ({
+      accounts,
+      isLoading,
+      isSaving,
+      canManage,
+      fetchAccounts,
+      createAccount,
+      updateAccount,
+      deleteAccount,
+      syncTransactions,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [accounts, isLoading, isSaving, canManage, fetchAccounts],
+  );
+
+  return value;
+}

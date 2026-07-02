@@ -1,0 +1,1 @@
+alter view public.v_unified_audit set (security_invoker = on);

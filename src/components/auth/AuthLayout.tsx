@@ -1,0 +1,100 @@
+import { ReactNode } from "react";
+import { Link } from "react-router-dom";
+interface AuthLayoutProps {
+  children: ReactNode;
+  title: string;
+  subtitle?: string;
+  description?: string;
+}
+export function AuthLayout({
+  children,
+  title,
+  subtitle,
+  description
+}: AuthLayoutProps) {
+  return <div className="min-h-screen flex">
+      {/* Left Panel - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-accent opacity-90" />
+        <div className="relative z-10 flex flex-col justify-center px-12 text-primary-foreground">
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
+                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                  <path d="M8 7h6" />
+                  <path d="M8 11h8" />
+                </svg>
+              </div>
+              <Link to="/" className="text-2xl font-bold hover:opacity-80 transition-opacity">AccrualFlow</Link>
+            </div>
+            <h1 className="text-4xl font-bold mb-4">
+              Enterprise Accounting
+              <br />
+              Made Simple
+            </h1>
+            <p className="text-lg text-primary-foreground/80 max-w-md">
+              Powerful multi-tenant accounting software for growing businesses.
+              Invoicing, expenses, reports, and more.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary-foreground/10 flex items-center justify-center">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <span>Multi-organization support</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary-foreground/10 flex items-center justify-center">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <span>Role-based access control</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary-foreground/10 flex items-center justify-center">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <span>Real-time financial insights</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Decorative elements */}
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-primary-foreground/5 rounded-full blur-3xl" />
+        <div className="absolute top-20 right-20 w-64 h-64 bg-accent/20 rounded-full blur-3xl" />
+      </div>
+
+      {/* Right Panel - Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-background">
+        <div className="w-full max-w-md animate-fade-in">
+          <div className="lg:hidden mb-8 text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+                <svg className="w-6 h-6 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                  <path d="M8 7h6" />
+                  <path d="M8 11h8" />
+                </svg>
+              </div>
+              <Link to="/" className="text-xl font-bold text-foreground hover:opacity-80 transition-opacity">AccrualFlow</Link>
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-foreground">{title}</h2>
+            {(subtitle || description) && <p className="text-muted-foreground mt-2">{subtitle || description}</p>}
+          </div>
+
+          {children}
+        </div>
+      </div>
+    </div>;
+}

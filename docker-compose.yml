@@ -1,0 +1,256 @@
+# AccrualFlow Local Development Docker Compose
+# Includes full Supabase local stack + frontend dev server
+#
+# Usage:
+#   docker-compose up -d
+#   Open http://localhost:5173
+#
+# Supabase Studio: http://localhost:54323
+# API: http://localhost:54321
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # Frontend Development Server
+  # ==========================================================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - VITE_SUPABASE_URL=http://localhost:54321
+      - VITE_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0}
+    depends_on:
+      - supabase-kong
+    networks:
+      - accrualflow-network
+
+  # ==========================================================================
+  # Supabase PostgreSQL Database
+  # ==========================================================================
+  supabase-db:
+    image: supabase/postgres:15.1.0.117
+    container_name: accrualflow-db
+    ports:
+      - "54322:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+    volumes:
+      - supabase-db-data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - accrualflow-network
+
+  # ==========================================================================
+  # Supabase Kong API Gateway
+  # ==========================================================================
+  supabase-kong:
+    image: kong:2.8.1
+    container_name: accrualflow-kong
+    ports:
+      - "54321:8000"
+      - "54320:8443"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,http-log
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+    volumes:
+      - ./docker/kong.yml:/var/lib/kong/kong.yml:ro
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - accrualflow-network
+
+  # ==========================================================================
+  # Supabase Auth (GoTrue)
+  # ==========================================================================
+  supabase-auth:
+    image: supabase/gotrue:v2.132.3
+    container_name: accrualflow-auth
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://localhost:54321
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres?search_path=auth
+      GOTRUE_SITE_URL: http://localhost:5173
+      GOTRUE_URI_ALLOW_LIST: http://localhost:5173
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_ADMIN_EMAIL: admin@localhost
+      GOTRUE_SMTP_HOST: supabase-inbucket
+      GOTRUE_SMTP_PORT: 2500
+      GOTRUE_SMTP_SENDER_NAME: AccrualFlow
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - accrualflow-network
+
+  # ==========================================================================
+  # Supabase PostgREST
+  # ==========================================================================
+  supabase-rest:
+    image: postgrest/postgrest:v11.2.0
+    container_name: accrualflow-rest
+    environment:
+      PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres
+      PGRST_DB_SCHEMAS: public,storage
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - accrualflow-network
+
+  # ==========================================================================
+  # Supabase Realtime
+  # ==========================================================================
+  supabase-realtime:
+    image: supabase/realtime:v2.25.27
+    container_name: accrualflow-realtime
+    environment:
+      PORT: 4000
+      DB_HOST: supabase-db
+      DB_PORT: 5432
+      DB_NAME: postgres
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_SSL: "false"
+      DB_POOL_SIZE: 10
+      SLOT_NAME: supabase_realtime_rls
+      TEMPORARY_SLOT: "true"
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      SECURE_CHANNELS: "true"
+      REPLICATION_MODE: RLS
+      REPLICATION_POLL_INTERVAL: 100
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - accrualflow-network
+
+  # ==========================================================================
+  # Supabase Storage
+  # ==========================================================================
+  supabase-storage:
+    image: supabase/storage-api:v0.43.11
+    container_name: accrualflow-storage
+    environment:
+      ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0}
+      SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU}
+      POSTGREST_URL: http://supabase-rest:3000
+      PGOPTIONS: -c search_path=storage,public
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+      ENABLE_IMAGE_TRANSFORMATION: "true"
+      IMGPROXY_URL: http://supabase-imgproxy:5001
+    volumes:
+      - supabase-storage-data:/var/lib/storage
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+      supabase-rest:
+        condition: service_started
+    networks:
+      - accrualflow-network
+
+  # ==========================================================================
+  # Supabase Meta (for Studio)
+  # ==========================================================================
+  supabase-meta:
+    image: supabase/postgres-meta:v0.68.0
+    container_name: accrualflow-meta
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: supabase-db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - accrualflow-network
+
+  # ==========================================================================
+  # Supabase Studio
+  # ==========================================================================
+  supabase-studio:
+    image: supabase/studio:20240101-8e4a094
+    container_name: accrualflow-studio
+    ports:
+      - "54323:3000"
+    environment:
+      STUDIO_PG_META_URL: http://supabase-meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DEFAULT_ORGANIZATION_NAME: AccrualFlow
+      DEFAULT_PROJECT_NAME: AccrualFlow Local
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_PUBLIC_URL: http://localhost:54321
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU}
+    depends_on:
+      supabase-meta:
+        condition: service_started
+    networks:
+      - accrualflow-network
+
+  # ==========================================================================
+  # Email Testing (Inbucket)
+  # ==========================================================================
+  supabase-inbucket:
+    image: inbucket/inbucket:3.0.3
+    container_name: accrualflow-inbucket
+    ports:
+      - "54324:9000"  # Web UI
+      - "54325:2500"  # SMTP
+    networks:
+      - accrualflow-network
+
+# ==========================================================================
+# Volumes
+# ==========================================================================
+volumes:
+  supabase-db-data:
+    driver: local
+  supabase-storage-data:
+    driver: local
+
+# ==========================================================================
+# Networks
+# ==========================================================================
+networks:
+  accrualflow-network:
+    driver: bridge

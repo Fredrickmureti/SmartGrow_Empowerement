@@ -1,0 +1,103 @@
+/**
+ * useBranchScopedProducts — branch-true product + on-hand stock for sales forms.
+ *
+ * Why this exists: `products.stock_quantity` is a *company-wide aggregate*
+ * maintained by the `update_product_stock` trigger (see
+ * `useWarehouseStockTotals.ts` and `ARCHITECTURE.md`). Using it inside a
+ * branch-scoped sales form silently surfaces the company total — a Branch A
+ * cashier sees HQ's 200 instead of Branch A's 30. That contaminates both the
+ * displayed availability AND the oversell guard.
+ *
+ * This hook calls the `list_products_with_branch_stock` RPC, which sums
+ * `warehouse_stock` per (business, branch) and returns each product with
+ *   - `on_hand`   — total quantity in scope
+ *   - `reserved`  — already-reserved quantity in scope
+ *   - `available` — `on_hand - reserved` (the number to validate sales against)
+ *
+ * Query key includes `branch_id` so context switches invalidate cleanly.
+ */
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "./useOrganization";
+import { useBusinesses } from "./useBusinesses";
+import { useBranches } from "./useBranches";
+
+export interface BranchScopedProduct {
+  id: string;
+  organization_id: string;
+  business_id: string | null;
+  type: "product" | "service";
+  name: string;
+  description: string | null;
+  sku: string | null;
+  unit_price: number;
+  cost_price: number | null;
+  tax_rate: number | null;
+  tax_rate_id: string | null;
+  is_active: boolean;
+  image_url: string | null;
+  category_id: string | null;
+  track_inventory: boolean | null;
+  reorder_level: number | null;
+  min_order_quantity: number | null;
+  order_quantity_increment: number | null;
+  sales_account_id: string | null;
+  cogs_account_id: string | null;
+  inventory_account_id: string | null;
+  purchase_account_id: string | null;
+  // Branch-aware stock figures
+  on_hand: number;
+  reserved: number;
+  available: number;
+  // Back-compat alias so existing callers reading `stock_quantity` keep working
+  // while we migrate the codebase. NEW callers should use `available`.
+  stock_quantity: number;
+  branch_scope_label: string;
+}
+
+export function useBranchScopedProducts() {
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+
+  const orgId = currentOrg?.id;
+  const businessId = currentBusiness?.id;
+  const branchId = currentBranch?.id ?? null;
+
+  const query = useQuery({
+    queryKey: ["products-branch-scoped", orgId, businessId, branchId],
+    queryFn: async (): Promise<BranchScopedProduct[]> => {
+      if (!orgId || !businessId) return [];
+      const { data, error } = await supabase.rpc(
+        "list_products_with_branch_stock" as any,
+        {
+          p_org_id: orgId,
+          p_business_id: businessId,
+          p_branch_id: branchId,
+        } as any,
+      );
+      if (error) throw error;
+      return ((data as any[]) || []).map((r) => ({
+        ...r,
+        on_hand: Number(r.on_hand) || 0,
+        reserved: Number(r.reserved) || 0,
+        available: Number(r.available) || 0,
+        // Back-compat: legacy callers reading `.stock_quantity` get the
+        // branch-scoped on-hand instead of the company aggregate.
+        stock_quantity: Number(r.on_hand) || 0,
+      })) as BranchScopedProduct[];
+    },
+    enabled: !!orgId && !!businessId,
+    staleTime: 15_000,
+  });
+
+  return {
+    products: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    branchScopeLabel:
+      query.data?.[0]?.branch_scope_label ??
+      (branchId ? currentBranch?.name ?? "Branch" : "All branches"),
+    refetch: query.refetch,
+  };
+}

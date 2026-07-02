@@ -1,0 +1,1 @@
+ALTER TYPE contact_type RENAME VALUE 'vendor' TO 'supplier';

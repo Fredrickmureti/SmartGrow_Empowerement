@@ -1,0 +1,1 @@
+ALTER VIEW public.employee_contract_date_violations SET (security_invoker = true);

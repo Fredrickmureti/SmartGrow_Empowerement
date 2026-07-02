@@ -1,0 +1,1 @@
+ALTER VIEW public.customer_ledger_entries SET (security_invoker = on);

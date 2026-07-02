@@ -1,0 +1,21 @@
+{
+  "name": "pos-hardware-agent",
+  "version": "1.0.0",
+  "description": "Local POS hardware agent — bridges browser POS to USB/network printers",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "tsx --test src/**/*.test.ts"
+  },
+  "dependencies": {
+    "usb": "^2.14.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}

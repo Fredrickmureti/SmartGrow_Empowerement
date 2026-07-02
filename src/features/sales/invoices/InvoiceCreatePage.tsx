@@ -1,0 +1,687 @@
+/**
+ * InvoiceCreatePage — `/sales/invoices/new`.
+ *
+ * Phase-3 route replacement for the retired `CreateInvoiceDialog`.
+ * Hosts the identical form body on top of `RecordFormShell` so the
+ * page uses the platform-standard sticky header + footer instead of a
+ * DetailSheet overlay. Deep-link params supported:
+ *   ?contact_id=<uuid>   pre-fill customer
+ *   ?project_id=<uuid>   pre-fill project
+ *
+ * Line-item math is unchanged (`computeLine` / `computeTotals`) — see
+ * `src/test/architecture/invoice-totals-contract.test.ts` for the
+ * tax-exclusive contract guard.
+ */
+import { normalizeError } from "@/services/resilience";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { InvoiceLineRow } from "@/components/invoices/InvoiceLineRow";
+import { ProductCombobox } from "@/components/common/ProductCombobox";
+import { InvoiceItem, useInvoicesPaginated } from "@/hooks/useInvoicesPaginated";
+import { useContacts } from "@/hooks/useContacts";
+import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { useCurrency } from "@/hooks/useCurrency";
+import { usePaymentTerms } from "@/hooks/usePaymentTerms";
+import { useCustomerCredit } from "@/hooks/useCustomerCredit";
+import { useOrgMembers } from "@/hooks/useOrgMembers";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
+import { computeLine, computeTotals } from "@/lib/invoiceLineMath";
+import { CreditCheckAlert } from "@/components/shared/CreditCheckAlert";
+import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
+import { AITextAssist } from "@/components/shared/AITextAssist";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Plus, Trash2, AlertCircle, AlertTriangle } from "lucide-react";
+import { format, addDays } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  StockBadge,
+  StockLineStatus,
+  evaluateStock,
+} from "@/components/inventory/StockAvailabilityIndicator";
+import { validateLineItems } from "@/lib/validation/lineItems";
+import { ProjectPicker } from "@/components/projects/ProjectPicker";
+import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { InvoiceLineScanner } from "@/components/invoices/InvoiceLineScanner";
+import { applyScanToLines } from "@/services/scanner";
+import type { ResolvedScan } from "@/hooks/scanner";
+import { cn } from "@/lib/utils";
+import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
+import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
+
+export default function InvoiceCreatePage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const prefillContactId = searchParams.get("contact_id") ?? undefined;
+  const defaultProjectId = searchParams.get("project_id");
+  const initialScan =
+    ((location.state as { initialScan?: ResolvedScan } | null)?.initialScan) ?? null;
+
+  const { contacts } = useContacts();
+  const customers = useMemo(
+    () =>
+      contacts
+        .filter((c) => c.type === "customer" || c.type === "both")
+        .map((c) => ({ id: c.id, name: c.name, email: c.email })),
+    [contacts],
+  );
+  const { createInvoice } = useInvoicesPaginated({});
+
+  const defaultCustomerId: string | null = null;
+  const onCleanupParams: undefined = undefined;
+  // `open` used by legacy effects below; route pages are always "open".
+  const open = true;
+
+  const onSubmit = createInvoice;
+  const onOpenChange = (_next: boolean) => {
+    // Route pages replace open/close with navigation. Called only on
+    // success (post-toast) to leave the /new route.
+  };
+
+
+  const { products, branchScopeLabel } = useBranchScopedProducts();
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+  const { formatCurrency, baseCurrency } = useCurrency();
+  const { paymentTerms } = usePaymentTerms();
+  const { user } = useAuth();
+  const { members } = useOrgMembers();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmOversell, setConfirmOversell] = useState(false);
+
+  const [formData, setFormData] = useState({
+    contact_id: "",
+    due_date: format(addDays(new Date(), 30), "yyyy-MM-dd"),
+    notes: "",
+    terms: "Payment due within 30 days.",
+    discount_amount: 0,
+    currency: "",
+    markAsSent: false,
+    salesperson_id: "",
+    project_id: null as string | null,
+  });
+
+  const [lineItems, setLineItems] = useState<Omit<InvoiceItem, "id" | "invoice_id">[]>([
+    { description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, discount_percent: 0, line_total: 0, sort_order: 0 },
+  ]);
+
+  // Row-flash highlight after a scan resolves to a line.
+  const [flashIndex, setFlashIndex] = useState<number | null>(null);
+  const linesTableRef = useRef<HTMLDivElement | null>(null);
+  const initialScanKeyRef = useRef<string | null>(null);
+
+  // Available credit notes for selected customer
+  const [availableCredit, setAvailableCredit] = useState(0);
+
+  useEffect(() => {
+    if (open) {
+      const cid = prefillContactId ?? defaultCustomerId ?? "";
+      setFormData((prev) => ({
+        ...prev,
+        contact_id: cid || prev.contact_id,
+        project_id: defaultProjectId ?? prev.project_id,
+      }));
+    }
+  }, [prefillContactId, defaultCustomerId, defaultProjectId, open]);
+
+  // Fetch available credit notes when customer changes
+  useEffect(() => {
+    if (!formData.contact_id) {
+      setAvailableCredit(0);
+      return;
+    }
+    const fetchCredit = async () => {
+      const { data } = await supabase
+        .from("credit_notes")
+        .select("total, amount_applied")
+        .eq("contact_id", formData.contact_id)
+        .eq("status", "issued");
+      const total = (data || []).reduce((sum, cn) => sum + ((cn.total || 0) - (cn.amount_applied || 0)), 0);
+      setAvailableCredit(total);
+    };
+    fetchCredit();
+  }, [formData.contact_id]);
+
+  const { creditInfo, checkCreditAvailability } = useCustomerCredit(formData.contact_id || undefined);
+
+  const resetForm = () => {
+    setFormData({
+      contact_id: "",
+      due_date: format(addDays(new Date(), 30), "yyyy-MM-dd"),
+      notes: "",
+      terms: "Payment due within 30 days.",
+      discount_amount: 0,
+      currency: baseCurrency,
+      markAsSent: false,
+      salesperson_id: user?.id || "",
+      project_id: null,
+    });
+    setLineItems([
+      { description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, discount_percent: 0, line_total: 0, sort_order: 0 },
+    ]);
+    setAvailableCredit(0);
+  };
+
+  const calculateLineTotal = (item: typeof lineItems[0]) => {
+    // CONTRACT: line_total is tax-EXCLUSIVE (Odoo / `confirm_invoice_atomic` validator).
+    // See src/lib/invoiceLineMath.ts for the canonical rule and rationale.
+    const { line_total, tax_amount } = computeLine({
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      discount_percent: item.discount_percent,
+      tax_rate: item.tax_rate,
+    });
+    return { line_total, tax_amount };
+  };
+
+  const updateLineItem = useCallback((index: number, updates: Partial<typeof lineItems[0]>) => {
+    setLineItems((prev) => {
+      const newItems = [...prev];
+      const updatedItem = { ...newItems[index], ...updates };
+      const { line_total, tax_amount } = computeLine({
+        quantity: updatedItem.quantity,
+        unit_price: updatedItem.unit_price,
+        discount_percent: updatedItem.discount_percent,
+        tax_rate: updatedItem.tax_rate,
+      });
+      newItems[index] = { ...updatedItem, line_total, tax_amount };
+      return newItems;
+    });
+  }, []);
+
+  const addLineItem = useCallback(() => {
+    setLineItems((prev) => [
+      ...prev,
+      { description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, discount_percent: 0, line_total: 0, sort_order: prev.length },
+    ]);
+  }, []);
+
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== index)));
+  }, []);
+
+  const handleProductSelect = useCallback((index: number, productId: string) => {
+    const product = products.find((p) => p.id === productId);
+    if (product) {
+      updateLineItem(index, {
+        product_id: productId,
+        description: product.name,
+        unit_price: product.unit_price,
+        tax_rate: product.tax_rate || 0,
+      });
+    }
+  }, [products, updateLineItem]);
+
+  /**
+   * Scan-first line entry — `doc_author` semantics (see .lovable/plan.md
+   * Pillar A). A scan that resolves to a product already on the draft
+   * does NOT auto-increment quantity (POS-style); it focuses/flashes the
+   * existing line so the operator types the intended quantity explicitly.
+   * Only a scan for a product NOT already on the draft appends a new line.
+   * Math contract (`calculateLineTotal`) is unchanged.
+   */
+  const handleScanResolved = (resolved: import("@/hooks/scanner").ResolvedScan) => {
+    setLineItems((prev) => {
+      const result = applyScanToLines<Omit<InvoiceItem, "id" | "invoice_id">>({
+        lines: prev,
+        scanQuantity: resolved.scanQuantity,
+        matchLine: (l) => !!l.product_id && l.product_id === resolved.productId,
+        buildLine: (q) => {
+          const seed = {
+            product_id: resolved.productId,
+            description: resolved.name,
+            quantity: q,
+            unit_price: resolved.embeddedPrice ?? resolved.sellingPrice,
+            tax_rate: resolved.taxRate ?? 0,
+            discount_percent: 0,
+            sort_order: prev.length,
+          };
+          const { line_total, tax_amount } = calculateLineTotal(seed as never);
+          return { ...seed, line_total, tax_amount } as Omit<InvoiceItem, "id" | "invoice_id">;
+        },
+        // doc_author intent: focus-only on repeat. Return an empty patch so
+        // the existing line is untouched; the affectedIndex below drives
+        // the flash so the operator sees which line the scan landed on.
+        incrementLine: () => ({}),
+        replaceTrailingEmpty: true,
+        isEmptyLine: (l) => !l.product_id && !l.description && (l.quantity ?? 0) <= 1 && (l.unit_price ?? 0) === 0,
+      });
+      setFlashIndex(result.affectedIndex);
+      window.setTimeout(() => setFlashIndex(null), 800);
+      return result.next;
+    });
+  };
+
+  useEffect(() => {
+    if (!open) {
+      initialScanKeyRef.current = null;
+      return;
+    }
+    if (!initialScan) return;
+    const key = `${initialScan.productId}:${initialScan.matchedCode}:${initialScan.scanQuantity}`;
+    if (initialScanKeyRef.current === key) return;
+    initialScanKeyRef.current = key;
+    handleScanResolved(initialScan);
+  }, [open, initialScan]);
+
+  const handleCustomerChange = async (value: string) => {
+    setFormData((prev) => ({ ...prev, contact_id: value }));
+    try {
+      const defaults = await fetchContactDefaults(value);
+      if (defaults.payment_term_id) {
+        const term = paymentTerms?.find((t: any) => t.id === defaults.payment_term_id);
+        if (term) {
+          const dueDate = format(addDays(new Date(), term.days), "yyyy-MM-dd");
+          setFormData((prev) => ({ ...prev, due_date: dueDate, terms: term.name || prev.terms }));
+        }
+      }
+      if (defaults.tax_exemption_number) {
+        setLineItems((prev) =>
+          prev.map((item) => {
+            const updated = { ...item, tax_rate: 0 };
+            return { ...updated, ...calculateLineTotal(updated) };
+          })
+        );
+      } else if (defaults.default_tax_rate_id) {
+        const { data: taxRate } = await supabase
+          .from("tax_rates")
+          .select("rate")
+          .eq("id", defaults.default_tax_rate_id)
+          .maybeSingle();
+        if (taxRate?.rate != null) {
+          setLineItems((prev) =>
+            prev.map((item) => {
+              const updated = { ...item, tax_rate: taxRate.rate };
+              return { ...updated, ...calculateLineTotal(updated) };
+            })
+          );
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch contact defaults:", e);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      if (!formData.contact_id) throw new Error("Please select a customer for this invoice");
+      const result = validateLineItems(lineItems);
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+      const validItems = result.valid;
+
+      // Block oversell unless explicitly confirmed.
+      // Use branch-scoped `available` (on_hand - reserved) — same source the
+      // line badges display, so what the user sees is what we validate against.
+      const oversellNow = validItems.some((item) => {
+        const p = item.product_id ? products.find((pp) => pp.id === item.product_id) : undefined;
+        if (!p || !p.track_inventory || p.type === "service") return false;
+        return item.quantity > Number(p.available ?? 0);
+      });
+      if (oversellNow && !confirmOversell) {
+        throw new Error(
+          `One or more lines exceed available stock in ${branchScopeLabel}. Tick the oversell confirmation below to proceed.`,
+        );
+      }
+
+      if (formData.contact_id && creditInfo) {
+        const totalAmount = validItems.reduce((sum, item) => {
+          const lineTotal = item.quantity * item.unit_price;
+          const tax = lineTotal * ((item.tax_rate || 0) / 100);
+          return sum + lineTotal + tax;
+        }, 0);
+        const creditResult = checkCreditAvailability(totalAmount);
+        if (!creditResult.allowed) throw new Error(creditResult.reason || "Credit check failed");
+      }
+      const created = await onSubmit(
+        {
+          contact_id: formData.contact_id || undefined,
+          due_date: formData.due_date,
+          notes: formData.notes || undefined,
+          terms: formData.terms || undefined,
+          discount_amount: formData.discount_amount,
+          currency: formData.currency || baseCurrency,
+          status: formData.markAsSent ? "sent" : "draft",
+          salesperson_id: formData.salesperson_id || undefined,
+          project_id: formData.project_id,
+        },
+        validItems
+      );
+      toast({ title: "Invoice created as draft", description: "Confirm the invoice to post it to the General Ledger." });
+      // Land on the new invoice's object page so the operator can confirm / send / print.
+      navigate(created?.id ? `/sales/invoices/${created.id}` : "/sales/invoices");
+    } catch (error: any) {
+      toast({ title: "Error creating invoice", description: normalizeError(error).message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // line_total is tax-exclusive, so subtotal = SUM(line_total) directly.
+  const { subtotal, tax_total: taxTotal, total: grandTotal } = computeTotals(
+    lineItems,
+    formData.discount_amount,
+  );
+
+  // Stock evaluation per line — drives badges, inline messages, and the
+  // oversell submit guard. Untracked / service products are ignored.
+  // SOURCE: branch-scoped `available` so what we display === what we validate.
+  const lineStockEvals = lineItems.map((item) => {
+    const product = item.product_id ? products.find((p) => p.id === item.product_id) : undefined;
+    if (!product) return null;
+    return {
+      product,
+      result: evaluateStock({
+        trackInventory: product.track_inventory,
+        productType: product.type,
+        onHand: product.available,
+        reorderLevel: product.reorder_level,
+        requestedQty: item.quantity,
+      }),
+    };
+  });
+  const oversoldLines = lineStockEvals
+    .map((e, i) => (e && (e.result.status === "exceeded" || e.result.status === "out") ? { i, ...e } : null))
+    .filter(Boolean) as Array<{ i: number; product: typeof products[0]; result: ReturnType<typeof evaluateStock> }>;
+  const hasOversell = oversoldLines.length > 0;
+
+  return (
+    <RecordFormShell
+      mode="create"
+      entityLabel="Invoice"
+      meta={
+        <>
+          Fill in the details to create a new invoice · Stock shown for:{" "}
+          <span className="font-medium text-foreground">{branchScopeLabel}</span>
+        </>
+      }
+      cancelHref="/sales/invoices"
+      onSubmit={handleSubmit}
+      isSubmitting={isSubmitting}
+      submitDisabled={!formData.contact_id}
+      submitLabel={formData.markAsSent ? "Create & Send" : "Create as Draft"}
+    >
+      <div className="space-y-6 min-w-0">
+
+        <CreditCheckAlert
+          customerId={formData.contact_id || undefined}
+          orderAmount={lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price * (1 + (item.tax_rate || 0) / 100), 0)}
+        />
+
+        {/* Available Credit Alert */}
+        {availableCredit > 0 && (
+          <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800 dark:text-blue-300">
+              This customer has <strong>{formatCurrency(availableCredit)}</strong> in available credit notes.
+              <Badge variant="outline" className="ml-2 text-[10px]">Can be applied after creation</Badge>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Customer & Dates */}
+        <FieldGroup label="Customer & Dates">
+          <FieldGrid columns={3}>
+            <div className="space-y-2">
+              <Label htmlFor="customer">
+                Customer <span className="text-destructive" aria-hidden="true">*</span>
+              </Label>
+              <Select value={formData.contact_id} onValueChange={handleCustomerChange}>
+                <SelectTrigger
+                  id="customer"
+                  aria-required="true"
+                  aria-invalid={!formData.contact_id}
+                  className={!formData.contact_id ? "border-destructive focus:ring-destructive" : undefined}
+                >
+                  <SelectValue placeholder="Select customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!formData.contact_id && (
+                <p className="text-xs text-destructive" role="alert">
+                  A customer is required to create an invoice.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="due_date">Due Date *</Label>
+              <Input id="due_date" type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} required />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="salesperson">Salesperson</Label>
+              <Select value={formData.salesperson_id || user?.id || ""} onValueChange={(value) => setFormData({ ...formData, salesperson_id: value })}>
+                <SelectTrigger><SelectValue placeholder="Select salesperson" /></SelectTrigger>
+                <SelectContent>
+                  {members.map((m) => (
+                    <SelectItem key={m.user_id} value={m.user_id}>{m.full_name || m.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </FieldGrid>
+        </FieldGroup>
+
+        {/* Project */}
+        <FieldGroup label="Project">
+          <ProjectPicker
+            enabled={open}
+            value={formData.project_id}
+            onChange={(id) => setFormData({ ...formData, project_id: id })}
+            customerId={formData.contact_id || null}
+            helperText="Optional — links this invoice's revenue to project profitability."
+          />
+        </FieldGroup>
+
+        {/* Line Items */}
+        <FieldGroup label="Line Items">
+          <div className="flex items-center justify-between mb-1">
+            <span />
+            <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+              <Plus className="mr-2 h-4 w-4" />Add Item
+            </Button>
+          </div>
+
+          <InvoiceLineScanner
+            businessId={currentBusiness?.id}
+            branchId={currentBranch?.id ?? null}
+            onResolved={handleScanResolved}
+            linesTableRef={linesTableRef}
+            disabled={isSubmitting}
+          />
+
+          {/* Desktop table */}
+          <div ref={linesTableRef} className="hidden sm:block max-w-full rounded-lg border overflow-x-auto">
+            <Table className="min-w-[600px] table-fixed">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[300px]">Description</TableHead>
+                  <TableHead className="w-24">Qty</TableHead>
+                  <TableHead className="w-28">Price</TableHead>
+                  <TableHead className="w-20">Tax %</TableHead>
+                  <TableHead className="w-28 text-right">Total</TableHead>
+                  <TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lineItems.map((item, index) => (
+                  <InvoiceLineRow
+                    key={index}
+                    index={index}
+                    item={item}
+                    products={products}
+                    linesCount={lineItems.length}
+                    flashed={flashIndex === index}
+                    isSubmitting={isSubmitting}
+                    stockEval={lineStockEvals[index] ?? null}
+                    headerProjectId={formData.project_id}
+                    customerId={formData.contact_id || null}
+                    variant="rich"
+                    formatCurrency={formatCurrency}
+                    onProductSelect={handleProductSelect}
+                    onUpdate={updateLineItem}
+                    onRemove={removeLineItem}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="sm:hidden space-y-3 min-w-0">
+            {lineItems.map((item, index) => (
+              <div key={index} className="min-w-0 rounded-lg border p-3 space-y-3 bg-card">
+                <div className="flex items-start justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Item {index + 1}</span>
+                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 -mt-1 -mr-1" onClick={() => removeLineItem(index)} disabled={lineItems.length === 1}><Trash2 className="h-3.5 w-3.5" /></Button>
+                </div>
+                <ProductCombobox
+                  products={products}
+                  value={item.product_id}
+                  onChange={(value) => handleProductSelect(index, value)}
+                  formatCurrency={formatCurrency}
+                  renderItemRight={(p) => (
+                    <StockBadge
+                      trackInventory={p.track_inventory}
+                      productType={p.type}
+                      onHand={(p as any).available ?? p.stock_quantity}
+                      reorderLevel={p.reorder_level}
+                    />
+                  )}
+                />
+                <Input placeholder="Description" value={item.description} onChange={(e) => updateLineItem(index, { description: e.target.value })} className="h-9" />
+                {lineStockEvals[index] && (
+                  <StockLineStatus
+                    trackInventory={lineStockEvals[index]!.product.track_inventory}
+                    productType={lineStockEvals[index]!.product.type}
+                    onHand={(lineStockEvals[index]!.product as any).available ?? lineStockEvals[index]!.product.stock_quantity}
+                    reorderLevel={lineStockEvals[index]!.product.reorder_level}
+                    requestedQty={item.quantity}
+                  />
+                )}
+                <div className="grid grid-cols-3 gap-2 min-w-0">
+                  <div className="space-y-1 min-w-0"><Label className="text-xs text-muted-foreground">Qty</Label><NumericInput value={item.quantity} onValueChange={(v) => updateLineItem(index, { quantity: v ?? 0 })} className="h-9 w-full min-w-0" /></div>
+                  <div className="space-y-1 min-w-0"><Label className="text-xs text-muted-foreground">Price</Label><NumericInput value={item.unit_price} onValueChange={(v) => updateLineItem(index, { unit_price: v ?? 0 })} className="h-9 w-full min-w-0" /></div>
+                  <div className="space-y-1 min-w-0"><Label className="text-xs text-muted-foreground">Tax %</Label><NumericInput value={item.tax_rate} onValueChange={(v) => updateLineItem(index, { tax_rate: v ?? 0 })} className="h-9 w-full min-w-0" /></div>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t">
+                  <span className="text-xs text-muted-foreground">Line Total</span>
+                  <span className="text-sm font-semibold">{formatCurrency(item.line_total)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Totals */}
+          <div className="flex justify-end">
+            <div className="w-full sm:w-64 space-y-2">
+              <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
+              <div className="flex justify-between text-sm"><span>Tax</span><span>{formatCurrency(taxTotal)}</span></div>
+              <div className="flex justify-between items-center text-sm">
+                <span>Discount</span>
+                <Input type="number" step="0.01" min="0" value={formData.discount_amount} onChange={(e) => setFormData({ ...formData, discount_amount: parseFloat(e.target.value) || 0 })} className="h-8 w-24 text-right" />
+              </div>
+              <div className="flex justify-between text-lg font-bold border-t pt-2"><span>Total</span><span>{formatCurrency(grandTotal)}</span></div>
+            </div>
+          </div>
+        </FieldGroup>
+
+        {/* Additional Info */}
+        <FieldGroup label="Additional Info">
+          <FieldGrid columns={2}>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="notes">Notes</Label>
+                <AITextAssist fieldType="notes" documentType="invoice" currentValue={formData.notes} onApply={(text) => setFormData({ ...formData, notes: text })} customerName={customers.find(c => c.id === formData.contact_id)?.name} totalAmount={grandTotal} currency={formData.currency || baseCurrency} />
+              </div>
+              <Textarea id="notes" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={3} placeholder="Notes visible to customer..." />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="terms">Terms</Label>
+                <AITextAssist fieldType="terms" documentType="invoice" currentValue={formData.terms} onApply={(text) => setFormData({ ...formData, terms: text })} customerName={customers.find(c => c.id === formData.contact_id)?.name} totalAmount={grandTotal} currency={formData.currency || baseCurrency} />
+              </div>
+              <Textarea id="terms" value={formData.terms} onChange={(e) => setFormData({ ...formData, terms: e.target.value })} rows={3} placeholder="Payment terms..." />
+            </div>
+          </FieldGrid>
+        </FieldGroup>
+
+        <CustomFieldsSection entityType="invoice" entityId={null} formValues={formData} disabled={isSubmitting} />
+
+        {/* Oversell confirmation — required when any line exceeds available stock */}
+        {hasOversell && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="space-y-2">
+              <div className="font-semibold">
+                {oversoldLines.length === 1
+                  ? "1 line exceeds available stock"
+                  : `${oversoldLines.length} lines exceed available stock`}
+              </div>
+              <ul className="text-sm list-disc pl-5 space-y-0.5">
+                {oversoldLines.map((o) => (
+                  <li key={o.i}>
+                    <strong>{o.product.name}</strong>: {o.result.message}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-start gap-2 pt-2">
+                <Checkbox
+                  id="confirmOversell"
+                  checked={confirmOversell}
+                  onCheckedChange={(c) => setConfirmOversell(c === true)}
+                  disabled={isSubmitting}
+                />
+                <Label htmlFor="confirmOversell" className="text-sm font-normal cursor-pointer leading-snug">
+                  I confirm overselling — proceed with this invoice even though stock is insufficient. Backorder may be required.
+                </Label>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Mark as sent checkbox — stays in body */}
+        <div className="flex items-center space-x-2">
+          <Checkbox id="markAsSent" checked={formData.markAsSent} onCheckedChange={(checked) => setFormData({ ...formData, markAsSent: checked === true })} disabled={isSubmitting} />
+          <Label htmlFor="markAsSent" className="text-sm font-normal cursor-pointer">Mark as sent immediately</Label>
+        </div>
+      </div>
+    </RecordFormShell>
+
+  );
+}

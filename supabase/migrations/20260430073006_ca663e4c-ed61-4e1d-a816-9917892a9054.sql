@@ -1,0 +1,1 @@
+ALTER TYPE public.sms_event_type ADD VALUE IF NOT EXISTS 'out_of_stock';

@@ -1,0 +1,1 @@
+ALTER VIEW public.payroll_filing_calendar SET (security_invoker = true);

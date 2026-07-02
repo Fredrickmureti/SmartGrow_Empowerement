@@ -1,0 +1,49 @@
+# Architecture Decision Records (ADRs)
+
+ADRs are short, dated records that capture an architectural decision, the
+context that forced it, and the consequences (both accepted and sacrificed).
+They are immutable: once accepted, an ADR is never edited — it is
+**superseded** by a newer ADR that explicitly references it.
+
+## Why ADRs exist in this project
+
+The Inventory architecture audit (Phases 1–3) implemented the must-fix
+correctness work. Phase 4 captures the **deliberate deferrals** — features
+that exist in Odoo and similar ERPs but that we have explicitly chosen
+*not* to implement in v1. Without ADRs, a future contributor reading the
+schema will assume these gaps are bugs and may "fix" them in a way that
+breaks the deliberately-simple model.
+
+## Index
+
+| #    | Title                                                           | Status   |
+| ---- | --------------------------------------------------------------- | -------- |
+| 0001 | [v1 inventory has no per-lot quants](./0001-no-per-lot-quants-v1.md)              | Accepted |
+| 0002 | [Single costing method: AVCO on receipt, snapshot on sale](./0002-costing-method-avco-on-receipt.md) | Accepted |
+| 0003 | [React Router DOM is the de-facto router](./0003-react-router-dom-de-facto.md)    | Accepted |
+
+## Format
+
+Each ADR follows this structure:
+
+- **Status** — Proposed / Accepted / Superseded
+- **Context** — what forces the decision
+- **Decision** — what we chose
+- **Consequences** — accepted, sacrificed, risks
+- **Alternatives considered** — what we rejected and why
+
+## When to write a new ADR
+
+Write an ADR when a decision is:
+
+1. **Hard to reverse** (schema choices, costing methods, multi-tenancy
+   boundaries).
+2. **Cross-cutting** (affects more than one module — Inventory + POS +
+   Finance).
+3. **Counterintuitive** (we deliberately do *not* do the obvious thing).
+
+Do **not** write an ADR for:
+
+- Implementation details inside a single module
+- Coding conventions (those go in the project README or CONTRIBUTING)
+- Bug fixes (those go in commit messages and migration descriptions)

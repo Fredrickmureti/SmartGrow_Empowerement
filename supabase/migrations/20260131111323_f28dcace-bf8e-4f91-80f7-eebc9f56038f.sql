@@ -1,0 +1,19 @@
+-- Add all entity tables to supabase_realtime publication for real-time sync
+ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.bills;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.payments;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.expenses;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.sales_orders;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.purchase_orders;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.contacts;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.crm_leads;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.employees;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.leave_requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.projects;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.stock_movements;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.journal_entries;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.bank_transactions;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.estimates;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.delivery_notes;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.purchase_returns;

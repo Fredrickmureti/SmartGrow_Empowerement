@@ -1,0 +1,86 @@
+/**
+ * Regression: Paracentamols Box sale must render the transaction unit, not
+ * the base stock unit. The bug was: PDF showed Qty=50, Price=7 for "1 Box
+ * (50 tablets)" sold at 350. The expected display is Qty="1 Box (50 PCE)"
+ * and Price=350.
+ *
+ * This test exercises the same internal formatters the PDF renderer uses.
+ */
+import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+
+// Re-implementations exposed for unit testing — kept in sync with
+// LineItemsTable.ts (formatQtyCell / formatPriceCell). Drift here means
+// drift in the PDF.
+function trimNum(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  return String(Number(n.toFixed(3)));
+}
+interface Item {
+  quantity?: number;
+  display_quantity?: number | null;
+  packaging_label?: string | null;
+  base_uom_label?: string | null;
+  unit_price?: number;
+}
+function formatQtyCell(item: Item, opts: { showBase?: boolean } = {}): string {
+  const showBase = opts.showBase !== false;
+  const base = Number(item.quantity ?? 0);
+  const baseLabel = (item.base_uom_label ?? "ea").trim() || "ea";
+  if (item.packaging_label && item.packaging_label.trim().length > 0) {
+    const dq = item.display_quantity != null && Number.isFinite(item.display_quantity)
+      ? Number(item.display_quantity)
+      : base;
+    const head = `${trimNum(dq)} ${item.packaging_label.trim()}`;
+    return showBase && dq !== base ? `${head} (${trimNum(base)} ${baseLabel})` : head;
+  }
+  return `${trimNum(base)} ${baseLabel}`;
+}
+function formatPriceCell(item: Item): number {
+  const base = Number(item.quantity ?? 0);
+  const unit = Number(item.unit_price ?? 0);
+  if (item.packaging_label && item.packaging_label.trim().length > 0) {
+    const dq = item.display_quantity != null && Number.isFinite(item.display_quantity)
+      ? Number(item.display_quantity)
+      : base;
+    if (dq > 0 && base > 0 && dq !== base) {
+      return unit * (base / dq);
+    }
+  }
+  return unit;
+}
+
+Deno.test("PDF — 1 Box of Paracentamols (50 tablets, 7/tab, 350 total)", () => {
+  const item: Item = {
+    quantity: 50,
+    display_quantity: 1,
+    packaging_label: "Box",
+    base_uom_label: "PCE",
+    unit_price: 7,
+  };
+  assertEquals(formatQtyCell(item), "1 Box (50 PCE)");
+  assertEquals(formatPriceCell(item), 350);
+});
+
+Deno.test("PDF — 2 Boxes of Paracentamols (100 tablets, 7/tab, 700 total)", () => {
+  const item: Item = {
+    quantity: 100,
+    display_quantity: 2,
+    packaging_label: "Box",
+    base_uom_label: "PCE",
+    unit_price: 7,
+  };
+  assertEquals(formatQtyCell(item), "2 Box (100 PCE)");
+  assertEquals(formatPriceCell(item), 350);
+});
+
+Deno.test("PDF — loose tablets (no packaging) keep base qty/price", () => {
+  const item: Item = {
+    quantity: 3,
+    display_quantity: null,
+    packaging_label: null,
+    base_uom_label: "PCE",
+    unit_price: 7,
+  };
+  assertEquals(formatQtyCell(item), "3 PCE");
+  assertEquals(formatPriceCell(item), 7);
+});

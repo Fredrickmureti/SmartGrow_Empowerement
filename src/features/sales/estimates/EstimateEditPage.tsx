@@ -1,0 +1,615 @@
+// @ts-nocheck
+/**
+ * EstimateEditPage — `/sales/estimates/:id/edit`.
+ *
+ * Phase-3 route replacement for the retired `EditEstimateDialog`. Loads
+ * the draft estimate from the URL param, hosts the form body on top of
+ * `RecordFormShell`, and lands the user back on the estimate's object
+ * page on save. Only draft estimates are editable; a non-draft :id
+ * redirects to the object page with a toast.
+ */
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Estimate, EstimateItem } from "@/hooks/useEstimates";
+import { useContacts } from "@/hooks/useContacts";
+import { useProducts } from "@/hooks/useProducts";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { computeLine } from "@/lib/invoiceLineMath";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ProductCombobox } from "@/components/common/ProductCombobox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Loader2, Plus, Trash2 } from "lucide-react";
+import { AdditionalCostsSection, AdditionalCost } from "@/components/common/AdditionalCostsSection";
+import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
+import { AITextAssist } from "@/components/shared/AITextAssist";
+import { validateLineItems } from "@/lib/validation/lineItems";
+import { normalizeError } from "@/services/resilience";
+import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
+import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
+
+type LineItem = Omit<EstimateItem, "id" | "estimate_id"> & { id?: string };
+
+export default function EstimateEditPage() {
+  const navigate = useNavigate();
+  const { id: estimateId } = useParams<{ id: string }>();
+
+  const { contacts } = useContacts();
+  const { products } = useProducts();
+  const { toast } = useToast();
+
+  const [estimate, setEstimate] = useState<Estimate | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [formData, setFormData] = useState({
+    contact_id: "",
+    expiry_date: "",
+    notes: "",
+    terms: "",
+    discount_amount: 0,
+  });
+
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [additionalCosts, setAdditionalCosts] = useState<AdditionalCost[]>([]);
+
+  useEffect(() => {
+    if (!estimateId) return;
+    let cancelled = false;
+
+    (async () => {
+      setIsLoading(true);
+      try {
+        const { data: est, error: estError } = await supabase
+          .from("estimates")
+          .select("*")
+          .eq("id", estimateId)
+          .maybeSingle();
+        if (estError) throw estError;
+        if (!est) {
+          if (!cancelled) {
+            toast({ title: "Estimate not found", variant: "destructive" });
+            navigate("/sales/estimates");
+          }
+          return;
+        }
+        if (est.status !== "draft") {
+          if (!cancelled) {
+            toast({
+              title: "Cannot edit",
+              description: "Only draft estimates can be edited.",
+              variant: "destructive",
+            });
+            navigate(`/sales/estimates/${est.id}`);
+          }
+          return;
+        }
+
+        const { data: items, error: itemsError } = await supabase
+          .from("estimate_items")
+          .select("*")
+          .eq("estimate_id", est.id)
+          .order("sort_order");
+        if (itemsError) throw itemsError;
+
+        const { data: costs, error: costsError } = await supabase
+          .from("estimate_additional_costs")
+          .select("*")
+          .eq("estimate_id", est.id)
+          .order("sort_order");
+        if (costsError) throw costsError;
+
+        if (cancelled) return;
+
+        setEstimate(est as unknown as Estimate);
+        setFormData({
+          contact_id: est.contact_id || "",
+          expiry_date: est.expiry_date,
+          notes: est.notes || "",
+          terms: est.terms || "",
+          discount_amount: est.discount_amount || 0,
+        });
+        setLineItems(
+          (items || []).map((item) => ({
+            id: item.id,
+            product_id: item.product_id,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            tax_rate: item.tax_rate || 0,
+            tax_amount: item.tax_amount || 0,
+            discount_percent: item.discount_percent || 0,
+            line_total: item.line_total,
+            sort_order: item.sort_order || 0,
+            packaging_id: item.packaging_id ?? null,
+            display_quantity: item.display_quantity ?? null,
+            display_uom_id: item.display_uom_id ?? null,
+          })),
+        );
+        setAdditionalCosts(
+          (costs || []).map((cost) => ({
+            id: cost.id,
+            name: cost.name,
+            amount: cost.amount,
+            is_taxable: cost.is_taxable || false,
+            tax_rate: cost.tax_rate || 0,
+            tax_amount: cost.tax_amount || 0,
+            sort_order: cost.sort_order || 0,
+          })),
+        );
+      } catch (error: any) {
+        console.error("Error loading estimate:", error);
+        if (!cancelled) {
+          toast({
+            title: "Failed to load estimate",
+            description: normalizeError(error).message,
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [estimateId, navigate, toast]);
+
+  const calculateLineTotal = (item: LineItem) => {
+    // CONTRACT: line_total is tax-EXCLUSIVE — see src/lib/invoiceLineMath.ts.
+    const { line_total, tax_amount } = computeLine({
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      discount_percent: item.discount_percent,
+      tax_rate: item.tax_rate,
+    });
+    return { line_total, tax_amount };
+  };
+
+  const updateLineItem = (index: number, updates: Partial<LineItem>) => {
+    setLineItems((prev) => {
+      const next = [...prev];
+      const updatedItem = { ...next[index], ...updates };
+      const calc = calculateLineTotal(updatedItem);
+      next[index] = { ...updatedItem, ...calc };
+      return next;
+    });
+  };
+
+  const addLineItem = () => {
+    setLineItems((prev) => [
+      ...prev,
+      {
+        product_id: null,
+        description: "",
+        quantity: 1,
+        unit_price: 0,
+        tax_rate: 0,
+        tax_amount: 0,
+        discount_percent: 0,
+        line_total: 0,
+        sort_order: prev.length,
+      },
+    ]);
+  };
+
+  const removeLineItem = (index: number) => {
+    if (lineItems.length === 1) return;
+    setLineItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleProductSelect = (index: number, productId: string) => {
+    const product = products.find((p) => p.id === productId);
+    if (product) {
+      updateLineItem(index, {
+        product_id: productId,
+        description: product.name,
+        unit_price: product.unit_price,
+        tax_rate: product.tax_rate || 0,
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!estimate) return;
+
+    setIsSubmitting(true);
+    try {
+      const result = validateLineItems(lineItems);
+      if (!result.ok) throw new Error(result.error);
+      const validItems = result.valid;
+
+      // Canonical rollup: line_total is tax-EXCLUSIVE.
+      let subtotal = 0;
+      let taxAmount = 0;
+      validItems.forEach((item) => {
+        subtotal += item.line_total;
+        taxAmount += item.tax_amount;
+      });
+      const additionalCostsTotal = additionalCosts.reduce((sum, c) => sum + c.amount, 0);
+      const additionalCostsTax = additionalCosts.reduce((sum, c) => sum + c.tax_amount, 0);
+      const total = subtotal + taxAmount + additionalCostsTotal + additionalCostsTax - formData.discount_amount;
+
+      const { error: estimateError } = await supabase
+        .from("estimates")
+        .update({
+          contact_id: formData.contact_id || null,
+          expiry_date: formData.expiry_date,
+          notes: formData.notes || null,
+          terms: formData.terms || null,
+          discount_amount: formData.discount_amount,
+          subtotal,
+          tax_amount: taxAmount + additionalCostsTax,
+          total,
+        })
+        .eq("id", estimate.id);
+      if (estimateError) throw estimateError;
+
+      await supabase.from("estimate_items").delete().eq("estimate_id", estimate.id);
+      if (validItems.length > 0) {
+        const newItems = validItems.map((item, index) => ({
+          estimate_id: estimate.id,
+          product_id: item.product_id || null,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          tax_rate: item.tax_rate,
+          tax_amount: item.tax_amount,
+          discount_percent: item.discount_percent,
+          line_total: item.line_total,
+          sort_order: index,
+          packaging_id: (item as LineItem).packaging_id ?? null,
+          display_quantity: (item as LineItem).display_quantity ?? null,
+          display_uom_id: (item as LineItem).display_uom_id ?? null,
+        }));
+        const { error: insertError } = await supabase.from("estimate_items").insert(newItems);
+        if (insertError) throw insertError;
+      }
+
+      await supabase.from("estimate_additional_costs").delete().eq("estimate_id", estimate.id);
+      const validCosts = additionalCosts.filter((cost) => cost.name && cost.amount > 0);
+      if (validCosts.length > 0) {
+        const newCosts = validCosts.map((cost, index) => ({
+          estimate_id: estimate.id,
+          name: cost.name,
+          amount: cost.amount,
+          is_taxable: cost.is_taxable,
+          tax_rate: cost.tax_rate,
+          tax_amount: cost.tax_amount,
+          sort_order: index,
+        }));
+        const { error: costsError } = await supabase.from("estimate_additional_costs").insert(newCosts);
+        if (costsError) throw costsError;
+      }
+
+      toast({ title: "Estimate updated successfully" });
+      navigate(`/sales/estimates/${estimate.id}`);
+    } catch (error: any) {
+      toast({
+        title: "Error updating estimate",
+        description: normalizeError(error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      // architecture-allow: display-only fallback
+      currency: estimate?.currency || "USD",
+    }).format(amount);
+
+  const itemsSubtotal = lineItems.reduce((sum, item) => sum + item.line_total, 0);
+  const itemsTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
+  const additionalCostsTotal = additionalCosts.reduce((sum, c) => sum + c.amount, 0);
+  const additionalCostsTax = additionalCosts.reduce((sum, c) => sum + c.tax_amount, 0);
+  const grandTotal =
+    itemsSubtotal + itemsTax + additionalCostsTotal + additionalCostsTax - formData.discount_amount;
+
+  const customers = contacts.filter((c) => c.type === "customer" || c.type === "both");
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <RecordFormShell
+      mode="edit"
+      entityLabel="Estimate"
+      recordRef={estimate?.estimate_number}
+      meta="Only draft estimates can be edited."
+      cancelHref={estimate?.id ? `/sales/estimates/${estimate.id}` : "/sales/estimates"}
+      onSubmit={handleSubmit}
+      isSubmitting={isSubmitting}
+      submitLabel="Save changes"
+    >
+      <div className="space-y-6 min-w-0">
+        <CustomFieldsSection
+          entityType="estimate"
+          entityId={estimate?.id || null}
+          formValues={formData}
+          disabled={isSubmitting}
+          documentSection="header"
+          showHeader={false}
+        />
+
+        <FieldGroup label="Customer & Dates">
+          <FieldGrid columns={2}>
+            <FieldCell>
+              <div className="space-y-2">
+                <Label htmlFor="customer">Customer</Label>
+                <Select
+                  value={formData.contact_id}
+                  onValueChange={(value) => setFormData({ ...formData, contact_id: value })}
+                >
+                  <SelectTrigger id="customer">
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </FieldCell>
+            <FieldCell>
+              <div className="space-y-2">
+                <Label htmlFor="expiry_date">Expiry Date *</Label>
+                <Input
+                  id="expiry_date"
+                  type="date"
+                  value={formData.expiry_date}
+                  onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
+                  required
+                />
+              </div>
+            </FieldCell>
+          </FieldGrid>
+        </FieldGroup>
+
+        <CustomFieldsSection
+          entityType="estimate"
+          entityId={estimate?.id || null}
+          formValues={formData}
+          disabled={isSubmitting}
+          documentSection="details"
+          showHeader={false}
+        />
+
+        <FieldGroup label="Line Items">
+          <div className="flex items-center justify-between mb-2">
+            <span />
+            <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+              <Plus className="mr-2 h-4 w-4" /> Add Item
+            </Button>
+          </div>
+          <div className="rounded-lg border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[300px]">Description</TableHead>
+                  <TableHead className="w-24">Qty</TableHead>
+                  <TableHead className="w-28">Price</TableHead>
+                  <TableHead className="w-20">Tax %</TableHead>
+                  <TableHead className="w-28 text-right">Total</TableHead>
+                  <TableHead className="w-12" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lineItems.map((item, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <div className="space-y-2">
+                        <ProductCombobox
+                          products={products}
+                          value={item.product_id}
+                          onChange={(value) => handleProductSelect(index, value)}
+                          formatCurrency={formatCurrency}
+                        />
+                        <Input
+                          placeholder="Description"
+                          value={item.description}
+                          onChange={(e) => updateLineItem(index, { description: e.target.value })}
+                          className="h-8"
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <PackagedQtyCell
+                        productId={item.product_id}
+                        value={item as any}
+                        onChange={(patch) => updateLineItem(index, patch as Partial<LineItem>)}
+                        disabled={isSubmitting}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <NumericInput
+                        className="h-8"
+                        value={item.unit_price}
+                        onValueChange={(v) => updateLineItem(index, { unit_price: v ?? 0 })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <NumericInput
+                        className="h-8"
+                        value={item.tax_rate}
+                        onValueChange={(v) => updateLineItem(index, { tax_rate: v ?? 0 })}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(item.line_total)}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeLineItem(index)}
+                        disabled={lineItems.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </FieldGroup>
+
+        <AdditionalCostsSection
+          costs={additionalCosts}
+          onChange={setAdditionalCosts}
+          formatCurrency={formatCurrency}
+        />
+
+        <div className="flex justify-end">
+          <div className="w-full sm:w-64 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Subtotal</span>
+              <span>{formatCurrency(itemsSubtotal)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>Tax</span>
+              <span>{formatCurrency(itemsTax + additionalCostsTax)}</span>
+            </div>
+            {additionalCostsTotal > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>Additional Costs</span>
+                <span>{formatCurrency(additionalCostsTotal)}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center text-sm">
+              <span>Discount</span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.discount_amount}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    discount_amount: parseFloat(e.target.value) || 0,
+                  })
+                }
+                className="h-8 w-24 text-right"
+              />
+            </div>
+            <div className="flex justify-between text-lg font-bold border-t pt-2">
+              <span>Total</span>
+              <span>{formatCurrency(grandTotal)}</span>
+            </div>
+          </div>
+        </div>
+
+        <CustomFieldsSection
+          entityType="estimate"
+          entityId={estimate?.id || null}
+          formValues={formData}
+          disabled={isSubmitting}
+          documentSection="after_items"
+          showHeader={false}
+        />
+
+        <FieldGroup label="Notes & Terms">
+          <FieldGrid columns={2}>
+            <FieldCell>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="notes">Notes</Label>
+                  <AITextAssist
+                    fieldType="notes"
+                    documentType="estimate"
+                    currentValue={formData.notes}
+                    onApply={(text) => setFormData({ ...formData, notes: text })}
+                    customerName={customers.find((c) => c.id === formData.contact_id)?.name}
+                    documentNumber={estimate?.estimate_number}
+                    totalAmount={grandTotal}
+                    currency={estimate?.currency}
+                  />
+                </div>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={3}
+                  placeholder="Notes visible to customer..."
+                />
+              </div>
+            </FieldCell>
+            <FieldCell>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="terms">Terms</Label>
+                  <AITextAssist
+                    fieldType="terms"
+                    documentType="estimate"
+                    currentValue={formData.terms}
+                    onApply={(text) => setFormData({ ...formData, terms: text })}
+                    customerName={customers.find((c) => c.id === formData.contact_id)?.name}
+                    documentNumber={estimate?.estimate_number}
+                    totalAmount={grandTotal}
+                    currency={estimate?.currency}
+                  />
+                </div>
+                <Textarea
+                  id="terms"
+                  value={formData.terms}
+                  onChange={(e) => setFormData({ ...formData, terms: e.target.value })}
+                  rows={3}
+                  placeholder="Terms and conditions..."
+                />
+              </div>
+            </FieldCell>
+          </FieldGrid>
+        </FieldGroup>
+
+        <CustomFieldsSection
+          entityType="estimate"
+          entityId={estimate?.id || null}
+          formValues={formData}
+          disabled={isSubmitting}
+          documentSection="notes"
+          showHeader={false}
+        />
+
+        <CustomFieldsSection
+          entityType="estimate"
+          entityId={estimate?.id || null}
+          formValues={formData}
+          disabled={isSubmitting}
+          documentSection={["footer", "additional"]}
+        />
+      </div>
+    </RecordFormShell>
+  );
+}

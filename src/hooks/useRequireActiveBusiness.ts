@@ -1,0 +1,39 @@
+/**
+ * Active-company guard.
+ *
+ * Mounted at the top of every operational app layout (Finance, Sales,
+ * Purchases, Inventory, HR, POS) to ensure a Company is selected before any
+ * company-scoped query runs.
+ *
+ * Without this guard, the contamination risk catalogued in the audit
+ * resurfaces every time a developer forgets the `currentBusiness` check.
+ */
+import { useEffect } from "react";
+import { useBusinesses } from "./useBusinesses";
+import { useOrganization } from "./useOrganization";
+import { toast } from "sonner";
+
+export function useRequireActiveBusiness(featureLabel?: string) {
+  const { currentOrg } = useOrganization();
+  const { currentBusiness, businesses, isLoading } = useBusinesses();
+
+  useEffect(() => {
+    if (!currentOrg) return;
+    if (isLoading) return;
+    if (currentBusiness) return;
+    toast.error(
+      featureLabel
+        ? `Select a Company to use ${featureLabel}.`
+        : "Select a Company from the workspace switcher to continue.",
+      { id: "no-active-business" },
+    );
+  }, [currentOrg?.id, currentBusiness?.id, isLoading, featureLabel]);
+
+  return {
+    ready: !!currentOrg && !!currentBusiness,
+    currentOrg,
+    currentBusiness,
+    needsCompanySelection: !!currentOrg && !isLoading && !currentBusiness && businesses.length > 0,
+    needsCompanyCreation: !!currentOrg && !isLoading && businesses.length === 0,
+  };
+}

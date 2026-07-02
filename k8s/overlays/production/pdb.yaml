@@ -1,0 +1,17 @@
+# Pod Disruption Budget for Production
+# Ensures minimum availability during updates/maintenance
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: accrualflow-pdb
+  namespace: accrualflow
+  labels:
+    app.kubernetes.io/name: accrualflow
+    app.kubernetes.io/component: availability
+spec:
+  # At least 1 pod must always be available
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: accrualflow
+      app.kubernetes.io/component: web

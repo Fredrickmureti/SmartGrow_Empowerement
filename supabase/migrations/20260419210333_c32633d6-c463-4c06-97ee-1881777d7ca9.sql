@@ -1,0 +1,1 @@
+ALTER VIEW public.org_health SET (security_invoker = true);

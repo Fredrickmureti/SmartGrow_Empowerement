@@ -1,0 +1,176 @@
+-- =====================================================
+-- DYNAMIC APP ENTITLEMENTS: Update RPC to return app access from database
+-- Trial users get all apps when trial_all_apps_access is enabled
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION public.get_user_session_data(p_user_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_result JSONB;
+  v_org_data JSONB;
+  v_first_org_id UUID;
+  v_trial_all_apps BOOLEAN;
+  v_all_app_ids TEXT[];
+BEGIN
+  -- Get trial_all_apps_access setting from platform_settings
+  SELECT COALESCE(
+    (SELECT setting_value::boolean 
+     FROM platform_settings 
+     WHERE setting_key = 'trial_all_apps_access'),
+    true  -- Default to true if setting doesn't exist
+  ) INTO v_trial_all_apps;
+
+  -- Get all unique app IDs from plan_app_access (for trial mode)
+  SELECT ARRAY(
+    SELECT DISTINCT app_id 
+    FROM plan_app_access
+  ) INTO v_all_app_ids;
+
+  -- If no apps configured yet, use default list
+  IF v_all_app_ids IS NULL OR array_length(v_all_app_ids, 1) IS NULL THEN
+    v_all_app_ids := ARRAY['finance','sales','purchases','inventory','pos','crm','hr','projects','reports','documents','sign','spreadsheets','platform'];
+  END IF;
+
+  -- Get all organizations with their subscription data and user roles
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'id', o.id,
+      'name', o.name,
+      'slug', o.slug,
+      'logo_url', o.logo_url,
+      'base_currency', o.base_currency,
+      'email', o.email,
+      'phone', o.phone,
+      'address', o.address,
+      'city', o.city,
+      'state', o.state,
+      'postal_code', o.postal_code,
+      'country', o.country,
+      'subscription_plan_id', o.subscription_plan_id,
+      'subscription_status', o.subscription_status,
+      'subscription_started_at', o.subscription_started_at,
+      'subscription_ends_at', o.subscription_ends_at,
+      'trial_ends_at', o.trial_ends_at,
+      'is_suspended', o.is_suspended,
+      'suspended_at', o.suspended_at,
+      'suspended_reason', o.suspended_reason,
+      'role', ur.role,
+      'role_id', ur.id,
+      -- Pre-compute subscription status flags
+      'computed_status', jsonb_build_object(
+        'is_active', CASE
+          WHEN o.is_suspended = true THEN false
+          WHEN o.subscription_status = 'active' AND (o.subscription_ends_at IS NULL OR o.subscription_ends_at > NOW()) THEN true
+          WHEN o.subscription_status = 'trial' AND (o.trial_ends_at IS NULL OR o.trial_ends_at > NOW()) THEN true
+          ELSE false
+        END,
+        'is_suspended', COALESCE(o.is_suspended, false),
+        'is_trialing', o.subscription_status = 'trial' AND (o.trial_ends_at IS NULL OR o.trial_ends_at > NOW()),
+        'is_expired', CASE
+          WHEN o.is_suspended = true THEN false
+          WHEN o.subscription_status IN ('expired', 'cancelled') THEN true
+          WHEN o.subscription_status = 'trial' AND o.trial_ends_at IS NOT NULL AND o.trial_ends_at <= NOW() THEN true
+          WHEN o.subscription_status = 'active' AND o.subscription_ends_at IS NOT NULL AND o.subscription_ends_at <= NOW() THEN true
+          ELSE false
+        END,
+        'days_remaining', CASE
+          WHEN o.subscription_status = 'trial' AND o.trial_ends_at IS NOT NULL 
+            THEN GREATEST(0, EXTRACT(DAY FROM o.trial_ends_at - NOW())::integer)
+          WHEN o.subscription_status = 'active' AND o.subscription_ends_at IS NOT NULL 
+            THEN GREATEST(0, EXTRACT(DAY FROM o.subscription_ends_at - NOW())::integer)
+          ELSE NULL
+        END
+      ),
+      -- Include plan details
+      'plan', (
+        SELECT jsonb_build_object(
+          'id', psp.id,
+          'name', psp.name,
+          'description', psp.description,
+          'price_monthly', psp.price_monthly,
+          'price_yearly', psp.price_yearly,
+          'features', psp.features,
+          'max_users', psp.max_users,
+          'max_invoices_per_month', psp.max_invoices_per_month,
+          'max_organizations', psp.max_organizations
+        )
+        FROM platform_subscription_plans psp
+        WHERE psp.id = o.subscription_plan_id
+      ),
+      -- Include enabled feature keys as an array for O(1) lookup
+      'entitlements', (
+        SELECT COALESCE(jsonb_agg(pfa.feature_key), '[]'::jsonb)
+        FROM plan_feature_access pfa
+        WHERE pfa.plan_id = o.subscription_plan_id
+        AND pfa.is_enabled = true
+      ),
+      -- Include feature limits as key-value object
+      'feature_limits', (
+        SELECT COALESCE(
+          jsonb_object_agg(pfa.feature_key, pfa.limit_value),
+          '{}'::jsonb
+        )
+        FROM plan_feature_access pfa
+        WHERE pfa.plan_id = o.subscription_plan_id
+        AND pfa.limit_value IS NOT NULL
+      ),
+      -- NEW: Include app entitlements from plan_app_access table
+      -- During trial with trial_all_apps_access enabled, return all app IDs
+      'app_entitlements', (
+        CASE 
+          -- If trialing AND trial_all_apps_access is enabled, return all apps
+          WHEN o.subscription_status = 'trial' 
+               AND (o.trial_ends_at IS NULL OR o.trial_ends_at > NOW())
+               AND v_trial_all_apps = true
+          THEN to_jsonb(v_all_app_ids)
+          -- Otherwise, return only apps enabled for this plan
+          ELSE (
+            SELECT COALESCE(jsonb_agg(paa.app_id), '[]'::jsonb)
+            FROM plan_app_access paa
+            WHERE paa.plan_id = o.subscription_plan_id
+            AND paa.is_enabled = true
+          )
+        END
+      )
+    )
+  )
+  INTO v_org_data
+  FROM user_roles ur
+  JOIN organizations o ON o.id = ur.organization_id
+  WHERE ur.user_id = p_user_id
+  AND ur.is_active = true;
+
+  -- Get the first org ID for usage data
+  SELECT (v_org_data->0->>'id')::UUID INTO v_first_org_id;
+
+  -- Build complete result
+  v_result := jsonb_build_object(
+    'organizations', COALESCE(v_org_data, '[]'::jsonb),
+    'user_id', p_user_id,
+    'is_platform_admin', public.is_platform_admin(p_user_id),
+    'fetched_at', NOW()
+  );
+
+  RETURN v_result;
+END;
+$$;
+
+-- Grant execute permission (idempotent)
+GRANT EXECUTE ON FUNCTION public.get_user_session_data(UUID) TO authenticated;
+
+-- Ensure platform is always in app list for all plans
+DO $$
+DECLARE
+  v_plan RECORD;
+BEGIN
+  -- Add platform app to all plans if not exists
+  FOR v_plan IN SELECT id FROM platform_subscription_plans LOOP
+    INSERT INTO plan_app_access (plan_id, app_id, is_enabled)
+    VALUES (v_plan.id, 'platform', true)
+    ON CONFLICT (plan_id, app_id) DO NOTHING;
+  END LOOP;
+END $$;

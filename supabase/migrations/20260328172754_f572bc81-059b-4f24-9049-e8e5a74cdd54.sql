@@ -1,0 +1,1 @@
+ALTER TABLE public.migration_sessions ADD COLUMN IF NOT EXISTS migration_strategy text NOT NULL DEFAULT 'summary' CHECK (migration_strategy IN ('summary', 'full_transaction'));

@@ -1,0 +1,52 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "noFallthroughCasesInSwitch": false,
+    "noImplicitAny": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "paths": { "@/*": ["./src/*"] },
+    "preserveSymlinks": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "ES2020",
+    "types": ["node"],
+    "useDefineForClassFields": true
+  },
+  "include": [
+    "src/routes/**/*",
+    "src/integrations/**/*",
+    "src/router.tsx",
+    "src/routeTree.gen.ts",
+    "src/vite-env.d.ts",
+    "src/parked-modules.d.ts"
+  ],
+  "exclude": [
+    "src/App.tsx",
+    "src/App.css",
+    "src/main.tsx",
+    "src/apps",
+    "src/components",
+    "src/contexts",
+    "src/data",
+    "src/features",
+    "src/hooks",
+    "src/lib",
+    "src/pages",
+    "src/providers",
+    "src/services",
+    "src/test",
+    "src/types",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
+}

@@ -1,0 +1,51 @@
+/**
+ * Shared guard helpers for the five HR-domain apps
+ * (Employees, Time Off, Attendance, Payroll, Recruitment).
+ *
+ * Centralised so each sub-app's routes file stays focused on its own domain.
+ */
+
+import { ReactNode, Suspense } from "react";
+import { Navigate } from "react-router-dom";
+import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
+import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
+import { useSession } from "@/contexts/SessionContext";
+import { usePermissions } from "@/hooks/usePermissions";
+
+/**
+ * Portal users bypass subscription feature-gating for self-service routes.
+ * They access leave/timesheets as employee self-service, not as paid modules.
+ */
+export function PortalOrSubscriptionGate({ children }: { children: ReactNode }) {
+  const { userType } = useSession();
+  if (userType === "portal") return <>{children}</>;
+  return <SubscriptionProtectedRoute allowReadOnly>{children}</SubscriptionProtectedRoute>;
+}
+
+/**
+ * Standard Suspense wrapper used by every HR-domain route.
+ */
+export function LazyRoute({
+  children,
+  module,
+}: {
+  children: ReactNode;
+  module?: string;
+}) {
+  return <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>;
+}
+
+/**
+ * Smart redirect for /hr root and unknown /hr paths:
+ * - portal users → /me
+ * - employees-app users → /hr/employees
+ * - everyone else → /me (self-service fallback)
+ */
+export function HRCatchAllRedirect() {
+  const { userType } = useSession();
+  const { can } = usePermissions();
+
+  if (userType === "portal") return <Navigate to="/me" replace />;
+  if (can("viewEmployees")) return <Navigate to="/hr/employees" replace />;
+  return <Navigate to="/me" replace />;
+}

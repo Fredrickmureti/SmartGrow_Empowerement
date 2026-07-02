@@ -1,0 +1,1 @@
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS migration_session_id UUID REFERENCES public.migration_sessions(id) ON DELETE SET NULL DEFAULT NULL;

@@ -1,0 +1,437 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authenticateMpesaCallback } from "../_shared/verifyMpesaCallback.ts";
+
+/**
+ * Consolidated M-Pesa C2B function. Routed by URL path suffix:
+ *   POST /functions/v1/mpesa-c2b/register      → register C2B callback URLs with Safaricom (auth required)
+ *   POST /functions/v1/mpesa-c2b/validation    → Safaricom validation webhook
+ *   POST /functions/v1/mpesa-c2b/confirmation  → Safaricom confirmation webhook
+ *
+ * Replaces the previous three separate functions (mpesa-c2b-register,
+ * mpesa-c2b-validation, mpesa-c2b-confirmation) to stay within the platform
+ * edge-function slot cap. Handler bodies preserved verbatim — no behaviour change.
+ */
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// /register — register C2B validation + confirmation URLs with Safaricom
+// ──────────────────────────────────────────────────────────────────────
+async function handleRegister(req: Request): Promise<Response> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader) return json({ error: "Authorization required" }, 401);
+
+  const token = authHeader.replace("Bearer ", "");
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !user) return json({ error: "Invalid authentication" }, 401);
+
+  const { organizationId, businessId } = await req.json();
+  if (!organizationId) return json({ error: "Organization ID required" }, 400);
+  if (businessId) {
+    console.log(`mpesa-c2b/register invoked for org=${organizationId} business=${businessId}`);
+  }
+
+  const { data: config, error: configError } = await supabase
+    .from("payment_provider_configs")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .eq("provider", "mpesa_c2b")
+    .single();
+
+  if (configError || !config) return json({ error: "M-Pesa C2B not configured" }, 400);
+
+  const c2bConfig = config.config as {
+    consumer_key: string;
+    consumer_secret: string;
+    business_short_code: string;
+    response_type?: string;
+  };
+
+  const { data: platformSettings } = await supabase
+    .from("platform_settings")
+    .select("setting_value")
+    .eq("setting_key", "mpesa_environment")
+    .single();
+
+  const platformEnvironment = platformSettings?.setting_value || "production";
+  const usesSandbox = platformEnvironment === "sandbox";
+  console.log(`M-Pesa C2B environment: ${platformEnvironment} (platform-controlled)`);
+
+  const baseUrl = usesSandbox ? "https://sandbox.safaricom.co.ke" : "https://api.safaricom.co.ke";
+
+  const auth = btoa(`${c2bConfig.consumer_key}:${c2bConfig.consumer_secret}`);
+  const tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+    method: "GET",
+    headers: { Authorization: `Basic ${auth}` },
+  });
+
+  if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text();
+    console.error("OAuth error:", errorText);
+    return json({ error: "Failed to authenticate with M-Pesa", details: errorText }, 500);
+  }
+
+  const tokenData = await tokenResponse.json();
+  const accessToken = tokenData.access_token;
+
+  // NEW canonical callback URLs (post-consolidation).
+  const validationUrl = `${supabaseUrl}/functions/v1/mpesa-c2b/validation`;
+  const confirmationUrl = `${supabaseUrl}/functions/v1/mpesa-c2b/confirmation`;
+
+  const registerPayload = {
+    ShortCode: c2bConfig.business_short_code,
+    ResponseType: c2bConfig.response_type || "Completed",
+    ConfirmationURL: confirmationUrl,
+    ValidationURL: validationUrl,
+  };
+  console.log("Registering C2B URLs:", registerPayload);
+
+  const registerResponse = await fetch(`${baseUrl}/mpesa/c2b/v1/registerurl`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(registerPayload),
+  });
+  const registerResult = await registerResponse.json();
+  console.log("C2B Registration response:", registerResult);
+
+  if (!registerResponse.ok || registerResult.ResponseCode !== "0") {
+    await supabase
+      .from("payment_provider_configs")
+      .update({
+        test_result: "failed",
+        test_error: registerResult.ResponseDescription || "Registration failed",
+        last_tested_at: new Date().toISOString(),
+      })
+      .eq("id", config.id);
+    return json({ error: "C2B URL registration failed", details: registerResult }, 400);
+  }
+
+  await supabase
+    .from("payment_provider_configs")
+    .update({
+      callback_url: confirmationUrl,
+      test_result: "success",
+      test_error: null,
+      last_tested_at: new Date().toISOString(),
+      config: {
+        ...c2bConfig,
+        validation_url: validationUrl,
+        confirmation_url: confirmationUrl,
+        registered_at: new Date().toISOString(),
+      },
+    })
+    .eq("id", config.id);
+
+  return json({ success: true, message: "C2B URLs registered successfully", validationUrl, confirmationUrl });
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// /validation — Safaricom validation webhook
+// ──────────────────────────────────────────────────────────────────────
+async function handleValidation(req: Request): Promise<Response> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  try {
+    const auth = await authenticateMpesaCallback(req, supabase, "mpesa_c2b");
+    if (!auth.ok) return auth.response;
+    const matchingConfig = { config: auth.ctx.config, organization_id: auth.ctx.organizationId };
+
+    const body = await req.json();
+    console.log("M-Pesa C2B Validation received for org:", auth.ctx.organizationId);
+
+    const { TransID, TransAmount, BusinessShortCode, BillRefNumber, MSISDN } = body;
+
+    const configuredShortCode = (auth.ctx.config as { business_short_code?: string }).business_short_code;
+    if (configuredShortCode && BusinessShortCode && configuredShortCode !== BusinessShortCode) {
+      console.warn("[mpesa-c2b/validation] short code mismatch", { configuredShortCode, BusinessShortCode });
+      return json({ ResultCode: 1, ResultDesc: "Short code mismatch" }, 401);
+    }
+
+    if (BillRefNumber) {
+      const { data: invoice } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, total, status")
+        .eq("organization_id", matchingConfig.organization_id)
+        .ilike("invoice_number", `%${BillRefNumber}%`)
+        .single();
+
+      if (invoice) {
+        const invoiceAmount = parseFloat(invoice.total);
+        const transAmount = parseFloat(TransAmount);
+        if (Math.abs(invoiceAmount - transAmount) > 1) {
+          console.log(`Amount mismatch: Invoice ${invoiceAmount}, Transaction ${transAmount}`);
+        }
+      }
+    }
+
+    console.log(`Validated C2B transaction: ${TransID} for ${TransAmount} from ${MSISDN}`);
+    return json({ ResultCode: 0, ResultDesc: "Accepted" });
+  } catch (error) {
+    console.error("Error in mpesa-c2b/validation:", error);
+    return json({ ResultCode: 0, ResultDesc: "Accepted" });
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// /confirmation — Safaricom confirmation webhook
+// ──────────────────────────────────────────────────────────────────────
+async function handleConfirmation(req: Request): Promise<Response> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  try {
+    const auth = await authenticateMpesaCallback(req, supabase, "mpesa_c2b");
+    if (!auth.ok) return auth.response;
+    const organizationId = auth.ctx.organizationId;
+
+    const body = await req.json();
+    console.log("M-Pesa C2B Confirmation received for org:", organizationId);
+
+    const {
+      TransactionType, TransID, TransTime, TransAmount, BusinessShortCode,
+      BillRefNumber, OrgAccountBalance, ThirdPartyTransID, MSISDN,
+      FirstName, MiddleName, LastName,
+    } = body;
+
+    const configuredShortCode = (auth.ctx.config as { business_short_code?: string }).business_short_code;
+    if (configuredShortCode && BusinessShortCode && configuredShortCode !== BusinessShortCode) {
+      console.warn("[mpesa-c2b/confirmation] short code mismatch", { configuredShortCode, BusinessShortCode });
+      return json({ ResultCode: 1, ResultDesc: "Short code mismatch" }, 401);
+    }
+
+    {
+      const { checkSubscriptionActive } = await import("../_shared/entitlementCheck.ts");
+      const subResult = await checkSubscriptionActive(supabase, organizationId);
+      if (!subResult.allowed) {
+        console.warn(`[mpesa-c2b/confirmation] Skipping booking for org ${organizationId}: ${subResult.reason}`);
+        return json({ ResultCode: 0, ResultDesc: "Accepted" });
+      }
+    }
+
+    let transTime: Date;
+    try {
+      const y = TransTime.substring(0, 4), m = TransTime.substring(4, 6), d = TransTime.substring(6, 8);
+      const h = TransTime.substring(8, 10), mi = TransTime.substring(10, 12), s = TransTime.substring(12, 14);
+      transTime = new Date(`${y}-${m}-${d}T${h}:${mi}:${s}+03:00`);
+    } catch {
+      transTime = new Date();
+    }
+
+    const maskedMsisdn = MSISDN ? MSISDN.substring(0, 6) + "****" + MSISDN.substring(MSISDN.length - 2) : null;
+    const transactionType =
+      TransactionType?.toLowerCase().includes("paybill") || TransactionType?.toLowerCase().includes("pay bill")
+        ? "paybill"
+        : "till";
+
+    let matchedInvoiceId: string | null = null;
+    let matchedContactId: string | null = null;
+    let matchedPosTransactionId: string | null = null;
+    let matchReason: string | null = null;
+
+    if (BillRefNumber) {
+      const { data: invoice } = await supabase
+        .from("invoices")
+        .select("id, contact_id, invoice_number")
+        .eq("organization_id", organizationId)
+        .eq("invoice_number", BillRefNumber)
+        .maybeSingle();
+
+      if (invoice) {
+        matchedInvoiceId = invoice.id;
+        matchedContactId = invoice.contact_id;
+        matchReason = "AUTO_INVOICE";
+      } else {
+        const { data: partialMatch } = await supabase
+          .from("invoices")
+          .select("id, contact_id, invoice_number")
+          .eq("organization_id", organizationId)
+          .ilike("invoice_number", `%${BillRefNumber}%`)
+          .limit(1)
+          .maybeSingle();
+
+        if (partialMatch) {
+          matchedInvoiceId = partialMatch.id;
+          matchedContactId = partialMatch.contact_id;
+          matchReason = "AUTO_INVOICE";
+        }
+      }
+    } else {
+      matchReason = "NO_BILL_REF";
+    }
+
+    if (!matchedInvoiceId) {
+      const sinceIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const amt = parseFloat(TransAmount);
+      const { data: openSales } = await supabase
+        .from("pos_transactions")
+        .select("id, total, business_id, organization_id, created_at")
+        .eq("organization_id", organizationId)
+        .in("payment_status", ["pending", "partial"])
+        .gte("created_at", sinceIso)
+        .limit(50);
+
+      const candidates: string[] = [];
+      for (const sale of openSales ?? []) {
+        const { data: paid } = await supabase
+          .from("pos_transaction_payments")
+          .select("amount")
+          .eq("transaction_id", sale.id)
+          .eq("status", "completed");
+        const paidSum = (paid ?? []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+        const remaining = Number(sale.total || 0) - paidSum;
+        if (remaining > 0 && Math.abs(remaining - amt) < 0.01) candidates.push(sale.id);
+      }
+      if (candidates.length === 1) {
+        matchedPosTransactionId = candidates[0];
+        matchReason = "AUTO_POS";
+        console.log("Auto-matched C2B to POS transaction:", matchedPosTransactionId);
+      } else if (candidates.length > 1) {
+        matchReason = "AMBIGUOUS_CANDIDATES";
+        console.log(`Ambiguous POS match (${candidates.length} candidates) — leaving for cashier`);
+      } else {
+        matchReason = "NO_OPEN_SALE";
+      }
+    }
+
+    const { data: insertedTx, error: insertError } = await supabase
+      .from("mpesa_c2b_transactions")
+      .insert({
+        organization_id: organizationId,
+        transaction_type: transactionType,
+        trans_id: TransID,
+        trans_time: transTime.toISOString(),
+        trans_amount: parseFloat(TransAmount),
+        business_short_code: BusinessShortCode,
+        bill_ref_number: BillRefNumber || null,
+        org_account_balance: OrgAccountBalance ? parseFloat(OrgAccountBalance) : null,
+        third_party_trans_id: ThirdPartyTransID || null,
+        msisdn: maskedMsisdn,
+        first_name: FirstName || null,
+        middle_name: MiddleName || null,
+        last_name: LastName || null,
+        matched_invoice_id: matchedInvoiceId,
+        matched_contact_id: matchedContactId,
+        matched_pos_transaction_id: matchedPosTransactionId,
+        is_reconciled: matchedPosTransactionId !== null,
+        reconciled_at: matchedPosTransactionId ? new Date().toISOString() : null,
+        match_reason: matchReason,
+        raw_payload: body,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      if (insertError.code === "23505") console.log("Duplicate transaction ignored:", TransID);
+      else console.error("Error inserting C2B transaction:", insertError);
+    } else {
+      console.log("C2B transaction stored:", insertedTx?.id);
+
+      if (matchedInvoiceId) {
+        const { error: paymentError } = await supabase.from("payments").insert({
+          organization_id: organizationId,
+          contact_id: matchedContactId,
+          amount: parseFloat(TransAmount),
+          payment_date: transTime.toISOString().split("T")[0],
+          payment_method: "mpesa",
+          reference: TransID,
+          notes: `M-Pesa C2B payment from ${FirstName || ""} ${LastName || ""} (${maskedMsisdn})`,
+        });
+        if (paymentError) console.error("Error recording payment:", paymentError);
+
+        await supabase.from("invoice_payments").insert({
+          invoice_id: matchedInvoiceId,
+          amount: parseFloat(TransAmount),
+          payment_date: transTime.toISOString().split("T")[0],
+          payment_method: "mpesa",
+          reference: TransID,
+          notes: `Auto-matched M-Pesa payment`,
+        });
+      }
+
+      if (matchedPosTransactionId) {
+        const { data: posTx } = await supabase
+          .from("pos_transactions")
+          .select("id, total, branch_id, business_id, organization_id")
+          .eq("id", matchedPosTransactionId)
+          .single();
+
+        if (posTx) {
+          await supabase.from("pos_transaction_payments").insert({
+            transaction_id: posTx.id,
+            payment_method: "mobile_money",
+            amount: parseFloat(TransAmount),
+            reference: TransID,
+            mpesa_receipt_number: TransID,
+            status: "completed",
+            processed_at: new Date().toISOString(),
+            branch_id: posTx.branch_id,
+            organization_id: posTx.organization_id,
+            business_id: posTx.business_id,
+          });
+
+          await supabase
+            .from("pos_transactions")
+            .update({ payment_status: "paid", status: "completed", updated_at: new Date().toISOString() })
+            .eq("id", posTx.id);
+        }
+      }
+    }
+
+    return json({ ResultCode: 0, ResultDesc: "Accepted" });
+  } catch (error) {
+    console.error("Error in mpesa-c2b/confirmation:", error);
+    return json({ ResultCode: 0, ResultDesc: "Accepted" });
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Router
+// ──────────────────────────────────────────────────────────────────────
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const url = new URL(req.url);
+    // Path is /functions/v1/mpesa-c2b/<action>. Strip the function prefix.
+    const segments = url.pathname.split("/").filter(Boolean);
+    // Find the segment after "mpesa-c2b"
+    const idx = segments.indexOf("mpesa-c2b");
+    const action = idx >= 0 ? segments.slice(idx + 1).join("/") : "";
+
+    switch (action) {
+      case "register":
+        return await handleRegister(req);
+      case "validation":
+        return await handleValidation(req);
+      case "confirmation":
+        return await handleConfirmation(req);
+      default:
+        return json(
+          { error: "Unknown action", expected: ["register", "validation", "confirmation"], received: action },
+          404
+        );
+    }
+  } catch (error) {
+    console.error("mpesa-c2b router error:", error);
+    return json({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
+  }
+});

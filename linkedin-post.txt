@@ -1,0 +1,103 @@
+🚀 Introducing AccrualFlow — The All-in-One ERP & Accounting Platform Built for Modern Businesses.
+
+I've been building something big.
+
+AccrualFlow is a full-stack, production-grade ERP and double-entry accounting system — a unified platform that gives SMEs and growing enterprises everything they need to run their entire operation from a single dashboard.
+
+It's live. It's functional. And it's built to scale.
+
+Here's what's inside 👇
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 DOUBLE-ENTRY ACCOUNTING
+
+Full General Ledger with hierarchical chart of accounts and automatic balancing. Complete financial reporting: Balance Sheet, P&L, Cash Flow (indirect method), Trial Balance, General Ledger, Partner Ledger, Budget vs. Actual, and Depreciation Schedules. Bank reconciliation with transaction matching, multi-currency support, and fiscal year/period management. Accounts Payable & Receivable with vendor bills, bill payments, invoice aging, and aged payables tracking. Fixed asset management with configurable depreciation methods, maintenance logs, and disposal workflows. Budgeting engine with monthly allocations, variance analysis, and KPI dashboards. Analytic accounting with cost centers, distribution rules, and cross-dimensional reporting. Credit notes, customer payments, and customer statement generation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🧾 INVOICING & BILLING
+
+Create, send, and track professional invoices — in seconds. Recurring invoices that run on autopilot. Proforma invoices for pre-sale documentation. Estimates and quotations with conversion to sales orders. Purchase orders, delivery notes, and purchase returns. One-click PDF generation and email delivery. Multi-currency support across KES, USD, EUR, and more.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💼 SALES & CRM
+
+End-to-end pipeline: Leads → Opportunities → Quotations → Sales Orders → Invoicing. Customer management with segmentation, communication history, and activity tracking. Configurable multi-step approval workflows for quotes and orders. Sales returns and RFQ (Request for Quotation) management.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📦 INVENTORY & SUPPLY CHAIN
+
+Multi-warehouse inventory with real-time stock levels, lot/serial tracking, and automated reorder points. Purchase management with goods receipts, vendor management, backorder handling, and vendor price lists. Stock valuation with FIFO/LIFO/average costing methods. Replenishment logging and automated stock alerts.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🏪 POINT OF SALE (POS)
+
+Full POS terminal with barcode scanning, split payments, discounts, and receipt printing. Restaurant mode with interactive floor plans, table management, and a kitchen display system (KDS) with real-time order routing by station (kitchen, bar, grill, dessert). Booking and reservation system with calendar integration. Shift management with cash-up reconciliation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✍️ ELECTRONIC SIGNATURES
+
+Upload PDFs and place multiple field types — signature, initials, text, date, checkbox, name, email, company. Multi-signer workflows with sequential signing, roles (signer, approver, witness), and secure access tokens. Reusable templates with saved field configurations and directive labels. Server-side PDF embedding, SHA-256 document integrity verification, and full audit trail. Automated email invitations and configurable reminders.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👥 HR & PAYROLL
+
+Employee management with department structures and role assignments. Leave management with request/approval workflows and balance tracking. Timesheet tracking with project allocation. Payroll processing with configurable pay structures and automated runs.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📁 DOCUMENT MANAGEMENT
+
+Centralized document storage with folder hierarchy and breadcrumb navigation. File attachments across all modules. Access policies and storage bucket management. Responsive design with mobile-optimized navigation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📐 PROJECT MANAGEMENT
+
+Project tracking with task management and resource allocation. Timesheet integration for accurate project costing. Progress monitoring and status dashboards.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📈 BUSINESS INTELLIGENCE & SPREADSHEETS
+
+Built-in spreadsheet engine powered by HyperFormula — formulas, cell formatting, embedded charts, and real-time multi-user collaboration. Shareable spreadsheets with granular permissions, token-based access links, and expiration policies. Scheduled report automation: generates and emails reports (PDF, CSV, Excel) daily, weekly, monthly, quarterly, or yearly. Interactive dashboards with drill-down analytics and customizable KPI cards.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🤖 AI-POWERED FEATURES
+
+Multi-provider AI integration with automatic failover and rate-limit handling. AI-assisted bank transaction categorization with confidence scoring. Intelligent financial insights with performance-optimized caching.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 STUDIO (LOW-CODE CUSTOMIZATION)
+
+Custom fields and model extensions without touching code. Automated server actions with configurable triggers, multi-step workflows, retry logic, and execution logging. A platform that adapts to how you work — not the other way around.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🏗️ PLATFORM ARCHITECTURE
+
+Multi-tenant with strict per-business data isolation, row-level security, and role-based access control across organizations, businesses, and branches. Real-time collaboration with live presence indicators and WebSocket-powered data sync. Comprehensive audit trail with before/after snapshots, IP logging, and user attribution. Vendor portal for external supplier collaboration. Compliance checklist management. Subscription gating with tiered feature access. Dark mode. PWA-ready — works on any device.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🛠️ BUILT WITH
+
+React 18 · TypeScript · Vite · Tailwind CSS · shadcn/ui · Framer Motion · TanStack Query · Supabase (PostgreSQL, Auth, Edge Functions, Realtime, Storage) · HyperFormula · Recharts · pdf-lib
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AccrualFlow isn't a prototype. It's a fully deployed, production-grade platform architected for real-world multi-business use with enterprise-grade data integrity, security, and scalability.
+
+🌐 Try it: https://www.accrualflow.systems/
+
+I'd love to hear your thoughts — feedback, feature ideas, and connections are always welcome. Drop a comment or send me a message. 💬
+
+#AccrualFlow #ERP #Accounting #SaaS #FinTech #BusinessManagement #Invoicing #PointOfSale #CRM #InventoryManagement #ElectronicSignatures #HR #Payroll #BusinessIntelligence #BuildInPublic #React #TypeScript #Supabase #TailwindCSS

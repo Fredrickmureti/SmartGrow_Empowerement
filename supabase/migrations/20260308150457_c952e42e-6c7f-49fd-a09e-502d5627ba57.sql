@@ -1,0 +1,2 @@
+ALTER TABLE public.accounts ADD COLUMN IF NOT EXISTS detail_type TEXT;
+COMMENT ON COLUMN public.accounts.detail_type IS 'QuickBooks-style detail type sub-categorization (e.g., Asset → Cash and Bank, Fixed Asset, etc.)';

@@ -1,0 +1,1 @@
+DELETE FROM public.permission_group_rules WHERE module = 'sign';

@@ -1,0 +1,358 @@
+/**
+ * PayrollSalaryStructuresPage — minimal read-only structures + components.
+ *
+ * Intentionally thin: the engine reads structures via salary_structure_id
+ * on contracts; this page lets payroll admins inspect what's defined.
+ * Editing happens via the existing salary structure form (reachable from
+ * Employees → Contract). No new business logic.
+ */
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
+
+import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, Loader2, Trash2, History, UploadCloud, Lock, Network } from "lucide-react";
+import { SalaryRuleGraphEditor } from "@/components/payroll/SalaryRuleGraphEditor";
+import { WorkflowSheet, WorkflowSheetGrid, WorkflowSheetSection, WorkflowField } from "@/components/workflow/WorkflowSheet";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useSalaryStructures } from "@/hooks/useSalaryStructures";
+import { usePublishRuleSet, useRuleSetVersions } from "@/hooks/payroll/useSalaryRuleSets";
+import { RuleSetComponentsTable } from "@/components/payroll/PayrollRuleSetPanel";
+
+export function PayrollSalaryStructuresPage() {
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const { createStructure } = useSalaryStructures();
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ name: "", code: "", description: "" });
+  const [components, setComponents] = useState<{ name: string; code: string; component_type: string; computation_type: string; computation_value: number; is_taxable: boolean }[]>([]);
+
+  const addComponent = () => setComponents((c) => [...c, { name: "", code: "", component_type: "earning", computation_type: "fixed", computation_value: 0, is_taxable: true }]);
+  const handleCreate = async () => {
+    if (!form.name.trim()) return;
+    // Catch the rejection locally so the mutation's onError toast (with the
+    // real Supabase error.message / details) is the only thing the user sees.
+    // Leaving the promise unhandled surfaces a generic "Something unexpected
+    // happened" upstream and the dialog closes before the user can correct
+    // the input.
+    try {
+      await createStructure.mutateAsync({
+        name: form.name.trim(),
+        code: form.code.trim() || undefined,
+        description: form.description,
+        components: components.map((c, i) => ({ ...c, sort_order: i, is_active: true, is_statutory: false, statutory_rule_type: null, percentage_of: null })),
+      });
+      setShowCreate(false);
+      setForm({ name: "", code: "", description: "" });
+      setComponents([]);
+    } catch {
+      // onError already toasted the actionable message; keep the dialog open.
+    }
+  };
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["payroll-salary-structures", currentOrg?.id, currentBusiness?.id],
+    enabled: !!currentOrg?.id && !!currentBusiness?.id,
+    queryFn: async () => {
+      const { data: structures = [], error } = await supabase
+        .from("salary_structures")
+        .select("id, name, code, country_code, is_active, description")
+        .eq("organization_id", currentOrg!.id)
+        .eq("business_id", currentBusiness!.id)
+        .order("name");
+      if (error) throw error;
+      const ids = (structures as any[]).map((s) => s.id);
+      const { data: components = [] } = ids.length
+        ? await supabase
+            .from("salary_components")
+            .select("structure_id, code, name, component_type, computation_type, computation_value, is_taxable, sort_order")
+            .in("structure_id", ids)
+            .order("sort_order")
+        : { data: [] as any[] };
+      const { data: ruleSets = [] } = ids.length
+        ? await supabase
+            .from("salary_structure_rule_sets" as any)
+            .select("structure_id, version, status")
+            .in("structure_id", ids)
+        : { data: [] as any[] };
+      const byStructure = new Map<string, any[]>();
+      for (const c of components as any[]) {
+        const arr = byStructure.get(c.structure_id) ?? [];
+        arr.push(c);
+        byStructure.set(c.structure_id, arr);
+      }
+      const ruleStats = new Map<string, { active_version: number | null; total: number }>();
+      for (const rs of ruleSets as any[]) {
+        const cur = ruleStats.get(rs.structure_id) ?? { active_version: null, total: 0 };
+        cur.total += 1;
+        if (rs.status === "active") cur.active_version = rs.version;
+        ruleStats.set(rs.structure_id, cur);
+      }
+      return (structures as any[]).map((s) => ({
+        ...s,
+        components: byStructure.get(s.id) ?? [],
+        active_version: ruleStats.get(s.id)?.active_version ?? null,
+        version_count: ruleStats.get(s.id)?.total ?? 0,
+      }));
+    },
+  });
+
+  return (
+    <div>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Salary Structures</h1>
+          <p className="text-sm text-muted-foreground">Earnings & deduction rule sets referenced by employee contracts.</p>
+        </div>
+        <Button onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-1" />New Structure</Button>
+      </div>
+      {isLoading ? (
+        <p className="text-sm">Loading…</p>
+      ) : (data ?? []).length === 0 ? (
+        <Card><CardContent className="p-6 text-sm text-muted-foreground">No salary structures defined yet.</CardContent></Card>
+      ) : (
+        <div className="space-y-4">
+          {data!.map((s: any) => (
+            <StructureCard key={s.id} structure={s} />
+          ))}
+        </div>
+      )}
+
+      <WorkflowSheet
+        open={showCreate}
+        onOpenChange={setShowCreate}
+        title="Create Salary Structure"
+        description="Define a reusable compensation structure with earnings and deduction components."
+        size="xl"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={!form.name || createStructure.isPending}>
+              {createStructure.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Create
+            </Button>
+          </>
+        }
+      >
+        <WorkflowSheetGrid>
+          <WorkflowSheetSection number={1} title="Identity">
+            <WorkflowField label="Name" required>
+              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Standard package" />
+            </WorkflowField>
+            <WorkflowField label="Code">
+              <Input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="e.g. STD-001" />
+            </WorkflowField>
+          </WorkflowSheetSection>
+          <WorkflowSheetSection number={2} title="Description">
+            <WorkflowField label="Description">
+              <Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} />
+            </WorkflowField>
+          </WorkflowSheetSection>
+        </WorkflowSheetGrid>
+        <WorkflowSheetSection
+          number={3}
+          title="Components"
+          fullWidth
+          right={
+            <Button type="button" variant="outline" size="sm" onClick={addComponent}>
+              <Plus className="h-3 w-3 mr-1" />Add
+            </Button>
+          }
+        >
+          {components.length === 0 && (
+            <p className="text-xs text-muted-foreground">No components yet. Add earnings and deductions that make up this structure.</p>
+          )}
+          {components.map((c, i) => (
+            <div key={i} className="border rounded-lg p-3 space-y-2">
+              <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
+                <Input placeholder="Name" value={c.name} onChange={(e) => { const nc = [...components]; nc[i].name = e.target.value; setComponents(nc); }} />
+                <Input placeholder="Code" value={c.code} onChange={(e) => { const nc = [...components]; nc[i].code = e.target.value; setComponents(nc); }} />
+                <Select value={c.component_type} onValueChange={(v) => { const nc = [...components]; nc[i].component_type = v; setComponents(nc); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="earning">Earning</SelectItem>
+                    <SelectItem value="deduction">Deduction</SelectItem>
+                    <SelectItem value="employer_contribution">Employer Contribution</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 flex-1 min-w-0">
+                  <Select value={c.computation_type} onValueChange={(v) => { const nc = [...components]; nc[i].computation_type = v; setComponents(nc); }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed">Fixed Amount</SelectItem>
+                      <SelectItem value="percentage">Percentage</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <NumericInput placeholder="Value" value={c.computation_value || null} onValueChange={(n) => { const nc = [...components]; nc[i].computation_value = n ?? 0; setComponents(nc); }} />
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setComponents((cs) => cs.filter((_, j) => j !== i))}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </WorkflowSheetSection>
+      </WorkflowSheet>
+    </div>
+  );
+}
+
+interface StructureCardProps {
+  structure: {
+    id: string;
+    name: string;
+    code: string | null;
+    country_code: string | null;
+    is_active: boolean;
+    components: any[];
+    active_version: number | null;
+    version_count: number;
+  };
+}
+
+function StructureCard({ structure: s }: StructureCardProps) {
+  const [showVersions, setShowVersions] = useState(false);
+  const [showRuleGraph, setShowRuleGraph] = useState(false);
+  const publish = usePublishRuleSet();
+  const versions = useRuleSetVersions(showVersions ? s.id : undefined);
+  const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
+  const isFrozen = s.version_count > 0;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-3">
+        <div className="min-w-0">
+          <CardTitle className="text-base flex items-center gap-2">
+            {s.name}
+            {isFrozen && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Components are frozen — published rule sets exist">
+                <Lock className="h-3 w-3" /> frozen
+              </span>
+            )}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {s.code || "—"}{s.country_code ? ` · ${s.country_code}` : ""}
+            {s.active_version != null && <> · active v{s.active_version}</>}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant={s.is_active ? "outline" : "secondary"}>{s.is_active ? "Active" : "Inactive"}</Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowRuleGraph(true)}
+            title="Edit Odoo-style rule graph (engine v2)"
+          >
+            <Network className="h-4 w-4 mr-1" />
+            Rule graph
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowVersions(true)}
+            disabled={s.version_count === 0}
+            title={s.version_count === 0 ? "No versions published yet" : "View version history"}
+          >
+            <History className="h-4 w-4 mr-1" />
+            Versions{s.version_count > 0 ? ` (${s.version_count})` : ""}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => publish.mutate({ structureId: s.id })}
+            disabled={publish.isPending || s.components.length === 0}
+            title={s.components.length === 0 ? "Add components first" : "Publish a new immutable version"}
+          >
+            {publish.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-1" />}
+            Publish version
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Code</TableHead><TableHead>Name</TableHead>
+              <TableHead>Type</TableHead><TableHead>Computation</TableHead>
+              <TableHead className="text-right">Value</TableHead><TableHead>Taxable</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {s.components.map((c: any) => (
+              <TableRow key={c.code}>
+                <TableCell className="font-mono text-xs">{c.code}</TableCell>
+                <TableCell>{c.name}</TableCell>
+                <TableCell><Badge variant="outline">{c.component_type}</Badge></TableCell>
+                <TableCell className="text-xs">{c.computation_type}</TableCell>
+                <TableCell className="text-right">{c.computation_value ?? "—"}</TableCell>
+                <TableCell>{c.is_taxable ? "Yes" : "No"}</TableCell>
+              </TableRow>
+            ))}
+            {s.components.length === 0 && (
+              <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-4">No components.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+
+      <Sheet open={showVersions} onOpenChange={setShowVersions}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{s.name} — Version history</SheetTitle>
+            <SheetDescription>
+              Each published version is an immutable snapshot of this structure's components. Past payslips remain locked to the version they were computed against.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-2">
+            {versions.isLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+            )}
+            {!versions.isLoading && (versions.data ?? []).length === 0 && (
+              <p className="text-sm text-muted-foreground">No versions published yet.</p>
+            )}
+            {(versions.data ?? []).map((v) => (
+              <Card key={v.id}>
+                <CardHeader
+                  className="flex flex-row items-center justify-between space-y-0 cursor-pointer p-3"
+                  onClick={() => setExpandedVersionId(expandedVersionId === v.id ? null : v.id)}
+                >
+                  <div>
+                    <CardTitle className="text-sm">v{v.version} <span className="text-muted-foreground font-mono font-normal text-xs ml-1">{v.rule_hash.slice(0, 8)}</span></CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      effective {v.effective_from}
+                      {v.effective_to ? ` → ${v.effective_to}` : ""} · {v.components.length} component{v.components.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <Badge variant={v.status === "active" ? "outline" : "secondary"}>{v.status}</Badge>
+                </CardHeader>
+                {expandedVersionId === v.id && (
+                  <CardContent className="p-0 border-t">
+                    <RuleSetComponentsTable components={v.components} />
+                  </CardContent>
+                )}
+              </Card>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {showRuleGraph && (
+        <SalaryRuleGraphEditor
+          open={showRuleGraph}
+          onOpenChange={setShowRuleGraph}
+          structureId={s.id}
+          structureName={s.name}
+        />
+      )}
+    </Card>
+  );
+}

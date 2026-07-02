@@ -1,0 +1,972 @@
+/**
+ * SessionContext - Unified session data with entitlements loaded at login
+ *
+ * This eliminates the "flicker" problem by:
+ * 1. Loading ALL session data (orgs, subscriptions, entitlements) in ONE RPC call
+ * 2. Pre-computing subscription status server-side
+ * 3. Providing O(1) entitlement checks via Set lookup
+ *
+ * Pattern follows Odoo (ir.model.access) and QuickBooks (session token claims).
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * Phase-3 (Architecture audit): legacy org-identity mirrors REMOVED.
+ *
+ * `organizations` is the *tenant workspace*. It owns: subscription, plan,
+ * entitlements, role membership, branding-as-tenant-avatar.
+ *
+ * `businesses` is the *legal entity / accounting boundary*. It owns:
+ * base_currency, tax_id, legal_name, email/phone/address (used on documents),
+ * chart of accounts, journal entries, fiscal year.
+ *
+ * The previous version of this file mirrored business-identity fields
+ * (`base_currency`, `email`, `address`, `tax_id`, `primary_business`, …)
+ * onto every `SessionOrganization` for "backwards compatibility". That
+ * created two sources of truth, masked stale data, and contradicted the
+ * DB-level invariants enforced by `enforce_je_line_company_match` and
+ * `lock_business_currency_after_je`. It is now removed.
+ *
+ * If you need identity for documents, currency, or branding, read it from:
+ *   - useBusinesses().currentBusiness     (current company)
+ *   - useDocumentBranding(business_id)    (per-document)
+ *   - getOrganizationBranding(business_id)(server-side edge functions)
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+
+// Types for session data returned by get_user_session_data RPC.
+// Identity fields (base_currency, address, tax_id, email, phone, etc.)
+// are intentionally absent — they live on `businesses`, not on the workspace.
+export interface SessionOrganization {
+  id: string;
+  name: string;
+  slug: string;
+  subscription_plan_id: string | null;
+  subscription_status: string | null;
+  subscription_started_at: string | null;
+  subscription_ends_at: string | null;
+  trial_ends_at: string | null;
+  is_suspended: boolean;
+  suspended_at: string | null;
+  suspended_reason: string | null;
+  role: "super_admin" | "owner" | "admin" | "internal" | "accountant" | "staff" | "cashier" | "viewer" | "portal";
+  role_id: string;
+  user_type: "internal" | "portal";
+  computed_status: {
+    is_active: boolean;
+    is_suspended: boolean;
+    is_trialing: boolean;
+    is_expired: boolean;
+    days_remaining: number | null;
+  };
+  plan: {
+    id: string;
+    name: string;
+    description: string | null;
+    price_monthly: number;
+    price_yearly: number | null;
+    features: string[];
+    max_users: number | null;
+    max_invoices_per_month: number | null;
+    max_organizations: number;
+    grace_period_days: number | null;
+    max_storage_mb: number | null;
+  } | null;
+  entitlements: string[];
+  feature_limits: Record<string, number>;
+  /** App-level entitlements from plan_app_access table (e.g., ['finance', 'sales', 'hr']) */
+  app_entitlements: string[];
+  /** Per-org limit overrides from org_entitlement_overrides */
+  limit_overrides: Record<string, unknown>;
+  /** Real-time usage counters for limit enforcement */
+  usage_counters: {
+    users_count: number;
+    invoices_this_month: number;
+    invoices_count: number;
+    businesses_count: number;
+    storage_used_mb: number;
+  } | null;
+  /** Dynamic permission group rules assigned to this user for this org */
+  permission_group_rules: Array<{
+    module: string;
+    can_read: boolean;
+    can_create: boolean;
+    can_write: boolean;
+    can_delete: boolean;
+  }>;
+}
+
+export interface SessionData {
+  organizations: SessionOrganization[];
+  user_id: string;
+  is_platform_admin: boolean;
+  /**
+   * Server-trusted "last active workspace" for this user (profiles.last_org_id).
+   * Preferred over localStorage during first-render hydration so that:
+   *  - a user reloading on machine B sees the same workspace as machine A,
+   *  - stale localStorage pointing at a deleted/revoked org is ignored
+   *    (the RPC nulls it out before returning).
+   * localStorage stays as an offline fallback only.
+   */
+  last_org_id: string | null;
+  fetched_at: string;
+}
+
+interface SessionContextType {
+  // Session state
+  sessionData: SessionData | null;
+  isLoading: boolean;
+  isRefreshing: boolean;
+  /**
+   * Last fatal error from `get_user_session_data` after the retry budget
+   * was exhausted. When non-null AND `sessionData` is also null, route
+   * guards should surface `SessionFailureCard` rather than a misleading
+   * empty-workspace screen.
+   */
+  sessionError: Error | null;
+  /**
+   * True once we have a coherent answer for "who is this user, and what
+   * workspace are they in?". Specifically:
+   *   - auth + session RPC have settled (isLoading === false), AND
+   *   - either the user has zero orgs (legit empty state), OR currentOrg
+   *     resolved to a real entry in sessionData.organizations.
+   *
+   * Route guards MUST key off `sessionReady` — not `isLoading` — before
+   * redirecting to /select-organization. Otherwise the picker URL flashes
+   * during the tick between `setSessionData` and the derived `currentOrg`
+   * memo committing.
+   */
+  sessionReady: boolean;
+
+  // Vendor portal flag
+  isVendorUser: boolean;
+
+  // Current organization (selected)
+  currentOrg: SessionOrganization | null;
+  switchOrganization: (orgId: string) => void;
+
+  // Entitlement checks (O(1) via Set)
+  hasEntitlement: (featureKey: string) => boolean;
+  getFeatureLimit: (featureKey: string) => number | null;
+
+  // Subscription status (pre-computed server-side)
+  subscriptionStatus: {
+    isActive: boolean;
+    isSuspended: boolean;
+    isTrialing: boolean;
+    isExpired: boolean;
+    daysRemaining: number | null;
+  };
+
+  // Plan info
+  currentPlan: SessionOrganization["plan"];
+
+  // User role
+  userRole: SessionOrganization["role"] | null;
+  userType: SessionOrganization["user_type"] | null;
+  isPlatformAdmin: boolean;
+
+  // Actions
+  refreshSession: () => Promise<void>;
+  createOrganization: (
+    name: string,
+    slug: string,
+    country?: string,
+    currency?: string,
+    businessType?: string,
+    options?: { legalName?: string },
+  ) => Promise<SessionOrganization>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function asArray<T = unknown>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function slugifyFallback(value: string) {
+  return (
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "") || "organization"
+  );
+}
+
+function normalizeComputedStatus(org: Record<string, unknown>) {
+  const now = Date.now();
+  const subscriptionStatus = (org?.subscription_status as string | null) ?? null;
+  const isSuspended = Boolean(org?.is_suspended);
+  const trialEndsAtMs = org?.trial_ends_at ? Date.parse(org.trial_ends_at as string) : NaN;
+  const subscriptionEndsAtMs = org?.subscription_ends_at ? Date.parse(org.subscription_ends_at as string) : NaN;
+
+  const isTrialing =
+    subscriptionStatus === "trial" && (!Number.isFinite(trialEndsAtMs) || trialEndsAtMs > now);
+
+  const isActiveSubscription =
+    subscriptionStatus === "active" &&
+    (!Number.isFinite(subscriptionEndsAtMs) || subscriptionEndsAtMs > now);
+
+  const isExpired =
+    !isSuspended &&
+    (subscriptionStatus === "expired" ||
+      subscriptionStatus === "cancelled" ||
+      (subscriptionStatus === "trial" && Number.isFinite(trialEndsAtMs) && trialEndsAtMs <= now) ||
+      (subscriptionStatus === "active" && Number.isFinite(subscriptionEndsAtMs) && subscriptionEndsAtMs <= now));
+
+  let daysRemaining: number | null = null;
+  const activeEndMs = isTrialing ? trialEndsAtMs : subscriptionStatus === "active" ? subscriptionEndsAtMs : NaN;
+  if (Number.isFinite(activeEndMs)) {
+    daysRemaining = Math.max(0, Math.ceil((activeEndMs - now) / (1000 * 60 * 60 * 24)));
+  }
+
+  return {
+    is_active: !isSuspended && (isTrialing || isActiveSubscription),
+    is_suspended: isSuspended,
+    is_trialing: isTrialing,
+    is_expired: isExpired,
+    days_remaining: daysRemaining,
+  };
+}
+
+function normalizePlan(plan: unknown): SessionOrganization["plan"] {
+  if (!isRecord(plan)) return null;
+
+  return {
+    id: String(plan.id ?? ""),
+    name: String(plan.name ?? "Current Plan"),
+    description: (plan.description as string | null) ?? null,
+    price_monthly: Number(plan.price_monthly ?? 0),
+    price_yearly: toNumberOrNull(plan.price_yearly),
+    features: asArray<string>(plan.features).filter((feature) => typeof feature === "string"),
+    max_users: toNumberOrNull(plan.max_users),
+    max_invoices_per_month: toNumberOrNull(plan.max_invoices_per_month),
+    max_organizations: Number(plan.max_organizations ?? 1),
+    grace_period_days: toNumberOrNull(plan.grace_period_days),
+    max_storage_mb: toNumberOrNull(plan.max_storage_mb),
+  };
+}
+
+function normalizeFeatureData(source: unknown) {
+  const entitlements = new Set<string>();
+  const featureLimits: Record<string, number> = {};
+
+  asArray<Record<string, unknown>>(source).forEach((feature) => {
+    const key =
+      typeof feature?.key === "string"
+        ? (feature.key as string)
+        : typeof feature?.feature_key === "string"
+          ? (feature.feature_key as string)
+          : null;
+
+    if (!key) return;
+
+    entitlements.add(key);
+    const limit = toNumberOrNull(feature?.value ?? feature?.limit_value);
+    if (limit !== null) {
+      featureLimits[key] = limit;
+    }
+  });
+
+  return {
+    entitlements: Array.from(entitlements),
+    featureLimits,
+  };
+}
+
+function normalizeLimitOverrides(source: unknown) {
+  const limitOverrides: Record<string, unknown> = {};
+
+  asArray<Record<string, unknown>>(source).forEach((override) => {
+    if ((override?.type ?? override?.override_type) !== "limit") return;
+    const key = override?.key;
+    if (typeof key !== "string" || key.length === 0) return;
+    limitOverrides[key] = override?.value ?? override?.override_value ?? null;
+  });
+
+  return limitOverrides;
+}
+
+function normalizeUsageCounters(source: unknown): SessionOrganization["usage_counters"] {
+  const usage = isRecord(source) ? source : {};
+  const usersCount = Number(usage.user_count ?? usage.users_count ?? 0);
+  const invoicesCount = Number(usage.invoices_count ?? usage.invoices_this_month ?? 0);
+
+  return {
+    users_count: Number.isFinite(usersCount) ? usersCount : 0,
+    invoices_this_month: Number.isFinite(invoicesCount) ? invoicesCount : 0,
+    invoices_count: Number.isFinite(invoicesCount) ? invoicesCount : 0,
+    businesses_count: Number(usage.businesses_count ?? 0) || 0,
+    storage_used_mb: Number(usage.storage_used_mb ?? 0) || 0,
+  };
+}
+
+function normalizePermissionGroupRules(source: unknown) {
+  return asArray<Record<string, unknown>>(source)
+    .map((rule) => ({
+      module: String(rule?.module ?? ""),
+      can_read: Boolean(rule?.can_read),
+      can_create: Boolean(rule?.can_create),
+      can_write: Boolean(rule?.can_write),
+      can_delete: Boolean(rule?.can_delete),
+    }))
+    .filter((rule) => rule.module.length > 0);
+}
+
+function normalizeOrganizationPayload(org: unknown): SessionOrganization | null {
+  if (!isRecord(org)) return null;
+
+  const organizationId = String(org.id ?? "");
+  if (!organizationId) return null;
+
+  const normalizedPlan = normalizePlan(org.plan);
+  const normalizedFeatureData = normalizeFeatureData(org.entitled_features);
+
+  const featureLimitEntries = isRecord(org.feature_limits)
+    ? Object.entries(org.feature_limits).reduce<Record<string, number>>((acc, [key, value]) => {
+        const parsedValue = toNumberOrNull(value);
+        if (parsedValue !== null) {
+          acc[key] = parsedValue;
+        }
+        return acc;
+      }, {})
+    : normalizedFeatureData.featureLimits;
+
+  const entitlements = asArray<string>(org.entitlements)
+    .filter((feature) => typeof feature === "string")
+    .filter(Boolean);
+
+  const computedStatus = isRecord(org.computed_status)
+    ? {
+        is_active: Boolean(org.computed_status.is_active),
+        is_suspended: Boolean(org.computed_status.is_suspended),
+        is_trialing: Boolean(org.computed_status.is_trialing),
+        is_expired: Boolean(org.computed_status.is_expired),
+        days_remaining: toNumberOrNull(org.computed_status.days_remaining),
+      }
+    : normalizeComputedStatus(org);
+
+  const name = String(org.name ?? "Organization");
+  const appEntitlements = asArray<string>(org.app_entitlements)
+    .filter((appId) => typeof appId === "string")
+    .filter(Boolean);
+
+  return {
+    id: organizationId,
+    name,
+    slug: typeof org.slug === "string" && (org.slug as string).length > 0 ? (org.slug as string) : slugifyFallback(name),
+    subscription_plan_id: (org.subscription_plan_id as string | null) ?? normalizedPlan?.id ?? null,
+    subscription_status: (org.subscription_status as string | null) ?? null,
+    subscription_started_at: (org.subscription_started_at as string | null) ?? null,
+    subscription_ends_at: (org.subscription_ends_at as string | null) ?? null,
+    trial_ends_at: (org.trial_ends_at as string | null) ?? null,
+    is_suspended: Boolean(org.is_suspended ?? false),
+    suspended_at: (org.suspended_at as string | null) ?? null,
+    suspended_reason: (org.suspended_reason as string | null) ?? null,
+    role: ((org.role as SessionOrganization["role"]) ?? "internal"),
+    role_id: String(org.role_id ?? `${organizationId}-role`),
+    user_type: ((org.user_type as SessionOrganization["user_type"]) ?? "internal"),
+    computed_status: computedStatus,
+    plan: normalizedPlan,
+    entitlements: entitlements.length > 0 ? entitlements : normalizedFeatureData.entitlements,
+    feature_limits: featureLimitEntries,
+    app_entitlements: appEntitlements,
+    limit_overrides: isRecord(org.limit_overrides)
+      ? (org.limit_overrides as Record<string, unknown>)
+      : normalizeLimitOverrides(org.overrides),
+    usage_counters: normalizeUsageCounters(org.usage_counters),
+    permission_group_rules: normalizePermissionGroupRules(org.permission_group_rules),
+  };
+}
+
+function normalizeSessionPayload(payload: unknown, userId: string): SessionData {
+  const safePayload = isRecord(payload) ? payload : {};
+  const organizationsSource = asArray(safePayload.organizations);
+
+  const organizations = organizationsSource
+    .map((org) => normalizeOrganizationPayload(org))
+    .filter((org): org is SessionOrganization => org !== null);
+
+  return {
+    organizations,
+    user_id: typeof safePayload.user_id === "string" ? (safePayload.user_id as string) : userId,
+    is_platform_admin: Boolean(safePayload.is_platform_admin),
+    last_org_id:
+      typeof safePayload.last_org_id === "string" && (safePayload.last_org_id as string).length > 0
+        ? (safePayload.last_org_id as string)
+        : null,
+    fetched_at:
+      typeof safePayload.fetched_at === "string"
+        ? (safePayload.fetched_at as string)
+        : new Date().toISOString(),
+  };
+}
+
+const defaultSubscriptionStatus: SessionContextType["subscriptionStatus"] = {
+  isActive: false,
+  isSuspended: false,
+  isTrialing: false,
+  isExpired: false,
+  daysRemaining: null,
+};
+
+const SessionContext = createContext<SessionContextType | undefined>(undefined);
+
+export function SessionProvider({ children }: { children: React.ReactNode }) {
+  const { user, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
+
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(() => {
+    // localStorage can throw in some environments (privacy modes, blocked storage).
+    // We always fall back gracefully to selecting the first org from the session payload.
+    try {
+      return localStorage.getItem("currentOrgId");
+    } catch {
+      return null;
+    }
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [sessionError, setSessionError] = useState<Error | null>(null);
+
+  // Track user ID to prevent refetching on token refresh
+  const lastUserIdRef = useRef<string | null>(null);
+  const hasFetchedRef = useRef(false);
+  const postOnboardingRetriedRef = useRef(false);
+
+  // Helper: single RPC attempt + payload normalization.
+  const attemptFetch = useCallback(async (userId: string): Promise<SessionData> => {
+    const { data, error } = await supabase.rpc("get_user_session_data", {
+      p_user_id: userId,
+    });
+    if (error) throw error;
+    return normalizeSessionPayload(data, userId);
+  }, []);
+
+  // Fetch all session data in ONE call, with bounded retry.
+  // Returns the fetched session (or null) so callers can safely use fresh data.
+  const fetchSessionData = useCallback(
+    async (isBackground = false): Promise<SessionData | null> => {
+      if (!user?.id) {
+        setSessionData(null);
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return null;
+      }
+
+      if (!isBackground) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+
+      // Bounded exponential backoff: 0ms, 400ms, 1200ms.
+      const delays = [0, 400, 1200];
+      let lastError: unknown = null;
+      let session: SessionData | null = null;
+
+      for (let attempt = 0; attempt < delays.length; attempt++) {
+        if (delays[attempt] > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+        }
+        try {
+          session = await attemptFetch(user.id);
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+          console.warn(
+            `[SessionContext] get_user_session_data attempt ${attempt + 1} failed:`,
+            err,
+          );
+        }
+      }
+
+      if (!session) {
+        // All retries exhausted. Preserve last-known-good sessionData
+        // (if any) and surface an explicit error so guards can render a
+        // failure card instead of a misleading empty state.
+        const error =
+          lastError instanceof Error
+            ? lastError
+            : new Error(
+                typeof lastError === "string"
+                  ? lastError
+                  : "Failed to load session data",
+              );
+        setSessionError(error);
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return null;
+      }
+
+      // Post-onboarding race guard: if the user metadata says onboarding
+      // is complete but we see zero memberships, the `user_roles` row
+      // may not have committed yet under RLS. Retry once after 600ms.
+      const onboardingCompleted =
+        user.user_metadata?.onboarding_completed === true;
+      if (
+        session.organizations.length === 0 &&
+        onboardingCompleted &&
+        !postOnboardingRetriedRef.current
+      ) {
+        postOnboardingRetriedRef.current = true;
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          const retried = await attemptFetch(user.id);
+          if (retried.organizations.length > 0) {
+            session = retried;
+          }
+        } catch (err) {
+          console.warn("[SessionContext] post-onboarding retry failed:", err);
+        }
+      }
+
+      setSessionError(null);
+      setSessionData(session);
+
+      // Resolve current org with the server-trusted preference first.
+      // Order of precedence:
+      //   1. server: profiles.last_org_id (round-trips across devices)
+      //   2. client: localStorage["currentOrgId"] (offline fallback)
+      //   3. first org in the membership list
+      if (session.organizations.length > 0) {
+        let storedOrgId: string | null = null;
+        try {
+          storedOrgId = localStorage.getItem("currentOrgId");
+        } catch {
+          storedOrgId = null;
+        }
+
+        const serverPick = session.last_org_id
+          ? session.organizations.find((o) => o.id === session.last_org_id)
+          : null;
+        const storedPick = storedOrgId
+          ? session.organizations.find((o) => o.id === storedOrgId)
+          : null;
+        const nextOrgId =
+          serverPick?.id ?? storedPick?.id ?? session.organizations[0].id;
+        setCurrentOrgId(nextOrgId);
+
+        try {
+          localStorage.setItem("currentOrgId", nextOrgId);
+        } catch {
+          // Ignore storage errors; app will still work using in-memory state.
+        }
+      } else {
+        setCurrentOrgId(null);
+      }
+
+      hasFetchedRef.current = true;
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return session;
+    },
+    [user?.id, user?.user_metadata?.onboarding_completed, attemptFetch],
+  );
+
+  // Effect to fetch session when user changes
+  useEffect(() => {
+    const userId = user?.id ?? null;
+
+    if (!user) {
+      // CRITICAL: do NOT flip isLoading=false while AuthContext is
+      // still restoring. That race is what allowed downstream guards
+      // to see (isLoading=false, sessionData=null, organizations=[])
+      // for a single render and fire `<Navigate to="/select-organization">`
+      // before the real user appeared on the next tick.
+      setSessionData(null);
+      setCurrentOrgId(null);
+      setSessionError(null);
+      lastUserIdRef.current = null;
+      hasFetchedRef.current = false;
+      postOnboardingRetriedRef.current = false;
+      setIsLoading(authLoading);
+      return;
+    }
+
+    // Only fetch if user ID changed or we haven't fetched yet
+    if (lastUserIdRef.current !== userId || !hasFetchedRef.current) {
+      lastUserIdRef.current = userId;
+      postOnboardingRetriedRef.current = false;
+      fetchSessionData();
+    }
+  }, [user, authLoading, fetchSessionData]);
+
+  // Visibility change: when the tab regains focus and our last attempt
+  // failed, try one more time. Cheap and high-leverage for users who
+  // leave the tab open across a brief outage.
+  useEffect(() => {
+    if (!user) return;
+    const handler = () => {
+      if (document.visibilityState === "visible" && sessionError) {
+        void fetchSessionData(true);
+      }
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, [user, sessionError, fetchSessionData]);
+
+  // Realtime: auto-refresh session when org subscription fields change
+  useEffect(() => {
+    if (!currentOrgId || !user) return;
+
+    const channel = supabase
+      .channel(`session-org-${currentOrgId}`)
+      .on(
+        "postgres_changes" as never,
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "organizations",
+          filter: `id=eq.${currentOrgId}`,
+        },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          const changed = payload.new;
+          const old = payload.old;
+          // Only refresh if subscription-related fields changed
+          if (
+            changed.subscription_status !== old.subscription_status ||
+            changed.subscription_plan_id !== old.subscription_plan_id ||
+            changed.is_suspended !== old.is_suspended ||
+            changed.subscription_ends_at !== old.subscription_ends_at ||
+            changed.trial_ends_at !== old.trial_ends_at
+          ) {
+            console.log("[SessionContext] Subscription change detected, refreshing session");
+            fetchSessionData(true);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentOrgId, user, fetchSessionData]);
+
+  // Current organization derived from session data.
+  const currentOrg = useMemo(() => {
+    if (!sessionData || !currentOrgId) return null;
+    return sessionData.organizations.find((o) => o.id === currentOrgId) || null;
+  }, [sessionData, currentOrgId]);
+
+  // Entitlements as a Set for O(1) lookup
+  const entitlementsSet = useMemo(() => {
+    if (!currentOrg) return new Set<string>();
+    return new Set(currentOrg.entitlements || []);
+  }, [currentOrg]);
+
+  const appEntitlementsSet = useMemo(() => {
+    if (!currentOrg) return new Set<string>();
+    return new Set(currentOrg.app_entitlements || []);
+  }, [currentOrg]);
+
+  // Check entitlement - O(1) lookup
+  const hasEntitlement = useCallback(
+    (featureKey: string): boolean => {
+      // If subscription is not active, deny all
+      if (!currentOrg?.computed_status.is_active) {
+        return false;
+      }
+      // Check explicit feature-level entitlements first (e.g., ai_assistant, multi_currency)
+      if (entitlementsSet.has(featureKey)) {
+        return true;
+      }
+      // Defensive fallback: if the key matches an app-level entitlement, grant access.
+      // This prevents false "upgrade required" prompts for keys that are app-level
+      // concerns (e.g., "sales", "finance") rather than premium feature keys.
+      if (appEntitlementsSet.has(featureKey)) {
+        return true;
+      }
+      return false;
+    },
+    [currentOrg, entitlementsSet, appEntitlementsSet],
+  );
+
+  // Get feature limit
+  const getFeatureLimit = useCallback(
+    (featureKey: string): number | null => {
+      if (!currentOrg) return null;
+      return currentOrg.feature_limits[featureKey] ?? null;
+    },
+    [currentOrg],
+  );
+
+  // Switch organization
+  const switchOrganization = useCallback(
+    (orgId: string) => {
+      if (orgId !== currentOrgId) {
+        setCurrentOrgId(orgId);
+        try {
+          localStorage.setItem("currentOrgId", orgId);
+        } catch {
+          // ignore
+        }
+        // Persist preference server-side so the next reload (any device)
+        // picks the same workspace without the client having to "discover"
+        // it. Fire-and-forget — localStorage is the offline fallback and
+        // the RPC defends itself against non-member orgs.
+        void supabase
+          .rpc("set_last_org_id", { p_org_id: orgId })
+          .then(({ error }) => {
+            if (error) {
+              console.warn("[SessionContext] set_last_org_id failed:", error.message);
+            }
+          });
+        // Invalidate queries to refetch with new org context
+        queryClient.invalidateQueries();
+      }
+    },
+    [currentOrgId, queryClient],
+  );
+
+  // Create organization (Workspace + first Company + HQ Branch in one RPC)
+  const createOrganization = useCallback(
+    async (
+      name: string,
+      slug: string,
+      country?: string,
+      currency?: string,
+      businessType?: string,
+      options?: { legalName?: string },
+    ): Promise<SessionOrganization> => {
+      if (!user) throw new Error("Must be logged in");
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session) throw new Error("Your session is not active. Please sign out and sign in again.");
+
+      // Use the unified onboarding RPC so additional workspaces are
+      // provisioned identically to the first one (CoA, fiscal periods,
+      // owner role, employee record, idempotency). The legacy
+      // `create_organization_with_owner` path skipped CoA + periods,
+      // producing broken second workspaces — see audit Phase 5 / Refactor 3.
+      const idempotencyKey = `create-org-${user.id}-${slug}-${Date.now()}`;
+      const { data: rpcResult, error: orgError } = await supabase.rpc("complete_onboarding", {
+        p_company_name: name,
+        p_slug: slug,
+        p_country: country || null,
+        p_currency: currency || null,
+        p_business_type: businessType || null,
+        p_legal_name: options?.legalName || null,
+        p_selected_app_ids: [],
+        p_invitees: [],
+        p_founder_first_name: null,
+        p_founder_last_name: null,
+        p_idempotency_key: idempotencyKey,
+      });
+
+      if (orgError) throw orgError;
+
+      const freshSession = await fetchSessionData();
+      const newOrgId =
+        (rpcResult as { organization_id?: string; id?: string } | null)?.organization_id ??
+        (rpcResult as { id?: string } | null)?.id ??
+        null;
+
+      if (newOrgId) {
+        const byId = freshSession?.organizations.find((o) => o.id === newOrgId);
+        if (byId) return byId;
+      }
+
+      const bySlug = freshSession?.organizations.find((o) => o.slug === slug);
+      if (bySlug) return bySlug;
+
+      throw new Error("Failed to load new organization");
+    },
+    [user, fetchSessionData],
+  );
+
+  // Subscription status from current org (pre-computed server-side)
+  const subscriptionStatus: SessionContextType["subscriptionStatus"] = useMemo(() => {
+    if (!currentOrg) return defaultSubscriptionStatus;
+    return {
+      isActive: currentOrg.computed_status.is_active ?? false,
+      isSuspended: currentOrg.computed_status.is_suspended ?? false,
+      isTrialing: currentOrg.computed_status.is_trialing ?? false,
+      isExpired: currentOrg.computed_status.is_expired ?? false,
+      daysRemaining: currentOrg.computed_status.days_remaining ?? null,
+    };
+  }, [currentOrg]);
+
+  // Derive vendor user flag from auth metadata
+  const isVendorUser = user?.user_metadata?.is_vendor_portal === true;
+
+  // Coherent readiness: don't claim "ready" while we still expect currentOrg
+  // to resolve (sessionData has orgs but the memo hasn't caught up yet).
+  const sessionReady = useMemo(() => {
+    if (isLoading || authLoading) return false;
+    if (!sessionData) return false;
+    const orgs = sessionData.organizations ?? [];
+    if (orgs.length === 0) return true; // legit empty state
+    return currentOrg !== null;
+  }, [isLoading, authLoading, sessionData, currentOrg]);
+
+  const value = useMemo<SessionContextType>(
+    () => ({
+      sessionData,
+      isLoading,
+      isRefreshing,
+      sessionError,
+      sessionReady,
+      isVendorUser,
+      currentOrg,
+      switchOrganization,
+      hasEntitlement,
+      getFeatureLimit,
+      subscriptionStatus,
+      currentPlan: currentOrg?.plan || null,
+      userRole: currentOrg?.role || null,
+      userType: currentOrg?.user_type || null,
+      isPlatformAdmin: sessionData?.is_platform_admin || false,
+      refreshSession: async () => {
+        postOnboardingRetriedRef.current = false;
+        await fetchSessionData(true);
+      },
+      createOrganization,
+    }),
+    [
+      sessionData,
+      isLoading,
+      isRefreshing,
+      sessionError,
+      sessionReady,
+      isVendorUser,
+      currentOrg,
+      switchOrganization,
+      hasEntitlement,
+      getFeatureLimit,
+      subscriptionStatus,
+      fetchSessionData,
+      createOrganization,
+    ],
+  );
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+}
+
+export function useSession() {
+  const context = useContext(SessionContext);
+  if (context === undefined) {
+    throw new Error("useSession must be used within a SessionProvider");
+  }
+  return context;
+}
+
+/**
+ * Compatibility hook - provides the same interface as the old useOrganization.
+ * This allows gradual migration without breaking existing code.
+ */
+export function useOrganizationCompat() {
+  const session = useSession();
+
+  return {
+    organizations: session.sessionData?.organizations || [],
+    currentOrg: session.currentOrg,
+    userRole: session.currentOrg
+      ? {
+          id: session.currentOrg.role_id,
+          role: session.currentOrg.role,
+          organization_id: session.currentOrg.id,
+        }
+      : null,
+    isLoading: session.isLoading,
+    switchOrganization: session.switchOrganization,
+    createOrganization: session.createOrganization,
+    refreshOrganizations: session.refreshSession,
+  };
+}
+
+/**
+ * Compatibility hook - provides the same interface as the old useSubscription.
+ * This allows gradual migration without breaking existing code.
+ */
+export function useSubscriptionCompat() {
+  const session = useSession();
+
+  return {
+    plan: session.currentPlan,
+    planFeatures:
+      session.currentOrg?.entitlements.map((key) => ({
+        feature_key: key,
+        is_enabled: true,
+        limit_value: session.currentOrg?.feature_limits[key] ?? null,
+      })) || [],
+    subscriptionStatus: {
+      isActive: session.subscriptionStatus.isActive,
+      isSuspended: session.subscriptionStatus.isSuspended,
+      isTrialing: session.subscriptionStatus.isTrialing,
+      isExpired: session.subscriptionStatus.isExpired,
+      status: session.currentOrg?.subscription_status || null,
+      trialEndsAt: session.currentOrg?.trial_ends_at || null,
+      subscriptionEndsAt: session.currentOrg?.subscription_ends_at || null,
+      suspendedReason: session.currentOrg?.suspended_reason || null,
+      daysRemaining: session.subscriptionStatus.daysRemaining,
+      subscriptionType: session.subscriptionStatus.isTrialing
+        ? "trial"
+        : session.subscriptionStatus.isActive
+          ? "active"
+          : session.subscriptionStatus.isSuspended
+            ? "suspended"
+            : session.subscriptionStatus.isExpired
+              ? "expired"
+              : ("none" as const),
+    },
+    usage: null, // Usage is fetched separately if needed
+    isLoading: session.isLoading,
+    isRefreshing: session.isRefreshing,
+    checkFeatureAccess: session.hasEntitlement,
+    getFeatureLimit: session.getFeatureLimit,
+    checkLimit: (featureKey: string, currentValue: number) => {
+      const limit = session.getFeatureLimit(featureKey);
+      if (limit === null) return { allowed: true, limit: null, remaining: null };
+      return {
+        allowed: currentValue < limit,
+        limit,
+        remaining: Math.max(0, limit - currentValue),
+      };
+    },
+    canCreateInvoice: () => {
+      if (!session.subscriptionStatus.isActive) return false;
+      const limit = session.getFeatureLimit("max_invoices");
+      if (limit === null) return true;
+      const usage = session.currentOrg?.usage_counters?.invoices_count ?? 0;
+      return usage < limit;
+    },
+    canAddUser: () => {
+      if (!session.subscriptionStatus.isActive) return false;
+      const limit = session.getFeatureLimit("max_users");
+      if (limit === null) return true;
+      const usage = session.currentOrg?.usage_counters?.users_count ?? 0;
+      return usage < limit;
+    },
+    getDaysRemaining: () => session.subscriptionStatus.daysRemaining,
+    getSubscriptionType: () =>
+      session.subscriptionStatus.isTrialing
+        ? "trial"
+        : session.subscriptionStatus.isActive
+          ? "active"
+          : session.subscriptionStatus.isSuspended
+            ? "suspended"
+            : session.subscriptionStatus.isExpired
+              ? "expired"
+              : "none",
+    isInGracePeriod: () => {
+      const days = session.subscriptionStatus.daysRemaining;
+      return days !== null && days >= -7 && days < 0;
+    },
+    refreshSubscription: session.refreshSession,
+  };
+}

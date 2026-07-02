@@ -1,0 +1,26 @@
+import { lazy } from "react";
+
+export const AdminManagement = lazy(() => import("@/pages/AdminManagement"));
+export const AdminOrganizations = lazy(() => import("@/pages/admin/AdminOrganizations"));
+export const AdminUsers = lazy(() => import("@/pages/admin/AdminUsers"));
+export const AdminInvoices = lazy(() => import("@/pages/admin/AdminInvoices"));
+export const AdminAnalytics = lazy(() => import("@/pages/admin/AdminAnalytics"));
+export const AdminReports = lazy(() => import("@/pages/admin/AdminReports"));
+export const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
+export const AdminEmailCenter = lazy(() => import("@/pages/admin/AdminEmailCenter"));
+export const AdminDemoRequests = lazy(() => import("@/pages/admin/AdminDemoRequests"));
+export const AdminLocalizationPacks = lazy(() => import("@/pages/admin/AdminLocalizationPacks"));
+export const AdminInfrastructure = lazy(() => import("@/pages/admin/AdminInfrastructure"));
+export const AdminOrganizationDetail = lazy(() => import("@/pages/admin/AdminOrganizationDetail"));
+export const AdminPlanBuilder = lazy(() => import("@/pages/admin/AdminPlanBuilder"));
+export const AdminAppCatalog = lazy(() => import("@/pages/admin/AdminAppCatalog"));
+export const AdminPayments = lazy(() => import("@/pages/admin/AdminPayments"));
+export const AdminAuditLog = lazy(() => import("@/pages/admin/AdminAuditLog"));
+export const HardwareOpsPage = lazy(() => import("@/pages/admin/HardwareOpsPage"));
+export const AdminMfaSetup = lazy(() => import("@/pages/admin/AdminMfaSetup"));
+export const AdminTeam = lazy(() => import("@/pages/admin/AdminTeam"));
+export const AdminGroups = lazy(() => import("@/pages/admin/AdminGroups"));
+export const Studio = lazy(() => import("@/pages/Studio"));
+export const Compliance = lazy(() => import("@/pages/Compliance"));
+export const AuditLogs = lazy(() => import("@/pages/AuditLogs"));
+export const BillingHistory = lazy(() => import("@/pages/BillingHistory"));

@@ -1,0 +1,38 @@
+-- Seed common world currencies if they don't exist
+INSERT INTO public.currencies (code, name, symbol, decimal_places, is_active)
+VALUES
+  ('USD', 'US Dollar', '$', 2, true),
+  ('EUR', 'Euro', '€', 2, true),
+  ('GBP', 'British Pound', '£', 2, true),
+  ('KES', 'Kenyan Shilling', 'KSh', 2, true),
+  ('UGX', 'Ugandan Shilling', 'USh', 0, true),
+  ('TZS', 'Tanzanian Shilling', 'TSh', 0, true),
+  ('NGN', 'Nigerian Naira', '₦', 2, true),
+  ('ZAR', 'South African Rand', 'R', 2, true),
+  ('INR', 'Indian Rupee', '₹', 2, true),
+  ('JPY', 'Japanese Yen', '¥', 0, true),
+  ('CNY', 'Chinese Yuan', '¥', 2, true),
+  ('AED', 'UAE Dirham', 'د.إ', 2, true),
+  ('CAD', 'Canadian Dollar', 'C$', 2, true),
+  ('AUD', 'Australian Dollar', 'A$', 2, true),
+  ('CHF', 'Swiss Franc', 'CHF', 2, true),
+  ('SGD', 'Singapore Dollar', 'S$', 2, true),
+  ('MYR', 'Malaysian Ringgit', 'RM', 2, true),
+  ('PHP', 'Philippine Peso', '₱', 2, true),
+  ('THB', 'Thai Baht', '฿', 2, true),
+  ('IDR', 'Indonesian Rupiah', 'Rp', 0, true),
+  ('VND', 'Vietnamese Dong', '₫', 0, true),
+  ('PKR', 'Pakistani Rupee', '₨', 2, true),
+  ('BDT', 'Bangladeshi Taka', '৳', 2, true),
+  ('EGP', 'Egyptian Pound', 'E£', 2, true),
+  ('GHS', 'Ghanaian Cedi', 'GH₵', 2, true),
+  ('RWF', 'Rwandan Franc', 'RF', 0, true),
+  ('ETB', 'Ethiopian Birr', 'Br', 2, true),
+  ('BRL', 'Brazilian Real', 'R$', 2, true),
+  ('MXN', 'Mexican Peso', 'Mex$', 2, true),
+  ('ARS', 'Argentine Peso', 'AR$', 2, true)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  symbol = EXCLUDED.symbol,
+  decimal_places = EXCLUDED.decimal_places,
+  is_active = true;

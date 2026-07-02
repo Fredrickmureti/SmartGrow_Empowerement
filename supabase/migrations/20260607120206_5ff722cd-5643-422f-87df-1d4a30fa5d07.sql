@@ -1,0 +1,1 @@
+ALTER FUNCTION public.assert_payroll_ready(uuid, uuid, uuid[], date, date, uuid) VOLATILE;

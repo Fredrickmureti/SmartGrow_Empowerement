@@ -1,0 +1,567 @@
+import { useState } from "react";
+import { WorkflowSheet } from "@/components/workflow/WorkflowSheet";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Mail,
+  Phone,
+  Building2,
+  Calendar,
+  Star,
+  ChevronDown,
+  UserPlus,
+  FileText,
+  ShoppingCart,
+  FolderKanban,
+  Trophy,
+  XCircle,
+  Loader2,
+  Activity,
+  Info,
+  Trash2,
+  ExternalLink,
+} from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { format } from "date-fns";
+import { Lead, useLeads } from "@/hooks/crm/useLeads";
+import { useCRMActivities } from "@/hooks/crm/useCRMActivities";
+import { useNavigate } from "react-router-dom";
+import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
+import { useCurrency } from "@/hooks/useCurrency";
+import { MarkAsWonDialog } from "./MarkAsWonDialog";
+import { LeadItemsEditor } from "./LeadItemsEditor";
+
+import { MarkAsLostDialog } from "./MarkAsLostDialog";
+import { ScheduleActivityDialog } from "./ScheduleActivityDialog";
+import { ActivityTimeline } from "./ActivityTimeline";
+import { CRMActivity } from "@/hooks/crm/useCRMActivities";
+import { toast } from "sonner";
+import { normalizeError } from "@/services/resilience";
+
+interface LeadDetailsDialogProps {
+  lead: Lead | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDelete?: (leadId: string) => Promise<void>;
+}
+
+export function LeadDetailsDialog({
+  lead,
+  open,
+  onOpenChange,
+  onDelete,
+}: LeadDetailsDialogProps) {
+  const navigate = useNavigate();
+  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
+  const { formatCurrency, baseCurrency } = useCurrency();
+  const {
+    markAsWon,
+    markAsLost,
+    deleteLead: deleteLeadFromHook,
+    convertToContact,
+    convertToEstimate,
+    convertToSalesOrder,
+    convertToProject,
+    refreshLeads,
+  } = useLeads();
+
+
+  // Use the passed onDelete prop if available, otherwise fall back to the hook's deleteLead
+  const deleteLead = onDelete || deleteLeadFromHook;
+
+  const {
+    activities,
+    isLoading: activitiesLoading,
+    createActivity,
+    updateActivity,
+    markAsDone,
+    deleteActivity,
+  } = useCRMActivities(lead?.id);
+
+  const [isConverting, setIsConverting] = useState(false);
+  const [showWonDialog, setShowWonDialog] = useState(false);
+  const [showLostDialog, setShowLostDialog] = useState(false);
+  const [showActivityDialog, setShowActivityDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<CRMActivity | undefined>();
+
+  if (!lead) return null;
+
+  const handleAction = async (action: () => Promise<any>) => {
+    if (isReadOnly) {
+      openUpgradeModal("crm");
+      return;
+    }
+    setIsConverting(true);
+    try {
+      await action();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error("Action failed:", error);
+      toast.error(normalizeError(error).message || "An error occurred while processing your request");
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  const handleConvertToContact = () =>
+    handleAction(async () => {
+      const contact = await convertToContact(lead.id);
+      if (contact) {
+        navigate(`/contacts-app/profile?id=${contact.id}`);
+      }
+    });
+
+  const handleConvertToEstimate = () =>
+    handleAction(async () => {
+      const estimate = await convertToEstimate(lead.id);
+      if (estimate) {
+        navigate(`/estimates?edit=${estimate.id}`);
+      }
+    });
+
+  const handleConvertToSalesOrder = () =>
+    handleAction(async () => {
+      const order = await convertToSalesOrder(lead.id);
+      if (order) {
+        navigate(`/sales-orders?edit=${order.id}`);
+      }
+    });
+
+  const handleConvertToProject = () =>
+    handleAction(async () => {
+      const project = await convertToProject(lead.id);
+      if (project) {
+        navigate(`/projects/${project.id}/overview`);
+      }
+    });
+
+  const handleMarkAsWon = () => {
+    if (isReadOnly) {
+      openUpgradeModal("crm");
+      return;
+    }
+    setShowWonDialog(true);
+  };
+
+  const handleMarkAsLost = () => {
+    if (isReadOnly) {
+      openUpgradeModal("crm");
+      return;
+    }
+    setShowLostDialog(true);
+  };
+
+  const confirmWon = async (options: {
+    createContact: boolean;
+    create: { estimate: boolean; salesOrder: boolean; project: boolean };
+  }) => {
+    try {
+      const result = await markAsWon(lead.id, options);
+      onOpenChange(false);
+
+      // Navigate to the most "downstream" artifact created (project > SO > estimate).
+      if (options.create.project && result?.projectId) {
+        navigate(`/projects/${result.projectId}/overview`);
+      } else if (options.create.salesOrder && result?.salesOrderId) {
+        navigate(`/sales-orders?edit=${result.salesOrderId}`);
+      } else if (options.create.estimate && result?.estimateId) {
+        navigate(`/estimates?edit=${result.estimateId}`);
+      }
+    } catch (error: any) {
+      console.error("Mark as won failed:", error);
+      toast.error(normalizeError(error).message || "Failed to mark lead as won");
+    }
+  };
+
+
+  const confirmLost = async (reasonId?: string, notes?: string) => {
+    await markAsLost(lead.id, reasonId, notes);
+    onOpenChange(false);
+  };
+
+  const handleScheduleActivity = async (activity: Partial<CRMActivity>) => {
+    if (editingActivity) {
+      await updateActivity(editingActivity.id, activity);
+      setEditingActivity(undefined);
+    } else {
+      await createActivity(activity);
+    }
+  };
+
+  const handleEditActivity = (activity: CRMActivity) => {
+    setEditingActivity(activity);
+    setShowActivityDialog(true);
+  };
+
+  const isWonOrLost = lead.won_at || lead.lost_at;
+
+  // Get next pending activity for indicator
+  const nextActivity = activities.find((a) => !a.is_done);
+
+  const handleDelete = () => {
+    if (isReadOnly) {
+      openUpgradeModal("crm");
+      return;
+    }
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteLead(lead.id);
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error("Delete failed:", error);
+      toast.error(normalizeError(error).message || "Failed to delete lead");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
+  return (
+    <>
+      <WorkflowSheet
+        open={open}
+        onOpenChange={onOpenChange}
+        size="2xl"
+        title={<span className="text-xl">{lead.name}</span>}
+        description={
+          <span className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline">{lead.lead_number}</Badge>
+            {lead.stage && (
+              <Badge
+                style={{
+                  backgroundColor: lead.stage.color || "#6b7280",
+                  color: "white",
+                }}
+              >
+                {lead.stage.name}
+              </Badge>
+            )}
+            {lead.won_at && <Badge className="bg-green-100 text-green-800">Won</Badge>}
+            {lead.lost_at && <Badge className="bg-red-100 text-red-800">Lost</Badge>}
+          </span>
+        }
+        headerRight={
+          (lead.priority || 0) > 0 ? (
+            <div className="flex gap-1">
+              {[...Array(lead.priority || 0)].map((_, i) => (
+                <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              ))}
+            </div>
+          ) : null
+        }
+        footer={
+          <>
+            {!isWonOrLost && (
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleMarkAsWon}
+                  disabled={isConverting}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {isConverting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Trophy className="h-4 w-4 mr-2" />
+                  )}
+                  Mark as Won
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleMarkAsLost}
+                  disabled={isConverting}
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Mark as Lost
+                </Button>
+              </>
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isConverting}>
+                  {isConverting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Convert To
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={handleConvertToContact}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Create Contact
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleConvertToEstimate}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Create Estimate
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleConvertToSalesOrder}>
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Create Sales Order
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleConvertToProject}>
+                  <FolderKanban className="h-4 w-4 mr-2" />
+                  Create Project
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDelete}
+              disabled={isConverting || isDeleting}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Delete
+            </Button>
+
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+          </>
+        }
+      >
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="details" className="flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              Details
+            </TabsTrigger>
+            <TabsTrigger value="activities" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Activities
+              {nextActivity && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                  {activities.filter((a) => !a.is_done).length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="details" className="space-y-6 mt-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {lead.contact_name && (
+                <div className="flex items-center gap-2 text-sm">
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  <span>{lead.contact_name}</span>
+                  {lead.contact_id && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-primary"
+                      onClick={() => {
+                        onOpenChange(false);
+                        navigate(`/contacts-app/profile?id=${lead.contact_id}&from=crm`);
+                      }}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      View Profile
+                    </Button>
+                  )}
+                </div>
+              )}
+              {lead.company_contact?.name && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <span>{lead.company_contact.name}</span>
+                </div>
+              )}
+              {lead.email && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <a href={`mailto:${lead.email}`} className="text-primary hover:underline">
+                    {lead.email}
+                  </a>
+                </div>
+              )}
+              {lead.phone && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <a href={`tel:${lead.phone}`} className="text-primary hover:underline">
+                    {lead.phone}
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground mb-1">Expected Revenue</div>
+                  <div className="text-xl font-bold">
+                    {formatCurrency(lead.expected_revenue || 0, baseCurrency)}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground mb-1">Probability</div>
+                  <div className="text-xl font-bold">{lead.probability || 0}%</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <Calendar className="h-4 w-4" />
+                    Expected Close
+                  </div>
+                  <div className="text-xl font-bold">
+                    {lead.expected_close_date
+                      ? format(new Date(lead.expected_close_date), "MMM d")
+                      : "—"}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {lead.description && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Description</h4>
+                  <p className="text-sm text-muted-foreground">{lead.description}</p>
+                </div>
+              </>
+            )}
+
+            {lead.tags && lead.tags.length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                {lead.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            <Separator />
+
+            <LeadItemsEditor
+              leadId={lead.id}
+              organizationId={lead.organization_id}
+              businessId={lead.business_id}
+              onChanged={refreshLeads}
+            />
+
+            {lead.source && (
+              <div className="text-xs text-muted-foreground">
+                Source: {lead.source}
+                {lead.medium && ` / ${lead.medium}`}
+                {lead.campaign && ` / ${lead.campaign}`}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="activities" className="mt-4">
+            <ActivityTimeline
+              activities={activities}
+              isLoading={activitiesLoading}
+              onMarkDone={markAsDone}
+              onDelete={deleteActivity}
+              onEdit={handleEditActivity}
+              onScheduleNew={() => {
+                setEditingActivity(undefined);
+                setShowActivityDialog(true);
+              }}
+            />
+          </TabsContent>
+        </Tabs>
+      </WorkflowSheet>
+
+
+      {/* Mark as Won Dialog */}
+      <MarkAsWonDialog
+        open={showWonDialog}
+        onOpenChange={setShowWonDialog}
+        lead={lead}
+        onConfirm={confirmWon}
+      />
+
+      {/* Mark as Lost Dialog */}
+      <MarkAsLostDialog
+        open={showLostDialog}
+        onOpenChange={setShowLostDialog}
+        leadName={lead.name}
+        onConfirm={confirmLost}
+      />
+
+      {/* Schedule Activity Dialog */}
+      <ScheduleActivityDialog
+        open={showActivityDialog}
+        onOpenChange={(open) => {
+          setShowActivityDialog(open);
+          if (!open) setEditingActivity(undefined);
+        }}
+        leadId={lead.id}
+        leadName={lead.name}
+        onSchedule={handleScheduleActivity}
+        existingActivity={editingActivity}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Lead</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{lead.name}"? This action will archive the lead 
+              and it will no longer appear in your pipeline. This is useful for removing test 
+              data or leads that are no longer relevant.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Delete Lead
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
