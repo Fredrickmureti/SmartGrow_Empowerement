@@ -243,7 +243,7 @@ export default function Expenses() {
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Bulk selection state
