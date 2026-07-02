@@ -42,7 +42,7 @@ Legend for **Target**:
 | Vendors (Contacts) | Create / Edit | reuses shared Contacts flow | Route + `RecordFormShell` at contacts level | Deferred (owned by Contacts) |
 | Vendor Statements | View | inline peek dialog in `src/pages/purchases/VendorStatements.tsx` | `PeekSheet` (`PeekScaffold`) + `/purchases/statements/:vendor_id` record page | **Pending** |
 | RFQs | Create / Edit | legacy dialog in `src/pages/RFQs.tsx` | Route + `RecordFormShell` | **Pending** |
-| Billing History | Peek | inline dialog | `PeekSheet` (`PeekScaffold`) — legacy file already removed | Verify |
+| Billing History | Peek | (legacy dialog file already removed — no live consumers) | `PeekSheet` (`PeekScaffold`) | Done |
 
 ## Enforcement
 
