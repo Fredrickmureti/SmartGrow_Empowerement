@@ -33,6 +33,12 @@ const BillEditPage = lazy(
 const PurchaseOrderEditPage = lazy(
   () => import("@/features/purchases/orders/PurchaseOrderEditPage"),
 );
+const ExpenseCreatePage = lazy(
+  () => import("@/features/purchases/expenses/ExpenseCreatePage"),
+);
+const ExpenseEditPage = lazy(
+  () => import("@/features/purchases/expenses/ExpenseEditPage"),
+);
 const GoodsReceiptWizardPage = lazy(
   () => import("@/features/purchases/goods-receipt/GoodsReceiptWizardPage"),
 );
@@ -200,6 +206,27 @@ export function PurchasesApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        <Route
+          path="expenses/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Expense">
+                <ExpenseCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="expenses/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Expense">
+                <ExpenseEditPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         
         {/* Purchase Returns */}
         <Route

@@ -37,8 +37,9 @@ Legend for **Target**:
 | Purchase Return | Approve / Process / Cancel | row-menu action → toast | Stay as row-menu status actions | Done |
 | Vendor Price List | Create / Edit | `VendorPriceListFormSheet` (`DetailSheet`) | `DetailSheet` (≤6 fields, no line items) | Done |
 | Vendor Price List | Peek (list) | `VendorPriceListPeekSheet` (`DetailSheet`-based) at `src/features/purchases/price-lists/` | `PeekSheet` (`PeekScaffold` / `DetailSheet`) | Done |
-| Expenses | Create / Edit | inline `Dialog` in `src/pages/Expenses.tsx` | Route + `RecordFormShell` (`ExpenseCreatePage`, `ExpenseEditPage`) | **Pending** |
-| Expenses | Peek (list) | `ExpenseDetailDialog` | `PeekSheet` (`PeekScaffold`) | **Pending** |
+| Expenses | Create | `/purchases/expenses/new` → `ExpenseCreatePage` | Route + `RecordFormShell` | Done |
+| Expenses | Edit | `/purchases/expenses/:id/edit` → `ExpenseEditPage` | Route + `RecordFormShell` | Done |
+| Expenses | Peek (list) | `ExpensePeekSheet` behind `?peek=<id>` in `src/pages/Expenses.tsx` | `PeekSheet` (`PeekScaffold`) | Done |
 | Vendors (Contacts) | Create / Edit | reuses shared Contacts flow | Route + `RecordFormShell` at contacts level | Deferred (owned by Contacts) |
 | Vendor Statements | View | inline peek dialog in `src/pages/purchases/VendorStatements.tsx` | `PeekSheet` (`PeekScaffold`) + `/purchases/statements/:vendor_id` record page | **Pending** |
 | RFQs | Create / Edit | legacy dialog in `src/pages/RFQs.tsx` | Route + `RecordFormShell` | **Pending** |

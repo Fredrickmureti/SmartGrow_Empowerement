@@ -3,7 +3,7 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { EXPENSE_IMPORT_FIELDS } from "@/lib/importConfigs/expenseImportConfig";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useExpensesPaginated, Expense, ExpenseCategory } from "@/hooks/useExpensesPaginated";
@@ -184,7 +184,7 @@ export default function Expenses() {
   const { userRole, currentOrg } = useOrganization();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showDialog, setShowDialog] = useState(false);
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [peekId, setPeekId] = usePeekParam();
 
@@ -214,24 +214,27 @@ export default function Expenses() {
     };
 
     const handleDeepLinks = async () => {
-      if (searchParams.get("action") === "create" && !showDialog) {
+      if (searchParams.get("action") === "create") {
+        // `?action=create` now redirects to the dedicated
+        // `/purchases/expenses/new` route. Forward the vendor / project
+        // prefill query params so the create page can hydrate its form.
         const prefillContactId = searchParams.get("contact_id");
         const prefillProjectId = searchParams.get("project_id");
-        if (prefillContactId || prefillProjectId) {
-          setFormData((prev) => ({
-            ...prev,
-            ...(prefillContactId ? { vendor_id: prefillContactId } : {}),
-            ...(prefillProjectId ? { project_id: prefillProjectId } : {}),
-          }));
-        }
-        setShowDialog(true);
+        const params = new URLSearchParams();
+        if (prefillContactId) params.set("contact_id", prefillContactId);
+        if (prefillProjectId) params.set("project_id", prefillProjectId);
+        const qs = params.toString();
+        navigate(qs ? `/purchases/expenses/new?${qs}` : "/purchases/expenses/new", {
+          replace: true,
+        });
+        return;
       }
 
       const expenseId = searchParams.get("id");
       if (!expenseId) return;
 
-      const opened = await openExpenseRecord(expenseId);
-      if (opened) consumeParams(["id"]);
+      setPeekId(expenseId);
+      consumeParams(["id"]);
     };
 
     void handleDeepLinks();
@@ -239,7 +242,7 @@ export default function Expenses() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams, showDialog, setSearchParams, setPeekId]);
+  }, [searchParams, setSearchParams, setPeekId, navigate]);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -421,34 +424,23 @@ export default function Expenses() {
     setEditingExpense(null);
   };
 
+  // Routes to the new dedicated create/edit pages. The inline
+  // `<Dialog>` create/edit surface was retired as part of the ERP-wide
+  // interaction standard — every record form is now a full page mounted
+  // on `RecordFormShell`.
   const handleOpenDialog = (expense?: Expense) => {
     if (expense) {
-      // Guard: don't allow editing approved/paid expenses (accounting lock)
+      // Accounting lock: approved/paid expenses stay read-only in peek.
       if (expense.status !== "pending") {
         setPeekId(expense.id);
         return;
       }
-      setEditingExpense(expense);
-      setFormData({
-        expense_date: expense.expense_date,
-        amount: expense.amount,
-        tax_amount: expense.tax_amount,
-        description: expense.description,
-        reference: expense.reference || "",
-        category_id: expense.category_id || "",
-        vendor_id: expense.vendor_id || "",
-        is_billable: expense.is_billable,
-        receipt_url: expense.receipt_url || null,
-        currency: expense.currency || baseCurrency,
-        payment_method: expense.payment_method || "cash",
-        payment_account_id: expense.payment_account_id || "",
-        project_id: (expense as unknown as { project_id?: string | null }).project_id ?? null,
-      });
-    } else {
-      resetForm();
+      navigate(`/purchases/expenses/${expense.id}/edit`);
+      return;
     }
-    setShowDialog(true);
+    navigate("/purchases/expenses/new");
   };
+
 
   // Detect if selected payment account is AP
   const isAPSelected = !!(formData.payment_account_id && defaultAccounts.accounts_payable_id && formData.payment_account_id === defaultAccounts.accounts_payable_id);
@@ -1107,234 +1099,17 @@ export default function Expenses() {
           />
         )}
 
-        {/* Add/Edit Expense Dialog */}
-        <Dialog open={showDialog} onOpenChange={(open) => {
-          setShowDialog(open);
-          if (!open) {
-            const next = new URLSearchParams(searchParams);
-            if (next.has("action") || next.has("contact_id")) {
-              next.delete("action");
-              next.delete("contact_id");
-              setSearchParams(next, { replace: true });
-            }
-            resetForm();
-          }
-        }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingExpense ? "Edit Expense" : "Record Expense"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingExpense
-                  ? "Update the expense details."
-                  : "Enter the expense details below."}
-              </DialogDescription>
-            </DialogHeader>
+        {/*
+          The legacy `<Dialog>` create/edit surface for Expenses lived
+          here. It was retired on the platform-wide interaction
+          standardization initiative (P.1 in the Purchases ledger).
+          Create / edit are now dedicated full pages at
+          `/purchases/expenses/new` and `/purchases/expenses/:id/edit`,
+          composed on `RecordFormShell` — see
+          `src/features/purchases/expenses/ExpenseCreatePage.tsx` and
+          `ExpenseEditPage.tsx`.
+        */}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="expense_date">Date *</Label>
-                  <Input
-                    id="expense_date"
-                    type="date"
-                    value={formData.expense_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, expense_date: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Amount *</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.amount}
-                    onChange={(e) =>
-                      setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="tax_amount">Tax Amount</Label>
-                  <Input
-                    id="tax_amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.tax_amount}
-                    onChange={(e) =>
-                      setFormData({ ...formData, tax_amount: parseFloat(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="currency">Currency</Label>
-                  <CurrencySelect
-                    value={formData.currency || baseCurrency}
-                    onChange={(value) => setFormData({ ...formData, currency: value })}
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="description">Description *</Label>
-                  <Input
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={formData.category_id}
-                    onValueChange={(value) => setFormData({ ...formData, category_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                       <span className="flex items-center gap-2">
-                            {cat.name}
-                            {!cat.account_id && (
-                              <span className="text-xs text-amber-500">⚠ No GL</span>
-                            )}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {formData.category_id && (() => {
-                    const selectedCat = categories.find(c => c.id === formData.category_id);
-                    if (selectedCat && !selectedCat.account_id) {
-                      return (
-                        <p className="text-xs text-amber-600 dark:text-amber-400">
-                          ⚠ This category has no GL account mapped. Expenses will default to Operating Expenses.
-                        </p>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vendor">Supplier</Label>
-                  <Select
-                    value={formData.vendor_id}
-                    onValueChange={(value) => setFormData({ ...formData, vendor_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {vendors.map((v) => (
-                        <SelectItem key={v.id} value={v.id}>
-                          {v.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="payment_account">Paid From Account *</Label>
-                  <Select
-                    value={formData.payment_account_id}
-                    onValueChange={(value) => setFormData({ ...formData, payment_account_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment account" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paymentAccounts.map((acc) => (
-                        <SelectItem key={acc.id} value={acc.id}>
-                          {acc.code} — {acc.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    The ledger account to credit (e.g., Cash, Bank, Accounts Payable)
-                  </p>
-                  {isAPSelected && (
-                    <div className="space-y-2 mt-2">
-                      <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 p-2.5">
-                        <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                        <p className="text-xs text-blue-700 dark:text-blue-300">
-                          A vendor bill will be created automatically. It will appear in <strong>Purchases → Bills</strong> and <strong>Finance → Accounts Payable</strong> for payment tracking.
-                        </p>
-                      </div>
-                      {!formData.vendor_id && (
-                        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 p-2.5">
-                          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                          <p className="text-xs text-amber-700 dark:text-amber-300">
-                            <strong>Supplier required.</strong> Select a supplier above to create a payable expense.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reference">Reference</Label>
-                  <Input
-                    id="reference"
-                    value={formData.reference}
-                    onChange={(e) =>
-                      setFormData({ ...formData, reference: e.target.value })
-                    }
-                    placeholder="Receipt #, Invoice #, etc."
-                  />
-                </div>
-              </div>
-
-              <ProjectPicker
-                value={formData.project_id}
-                onChange={(id) => setFormData({ ...formData, project_id: id })}
-                helperText="Optional — links this expense's cost to project profitability."
-              />
-
-              <ReceiptUpload
-                currentReceiptUrl={formData.receipt_url}
-                onUploadComplete={(url) => setFormData({ ...formData, receipt_url: url })}
-                onRemove={() => setFormData({ ...formData, receipt_url: null })}
-              />
-
-              {/* Custom Fields */}
-              <CustomFieldsSection
-                entityType="expense"
-                entityId={editingExpense?.id || null}
-                formValues={formData}
-                disabled={isSubmitting}
-              />
-
-              <div className="flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowDialog(false);
-                    resetForm();
-                  }}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingExpense ? "Update Expense" : "Record Expense"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
 
         {/* Add/Edit Category Dialog */}
         <Dialog open={showCategoryDialog} onOpenChange={(open) => {
