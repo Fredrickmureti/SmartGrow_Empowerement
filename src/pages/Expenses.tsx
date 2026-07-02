@@ -214,24 +214,27 @@ export default function Expenses() {
     };
 
     const handleDeepLinks = async () => {
-      if (searchParams.get("action") === "create" && !showDialog) {
+      if (searchParams.get("action") === "create") {
+        // `?action=create` now redirects to the dedicated
+        // `/purchases/expenses/new` route. Forward the vendor / project
+        // prefill query params so the create page can hydrate its form.
         const prefillContactId = searchParams.get("contact_id");
         const prefillProjectId = searchParams.get("project_id");
-        if (prefillContactId || prefillProjectId) {
-          setFormData((prev) => ({
-            ...prev,
-            ...(prefillContactId ? { vendor_id: prefillContactId } : {}),
-            ...(prefillProjectId ? { project_id: prefillProjectId } : {}),
-          }));
-        }
-        setShowDialog(true);
+        const params = new URLSearchParams();
+        if (prefillContactId) params.set("contact_id", prefillContactId);
+        if (prefillProjectId) params.set("project_id", prefillProjectId);
+        const qs = params.toString();
+        navigate(qs ? `/purchases/expenses/new?${qs}` : "/purchases/expenses/new", {
+          replace: true,
+        });
+        return;
       }
 
       const expenseId = searchParams.get("id");
       if (!expenseId) return;
 
-      const opened = await openExpenseRecord(expenseId);
-      if (opened) consumeParams(["id"]);
+      setPeekId(expenseId);
+      consumeParams(["id"]);
     };
 
     void handleDeepLinks();
@@ -239,7 +242,7 @@ export default function Expenses() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams, showDialog, setSearchParams, setPeekId]);
+  }, [searchParams, setSearchParams, setPeekId, navigate]);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
