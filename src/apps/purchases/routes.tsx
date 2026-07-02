@@ -66,6 +66,9 @@ const VendorCreditNoteRecordPage = lazy(
 );
 
 const VendorStatements = lazy(() => import("@/pages/VendorStatements"));
+const VendorStatementRecordPage = lazy(
+  () => import("@/features/purchases/statements/VendorStatementRecordPage"),
+);
 const AgedPayables = lazy(() => import("@/pages/purchases/AgedPayables"));
 
 // Wrapper for lazy routes
@@ -343,6 +346,16 @@ export function PurchasesApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Vendor Statements">
                 <VendorStatements />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="statements/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Vendor Statement">
+                <VendorStatementRecordPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }

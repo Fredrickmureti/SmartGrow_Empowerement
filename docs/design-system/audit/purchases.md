@@ -41,7 +41,7 @@ Legend for **Target**:
 | Expenses | Edit | `/purchases/expenses/:id/edit` → `ExpenseEditPage` | Route + `RecordFormShell` | Done |
 | Expenses | Peek (list) | `ExpensePeekSheet` behind `?peek=<id>` in `src/pages/Expenses.tsx` | `PeekSheet` (`PeekScaffold`) | Done |
 | Vendors (Contacts) | Create / Edit | reuses shared Contacts flow | Route + `RecordFormShell` at contacts level | Deferred (owned by Contacts) |
-| Vendor Statements | View | inline peek dialog in `src/pages/purchases/VendorStatements.tsx` | `PeekSheet` (`PeekScaffold`) + `/purchases/statements/:vendor_id` record page | **Pending** |
+| Vendor Statements | View | `VendorStatementPeekSheet` behind `?peek=<id>` in `src/pages/VendorStatements.tsx` + `/purchases/statements/:id` → `VendorStatementRecordPage` | `PeekSheet` (`PeekScaffold`) + `RecordScaffold` object page | Done |
 | RFQs | Create / Edit | legacy dialog in `src/pages/RFQs.tsx` | Route + `RecordFormShell` | **Pending** |
 | Billing History | Peek | (legacy dialog file already removed — no live consumers) | `PeekSheet` (`PeekScaffold`) | Done |
 

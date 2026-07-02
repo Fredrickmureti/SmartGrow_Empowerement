@@ -496,7 +496,9 @@ export default function Expenses() {
           toast({ title: "Expense recorded successfully" });
         }
       }
-      setShowDialog(false);
+      // Dialog surface retired — create/edit now live on
+      // /purchases/expenses/{new,:id/edit}. Kept as no-op to satisfy
+      // legacy submit handler until it's fully removed in a later sweep.
       resetForm();
     } catch (error: any) {
       toast({

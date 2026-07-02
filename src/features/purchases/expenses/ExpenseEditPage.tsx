@@ -44,7 +44,7 @@ export default function ExpenseEditPage() {
   const paymentAccounts = usePaymentAccounts();
 
   const { categories, updateExpense } = useExpensesPaginated({});
-  const { data: record, isLoading, error } = useExpenseRecord(id);
+  const { record, loading: isLoading, error } = useExpenseRecord(id);
 
   const vendors = useMemo(
     () =>
