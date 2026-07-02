@@ -133,7 +133,7 @@ export default function ExpenseEditPage() {
   };
 
   if (isLoading) {
-    return <LoadingState title="Loading expense…" />;
+    return <LoadingState />;
   }
   if (error || !record) {
     return (
