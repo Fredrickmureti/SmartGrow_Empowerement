@@ -1,78 +1,86 @@
-## Assessment of prior work
+## Independent assessment — what's actually done, and what isn't
 
-I audited what the previous agent actually shipped versus what it claimed:
+I verified the previous agent's claims against the code rather than the notes. The picture is more mixed than the closing message suggested.
 
-**Verified done**
-- `src/design-system/` — `RecordShell`, `RecordFormShell`, `WizardShell`, `DetailSheet`, `SummaryPanel`, `FieldGrid`, `FooterActionBar`, `PeekScaffold`, `RecordScaffold`, `LineItemsGrid`, `DocumentPeekShell`, `useRecordFormSubmit`. Exported from `@/design-system`.
-- **Sales Phases 1–3** — All 10 entities have object pages, peek sheets, and `/new` + `/:id/edit` routes on `RecordFormShell`. Guard `sales-record-dialog-ban.test.ts` allowlist is EMPTY.
-- **Purchases** — Bills, POs, VCNs, Purchase Returns fully migrated (create + edit + record + peek). VPL peek exists. Guard `purchases-record-dialog-ban.test.ts` allowlist has 1 entry (`ExpenseDetailDialog.tsx`).
+### Verified done (evidence)
+- **Sales — record surface (Phase 1–3).** All 10 Sales entities (Invoices, Estimates, SO, Proforma, Delivery Notes, Credit Notes, Sales Returns, Recurring, Customer Payments, Customers) have `/list` → `?peek=<id>` `PeekScaffold` → `/:id` `RecordScaffold` → `/new` + `/:id/edit` on `RecordFormShell`. The `sales-record-dialog-ban.test.ts` allowlist is **empty**.
+- **Purchases — record surface.** Bills, POs, GRN (wizard), Vendor Credit Notes, Purchase Returns, Vendor Price Lists, and Expenses all migrated. `purchases-record-dialog-ban.test.ts` allowlist is **empty**. Only remaining ledger row: RFQs + Vendor Statements — but the audit file still lists them **Pending**, so the guard is passing because those pages never used `Create*Dialog`/`Edit*Dialog` filenames, not because the surface is modern.
+- **Shared primitives.** `RecordFormShell`, `useRecordFormSubmit`, `SalesRecordScaffold`, `SalesRecordBody`, `SalesPeekScaffold`, `DocumentPeekShell`, `LineItemsGrid`, `DocumentTotalsPanel`, `DocumentActivityPanel`, `useDocumentRecord`, `usePeekParam` — all present and re-exported from `@/design-system` / `@/features/sales/record`.
 
-**Actually pending (verified via filesystem, not agent notes)**
-- Purchases: Expenses (dialog-based create/edit in `src/pages/Expenses.tsx` (1535 lines) + `ExpenseDetailDialog.tsx`), RFQs (dialog in `src/pages/RFQs.tsx`), Vendor Statements peek + record page (`src/pages/purchases/VendorStatements.tsx`), Goods Receipt peek sheet (missing file — audit doc marked "Done" because legacy dialog had no consumers, but there's still no peek surface).
-- Sales Phase 4 (Wizards): Record Payment, Convert (estimate/SO/proforma), Apply credit, Refund, Statement, Merge customers — none migrated to `WizardShell` routes.
-- Sales Phase 5: `/sales/configuration/*` object pages — not started.
-- **Inventory application** — no audit doc, no migration. Every create/edit/adjust/transfer surface still in legacy dialogs.
-- **Finance application** — no audit doc, no migration.
+### Verified NOT done
+- **Sales Phase 4 (Wizards).** `RecordPaymentDialog`, `PaymentHistoryDialog`, `VoidInvoiceDialog`, `BulkDeleteDialog`, `BulkExportDialog`, `PartialDeliveryDialog`, `ReturnDeliveryDialog`, `ContactMergeDialog`, `CustomerGroupsDialog`, `ProcessRefundDialog`, `ApplyCreditDialog` still live. The audit targets these for `WizardShell` or a config route.
+- **Sales Phase 5.** No `/sales/configuration/*` routes exist.
+- **Purchases residual.** `RFQs`, `VendorStatements`, and `BillingHistory` peeks/creates are still legacy per the audit ledger (`Pending` / `Verify`).
+- **Inventory UX standardization — NOT STARTED.** No `docs/design-system/audit/inventory.md`. No `inventory-record-dialog-ban.test.ts`. The record/peek scaffolds are not adopted for Warehouses, Stock Adjustments, Stock Transfers, Physical Count, Scrap, Reorder Rules, Products, Product Categories, UoM, Lots, Reservations. The existing `TransferDetailDrawer`, `MovementDetailDrawer`, `WarehouseStockDrawer`, `ReverseAdjustmentDialog` are bespoke, not on `DocumentPeekShell` / `PeekScaffold`. The `inventory-verdict.md` file is a DB/RLS verdict, unrelated to UX.
+- **Finance UX standardization — NOT STARTED.** No `docs/design-system/audit/finance.md`. No dialog-ban guard. `BusinessTransactionDialog`, `RecurringJournalDialog`, `YearEndClosingDialog`, `ApplyCreditDialog`, `ApplyDefaultMappingsDialog`, `ProcessRefundDialog`, `CreditNoteDetailDialog`, and the entire `src/components/banking/*Dialog.tsx` set (Connect / Edit / Import / Reconcile / StartRecon / TransactionRules / TransferReconcile) are legacy. Journal entries and reconciliation are prime `RecordFormShell` / `WizardShell` candidates. `finance-verdict.md` covers accounting invariants and RLS — not the interaction model.
 
-The prior agent's "next turn" claim about closing out Purchases + moving to Sales 4–5 + Inventory + Finance is accurate as a to-do; none of it is actually done.
+### Cross-cutting gaps
+- `SalesPeekScaffold`, `SalesRecordScaffold`, `SalesRecordBody`, `DocumentPeekShell`, `LineItemsGrid`, `DocumentTotalsPanel`, `DocumentActivityPanel` still live under `@/features/sales/record` and are imported cross-app. The audit calls out promoting them to `@/design-system` "in a later pass" — that pass hasn't happened. Purchases already reaches into `@/features/sales/record/*` (layering violation the audit explicitly forbids for future code).
+- No architecture guard on `src/components/inventory` or `src/components/finance|banking` prevents new dialogs from landing.
+- No `docs/design-system/audit/inventory.md` or `finance.md` to serve as the ledger the guard freezes against.
 
-## Plan
+---
 
-Sequenced by the initiative's rule "complete one application before the next". Sales 4–5 finish Sales; then close Purchases; then Inventory; then Finance.
+## Plan — finish the initiative, application by application, in the mandated order
 
-### Stage 1 — Close Sales (Phases 4 + 5)
+Sequencing per the brief: **finish Sales → finish Purchases → do Inventory → do Finance**. Each application ends with (a) audit ledger green, (b) dialog-ban guard passing with empty allowlist, (c) typecheck + build clean.
 
-1. **Wizards on `WizardShell`** (retire the remaining Sales dialogs):
-   - `/sales/invoices/:id/receive-payment` — replaces `RecordPaymentDialog`
-   - `/sales/estimates/:id/convert` — replaces convert menu
-   - `/sales/orders/:id/convert`
-   - `/sales/proforma/:id/convert`
-   - `/sales/credit-notes/:id/apply`
-   - `/sales/returns/:id/refund`
-   - `/sales/statements/new` — replaces generate-statement dialog
-   - `/sales/customers/merge` — replaces `ContactMergeDialog`
-   Each is a 2–3 step wizard using `WizardShell` + `WizardStepper` + `useRecordFormSubmit`.
+### Wave 0 — Promote shared primitives (unblocks Inventory & Finance)
+Move the record/peek scaffold from `@/features/sales/record` into `@/design-system/records/*` and re-export the Sales-namespaced barrel as thin wrappers for back-compat. Rename to domain-neutral names: `DocumentRecordScaffold`, `DocumentPeekScaffold`, `DocumentRecordBody`. This kills the layering violation and lets Purchases/Inventory/Finance import from `@/design-system` cleanly.
 
-2. **Sales configuration** at `/sales/configuration/*`:
-   `customer-groups`, `price-lists`, `invoice-templates`, `payment-terms`, `tax-defaults` — each an object page on `RecordShell` under a shared config layout (mirrors `/hr/configuration`).
+### Wave 1 — Close Sales Phase 4 + Phase 5
+- Migrate `RecordPaymentDialog` (invoice + standalone) → `/sales/payments/new?invoice=<id>` on `WizardShell`.
+- Migrate `PaymentHistoryDialog` → inline section on Invoice record aside (already the target per audit row 5).
+- Migrate `ProcessRefundDialog`, `ApplyCreditDialog`, `PartialDeliveryDialog`, `ReturnDeliveryDialog` → dedicated wizard routes under `/sales/returns/:id/refund`, `/sales/credit-notes/:id/apply`, `/sales/orders/:id/deliver`, `/sales/orders/:id/return`.
+- `ContactMergeDialog` → `/sales/customers/merge` wizard.
+- `CustomerGroupsDialog` → `/sales/configuration/customer-groups` object page.
+- Build the five `/sales/configuration/*` object pages (customer-groups, price-lists, invoice-templates, payment-terms, tax-defaults) on `RecordScaffold` + `RecordFormShell`.
+- `VoidInvoiceDialog`, `BulkDeleteDialog`, `BulkExportDialog`, `BulkExportEstimatesDialog`, `ContactDeleteDialog` — remain `Dialog` (confirm-style, target column says "keep").
+- Tighten `sales-record-dialog-ban.test.ts` to also forbid new `*Dialog.tsx` inside `src/components/sales` unless it's a confirm/picker with ≤6 fields (allowlist the keep set).
 
-3. Extend `sales-record-dialog-ban.test.ts` to also forbid `*Wizard*Dialog.tsx` and freeze a shrinking wizard-dialog allowlist.
+### Wave 2 — Close Purchases residual
+- RFQs: `/purchases/rfqs/new` + `/:id/edit` + `?peek=<id>` on the promoted scaffolds; delete legacy `RFQs.tsx` inline dialog.
+- Vendor Statements: `/purchases/statements/:vendor_id` record page + peek sheet.
+- Billing History: verify legacy files are gone; if a peek remains, replace with `DocumentPeekShell`.
+- Update `docs/design-system/audit/purchases.md` — flip the three "Pending" rows to "Done"; the guard already blocks new dialogs.
 
-### Stage 2 — Close Purchases
+### Wave 3 — Inventory UX standardization (application-complete)
+1. Write `docs/design-system/audit/inventory.md` — the ledger with every entity and its Today/Target/Status column. Entities in scope:
+   - Warehouses, Warehouse Stock, Stock Adjustments, Stock Transfers, Physical Count, Scrap, Reorder Rules, Replenishment Logs, Products, Product Categories, UoM & Packaging, Lots, Reservations, Barcode Enrollment.
+2. Land `inventory-record-dialog-ban.test.ts` with a frozen allowlist that only shrinks.
+3. Nav shell: every inventory page uses `PlatformShell` + `INVENTORY_NAV` (Operations / Insights / Setup groups) matching Sales/Purchases.
+4. Migrate each entity, in dependency order:
+   - **Setup first** (Warehouses, UoM/Packaging, Product Categories, Reorder Rules, Barcode Enrollment configuration) → `RecordFormShell` + `PeekScaffold`.
+   - **Operations** (Stock Adjustment, Stock Transfer, Physical Count, Scrap, Movement/Lot peek) — the ones with line items get `LineItemsGrid` + `DocumentTotalsPanel`; existing `TransferDetailDrawer`, `MovementDetailDrawer`, `WarehouseStockDrawer`, `ReverseAdjustmentDialog` are replaced.
+   - **Products** — `/inventory/products/new`, `/:id/edit`, `/:id` on the shared record scaffold; retire any inline Product create dialog on `src/pages/Products.tsx`.
+5. Reconcile `?peek=<id>` on every list.
+6. Green the ledger + guard.
 
-1. **Expenses**: build `ExpenseCreatePage` + `ExpenseEditPage` (`RecordFormShell`) at `/purchases/expenses/new` and `/purchases/expenses/:id/edit`, plus `ExpensePeekSheet` (`PeekScaffold`) at `?peek=`. Delete `ExpenseDetailDialog.tsx` and inline dialogs in `src/pages/Expenses.tsx`. Empty the guard allowlist.
-2. **RFQs**: `RFQCreatePage`, `RFQEditPage`, `RFQRecordPage`, `RFQPeekSheet`. Retire the legacy dialog inside `src/pages/RFQs.tsx`. Add "Convert to PO" wizard at `/purchases/rfqs/:id/convert`.
-3. **Vendor Statements**: `VendorStatementPeekSheet` on list + `/purchases/statements/:vendor_id` record page on `RecordScaffold`.
-4. **Goods Receipt peek**: `GoodsReceiptPeekSheet` wired into the GR list (audit doc claimed done — I'll actually ship it).
-5. Update `docs/design-system/audit/purchases.md` — all rows become Done.
+### Wave 4 — Finance UX standardization (application-complete)
+1. Write `docs/design-system/audit/finance.md`. Entities:
+   - Journal Entries, Journal Books, Chart of Accounts, Fiscal Periods, Budgets, Analytic Accounts, Fixed Assets, Bank Accounts, Bank Transactions, Bank Reconciliation, Bank Transfers, Bank Rules, Recurring Journals, Year-End Close, Customer Credits, Apply-Credit, Refund, Business Transaction (JE quick-post), Default-Account Mappings, Statements (AR/AP already Sales/Purchases).
+2. Land `finance-record-dialog-ban.test.ts` covering `src/components/finance` + `src/components/banking` + `src/components/accounting`.
+3. Migrate:
+   - **Journal Entry** (`create`/`edit`/`view`) → `/finance/journal-entries/new` + `/:id/edit` + `/:id` on `RecordFormShell` + `RecordScaffold` with `LineItemsGrid` for JE lines. Retire `BusinessTransactionDialog` (converts to `/finance/journal-entries/new?template=business`), `RecurringJournalDialog` (→ `/finance/recurring-journals/*`).
+   - **Bank account** → `/finance/banking/accounts/new` + `/:id/edit` (retires `ConnectBankDialog`, `EditBankAccountDialog`).
+   - **Bank reconciliation** → `/finance/reconciliation/:id` split-view workspace on `RecordScaffold` + `WizardShell`; `StartReconciliationDialog` becomes `/new`, `ReconcileTransactionDialog` becomes inline row-edit inside the workspace, `TransferReconcileDialog` becomes a wizard step, `ImportTransactionsDialog` becomes `/finance/banking/:id/import` wizard, `TransactionRulesDialog` becomes `/finance/banking/rules` object page.
+   - **Year-End Close** → `/finance/fiscal-periods/close` wizard.
+   - **Customer credits & refund flows** → wizard routes; `CreditNoteDetailDialog` in `src/components/finance` is dead-code candidate (the sales credit-note peek supersedes it) — delete after verifying no imports.
+4. Green the ledger + guard.
 
-### Stage 3 — Inventory application
+### Wave 5 — Cross-app parity sweep
+- Every module imports scaffolds from `@/design-system` only.
+- Delete `@/features/sales/record/*` shim once no cross-app imports remain (keep re-exports for one release cycle if any Sales-internal import still points at it).
+- Update `mem://index.md` Core with the two invariants: "Business records use `RecordFormShell`/`RecordScaffold`/`PeekScaffold` from `@/design-system` — never per-entity dialogs" and "Dialogs are reserved for confirms, ≤6-field pickers, print preview, and email send".
+- Run `bun test` (all architecture guards) + `tsgo` + `build:dev`. Ledger files updated with a final "Verdict" section per application.
 
-1. Author `docs/design-system/audit/inventory.md` — comprehensive ledger of every entity: Products, Product Variants, Categories, Units of Measure, Warehouses, Bins, Stock Adjustments, Stock Transfers, Stock Counts / Cycle Counts, Reorder Rules, Serial/Lot tracking, Barcode enrollment, Landed Costs, Opening Stock, Inventory Valuation.
-2. Build `inventory-record-dialog-ban.test.ts` guard with the audited legacy dialogs as the shrinking allowlist.
-3. Migrate in order (biggest first): Products, Stock Adjustments, Stock Transfers, Stock Counts, Warehouses/Bins, Reorder Rules, Landed Costs, Opening Stock. Each entity gets: object page (`RecordScaffold`), peek sheet (`PeekScaffold`), create/edit routes (`RecordFormShell`), and — where needed — a wizard route (Adjust, Transfer, Count, Receive Opening Stock, Landed Cost apportionment).
-4. Empty the guard allowlist as each entity lands.
+## Verification per wave
+- `find src/components/{inventory,finance,banking,accounting,invoices,estimates,sales,contacts,bills,vendors,purchases,expenses,rfqs} -name "*Dialog.tsx"` returns only confirm/picker dialogs.
+- The four dialog-ban guards pass with empty allowlists.
+- Playwright: open one record from each list per app, verify `?peek=<id>` mounts a peek sheet with "Open full page", verify `/new` and `/:id/edit` render `RecordFormShell` with sticky footer and multi-column `FieldGrid`.
+- Typecheck + `build:dev` green.
 
-### Stage 4 — Finance application
-
-1. Author `docs/design-system/audit/finance.md` — Journal Entries, Chart of Accounts, Fiscal Periods, Reconciliation, Bank Feeds, Fixed Assets, Budgets, Tax Filings, Payment Batches, Manual Journals, Recurring Journals, Depreciation runs.
-2. Build `finance-record-dialog-ban.test.ts` guard.
-3. Migrate in the same object-page / peek / create-edit / wizard shape. Recon and depreciation are wizards; JE / COA / Fixed Assets are record pages.
-4. Empty the guard allowlist.
-
-### Cross-cutting (each stage)
-
-- Reuse `@/design-system` primitives only — no new hand-rolled shells.
-- Every create/edit route uses `useRecordFormSubmit` for the submit lifecycle.
-- Every peek sheet uses `usePeekParam` + `PeekScaffold`.
-- Wizards use `WizardShell` + `WizardStepper` on dedicated routes.
-- After each stage: run `bunx vitest run src/test/architecture` + `tsgo` to confirm guards pass and typecheck is clean.
-- Update the app's audit doc as the source of truth per stage; every row must end at **Done** before advancing.
-
-### Technical notes
-
-- `src/design-system/records/index.ts` currently re-exports `RecordScaffold`/`PeekScaffold` from `@/features/sales/record/*`. This is the documented promotion path — Purchases/Inventory/Finance already import via `@/design-system`. Physical relocation into `src/design-system/records/` is deferred to avoid churning Sales imports; it's a rename-only pass and can happen after Finance closes.
-- Wizard routes belong under the entity's app segment (`/sales/...`, `/purchases/...`) — not under a global `/wizards` route — so browser back / breadcrumbs stay meaningful.
-- Row-action menus on list tables stay for status transitions (approve, cancel, void, pause) — those are confirm-style and remain `Dialog`s per the enterprise standard.
-
-I'll execute Stage 1 → 2 → 3 → 4 sequentially, verifying guard + typecheck between stages, updating each audit doc as the ledger of truth.
+## Deferred / non-goals
+- No changes to the accounting engine, RLS policies, or business logic. The `finance-verdict.md` and `inventory-verdict.md` invariants stay untouched — this is a UX/interaction pass.
+- POS and HR/Payroll are already the reference; not in scope.
+- Custom-domain and publishing are user-driven, not part of this initiative.
