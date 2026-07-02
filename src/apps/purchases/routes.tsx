@@ -206,6 +206,27 @@ export function PurchasesApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        <Route
+          path="expenses/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Expense">
+                <ExpenseCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="expenses/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Expense">
+                <ExpenseEditPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         
         {/* Purchase Returns */}
         <Route
