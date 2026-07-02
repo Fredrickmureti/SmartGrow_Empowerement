@@ -184,24 +184,14 @@ export default function VendorStatements() {
     setPreviewData(null);
   };
 
-  const handleReviewStatement = async (statement: (typeof statements)[0]) => {
-    if (isGenerating) return;
-    setIsGenerating(true);
-    setLoadingStatementId(statement.id);
-    try {
-      const data = await generateStatementData({
-        contact_id: statement.contact_id,
-        period_start: statement.period_start,
-        period_end: statement.period_end,
-      });
-      setPreviewData(data);
-      setShowPreviewDialog(true);
-    } catch (error: any) {
-      toast.error("Failed to load statement: " + (normalizeError(error).message || "Unknown error"));
-    } finally {
-      setIsGenerating(false);
-      setLoadingStatementId(null);
-    }
+  /**
+   * Row click / "View" action opens the standard peek sheet
+   * (`?peek=<id>`) via the shared design-system param, mirroring every
+   * other Purchases list. The peek sheet re-generates the statement data
+   * for the saved period so peek/PDF/email pipelines stay in sync.
+   */
+  const handleReviewStatement = (statement: (typeof statements)[0]) => {
+    setPeekId(statement.id);
   };
 
   const handleSendStatement = async () => {
