@@ -1499,12 +1499,10 @@ export default function Expenses() {
           onComplete={() => {}}
         />
 
-        {/* Expense Detail View Dialog */}
-        <ExpenseDetailDialog
-          expense={viewingExpense}
-          linkedBill={viewingExpense ? linkedBills[viewingExpense.id] || null : null}
-          open={!!viewingExpense}
-          onOpenChange={(open) => { if (!open) setViewingExpense(null); }}
+        {/* Expense peek surface — standard enterprise interaction */}
+        <ExpensePeekSheet
+          expenseId={peekId}
+          onOpenChange={(open) => { if (!open) setPeekId(null); }}
           onVoid={(id) => {
             const exp = expenses.find(e => e.id === id);
             if (exp) handleVoidExpense(exp);
