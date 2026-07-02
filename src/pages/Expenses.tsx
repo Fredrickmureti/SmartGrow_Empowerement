@@ -107,7 +107,8 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useAccounts } from "@/hooks/useAccounts";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ExpenseDetailDialog } from "@/components/expenses/ExpenseDetailDialog";
+import { ExpensePeekSheet } from "@/features/purchases/expenses/ExpensePeekSheet";
+import { usePeekParam } from "@/design-system";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { normalizeError } from "@/services/resilience";
@@ -185,6 +186,7 @@ export default function Expenses() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [peekId, setPeekId] = usePeekParam();
 
   // Handle deep-link URL params
   useEffect(() => {
@@ -206,23 +208,8 @@ export default function Expenses() {
       }
     };
 
-    const openExpenseRecord = async (expenseId: string) => {
-      const localExpense = expenses.find((expense) => expense.id === expenseId);
-      if (localExpense) {
-        if (cancelled) return true;
-        setViewingExpense(localExpense);
-        return true;
-      }
-
-      const { data, error } = await supabase
-        .from("expenses")
-        .select("*, category:expense_categories(*), vendor:contacts(name), payment_account:accounts!expenses_payment_account_id_fkey(id, name, code)")
-        .eq("id", expenseId)
-        .maybeSingle();
-
-      if (cancelled || error || !data) return false;
-
-      setViewingExpense(data as unknown as Expense);
+    const openExpenseRecord = (expenseId: string) => {
+      setPeekId(expenseId);
       return true;
     };
 
@@ -252,11 +239,11 @@ export default function Expenses() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams, showDialog, expenses, setSearchParams]);
+  }, [searchParams, showDialog, setSearchParams, setPeekId]);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Bulk selection state
@@ -438,7 +425,7 @@ export default function Expenses() {
     if (expense) {
       // Guard: don't allow editing approved/paid expenses (accounting lock)
       if (expense.status !== "pending") {
-        setViewingExpense(expense);
+        setPeekId(expense.id);
         return;
       }
       setEditingExpense(expense);
@@ -959,7 +946,7 @@ export default function Expenses() {
                 </TableHeader>
                 <TableBody>
                   {expenses.map((expense) => (
-                    <TableRow key={expense.id} className={`cursor-pointer ${selectedExpenses.has(expense.id) ? "bg-muted/50" : ""}`} onClick={() => setViewingExpense(expense)}>
+                    <TableRow key={expense.id} className={`cursor-pointer ${selectedExpenses.has(expense.id) ? "bg-muted/50" : ""}`} onClick={() => setPeekId(expense.id)}>
                       {isAdmin && (
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Checkbox
@@ -1037,7 +1024,7 @@ export default function Expenses() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {/* View — always available */}
-                              <DropdownMenuItem onClick={() => setViewingExpense(expense)}>
+                              <DropdownMenuItem onClick={() => setPeekId(expense.id)}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>
@@ -1512,12 +1499,10 @@ export default function Expenses() {
           onComplete={() => {}}
         />
 
-        {/* Expense Detail View Dialog */}
-        <ExpenseDetailDialog
-          expense={viewingExpense}
-          linkedBill={viewingExpense ? linkedBills[viewingExpense.id] || null : null}
-          open={!!viewingExpense}
-          onOpenChange={(open) => { if (!open) setViewingExpense(null); }}
+        {/* Expense peek surface — standard enterprise interaction */}
+        <ExpensePeekSheet
+          expenseId={peekId}
+          onOpenChange={(open) => { if (!open) setPeekId(null); }}
           onVoid={(id) => {
             const exp = expenses.find(e => e.id === id);
             if (exp) handleVoidExpense(exp);
