@@ -361,3 +361,71 @@ export function validateExpression(src: string): { ok: true } | { ok: false; mes
     return { ok: false, message: (e as Error).message, offset: 0 };
   }
 }
+
+/**
+ * Phase 3 — Dependency extraction for topological sort / cycle detection.
+ *
+ * Walks the parsed AST and returns the set of TOP-LEVEL identifiers
+ * referenced. This is what structure-graph rules can legitimately depend
+ * on for ordering purposes:
+ *
+ *   - `BASIC`, `GROSS`, `TAXABLE`, `NET`  → running totals (built-in)
+ *   - `result.<code>` or `result["<code>"]` → sibling salary-rule code
+ *   - bare rule codes referenced directly (e.g. `HRA * 0.5`)
+ *
+ * Function calls (round, min, if, etc.) are traversed for their args but
+ * the function name itself is NOT returned. `employee.*`, `contract.*`,
+ * and `worked_hours.*` member accesses are traversed but the root
+ * identifier is returned untouched so callers can filter them out.
+ *
+ * Returns identifier NAMES, not offsets — callers do their own graph
+ * math. Malformed expressions raise `RuleExpressionError` unchanged.
+ */
+export function extractIdentifiers(src: string): string[] {
+  const seen = new Set<string>();
+  const walk = (n: Node): void => {
+    switch (n.kind) {
+      case "num":
+      case "str":
+        return;
+      case "ident":
+        seen.add(n.name);
+        return;
+      case "member":
+        // `result.<code>` is the canonical sibling-reference form. Surface
+        // the leaf code so the graph builder can wire the dependency.
+        if (n.obj.kind === "ident" && n.obj.name === "result") {
+          seen.add(n.field);
+          return;
+        }
+        walk(n.obj);
+        return;
+      case "index":
+        if (n.obj.kind === "ident" && n.obj.name === "result" && n.key.kind === "str") {
+          seen.add(n.key.value);
+          return;
+        }
+        walk(n.obj);
+        walk(n.key);
+        return;
+      case "call":
+        for (const a of n.args) walk(a);
+        return;
+      case "unary":
+        walk(n.arg);
+        return;
+      case "bin":
+        walk(n.left);
+        walk(n.right);
+        return;
+      case "ternary":
+        walk(n.cond);
+        walk(n.then);
+        walk(n.else);
+        return;
+    }
+  };
+  walk(parseExpression(src));
+  return [...seen];
+}
+

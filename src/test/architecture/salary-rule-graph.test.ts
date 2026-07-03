@@ -9,10 +9,13 @@ import { describe, it, expect } from "vitest";
 import {
   runStructureEngine,
   aggregateWorkedHours,
+  topoSortRules,
   type SalaryRule,
   type WorkEntryType,
   type WorkEntryRow,
+  type StructureRuleTrace,
 } from "../../../supabase/functions/compute-payroll/structureEngine";
+import { extractIdentifiers } from "../../../supabase/functions/compute-payroll/expressionEngine";
 
 const types: WorkEntryType[] = [
   { id: "w1", code: "WORK", is_paid: true, counts_as_worked: true, multiplier_normal: 1, multiplier_overtime: 1.5 },
@@ -132,3 +135,95 @@ describe("runStructureEngine", () => {
     expect(r.totals.deductions).toBe(137.5);
   });
 });
+
+// ─── Phase 3 — cycle detection, topo sort, provenance trace ───────────────
+
+describe("extractIdentifiers", () => {
+  it("returns rule-code dependencies from a sibling reference", () => {
+    expect(extractIdentifiers("BASIC * 0.5 + HRA").sort()).toEqual(["BASIC", "HRA"]);
+  });
+  it("surfaces `result.<code>` and `result['code']` accesses", () => {
+    expect(extractIdentifiers("result.BONUS + result['ALLOW'] * 2").sort()).toEqual(["ALLOW", "BONUS"]);
+  });
+  it("keeps context roots but not function names", () => {
+    const ids = extractIdentifiers("round(min(BASIC, 1000) + employee.dependants * 100)").sort();
+    expect(ids).toContain("BASIC");
+    expect(ids).toContain("employee");
+    expect(ids).not.toContain("round");
+    expect(ids).not.toContain("min");
+  });
+});
+
+describe("topoSortRules", () => {
+  it("orders dependents after their dependencies regardless of sequence", () => {
+    // Author BASIC after HRA-that-depends-on-BASIC on purpose — the topo
+    // sort must still put BASIC first so HRA's percentage base resolves.
+    const rules = [
+      rule({ id: "2", code: "HRA", sequence: 10, category: "allowance", amount_select: "percentage", amount_percentage: 20, amount_base: "BASIC" }),
+      rule({ id: "1", code: "BASIC", sequence: 20, amount_fixed: 1000 }),
+    ];
+    const r = topoSortRules(rules);
+    expect("cycle" in r).toBe(false);
+    if ("ordered" in r) {
+      expect(r.ordered.map((x) => x.code)).toEqual(["BASIC", "HRA"]);
+    }
+  });
+
+  it("reports a cycle instead of silently returning a bad order", () => {
+    // A references B in its amount expression; B references A. Payroll
+    // must refuse to run rather than evaluate both to 0.
+    const rules = [
+      rule({ id: "1", code: "A", sequence: 10, amount_select: "expression", amount_expression: "result.B + 1" }),
+      rule({ id: "2", code: "B", sequence: 20, amount_select: "expression", amount_expression: "result.A + 1" }),
+    ];
+    const r = topoSortRules(rules);
+    expect("cycle" in r).toBe(true);
+    if ("cycle" in r) {
+      expect(new Set(r.cycle)).toEqual(new Set(["A", "B"]));
+    }
+  });
+
+  it("treats parent_rule_id as a dependency edge", () => {
+    const rules = [
+      rule({ id: "child", code: "CHILD", sequence: 5, parent_rule_id: "parent", amount_fixed: 10 }),
+      rule({ id: "parent", code: "PARENT", sequence: 100, amount_fixed: 20 }),
+    ];
+    const r = topoSortRules(rules);
+    if ("ordered" in r) {
+      expect(r.ordered.map((x) => x.code)).toEqual(["PARENT", "CHILD"]);
+    } else {
+      throw new Error("unexpected cycle");
+    }
+  });
+});
+
+describe("runStructureEngine — cycles + trace", () => {
+  it("short-circuits with a blocking error when the graph has a cycle", () => {
+    const rules = [
+      rule({ id: "1", code: "A", sequence: 10, amount_select: "expression", amount_expression: "result.B" }),
+      rule({ id: "2", code: "B", sequence: 20, amount_select: "expression", amount_expression: "result.A" }),
+    ];
+    const r = runStructureEngine({ rules, workEntryTypes: types, workEntries: [], employee, contract });
+    expect(r.lines).toEqual([]);
+    expect(r.errors.length).toBe(1);
+    expect(r.errors[0].message).toMatch(/cycle/i);
+  });
+
+  it("populates traceSink with per-rule provenance including deps and base_value", () => {
+    const rules = [
+      rule({ id: "1", code: "BASIC", sequence: 10, amount_fixed: 1000 }),
+      rule({ id: "2", code: "HRA", category: "allowance", sequence: 20, amount_select: "percentage", amount_percentage: 20, amount_base: "BASIC" }),
+      rule({ id: "3", code: "SKIP", category: "allowance", sequence: 30, condition_select: "expression", condition_expression: "0", amount_fixed: 999 }),
+    ];
+    const traceSink: StructureRuleTrace[] = [];
+    runStructureEngine({ rules, workEntryTypes: types, workEntries: [], employee, contract, traceSink });
+    const byCode = Object.fromEntries(traceSink.map((t) => [t.rule_code, t]));
+    expect(byCode.BASIC.resolved_amount).toBe(1000);
+    expect(byCode.HRA.base_value).toBe(1000);
+    expect(byCode.HRA.resolved_amount).toBe(200);
+    expect(byCode.HRA.dependencies).toContain("BASIC");
+    expect(byCode.SKIP.condition_passed).toBe(false);
+    expect(byCode.SKIP.resolved_amount).toBe(0);
+  });
+});
+
