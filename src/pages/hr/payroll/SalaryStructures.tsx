@@ -506,6 +506,42 @@ function StructureCard({ structure: s }: StructureCardProps) {
             {publish.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-1" />}
             Publish version
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="More actions">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setShowEdit(true)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit name & description
+              </DropdownMenuItem>
+              {s.is_active ? (
+                <DropdownMenuItem onSelect={() => setShowArchive(true)}>
+                  <Archive className="h-4 w-4 mr-2" />
+                  Archive
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onSelect={() => restoreStructure.mutate(s.id)}
+                  disabled={restoreStructure.isPending}
+                >
+                  <ArchiveRestore className="h-4 w-4 mr-2" />
+                  Restore
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => setShowDelete(true)}
+                disabled={s.is_active}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete permanently…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
       <CardContent className="p-0">
