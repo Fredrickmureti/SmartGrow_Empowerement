@@ -767,7 +767,7 @@ export default function ContactProfile() {
                                   <Eye className="h-4 w-4" />
                                 </Button>
                                 {available > 0 && (
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setApplyCreditTarget(cn); setApplyCreditOpen(true); }}>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/finance/customer-credits/${cn.id}/apply?returnTo=/contacts-app/profile?id=${contactId}`)}>
                                     <Wallet className="h-4 w-4" />
                                   </Button>
                                 )}
