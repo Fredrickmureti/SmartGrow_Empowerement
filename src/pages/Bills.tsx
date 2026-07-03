@@ -184,9 +184,8 @@ export default function Bills() {
 
   const { bills, isLoading, getNextBillNumber, createBill, confirmBill, updateBill, deleteBill, voidBill, recordBillPayment, getDefaultDueDate } = useBills();
   const navigate = useNavigate();
-  const { paymentTerms, defaultPaymentTerm } = usePaymentTerms();
   const { contacts } = useContacts();
-  const { products } = useProducts();
+
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
   const { exportBills } = useExport();
