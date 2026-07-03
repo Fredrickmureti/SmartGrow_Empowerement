@@ -59,8 +59,6 @@ export default function Departments() {
     archivedDepartments,
     dissolvedDepartments,
     isLoading,
-    createDepartment,
-    updateDepartment,
     archiveDepartment,
     restoreDepartment,
     dissolveDepartment,
@@ -69,10 +67,9 @@ export default function Departments() {
   const { can } = usePermissions();
   const { currentOrg } = useOrganization();
   const { toast } = useToast();
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [detailDepartment, setDetailDepartment] = useState<Department | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [statusFilter, setStatusFilter] = useState<DepartmentStatus | "all">("active");
@@ -82,73 +79,34 @@ export default function Departments() {
     setShowDetail(true);
   };
 
-  const [formData, setFormData] = useState<DepartmentFormData>({
-    name: "",
-    code: "",
-    description: "",
-    manager_id: null,
-    parent_department_id: null,
-    is_active: true,
-  });
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      code: "",
-      description: "",
-      manager_id: null,
-      parent_department_id: null,
-      is_active: true,
-    });
-    setEditingDepartment(null);
-  };
-
   const handleOpenDialog = (department?: Department) => {
-    if (department) {
-      setEditingDepartment(department);
-      setFormData({
-        name: department.name,
-        code: department.code || "",
-        description: department.description || "",
-        manager_id: department.manager_id,
-        parent_department_id: department.parent_department_id,
-        is_active: department.is_active,
-      });
-    } else {
-      resetForm();
-    }
-    setShowDialog(true);
+    navigate(
+      department
+        ? `/hr/employees/departments/${department.id}/edit`
+        : "/hr/employees/departments/new",
+    );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name.trim()) {
-      toast({ title: "Name is required", variant: "destructive" });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      if (editingDepartment) {
-        await updateDepartment(editingDepartment.id, formData);
-        toast({ title: "Department updated successfully" });
-      } else {
-        await createDepartment(formData);
-        toast({ title: "Department created successfully" });
+  // Legacy deep-link redirect: `?action=create` or `?action=edit&id=...`
+  // used by cross-module CTAs before Wave 13. Land users on the routed
+  // create/edit pages transparently.
+  useEffect(() => {
+    const action = searchParams.get("action");
+    if (action === "create") {
+      searchParams.delete("action");
+      setSearchParams(searchParams, { replace: true });
+      navigate("/hr/employees/departments/new", { replace: true });
+    } else if (action === "edit") {
+      const id = searchParams.get("id");
+      if (id) {
+        searchParams.delete("action");
+        searchParams.delete("id");
+        setSearchParams(searchParams, { replace: true });
+        navigate(`/hr/employees/departments/${id}/edit`, { replace: true });
       }
-      setShowDialog(false);
-      resetForm();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  }, [searchParams, setSearchParams, navigate]);
+
 
   const executeDeleteDepartment = async (department: Department) => {
     try {
