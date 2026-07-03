@@ -33,13 +33,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+// Inline record Dialog removed — Add/Edit Product now lives on the routed
+// /inventory-app/products/new + /:id/edit RecordFormShell surfaces.
 import {
   Select,
   SelectContent,
