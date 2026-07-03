@@ -382,8 +382,10 @@ export default function Inventory() {
               tooltip="Refresh inventory"
             />
             <PermissionGate permission="manageProducts">
-              <Button onClick={() => setShowAdjustmentDialog(true)} className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />Stock Adjustment
+              <Button asChild className="w-full sm:w-auto">
+                <Link to="/inventory-app/adjustments/new">
+                  <Plus className="mr-2 h-4 w-4" />Stock Adjustment
+                </Link>
               </Button>
             </PermissionGate>
           </div>
