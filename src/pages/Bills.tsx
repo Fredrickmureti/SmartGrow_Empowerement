@@ -17,7 +17,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { queryKeys } from "@/lib/queryKeys";
-import { usePaymentTerms } from "@/hooks/usePaymentTerms";
+
 import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { ViewSwitcher } from "@/components/common/ViewSwitcher";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
