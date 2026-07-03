@@ -6,7 +6,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBills, Bill } from "@/hooks/useBills";
 import { useContacts } from "@/hooks/useContacts";
 
-import { useProducts } from "@/hooks/useProducts";
+
 import { useCurrency } from "@/hooks/useCurrency";
 import { useToast } from "@/hooks/use-toast";
 import { useExport } from "@/hooks/useExport";
