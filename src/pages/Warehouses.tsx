@@ -323,7 +323,7 @@ export default function Warehouses() {
                 <ArrowRightLeft className="mr-2 h-4 w-4" />
                 New Transfer
               </Button>
-              <Button onClick={() => handleOpenWarehouseDialog()} className="w-full sm:w-auto">
+              <Button onClick={handleOpenWarehouseCreate} className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Warehouse
               </Button>
@@ -469,7 +469,7 @@ export default function Warehouses() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
-                                    onClick={() => handleOpenWarehouseDialog(warehouse)}
+                                    onClick={() => handleOpenWarehouseEdit(warehouse)}
                                   >
                                     <Pencil className="mr-2 h-4 w-4" />
                                     Edit
