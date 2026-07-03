@@ -3,7 +3,7 @@ import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useProductsPaginated } from "@/hooks/useProductsPaginated";
 import { Product } from "@/hooks/useProducts";
-import { useProductUomLock } from "@/hooks/inventory/useProductUomLock";
+// useProductUomLock moved to ProductForm.tsx (routed create/edit).
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
