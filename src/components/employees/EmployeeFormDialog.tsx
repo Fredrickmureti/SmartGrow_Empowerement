@@ -293,9 +293,6 @@ export function EmployeeFormDialog({
   useEffect(() => {
     onSubmittingChange?.(isSubmitting);
   }, [isSubmitting, onSubmittingChange]);
-  useEffect(() => {
-    onDraftStateChange?.({ hasSavedDraft, isSavingDraft });
-  }, [hasSavedDraft, isSavingDraft, onDraftStateChange]);
 
   // ── Server-side draft autosave: removed ────────────────────────────────
   // Typing no longer triggers DB writes. Local-only debounced cache in
@@ -310,6 +307,10 @@ export function EmployeeFormDialog({
   // the user confirms discarding (close, or close + invoke a handler).
   const [pendingClose, setPendingClose] = useState<null | (() => void)>(null);
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
+
+  useEffect(() => {
+    onDraftStateChange?.({ hasSavedDraft, isSavingDraft });
+  }, [hasSavedDraft, isSavingDraft, onDraftStateChange]);
 
   // Show Statutory tab only when payroll is installed AND the installed
   // pack publishes at least one identifier requirement. No pack → no tab.
