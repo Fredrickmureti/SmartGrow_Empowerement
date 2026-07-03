@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { JOURNAL_ENTRY_IMPORT_FIELDS } from "@/lib/importConfigs/journalEntryImportConfig";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useJournalEntries, JournalEntry } from "@/hooks/useJournalEntries";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -86,68 +85,56 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { queryKeys } from "@/lib/queryKeys";
 import { Upload, Download } from "lucide-react";
 import { useExport } from "@/hooks/useExport";
-import { AccountCombobox } from "@/components/finance/AccountCombobox";
-import { ContactCombobox } from "@/components/finance/ContactCombobox";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
-import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Lock } from "lucide-react";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
-
-interface JournalLine {
-  account_id: string;
-  description: string;
-  debit: number;
-  credit: number;
-  contact_id?: string;
-}
 
 export default function JournalEntries() {
   const { 
     journalEntries, 
     isLoading,
     createJournalEntry,
-    updateJournalEntry,
     postJournalEntry,
     voidJournalEntry,
     deleteJournalEntry,
     createReversingEntry,
   } = useJournalEntries();
   const { accounts } = useAccounts();
-  const { contacts } = useContacts();
+  // contacts still consumed by ContactCombobox in view surfaces below; keep hook for cache warm-up
+  useContacts();
   const { formatCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { isDateLocked } = useFiscalPeriods();
   const { scopeLabel } = useFinanceScope();
   const { allowed: canManageJE } = useFinancePermission("finance.manage_je");
   const { allowed: canVoidJE } = useFinancePermission("finance.void_je");
   
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
   const [viewingEntry, setViewingEntry] = useState<JournalEntry | null>(null);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [voidingEntryId, setVoidingEntryId] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const accountResolverRef = useRef<AccountResolver | null>(null);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSource, setDrawerSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
 
-  // Handle ?action=create from global create menu
+  // Handle ?action=create from global create menu → route to new page.
   useEffect(() => {
-    if (searchParams.get("action") === "create" && !showDialog) {
-      handleOpenDialog();
+    if (searchParams.get("action") === "create") {
+      if (isReadOnly) {
+        openUpgradeModal("journal_entries");
+        return;
+      }
+      navigate("/finance/journal-entries/new", { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, isReadOnly, navigate, openUpgradeModal]);
 
   // Handle ?selected={journalId} deep-link to auto-open detail view
   useEffect(() => {
@@ -234,140 +221,20 @@ export default function JournalEntries() {
     accountResolverRef.current = null;
   };
 
-  const [formData, setFormData] = useState({
-    entry_date: new Date().toISOString().split("T")[0],
-    description: "",
-    reference: "",
-    is_adjusting: false,
-    is_closing: false,
-    lines: [] as JournalLine[],
-  });
-
-  const resetForm = () => {
-    setFormData({
-      entry_date: new Date().toISOString().split("T")[0],
-      description: "",
-      reference: "",
-      is_adjusting: false,
-      is_closing: false,
-      lines: [],
-    });
-    setEditingEntry(null);
-  };
-
-  const handleOpenDialog = (entry?: JournalEntry) => {
+  const handleOpenCreate = () => {
     if (isReadOnly) {
       openUpgradeModal("journal_entries");
       return;
     }
-    if (entry) {
-      setEditingEntry(entry);
-      setFormData({
-        entry_date: entry.entry_date,
-        description: entry.description,
-        reference: entry.reference || "",
-        is_adjusting: entry.is_adjusting,
-        is_closing: entry.is_closing,
-        lines: entry.lines?.map(l => ({
-          account_id: l.account_id,
-          description: l.description || "",
-          debit: l.debit,
-          credit: l.credit,
-          contact_id: l.contact_id || undefined,
-        })) || [],
-      });
-    } else {
-      resetForm();
-      setFormData(prev => ({
-        ...prev,
-        lines: [
-          { account_id: "", description: "", debit: 0, credit: 0 },
-          { account_id: "", description: "", debit: 0, credit: 0 },
-        ],
-      }));
+    navigate("/finance/journal-entries/new");
+  };
+
+  const handleOpenEdit = (entry: JournalEntry) => {
+    if (isReadOnly) {
+      openUpgradeModal("journal_entries");
+      return;
     }
-    setShowDialog(true);
-  };
-
-  const handleAddLine = () => {
-    setFormData(prev => ({
-      ...prev,
-      lines: [...prev.lines, { account_id: "", description: "", debit: 0, credit: 0 }],
-    }));
-  };
-
-  const handleRemoveLine = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      lines: prev.lines.filter((_, i) => i !== index),
-    }));
-  };
-
-  const handleLineChange = (index: number, field: keyof JournalLine, value: string | number) => {
-    setFormData(prev => ({
-      ...prev,
-      lines: prev.lines.map((line, i) => 
-        i === index ? { ...line, [field]: value } : line
-      ),
-    }));
-  };
-
-  const totalDebit = formData.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
-  const totalCredit = formData.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
-  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
-
-  // AR/AP integrity guard (mirrors the DB triggers in ADR-0031).
-  // A line that posts to an Accounts Receivable / Accounts Payable control
-  // account MUST carry a contact so the customer/vendor subledger stays
-  // reconciled with the GL. We surface this as a client-side validation
-  // so users hit it before round-tripping to the database.
-  const controlRoleFor = (accountId: string): "ar" | "ap" | null => {
-    const acc = accounts.find((a) => a.id === accountId);
-    if (!acc) return null;
-    if (acc.system_role === "accounts_receivable") return "ar";
-    if (acc.system_role === "accounts_payable") return "ap";
-    return null;
-  };
-  const missingContactLines = formData.lines
-    .map((l, i) => ({ l, i, role: controlRoleFor(l.account_id) }))
-    .filter((x) => x.role && !x.l.contact_id);
-  const hasMissingContact = missingContactLines.length > 0;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isBalanced) return;
-    if (hasMissingContact) return;
-
-    setIsSubmitting(true);
-    try {
-      const validLines = formData.lines.filter(l => l.account_id && (l.debit > 0 || l.credit > 0));
-
-      
-      if (editingEntry) {
-        await updateJournalEntry.mutateAsync({
-          id: editingEntry.id,
-          entry_date: formData.entry_date,
-          description: formData.description,
-          reference: formData.reference,
-          is_adjusting: formData.is_adjusting,
-          is_closing: formData.is_closing,
-          lines: validLines,
-        });
-      } else {
-        await createJournalEntry.mutateAsync({
-          entry_date: formData.entry_date,
-          description: formData.description,
-          reference: formData.reference,
-          is_adjusting: formData.is_adjusting,
-          is_closing: formData.is_closing,
-          lines: validLines,
-        });
-      }
-      setShowDialog(false);
-      resetForm();
-    } finally {
-      setIsSubmitting(false);
-    }
+    navigate(`/finance/journal-entries/${entry.id}/edit`);
   };
 
   const handlePost = async (id: string) => {
@@ -464,7 +331,7 @@ export default function JournalEntries() {
                   <Upload className="mr-2 h-4 w-4" />
                   Import
                 </Button>
-                <Button onClick={() => handleOpenDialog()} className="flex-1 sm:flex-none">
+                <Button onClick={handleOpenCreate} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" />
                   New Entry
                 </Button>
@@ -610,7 +477,7 @@ export default function JournalEntries() {
                             )}
                             {entry.status === "draft" && canManageJE && (
                               <>
-                                <DropdownMenuItem onClick={() => handleOpenDialog(entry)}>
+                                <DropdownMenuItem onClick={() => handleOpenEdit(entry)}>
                                   <BookOpen className="mr-2 h-4 w-4" />
                                   Edit
                                 </DropdownMenuItem>
@@ -680,274 +547,6 @@ export default function JournalEntries() {
           </CardContent>
         </Card>
 
-        {/* Create/Edit Dialog */}
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
-              <DialogContent className="w-full max-w-[95vw] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingEntry ? "Edit Journal Entry" : "Create Journal Entry"}
-              </DialogTitle>
-              <DialogDescription>
-                Debits must equal credits for the entry to be valid
-              </DialogDescription>
-            </DialogHeader>
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                  <Label>Date *</Label>
-                  <Input
-                    type="date"
-                    value={formData.entry_date}
-                    onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })}
-                    required
-                  />
-                  {formData.entry_date && isDateLocked(formData.entry_date) && (
-                    <Alert variant="destructive" className="py-2">
-                      <Lock className="h-3.5 w-3.5" />
-                      <AlertDescription className="text-xs">
-                        Fiscal period for {format(new Date(formData.entry_date), "MMM d, yyyy")} is closed — saving will fail.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-                  <div className="space-y-2">
-                  <Label>Reference</Label>
-                  <Input
-                    value={formData.reference}
-                    onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-                    placeholder="Optional reference"
-                  />
-                </div>
-                <div className="space-y-2 flex items-end gap-4">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="is_adjusting"
-                      checked={formData.is_adjusting}
-                      onCheckedChange={(checked) => setFormData({ ...formData, is_adjusting: !!checked })}
-                    />
-                    <Label htmlFor="is_adjusting">Adjusting Entry</Label>
-                  </div>
-                </div>
-              </div>
-
-                  <div className="space-y-2">
-                <Label>Description *</Label>
-                <Textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Describe the purpose of this entry"
-                  required
-                />
-              </div>
-
-                  <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Lines</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={handleAddLine}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Line
-                  </Button>
-                </div>
-                
-                    {/* Mobile card layout */}
-                    <div className="flex flex-col gap-3 sm:hidden">
-                      {formData.lines.map((line, index) => (
-                        <div key={index} className="rounded-lg border p-3 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-muted-foreground">Line {index + 1}</span>
-                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRemoveLine(index)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Account *</Label>
-                            <AccountCombobox
-                              accounts={accounts}
-                              value={line.account_id}
-                              onValueChange={(v) => handleLineChange(index, "account_id", v)}
-                              placeholder="Search account..."
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Description</Label>
-                            <Input
-                              value={line.description}
-                              onChange={(e) => handleLineChange(index, "description", e.target.value)}
-                              placeholder="Line description"
-                            />
-                          </div>
-                          {controlRoleFor(line.account_id) && (
-                            <div className="space-y-1">
-                              <Label className="text-xs">
-                                {controlRoleFor(line.account_id) === "ar" ? "Customer" : "Vendor"} *
-                              </Label>
-                              <ContactCombobox
-                                contacts={contacts}
-                                role={controlRoleFor(line.account_id) === "ar" ? "customer" : "supplier"}
-                                value={line.contact_id}
-                                onValueChange={(v) => handleLineChange(index, "contact_id", v ?? "")}
-                                invalid={!line.contact_id}
-                                placeholder="Required for control account"
-                              />
-                            </div>
-                          )}
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Debit</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={line.debit || ""}
-                                onChange={(e) => handleLineChange(index, "debit", parseFloat(e.target.value) || 0)}
-                                disabled={line.credit > 0}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Credit</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={line.credit || ""}
-                                onChange={(e) => handleLineChange(index, "credit", parseFloat(e.target.value) || 0)}
-                                disabled={line.debit > 0}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-3 font-bold text-sm">
-                        <span>Totals:</span>
-                        <div className="flex gap-4">
-                          <span className={!isBalanced ? "text-destructive" : ""}>{formatCurrency(totalDebit)}</span>
-                          <span className={!isBalanced ? "text-destructive" : ""}>{formatCurrency(totalCredit)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Desktop table layout */}
-                    <div className="hidden sm:block overflow-x-auto">
-                      <Table className="min-w-[600px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Account *</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="w-44">Customer / Vendor</TableHead>
-                      <TableHead className="w-32">Debit</TableHead>
-                      <TableHead className="w-32">Credit</TableHead>
-                      <TableHead className="w-12"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {formData.lines.map((line, index) => {
-                      const role = controlRoleFor(line.account_id);
-                      return (
-                      <TableRow key={index}>
-                        <TableCell className="min-w-[200px]">
-                          <AccountCombobox
-                            accounts={accounts}
-                            value={line.account_id}
-                            onValueChange={(v) => handleLineChange(index, "account_id", v)}
-                            placeholder="Search account..."
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            value={line.description}
-                            onChange={(e) => handleLineChange(index, "description", e.target.value)}
-                            placeholder="Line description"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {role ? (
-                            <ContactCombobox
-                              contacts={contacts}
-                              role={role === "ar" ? "customer" : "supplier"}
-                              value={line.contact_id}
-                              onValueChange={(v) => handleLineChange(index, "contact_id", v ?? "")}
-                              invalid={!line.contact_id}
-                              placeholder={role === "ar" ? "Customer *" : "Vendor *"}
-                            />
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={line.debit || ""}
-                            onChange={(e) => handleLineChange(index, "debit", parseFloat(e.target.value) || 0)}
-                            disabled={line.credit > 0}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={line.credit || ""}
-                            onChange={(e) => handleLineChange(index, "credit", parseFloat(e.target.value) || 0)}
-                            disabled={line.debit > 0}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveLine(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                      );
-                    })}
-                    <TableRow className="font-bold">
-                      <TableCell colSpan={3} className="text-right">Totals:</TableCell>
-                      <TableCell className={!isBalanced ? "text-destructive" : ""}>
-                        {formatCurrency(totalDebit)}
-                      </TableCell>
-                      <TableCell className={!isBalanced ? "text-destructive" : ""}>
-                        {formatCurrency(totalCredit)}
-                      </TableCell>
-                      <TableCell></TableCell>
-                    </TableRow>
-                  </TableBody>
-                      </Table>
-                    </div>
-
-                {!isBalanced && (
-                  <p className="text-sm text-destructive">
-                    Entry is unbalanced. Difference: {formatCurrency(Math.abs(totalDebit - totalCredit))}
-                  </p>
-                )}
-                {hasMissingContact && (
-                  <p className="text-sm text-destructive">
-                    {missingContactLines.length === 1 ? "Line" : "Lines"}{" "}
-                    {missingContactLines.map((x) => x.i + 1).join(", ")}{" "}
-                    post to an AR/AP control account — pick a customer or vendor
-                    to keep the subledger reconciled with the GL.
-                  </p>
-                )}
-              </div>
-
-              <DialogFooter className="flex-col sm:flex-row gap-2">
-                <Button type="button" variant="outline" onClick={() => setShowDialog(false)} className="w-full sm:w-auto">
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting || !isBalanced || hasMissingContact || formData.lines.length < 2 || isDateLocked(formData.entry_date)} className="w-full sm:w-auto">
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingEntry ? "Update" : "Create"} Entry
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
 
         {/* View Entry Dialog */}
         <Dialog open={!!viewingEntry} onOpenChange={() => setViewingEntry(null)}>

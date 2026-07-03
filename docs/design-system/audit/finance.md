@@ -15,8 +15,8 @@ Legend for **Target**:
 
 | Entity | Surface | Today | Target | Status |
 | --- | --- | --- | --- | --- |
-| Journal Entry | Create | inline dialog | Route + `RecordFormShell` at `/finance/journal-entries/new` (with `LineItemsGrid` for lines) | **Pending** |
-| Journal Entry | Edit | inline dialog | Route + `RecordFormShell` at `/finance/journal-entries/:id/edit` | **Pending** |
+| Journal Entry | Create | Route + `RecordFormShell` at `/finance/journal-entries/new` | Route + `RecordFormShell` at `/finance/journal-entries/new` (with balanced-line grid) | Done |
+| Journal Entry | Edit | Route + `RecordFormShell` at `/finance/journal-entries/:id/edit` | Route + `RecordFormShell` at `/finance/journal-entries/:id/edit` | Done |
 | Journal Entry | View | inline (via `JournalEntryDetailRedirect`) | Route + `RecordScaffold` at `/finance/journal-entries/:id` | **Pending** |
 | Journal Entry | Peek (list) | inline dialog | `PeekScaffold` behind `?peek=<id>` | **Pending** |
 | Business Transaction (JE quick-post) | `BusinessTransactionDialog` | Route + `RecordFormShell` at `/finance/journal-entries/new?template=business` | **Pending** |
