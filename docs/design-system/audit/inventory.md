@@ -41,8 +41,8 @@ Legend for **Target**:
 | Scrap / Write-off | Edit | N/A — posted scrap is immutable; corrections use reverse + fresh create. | Reverse-and-recreate | Done |
 | Reorder Rule | Create / Edit | Simple `reorder_level`/`reorder_quantity` fields live on `ProductForm` (routed `RecordFormShell`); advanced per-warehouse rules (`useProductReorderRules`) have no consumer surface — deferred until a rule authoring flow is requested. | `DetailSheet` (≤6 fields) | Done |
 | Reorder Rule | Peek | Read-only reorder info surfaces via `ProductStockPanel` / `StockTab` on the product record; no standalone dialog exists to migrate. | `PeekScaffold` | Done |
-| Product | Create / Edit | inline dialog in `src/pages/Products.tsx` | Route + `RecordFormShell` at `/inventory/products/new` + `/:id/edit` | **Pending** |
-| Product | View | inline dialog | Route + `RecordScaffold` at `/inventory/products/:id` | **Pending** |
+| Product | Create / Edit | Route + `RecordFormShell` at `/inventory-app/products/new` + `/:id/edit` (`ProductForm.tsx`) | Route + `RecordFormShell` | Done |
+| Product | View | `ProductDetailPanel` on the routed `/inventory-app/products` list (peek) | Route + `RecordScaffold` / peek | Done |
 | Product Category | Create / Edit | `ProductCategoriesManager` on `DetailSheet` | `DetailSheet` | Done |
 | UoM & Packaging | Create / Edit | `DetailSheet` in `src/pages/inventory/UomManagement.tsx` | `DetailSheet` | Done |
 | Stock Lot | Peek | Lots surface via the `LotsExpiryTab` on the product record; no standalone lot dialog exists. | `PeekScaffold` | Done |
