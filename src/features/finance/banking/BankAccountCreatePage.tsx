@@ -544,7 +544,7 @@ export default function BankAccountCreatePage() {
       </Section>
 
       <Section title="GL link">
-        <FieldGrid columns={1}>
+        <FieldGrid columns={2}>
           <FieldCell span="full">
             <Label className="flex items-center gap-1">
               Link to Chart of Accounts
@@ -599,7 +599,7 @@ export default function BankAccountCreatePage() {
 
       {branches && branches.length > 0 && (
         <Section title="Branch scope">
-          <FieldGrid columns={1}>
+          <FieldGrid columns={2}>
             <FieldCell span="full">
               <Label className="flex items-center gap-1">
                 Branch scope

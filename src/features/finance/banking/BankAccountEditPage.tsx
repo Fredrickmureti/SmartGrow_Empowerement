@@ -264,7 +264,7 @@ export default function BankAccountEditPage() {
       </Section>
 
       <Section title="GL link">
-        <FieldGrid columns={1}>
+        <FieldGrid columns={2}>
           <FieldCell span="full">
             <Label className="flex items-center gap-1">
               Link to GL account
@@ -367,7 +367,7 @@ export default function BankAccountEditPage() {
       </Section>
 
       <Section title="Branch scope">
-        <FieldGrid columns={1}>
+        <FieldGrid columns={2}>
           <FieldCell span="full">
             <Label className="flex items-center gap-1">
               Branch scope
