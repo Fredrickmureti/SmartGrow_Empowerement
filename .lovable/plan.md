@@ -140,7 +140,7 @@ Each phase is independently shippable, backward-compatible, and gated by pgTAP +
 - Backfill `pay_schedule_id` on existing rows via best-match by business + frequency.
 - Keep `generate_payroll_periods` as a shim; add deprecation notice.
 
-### Phase 5 — Readiness workspace UI
+### Phase 5 — Readiness workspace UI ✅ shipped
 - Replace `PayrollPeriodsAdmin.tsx` with a per-period operational card (readiness score, blocker list with deep links, run/JE/remittance/return badges, audit timeline).
 - New hook `usePayrollPeriodDetail(periodId)` consuming `payroll_period_readiness` and audit rows.
 - `closePeriod` / `reopenPeriod` in `usePayrollPeriods` route through the atomic RPCs; toasts show blocker summary when refused.
