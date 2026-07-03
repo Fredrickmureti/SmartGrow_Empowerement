@@ -86,7 +86,6 @@ const LEGACY_INLINE_DIALOG_ALLOWLIST = new Set<string>([
   "src/pages/Inventory.tsx",
   "src/pages/inventory/Transfers.tsx",
   "src/pages/inventory/ScrapRecording.tsx",
-  "src/pages/inventory/UomManagement.tsx",
 ]);
 
 const INLINE_INVENTORY_RECORD_DIALOG_TITLE =
