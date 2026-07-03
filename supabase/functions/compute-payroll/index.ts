@@ -1843,6 +1843,14 @@ Deno.serve(async (req) => {
     // Per-employee bracket-progressive trace, drained after the run is
     // inserted into payroll_run_issues (severity=info) for full auditability.
     const bracketTraceSink: Array<{ employee_id: string; traces: BracketTrace[] }> = [];
+    // ─── Phase 3 — runStructureEngine per-employee outputs, keyed for the
+    // structure-deduction/contrib block downstream and for
+    // payroll_rule_traces persistence after payslips insert.
+    const graphEarningsByEmployee: Record<string, Record<string, number>> = {};
+    const graphDeductionsByEmployee: Record<string, Array<{ code: string; label: string; amount: number }>> = {};
+    const graphEmployerByEmployee: Record<string, Array<{ code: string; label: string; amount: number }>> = {};
+    const graphTracesByEmployee: Record<string, { structure_id: string; traces: StructureRuleTrace[] }> = {};
+    const graphUsedForEmployee = new Set<string>();
     const loanDeductionsToRecord: { loan_id: string; employee_id: string; amount: number; rule_code: string }[] = [];
     // Warn-level run_issues for loans that were skipped or partially recovered.
     // One row per (employee, loan) skip so the run detail panel surfaces it.
