@@ -289,6 +289,14 @@ export function EmployeeFormDialog({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
+  // Surface submit + draft state so a host shell can drive its own footer.
+  useEffect(() => {
+    onSubmittingChange?.(isSubmitting);
+  }, [isSubmitting, onSubmittingChange]);
+  useEffect(() => {
+    onDraftStateChange?.({ hasSavedDraft, isSavingDraft });
+  }, [hasSavedDraft, isSavingDraft, onDraftStateChange]);
+
   // ── Server-side draft autosave: removed ────────────────────────────────
   // Typing no longer triggers DB writes. Local-only debounced cache in
   // localStorage (below) is the crash-recovery story for unfilled forms.
