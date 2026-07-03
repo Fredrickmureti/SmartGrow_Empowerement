@@ -321,7 +321,9 @@ export default function Budgets() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => openSheet("manage", budget.id)}
+                              onClick={() =>
+                                navigate(`/finance/budgets/${budget.id}/edit`)
+                              }
                             >
                               <Eye className="mr-2 h-4 w-4" /> View & Manage
                             </DropdownMenuItem>
@@ -334,7 +336,7 @@ export default function Budgets() {
                             )}
                             {canManageBudgets && (
                               <DropdownMenuItem
-                                onClick={() => openSheet("copy", budget.id)}
+                                onClick={() => openCopy(budget.id)}
                               >
                                 <Copy className="mr-2 h-4 w-4" /> Copy to Next Year
                               </DropdownMenuItem>
@@ -391,33 +393,15 @@ export default function Budgets() {
         />
       </div>
 
-      {/* Enterprise UX: create/edit/copy/manage surfaces on DetailSheet */}
-      <BudgetFormSheet
-        open={sheetKind === "budget"}
-        onOpenChange={(o) => (o ? openSheet("budget", sheetId ?? undefined) : closeSheet())}
-        budget={editingBudget}
-      />
-      <CopyBudgetSheet
+      {/*
+       * Enterprise UX: create/edit live at /finance/budgets/new and
+       * /finance/budgets/:id/edit on `RecordFormShell`. The only sheet
+       * that remains here is the confirm-style Copy sheet (2 fields).
+       */}
+      <CopyBudgetDetailSheet
         open={sheetKind === "copy"}
-        onOpenChange={(o) => (o ? openSheet("copy", sheetId ?? undefined) : closeSheet())}
+        onOpenChange={(o) => (o ? openCopy(sheetId ?? "") : closeCopy())}
         source={copySource}
-      />
-      <ManageBudgetSheet
-        open={sheetKind === "manage"}
-        onOpenChange={(o) => (o ? openSheet("manage", sheetId ?? undefined) : closeSheet())}
-        budget={manageBudget}
-        onAddItem={() => manageBudget && openSheet("item", manageBudget.id)}
-      />
-      <BudgetItemSheet
-        open={sheetKind === "item"}
-        onOpenChange={(o) =>
-          o
-            ? openSheet("item", sheetId ?? undefined)
-            : manageBudget
-              ? openSheet("manage", manageBudget.id)
-              : closeSheet()
-        }
-        budget={manageBudget}
       />
     </>
   );
