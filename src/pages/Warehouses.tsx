@@ -77,6 +77,16 @@ export default function Warehouses() {
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const [activeTab, setActiveTab] = useState("warehouses");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const peekId = searchParams.get("peek");
+  const setPeek = (id: string | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set("peek", id);
+      else next.delete("peek");
+      return next;
+    });
+  };
 
   const handleOpenWarehouseCreate = () => {
     if (isReadOnly) {
