@@ -1,44 +1,122 @@
-## Bills list — remove the legacy "Add Bill" popup dialog
+## Implementation plan
 
-The previous agent added `BillRecordPage` at `/purchases/bills/new` and marked "Bill · Create" as **Done** in `docs/design-system/audit/purchases.md`, but never removed the inline create `<Dialog>` from `src/pages/Bills.tsx`. Clicking "Add Bill" still opens the legacy popup instead of navigating to the new record page. The dialog ban guard didn't catch it because the guard only scans dedicated `Create*Dialog.tsx` files, not inline `<Dialog>` blocks inside list pages.
+### 1. Correct the Purchases handoff before starting Inventory
 
-Cross-checked every other Purchases list page (POs, Credit Notes, Expenses, Purchase Returns, RFQs) — all of them correctly `navigate("…/new")`. Bills is the only regression.
+**Goal:** make `/purchases/bills/new` a real create surface, not a read-only record lookup with `id === ""`.
 
-### 1. Wire Bills.tsx to the record route
+- Replace the current Bills `/new` route target with a dedicated create page built on the existing enterprise record form pattern.
+- Reuse the existing Bills create logic that was removed from `src/pages/Bills.tsx` where practical, but place it in a full-page `RecordFormShell`/record route instead of a dialog.
+- Keep Bills list behavior intact:
+  - `Add Bill` navigates to `/purchases/bills/new`.
+  - `/purchases/bills?action=create&contact_id=...` redirects to `/purchases/bills/new?contact_id=...`.
+  - Existing bill view remains `/purchases/bills/:id`.
+  - Existing bill edit remains `/purchases/bills/:id/edit`.
+- Fix route ordering/imports if needed so `bills/new` cannot fall through to `bills/:id`.
+- Update Purchases audit notes only to reflect the truth: Bill create is complete only after the create page works.
 
-`src/pages/Bills.tsx`
+### 2. Strengthen Purchases enforcement
 
-- "Add Bill" button (line 693) → `navigate("/purchases/bills/new")` instead of `setShowDialog(true)`.
-- `?action=create` deep link handler (~lines 300–305) → `navigate("/purchases/bills/new" + preserved query)` with `replace: true`, matching the pattern in `PurchaseOrders.tsx` and `Expenses.tsx`.
-- Delete the entire inline `<Dialog>` block (lines ~994–1157) and all state / helpers that only fed it:
-  - `showDialog`, `setShowDialog`
-  - `formData`, `setFormData`, `resetForm`
-  - `lineItems`, `setLineItems`, `addLineItem`, `updateLineItem`, `removeLineItem`, `calculateLineTotal`
-  - `subtotal`, `totalTax`, `grandTotal`
-  - `handleSubmit`, `isSubmitting`
-  - Any imports that become unused: `Dialog`, `DialogContent`, `DialogDescription`, `DialogFooter`, `DialogHeader`, `DialogTitle`, `Select*`, `Label`, `Textarea`, `Input` (if unused elsewhere), `NumericInput`, `PackagedQtyCell`, `CustomFieldsSection`, `fetchContactDefaults`, `paymentTerms`, `products` (if only used by the dialog), `vendors` (keep if used by filters), `Plus`/`Trash2` (recheck usage).
-- Keep everything else on the page untouched (row actions, bulk delete, payment history dialog, print/email, peek sheet).
+**Goal:** prevent the exact regression from returning.
 
-### 2. Close the guard loophole
+- Keep the existing Purchases dialog-file ban.
+- Keep/repair the inline list-page scan that rejects `<DialogTitle>Add/Create/New/Edit ...</DialogTitle>` on Purchases list pages.
+- Add an assertion that Bills `/new` is not mounted to the read-only `BillRecordPage` route target.
+- Verify the guard fails for inline create/edit dialogs while allowing payment, print, email, preview, and confirmation dialogs.
 
-`src/test/architecture/purchases-record-dialog-ban.test.ts`
+### 3. Start Inventory migration with the highest-impact record flows
 
-Add a second scan that also fails on any `src/pages/*.tsx` inside the Purchases surface (Bills, PurchaseOrders, Expenses, CreditNotes, PurchaseReturns, RFQs, VendorStatements, VendorPriceLists) containing a top-level `<Dialog ` whose `<DialogTitle>` matches `/^(Add|Create|New|Edit)\s+(Bill|Purchase Order|Expense|Credit Note|Return|RFQ|Vendor)/i`. Confirmation dialogs (`AlertDialog`) and print/email/payment dialogs stay allowed because they don't match those titles. This is what should have caught the Bills regression.
+**Goal:** move Inventory away from modal CRUD and into the same enterprise architecture used by HR/Payroll, Sales, and Purchases.
 
-### 3. Audit trail
+Initial Inventory surfaces confirmed as legacy or partial:
 
-`docs/design-system/audit/purchases.md`
+- `src/pages/Products.tsx`
+  - Add/Edit Product dialog.
+  - Product detail dialog/panel pattern.
+  - `?action=create`, `?createWithCode`, scan-to-onboard, and `?selected=` deep links still open dialogs.
+- `src/pages/Warehouses.tsx`
+  - Add/Edit Warehouse dialog.
+  - Create Stock Transfer dialog.
+- `src/pages/Inventory.tsx`
+  - Create Stock Adjustment dialog.
+  - Several drawer/detail surfaces for warehouse stock, movements, source docs, and adjustment details need classification as `PeekScaffold` or route object pages.
+- `src/pages/inventory/Transfers.tsx`
+  - New Stock Transfer dialog.
+  - Transfer detail drawer.
+- `src/pages/inventory/ScrapRecording.tsx`
+  - Record Scrap/Waste dialog.
+- `src/pages/inventory/PhysicalCount.tsx`
+  - Already closer to a workspace, but should be formalized as a routed `WizardShell`-style count workspace.
+- `src/pages/inventory/UomManagement.tsx`
+  - UoM category and unit dialogs are small configuration forms; migrate to `DetailSheet` rather than object pages.
 
-Add a short line under the RFQ close-out note explaining the Bills list-page cleanup and pointing at the strengthened guard test. Bill row stays **Done** (it now genuinely is).
+### 4. Inventory phase 1: product master records
 
-### 4. Verification
+**Goal:** modernize the central Inventory master record first.
 
-- `bunx vitest run src/test/architecture/purchases-record-dialog-ban.test.ts`
-- `tsgo` typecheck clean
-- Playwright smoke: `/purchases/bills` → click "Add Bill" → URL is `/purchases/bills/new` and `BillRecordPage` renders (no popup); `/purchases/bills?action=create` also redirects to the record page.
+- Add product create/edit routes:
+  - `/inventory-app/products/new`
+  - `/inventory-app/products/:id/edit`
+  - `/inventory-app/products/:id`
+- Build product create/edit on enterprise form primitives:
+  - `RecordFormShell` or `RecordShell` + `FooterActionBar`
+  - `Section`, `FieldGrid`, `FieldCell`, `FieldGroup`
+  - shared product field component to avoid duplicating the existing long form
+- Preserve critical integrations:
+  - category selection
+  - image upload
+  - tax/compliance fields
+  - product accounts
+  - identifiers/barcodes
+  - packaging editor
+  - opening stock/warehouse handoff
+  - scanner onboarding with `createWithCode`
+- Change Products list actions:
+  - Add → route
+  - Edit → route
+  - row click/view → record page or `?peek=<id>` depending on existing UX fit
+  - `?action=create`, `?createWithCode`, and scan miss → route-based create flow
+  - `?selected=` → product record/peek instead of dialog
 
-### Out of scope
+### 5. Inventory phase 2: warehouse, transfer, adjustment, scrap, and count workflows
 
-- No changes to `BillRecordPage`, `BillEditPage`, or the bill mutation pipeline.
-- No changes to Payment / Email / Print / Bulk-Delete dialogs on the Bills page — those are correct `Dialog` usages.
-- No other Purchases pages need edits (verified).
+**Goal:** migrate transactional Inventory documents after the product foundation is stable.
+
+- Warehouses:
+  - create/edit via route or `DetailSheet` depending on final field count and business complexity; current form is more than six fields, so prefer routes.
+  - object/peek page for warehouse stock context.
+- Stock transfers:
+  - `/inventory-app/transfers/new`
+  - `/inventory-app/transfers/:id`
+  - preserve dispatch/receive/cancel lifecycle actions.
+  - migrate transfer line scanner into the route workspace.
+- Stock adjustments:
+  - `/inventory-app/adjustments/new`
+  - `/inventory-app/adjustments/:id`
+  - preserve branch/warehouse scoping, reason-to-offset-account preview, GL posting, reversal workflow.
+- Scrap:
+  - `/inventory-app/scrap/new` as a focused process route using the existing `record_scrap_atomic` RPC.
+- Physical count:
+  - convert the current inline workspace into a formal routed `WizardShell` at `/inventory-app/count/new` while preserving scanner counting and variance application.
+- UoM configuration:
+  - replace category/unit dialogs with `DetailSheet` configuration surfaces, preserving delete confirmations.
+
+### 6. Add Inventory enforcement and update the audit ledger
+
+**Goal:** make the migration durable.
+
+- Extend or create an Inventory architecture guard that bans new Inventory `Create*Dialog`, `Edit*Dialog`, `*DetailDialog`, and legacy record drawers under Inventory/Product/Warehouse surfaces.
+- Add an inline list-page scan for Inventory pages similar to the Purchases guard.
+- Update `docs/design-system/audit/inventory.md` after each migrated surface with true status only.
+- Do not mark Inventory complete until all listed submodules are migrated or explicitly justified.
+
+### 7. Verification gates
+
+For each completed slice:
+
+- Run the targeted architecture test.
+- Run TypeScript typecheck.
+- Use Playwright smoke checks for the routed workflows:
+  - `/purchases/bills` → Add Bill → `/purchases/bills/new` renders a usable create form, no dialog.
+  - `/purchases/bills?action=create` redirects to `/purchases/bills/new`.
+  - Inventory list Add/Edit/View flows navigate to routes or open approved sheets, not legacy dialogs.
+- Confirm existing payment, email, print, delete confirmation, reverse-adjustment, and other allowed dialogs still work and are not accidentally removed.
