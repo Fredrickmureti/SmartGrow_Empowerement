@@ -54,11 +54,13 @@ import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
-import { AssetFormSheet } from "@/features/finance/fixed-assets/AssetFormSheet";
+// Asset create/edit are dedicated routes now:
+//   /finance/fixed-assets/new  and  /finance/fixed-assets/:id/edit
+// Peek moved to PeekScaffold behind `?peek=<id>`.
+import { AssetPeekSheet } from "@/features/finance/fixed-assets/AssetPeekSheet";
 import { AssetCategorySheet } from "@/features/finance/fixed-assets/AssetCategorySheet";
 import { DisposeAssetSheet } from "@/features/finance/fixed-assets/DisposeAssetSheet";
 import { DepreciationRunSheet } from "@/features/finance/fixed-assets/DepreciationRunSheet";
-import { AssetDetailSheet } from "@/features/finance/fixed-assets/AssetDetailSheet";
 
 export default function FixedAssets() {
   const { assets, isLoading, deleteAsset } = useFixedAssets();
