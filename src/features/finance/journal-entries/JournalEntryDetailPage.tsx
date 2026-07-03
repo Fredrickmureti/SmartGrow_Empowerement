@@ -17,10 +17,8 @@ export default function JournalEntryDetailPage() {
   const { journalEntries, isLoading } = useJournalEntries();
   const { formatCurrency } = useCurrency();
 
-  if (!id) return <Navigate to="/finance/journal-entries" replace />;
-
   const entry = useMemo(
-    () => journalEntries.find((e) => e.id === id),
+    () => (id ? journalEntries.find((e) => e.id === id) : undefined),
     [journalEntries, id],
   );
 
@@ -34,6 +32,8 @@ export default function JournalEntryDetailPage() {
         : null,
     [entry, journalEntries, formatCurrency],
   );
+
+  if (!id) return <Navigate to="/finance/journal-entries" replace />;
 
   const notFound = !isLoading && !entry;
   const canEdit = entry?.status === "draft";
