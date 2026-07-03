@@ -17,8 +17,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Loader2, Trash2, History, UploadCloud, Lock, Network, AlertCircle, GitBranch } from "lucide-react";
+import { Plus, Loader2, Trash2, History, UploadCloud, Lock, Network, AlertCircle, GitBranch, Pencil, Archive, ArchiveRestore, MoreVertical } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  EditSalaryStructureSheet,
+  ArchiveSalaryStructureDialog,
+  DeleteSalaryStructureDialog,
+} from "@/components/payroll/SalaryStructureLifecycleDialogs";
 import { SalaryRuleGraphEditor } from "@/components/payroll/SalaryRuleGraphEditor";
 import { WorkflowSheet, WorkflowSheetGrid, WorkflowSheetSection, WorkflowField } from "@/components/workflow/WorkflowSheet";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -382,6 +394,7 @@ interface StructureCardProps {
     code: string | null;
     country_code: string | null;
     is_active: boolean;
+    description?: string | null;
     components: any[];
     active_version: number | null;
     version_count: number;
@@ -392,6 +405,10 @@ function StructureCard({ structure: s }: StructureCardProps) {
   const [showVersions, setShowVersions] = useState(false);
   const [showRuleGraph, setShowRuleGraph] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const { restoreStructure } = useSalaryStructures();
   const publish = usePublishRuleSet();
   const versions = useRuleSetVersions(showVersions ? s.id : undefined);
   const queryClient = useQueryClient();
@@ -489,6 +506,42 @@ function StructureCard({ structure: s }: StructureCardProps) {
             {publish.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-1" />}
             Publish version
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="More actions">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setShowEdit(true)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit name & description
+              </DropdownMenuItem>
+              {s.is_active ? (
+                <DropdownMenuItem onSelect={() => setShowArchive(true)}>
+                  <Archive className="h-4 w-4 mr-2" />
+                  Archive
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onSelect={() => restoreStructure.mutate(s.id)}
+                  disabled={restoreStructure.isPending}
+                >
+                  <ArchiveRestore className="h-4 w-4 mr-2" />
+                  Restore
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => setShowDelete(true)}
+                disabled={s.is_active}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete permanently…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -567,6 +620,22 @@ function StructureCard({ structure: s }: StructureCardProps) {
           structureName={s.name}
         />
       )}
+
+      <EditSalaryStructureSheet
+        open={showEdit}
+        onOpenChange={setShowEdit}
+        structure={{ id: s.id, name: s.name, code: s.code, description: s.description ?? null }}
+      />
+      <ArchiveSalaryStructureDialog
+        open={showArchive}
+        onOpenChange={setShowArchive}
+        structure={{ id: s.id, name: s.name }}
+      />
+      <DeleteSalaryStructureDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        structure={{ id: s.id, name: s.name, is_active: s.is_active }}
+      />
     </Card>
   );
 }

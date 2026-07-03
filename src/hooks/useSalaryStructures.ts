@@ -99,17 +99,121 @@ export function useSalaryStructures() {
     },
   });
 
-  const deleteStructure = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("salary_structures").delete().eq("id", id);
+  const renameStructure = useMutation({
+    mutationFn: async (input: {
+      id: string;
+      name: string;
+      code?: string | null;
+      description?: string | null;
+    }) => {
+      const { data, error } = await supabase.rpc("rename_salary_structure" as any, {
+        p_id: input.id,
+        p_name: input.name,
+        p_code: input.code ?? null,
+        p_description: input.description ?? null,
+      });
       if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
-      toast.success("Structure deleted");
+      queryClient.invalidateQueries({ queryKey: ["payroll-salary-structures"] });
+      toast.success("Salary structure updated");
     },
     onError: (err: any) => toast.error(normalizeError(err).message),
   });
 
-  return { structures, isLoading, createStructure, deleteStructure };
+  const archiveStructure = useMutation({
+    mutationFn: async (input: { id: string; reason?: string }) => {
+      const { data, error } = await supabase.rpc("archive_salary_structure" as any, {
+        p_id: input.id,
+        p_reason: input.reason ?? null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-salary-structures"] });
+      toast.success("Salary structure archived");
+    },
+    onError: (err: any) => toast.error(normalizeError(err).message),
+  });
+
+  const restoreStructure = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase.rpc("restore_salary_structure" as any, {
+        p_id: id,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-salary-structures"] });
+      toast.success("Salary structure restored");
+    },
+    onError: (err: any) => toast.error(normalizeError(err).message),
+  });
+
+  const deleteStructure = useMutation({
+    mutationFn: async (input: { id: string; confirmName: string }) => {
+      const { data, error } = await supabase.rpc("delete_salary_structure" as any, {
+        p_id: input.id,
+        p_confirm_name: input.confirmName,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-salary-structures"] });
+      toast.success("Salary structure deleted");
+    },
+    onError: (err: any) => {
+      const base = normalizeError(err).message;
+      const hint = err?.hint;
+      toast.error(hint ? `${base} — ${hint}` : base);
+    },
+  });
+
+  return {
+    structures,
+    isLoading,
+    createStructure,
+    renameStructure,
+    archiveStructure,
+    restoreStructure,
+    deleteStructure,
+  };
 }
+
+/**
+ * Read-only preflight for hard-deleting a salary structure.
+ * Returns the counts of blockers (contracts, payslips, in-flight runs)
+ * and a computed `can_delete` flag. Only enabled when `structureId` is
+ * provided — meant for use inside the delete-confirmation dialog.
+ */
+export function useSalaryStructureDeletionReport(structureId: string | null) {
+  return useQuery({
+    queryKey: ["salary-structure-deletion-report", structureId],
+    enabled: !!structureId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc(
+        "salary_structure_deletion_report" as any,
+        { p_id: structureId! },
+      );
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return row as {
+        structure_id: string;
+        is_archived: boolean;
+        contract_count: number;
+        payslip_count: number;
+        active_run_count: number;
+        can_delete: boolean;
+      } | null;
+    },
+  });
+}
+
