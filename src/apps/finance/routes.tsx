@@ -302,6 +302,16 @@ export function FinanceApp() {
           }
         />
         <Route
+          path="fiscal-periods/close"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Year-End Closing">
+                <YearEndClosePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
           path="fiscal-periods/:periodId"
           element={
             <SubscriptionProtectedRoute allowReadOnly>
