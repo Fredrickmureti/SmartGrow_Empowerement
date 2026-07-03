@@ -51,25 +51,75 @@ export function PayrollSalaryStructuresPage() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { createStructure } = useSalaryStructures();
+  const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", code: "", description: "" });
-  const [components, setComponents] = useState<{ name: string; code: string; component_type: string; computation_type: string; computation_value: number; is_taxable: boolean }[]>([]);
+  const [components, setComponents] = useState<ComponentDraft[]>([]);
 
-  const addComponent = () => setComponents((c) => [...c, { name: "", code: "", component_type: "earning", computation_type: "fixed", computation_value: 0, is_taxable: true }]);
+  const addComponent = () =>
+    setComponents((c) => [
+      ...c,
+      {
+        name: "",
+        code: "",
+        component_type: "earning",
+        computation_type: "fixed",
+        computation_value: 0,
+        percentage_of: null,
+        formula: "",
+        is_taxable: true,
+      },
+    ]);
+
+  const patchComponent = (i: number, patch: Partial<ComponentDraft>) =>
+    setComponents((cs) => cs.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+
+  const componentValidation = useMemo(
+    () =>
+      components.map((c) => {
+        if (c.computation_type === "percentage" && !c.percentage_of) {
+          return "Select what the percentage applies to (Basic, Gross, Taxable).";
+        }
+        if (c.computation_type === "formula") {
+          if (!c.formula.trim()) return "Enter a formula expression.";
+          const res = validateExpression(c.formula);
+          if (!res.ok) return res.error || "Invalid expression.";
+        }
+        return null;
+      }),
+    [components],
+  );
+
+  const hasComponentErrors = componentValidation.some(Boolean);
+
   const handleCreate = async () => {
-    if (!form.name.trim()) return;
-    // Catch the rejection locally so the mutation's onError toast (with the
-    // real Supabase error.message / details) is the only thing the user sees.
-    // Leaving the promise unhandled surfaces a generic "Something unexpected
-    // happened" upstream and the dialog closes before the user can correct
-    // the input.
+    if (!form.name.trim() || hasComponentErrors) return;
     try {
       await createStructure.mutateAsync({
         name: form.name.trim(),
         code: form.code.trim() || undefined,
         description: form.description,
-        components: components.map((c, i) => ({ ...c, sort_order: i, is_active: true, is_statutory: false, statutory_rule_type: null, percentage_of: null })),
+        components: components.map((c, i) => ({
+          name: c.name,
+          code: c.code,
+          component_type: c.component_type,
+          computation_type: c.computation_type,
+          // For formula rows the value is stored as 0; the expression lives
+          // in the `formula` / `amount_expression` column downstream.
+          computation_value: c.computation_type === "formula" ? 0 : c.computation_value,
+          percentage_of: c.computation_type === "percentage" ? c.percentage_of : null,
+          formula: c.computation_type === "formula" ? c.formula.trim() : null,
+          is_taxable: c.is_taxable,
+          sort_order: i,
+          is_active: true,
+          is_statutory: false,
+          statutory_rule_type: null,
+        })),
       });
+      // The mutation invalidates ["salary-structures"] (a different hook's
+      // key). This page owns its own query — invalidate it explicitly so the
+      // new row appears without a page refresh.
+      queryClient.invalidateQueries({ queryKey: ["payroll-salary-structures"] });
       setShowCreate(false);
       setForm({ name: "", code: "", description: "" });
       setComponents([]);
@@ -77,6 +127,7 @@ export function PayrollSalaryStructuresPage() {
       // onError already toasted the actionable message; keep the dialog open.
     }
   };
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["payroll-salary-structures", currentOrg?.id, currentBusiness?.id],
