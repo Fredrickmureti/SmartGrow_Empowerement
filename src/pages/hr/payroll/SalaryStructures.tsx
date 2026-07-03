@@ -113,11 +113,9 @@ export function PayrollSalaryStructuresPage() {
           code: c.code,
           component_type: c.component_type,
           computation_type: c.computation_type,
-          // For formula rows the value is stored as 0; the expression lives
-          // in the `formula` / `amount_expression` column downstream.
-          computation_value: c.computation_type === "formula" ? 0 : c.computation_value,
+          computation_value: c.computation_value,
           percentage_of: c.computation_type === "percentage" ? c.percentage_of : null,
-          formula: c.computation_type === "formula" ? c.formula.trim() : null,
+
           is_taxable: c.is_taxable,
           sort_order: i,
           is_active: true,
