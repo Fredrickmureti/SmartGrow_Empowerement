@@ -1262,6 +1262,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Work entries for the period, grouped by employee. Feeds runStructureEngine
+    // via its `worked_hours` / `worked_days` derivations. When no rows exist
+    // for an employee the engine still runs — entries are optional.
+    const workEntriesByEmployee: Record<string, any[]> = {};
+    if (employee_ids.length > 0) {
+      const { data: weRows } = await supabaseAdmin
+        .from("payroll_work_entries")
+        .select("employee_id, work_entry_type_id, hours, overtime_hours, days")
+        .eq("organization_id", organization_id)
+        .in("employee_id", employee_ids)
+        .gte("date", pay_period_start)
+        .lte("date", pay_period_end);
+      for (const r of (weRows || []) as any[]) {
+        (workEntriesByEmployee[r.employee_id] ||= []).push(r);
+      }
+    }
+
 
     // ─── Fetch active benefit enrollments + plans ───
     const { data: benefitEnrollments } = await supabaseAdmin
