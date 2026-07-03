@@ -83,7 +83,8 @@ export function PayrollSalaryStructuresPage() {
         if (c.computation_type === "formula") {
           if (!c.formula.trim()) return "Enter a formula expression.";
           const res = validateExpression(c.formula);
-          if (!res.ok) return res.error || "Invalid expression.";
+          if (!res.ok) return res.message || "Invalid expression.";
+
         }
         return null;
       }),
