@@ -434,26 +434,24 @@ export function EmployeeFormDialog({
     });
   }, [open, existingIdentifiers]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
 
     if (formData.first_name.trim() === "" || formData.last_name.trim() === "") {
       setActiveTab("personal");
-      window.requestAnimationFrame(() => formRef.current?.reportValidity());
+      window.requestAnimationFrame(() => formRef.current?.reportValidity?.());
       return;
     }
 
     if (formData.hire_date.trim() === "") {
       setActiveTab("employment");
-      window.requestAnimationFrame(() => formRef.current?.reportValidity());
+      window.requestAnimationFrame(() => formRef.current?.reportValidity?.());
       return;
     }
 
     setIsSubmitting(true);
     try {
       await onSubmit(formData);
-      // Only reset & close on success — failures keep the dialog open
-      // with the user's input intact so they can fix and retry.
       if (!editingEmployee) {
         clearDraft();
         const seed = emptyForm();
@@ -461,8 +459,6 @@ export function EmployeeFormDialog({
         setFormData(seed);
         setSnapshotVersion((v) => v + 1);
       } else {
-        // Edit-mode: keep values, advance the baseline so the leave-guard
-        // stops firing for what we just saved.
         rebaselineDirty(formData);
       }
       onOpenChange(false);
@@ -470,6 +466,35 @@ export function EmployeeFormDialog({
       setIsSubmitting(false);
     }
   };
+
+  // Draft-save handler shared by the inline footer button and the imperative
+  // actionsRef so a host shell can drive the same code path.
+  const handleSaveAsDraft = async () => {
+    if (!onSaveAsDraft) return;
+    setIsSavingDraft(true);
+    try {
+      await onSaveAsDraft(formData);
+      clearDraft();
+      rebaselineDirty(formData);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  // Expose imperative actions so `RecordFormShell`-hosted footers can wire
+  // Submit / Save-as-draft / Discard without duplicating validation.
+  useEffect(() => {
+    if (!actionsRef) return;
+    actionsRef.current = {
+      submit: () => handleSubmit(),
+      saveAsDraft: handleSaveAsDraft,
+      discardDraft: handleDiscardDraft,
+    };
+    return () => {
+      if (actionsRef) actionsRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionsRef, formData, editingEmployee, draftId]);
 
   // Shared body rendered inside either a Sheet (modal) or a plain div
   // (full-page route). The header is rendered as SheetHeader in modal mode
