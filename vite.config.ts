@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
 // https://vitejs.dev/config/
@@ -19,15 +18,6 @@ export default defineConfig(({ mode }) => ({
     // Provides TanStack Start's virtual client/server entries used by the
     // Lovable preview dev shell (`#tanstack-start-entry`).
     ...tanstackStart(),
-    // Generates src/routeTree.gen.ts from files in src/routes/. Required by
-    // the Lovable sandbox dev shell which serves the app via TanStack Start.
-    // The actual ERP UI is rendered by react-router-dom inside <App />.
-    tanstackRouter({
-      target: "react",
-      autoCodeSplitting: true,
-      routesDirectory: "./src/routes",
-      generatedRouteTree: "./src/routeTree.gen.ts",
-    }) as unknown as PluginOption,
     react(),
     mode === "development" ? (componentTagger() as unknown as PluginOption) : null,
     // Service worker is disabled for Electron packaged builds — `file://`
