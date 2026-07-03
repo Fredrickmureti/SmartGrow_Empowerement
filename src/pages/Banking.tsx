@@ -13,9 +13,8 @@ import { useTenantFx } from "@/hooks/useTenantFx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BankAccountCard } from "@/components/banking/BankAccountCard";
-import { ConnectBankDialog } from "@/components/banking/ConnectBankDialog";
 import { ImportTransactionsDialog } from "@/components/banking/ImportTransactionsDialog";
-import { BankAccountEditSheet } from "@/features/finance/banking/BankAccountEditSheet";
+import { BankAccountSheet } from "@/features/finance/banking/BankAccountSheet";
 import { TransactionsList } from "@/components/banking/TransactionsList";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
@@ -34,26 +33,32 @@ function formatCurrencyValue(amount: number, currencyCode: string = "USD") {
 }
 
 export default function Banking() {
-  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  // Deep-link convention shared with DashboardCreateBar / GlobalCreateMenu:
-  // /finance/banking?action=create auto-opens the connect-bank dialog.
-  // The edit surface is URL-driven via ?sheet=account&id=<uuid>, matching
-  // the peek/sheet pattern established across Finance slices B1–B4.
+  // Bank account create + edit both mount the same URL-driven sheet:
+  //   ?sheet=account            → connect / new account
+  //   ?sheet=account&id=<uuid>  → edit existing
+  // Deep-link `?action=create` (kept for DashboardCreateBar / GlobalCreateMenu
+  // compatibility) is normalised to `?sheet=account` on arrival.
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
-    if (searchParams.get("action") === "create" && !connectDialogOpen) {
-      setConnectDialogOpen(true);
+    if (searchParams.get("action") === "create") {
       const next = new URLSearchParams(searchParams);
       next.delete("action");
+      next.set("sheet", "account");
       setSearchParams(next, { replace: true });
     }
-  }, [searchParams, connectDialogOpen, setSearchParams]);
-  const editingAccountId =
-    searchParams.get("sheet") === "account" ? searchParams.get("id") : null;
-  const closeEditSheet = () => {
+  }, [searchParams, setSearchParams]);
+  const sheetOpen = searchParams.get("sheet") === "account";
+  const editingAccountId = sheetOpen ? searchParams.get("id") : null;
+  const closeSheet = () => {
     const next = new URLSearchParams(searchParams);
     next.delete("sheet");
+    next.delete("id");
+    setSearchParams(next, { replace: true });
+  };
+  const openConnectSheet = () => {
+    const next = new URLSearchParams(searchParams);
+    next.set("sheet", "account");
     next.delete("id");
     setSearchParams(next, { replace: true });
   };
@@ -205,7 +210,7 @@ export default function Banking() {
                 </>
               )}
               {canManage && (
-                <Button onClick={() => setConnectDialogOpen(true)} className="flex-1 sm:flex-none">
+                <Button onClick={openConnectSheet} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Bank Account
                 </Button>
@@ -386,7 +391,7 @@ export default function Banking() {
                       if (isReadOnly) {
                         openUpgradeModal("banking");
                       } else {
-                        setConnectDialogOpen(true);
+                        openConnectSheet();
                       }
                     }}
                   >
@@ -407,9 +412,7 @@ export default function Banking() {
                   </p>
                   <PermissionGate permission="manageFinancials">
                     {canManage && (
-                      <Button className="mt-4"
-                        onClick={() => setConnectDialogOpen(true)}
-                      >
+                      <Button className="mt-4" onClick={openConnectSheet}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Bank Account
                       </Button>
@@ -429,15 +432,6 @@ export default function Banking() {
         </Tabs>
       </div>
 
-      <ConnectBankDialog 
-        open={connectDialogOpen} 
-        onOpenChange={setConnectDialogOpen}
-        onSuccess={() => {
-          fetchAccounts();
-          fetchTransactions();
-        }}
-      />
-
       <ImportTransactionsDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
@@ -448,12 +442,13 @@ export default function Banking() {
         }}
       />
 
-      <BankAccountEditSheet
-        open={!!editingAccountId}
-        onOpenChange={(open) => { if (!open) closeEditSheet(); }}
+      <BankAccountSheet
+        open={sheetOpen}
+        onOpenChange={(open) => { if (!open) closeSheet(); }}
         account={(bankAccounts || []).find((a) => a.id === editingAccountId) ?? null}
         onSuccess={() => {
           fetchAccounts();
+          fetchTransactions();
         }}
       />
     </>

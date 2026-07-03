@@ -1,86 +1,63 @@
-# Finance Slice B5 — Banking & Payment Recording
+## Where the previous agent actually stopped
 
-## Context
+Verified against the codebase, not agent notes:
 
-Slices B1–B4 landed the enterprise interaction model across Journal Entries, Chart of Accounts, Analytic Accounts, Fiscal Periods, Year-End Close, Budgets, and Fixed Assets. Every routed create/edit now composes `RecordFormShell` / `DetailSheet` / `WizardShell` from `@/design-system`, and lists open records through URL-driven sheets.
+- **Done:** `src/features/finance/banking/BankAccountEditSheet.tsx` exists, is URL-driven (`?sheet=account&id=<uuid>`), mounted in `src/pages/Banking.tsx`, and `EditBankAccountDialog.tsx` is deleted. Architecture guard `banking-ownership.test.ts` references the new sheet.
+- **Not done — still legacy `<Dialog>` in the tree:** `ConnectBankDialog`, `ImportTransactionsDialog`, `StartReconciliationDialog`, `ReconcileTransactionDialog`, `TransferReconcileDialog`, `TransactionRulesDialog`, `RecordPaymentDialog` (invoices), `PaymentHistoryDialog` (invoices), `RecordBillPaymentDialog`, `BillPaymentHistoryDialog`, `BudgetVsActualDialog`. All still imported from their respective pages.
+- Plan file `.lovable/plan.md` (Slice B5) is still the correct spec. No revision needed to scope — only execution remains.
 
-The **Banking** and **AR/AP Payment Recording** surfaces are the last significant clusters of legacy `<Dialog>` interactions inside Finance. They currently host substantive business workflows (connecting a bank, importing a statement, reconciling a transaction, recording an invoice or bill payment) in narrow modal dialogs that break the platform's interaction language and lose context every time the user opens one.
+Everything downstream in the mega-prompt (Sales, Purchases, Inventory tracks; B6 statements/credit notes; B7 inline-`<Dialog>` guard) stays out of scope until Finance B5 closes, per the "complete one application before moving on" rule in the original brief.
 
-This slice migrates all of them, in the exact order below, verifying each entity before moving on. No business-logic changes — only interaction architecture, URL wiring, and layout composition against existing design-system primitives.
+## Execution plan (resume, one entity at a time, verify between each)
 
-## Scope (one entity at a time, verified before moving on)
+### Step 1b — Finish Banking accounts: fold Connect into `BankAccountSheet`
+- Rename `BankAccountEditSheet.tsx` → `BankAccountSheet.tsx`; add a `mode: "connect" | "edit"` branch (create path currently in `ConnectBankDialog` — name, currency, GL account, opening balance, provider metadata) reusing the existing `FieldGrid` + `useRecordFormSubmit` composition.
+- URL contract: `?sheet=account` (connect) and `?sheet=account&id=<uuid>` (edit). Both open the same sheet, submit through the same handler shape.
+- Update `src/pages/Banking.tsx`: drop `<ConnectBankDialog>`, replace trigger with a link/button that sets `?sheet=account`. Delete `src/components/banking/ConnectBankDialog.tsx` in the same change. Update `src/lib/bankAccountTypes.ts` doc comment.
+- Verify: `rg "ConnectBankDialog|EditBankAccountDialog" src/` → 0 hits; `bunx tsgo --noEmit` clean; `banking-ownership` guard green.
 
-### 1. Banking — accounts & connection
-Files today: `src/components/banking/ConnectBankDialog.tsx`, `EditBankAccountDialog.tsx`.
+### Step 2 — Banking statement import wizard
+- New route `src/routes/finance.banking.$accountId.import.tsx` (file-based) → `WizardShell` steps **Upload → Map columns → Review → Commit**. Lift parse/preview/commit handlers verbatim from `ImportTransactionsDialog`. Keep the CSV column mapper local (single consumer, per plan).
+- Register under the same subscription/branch guard used by other finance routes (mirror `journal-entries` route wiring).
+- Replace the dialog trigger in `Banking.tsx` / `BankFeeds.tsx` with `<Link to="/finance/banking/$accountId/import" params={{ accountId }}>`.
+- Delete `ImportTransactionsDialog.tsx`. Verify no stale imports.
 
-- New `src/features/finance/banking/BankAccountSheet.tsx` — single `DetailSheet` composed on `FieldGrid` handling both **connect** (create) and **edit** modes for a bank account (name, currency, GL account, opening balance, provider metadata). Uses `useRecordFormSubmit`.
-- Edit `src/pages/Banking.tsx` (or the equivalent list page that mounts these dialogs) to drop both `<Dialog>` blocks and mount the sheet behind `?sheet=account[&id=<uuid>]`.
-- Delete `ConnectBankDialog.tsx` and `EditBankAccountDialog.tsx` in the same commit that removes their last import.
+### Step 3 — Banking reconciliation sheets
+- `StartReconciliationDialog` → `StartReconciliationSheet.tsx` behind `?sheet=start-reconcile` (`DetailSheet`, 4 fields).
+- Merge `ReconcileTransactionDialog` + `TransferReconcileDialog` into one `ReconcileMatchSheet.tsx` opened from `ReconciliationWorkspace.tsx` with `?match=<txnId>&kind=txn|transfer`. Preserves the workspace behind the sheet instead of stacking modals. Same matching/split RPCs.
+- `TransactionRulesDialog` → `TransactionRulesSheet.tsx` behind `?sheet=rules`.
+- All four legacy files deleted in the same commit that removes their last import. Rerun `banking-ownership` guard.
 
-### 2. Banking — statement import
-File today: `src/components/banking/ImportTransactionsDialog.tsx` (upload CSV/OFX → column mapping → preview → commit).
+### Step 4 — AR payment recording sheets
+- `RecordInvoicePaymentSheet.tsx` at `src/features/finance/receivables/` behind `?sheet=payment&invoiceId=<uuid>`. Same allocation grid, currency, method, reference; `useRecordFormSubmit`; same RPCs.
+- `InvoicePaymentHistorySheet.tsx` (read-only) behind `?sheet=payment-history&invoiceId=<uuid>`.
+- Audit `BulkExportDialog` and `BulkDeleteDialog` per plan §4: keep as `<Dialog>` only if ≤2 fields / pure confirm; otherwise promote to sheet. Decide per file at edit time and record the call in the file header.
+- Mount from both `src/pages/Invoices.tsx` and the invoice record page so both entry points share the URL contract. Also fold `src/pages/CustomerPayments.tsx` and `src/pages/sales/Collections.tsx` triggers onto the same sheet URL.
+- Delete `RecordPaymentDialog.tsx` + `PaymentHistoryDialog.tsx` under `src/components/invoices/`. `src/components/sales/RecordPaymentDialog.tsx` is a separate legacy path — audit and either point it at the new sheet or delete if unused.
 
-- New `src/features/finance/banking/ImportStatementWizard.tsx` at route `/finance/banking/:accountId/import` composed on `WizardShell` with steps: **Upload → Map columns → Review → Commit**. Lifts the parse/preview/commit handlers verbatim out of the dialog into step handlers.
-- Register the route in `src/apps/finance/routes.tsx` under the same `SubscriptionProtectedRoute` as the rest of banking.
-- Replace the dialog trigger in Banking with a `<Link>` to the wizard route.
-- Delete `ImportTransactionsDialog.tsx`.
+### Step 5 — AP payment recording sheets
+- Mirror Step 4 exactly under `src/features/finance/payables/`: `RecordBillPaymentSheet.tsx`, `BillPaymentHistorySheet.tsx`. Same URL contract with `billId`. Mounted from `src/pages/Bills.tsx` and `src/pages/finance/AccountsPayable.tsx`.
+- **Extraction trigger:** at this point AR + AP both use the allocation table → lift `AllocationGrid` into `@/design-system/records/AllocationGrid` and refactor both sheets to consume it (plan §"Reusable primitives" — extract on second consumer only).
+- Delete `RecordBillPaymentDialog.tsx` + `BillPaymentHistoryDialog.tsx`.
 
-### 3. Banking — reconciliation
-Files today: `StartReconciliationDialog.tsx`, `ReconcileTransactionDialog.tsx`, `TransferReconcileDialog.tsx`, `TransactionRulesDialog.tsx`.
+### Step 6 — Budget vs Actual → routed report page
+- New route `src/routes/finance.budgets.$id.vs-actual.tsx` composed on `RecordShell` (report layout, no form). Lift variance table, filters, drill-down verbatim from `BudgetVsActualDialog.tsx`.
+- Replace triggers in the budgets list/detail with `<Link>`. Delete the dialog.
 
-- `StartReconciliationDialog` → `DetailSheet` (`?sheet=start-reconcile`) in a new `src/features/finance/banking/reconciliation/StartReconciliationSheet.tsx` — 4 fields (statement date, opening balance, closing balance, note), pure configuration.
-- `ReconcileTransactionDialog` and `TransferReconcileDialog` are per-row matching surfaces → convert to a single `ReconcileMatchSheet` opened from the reconciliation workspace with `?match=<txnId>`; the sheet renders the candidate list, split lines, and posts the same RPC. Preserves context (statement stays visible behind the sheet) instead of stacking modals.
-- `TransactionRulesDialog` (recurring rules editor) is a small config surface → `DetailSheet` behind `?sheet=rules`.
-- Delete all four legacy dialogs.
+### Slice-close verification (must all pass before declaring B5 done)
+- `rg "<Dialog\b" src/components/banking src/components/invoices src/components/bills src/components/budgets` → 0 hits.
+- `rg "ConnectBankDialog|EditBankAccountDialog|ImportTransactionsDialog|StartReconciliationDialog|ReconcileTransactionDialog|TransferReconcileDialog|TransactionRulesDialog|RecordPaymentDialog|PaymentHistoryDialog|RecordBillPaymentDialog|BillPaymentHistoryDialog|BudgetVsActualDialog" src/` → 0 hits.
+- Every new sheet URL-driven, survives refresh, closes on browser back.
+- `bunx tsgo --noEmit` clean. Existing finance dialog-ban filename guard + `banking-ownership` guard + `payment-reversal-intent-contract` guard all green.
+- No changes to `useInvoices`, `useBills`, `useBankAccounts`, `useBankTransactions`, reconciliation RPCs, RLS, or data models. Branch/business scoping preserved on every query and mutation.
 
-### 4. Invoice payment recording (AR)
-Files today: `src/components/invoices/RecordPaymentDialog.tsx`, `PaymentHistoryDialog.tsx`, `BulkExportDialog.tsx`, `BulkDeleteDialog.tsx`.
+### Technical notes
+- All sheets use `useSearchParams` (matches Sales/Purchases peek pattern and prior Finance slices). Never React-state-only visibility.
+- Wizard step state local; only the commit step hits the network. Preview steps reuse the read-only helpers the dialogs currently call.
+- Only import design primitives from `@/design-system`. Do not cross-import from `@/features/sales/*` or `@/features/purchases/*`.
+- Match composition/density of prior slice sheets exactly: same header, same `FieldGrid` column counts, same `FooterActionBar` action ordering.
 
-- `RecordPaymentDialog` (allocations against outstanding invoices, currency, method, reference) → `DetailSheet` at `?sheet=payment&invoiceId=<uuid>` in `src/features/finance/receivables/RecordInvoicePaymentSheet.tsx`. Same allocation grid, `useRecordFormSubmit`, same RPCs.
-- `PaymentHistoryDialog` → `DetailSheet` (read-only) behind `?sheet=payment-history&invoiceId=<uuid>` — payment timeline stays in-context, no popup.
-- `BulkExportDialog` / `BulkDeleteDialog` stay as `<Dialog>` **only** if they're pure confirms (≤2 fields). If either has real form state (format, date range, dry-run toggle), it moves to a `DetailSheet` under the same convention. Verified per file at edit time.
-- Mount all sheets from the invoices list page (`src/pages/Invoices.tsx` or equivalent) and the invoice record page so both entry points share the same URL contract.
-
-### 5. Bill payment recording (AP)
-Files today: `src/components/bills/RecordBillPaymentDialog.tsx`, `BillPaymentHistoryDialog.tsx`.
-
-- Mirror the AR pattern exactly: `RecordBillPaymentSheet.tsx` + `BillPaymentHistorySheet.tsx` under `src/features/finance/payables/`. Same URL contract (`?sheet=payment|payment-history&billId=<uuid>`), same allocation grid pattern.
-
-### 6. Budget vs Actual analytics
-File today: `src/components/budgets/BudgetVsActualDialog.tsx`.
-
-- Substantial analytical surface (variance table, filters, drill-down) → this is not a dialog. Promote to a routed page `/finance/budgets/:id/vs-actual` composed on `RecordShell` (report layout, no form). Replace the trigger with a `<Link>`.
-- Delete the dialog.
-
-## Reusable primitives (extract only if a second consumer appears in this slice)
-
-Do not preemptively extract. Watch for these shapes as the slice lands and lift into `@/design-system/records` **only** if used by ≥2 modules within this slice:
-
-- **AllocationGrid** — invoice/bill payment allocation table (amount, outstanding, allocated). Both AR and AP will need it → extract on the second consumer.
-- **StatementColumnMapper** — CSV column → canonical field mapping row list. Single consumer this slice → keep local.
-
-Everything else composes from the existing primitives already exported from `@/design-system` (`DetailSheet`, `RecordFormShell`, `WizardShell`, `FieldGrid`, `FooterActionBar`, `SummaryPanel`, `useRecordFormSubmit`).
-
-## Guardrails / verification (must pass before closing the slice)
-
-- `rg "<Dialog\b" src/components/banking src/components/invoices src/components/bills src/components/budgets` → zero hits.
-- `rg "ConnectBankDialog|EditBankAccountDialog|ImportTransactionsDialog|StartReconciliationDialog|ReconcileTransactionDialog|TransferReconcileDialog|TransactionRulesDialog|RecordPaymentDialog|PaymentHistoryDialog|RecordBillPaymentDialog|BillPaymentHistoryDialog|BudgetVsActualDialog"` → zero hits outside git history.
-- Every new sheet is URL-driven (`?sheet=…`), survives refresh, and closes on browser back.
-- Preserve branch/business scoping and RLS on every query and mutation. Do not touch `useInvoices`, `useBills`, `useBankAccounts`, `useBankTransactions`, or the reconciliation RPCs.
-- No new `<Dialog>` JSX added anywhere except `ConfirmDeleteDialog` invocations.
-- `bunx tsgo --noEmit` clean; existing finance dialog-ban guard test stays green.
-
-## Out of scope (deferred to later slices)
-
-- **B6** — Customer Statements, Vendor Statements, Recurring Invoices, Credit Notes, Vendor Credit Notes (each still hosts inline dialogs; own slice because they share statement-generation infra).
-- **B7** — Extend the finance dialog-ban ESLint/pgTAP-style guard to scan **inline `<Dialog>` JSX**, not just filenames, so future regressions fail at CI.
-- **Sales**, **Purchases**, **Inventory** — separate top-level tracks handled after Finance is fully converged.
-- Any change to underlying RPCs, RLS policies, or data models.
-
-## Technical notes
-
-- URL-driven sheets use `useSearchParams` (already the pattern in Sales/Purchases peek sheets and prior Finance slices). Never React-state-only.
-- Wizard step state stays local to the wizard; only the final commit hits the network. Preview steps reuse the same read-only helpers the current dialogs call.
-- Delete each legacy dialog file in the same commit that removes its last import — keeps the filename guard clean and prevents dead-code drift.
-- Do not import from `@/features/sales/*` or `@/features/purchases/*`. Only `@/design-system`.
-- Match the composition and density of the HR/Payroll and prior Finance slice sheets exactly — same header layout, same `FieldGrid` column counts, same `FooterActionBar` action ordering.
+### Deferred (unchanged from plan file)
+- **B6:** Customer/Vendor Statements, Recurring Invoices, Credit Notes, Vendor Credit Notes.
+- **B7:** Extend dialog-ban guard to detect inline `<Dialog>` JSX, not just filenames.
+- **Sales / Purchases / Inventory** tracks: separate top-level initiatives after Finance fully converges.
