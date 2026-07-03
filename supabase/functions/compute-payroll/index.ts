@@ -2562,7 +2562,18 @@ Deno.serve(async (req) => {
 
 
       // ─── Salary structure deduction/contribution components ───
-      if (structureComponents.length > 0) {
+      // Phase 3: when the rule-graph engine ran for this employee, its
+      // deduction + employer_contribution lines take the place of the
+      // flat-component walk. Structures without the flag continue to use
+      // the legacy walk unchanged.
+      if (graphUsedForEmployee.has(emp.id)) {
+        for (const d of graphDeductionsByEmployee[emp.id] || []) {
+          if (d.amount > 0) deductionsDetail[d.label] = (deductionsDetail[d.label] || 0) + d.amount;
+        }
+        for (const c of graphEmployerByEmployee[emp.id] || []) {
+          if (c.amount > 0) contributionsDetail[c.label] = (contributionsDetail[c.label] || 0) + c.amount;
+        }
+      } else if (structureComponents.length > 0) {
         for (const comp of structureComponents) {
           if (comp.component_type === "earning") continue;
 
