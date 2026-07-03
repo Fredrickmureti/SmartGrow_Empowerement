@@ -188,6 +188,81 @@ export function useRFQs() {
     },
   });
 
+  const updateRFQMutation = useMutation({
+    mutationFn: async ({
+      id,
+      rfq,
+      items,
+      vendorIds,
+    }: {
+      id: string;
+      rfq: { deadline: string | null; notes: string | null };
+      items: Omit<RFQItem, "id" | "rfq_id">[];
+      vendorIds: string[];
+    }) => {
+      // Guard: only draft RFQs are editable.
+      const { data: existing, error: readErr } = await (supabase as any)
+        .from("rfqs")
+        .select("status")
+        .eq("id", id)
+        .maybeSingle();
+      if (readErr) throw readErr;
+      if (!existing) throw new Error("RFQ not found");
+      if (existing.status !== "draft") {
+        throw new Error("Only draft RFQs can be edited");
+      }
+
+      const { error: updErr } = await (supabase as any)
+        .from("rfqs")
+        .update({
+          deadline: rfq.deadline || null,
+          notes: rfq.notes || null,
+        })
+        .eq("id", id);
+      if (updErr) throw updErr;
+
+      // Replace items
+      await (supabase as any).from("rfq_items").delete().eq("rfq_id", id);
+      if (items.length > 0) {
+        const itemsToInsert = items.map((item, idx) => ({
+          rfq_id: id,
+          product_id: item.product_id,
+          description: item.description,
+          quantity: item.quantity,
+          target_price: item.target_price,
+          sort_order: idx,
+        }));
+        const { error: itemsErr } = await (supabase as any)
+          .from("rfq_items")
+          .insert(itemsToInsert);
+        if (itemsErr) throw itemsErr;
+      }
+
+      // Replace vendors (only if no responses yet)
+      await (supabase as any).from("rfq_vendors").delete().eq("rfq_id", id);
+      if (vendorIds.length > 0) {
+        const vendorsToInsert = vendorIds.map((vid) => ({
+          rfq_id: id,
+          vendor_id: vid,
+          status: "pending",
+        }));
+        const { error: vendorsErr } = await (supabase as any)
+          .from("rfq_vendors")
+          .insert(vendorsToInsert);
+        if (vendorsErr) throw vendorsErr;
+      }
+
+      return { id };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rfqs"] });
+      toast.success("RFQ updated");
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update RFQ: ${normalizeError(error).message}`);
+    },
+  });
+
   const updateVendorResponseMutation = useMutation({
     mutationFn: async ({
       rfqVendorId,
@@ -302,11 +377,15 @@ export function useRFQs() {
     rfqs,
     isLoading,
     createRFQ: createRFQMutation.mutate,
+    createRFQAsync: createRFQMutation.mutateAsync,
+    updateRFQ: updateRFQMutation.mutate,
+    updateRFQAsync: updateRFQMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutate,
     updateVendorResponse: updateVendorResponseMutation.mutate,
     awardVendor: awardVendorMutation.mutate,
     convertToPurchaseOrder: convertToPurchaseOrderMutation.mutate,
     deleteRFQ: deleteRFQMutation.mutate,
     isCreating: createRFQMutation.isPending,
+    isUpdating: updateRFQMutation.isPending,
   };
 }
