@@ -74,38 +74,15 @@ export default function Warehouses() {
     transfers,
     isLoading,
     deleteWarehouse,
-    createStockTransfer,
     approveTransfer,
     completeTransfer,
     cancelTransfer,
   } = useWarehouses();
-  const { products } = useProducts();
   const { formatCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { branches, currentBranch } = useBranches();
   const [activeTab, setActiveTab] = useState("warehouses");
-  const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [transferForm, setTransferForm] = useState({
-    from_warehouse_id: "",
-    to_warehouse_id: "",
-    transfer_date: format(new Date(), "yyyy-MM-dd"),
-    notes: "",
-    items: [{ product_id: "", quantity: 1 }],
-  });
-
-  const resetTransferForm = () => {
-    setTransferForm({
-      from_warehouse_id: "",
-      to_warehouse_id: "",
-      transfer_date: format(new Date(), "yyyy-MM-dd"),
-      notes: "",
-      items: [{ product_id: "", quantity: 1 }],
-    });
-  };
 
   const handleOpenWarehouseCreate = () => {
     if (isReadOnly) {
@@ -121,55 +98,6 @@ export default function Warehouses() {
       return;
     }
     navigate(`/inventory-app/warehouses/${warehouse.id}/edit`);
-  };
-
-  const handleSubmitTransfer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (transferForm.from_warehouse_id === transferForm.to_warehouse_id) {
-      toast({
-        title: "Invalid transfer",
-        description: "Source and destination warehouses must be different.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const validItems = transferForm.items.filter(
-      (item) => item.product_id && item.quantity > 0
-    ).map((item) => ({
-      product_id: item.product_id,
-      quantity_requested: item.quantity,
-    }));
-    if (validItems.length === 0) {
-      toast({
-        title: "No items",
-        description: "Add at least one item to transfer.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      await createStockTransfer(
-        transferForm.from_warehouse_id,
-        transferForm.to_warehouse_id,
-        validItems,
-        transferForm.notes || undefined
-      );
-      toast({ title: "Stock transfer created successfully" });
-      setShowTransferDialog(false);
-      resetTransferForm();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const executeDeleteWarehouse = async (warehouse: Warehouse) => {
