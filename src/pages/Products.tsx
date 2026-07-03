@@ -383,41 +383,30 @@ export default function Products() {
     // Reset resolver cache so next import starts fresh
     categoryResolverRef.current = null;
   };
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
-  // Pre-fill barcode on first identifier row when coming from POS "Unknown barcode → Create product".
-  const createWithCode = searchParams.get("createWithCode") || undefined;
-  const identifiersRef = useRef<ProductIdentifiersEditorHandle | null>(null);
-  // Buffers pending product_packaging rows for new products so the operator
-  // defines packs and saves the product in one round-trip (no "Save then
-  // re-open to add packaging" two-step).
-  const packagingRef = useRef<ProductPackagingEditorHandle | null>(null);
-  // Page-level scan-to-onboard: scans on /products with no focused barcode
-  // field land here. Hit → open detail; miss → open Add-item with code prefilled.
-  const [pendingCreateCode, setPendingCreateCode] = useState<string | null>(null);
   // Re-entry guard for page-level scan-to-onboard. The ref is the actual
   // guard (synchronous, race-proof); the state drives the router-active
   // gate + a "Looking up barcode…" toast so the operator gets immediate
-  // feedback during the pos_resolve_barcode RPC and the Add-Item dialog
-  // cannot open before the resolve completes.
+  // feedback during the pos_resolve_barcode RPC.
   const resolvingScanRef = useRef(false);
   const [isResolvingScan, setIsResolvingScan] = useState(false);
-  // Disclosure state for the advanced sales/purchase unit override panel.
-  const [showAdvancedUoM, setShowAdvancedUoM] = useState(false);
-  // Pre-flight lock check for base_uom_id (mirrors the DB trigger
-  // enforce_base_uom_immutable). When locked we disable the picker and
-  // explain the packaging escape hatch.
-  const { data: uomLock } = useProductUomLock(editingProduct?.id ?? null);
-  const baseUomLocked = !!uomLock?.locked;
 
-  // Handle ?action=create from global create menu OR ?createWithCode=... from POS unknown-barcode recovery
+  // Handle ?action=create from global create menu OR ?createWithCode=... from POS
+  // unknown-barcode recovery. Both now navigate to the routed create page
+  // (RecordFormShell) rather than opening a legacy inline dialog.
   useEffect(() => {
-    if ((searchParams.get("action") === "create" || searchParams.get("createWithCode")) && !showDialog) {
-      setShowDialog(true);
+    const action = searchParams.get("action");
+    const createWithCode = searchParams.get("createWithCode");
+    if (action === "create" || createWithCode) {
+      navigate(
+        createWithCode
+          ? `/inventory-app/products/new?createWithCode=${encodeURIComponent(createWithCode)}`
+          : "/inventory-app/products/new",
+        { replace: true },
+      );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   // Handle ?selected=productId to auto-open product detail
@@ -430,24 +419,18 @@ export default function Products() {
         setShowDetailDialog(true);
       }
     }
-  }, [searchParams, products]);
+  }, [searchParams, products, showDetailDialog]);
 
   // Scan-to-onboard: page-level scan target at priority 5 so any focused
   // <BarcodeInputField> (priority 10) still wins. Resolves the code via
-  // pos_resolve_barcode — hit opens the product detail dialog, miss opens
-  // Add-item with the barcode prefilled.
+  // pos_resolve_barcode — hit opens the product detail dialog, miss
+  // navigates to /products/new with the barcode prefilled.
   useScanTarget({
-    active: !!currentBusiness?.id && !showDialog && !showDetailDialog && !isResolvingScan,
+    active: !!currentBusiness?.id && !showDetailDialog && !isResolvingScan,
     priority: 5,
     label: "ProductsPage scan-to-onboard",
     onScan: async (e) => {
-      // Drop duplicate scans (wedge replay, phone reconnect replay) while
-      // a resolve is in flight — prevents the "Add Product opens, then
-      // Found toast appears" race.
       if (resolvingScanRef.current) return;
-      // Strip control chars (wedge CR/LF suffixes) before normalising,
-      // otherwise the RPC can miss-match and trigger the onboarding path
-      // for a barcode that actually exists.
       const code = e.code.replace(/[\x00-\x1F\x7F]/g, "").trim();
       if (!code || !currentBusiness?.id) return;
       resolvingScanRef.current = true;
@@ -484,9 +467,7 @@ export default function Products() {
           toast({ title: `Found: ${row.name}` });
         } else {
           playPOSSound("low_stock_warning");
-          resetForm();
-          setPendingCreateCode(code);
-          setShowDialog(true);
+          navigate(`/inventory-app/products/new?createWithCode=${encodeURIComponent(code)}`);
           toast({ title: "New barcode", description: "Fill in product details to onboard." });
         }
       } catch (err: any) {
@@ -502,310 +483,12 @@ export default function Products() {
         setIsResolvingScan(false);
       }
     },
-
   });
 
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    type: "service" as "product" | "service",
-    sku: "",
-    unit_price: 0,
-    cost_price: 0,
-    tax_rate: 0,
-    image_url: null as string | null,
-    track_inventory: false,
-    stock_quantity: 0,
-    reorder_level: 0,
-    reorder_quantity: 0,
-    // MOQ fields
-    min_order_quantity: 1,
-    order_quantity_increment: 1,
-    // Category
-    category_id: null as string | null,
-    // Default GL account mappings
-    sales_account_id: null as string | null,
-    purchase_account_id: null as string | null,
-    cogs_account_id: null as string | null,
-    inventory_account_id: null as string | null,
-    // eTIMS fields
-    tax_rate_id: null as string | null,
-    etims_classification_code: "",
-    etims_unit_code: "U",
-    etims_packaging_unit: "CT",
-    // Country defaults from the business (legal entity), not the org tenant.
-    etims_country_origin: currentBusiness?.country || "",
-    // UoM (Phase B). `base_uom_id` is the unit `quantity` is denominated in on
-    // the ledger; sales/purchase default to base.
-    base_uom_id: null as string | null,
-    sales_uom_id: null as string | null,
-    purchase_uom_id: null as string | null,
-    // Lot / expiry tracking (Phase 8). When `is_lot_tracked` is on, every
-    // outbound RPC requires a lot allocation (auto-FEFO or explicit). When
-    // `is_expiry_tracked` is also on, the lot's expiry date drives the
-    // dashboard "Lots expiring soon" widget through `v_lots_expiring_soon`.
-    is_lot_tracked: industryProfile.defaultLotTracking,
-    is_expiry_tracked: industryProfile.defaultExpiryTracking,
-    expiry_alert_days: 30,
-  });
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      description: "",
-      type: "service",
-      sku: "",
-      unit_price: 0,
-      cost_price: 0,
-      tax_rate: 0,
-      image_url: null,
-      track_inventory: false,
-      stock_quantity: 0,
-      reorder_level: 0,
-      reorder_quantity: 0,
-      min_order_quantity: 1,
-      order_quantity_increment: 1,
-      category_id: null,
-      sales_account_id: null,
-      purchase_account_id: null,
-      cogs_account_id: null,
-      inventory_account_id: null,
-      tax_rate_id: null,
-      etims_classification_code: "",
-      etims_unit_code: "U",
-      etims_packaging_unit: "CT",
-      etims_country_origin: currentBusiness?.country || "",
-      base_uom_id: null,
-      sales_uom_id: null,
-      purchase_uom_id: null,
-      is_lot_tracked: industryProfile.defaultLotTracking,
-      is_expiry_tracked: industryProfile.defaultExpiryTracking,
-      expiry_alert_days: 30,
-    });
-    setEditingProduct(null);
-    setOpeningByWarehouse({});
-  };
-
-  const handleOpenDialog = (product?: Product) => {
-    if (product) {
-      setEditingProduct(product);
-      setFormData({
-        name: product.name,
-        description: product.description || "",
-        type: product.type,
-        sku: product.sku || "",
-        unit_price: product.unit_price,
-        cost_price: product.cost_price || 0,
-        tax_rate: product.tax_rate || 0,
-        image_url: product.image_url,
-        track_inventory: (product as any).track_inventory || false,
-        stock_quantity: (product as any).stock_quantity || 0,
-        reorder_level: (product as any).reorder_level || 0,
-        reorder_quantity: (product as any).reorder_quantity || 0,
-        min_order_quantity: product.min_order_quantity || 1,
-        order_quantity_increment: product.order_quantity_increment || 1,
-        category_id: (product as any).category_id || null,
-        sales_account_id: product.sales_account_id || null,
-        purchase_account_id: (product as any).purchase_account_id || null,
-        cogs_account_id: product.cogs_account_id || null,
-        inventory_account_id: product.inventory_account_id || null,
-        tax_rate_id: (product as any).tax_rate_id || null,
-        etims_classification_code: (product as any).etims_classification_code || "",
-        etims_unit_code: (product as any).etims_unit_code || "U",
-        etims_packaging_unit: (product as any).etims_packaging_unit || "CT",
-        etims_country_origin: (product as any).etims_country_origin || currentBusiness?.country || "",
-        base_uom_id: (product as any).base_uom_id || null,
-        sales_uom_id: (product as any).sales_uom_id || null,
-        purchase_uom_id: (product as any).purchase_uom_id || null,
-        is_lot_tracked: !!(product as any).is_lot_tracked,
-        is_expiry_tracked: !!(product as any).is_expiry_tracked,
-        expiry_alert_days: (product as any).expiry_alert_days ?? 30,
-      });
-    } else {
-      resetForm();
-    }
-    setShowDialog(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      if (editingProduct) {
-        await updateProduct(editingProduct.id, formData);
-        toast({ title: "Product updated successfully" });
-        setShowDialog(false);
-        resetForm();
-      } else {
-        // Opening-balance shortcut (QuickBooks-style "Initial qty on hand").
-        // When the user supplied positive opening qty per warehouse and the
-        // product tracks inventory, create the product AND opening stock in
-        // a single atomic RPC so we never end up with an orphan product
-        // (the old compensating-delete pattern produced the INSERT→DELETE
-        // realtime burst on any opening-stock failure).
-        const openingItems = Object.entries(openingByWarehouse)
-          .filter(([, qty]) => Number(qty) > 0)
-          .map(([warehouse_id, qty]) => {
-            const perWarehouseCost = Number(openingCostByWarehouse[warehouse_id]);
-            const fallbackCost = Number(formData.cost_price) || 0;
-            const unitCost = perWarehouseCost > 0 ? perWarehouseCost : fallbackCost;
-            return {
-              warehouse_id,
-              quantity_adjustment: Number(qty),
-              unit_cost: unitCost,
-            };
-          });
-
-        const useAtomic =
-          formData.track_inventory && openingItems.length > 0 && !!currentOrg && !!currentBusiness;
-
-        // Client-side guard mirroring the server-side OPENING_STOCK_REQUIRES_COST
-        // RAISE — fail fast with an actionable toast instead of a 500.
-        if (useAtomic) {
-          const invalid = openingItems.find((it) => !(Number(it.unit_cost) > 0));
-          if (invalid) {
-            const wh = activeWarehouses.find((w) => w.id === invalid.warehouse_id);
-            throw new Error(
-              `Opening stock for ${wh?.name ?? "warehouse"} needs a positive unit cost. ` +
-                `Enter the product cost or a per-warehouse unit cost.`,
-            );
-          }
-        }
-
-        let createdId: string;
-
-        if (useAtomic) {
-          const { data: userData } = await supabase.auth.getUser();
-          const userId = userData?.user?.id;
-          if (!userId) throw new Error("Not authenticated");
-
-          const { data, error } = await supabase.rpc(
-            "create_product_with_opening_stock_atomic" as any,
-            {
-              p_product: {
-                ...formData,
-                organization_id: currentOrg!.id,
-                business_id: currentBusiness!.id,
-                is_active: true,
-              },
-              p_opening_items: openingItems,
-              p_user_id: userId,
-            } as any,
-          );
-          if (error) {
-            const msg = String((error as any)?.message ?? error);
-            const code = String((error as any)?.code ?? "");
-            // PostgREST overload-resolution failure. If this fires, the DB has
-            // drifted (duplicate overload reintroduced, or schema cache stale).
-            // We intentionally do NOT silently fall back to a non-atomic
-            // product insert — that would create the product without the
-            // opening-stock journal entry and corrupt the GL.
-            if (code === "PGRST202" || code === "PGRST203" || msg.includes("Could not find the function")) {
-              throw new Error(
-                "Inventory RPC is out of sync (create_product_with_opening_stock_atomic). " +
-                  "Please reload the page. If the problem persists, contact support — " +
-                  "do not bypass opening stock, it would break the general ledger.",
-              );
-            }
-            // Translate the server's strict valuation error into a friendly toast.
-            if (msg.includes("OPENING_STOCK_REQUIRES_COST")) {
-              throw new Error(
-                "Opening stock requires a positive unit cost on every warehouse line. " +
-                  "Set the product cost or enter a per-warehouse unit cost.",
-              );
-            }
-            throw error;
-          }
-
-          const result = data as any;
-          if (!result?.success || !result?.product_id) {
-            throw new Error(result?.error || "Failed to create product with opening stock");
-          }
-          createdId = result.product_id as string;
-
-          const requiresApproval =
-            result.opening_stock?.requires_approval === true;
-          const journalEntryId =
-            result.opening_stock?.journal_entry_id ??
-            result.opening_stock?.adjustments?.[0]?.result?.journal_entry_id ??
-            null;
-          toast({
-            title: requiresApproval
-              ? "Product saved — opening stock submitted for approval"
-              : "Opening stock recorded",
-            description: journalEntryId
-              ? `Posted to general ledger (JE ${String(journalEntryId).slice(0, 8)}…)`
-              : undefined,
-            action: journalEntryId ? (
-              <ToastAction
-                altText="View journal entry"
-                onClick={() =>
-                  navigate(
-                    `/finance/journal-entries?selected=${String(journalEntryId)}`,
-                  )
-                }
-              >
-                View entry
-              </ToastAction>
-            ) : undefined,
-          });
+  const openCreate = () => navigate("/inventory-app/products/new");
+  const openEdit = (product: Product) => navigate(`/inventory-app/products/${product.id}/edit`);
 
 
-
-          // Make sure any newly-created adjustment/movement is reflected.
-          queryClient.invalidateQueries({ queryKey: ["stock-adjustments"] });
-          queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
-          queryClient.invalidateQueries({ queryKey: ["warehouse-stock-totals"] });
-          queryClient.invalidateQueries({ queryKey: ["products-list-stock"] });
-          queryClient.invalidateQueries({ queryKey: ["products-paginated"] });
-          queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
-        } else {
-          const created = await createProduct({
-            ...formData,
-            is_active: true,
-          });
-          createdId = created.id;
-          toast({ title: "Product created successfully" });
-        }
-
-        // Persist any pending barcodes/identifiers the user added in the form.
-        // SKU is auto-seeded into product_identifiers by a DB trigger; this
-        // covers extra GTIN/EAN/pack/supplier codes typed or scanned in.
-        try {
-          await identifiersRef.current?.commit(createdId);
-        } catch (idErr) {
-          console.error("[Products] identifier commit failed", idErr);
-        }
-
-        // Flush pending packaging rows from the create-mode buffer. Runs after
-        // identifier commit so the editor can bind packs to barcodes the
-        // operator added in the same dialog session.
-        try {
-          await packagingRef.current?.commit(createdId);
-        } catch (pkgErr: any) {
-          console.error("[Products] packaging commit failed", pkgErr);
-          toast({
-            title: "Product created — packaging save failed",
-            description: pkgErr?.message ?? "Open the product to retry.",
-            variant: "destructive",
-          });
-        }
-
-        setShowDialog(false);
-        setPendingCreateCode(null);
-        resetForm();
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const executeDeleteProduct = async (product: Product) => {
     try {
