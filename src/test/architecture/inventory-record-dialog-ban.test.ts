@@ -79,14 +79,11 @@ const INVENTORY_LIST_PAGES = [
 ];
 
 const LEGACY_INLINE_DIALOG_ALLOWLIST = new Set<string>([
-  // Existing legacy surfaces documented in docs/design-system/audit/inventory.md.
-  // This list must shrink as each route/sheet migration lands; do not add new
-  // files here for new functionality.
+  // Products.tsx still hosts the legacy Add/Edit Product dialog while the
+  // full products master migration to /inventory-app/products/{new,:id/edit,:id}
+  // is in flight. It is the only remaining offender and this entry must be
+  // removed as that migration lands.
   "src/pages/Products.tsx",
-  "src/pages/Warehouses.tsx",
-  "src/pages/Inventory.tsx",
-  "src/pages/inventory/Transfers.tsx",
-  "src/pages/inventory/ScrapRecording.tsx",
 ]);
 
 const INLINE_INVENTORY_RECORD_DIALOG_TITLE =

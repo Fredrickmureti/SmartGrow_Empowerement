@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { WarehousePeekSheet } from "@/components/warehouses/WarehousePeekSheet";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useWarehouses, Warehouse, StockTransfer } from "@/hooks/useWarehouses";
 import { useProducts } from "@/hooks/useProducts";
@@ -15,13 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -83,6 +77,16 @@ export default function Warehouses() {
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const [activeTab, setActiveTab] = useState("warehouses");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const peekId = searchParams.get("peek");
+  const setPeek = (id: string | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set("peek", id);
+      else next.delete("peek");
+      return next;
+    });
+  };
 
   const handleOpenWarehouseCreate = () => {
     if (isReadOnly) {
@@ -335,7 +339,11 @@ export default function Warehouses() {
                       </TableHeader>
                       <TableBody>
                         {filteredWarehouses.map((warehouse) => (
-                          <TableRow key={warehouse.id}>
+                          <TableRow
+                            key={warehouse.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setPeek(warehouse.id)}
+                          >
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">{warehouse.name}</span>
@@ -364,7 +372,7 @@ export default function Warehouses() {
                                 {warehouse.is_active ? "Active" : "Inactive"}
                               </Badge>
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
@@ -507,6 +515,12 @@ export default function Warehouses() {
           itemName={deleteConfirm.itemToDelete?.name}
           onConfirm={deleteConfirm.confirmDelete}
           isLoading={deleteConfirm.isDeleting}
+        />
+
+        <WarehousePeekSheet
+          open={Boolean(peekId)}
+          onOpenChange={(o) => (o ? undefined : setPeek(null))}
+          warehouseId={peekId}
         />
       </div>
     </>
