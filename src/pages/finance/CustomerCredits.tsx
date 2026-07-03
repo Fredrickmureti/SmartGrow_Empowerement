@@ -661,23 +661,9 @@ export default function CustomerCredits() {
         />
       )}
 
-      <CreditNoteDetailDialog
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        creditNote={selectedCreditNote}
-        onApplyCredit={() => {
-          setDetailOpen(false);
-          if (selectedCreditNote) {
-            setApplyCreditTarget({
-              creditNoteId: selectedCreditNote.id,
-              creditNoteNumber: selectedCreditNote.credit_note_number,
-              contactId: selectedCreditNote.contact_id || "",
-              contactName: selectedCreditNote.contact?.name || "Unknown",
-              availableAmount: selectedCreditNote.total - selectedCreditNote.amount_applied - (selectedCreditNote.refund_amount || 0),
-            });
-            setApplyCreditOpen(true);
-          }
-        }}
+      <CreditNotePeekSheet
+        creditNoteId={peekId}
+        onOpenChange={(open) => { if (!open) setPeekId(null); }}
       />
     </div>
   );
