@@ -448,10 +448,10 @@ export default function Banking() {
         }}
       />
 
-      <EditBankAccountDialog
-        open={!!editingAccount}
-        onOpenChange={(open) => { if (!open) setEditingAccount(null); }}
-        account={editingAccount}
+      <BankAccountEditSheet
+        open={!!editingAccountId}
+        onOpenChange={(open) => { if (!open) closeEditSheet(); }}
+        account={(bankAccounts || []).find((a) => a.id === editingAccountId) ?? null}
         onSuccess={() => {
           fetchAccounts();
         }}
