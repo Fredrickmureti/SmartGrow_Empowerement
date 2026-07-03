@@ -20,11 +20,11 @@ import {
 import { useContactProfile } from "@/hooks/useContactProfile";
 import { useContactsPaginated } from "@/hooks/useContactsPaginated";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useCreditNotes, CreditNote } from "@/hooks/useCreditNotes";
+import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
-import { CreditNoteDetailDialog } from "@/components/finance/CreditNoteDetailDialog";
+import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
 import { LeadForm } from "@/components/crm/LeadForm";
 import { useLeads } from "@/hooks/crm/useLeads";
@@ -59,8 +59,7 @@ export default function ContactProfile() {
   // Dialog state
   const [applyCreditOpen, setApplyCreditOpen] = useState(false);
   const [applyCreditTarget, setApplyCreditTarget] = useState<any>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedCN, setSelectedCN] = useState<CreditNote | null>(null);
+  const [peekCreditNoteId, setPeekCreditNoteId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
@@ -764,7 +763,7 @@ export default function ContactProfile() {
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSelectedCN(cn as any); setDetailOpen(true); }}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPeekCreditNoteId(cn.id)}>
                                   <Eye className="h-4 w-4" />
                                 </Button>
                                 {available > 0 && (
@@ -963,13 +962,10 @@ export default function ContactProfile() {
           creditNote={applyCreditTarget}
         />
       )}
-      {selectedCN && (
-        <CreditNoteDetailDialog
-          open={detailOpen}
-          onOpenChange={setDetailOpen}
-          creditNote={selectedCN}
-        />
-      )}
+      <CreditNotePeekSheet
+        creditNoteId={peekCreditNoteId}
+        onOpenChange={(open) => { if (!open) setPeekCreditNoteId(null); }}
+      />
     </div>
   );
 }

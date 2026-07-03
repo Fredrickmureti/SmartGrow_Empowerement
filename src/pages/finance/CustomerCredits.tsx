@@ -7,7 +7,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useCreditNotes, CreditNote } from "@/hooks/useCreditNotes";
+import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { financeKey } from "@/lib/finance/financeKey";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
@@ -60,7 +60,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
-import { CreditNoteDetailDialog } from "@/components/finance/CreditNoteDetailDialog";
+import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 
 // ─── Types ────────────────────────────────────────────────────────
 interface CustomerGroup {
@@ -124,9 +124,8 @@ export default function CustomerCredits() {
     availableAmount: number;
   } | null>(null);
 
-  // Detail dialog state
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedCreditNote, setSelectedCreditNote] = useState<CreditNote | null>(null);
+  // Peek sheet state — canonical Sales credit-note peek surface.
+  const [peekId, setPeekId] = useState<string | null>(null);
 
   useEffect(() => {
     const creditId = searchParams.get("id");
@@ -135,8 +134,7 @@ export default function CustomerCredits() {
     const match = fullCreditNotes.find((credit) => credit.id === creditId);
     if (!match) return;
 
-    setSelectedCreditNote(match);
-    setDetailOpen(true);
+    setPeekId(match.id);
 
     const next = new URLSearchParams(searchParams);
     next.delete("id");
@@ -283,11 +281,7 @@ export default function CustomerCredits() {
   };
 
   const openDetail = (cn: CreditRowEnriched) => {
-    const full = fullCreditNotes.find((f) => f.id === cn.id);
-    if (full) {
-      setSelectedCreditNote(full);
-      setDetailOpen(true);
-    }
+    setPeekId(cn.id);
   };
 
   const handleRefresh = () => {
@@ -667,23 +661,9 @@ export default function CustomerCredits() {
         />
       )}
 
-      <CreditNoteDetailDialog
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        creditNote={selectedCreditNote}
-        onApplyCredit={() => {
-          setDetailOpen(false);
-          if (selectedCreditNote) {
-            setApplyCreditTarget({
-              creditNoteId: selectedCreditNote.id,
-              creditNoteNumber: selectedCreditNote.credit_note_number,
-              contactId: selectedCreditNote.contact_id || "",
-              contactName: selectedCreditNote.contact?.name || "Unknown",
-              availableAmount: selectedCreditNote.total - selectedCreditNote.amount_applied - (selectedCreditNote.refund_amount || 0),
-            });
-            setApplyCreditOpen(true);
-          }
-        }}
+      <CreditNotePeekSheet
+        creditNoteId={peekId}
+        onOpenChange={(open) => { if (!open) setPeekId(null); }}
       />
     </div>
   );
