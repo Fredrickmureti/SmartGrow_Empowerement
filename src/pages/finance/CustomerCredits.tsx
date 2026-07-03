@@ -60,7 +60,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
-import { CreditNoteDetailDialog } from "@/components/finance/CreditNoteDetailDialog";
+import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 
 // ─── Types ────────────────────────────────────────────────────────
 interface CustomerGroup {
