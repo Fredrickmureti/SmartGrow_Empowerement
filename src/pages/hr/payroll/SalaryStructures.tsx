@@ -394,6 +394,7 @@ interface StructureCardProps {
     code: string | null;
     country_code: string | null;
     is_active: boolean;
+    description?: string | null;
     components: any[];
     active_version: number | null;
     version_count: number;
