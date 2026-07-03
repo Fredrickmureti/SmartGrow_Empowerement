@@ -81,56 +81,25 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Textarea } from "@/components/ui/textarea";
-import { ProductImageUpload } from "@/components/products/ProductImageUpload";
-import { ProductCategorySelector } from "@/components/products/ProductCategorySelector";
 import { ProductCategoriesManager, getCategoryColorClass } from "@/components/products/ProductCategoriesManager";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Switch } from "@/components/ui/switch";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
-import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
-import {
-  EtimsUnitCodeSelect,
-  EtimsPackagingCodeSelect,
-  EtimsClassificationCodeSelect,
-  EtimsCountryOriginSelect,
-} from "@/components/etims/EtimsCodeSelectors";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { useScanTarget } from "@/hooks/pos/useScanTarget";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { playPOSSound } from "@/lib/pos/sounds";
 
-import { Separator } from "@/components/ui/separator";
-import { useEtimsTaxCategories } from "@/hooks/useEtimsTaxCategories";
 import { ProductDetailPanel } from "@/components/products/detail/ProductDetailPanel";
-import { useTaxCompliance } from "@/hooks/useTaxCompliance";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
-import { ProductAccountSelector } from "@/components/products/ProductAccountSelector";
-import { ProductStockPanel } from "@/components/products/ProductStockPanel";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useBranches } from "@/hooks/useBranches";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { ExternalLink } from "lucide-react";
-import {
-  ProductIdentifiersEditor,
-  type ProductIdentifiersEditorHandle,
-} from "@/components/products/ProductIdentifiersEditor";
-import {
-  ProductPackagingEditor,
-  type ProductPackagingEditorHandle,
-} from "@/components/products/ProductPackagingEditor";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
-import { UomSelect } from "@/components/products/UomSelect";
 import { normalizeError } from "@/services/resilience";
+
 
 export default function Products() {
   const [searchParams] = useSearchParams();
