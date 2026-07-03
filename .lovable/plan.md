@@ -130,7 +130,7 @@ Each phase is independently shippable, backward-compatible, and gated by pgTAP +
 - Deprecate direct client `UPDATE payroll_periods SET status=…`; add trigger refusing UPDATE of `status` unless done by these RPCs (using `set_config('app.period_rpc',…)` sentinel, same pattern used by return-runs).
 - pgTAP: 8-state edge matrix; illegal transitions raise.
 
-### Phase 3 — Cross-module lock cascade
+### Phase 3 — Cross-module lock cascade ✅ shipped (3a); 3b deferred
 - Extend `lock_timesheets_for_payroll` into `payroll_period_apply_locks(period_id)` covering timesheets, attendance_corrections, work_entries, payslip_inputs.
 - Add insert/update guards on `payroll_runs`, `journal_entries` (payroll source), `payroll_remittances`, `payroll_return_runs`, `payroll_bank_export_files` that consult period status.
 - Emit `business_event_outbox` rows on close/reopen; wire notification digest.
