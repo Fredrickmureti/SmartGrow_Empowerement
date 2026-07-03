@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useTransactionRules } from "@/hooks/useTransactionRules";
-import { TransactionRulesDialog } from "@/components/banking/TransactionRulesDialog";
+// TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
 import { ReconcileTransactionDialog } from "@/components/banking/ReconcileTransactionDialog";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
@@ -69,7 +70,7 @@ export default function BankFeeds() {
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [reconcileDialogOpen, setReconcileDialogOpen] = useState(false);
-  const [rulesDialogOpen, setRulesDialogOpen] = useState(false);
+  // Rules dialog was removed — Rules now open as a routed page.
   
   const { accounts: bankAccounts } = useBankAccounts();
   const { transactions, isLoading, fetchTransactions } = useBankTransactions();
@@ -216,10 +217,12 @@ export default function BankFeeds() {
                 queryKeyPrefixes={[['bank-transactions'] as const]}
                 tooltip="Refresh bank feeds"
               />
-              <Button variant="outline" size="sm" onClick={() => setRulesDialogOpen(true)} className="text-xs sm:text-sm h-8 sm:h-9">
-                <Settings2 className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline">Rules</span>
-                <span className="xs:hidden">Rules</span>
+              <Button asChild variant="outline" size="sm" className="text-xs sm:text-sm h-8 sm:h-9">
+                <Link to="/finance/banking/rules">
+                  <Settings2 className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden xs:inline">Rules</span>
+                  <span className="xs:hidden">Rules</span>
+                </Link>
               </Button>
             </div>
           </div>
@@ -519,11 +522,6 @@ export default function BankFeeds() {
           await fetchTransactions();
           setSelectedTransaction(null);
         }}
-      />
-
-      <TransactionRulesDialog
-        open={rulesDialogOpen}
-        onOpenChange={setRulesDialogOpen}
       />
     </>
   );

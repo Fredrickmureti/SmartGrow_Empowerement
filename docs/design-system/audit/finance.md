@@ -33,7 +33,7 @@ Legend for **Target**:
 | Bank Reconciliation | Workspace | `ReconcileTransactionDialog` (row-by-row) | Route + `RecordScaffold` split-view at `/finance/reconciliation/:id` (row edit inline in the workspace) | **Pending** |
 | Bank Transfer Reconcile | `TransferReconcileDialog` | Step inside the reconciliation workspace `WizardShell` | **Pending** |
 | Bank Transactions Import | `ImportTransactionsDialog` | `WizardShell` at `/finance/banking/:id/import` | **Pending** |
-| Transaction Matching Rules | `TransactionRulesDialog` | Route + `RecordScaffold` at `/finance/banking/rules` + `RecordFormShell` for new/edit | **Pending** |
+| Transaction Matching Rules | Routes at `/finance/banking/rules` (list — `RulesListPage`), `/finance/banking/rules/new` (`RuleCreatePage`), `/finance/banking/rules/:id/edit` (`RuleEditPage`); `TransactionRulesDialog` deleted | Route + `PageHeader`/`PageBody`/`Section` list + `RecordFormShell` for new/edit | Done |
 | Customer Credit — Apply | Route + `WizardShell` at `/finance/customer-credits/:id/apply` (`ApplyCreditWizardPage`); `ApplyCreditDialog` deleted | `WizardShell` at `/finance/customer-credits/:id/apply` | Done |
 | Customer Credit — Refund | Route + `WizardShell` at `/finance/customer-credits/:id/refund` (`ProcessRefundWizardPage`); `ProcessRefundDialog` deleted | `WizardShell` at `/finance/customer-credits/:id/refund` | Done |
 | Default Account Mappings — Apply | `ApplyDefaultMappingsDialog` | `Dialog` (allowed — confirm-style) | Done |
