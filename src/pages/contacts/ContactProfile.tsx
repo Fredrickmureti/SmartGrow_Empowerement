@@ -953,14 +953,7 @@ export default function ContactProfile() {
         defaultContactName={contact?.name}
       />
 
-      {/* Credit Dialogs */}
-      {applyCreditTarget && (
-        <ApplyCreditDialog
-          open={applyCreditOpen}
-          onOpenChange={setApplyCreditOpen}
-          creditNote={applyCreditTarget}
-        />
-      )}
+      {/* Apply-credit is a dedicated wizard route — no dialog mount here. */}
       <CreditNotePeekSheet
         creditNoteId={peekCreditNoteId}
         onOpenChange={(open) => { if (!open) setPeekCreditNoteId(null); }}
