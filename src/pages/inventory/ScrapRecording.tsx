@@ -1,62 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
-import { useProducts } from "@/hooks/useProducts";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Trash2, Plus, Loader2 } from "lucide-react";
 import { ProductDetailPanel } from "@/components/products/detail/ProductDetailPanel";
-import { toast } from "sonner";
 import { format } from "date-fns";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Textarea } from "@/components/ui/textarea";
+import { useQuery } from "@tanstack/react-query";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { normalizeError } from "@/services/resilience";
 
 export default function ScrapRecording() {
+  const navigate = useNavigate();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
-  const { user } = useAuth();
-  const { products } = useProducts();
-  const queryClient = useQueryClient();
 
-  const [showDialog, setShowDialog] = useState(false);
   const [scrapProductDrawerOpen, setScrapProductDrawerOpen] = useState(false);
   const [selectedScrapProductId, setSelectedScrapProductId] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [scrapForm, setScrapForm] = useState({
-    product_id: "",
-    warehouse_id: "",
-    quantity: 1,
-    reason: "",
-    notes: "",
-  });
-
-  const inventoryProducts = products.filter(p => p.type === "product");
-
-  const [warehouses, setWarehouses] = useState<{id: string; name: string}[]>([]);
-  useEffect(() => {
-    if (currentOrg?.id) {
-      let q = supabase
-        .from("warehouses")
-        .select("id, name")
-        .eq("organization_id", currentOrg.id)
-        .eq("is_active", true);
-      q = q.eq("business_id", currentBusiness!.id);
-      if (currentBranch?.id) q = q.eq("branch_id", currentBranch.id);
-      q.then(({ data }: any) => setWarehouses(data || []));
-    }
-  }, [currentOrg?.id, currentBusiness?.id, currentBranch?.id]);
 
   // Fetch recent scrap movements
   const { data: scrapMovements = [], isLoading } = useQuery({
@@ -79,45 +44,6 @@ export default function ScrapRecording() {
     enabled: !!currentOrg?.id,
   });
 
-  const handleSubmit = async () => {
-    if (!currentOrg?.id || !user?.id || !scrapForm.product_id || scrapForm.quantity <= 0) return;
-    setIsSubmitting(true);
-    try {
-      const product = inventoryProducts.find(p => p.id === scrapForm.product_id);
-      const costPrice = (product as any)?.cost_price || 0;
-
-      const { data, error } = await supabase.rpc("record_scrap_atomic", {
-        p_organization_id: currentOrg.id,
-        p_business_id: currentBusiness?.id || null,
-        p_product_id: scrapForm.product_id,
-        p_warehouse_id: scrapForm.warehouse_id || null,
-        p_quantity: scrapForm.quantity,
-        p_unit_cost: costPrice,
-        p_reason: scrapForm.reason,
-        p_notes: scrapForm.notes || null,
-        p_user_id: user.id,
-      });
-
-      if (error) throw error;
-
-      const result = data as any;
-      if (!result?.success) {
-        throw new Error(result?.error || "Failed to record scrap");
-      }
-
-      toast.success(`Scrap recorded successfully${result.gl_posted ? " (GL posted)" : ""}`);
-      setShowDialog(false);
-      setScrapForm({ product_id: "", warehouse_id: "", quantity: 1, reason: "", notes: "" });
-      queryClient.invalidateQueries({ queryKey: ["scrap-movements"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-    } catch (err: any) {
-      toast.error(normalizeError(err).message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="page-header">
@@ -135,7 +61,7 @@ export default function ScrapRecording() {
             ]}
             tooltip="Refresh scrap log"
           />
-          <Button onClick={() => setShowDialog(true)}>
+          <Button onClick={() => navigate("/inventory-app/scrap/new")}>
             <Trash2 className="mr-2 h-4 w-4" />
             Record Scrap
           </Button>
@@ -226,81 +152,6 @@ export default function ScrapRecording() {
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Scrap / Waste</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Product *</Label>
-              <Select value={scrapForm.product_id} onValueChange={v => setScrapForm({ ...scrapForm, product_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                <SelectContent>
-                  {inventoryProducts.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Warehouse</Label>
-                <Select value={scrapForm.warehouse_id} onValueChange={v => setScrapForm({ ...scrapForm, warehouse_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Default" /></SelectTrigger>
-                  <SelectContent>
-                    {warehouses.map(w => (
-                      <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Quantity *</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={scrapForm.quantity}
-                  onChange={e => setScrapForm({ ...scrapForm, quantity: parseInt(e.target.value) || 0 })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Reason *</Label>
-              <Select value={scrapForm.reason} onValueChange={v => setScrapForm({ ...scrapForm, reason: v })}>
-                <SelectTrigger><SelectValue placeholder="Select reason" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Damaged">Damaged</SelectItem>
-                  <SelectItem value="Expired">Expired</SelectItem>
-                  <SelectItem value="Defective">Defective</SelectItem>
-                  <SelectItem value="Obsolete">Obsolete</SelectItem>
-                  <SelectItem value="Quality Failure">Quality Failure</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Additional Notes</Label>
-              <Textarea
-                value={scrapForm.notes}
-                onChange={e => setScrapForm({ ...scrapForm, notes: e.target.value })}
-                placeholder="Optional details..."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={isSubmitting || !scrapForm.product_id || !scrapForm.reason || scrapForm.quantity <= 0}
-            >
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Record Scrap
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <ProductDetailPanel
         open={scrapProductDrawerOpen}
