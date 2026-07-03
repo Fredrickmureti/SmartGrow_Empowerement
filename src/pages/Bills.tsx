@@ -297,13 +297,15 @@ export default function Bills() {
     };
 
     const handleDeepLinks = async () => {
-      if (searchParams.get("action") === "create" && !showDialog) {
+      if (searchParams.get("action") === "create") {
         const prefillContactId = searchParams.get("contact_id");
-        if (prefillContactId) {
-          setFormData((prev) => ({ ...prev, vendor_id: prefillContactId }));
-        }
-        setShowDialog(true);
+        const q = new URLSearchParams();
+        if (prefillContactId) q.set("contact_id", prefillContactId);
+        const qs = q.toString();
+        navigate(`/purchases/bills/new${qs ? `?${qs}` : ""}`, { replace: true });
+        return;
       }
+
 
       const legacyBillId = searchParams.get("id");
       if (legacyBillId) {
