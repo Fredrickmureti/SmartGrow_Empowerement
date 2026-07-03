@@ -15,7 +15,7 @@
  * lives in `salary_structure_rule_sets.components`).
  */
 
-import { evaluateExpression, RuleExpressionError, type PayrollContext } from "./expressionEngine.ts";
+import { evaluateExpression, extractIdentifiers, RuleExpressionError, type PayrollContext } from "./expressionEngine.ts";
 
 export interface SalaryRule {
   id: string;
