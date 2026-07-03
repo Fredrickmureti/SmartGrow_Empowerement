@@ -1,52 +1,86 @@
+# Finance Slice B5 — Banking & Payment Recording
+
 ## Context
 
-Chart of Accounts is done (routed create/edit on `RecordFormShell`, inline dialog removed, redirect in place, typecheck + finance guard green). The rest of Slice B3 — **Analytic Accounts**, **Fiscal Periods**, **Year-End Close** — is still legacy: `src/pages/AnalyticAccounts.tsx` hosts two inline `<Dialog>`s (account + group), `src/pages/FiscalPeriods.tsx` hosts a create `<Dialog>` and mounts `YearEndClosingDialog`, and `src/components/finance/YearEndClosingDialog.tsx` is the last remaining legacy modal for the close workflow.
+Slices B1–B4 landed the enterprise interaction model across Journal Entries, Chart of Accounts, Analytic Accounts, Fiscal Periods, Year-End Close, Budgets, and Fixed Assets. Every routed create/edit now composes `RecordFormShell` / `DetailSheet` / `WizardShell` from `@/design-system`, and lists open records through URL-driven sheets.
 
-This slice migrates all three to the enterprise design-system scaffolds, using the same pattern already applied to Journal Entries and CoA. No new primitives, no business-logic changes — only interaction architecture and route wiring.
+The **Banking** and **AR/AP Payment Recording** surfaces are the last significant clusters of legacy `<Dialog>` interactions inside Finance. They currently host substantive business workflows (connecting a bank, importing a statement, reconciling a transaction, recording an invoice or bill payment) in narrow modal dialogs that break the platform's interaction language and lose context every time the user opens one.
+
+This slice migrates all of them, in the exact order below, verifying each entity before moving on. No business-logic changes — only interaction architecture, URL wiring, and layout composition against existing design-system primitives.
 
 ## Scope (one entity at a time, verified before moving on)
 
-### 1. Analytic Accounts — `DetailSheet` create/edit
-Two entities live on this page: **analytic accounts** (≤6 fields: code, name, group, parent, active, description) and **analytic groups** (≤3 fields: code, name, description). Both are lightweight configuration records → `DetailSheet` is the right scaffold (matches design-system audit rule: ≤6 fields = sheet, not a full record page).
+### 1. Banking — accounts & connection
+Files today: `src/components/banking/ConnectBankDialog.tsx`, `EditBankAccountDialog.tsx`.
 
-- New: `src/features/finance/analytic-accounts/AnalyticAccountSheet.tsx` (create + edit modes, `useRecordFormSubmit`, `FieldGrid`).
-- New: `src/features/finance/analytic-accounts/AnalyticGroupSheet.tsx`.
-- Edit `src/pages/AnalyticAccounts.tsx`: delete both inline `<Dialog>` blocks and their `useState` gates; mount the two sheets driven by a single `sheet` URL param (`?sheet=account|group&id=<uuid>`) so deep-links work and the browser back button closes the sheet.
-- Preserve every RPC (`useAnalyticAccounts` mutations), toast copy, delete-confirm flow, RLS-scoped queries.
+- New `src/features/finance/banking/BankAccountSheet.tsx` — single `DetailSheet` composed on `FieldGrid` handling both **connect** (create) and **edit** modes for a bank account (name, currency, GL account, opening balance, provider metadata). Uses `useRecordFormSubmit`.
+- Edit `src/pages/Banking.tsx` (or the equivalent list page that mounts these dialogs) to drop both `<Dialog>` blocks and mount the sheet behind `?sheet=account[&id=<uuid>]`.
+- Delete `ConnectBankDialog.tsx` and `EditBankAccountDialog.tsx` in the same commit that removes their last import.
 
-### 2. Fiscal Periods — `DetailSheet` create/edit + list page cleanup
-- New: `src/features/finance/fiscal-periods/FiscalPeriodSheet.tsx` (name, fiscal_year, start_date, end_date, status). Uses `DetailSheet` + `useRecordFormSubmit`.
-- Edit `src/pages/FiscalPeriods.tsx`: delete the create `<Dialog>` and its `Dialog*` imports; mount the sheet behind `?sheet=period[&id=...]`; keep the Year-End action pointing at the new route (below), not the old modal.
-- `FiscalPeriodDetail.tsx` already exists as the detail page — leave it in place; add an "Edit" button that opens the sheet with `?sheet=period&id=<id>` for parity.
+### 2. Banking — statement import
+File today: `src/components/banking/ImportTransactionsDialog.tsx` (upload CSV/OFX → column mapping → preview → commit).
 
-### 3. Year-End Close — `WizardShell` at `/finance/fiscal-periods/close`
-The close workflow is a real multi-step process (choose period → preview adjustments → post & lock). It belongs on a full page, not a dialog.
+- New `src/features/finance/banking/ImportStatementWizard.tsx` at route `/finance/banking/:accountId/import` composed on `WizardShell` with steps: **Upload → Map columns → Review → Commit**. Lifts the parse/preview/commit handlers verbatim out of the dialog into step handlers.
+- Register the route in `src/apps/finance/routes.tsx` under the same `SubscriptionProtectedRoute` as the rest of banking.
+- Replace the dialog trigger in Banking with a `<Link>` to the wizard route.
+- Delete `ImportTransactionsDialog.tsx`.
 
-- New route: `/finance/fiscal-periods/close` registered in `src/apps/finance/routes.tsx` (under `SubscriptionProtectedRoute`, no `allowReadOnly`).
-- New: `src/features/finance/year-end-close/YearEndCloseWizard.tsx` composed on `WizardShell` with three steps:
-  1. **Scope** — pick fiscal period, retained-earnings account, closing date.
-  2. **Preview** — read-only summary of P&L accounts to be zeroed and the resulting adjusting entry (calls the same RPC/helpers `YearEndClosingDialog` uses today for preview; no logic change).
-  3. **Post & lock** — confirm, submit, redirect to the newly created journal entry's record page on success.
-- All existing side effects (RPC calls, lock-date update, toasts, invalidations) are lifted verbatim out of `YearEndClosingDialog` into the wizard's step handlers.
-- Replace the Year-End trigger in `FiscalPeriods.tsx` with a `<Link>` to the new route (pre-select current period via `?periodId=`).
-- Delete `src/components/finance/YearEndClosingDialog.tsx` once no references remain.
+### 3. Banking — reconciliation
+Files today: `StartReconciliationDialog.tsx`, `ReconcileTransactionDialog.tsx`, `TransferReconcileDialog.tsx`, `TransactionRulesDialog.tsx`.
+
+- `StartReconciliationDialog` → `DetailSheet` (`?sheet=start-reconcile`) in a new `src/features/finance/banking/reconciliation/StartReconciliationSheet.tsx` — 4 fields (statement date, opening balance, closing balance, note), pure configuration.
+- `ReconcileTransactionDialog` and `TransferReconcileDialog` are per-row matching surfaces → convert to a single `ReconcileMatchSheet` opened from the reconciliation workspace with `?match=<txnId>`; the sheet renders the candidate list, split lines, and posts the same RPC. Preserves context (statement stays visible behind the sheet) instead of stacking modals.
+- `TransactionRulesDialog` (recurring rules editor) is a small config surface → `DetailSheet` behind `?sheet=rules`.
+- Delete all four legacy dialogs.
+
+### 4. Invoice payment recording (AR)
+Files today: `src/components/invoices/RecordPaymentDialog.tsx`, `PaymentHistoryDialog.tsx`, `BulkExportDialog.tsx`, `BulkDeleteDialog.tsx`.
+
+- `RecordPaymentDialog` (allocations against outstanding invoices, currency, method, reference) → `DetailSheet` at `?sheet=payment&invoiceId=<uuid>` in `src/features/finance/receivables/RecordInvoicePaymentSheet.tsx`. Same allocation grid, `useRecordFormSubmit`, same RPCs.
+- `PaymentHistoryDialog` → `DetailSheet` (read-only) behind `?sheet=payment-history&invoiceId=<uuid>` — payment timeline stays in-context, no popup.
+- `BulkExportDialog` / `BulkDeleteDialog` stay as `<Dialog>` **only** if they're pure confirms (≤2 fields). If either has real form state (format, date range, dry-run toggle), it moves to a `DetailSheet` under the same convention. Verified per file at edit time.
+- Mount all sheets from the invoices list page (`src/pages/Invoices.tsx` or equivalent) and the invoice record page so both entry points share the same URL contract.
+
+### 5. Bill payment recording (AP)
+Files today: `src/components/bills/RecordBillPaymentDialog.tsx`, `BillPaymentHistoryDialog.tsx`.
+
+- Mirror the AR pattern exactly: `RecordBillPaymentSheet.tsx` + `BillPaymentHistorySheet.tsx` under `src/features/finance/payables/`. Same URL contract (`?sheet=payment|payment-history&billId=<uuid>`), same allocation grid pattern.
+
+### 6. Budget vs Actual analytics
+File today: `src/components/budgets/BudgetVsActualDialog.tsx`.
+
+- Substantial analytical surface (variance table, filters, drill-down) → this is not a dialog. Promote to a routed page `/finance/budgets/:id/vs-actual` composed on `RecordShell` (report layout, no form). Replace the trigger with a `<Link>`.
+- Delete the dialog.
+
+## Reusable primitives (extract only if a second consumer appears in this slice)
+
+Do not preemptively extract. Watch for these shapes as the slice lands and lift into `@/design-system/records` **only** if used by ≥2 modules within this slice:
+
+- **AllocationGrid** — invoice/bill payment allocation table (amount, outstanding, allocated). Both AR and AP will need it → extract on the second consumer.
+- **StatementColumnMapper** — CSV column → canonical field mapping row list. Single consumer this slice → keep local.
+
+Everything else composes from the existing primitives already exported from `@/design-system` (`DetailSheet`, `RecordFormShell`, `WizardShell`, `FieldGrid`, `FooterActionBar`, `SummaryPanel`, `useRecordFormSubmit`).
 
 ## Guardrails / verification (must pass before closing the slice)
 
-- `rg "YearEndClosingDialog|AnalyticAccountDialog|FiscalPeriodDialog"` → zero hits outside of git history.
-- No `<Dialog` JSX left in `AnalyticAccounts.tsx` or `FiscalPeriods.tsx` (only `ConfirmDeleteDialog`, which is the shared confirm primitive and out of scope).
-- Deep-links resolve: `/finance/analytic-accounts?sheet=account`, `/finance/fiscal-periods?sheet=period`, `/finance/fiscal-periods/close?periodId=<uuid>`.
-- Finance dialog-ban guard test stays green; if the inline `<Dialog>` scan from Slice B7 is not yet in place, the filename-based guard is still enforced.
-- `bunx tsgo --noEmit` clean.
-- Preserve branch/business scoping and RLS on every query and mutation — no changes to `useAnalyticAccounts`, `useFiscalPeriods`, or the year-end RPCs.
+- `rg "<Dialog\b" src/components/banking src/components/invoices src/components/bills src/components/budgets` → zero hits.
+- `rg "ConnectBankDialog|EditBankAccountDialog|ImportTransactionsDialog|StartReconciliationDialog|ReconcileTransactionDialog|TransferReconcileDialog|TransactionRulesDialog|RecordPaymentDialog|PaymentHistoryDialog|RecordBillPaymentDialog|BillPaymentHistoryDialog|BudgetVsActualDialog"` → zero hits outside git history.
+- Every new sheet is URL-driven (`?sheet=…`), survives refresh, and closes on browser back.
+- Preserve branch/business scoping and RLS on every query and mutation. Do not touch `useInvoices`, `useBills`, `useBankAccounts`, `useBankTransactions`, or the reconciliation RPCs.
+- No new `<Dialog>` JSX added anywhere except `ConfirmDeleteDialog` invocations.
+- `bunx tsgo --noEmit` clean; existing finance dialog-ban guard test stays green.
 
-## Out of scope for this slice
+## Out of scope (deferred to later slices)
 
-Budgets, Fixed Assets, Banking (B4/B5), Customer Credits (B6), and the guard extension (B7). Those pick up in subsequent slices, in the order the master plan already defines.
+- **B6** — Customer Statements, Vendor Statements, Recurring Invoices, Credit Notes, Vendor Credit Notes (each still hosts inline dialogs; own slice because they share statement-generation infra).
+- **B7** — Extend the finance dialog-ban ESLint/pgTAP-style guard to scan **inline `<Dialog>` JSX**, not just filenames, so future regressions fail at CI.
+- **Sales**, **Purchases**, **Inventory** — separate top-level tracks handled after Finance is fully converged.
+- Any change to underlying RPCs, RLS policies, or data models.
 
 ## Technical notes
 
-- Reuse only `@/design-system` scaffolds: `RecordFormShell`, `DetailSheet`, `WizardShell`, `FieldGrid`, `FooterActionBar`, `useRecordFormSubmit`. Do not import from `@/features/sales/*`.
-- URL-driven sheets (not React state) so the back button, refresh, and shared links behave correctly — matches the pattern used by Sales/Purchases peek sheets.
-- Wizard step state stays local to the wizard component; only the final commit hits the network. Preview step calls the existing read-only RPC used by the current dialog.
-- Delete legacy files in the same commit that removes their last import to keep the guard clean.
+- URL-driven sheets use `useSearchParams` (already the pattern in Sales/Purchases peek sheets and prior Finance slices). Never React-state-only.
+- Wizard step state stays local to the wizard; only the final commit hits the network. Preview steps reuse the same read-only helpers the current dialogs call.
+- Delete each legacy dialog file in the same commit that removes its last import — keeps the filename guard clean and prevents dead-code drift.
+- Do not import from `@/features/sales/*` or `@/features/purchases/*`. Only `@/design-system`.
+- Match the composition and density of the HR/Payroll and prior Finance slice sheets exactly — same header layout, same `FieldGrid` column counts, same `FooterActionBar` action ordering.

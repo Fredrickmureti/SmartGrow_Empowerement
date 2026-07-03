@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useBankAccounts, BankAccount } from "@/hooks/useBankAccounts";
+import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BankAccountCard } from "@/components/banking/BankAccountCard";
 import { ConnectBankDialog } from "@/components/banking/ConnectBankDialog";
 import { ImportTransactionsDialog } from "@/components/banking/ImportTransactionsDialog";
-import { EditBankAccountDialog } from "@/components/banking/EditBankAccountDialog";
+import { BankAccountEditSheet } from "@/features/finance/banking/BankAccountEditSheet";
 import { TransactionsList } from "@/components/banking/TransactionsList";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
@@ -36,19 +36,33 @@ function formatCurrencyValue(amount: number, currencyCode: string = "USD") {
 export default function Banking() {
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
   // Deep-link convention shared with DashboardCreateBar / GlobalCreateMenu:
   // /finance/banking?action=create auto-opens the connect-bank dialog.
+  // The edit surface is URL-driven via ?sheet=account&id=<uuid>, matching
+  // the peek/sheet pattern established across Finance slices B1–B4.
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get("action") === "create" && !connectDialogOpen) {
       setConnectDialogOpen(true);
-      // Strip the query so the dialog doesn't re-open on close.
       const next = new URLSearchParams(searchParams);
       next.delete("action");
       setSearchParams(next, { replace: true });
     }
   }, [searchParams, connectDialogOpen, setSearchParams]);
+  const editingAccountId =
+    searchParams.get("sheet") === "account" ? searchParams.get("id") : null;
+  const closeEditSheet = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("sheet");
+    next.delete("id");
+    setSearchParams(next, { replace: true });
+  };
+  const openEditSheet = (accountId: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("sheet", "account");
+    next.set("id", accountId);
+    setSearchParams(next, { replace: true });
+  };
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
@@ -359,7 +373,7 @@ export default function Banking() {
                         lastReconciledDate={acctStats?.lastReconciledDate}
                         onSync={() => syncTransactions(account.id)}
                         isSyncing={isSyncing}
-                        onEdit={() => canManage && setEditingAccount(account)}
+                        onEdit={() => { if (canManage) openEditSheet(account.id); }}
                         onDelete={() => { if (canManage) handleDeleteAccount(account.id); }}
                       />
                   );
@@ -434,10 +448,10 @@ export default function Banking() {
         }}
       />
 
-      <EditBankAccountDialog
-        open={!!editingAccount}
-        onOpenChange={(open) => { if (!open) setEditingAccount(null); }}
-        account={editingAccount}
+      <BankAccountEditSheet
+        open={!!editingAccountId}
+        onOpenChange={(open) => { if (!open) closeEditSheet(); }}
+        account={(bankAccounts || []).find((a) => a.id === editingAccountId) ?? null}
         onSuccess={() => {
           fetchAccounts();
         }}

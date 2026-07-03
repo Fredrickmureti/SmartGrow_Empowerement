@@ -46,7 +46,6 @@ const LEGACY_DIALOG_ALLOWLIST = new Set<string>([
   // tracked in docs/design-system/audit/finance.md — not by this
   // filename guard.
   "src/components/finance/CreditNoteDetailDialog.tsx",
-  "src/components/banking/EditBankAccountDialog.tsx",
 ]);
 
 function scanRecordDialogs(): string[] {
