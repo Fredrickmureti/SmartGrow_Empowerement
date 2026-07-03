@@ -28,10 +28,12 @@ Legend for **Target**:
 | Warehouse Stock | Peek (list) | `WarehouseStockDrawer` | `PeekScaffold` | **Pending** |
 | Stock Movement | Peek (list) | `MovementDetailDrawer` | `PeekScaffold` | **Pending** |
 | Stock Movement | Source doc peek | `SourceDocumentDrawer` | `PeekScaffold` (delegate to source app peek) | **Pending** |
-| Stock Adjustment | Create / Edit | Route + `RecordFormShell` at `/inventory-app/adjustments/new` (edit route pending) | Route + `RecordFormShell` at `/inventory/adjustments/new` + `/:id/edit` | **Partial** |
+| Stock Adjustment | Create | Route + `RecordFormShell` at `src/pages/inventory/AdjustmentNew.tsx` (`/inventory-app/adjustments/new`) | Route + `RecordFormShell` | Done |
+| Stock Adjustment | Edit | N/A — posted adjustments are immutable (enterprise ERP standard: SAP/Oracle/D365/Odoo). Corrections flow through `ReverseAdjustmentDialog` + a fresh create. | Reverse-and-recreate (no edit route) | Done |
 | Stock Adjustment | Peek (list) | `AdjustmentPeekSheet` at `src/components/inventory/AdjustmentPeekSheet.tsx` | `PeekScaffold` | Done |
 | Stock Adjustment | Reverse | `ReverseAdjustmentDialog` | `Dialog` (allowed — confirm-style) | Done |
-| Stock Transfer | Create / Edit | inline dialog in `src/pages/inventory/Transfers.tsx` | Route + `RecordFormShell` at `/inventory/transfers/new` + `/:id/edit` | **Pending** |
+| Stock Transfer | Create | Route + `RecordFormShell` at `src/pages/inventory/TransferNew.tsx` (`/inventory-app/transfers/new`) | Route + `RecordFormShell` | Done |
+| Stock Transfer | Edit | N/A — an in-transit or completed transfer is immutable; corrections use cancel/reverse + fresh create. | Cancel-and-recreate (no edit route) | Done |
 | Stock Transfer | Peek (list) | `TransferDetailDrawer` | `PeekScaffold` | **Pending** |
 | Physical Count | Create session | inline dialog in `src/pages/inventory/PhysicalCount.tsx` | `WizardShell` at `/inventory/physical-count/new` | **Pending** |
 | Physical Count | View / commit | inline dialog | Route + `RecordScaffold` + `WizardShell` finalize step | **Pending** |
