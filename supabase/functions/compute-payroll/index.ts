@@ -1163,6 +1163,18 @@ Deno.serve(async (req) => {
 
     const componentsByStructure: Record<string, any[]> = {};
     const ruleSetByStructure: Record<string, { id: string; version: number; rule_hash: string }> = {};
+    // ─── Phase 3 — Rule-graph engine wiring ───
+    // When a structure has `use_structure_engine=true` AND at least one
+    // `payroll_salary_rules` row, the per-employee salary resolution swaps
+    // the legacy two-pass component walk for `runStructureEngine`. Legacy
+    // structures are unaffected (flag defaults to false; walk still runs).
+    // NOTE ON HISTORICAL RECOMPUTE: graph rules are read live here, so
+    // structures whose rules are edited after the run WILL diverge on
+    // recompute. Snapshotting graph rules into `salary_structure_rule_sets`
+    // is tracked as follow-up; the flat-component path continues to be
+    // byte-identical via the existing rule-set snapshot.
+    const structureUsesEngine: Record<string, boolean> = {};
+    const structureRulesByStructure: Record<string, SalaryRule[]> = {};
     for (const sid of structureIds) {
       const { data: rs, error: rsErr } = await supabaseAdmin.rpc("resolve_or_publish_rule_set", {
         p_structure_id: sid,
@@ -1180,12 +1192,76 @@ Deno.serve(async (req) => {
         rule_hash: row.rule_hash,
       };
       const comps = (row.components || []) as any[];
-      // Re-attach structure_id + ensure ordering by sort_order so downstream
-      // logic that may sort or filter by structure still works.
       componentsByStructure[sid] = comps
         .map((c: any) => ({ ...c, structure_id: sid }))
         .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
     }
+
+    // Pull the engine flag + live rule graph in one pass.
+    if (structureIds.length > 0) {
+      const { data: structRows } = await supabaseAdmin
+        .from("salary_structures")
+        .select("id, use_structure_engine")
+        .in("id", structureIds);
+      for (const s of (structRows || []) as any[]) {
+        structureUsesEngine[s.id] = Boolean(s.use_structure_engine);
+      }
+      const graphIds = structureIds.filter((sid) => structureUsesEngine[sid]);
+      if (graphIds.length > 0) {
+        const { data: graphRows } = await supabaseAdmin
+          .from("payroll_salary_rules")
+          .select("*")
+          .in("structure_id", graphIds)
+          .eq("is_active", true)
+          .order("sequence", { ascending: true });
+        for (const r of (graphRows || []) as any[]) {
+          const rule: SalaryRule = {
+            id: r.id,
+            code: r.code,
+            name: r.name,
+            sequence: r.sequence,
+            category: r.category,
+            parent_rule_id: r.parent_rule_id,
+            condition_select: r.condition_select,
+            condition_expression: r.condition_expression,
+            amount_select: r.amount_select,
+            amount_fixed: r.amount_fixed,
+            amount_percentage: r.amount_percentage,
+            amount_base: r.amount_base,
+            amount_expression: r.amount_expression,
+            statutory_rule_id: r.statutory_rule_id,
+            appears_on_payslip: r.appears_on_payslip ?? true,
+            accounting_debit_account_id: r.accounting_debit_account_id,
+            accounting_credit_account_id: r.accounting_credit_account_id,
+            accounting_tag: r.accounting_tag,
+            is_active: r.is_active ?? true,
+          };
+          (structureRulesByStructure[r.structure_id] ||= []).push(rule);
+        }
+      }
+    }
+
+    // Work entry types (needed by runStructureEngine for hours→pay derivation).
+    // Cheap read; scoped to the org so unrelated tenant rows are excluded.
+    const workEntryTypes: WorkEntryType[] = [];
+    {
+      const { data: wetRows } = await supabaseAdmin
+        .from("payroll_work_entry_types")
+        .select("id, code, is_paid, counts_as_worked, multiplier_normal, multiplier_overtime")
+        .eq("organization_id", organization_id)
+        .eq("is_active", true);
+      for (const t of (wetRows || []) as any[]) {
+        workEntryTypes.push({
+          id: t.id,
+          code: t.code,
+          is_paid: t.is_paid,
+          counts_as_worked: t.counts_as_worked,
+          multiplier_normal: Number(t.multiplier_normal ?? 1),
+          multiplier_overtime: Number(t.multiplier_overtime ?? 1.5),
+        });
+      }
+    }
+
 
     // ─── Fetch active benefit enrollments + plans ───
     const { data: benefitEnrollments } = await supabaseAdmin
