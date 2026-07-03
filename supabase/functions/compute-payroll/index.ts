@@ -3606,6 +3606,44 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ─── Phase 3 — Persist rule-graph provenance traces ───
+    // Non-fatal: payslip_lines are the authoritative amounts. Traces
+    // back the historical simulator + rule-graph debug UI.
+    const traceRowsToInsert: any[] = [];
+    for (const [empId, entry] of Object.entries(graphTracesByEmployee)) {
+      const psId = psIdByEmployee.get(empId) ?? null;
+      for (const t of entry.traces) {
+        traceRowsToInsert.push({
+          organization_id,
+          business_id: business_id || null,
+          payroll_run_id: payrollRun.id,
+          payslip_id: psId,
+          employee_id: empId,
+          structure_id: entry.structure_id,
+          rule_id: t.rule_id,
+          rule_code: t.rule_code,
+          sequence: t.sequence,
+          category: t.category,
+          condition_expression: t.condition_expression,
+          condition_passed: t.condition_passed,
+          amount_select: t.amount_select,
+          amount_expression: t.amount_expression,
+          amount_base: t.amount_base,
+          base_value: t.base_value,
+          dependencies: t.dependencies,
+          resolved_amount: t.resolved_amount,
+          error: t.error,
+        });
+      }
+    }
+    if (traceRowsToInsert.length > 0) {
+      const { error: trErr } = await supabaseAdmin.from("payroll_rule_traces").insert(traceRowsToInsert);
+      if (trErr) {
+        console.warn("[compute-payroll] payroll_rule_traces insert failed (non-fatal):", trErr.message);
+      }
+    }
+
+
     // ─── Turn B2: consume approved loan skip overrides ───
     //
     // For every approved override that was actually honoured by the engine in
