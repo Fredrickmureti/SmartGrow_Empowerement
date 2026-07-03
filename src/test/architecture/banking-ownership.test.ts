@@ -41,18 +41,18 @@ describe("banking ownership architecture", () => {
     expect(src).toContain("bank_reconciliation_one_open_per_account");
   });
 
-  it("ConnectBankDialog locks the branch selector for non-HQ branch users", () => {
+  it("BankAccountSheet (connect mode) locks the branch selector for non-HQ branch users", () => {
     const src = readFileSync(
-      join(root, "src/components/banking/ConnectBankDialog.tsx"),
+      join(root, "src/features/finance/banking/BankAccountSheet.tsx"),
       "utf8",
     );
     expect(src).toContain("branchSelectorLocked");
     expect(src).toContain("is_shared");
   });
 
-  it("BankAccountEditSheet enforces branch lock + re-attribute confirmation (G1)", () => {
+  it("BankAccountSheet (edit mode) enforces branch lock + re-attribute confirmation (G1)", () => {
     const src = readFileSync(
-      join(root, "src/features/finance/banking/BankAccountEditSheet.tsx"),
+      join(root, "src/features/finance/banking/BankAccountSheet.tsx"),
       "utf8",
     );
     expect(src).toContain("branchSelectorLocked");
