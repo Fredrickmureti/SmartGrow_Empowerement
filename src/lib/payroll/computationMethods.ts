@@ -161,7 +161,11 @@ export const COMPUTATION_METHODS: Record<ComputationMethod, ComputationMethodSpe
       { key: "personal_relief", label: "Personal relief (per period)", type: "number", optional: true },
       { key: "insurance_relief_rate", label: "Insurance relief rate (%)", type: "percentage", optional: true, hint: "Applied to insurance premiums declared on the payslip." },
       { key: "insurance_relief_max", label: "Insurance relief cap", type: "number", optional: true },
-      { key: "disability_exemption", label: "Disability exemption", type: "number", optional: true },
+      // NOTE: `disability_exemption` was previously declared here but the
+      // engine never consumed it — a silent-drift bug caught by the
+      // computation-method-field-parity guard test. If the concept is
+      // needed, wire it in `supabase/functions/compute-payroll/index.ts`
+      // FIRST, then re-add the field here.
       { key: "notes", label: "Notes", type: "text", optional: true },
     ],
     arrayField: {
