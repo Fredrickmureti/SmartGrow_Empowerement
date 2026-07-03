@@ -4,14 +4,34 @@
  * Used by the editor's RuleSimulator panel to preview employee/employer
  * deductions BEFORE a statutory rule is saved. Operates on the same
  * `parameters` payload shape that `pack_rule_type_schemas` JSON-Schemas
- * already validate, so authoring-time UI and runtime payroll cannot drift
- * on shape (only the evaluator semantics need to track production).
+ * already validate.
  *
- * NOT the production payroll engine. Production payroll uses
- * `compute-payroll/structureEngine.ts`, which references statutory rules
- * via `statutory_ref` salary-rule rows. This module mirrors the math
- * applied to the same parameter shapes so the simulator gives a faithful
- * preview without round-tripping to the edge function.
+ * ─────────────────────────────────────────────────────────────────────────
+ * Phase 2 — Alignment with the production engine
+ * (compute-payroll/index.ts:computeOneRule).
+ *
+ * 1. Dispatch key. The production engine dispatches on
+ *    `payroll_statutory_rules.computation_method` (a top-level column).
+ *    Pack authoring uses `parameters.type` as the schema discriminator.
+ *    Both are accepted here; when both are provided,
+ *    `computation_method` (passed as the 4th arg) wins and
+ *    `parameters.type` is a fallback. The mapping in ENGINE_METHOD_TO_KIND
+ *    is the single source of truth for the alias table.
+ *
+ * 2. Rate semantics. The engine's `pct(n) = Number(n)/100` always treats
+ *    the raw value as PERCENT (e.g. 10 → 0.10). The previous
+ *    `rateAsFraction` heuristic in this file — treating rate ≤ 1 as
+ *    already-fractional and rate > 1 as percent — silently diverged from
+ *    production for any pack that stores rates as decimals. Removed.
+ *    Packs (and this simulator) must express rates as percent.
+ *
+ * 3. `ceiling` vs `cap`. Both names are accepted (the engine now aliases
+ *    `ceiling → cap`), so the simulator honours whichever the pack ships.
+ *
+ * NOT the production payroll engine. Production payroll still runs
+ * `compute-payroll/index.ts:computeOneRule` server-side. This module is a
+ * faithful preview so authoring-time output cannot drift from what a real
+ * payroll run would produce for the same parameter shape.
  */
 
 export interface SimulatorInputs {
@@ -49,12 +69,45 @@ const safeNum = (v: any, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-/** Detect whether a `rate` field is expressed in percent (0..100) or fraction (0..1). */
-function rateAsFraction(rate: number): number {
-  if (!Number.isFinite(rate)) return 0;
-  // Heuristic: anything > 1 is treated as a percent value (10 → 0.10).
-  return rate > 1 ? rate / 100 : rate;
+/**
+ * Convert a percent-shaped rate (e.g. 10 for 10%) to a fraction (0.10).
+ * MUST match `pct` in compute-payroll/index.ts. Rates < 1 are NOT auto-
+ * promoted to fractions — a decimal is treated as a very small percent,
+ * exactly as production does, so authoring mistakes surface here instead
+ * of silently producing wrong payslips.
+ */
+const pct = (rate: unknown): number => (Number(rate) || 0) / 100;
+
+/**
+ * Read a cap value from parameters. Packs and schemas historically ship
+ * either `cap` or `ceiling` for the same concept; the engine now accepts
+ * both. Keep the alias list in one place.
+ */
+function readCap(p: any): number | null {
+  const raw = p?.cap ?? p?.ceiling;
+  if (raw === null || raw === undefined) return null;
+  const n = safeNum(raw, NaN);
+  return Number.isFinite(n) ? n : null;
 }
+
+/**
+ * Maps `payroll_statutory_rules.computation_method` values (as consumed by
+ * `compute-payroll/index.ts:computeOneRule`) to the simulator's internal
+ * dispatch keys. Kept as a data table so an arch test can assert both
+ * sides stay in lockstep as new methods are added.
+ */
+export const ENGINE_METHOD_TO_KIND: Record<string, string> = {
+  bracket_progressive: "progressive",
+  tiered_brackets: "tiered_employer_employee",
+  tiered: "tiered_employer_employee",
+  percentage_of_gross: "percentage",
+  percentage: "percentage",
+  graduated_table: "graduated",
+  graduated: "graduated",
+  flat_amount: "flat",
+  fixed: "flat",
+  per_employee_flat: "flat",
+};
 
 function pickBracketKeys(brackets: any[]): { lowerKey: string; upperKey: string } {
   const sample = brackets[0] ?? {};
