@@ -522,11 +522,6 @@ export default function BankFeeds() {
           setSelectedTransaction(null);
         }}
       />
-
-      <TransactionRulesDialog
-        open={rulesDialogOpen}
-        onOpenChange={setRulesDialogOpen}
-      />
     </>
   );
 }
