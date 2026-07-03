@@ -43528,6 +43528,80 @@ export type Database = {
           },
         ]
       }
+      salary_structure_lifecycle_events: {
+        Row: {
+          actor: string | null
+          business_id: string
+          event: string
+          from_state: string | null
+          id: string
+          occurred_at: string
+          organization_id: string
+          payload: Json
+          reason: string | null
+          structure_id: string
+          structure_name_snapshot: string
+          to_state: string | null
+        }
+        Insert: {
+          actor?: string | null
+          business_id: string
+          event: string
+          from_state?: string | null
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          payload?: Json
+          reason?: string | null
+          structure_id: string
+          structure_name_snapshot: string
+          to_state?: string | null
+        }
+        Update: {
+          actor?: string | null
+          business_id?: string
+          event?: string
+          from_state?: string | null
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          payload?: Json
+          reason?: string | null
+          structure_id?: string
+          structure_name_snapshot?: string
+          to_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salary_structure_lifecycle_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salary_structure_lifecycle_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "salary_structure_lifecycle_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "salary_structure_lifecycle_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       salary_structure_rule_sets: {
         Row: {
           components: Json
@@ -43594,6 +43668,7 @@ export type Database = {
       }
       salary_structures: {
         Row: {
+          archived_at: string | null
           business_id: string
           code: string | null
           country_code: string | null
@@ -43608,6 +43683,7 @@ export type Database = {
           use_structure_engine: boolean
         }
         Insert: {
+          archived_at?: string | null
           business_id: string
           code?: string | null
           country_code?: string | null
@@ -43622,6 +43698,7 @@ export type Database = {
           use_structure_engine?: boolean
         }
         Update: {
+          archived_at?: string | null
           business_id?: string
           code?: string | null
           country_code?: string | null
@@ -56756,6 +56833,16 @@ export type Database = {
       }
       _scanner_hash_trust_token: { Args: { p_token: string }; Returns: string }
       _sod_is_approved_status: { Args: { s: string }; Returns: boolean }
+      _ss_authorize: {
+        Args: { p_id: string; p_permission: string }
+        Returns: {
+          archived_at: string
+          biz_id: string
+          is_active: boolean
+          org_id: string
+          structure_name: string
+        }[]
+      }
       _talent_guard_on: { Args: never; Returns: boolean }
       _timesheet_can_approve: {
         Args: { _allow_self: boolean; _employee_id: string; _uid: string }
@@ -57623,6 +57710,30 @@ export type Database = {
       archive_old_pos_transactions: {
         Args: { _batch_size?: number; _older_than_days?: number }
         Returns: Json
+      }
+      archive_salary_structure: {
+        Args: { p_id: string; p_reason?: string }
+        Returns: {
+          archived_at: string | null
+          business_id: string
+          code: string | null
+          country_code: string | null
+          created_at: string
+          description: string | null
+          engine_version: number
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string
+          updated_at: string
+          use_structure_engine: boolean
+        }
+        SetofOptions: {
+          from: "*"
+          to: "salary_structures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       assert_account_in_business: {
         Args: {
@@ -58978,6 +59089,10 @@ export type Database = {
       delete_payment_gateway_secret: {
         Args: { p_gateway_id: string }
         Returns: undefined
+      }
+      delete_salary_structure: {
+        Args: { p_confirm_name: string; p_id: string }
+        Returns: boolean
       }
       delete_terminal_provider_config: {
         Args: { p_config_id: string }
@@ -64394,6 +64509,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      rename_salary_structure: {
+        Args: {
+          p_code?: string
+          p_description?: string
+          p_id: string
+          p_name: string
+        }
+        Returns: {
+          archived_at: string | null
+          business_id: string
+          code: string | null
+          country_code: string | null
+          created_at: string
+          description: string | null
+          engine_version: number
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string
+          updated_at: string
+          use_structure_engine: boolean
+        }
+        SetofOptions: {
+          from: "*"
+          to: "salary_structures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       renew_contract: {
         Args: {
           p_contract_id: string
@@ -64795,6 +64939,30 @@ export type Database = {
         Returns: number
       }
       restore_owner_role: { Args: { p_org_id: string }; Returns: boolean }
+      restore_salary_structure: {
+        Args: { p_id: string }
+        Returns: {
+          archived_at: string | null
+          business_id: string
+          code: string | null
+          country_code: string | null
+          created_at: string
+          description: string | null
+          engine_version: number
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string
+          updated_at: string
+          use_structure_engine: boolean
+        }
+        SetofOptions: {
+          from: "*"
+          to: "salary_structures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       restore_so_reservation: {
         Args: {
           p_org_id: string
@@ -64901,6 +65069,17 @@ export type Database = {
           organization_id: string
           primary_business_id: string
           primary_legal_name: string
+        }[]
+      }
+      salary_structure_deletion_report: {
+        Args: { p_id: string }
+        Returns: {
+          active_run_count: number
+          can_delete: boolean
+          contract_count: number
+          is_archived: boolean
+          payslip_count: number
+          structure_id: string
         }[]
       }
       scanner_issue_trust: {
