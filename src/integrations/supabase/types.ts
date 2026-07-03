@@ -63114,6 +63114,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      payroll_periods_generate: {
+        Args: { _from: string; _pay_schedule_id: string; _to: string }
+        Returns: number
+      }
       payroll_project_termination: {
         Args: {
           _employee_id: string
