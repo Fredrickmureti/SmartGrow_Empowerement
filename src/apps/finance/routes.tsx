@@ -34,6 +34,8 @@ const JournalEntries = lazy(() => import("@/pages/JournalEntries"));
 const JournalEntryDetailPage = lazy(() => import("@/features/finance/journal-entries/JournalEntryDetailPage"));
 const JournalEntryCreatePage = lazy(() => import("@/features/finance/journal-entries/JournalEntryCreatePage"));
 const JournalEntryEditPage = lazy(() => import("@/features/finance/journal-entries/JournalEntryEditPage"));
+const BusinessTransactionCreatePage = lazy(() => import("@/features/finance/business-transactions/BusinessTransactionCreatePage"));
+const RecurringJournalCreatePage = lazy(() => import("@/features/finance/recurring-journals/RecurringJournalCreatePage"));
 const AccountDetailRedirect = lazy(() => import("@/pages/finance/AccountDetailRedirect"));
 const FiscalPeriods = lazy(() => import("@/pages/FiscalPeriods"));
 const FiscalPeriodDetail = lazy(() => import("@/pages/finance/FiscalPeriodDetail"));
@@ -233,6 +235,30 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Journal Entry">
                 <JournalEntryDetailPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Business Transaction — routed guided-post on RecordFormShell. */}
+        <Route
+          path="business-transactions/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Business Transaction">
+                <BusinessTransactionCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Recurring Journal — routed create on RecordFormShell. */}
+        <Route
+          path="recurring-journals/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Recurring Journal">
+                <RecurringJournalCreatePage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
