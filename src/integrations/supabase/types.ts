@@ -27133,53 +27133,133 @@ export type Database = {
           },
         ]
       }
+      payroll_period_audit: {
+        Row: {
+          actor_id: string | null
+          actor_role: string | null
+          business_id: string
+          created_at: string
+          from_status:
+            | Database["public"]["Enums"]["payroll_period_status"]
+            | null
+          id: string
+          organization_id: string
+          payload: Json
+          period_id: string
+          reason: string | null
+          to_status: Database["public"]["Enums"]["payroll_period_status"]
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?: string | null
+          business_id: string
+          created_at?: string
+          from_status?:
+            | Database["public"]["Enums"]["payroll_period_status"]
+            | null
+          id?: string
+          organization_id: string
+          payload?: Json
+          period_id: string
+          reason?: string | null
+          to_status: Database["public"]["Enums"]["payroll_period_status"]
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?: string | null
+          business_id?: string
+          created_at?: string
+          from_status?:
+            | Database["public"]["Enums"]["payroll_period_status"]
+            | null
+          id?: string
+          organization_id?: string
+          payload?: Json
+          period_id?: string
+          reason?: string | null
+          to_status?: Database["public"]["Enums"]["payroll_period_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_period_audit_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_periods: {
         Row: {
           business_id: string
+          close_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
           created_at: string
           end_date: string
           fiscal_year: number | null
           id: string
           name: string
           organization_id: string
+          pay_schedule_id: string | null
           payment_date: string | null
           payroll_run_id: string | null
           period_number: number | null
           period_type: string
+          readiness_snapshot_id: string | null
+          reopen_reason: string | null
+          reopened_at: string | null
+          reopened_by: string | null
           start_date: string
-          status: string
+          status: Database["public"]["Enums"]["payroll_period_status"]
           updated_at: string
         }
         Insert: {
           business_id: string
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           end_date: string
           fiscal_year?: number | null
           id?: string
           name: string
           organization_id: string
+          pay_schedule_id?: string | null
           payment_date?: string | null
           payroll_run_id?: string | null
           period_number?: number | null
           period_type?: string
+          readiness_snapshot_id?: string | null
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
           start_date: string
-          status?: string
+          status?: Database["public"]["Enums"]["payroll_period_status"]
           updated_at?: string
         }
         Update: {
           business_id?: string
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           end_date?: string
           fiscal_year?: number | null
           id?: string
           name?: string
           organization_id?: string
+          pay_schedule_id?: string | null
           payment_date?: string | null
           payroll_run_id?: string | null
           period_number?: number | null
           period_type?: string
+          readiness_snapshot_id?: string | null
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
           start_date?: string
-          status?: string
+          status?: Database["public"]["Enums"]["payroll_period_status"]
           updated_at?: string
         }
         Relationships: [
@@ -27209,6 +27289,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_periods_pay_schedule_id_fkey"
+            columns: ["pay_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "pay_schedules"
             referencedColumns: ["id"]
           },
           {
@@ -66007,6 +66094,17 @@ export type Database = {
         | "failed"
         | "cancelled"
         | "reversed"
+      payroll_period_status:
+        | "open"
+        | "preparing"
+        | "processing"
+        | "awaiting_approval"
+        | "posted"
+        | "paid"
+        | "closed"
+        | "reopened"
+        | "cancelled"
+        | "archived"
       payroll_role: "clerk" | "manager" | "accountant"
       payroll_run_issue_severity: "info" | "warning" | "blocker"
       payroll_run_scope_kind:
@@ -66589,6 +66687,18 @@ export const Constants = {
         "failed",
         "cancelled",
         "reversed",
+      ],
+      payroll_period_status: [
+        "open",
+        "preparing",
+        "processing",
+        "awaiting_approval",
+        "posted",
+        "paid",
+        "closed",
+        "reopened",
+        "cancelled",
+        "archived",
       ],
       payroll_role: ["clerk", "manager", "accountant"],
       payroll_run_issue_severity: ["info", "warning", "blocker"],
