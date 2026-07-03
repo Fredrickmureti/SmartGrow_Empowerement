@@ -158,6 +158,12 @@ const fromEmployee = (e: Employee): EmployeeFormData => ({
   country: (e as any).country || "",
 });
 
+export interface EmployeeFormActions {
+  submit: () => Promise<void>;
+  saveAsDraft: () => Promise<void>;
+  discardDraft: () => Promise<void>;
+}
+
 interface EmployeeFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -190,6 +196,24 @@ interface EmployeeFormDialogProps {
    *  row is hard-deleted instead of leaking into the 30-day cron sweep.
    *  No-op when there is no draft id. */
   onDiscardDraft?: (draftId: string) => Promise<void>;
+  /** When true (page mode only), suppress the inline action row so the host
+   *  page can render Cancel/Submit/Save-as-draft inside a shared shell like
+   *  `RecordFormShell`. */
+  hideInlineFooter?: boolean;
+  /** When true (page mode only), render the body inside a plain `<div>`
+   *  instead of a `<form>`. Submit must be triggered imperatively via
+   *  `actionsRef.current.submit()`. Prevents nested-form invalid HTML when
+   *  the host shell already owns the outer `<form>`. */
+  hideInlineForm?: boolean;
+  /** Imperative handle exposing submit / saveAsDraft / discardDraft so a
+   *  shell footer can wire buttons without duplicating validation. */
+  actionsRef?: React.MutableRefObject<EmployeeFormActions | null>;
+  /** Fires whenever internal `isSubmitting` flips. Lets the shell show a
+   *  spinner on its primary Submit button. */
+  onSubmittingChange?: (submitting: boolean) => void;
+  /** Fires whenever local-draft state changes. Lets the shell decide
+   *  whether to render "Discard draft" / show the "Draft saved" chip. */
+  onDraftStateChange?: (s: { hasSavedDraft: boolean; isSavingDraft: boolean }) => void;
 }
 
 export function EmployeeFormDialog({
@@ -205,7 +229,11 @@ export function EmployeeFormDialog({
   onSaveAsDraft,
   draftId,
   onDiscardDraft,
-
+  hideInlineFooter = false,
+  hideInlineForm = false,
+  actionsRef,
+  onSubmittingChange,
+  onDraftStateChange,
 }: EmployeeFormDialogProps) {
 
   const [activeTab, setActiveTab] = useState("personal");
