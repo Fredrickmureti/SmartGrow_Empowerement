@@ -308,6 +308,10 @@ export function EmployeeFormDialog({
   const [pendingClose, setPendingClose] = useState<null | (() => void)>(null);
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
 
+  useEffect(() => {
+    onDraftStateChange?.({ hasSavedDraft, isSavingDraft });
+  }, [hasSavedDraft, isSavingDraft, onDraftStateChange]);
+
   // Show Statutory tab only when payroll is installed AND the installed
   // pack publishes at least one identifier requirement. No pack → no tab.
   const showStatutoryTab = modules.payroll && statutoryRequirements.length > 0;
