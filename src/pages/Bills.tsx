@@ -86,7 +86,7 @@ import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
 import { ContactResolver, ProductResolver } from "@/lib/entityResolver";
 import { format, isWithinInterval, parseISO, startOfMonth, endOfMonth } from "date-fns";
-import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
+
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
