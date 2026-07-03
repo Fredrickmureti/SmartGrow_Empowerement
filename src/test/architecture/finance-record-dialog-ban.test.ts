@@ -39,21 +39,14 @@ const FINANCE_GLOBS = [
  */
 const LEGACY_DIALOG_ALLOWLIST = new Set<string>([
   // Migration targets — MUST leave this list as each is completed.
-  "src/components/finance/ApplyCreditDialog.tsx",
-  "src/components/finance/BusinessTransactionDialog.tsx",
+  // Only files matching the ban regex (Create*/Edit*/`*DetailDialog`)
+  // belong here. Other legacy Finance dialogs (Apply*, Process*,
+  // BusinessTransaction*, RecurringJournal*, YearEndClosing*,
+  // ConnectBank*, ImportTransactions*, Reconcile*, StartReconciliation*,
+  // TransactionRules*, TransferReconcile*) are tracked in
+  // docs/design-system/audit/finance.md — not by this filename guard.
   "src/components/finance/CreditNoteDetailDialog.tsx",
-  "src/components/finance/ProcessRefundDialog.tsx",
-  "src/components/finance/RecurringJournalDialog.tsx",
-  "src/components/finance/YearEndClosingDialog.tsx",
-  "src/components/banking/ConnectBankDialog.tsx",
   "src/components/banking/EditBankAccountDialog.tsx",
-  "src/components/banking/ImportTransactionsDialog.tsx",
-  "src/components/banking/ReconcileTransactionDialog.tsx",
-  "src/components/banking/StartReconciliationDialog.tsx",
-  "src/components/banking/TransactionRulesDialog.tsx",
-  "src/components/banking/TransferReconcileDialog.tsx",
-  // Confirm-style — permanent (target "keep").
-  "src/components/finance/ApplyDefaultMappingsDialog.tsx",
 ]);
 
 function scanRecordDialogs(): string[] {
