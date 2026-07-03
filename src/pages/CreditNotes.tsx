@@ -110,13 +110,7 @@ export default function CreditNotes() {
 
   // Edit is now a full route (`/sales/credit-notes/:id/edit`).
 
-  // Apply credit dialog
-  const [applyCreditNote, setApplyCreditNote] = useState<CreditNote | null>(null);
-  const [showApplyDialog, setShowApplyDialog] = useState(false);
-
-  // Refund dialog
-  const [refundCreditNote, setRefundCreditNote] = useState<CreditNote | null>(null);
-  const [showRefundDialog, setShowRefundDialog] = useState(false);
+  // Apply-credit + refund are dedicated wizard routes now (see openApply/onRefund).
 
 
   // Contact preview drawer
