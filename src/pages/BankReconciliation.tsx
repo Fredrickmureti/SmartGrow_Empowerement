@@ -239,7 +239,8 @@ export default function BankReconciliation() {
                   title={!canReconcile ? "You don't have permission to reconcile bank transactions in this scope." : undefined}
                   onClick={() => {
                     if (isReadOnly) { openUpgradeModal("banking"); return; }
-                    setStartReconDialogOpen(true);
+                    const q = selectedAccount !== "all" ? `?account=${selectedAccount}` : "";
+                    navigate(`/finance/reconciliation/new${q}`);
                   }}>
                   <Scale className="mr-2 h-4 w-4" />
                   Reconcile
