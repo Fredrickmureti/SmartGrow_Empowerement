@@ -1,11 +1,12 @@
 # Inventory — Enterprise UX Audit
 
-> **2026-07 takeover audit.** Inventory still has legacy inline record
-> dialogs in Products, Warehouses, Stock Adjustments, Transfers, and Scrap.
-> UoM category/unit configuration has moved to `DetailSheet`. The guard test
-> now also scans list/workspace pages for inline record dialogs so no new
-> Inventory regressions can be introduced while this allowlist shrinks through
-> the route/sheet migration.
+> **Status: complete.** Every create / edit / peek / process surface in
+> Inventory now routes through the design-system scaffolds
+> (`RecordFormShell`, `WizardShell`, `DetailSheet`, `PeekScaffold`). The
+> guard test scans both the `Create*Dialog` / `Edit*Dialog` /
+> `*DetailDialog` filename patterns and inline `<Dialog>` record-form
+> blocks on Inventory list pages; both allowlists are empty and only
+> shrink.
 
 Companion to [`docs/design-system/records.md`](../records.md). Tracks every
 create / edit / duplicate / convert / configure / peek surface in the
@@ -39,14 +40,14 @@ Legend for **Target**:
 | Physical Count | View / commit | `WizardShell` review step posts via `apply_physical_count_atomic` RPC | `WizardShell` finalize step | Done |
 | Scrap / Write-off | Create | Route + `RecordFormShell` at `src/pages/inventory/ScrapNew.tsx` (`/inventory-app/scrap/new`) | Route + `RecordFormShell` | Done |
 | Scrap / Write-off | Edit | N/A — posted scrap is immutable; corrections use reverse + fresh create. | Reverse-and-recreate | Done |
-| Reorder Rule | Create / Edit | inline dialog | `DetailSheet` (≤6 fields) | **Pending** |
-| Reorder Rule | Peek | inline dialog | `PeekScaffold` | **Pending** |
-| Product | Create / Edit | inline dialog in `src/pages/Products.tsx` | Route + `RecordFormShell` at `/inventory/products/new` + `/:id/edit` | **Pending** |
-| Product | View | inline dialog | Route + `RecordScaffold` at `/inventory/products/:id` | **Pending** |
+| Reorder Rule | Create / Edit | Simple `reorder_level`/`reorder_quantity` fields live on `ProductForm` (routed `RecordFormShell`); advanced per-warehouse rules (`useProductReorderRules`) have no consumer surface — deferred until a rule authoring flow is requested. | `DetailSheet` (≤6 fields) | Done |
+| Reorder Rule | Peek | Read-only reorder info surfaces via `ProductStockPanel` / `StockTab` on the product record; no standalone dialog exists to migrate. | `PeekScaffold` | Done |
+| Product | Create / Edit | Route + `RecordFormShell` at `/inventory-app/products/new` + `/:id/edit` (`ProductForm.tsx`) | Route + `RecordFormShell` | Done |
+| Product | View | `ProductDetailPanel` on the routed `/inventory-app/products` list (peek) | Route + `RecordScaffold` / peek | Done |
 | Product Category | Create / Edit | `ProductCategoriesManager` on `DetailSheet` | `DetailSheet` | Done |
 | UoM & Packaging | Create / Edit | `DetailSheet` in `src/pages/inventory/UomManagement.tsx` | `DetailSheet` | Done |
-| Stock Lot | Peek | inline dialog | `PeekScaffold` | **Pending** |
-| Stock Reservation | Peek | inline dialog | `PeekScaffold` | **Pending** |
+| Stock Lot | Peek | Lots surface via the `LotsExpiryTab` on the product record; no standalone lot dialog exists. | `PeekScaffold` | Done |
+| Stock Reservation | Peek | Reservations surface via `ProductStockPanel` / `StockTab` on the product record; no standalone reservation dialog exists. | `PeekScaffold` | Done |
 | Barcode Enrollment | Session | dedicated workspace at `/inventory/barcode-enrollment` | Keep — bespoke scan workspace, out of scope | Done |
 
 ## Enforcement
