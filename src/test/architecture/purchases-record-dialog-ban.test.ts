@@ -91,7 +91,9 @@ function billsNewRouteUsesCreatePage(): boolean {
   const routesPath = "src/apps/purchases/routes.tsx";
   if (!existsSync(routesPath)) return false;
   const src = readFileSync(routesPath, "utf8");
-  const billsNewBlock = src.match(/path="bills\/new"[\s\S]*?<\/Route>/)?.[0] ?? "";
+  const start = src.indexOf('path="bills/new"');
+  const end = src.indexOf('path="bills/:id"', start);
+  const billsNewBlock = start >= 0 && end > start ? src.slice(start, end) : "";
   return billsNewBlock.includes("<BillCreatePage />") && !billsNewBlock.includes("<BillRecordPage />");
 }
 
