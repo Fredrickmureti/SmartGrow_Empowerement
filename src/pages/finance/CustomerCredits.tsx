@@ -281,11 +281,7 @@ export default function CustomerCredits() {
   };
 
   const openDetail = (cn: CreditRowEnriched) => {
-    const full = fullCreditNotes.find((f) => f.id === cn.id);
-    if (full) {
-      setSelectedCreditNote(full);
-      setDetailOpen(true);
-    }
+    setPeekId(cn.id);
   };
 
   const handleRefresh = () => {
