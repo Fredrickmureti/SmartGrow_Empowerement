@@ -134,6 +134,20 @@ export function InventoryApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* Warehouse — read-only object page */}
+        <Route
+          path="warehouses/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Warehouse">
+                <WarehouseView />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+
         
         {/* Replenishment */}
         <Route
