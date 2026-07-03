@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import { format } from "date-fns";
 
-interface SourceDocumentDrawerProps {
+interface SourceDocumentPeekSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   referenceType: string | null;
@@ -93,12 +93,12 @@ const DOC_CONFIG: Record<string, {
   },
 };
 
-export function SourceDocumentDrawer({
+export function SourceDocumentPeekSheet({
   open,
   onOpenChange,
   referenceType,
   referenceId,
-}: SourceDocumentDrawerProps) {
+}: SourceDocumentPeekSheetProps) {
   const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
 

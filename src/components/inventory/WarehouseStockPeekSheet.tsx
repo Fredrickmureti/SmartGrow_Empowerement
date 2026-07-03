@@ -20,7 +20,7 @@ import { normalizeError } from "@/services/resilience";
 import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
 import { formatQtyWithPacks, formatBaseQty } from "@/lib/inventory/formatQty";
 
-interface WarehouseStockDrawerProps {
+interface WarehouseStockPeekSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   warehouseId: string | null;
@@ -28,13 +28,13 @@ interface WarehouseStockDrawerProps {
   organizationId: string | undefined;
 }
 
-export function WarehouseStockDrawer({
+export function WarehouseStockPeekSheet({
   open,
   onOpenChange,
   warehouseId,
   warehouseName,
   organizationId,
-}: WarehouseStockDrawerProps) {
+}: WarehouseStockPeekSheetProps) {
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLevel, setEditLevel] = useState<string>("");

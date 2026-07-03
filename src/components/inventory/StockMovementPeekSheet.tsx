@@ -10,7 +10,7 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { SourceDocumentBadge } from "./SourceDocumentBadge";
 import { formatTransactionQty } from "@/lib/inventory/formatQty";
 
-interface MovementDetailDrawerProps {
+interface StockMovementPeekSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   movementId: string | null;
@@ -19,14 +19,14 @@ interface MovementDetailDrawerProps {
   onOpenSourceDocDrawer?: (type: string, id: string) => void;
 }
 
-export function MovementDetailDrawer({
+export function StockMovementPeekSheet({
   open,
   onOpenChange,
   movementId,
   onOpenProductDrawer,
   onOpenWarehouseDrawer,
   onOpenSourceDocDrawer,
-}: MovementDetailDrawerProps) {
+}: StockMovementPeekSheetProps) {
   const { formatCurrency } = useCurrency();
 
   const { data: movement, isLoading } = useQuery({
