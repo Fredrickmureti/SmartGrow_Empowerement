@@ -50,9 +50,9 @@ describe("banking ownership architecture", () => {
     expect(src).toContain("is_shared");
   });
 
-  it("EditBankAccountDialog enforces branch lock + re-attribute confirmation (G1)", () => {
+  it("BankAccountEditSheet enforces branch lock + re-attribute confirmation (G1)", () => {
     const src = readFileSync(
-      join(root, "src/components/banking/EditBankAccountDialog.tsx"),
+      join(root, "src/features/finance/banking/BankAccountEditSheet.tsx"),
       "utf8",
     );
     expect(src).toContain("branchSelectorLocked");
