@@ -17,14 +17,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -90,6 +82,8 @@ import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { usePeekParam } from "@/design-system";
+import { JournalEntryPeekSheet } from "@/features/finance/journal-entries/JournalEntryPeekSheet";
 
 export default function JournalEntries() {
   const { 
@@ -114,7 +108,6 @@ export default function JournalEntries() {
   
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [viewingEntry, setViewingEntry] = useState<JournalEntry | null>(null);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [voidingEntryId, setVoidingEntryId] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("");
@@ -122,6 +115,7 @@ export default function JournalEntries() {
   const accountResolverRef = useRef<AccountResolver | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [peekId, setPeekId] = usePeekParam();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSource, setDrawerSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
 
@@ -136,16 +130,14 @@ export default function JournalEntries() {
     }
   }, [searchParams, isReadOnly, navigate, openUpgradeModal]);
 
-  // Handle ?selected={journalId} deep-link to auto-open detail view
+  // Back-compat: `?selected=<id>` now opens the peek sheet via `?peek=<id>`.
+  // Legacy inbound links from payments / bills / drilldowns keep working.
   useEffect(() => {
     const selectedId = searchParams.get("selected");
-    if (selectedId && journalEntries?.length) {
-      const entry = journalEntries.find(e => e.id === selectedId);
-      if (entry) {
-        setViewingEntry(entry);
-      }
+    if (selectedId && !peekId) {
+      setPeekId(selectedId);
     }
-  }, [searchParams, journalEntries]);
+  }, [searchParams, peekId, setPeekId]);
 
   const journalFieldDefinitions = JOURNAL_ENTRY_IMPORT_FIELDS;
 
