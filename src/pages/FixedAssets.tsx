@@ -380,14 +380,14 @@ export default function FixedAssets() {
                             <DropdownMenuContent align="end">
                               {canManageAssets && (
                                 <DropdownMenuItem
-                                  onClick={() => openAssetSheet(asset)}
+                                  onClick={() => openAssetEdit(asset)}
                                 >
                                   <Pencil className="mr-2 h-4 w-4" />
                                   Edit
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
-                                onClick={() => openSheet("detail", asset.id)}
+                                onClick={() => setPeek(asset.id)}
                               >
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
