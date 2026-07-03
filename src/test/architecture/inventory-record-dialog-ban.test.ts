@@ -79,11 +79,9 @@ const INVENTORY_LIST_PAGES = [
 ];
 
 const LEGACY_INLINE_DIALOG_ALLOWLIST = new Set<string>([
-  // Products.tsx still hosts the legacy Add/Edit Product dialog while the
-  // full products master migration to /inventory-app/products/{new,:id/edit,:id}
-  // is in flight. It is the only remaining offender and this entry must be
-  // removed as that migration lands.
-  "src/pages/Products.tsx",
+  // All legacy inline record dialogs on Inventory list pages have been
+  // migrated to routed RecordFormShell / DetailSheet / WizardShell
+  // surfaces. This set must stay empty — new entries are forbidden.
 ]);
 
 const INLINE_INVENTORY_RECORD_DIALOG_TITLE =

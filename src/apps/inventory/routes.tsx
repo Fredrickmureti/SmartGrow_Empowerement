@@ -33,6 +33,8 @@ const Forecast = lazy(() => import("@/pages/inventory/Forecast"));
 const BarcodeEnrollment = lazy(() => import("@/pages/inventory/BarcodeEnrollment"));
 const UomManagement = lazy(() => import("@/pages/inventory/UomManagement"));
 const AdjustmentNew = lazy(() => import("@/pages/inventory/AdjustmentNew"));
+const ProductNew = lazy(() => import("@/pages/inventory/ProductNew"));
+const ProductEdit = lazy(() => import("@/pages/inventory/ProductEdit"));
 
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
@@ -73,6 +75,28 @@ export function InventoryApp() {
           }
         />
 
+        {/* Product create / edit — routed RecordFormShell (replaces legacy inline dialog). */}
+        <Route
+          path="products/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Add Product">
+                <ProductNew />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="products/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Edit Product">
+                <ProductEdit />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Barcode Enrollment Workspace — scanner-first bulk assignment */}
         <Route
           path="products/enroll"
@@ -84,6 +108,7 @@ export function InventoryApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
 
 
         
