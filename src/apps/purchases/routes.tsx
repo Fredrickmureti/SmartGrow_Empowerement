@@ -54,6 +54,15 @@ const PurchaseReturnRecordPage = lazy(
 );
 const VendorPriceLists = lazy(() => import("@/pages/VendorPriceLists"));
 const RFQs = lazy(() => import("@/pages/RFQs"));
+const RFQCreatePage = lazy(
+  () => import("@/features/purchases/rfqs/RFQCreatePage"),
+);
+const RFQEditPage = lazy(
+  () => import("@/features/purchases/rfqs/RFQEditPage"),
+);
+const RFQRecordPage = lazy(
+  () => import("@/features/purchases/rfqs/RFQRecordPage"),
+);
 const VendorCreditNotes = lazy(() => import("@/pages/VendorCreditNotes"));
 const VendorCreditNoteCreatePage = lazy(
   () => import("@/features/purchases/credit-notes/VendorCreditNoteCreatePage"),
@@ -139,6 +148,36 @@ export function PurchasesApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="RFQs">
                 <RFQs />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="rfqs/new"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="RFQ">
+                <RFQCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="rfqs/:id/edit"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="RFQ">
+                <RFQEditPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="rfqs/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="RFQ">
+                <RFQRecordPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
