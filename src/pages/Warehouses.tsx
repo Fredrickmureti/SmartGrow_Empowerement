@@ -178,30 +178,6 @@ export default function Warehouses() {
     }
   };
 
-  const addTransferItem = () => {
-    setTransferForm({
-      ...transferForm,
-      items: [...transferForm.items, { product_id: "", quantity: 1 }],
-    });
-  };
-
-  const removeTransferItem = (index: number) => {
-    setTransferForm({
-      ...transferForm,
-      items: transferForm.items.filter((_, i) => i !== index),
-    });
-  };
-
-  const updateTransferItem = (
-    index: number,
-    field: "product_id" | "quantity",
-    value: string | number
-  ) => {
-    const newItems = [...transferForm.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setTransferForm({ ...transferForm, items: newItems });
-  };
-
   const filteredWarehouses = warehouses.filter((w) =>
     w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     w.code?.toLowerCase().includes(searchQuery.toLowerCase())
