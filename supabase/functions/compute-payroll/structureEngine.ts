@@ -157,8 +157,8 @@ function ruleDependencies(rule: SalaryRule, codeSet: Set<string>): string[] {
   if (
     rule.amount_select === "percentage" &&
     rule.amount_base &&
-    !BUILTIN_BASES.has(rule.amount_base) &&
-    codeSet.has(rule.amount_base)
+    codeSet.has(rule.amount_base) &&
+    rule.amount_base !== rule.code
   ) {
     deps.add(rule.amount_base);
   }
