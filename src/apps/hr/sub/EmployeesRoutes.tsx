@@ -39,8 +39,14 @@ const EmployeesConfiguration = lazy(() => import("@/pages/hr/configuration/Confi
 const BenefitEnrollmentWindows = lazy(() => import("@/pages/hr/BenefitEnrollmentWindows"));
 const OnboardingIssues = lazy(() => import("@/pages/hr/OnboardingIssues"));
 const Departments = lazy(() => import("@/pages/Departments"));
+const DepartmentCreatePage = lazy(() => import("@/features/hr/departments/DepartmentCreatePage"));
+const DepartmentEditPage = lazy(() => import("@/features/hr/departments/DepartmentEditPage"));
 const JobPositions = lazy(() => import("@/pages/hr/JobPositions"));
+const JobPositionCreatePage = lazy(() => import("@/features/hr/positions/JobPositionCreatePage"));
+const JobPositionEditPage = lazy(() => import("@/features/hr/positions/JobPositionEditPage"));
 const WorkLocations = lazy(() => import("@/pages/hr/WorkLocations"));
+const WorkLocationCreatePage = lazy(() => import("@/features/hr/locations/WorkLocationCreatePage"));
+const WorkLocationEditPage = lazy(() => import("@/features/hr/locations/WorkLocationEditPage"));
 const OrgChart = lazy(() => import("@/pages/hr/OrgChart"));
 
 export function EmployeesApp() {
