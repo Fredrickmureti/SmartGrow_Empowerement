@@ -104,122 +104,25 @@ function RFQPipeline({ status }: { status: string }) {
 }
 
 export default function RFQs() {
-  const { rfqs, isLoading, createRFQ, updateStatus, awardVendor, deleteRFQ, isCreating } = useRFQs();
-  const { createPurchaseOrder, getNextPONumber } = usePurchaseOrders();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { rfqs, isLoading, updateStatus, deleteRFQ } = useRFQs();
   const { contacts } = useContacts();
-  const { products } = useProducts();
   const { formatCurrency, baseCurrency } = useCurrency();
+  const [peekId, setPeekId] = usePeekParam();
 
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showDetailDialog, setShowDetailDialog] = useState(false);
-  const [selectedRFQ, setSelectedRFQ] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // Create form state
-  const [deadline, setDeadline] = useState("");
-  const [notes, setNotes] = useState("");
-  const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
-  const [lineItems, setLineItems] = useState<Omit<RFQItem, "id" | "rfq_id">[]>([
-    { product_id: null, description: "", quantity: 1, target_price: null, sort_order: 0 },
-  ]);
-
-  const vendors = contacts.filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active);
-
-  const resetForm = () => {
-    setDeadline("");
-    setNotes("");
-    setSelectedVendorIds([]);
-    setLineItems([{ product_id: null, description: "", quantity: 1, target_price: null, sort_order: 0 }]);
-  };
-
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].target_price = product.cost_price || product.unit_price || null;
-      }
+  // Intercept ?action=create from the GlobalCreateMenu.
+  useEffect(() => {
+    if (searchParams.get("action") === "create") {
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      setSearchParams(next, { replace: true });
+      navigate("/purchases/rfqs/new");
     }
-    setLineItems(updated);
-  };
-
-  const addLineItem = () => {
-    setLineItems([...lineItems, { product_id: null, description: "", quantity: 1, target_price: null, sort_order: lineItems.length }]);
-  };
-
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) setLineItems(lineItems.filter((_, i) => i !== index));
-  };
-
-  const toggleVendor = (vendorId: string) => {
-    setSelectedVendorIds((prev) =>
-      prev.includes(vendorId) ? prev.filter((id) => id !== vendorId) : [...prev, vendorId]
-    );
-  };
-
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    const validItems = lineItems.filter((item) => item.description);
-    if (validItems.length === 0 || selectedVendorIds.length === 0) {
-      toast.error("Add at least one item and one vendor");
-      return;
-    }
-
-    createRFQ({
-      rfq: { deadline: deadline || null, notes: notes || null },
-      items: validItems,
-      vendorIds: selectedVendorIds,
-    });
-    setShowCreateDialog(false);
-    resetForm();
-  };
-
-  const handleConvertToPO = async (rfq: any, rfqVendor: any) => {
-    try {
-      const poNumber = await getNextPONumber();
-      const items = (rfq.items || []).map((item: any, idx: number) => ({
-        product_id: item.product_id,
-        description: item.description,
-        quantity: item.quantity,
-        quantity_received: 0,
-        unit_price: item.target_price || 0,
-        tax_rate: 0,
-        tax_amount: 0,
-        line_total: (item.target_price || 0) * item.quantity,
-        sort_order: idx,
-      }));
-
-      await createPurchaseOrder(
-        {
-          po_number: poNumber,
-          vendor_id: rfqVendor.vendor_id,
-          status: "draft",
-          order_date: new Date().toISOString().split("T")[0],
-          expected_date: null,
-          subtotal: 0,
-          tax_amount: 0,
-          discount_amount: 0,
-          total: 0,
-          currency: baseCurrency,
-          shipping_address: null,
-          notes: `Converted from ${rfq.rfq_number}`,
-          converted_bill_id: null,
-          converted_at: null,
-        },
-        items
-      );
-
-      awardVendor({ rfqId: rfq.id, rfqVendorId: rfqVendor.id });
-      toast.success(`PO ${poNumber} created from ${rfq.rfq_number}`);
-      setShowDetailDialog(false);
-    } catch (error: any) {
-      toast.error(`Failed to convert: ${normalizeError(error).message}`);
-    }
-  };
+  }, [searchParams, setSearchParams, navigate]);
 
   const filteredRFQs = rfqs.filter((rfq) => {
     const matchesSearch = rfq.rfq_number.toLowerCase().includes(searchQuery.toLowerCase());
