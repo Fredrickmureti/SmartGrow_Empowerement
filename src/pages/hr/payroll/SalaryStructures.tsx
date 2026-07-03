@@ -284,13 +284,12 @@ export function PayrollSalaryStructuresPage() {
                       value={c.computation_type}
                       onValueChange={(v) =>
                         patchComponent(i, {
-                          computation_type: v as ComponentDraft["computation_type"],
+                          computation_type: v as ComputationType,
                           // Reset value semantics when switching modes so a
                           // "50" carried over from Fixed doesn't silently
                           // become "50 %" of BASIC.
                           computation_value: 0,
                           percentage_of: v === "percentage" ? c.percentage_of ?? "BASIC" : null,
-                          formula: v === "formula" ? c.formula : "",
                         })
                       }
                     >
@@ -300,7 +299,6 @@ export function PayrollSalaryStructuresPage() {
                       <SelectContent>
                         <SelectItem value="fixed">Fixed Amount</SelectItem>
                         <SelectItem value="percentage">Percentage of…</SelectItem>
-                        <SelectItem value="formula">Formula</SelectItem>
                       </SelectContent>
                     </Select>
 
@@ -349,20 +347,6 @@ export function PayrollSalaryStructuresPage() {
                       </>
                     )}
 
-                    {c.computation_type === "formula" && (
-                      <div className="sm:col-span-2">
-                        <Textarea
-                          placeholder="e.g. min(GROSS * 0.05, 15000)"
-                          value={c.formula}
-                          onChange={(e) => patchComponent(i, { formula: e.target.value })}
-                          rows={2}
-                          className="font-mono text-xs"
-                        />
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          Expressions may reference BASIC, GROSS, TAXABLE and other component codes. Helpers: min, max, round, if.
-                        </p>
-                      </div>
-                    )}
                   </div>
                   <Button
                     variant="ghost"
