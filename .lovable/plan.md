@@ -1,81 +1,68 @@
-## Verified status
+# Continuation plan — ERP UX Standardization
 
-- **Purchases** — complete. All rows in `docs/design-system/audit/purchases.md` are Done; both allowlists in `purchases-record-dialog-ban.test.ts` are empty.
-- **Inventory** — partially migrated by previous agents:
-  - Done: UoM (`DetailSheet`), Barcode Enrollment (kept), Warehouses routed (`WarehouseNew`/`WarehouseEdit`/`WarehouseForm`), Stock Transfers routed (`TransferNew` + `?action=new` forwarder), Scrap routed (`ScrapNew`).
-  - Still pending: Products, Stock Adjustments, Physical Count wizard, Reorder Rules, Product Categories, and every legacy `*Drawer.tsx` under `src/components/inventory/` (`WarehouseStockDrawer`, `MovementDetailDrawer`, `SourceDocumentDrawer`, `AdjustmentDetailDrawer`, `TransferDetailDrawer`).
-  - `src/pages/Products.tsx` still contains 41 `Dialog` references and `src/pages/Inventory.tsx` 23 — the biggest remaining Inventory surfaces.
-- **Sales phases 4–5** — not started (Record Payment / Convert / Apply credit / Refund / Statement / Merge wizards; `/sales/configuration/*` object pages).
-- **Finance** — untouched; no audit file, no `src/features/finance/*`.
+## Verified takeover status
 
-## Plan
+Independently re-checked file tree, guard tests, and audit docs:
 
-### 1. Inventory — Products master (highest impact)
+- **Purchases** — complete. Both allowlists in `purchases-record-dialog-ban.test.ts` are empty; audit doc all Done.
+- **Sales phases 1–3** — record/peek scaffolds promoted to `@/design-system/records` and re-exported from `@/features/sales/record` (verified in `src/design-system/index.ts` and `src/features/sales/record/index.ts`). Phases 4–5 (Record Payment, Convert, Apply Credit, Refund, Statement, Merge wizards; `/sales/configuration/*` object pages) still pending.
+- **Inventory** — partially migrated:
+  - Done: UoM/Packaging (`DetailSheet`), Warehouses (routed), Stock Transfers create (routed), Scrap create (routed), Stock Adjustment **create only** (`/inventory-app/adjustments/new`), Adjustment peek (`AdjustmentPeekSheet`), Barcode Enrollment (kept).
+  - Legacy allowlist still holds 4 drawers: `MovementDetailDrawer`, `SourceDocumentDrawer`, `TransferDetailDrawer`, `WarehouseStockDrawer`.
+  - Inline-dialog allowlist still holds 5 pages: `Products.tsx`, `Warehouses.tsx`, `Inventory.tsx`, `inventory/Transfers.tsx`, `inventory/ScrapRecording.tsx` — Products (~41 Dialog refs) and Inventory (~23) are the heaviest.
+  - Missing: Product create/edit/view, Product Category, Stock Adjustment **edit**, Physical Count wizard, Reorder Rules, Stock Lot / Reservation peeks.
+- **Finance** — audit file exists (`docs/design-system/audit/finance.md`, all 20 rows Pending), but no `src/features/finance/*`, no `finance-record-dialog-ban.test.ts`, no migrated routes. Nothing implemented.
 
-Route the product create/edit/view flow off the inline dialogs in `Products.tsx`:
+Previous agent's last verified change: Stock Adjustment create route + deep-link forwarder. Everything past that is not yet done.
 
-- Add `/inventory-app/products/new`, `/inventory-app/products/:id/edit`, `/inventory-app/products/:id` (record page) plus `?peek=<id>` on the list.
-- Build a shared `ProductFormFields` used by both create and edit on `RecordFormShell`, with `Section` + `FieldGrid` grouping: Identity, Classification (category / brand / tax), Pricing, Inventory (base UoM, tracking, warehouses), Compliance, Identifiers/Barcodes, Packaging, Opening stock, Images.
-- Preserve every existing integration: category selection, image upload, tax fields, product accounts, identifiers, packaging editor, opening stock handoff, scanner `createWithCode` onboarding, `?action=create`, `?createWithCode`, and `?selected=` deep-link → peek/record.
-- Migrate Product Category create/edit to `DetailSheet` (≤6 fields).
-- List actions: Add → route; Edit → route; row click → peek (`?peek=<id>`) with "Open full page" jumping to the record route.
+## Execution order
 
-### 2. Inventory — Stock Adjustments
+Finish one application at a time, guard test shrinks and audit doc flips to Done in the same slice.
 
-- Add `/inventory-app/adjustments/new` + `/:id/edit` on `RecordFormShell` with `LineItemsGrid`, preserving branch/warehouse scoping, reason → offset-account preview, GL posting, and the existing `ReverseAdjustmentDialog` (confirm-style, stays a dialog).
-- Replace `AdjustmentDetailDrawer` with `AdjustmentPeekSheet` on `PeekScaffold` behind `?peek=<id>` on the Adjustments list.
+### Slice A — Inventory (finish the app)
 
-### 3. Inventory — Physical Count wizard
+1. **Products master** (biggest surface). Add routes `/inventory-app/products/new`, `/:id/edit`, `/:id`, and `?peek=<id>` on the list. Build `ProductFormFields` shared by create + edit on `RecordFormShell` with `Section` + `FieldGrid` groups: Identity, Classification, Pricing, Inventory (base UoM, tracking, warehouses), Compliance, Identifiers/Barcodes, Packaging, Opening stock, Images. Preserve every integration: category picker, image upload, tax/accounts, identifiers, packaging editor, opening stock handoff, scanner `createWithCode` onboarding, `?action=create`, `?createWithCode`, `?selected=` → peek/record.
+2. **Product Category** → `DetailSheet` (≤6 fields).
+3. **Stock Adjustment edit** → `/inventory-app/adjustments/:id/edit` on `RecordFormShell` + `LineItemsGrid`, mirror create route's branch/warehouse scoping and GL preview; keep `ReverseAdjustmentDialog` as confirm dialog.
+4. **Stock Transfer edit** and **Scrap edit** → `/:id/edit` routes on `RecordFormShell` (create routes already exist).
+5. **Physical Count** → `WizardShell` at `/inventory-app/count/new` + `RecordScaffold` at `/:id`, preserving scanner counting and variance-apply.
+6. **Drawers → PeekScaffold** (delete legacy files, shrink allowlist to `[]`):
+   - `WarehouseStockDrawer` → `WarehouseStockPeekSheet`
+   - `MovementDetailDrawer` → `StockMovementPeekSheet`
+   - `SourceDocumentDrawer` → router push to owning-app peek (Bill/SO/Adjustment); PeekScaffold only where no owning peek exists
+   - `TransferDetailDrawer` → `StockTransferPeekSheet`
+7. **Reorder Rules** → `DetailSheet` create/edit + `PeekScaffold` view.
+8. **Stock Lot / Reservation** → `PeekScaffold`.
+9. Close-out: `LEGACY_DIALOG_ALLOWLIST` and `LEGACY_INLINE_DIALOG_ALLOWLIST` both empty; every audit row Done with the actual route/component path.
 
-- Convert the inline `PhysicalCount.tsx` workspace into a routed `WizardShell` at `/inventory-app/count/new` and a `RecordScaffold` at `/:id`, preserving scanner counting and variance-apply step.
+### Slice B — Sales phases 4 & 5
 
-### 4. Inventory — Drawers → PeekScaffold
+- `RecordPaymentDialog` (both copies) → `WizardShell` at `/sales/invoices/:id/record-payment`.
+- `WizardShell` routes for Convert (quote→SO→invoice), Apply Credit, Refund, Generate Statement, Merge Customers.
+- `/sales/configuration/*` object pages on `RecordScaffold` for tax rules, numbering, terms, payment methods.
+- Add `sales-record-dialog-ban.test.ts` inline-dialog scan mirroring the Purchases guard.
 
-Replace the remaining detail drawers with `*PeekSheet` on `PeekScaffold` behind `?peek=<id>`:
+### Slice C — Finance (audit → migration)
 
-- `WarehouseStockDrawer` → `WarehouseStockPeekSheet` (list on `Warehouses.tsx` / `Inventory.tsx`)
-- `MovementDetailDrawer` → `StockMovementPeekSheet`
-- `SourceDocumentDrawer` → delegate to the owning app's peek (Bill / SO / Adjustment) via router push; peek sheet only when no owning app peek exists
-- `TransferDetailDrawer` → `StockTransferPeekSheet`
-- Delete the legacy `*Drawer.tsx` files and remove their allowlist entries in `inventory-record-dialog-ban.test.ts`.
+Migrate every row in `docs/design-system/audit/finance.md` to its target. Grouping:
 
-### 5. Inventory — Reorder Rules
+- **Records (route + `RecordFormShell` + `PeekScaffold`)**: Journal Entry, Business Transaction quick-post, Recurring Journal, Chart of Accounts entry, Budget, Fixed Asset, Bank Account.
+- **Sheets (`DetailSheet`)**: Fiscal Period, Analytic Account.
+- **Wizards (`WizardShell`)**: Year-End Close, Bank Reconciliation start + workspace (with Bank Transfer Reconcile as a step), Bank Transactions Import, Customer Credit Apply, Customer Credit Refund.
+- **Delete**: legacy finance `CreditNoteDetailDialog` (superseded by Sales credit-note record + peek).
+- Add `finance-record-dialog-ban.test.ts` mirroring Purchases/Inventory guards; audit doc rows flip to Done as files land.
 
-- Reorder Rule create/edit → `DetailSheet` (≤6 fields).
-- Reorder Rule view → `PeekScaffold` behind `?peek=<id>`.
+## Technical notes
 
-### 6. Inventory — guard + audit ledger
+- All new routes under the `_authenticated` TanStack file-based tree; keep the existing `/inventory-app/...`, `/sales/...`, `/finance/...` prefixes.
+- Import scaffolds from `@/design-system` only (never `@/features/sales/record/*`).
+- Tokens only — no hard-coded colors/spacing. Verify at 1280 / 1024 / 768 / 375.
+- Data fetching stays on `useSuspenseQuery` + `.functions.ts`; no RLS or schema changes.
+- Per-slice verification gate: targeted arch test → `tsgo --noEmit` → Playwright smoke on the migrated flow.
 
-- Shrink `LEGACY_DIALOG_ALLOWLIST` and `LEGACY_INLINE_DIALOG_ALLOWLIST` in `inventory-record-dialog-ban.test.ts` to empty as each migration lands.
-- Update `docs/design-system/audit/inventory.md` per-row to **Done** with the actual route / component path — no rows may be marked Done until the corresponding dialog file is deleted and the guard passes.
+## Definition of done
 
-### 7. Sales — phases 4 & 5
-
-- Convert `RecordPaymentDialog` (both copies) to a routed `WizardShell` at `/sales/invoices/:id/record-payment`.
-- Add `WizardShell` routes for Convert (quote→SO→invoice), Apply Credit, Refund, Generate Statement, Merge Customers.
-- Build `/sales/configuration/*` object pages on `RecordScaffold` for tax rules, numbering, terms, payment methods.
-- Add `sales-record-dialog-ban.test.ts` inline-dialog scan (mirror of Purchases guard) to catch regressions.
-
-### 8. Finance — full audit and migration
-
-- Create `docs/design-system/audit/finance.md` (companion to the existing one referenced in code) enumerating every create/edit/convert/close surface: Journal Entry, Business Transaction (JE quick-post), Recurring Journal, Chart of Accounts entry, Fiscal Period, Year-End Close, Budget, Fixed Asset, Analytic Account, Bank Account, Bank Reconciliation, Bank Transfer Reconcile, Bank Transactions Import, Transaction Matching Rules, Customer Credit Apply / Refund, Default Account Mappings.
-- Migrate each per its target column (routes for records with line items, `WizardShell` for close / reconcile / import, `DetailSheet` for small configs).
-- Add `finance-record-dialog-ban.test.ts` mirroring the Purchases/Inventory guards.
-
-### 9. Design-system promotion (do once, before Finance)
-
-Promote the shared scaffolds still living under `@/features/sales/record` into `@/design-system/records/*` with domain-neutral names (`RecordScaffold`, `RecordBody`, `PeekScaffold`, `DocumentPeekShell`, `LineItemsGrid`, `DocumentTotalsPanel`, `DocumentActivityPanel`, `usePeekParam`, `useDocumentRecord`) and leave `@/features/sales/record` as a thin re-export shim. Finance and remaining Inventory work import from `@/design-system` only.
-
-### Technical notes
-
-- All new record routes go under the `_authenticated` layout in the TanStack file-based route tree; the router already exposes `/inventory-app/...` prefixes matching prior migrations.
-- Data fetching stays on `useSuspenseQuery` + `.functions.ts`; no RLS or schema changes are in scope.
-- All colors/spacing via tokens; verify at 1280 / 1024 / 768 / 375.
-- Verification gate per slice: targeted architecture test → `tsgo` → Playwright smoke on the migrated flow.
-
-### Order of execution
-
-1. Inventory Products → Adjustments → Physical Count → Drawers → Reorder Rules → guard/audit close-out.
-2. Design-system promotion.
-3. Sales phases 4–5.
-4. Finance audit + full migration.
+- Both Inventory allowlists empty, both Purchases allowlists still empty, new Sales + Finance guards exist and are empty.
+- Every audit row (`inventory.md`, `sales.md`, `finance.md`) marked Done with concrete route/component paths.
+- No `Create*Dialog` / `Edit*Dialog` / `*DetailDialog` / `*DetailDrawer` files remain under Inventory or Finance surfaces.
+- `tsgo --noEmit` clean; architecture tests green; Playwright smokes pass on migrated Create/Edit/Peek per app.
