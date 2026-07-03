@@ -24,7 +24,7 @@ import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
-import { CreditNoteDetailDialog } from "@/components/finance/CreditNoteDetailDialog";
+import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
 import { LeadForm } from "@/components/crm/LeadForm";
 import { useLeads } from "@/hooks/crm/useLeads";
