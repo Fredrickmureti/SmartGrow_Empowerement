@@ -1,5 +1,12 @@
 # Inventory — Enterprise UX Audit
 
+> **2026-07 takeover audit.** Inventory still has legacy inline record
+> dialogs in Products, Warehouses, Stock Adjustments, Transfers, and Scrap.
+> UoM category/unit configuration has moved to `DetailSheet`. The guard test
+> now also scans list/workspace pages for inline record dialogs so no new
+> Inventory regressions can be introduced while this allowlist shrinks through
+> the route/sheet migration.
+
 Companion to [`docs/design-system/records.md`](../records.md). Tracks every
 create / edit / duplicate / convert / configure / peek surface in the
 Inventory application against the enterprise UX standard established by
@@ -34,7 +41,7 @@ Legend for **Target**:
 | Product | Create / Edit | inline dialog in `src/pages/Products.tsx` | Route + `RecordFormShell` at `/inventory/products/new` + `/:id/edit` | **Pending** |
 | Product | View | inline dialog | Route + `RecordScaffold` at `/inventory/products/:id` | **Pending** |
 | Product Category | Create / Edit | inline dialog | `DetailSheet` | **Pending** |
-| UoM & Packaging | Create / Edit | inline dialog in `src/pages/inventory/UomManagement.tsx` | `DetailSheet` | **Pending** |
+| UoM & Packaging | Create / Edit | `DetailSheet` in `src/pages/inventory/UomManagement.tsx` | `DetailSheet` | Done |
 | Stock Lot | Peek | inline dialog | `PeekScaffold` | **Pending** |
 | Stock Reservation | Peek | inline dialog | `PeekScaffold` | **Pending** |
 | Barcode Enrollment | Session | dedicated workspace at `/inventory/barcode-enrollment` | Keep — bespoke scan workspace, out of scope | Done |

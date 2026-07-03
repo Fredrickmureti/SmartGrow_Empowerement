@@ -22,7 +22,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const INVENTORY_GLOBS = [
   "src/components/inventory",
@@ -56,10 +56,49 @@ function scanRecordSurfaces(): string[] {
     .split("\n")
     .filter(Boolean);
   return all.filter((p) =>
-    /\/(Create|Edit)[A-Za-z0-9]+Dialog\.tsx$|\/[A-Za-z0-9]+Detail(Dialog|Drawer)\.tsx$/.test(
+    /\/(Create|Edit)[A-Za-z0-9]+Dialog\.tsx$|\/[A-Za-z0-9]+Detail(Dialog|Drawer)\.tsx$|\/(SourceDocument|WarehouseStock)Drawer\.tsx$/.test(
       p,
     ),
   );
+}
+
+/**
+ * Inventory app list/workspace pages must not host substantial record forms in
+ * inline Dialogs. Confirmation-style dialogs stay allowed; create/edit/process
+ * record titles are routed to RecordFormShell / WizardShell / DetailSheet.
+ */
+const INVENTORY_LIST_PAGES = [
+  "src/pages/Products.tsx",
+  "src/pages/Warehouses.tsx",
+  "src/pages/Inventory.tsx",
+  "src/pages/inventory/Transfers.tsx",
+  "src/pages/inventory/ScrapRecording.tsx",
+  "src/pages/inventory/PhysicalCount.tsx",
+  "src/pages/inventory/UomManagement.tsx",
+];
+
+const LEGACY_INLINE_DIALOG_ALLOWLIST = new Set<string>([
+  // Existing legacy surfaces documented in docs/design-system/audit/inventory.md.
+  // This list must shrink as each route/sheet migration lands; do not add new
+  // files here for new functionality.
+  "src/pages/Products.tsx",
+  "src/pages/Warehouses.tsx",
+  "src/pages/Inventory.tsx",
+  "src/pages/inventory/Transfers.tsx",
+  "src/pages/inventory/ScrapRecording.tsx",
+]);
+
+const INLINE_INVENTORY_RECORD_DIALOG_TITLE =
+  /<DialogTitle[^>]*>[\s\S]*?(?:Add|Create|New|Edit|Record)\s+(?:New\s+)?(?:Product|Warehouse|Stock\s+Transfer|Transfer|Stock\s+Adjustment|Scrap|Waste|UoM\s+Category|Unit\s+of\s+Measure|Category)\b/i;
+
+function scanInlineRecordDialogs(): string[] {
+  const leaked: string[] = [];
+  for (const p of INVENTORY_LIST_PAGES) {
+    if (!existsSync(p)) continue;
+    const src = readFileSync(p, "utf8");
+    if (INLINE_INVENTORY_RECORD_DIALOG_TITLE.test(src)) leaked.push(p);
+  }
+  return leaked;
 }
 
 describe("inventory record dialog ban", () => {
@@ -81,6 +120,15 @@ describe("inventory record dialog ban", () => {
       stale,
       `Allowlist has entries for files that no longer exist — remove them ` +
         `from LEGACY_DIALOG_ALLOWLIST in this test:\n${stale.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("no NEW inline <Dialog> record-create/edit/process blocks on Inventory pages", () => {
+    const found = scanInlineRecordDialogs();
+    const leaked = found.filter((p) => !LEGACY_INLINE_DIALOG_ALLOWLIST.has(p));
+    expect(
+      leaked,
+      `Inventory pages must use routes, WizardShell, RecordFormShell, or DetailSheet for record forms — inline record Dialogs are banned. Offenders:\n${leaked.join("\n")}`,
     ).toEqual([]);
   });
 });

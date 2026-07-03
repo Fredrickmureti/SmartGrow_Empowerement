@@ -27,6 +27,9 @@ const PurchaseOrderCreatePage = lazy(
 const BillRecordPage = lazy(
   () => import("@/features/purchases/bills/BillRecordPage"),
 );
+const BillCreatePage = lazy(
+  () => import("@/features/purchases/bills/BillCreatePage"),
+);
 const BillEditPage = lazy(
   () => import("@/features/purchases/bills/BillEditPage"),
 );
@@ -109,17 +112,18 @@ export function PurchasesApp() {
           }
         />
 
-        {/* Bill — object page (record shell) */}
+        {/* Bill — create route (record form shell) */}
         <Route
           path="bills/new"
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Bill">
-                <BillRecordPage />
+                <BillCreatePage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
         />
+        {/* Bill — object page (record shell) */}
         <Route
           path="bills/:id"
           element={
