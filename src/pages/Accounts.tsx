@@ -9,7 +9,6 @@ import { useBalanceIntegrityCheck } from "@/hooks/useBalanceIntegrityCheck";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -17,20 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -75,22 +60,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { AlertCircle } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DeleteAllAccountsDialog } from "@/components/accounts/DeleteAllAccountsDialog";
-import { getDetailTypesForAccountType, getDefaultDetailType, getSuggestedNames, getDetailTypeLabel, getDetailTypeDescription, resolveDetailTypeFromName, ACCOUNT_CATEGORIES, getDetailTypesForCategory, getDefaultDetailTypeForCategory, getCategoryValue } from "@/lib/accountDetailTypes";
+import { getDetailTypesForAccountType, getDetailTypeLabel, resolveDetailTypeFromName } from "@/lib/accountDetailTypes";
 import { normalizeError } from "@/services/resilience";
 // useSearchParams already imported above
 
 export default function Accounts() {
-  const { accounts, isLoading, createAccount, updateAccount, deleteAccount, archiveAccount, restoreAccount, getAccountsByType, refreshAccounts } =
+  const { accounts, isLoading, createAccount, deleteAccount, archiveAccount, restoreAccount, getAccountsByType, refreshAccounts } =
     useAccounts();
   const { formatCurrency } = useCurrency();
   const { getEffectiveBalance: rpcBalance, refetch: refetchBalances } = useAccountBalances();
@@ -106,10 +88,7 @@ export default function Accounts() {
   const { toast } = useToast();
   const navigate = useNavigate();
   // openingBalanceCheck removed — balances should not be editable on accounts
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
 
@@ -170,124 +149,18 @@ export default function Accounts() {
 
 
   const [searchParams] = useSearchParams();
-  const [formData, setFormData] = useState({
-    account_type: "asset" as Account["account_type"],
-    category: "bank",
-    detail_type: "",
-    code: "",
-    name: "",
-    description: "",
-    opening_balance: 0,
-    is_sub_account: false,
-    parent_id: "" as string,
-  });
-
-  const resetForm = () => {
-    setFormData({
-      account_type: "asset",
-      category: "bank",
-      detail_type: getDefaultDetailTypeForCategory("bank"),
-      code: "",
-      name: "",
-      description: "",
-      opening_balance: 0,
-      is_sub_account: false,
-      parent_id: "",
-    });
-    setEditingAccount(null);
-  };
-
-  // Handle ?action=create from global create menu
+  // Handle ?action=create from global create menu → navigate to routed create page
   useEffect(() => {
-    if (searchParams.get("action") === "create" && !showDialog) {
-      setShowDialog(true);
+    if (searchParams.get("action") === "create") {
+      navigate("/finance/accounts/new", { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
-  const handleOpenDialog = (account?: Account) => {
-    if (account) {
-      setEditingAccount(account);
-      const cat = getCategoryValue(account.account_type, account.detail_type);
-      setFormData({
-        account_type: account.account_type,
-        category: cat,
-        detail_type: account.detail_type || "",
-        code: account.code,
-        name: account.name,
-        description: account.description || "",
-        opening_balance: account.opening_balance || 0,
-        is_sub_account: !!account.parent_id,
-        parent_id: account.parent_id || "",
-      });
-    } else {
-      resetForm();
-    }
-    setShowDialog(true);
-  };
-
-  // Get detail types filtered by the selected category
-  const detailTypes = getDetailTypesForCategory(formData.category);
-  const nameSuggestions = formData.detail_type ? getSuggestedNames(formData.account_type, formData.detail_type) : [];
-  const selectedDetailTypeDescription = formData.detail_type ? getDetailTypeDescription(formData.account_type, formData.detail_type) : "";
-  
-  // Get potential parent accounts (same type, active, not self)
-  const parentCandidates = accounts.filter(
-    a => a.account_type === formData.account_type && a.is_active && a.id !== editingAccount?.id && !a.parent_id
-  );
+  const handleCreate = () => navigate("/finance/accounts/new");
+  const handleEdit = (account: Account) => navigate(`/finance/accounts/${account.id}/edit`);
 
   // Build tree structure for display
   const getChildAccounts = (parentId: string) => accounts.filter(a => a.parent_id === parentId);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.detail_type) {
-      toast({
-        title: "Detail Type is required",
-        description: "Please select a Detail Type to ensure correct financial report classification.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const { is_sub_account, category: _category, opening_balance: _ob, ...dbFields } = formData;
-      const parent_id = is_sub_account && formData.parent_id ? formData.parent_id : null;
-
-      if (editingAccount) {
-        // Never send opening_balance on edit — balances come from journal entries only
-        await updateAccount(editingAccount.id, {
-          ...dbFields,
-          detail_type: dbFields.detail_type || null,
-          parent_id,
-        });
-        toast({ title: "Account updated successfully" });
-      } else {
-        await createAccount({
-          ...dbFields,
-          opening_balance: formData.opening_balance,
-          detail_type: dbFields.detail_type || null,
-          is_active: true,
-          is_system: false,
-          current_balance: 0,
-          parent_id,
-        });
-        toast({ title: "Account created successfully" });
-      }
-      setShowDialog(false);
-      resetForm();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const executeDeleteAccount = async (account: Account) => {
     try {
