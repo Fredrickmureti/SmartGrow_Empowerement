@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { JOURNAL_ENTRY_IMPORT_FIELDS } from "@/lib/importConfigs/journalEntryImportConfig";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useJournalEntries, JournalEntry } from "@/hooks/useJournalEntries";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -86,68 +85,56 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { queryKeys } from "@/lib/queryKeys";
 import { Upload, Download } from "lucide-react";
 import { useExport } from "@/hooks/useExport";
-import { AccountCombobox } from "@/components/finance/AccountCombobox";
-import { ContactCombobox } from "@/components/finance/ContactCombobox";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
-import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Lock } from "lucide-react";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
-
-interface JournalLine {
-  account_id: string;
-  description: string;
-  debit: number;
-  credit: number;
-  contact_id?: string;
-}
 
 export default function JournalEntries() {
   const { 
     journalEntries, 
     isLoading,
     createJournalEntry,
-    updateJournalEntry,
     postJournalEntry,
     voidJournalEntry,
     deleteJournalEntry,
     createReversingEntry,
   } = useJournalEntries();
   const { accounts } = useAccounts();
-  const { contacts } = useContacts();
+  // contacts still consumed by ContactCombobox in view surfaces below; keep hook for cache warm-up
+  useContacts();
   const { formatCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { isDateLocked } = useFiscalPeriods();
   const { scopeLabel } = useFinanceScope();
   const { allowed: canManageJE } = useFinancePermission("finance.manage_je");
   const { allowed: canVoidJE } = useFinancePermission("finance.void_je");
   
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
   const [viewingEntry, setViewingEntry] = useState<JournalEntry | null>(null);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [voidingEntryId, setVoidingEntryId] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const accountResolverRef = useRef<AccountResolver | null>(null);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSource, setDrawerSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
 
-  // Handle ?action=create from global create menu
+  // Handle ?action=create from global create menu → route to new page.
   useEffect(() => {
-    if (searchParams.get("action") === "create" && !showDialog) {
-      handleOpenDialog();
+    if (searchParams.get("action") === "create") {
+      if (isReadOnly) {
+        openUpgradeModal("journal_entries");
+        return;
+      }
+      navigate("/finance/journal-entries/new", { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, isReadOnly, navigate, openUpgradeModal]);
 
   // Handle ?selected={journalId} deep-link to auto-open detail view
   useEffect(() => {
@@ -234,140 +221,20 @@ export default function JournalEntries() {
     accountResolverRef.current = null;
   };
 
-  const [formData, setFormData] = useState({
-    entry_date: new Date().toISOString().split("T")[0],
-    description: "",
-    reference: "",
-    is_adjusting: false,
-    is_closing: false,
-    lines: [] as JournalLine[],
-  });
-
-  const resetForm = () => {
-    setFormData({
-      entry_date: new Date().toISOString().split("T")[0],
-      description: "",
-      reference: "",
-      is_adjusting: false,
-      is_closing: false,
-      lines: [],
-    });
-    setEditingEntry(null);
-  };
-
-  const handleOpenDialog = (entry?: JournalEntry) => {
+  const handleOpenCreate = () => {
     if (isReadOnly) {
       openUpgradeModal("journal_entries");
       return;
     }
-    if (entry) {
-      setEditingEntry(entry);
-      setFormData({
-        entry_date: entry.entry_date,
-        description: entry.description,
-        reference: entry.reference || "",
-        is_adjusting: entry.is_adjusting,
-        is_closing: entry.is_closing,
-        lines: entry.lines?.map(l => ({
-          account_id: l.account_id,
-          description: l.description || "",
-          debit: l.debit,
-          credit: l.credit,
-          contact_id: l.contact_id || undefined,
-        })) || [],
-      });
-    } else {
-      resetForm();
-      setFormData(prev => ({
-        ...prev,
-        lines: [
-          { account_id: "", description: "", debit: 0, credit: 0 },
-          { account_id: "", description: "", debit: 0, credit: 0 },
-        ],
-      }));
+    navigate("/finance/journal-entries/new");
+  };
+
+  const handleOpenEdit = (entry: JournalEntry) => {
+    if (isReadOnly) {
+      openUpgradeModal("journal_entries");
+      return;
     }
-    setShowDialog(true);
-  };
-
-  const handleAddLine = () => {
-    setFormData(prev => ({
-      ...prev,
-      lines: [...prev.lines, { account_id: "", description: "", debit: 0, credit: 0 }],
-    }));
-  };
-
-  const handleRemoveLine = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      lines: prev.lines.filter((_, i) => i !== index),
-    }));
-  };
-
-  const handleLineChange = (index: number, field: keyof JournalLine, value: string | number) => {
-    setFormData(prev => ({
-      ...prev,
-      lines: prev.lines.map((line, i) => 
-        i === index ? { ...line, [field]: value } : line
-      ),
-    }));
-  };
-
-  const totalDebit = formData.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
-  const totalCredit = formData.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
-  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
-
-  // AR/AP integrity guard (mirrors the DB triggers in ADR-0031).
-  // A line that posts to an Accounts Receivable / Accounts Payable control
-  // account MUST carry a contact so the customer/vendor subledger stays
-  // reconciled with the GL. We surface this as a client-side validation
-  // so users hit it before round-tripping to the database.
-  const controlRoleFor = (accountId: string): "ar" | "ap" | null => {
-    const acc = accounts.find((a) => a.id === accountId);
-    if (!acc) return null;
-    if (acc.system_role === "accounts_receivable") return "ar";
-    if (acc.system_role === "accounts_payable") return "ap";
-    return null;
-  };
-  const missingContactLines = formData.lines
-    .map((l, i) => ({ l, i, role: controlRoleFor(l.account_id) }))
-    .filter((x) => x.role && !x.l.contact_id);
-  const hasMissingContact = missingContactLines.length > 0;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isBalanced) return;
-    if (hasMissingContact) return;
-
-    setIsSubmitting(true);
-    try {
-      const validLines = formData.lines.filter(l => l.account_id && (l.debit > 0 || l.credit > 0));
-
-      
-      if (editingEntry) {
-        await updateJournalEntry.mutateAsync({
-          id: editingEntry.id,
-          entry_date: formData.entry_date,
-          description: formData.description,
-          reference: formData.reference,
-          is_adjusting: formData.is_adjusting,
-          is_closing: formData.is_closing,
-          lines: validLines,
-        });
-      } else {
-        await createJournalEntry.mutateAsync({
-          entry_date: formData.entry_date,
-          description: formData.description,
-          reference: formData.reference,
-          is_adjusting: formData.is_adjusting,
-          is_closing: formData.is_closing,
-          lines: validLines,
-        });
-      }
-      setShowDialog(false);
-      resetForm();
-    } finally {
-      setIsSubmitting(false);
-    }
+    navigate(`/finance/journal-entries/${entry.id}/edit`);
   };
 
   const handlePost = async (id: string) => {
