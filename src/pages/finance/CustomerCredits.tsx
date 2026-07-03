@@ -124,9 +124,8 @@ export default function CustomerCredits() {
     availableAmount: number;
   } | null>(null);
 
-  // Detail dialog state
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedCreditNote, setSelectedCreditNote] = useState<CreditNote | null>(null);
+  // Peek sheet state — canonical Sales credit-note peek surface.
+  const [peekId, setPeekId] = useState<string | null>(null);
 
   useEffect(() => {
     const creditId = searchParams.get("id");
@@ -135,8 +134,7 @@ export default function CustomerCredits() {
     const match = fullCreditNotes.find((credit) => credit.id === creditId);
     if (!match) return;
 
-    setSelectedCreditNote(match);
-    setDetailOpen(true);
+    setPeekId(match.id);
 
     const next = new URLSearchParams(searchParams);
     next.delete("id");
