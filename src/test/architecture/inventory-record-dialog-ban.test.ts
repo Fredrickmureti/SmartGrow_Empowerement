@@ -56,7 +56,7 @@ function scanRecordSurfaces(): string[] {
     .split("\n")
     .filter(Boolean);
   return all.filter((p) =>
-    /\/(Create|Edit)[A-Za-z0-9]+Dialog\.tsx$|\/[A-Za-z0-9]+Detail(Dialog|Drawer)\.tsx$/.test(
+    /\/(Create|Edit)[A-Za-z0-9]+Dialog\.tsx$|\/[A-Za-z0-9]+Detail(Dialog|Drawer)\.tsx$|\/(SourceDocument|WarehouseStock)Drawer\.tsx$/.test(
       p,
     ),
   );
