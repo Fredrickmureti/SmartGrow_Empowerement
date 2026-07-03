@@ -821,37 +821,3 @@ export default function Inventory() {
     </>
   );
 }
-
-/**
- * Wave 5 G6 — read-only hint under the reason picker showing which GL
- * offset account the chosen reason will post to. Pure transparency.
- */
-function OffsetAccountHint({ reason }: { reason: string }) {
-  const { data, isLoading } = useOffsetAccountPreview(reason || null);
-  if (!reason) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        The reason drives the offset account on the journal entry.
-      </p>
-    );
-  }
-  if (isLoading) {
-    return <p className="text-xs text-muted-foreground">Resolving offset account…</p>;
-  }
-  if (!data) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        The reason drives the offset account on the journal entry.
-      </p>
-    );
-  }
-  return (
-    <p className="text-xs text-muted-foreground">
-      Posts contra to{" "}
-      <span className="font-medium text-foreground">
-        {data.account_code} — {data.account_name}
-      </span>
-      .
-    </p>
-  );
-}
