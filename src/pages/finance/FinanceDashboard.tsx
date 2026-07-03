@@ -385,13 +385,13 @@ export default function FinanceDashboard() {
             <Button variant="outline" size="sm" onClick={() => navigate("/finance/payables")}>
               <CreditCard className="h-3 w-3 mr-1" /> Pay Bill <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => { setBizTxnType("owner_investment"); setBizTxnOpen(true); }}>
+            <Button variant="outline" size="sm" onClick={() => navigate("/finance/business-transactions/new?type=owner_investment")}>
               <PiggyBank className="h-3 w-3 mr-1" /> Owner Investment
             </Button>
-            <Button variant="outline" size="sm" onClick={() => { setBizTxnType("bank_transfer"); setBizTxnOpen(true); }}>
+            <Button variant="outline" size="sm" onClick={() => navigate("/finance/business-transactions/new?type=bank_transfer")}>
               <ArrowRightLeft className="h-3 w-3 mr-1" /> Transfer Funds
             </Button>
-            <Button variant="outline" size="sm" onClick={() => { setBizTxnType("loan_payment"); setBizTxnOpen(true); }}>
+            <Button variant="outline" size="sm" onClick={() => navigate("/finance/business-transactions/new?type=loan_payment")}>
               <Landmark className="h-3 w-3 mr-1" /> Loan Payment
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/finance/journal-entries?action=create")}>
@@ -407,11 +407,6 @@ export default function FinanceDashboard() {
         </CardContent>
       </Card>
 
-      <BusinessTransactionDialog
-        open={bizTxnOpen}
-        onOpenChange={setBizTxnOpen}
-        defaultType={bizTxnType}
-      />
     </div>
   );
 }
