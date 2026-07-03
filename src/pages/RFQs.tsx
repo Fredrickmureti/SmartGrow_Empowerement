@@ -393,14 +393,18 @@ export default function RFQs() {
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <RFQPeekSheet
+        rfqId={peekId}
+        onOpenChange={(open) => !open && setPeekId(null)}
+      />
     </>
   );
 }
