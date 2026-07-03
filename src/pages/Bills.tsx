@@ -3,9 +3,9 @@ import { BILL_IMPORT_FIELDS } from "@/lib/importConfigs/billImportConfig";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useBills, BillItem, Bill } from "@/hooks/useBills";
+import { useBills, Bill } from "@/hooks/useBills";
 import { useContacts } from "@/hooks/useContacts";
-import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
+
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useToast } from "@/hooks/use-toast";
