@@ -39,8 +39,14 @@ const EmployeesConfiguration = lazy(() => import("@/pages/hr/configuration/Confi
 const BenefitEnrollmentWindows = lazy(() => import("@/pages/hr/BenefitEnrollmentWindows"));
 const OnboardingIssues = lazy(() => import("@/pages/hr/OnboardingIssues"));
 const Departments = lazy(() => import("@/pages/Departments"));
+const DepartmentCreatePage = lazy(() => import("@/features/hr/departments/DepartmentCreatePage"));
+const DepartmentEditPage = lazy(() => import("@/features/hr/departments/DepartmentEditPage"));
 const JobPositions = lazy(() => import("@/pages/hr/JobPositions"));
+const JobPositionCreatePage = lazy(() => import("@/features/hr/positions/JobPositionCreatePage"));
+const JobPositionEditPage = lazy(() => import("@/features/hr/positions/JobPositionEditPage"));
 const WorkLocations = lazy(() => import("@/pages/hr/WorkLocations"));
+const WorkLocationCreatePage = lazy(() => import("@/features/hr/locations/WorkLocationCreatePage"));
+const WorkLocationEditPage = lazy(() => import("@/features/hr/locations/WorkLocationEditPage"));
 const OrgChart = lazy(() => import("@/pages/hr/OrgChart"));
 
 export function EmployeesApp() {
@@ -123,6 +129,26 @@ export function EmployeesApp() {
             "Employee Not Found" placeholder. React Router v6 ranks
             static segments above dynamic, so these win over `:id`. */}
         <Route
+          path="employees/departments/new"
+          element={
+            <PermissionProtectedRoute permission="manageDepartments" fallbackPath="/hr/employees/departments">
+              <LazyRoute module="New Department">
+                <DepartmentCreatePage />
+              </LazyRoute>
+            </PermissionProtectedRoute>
+          }
+        />
+        <Route
+          path="employees/departments/:id/edit"
+          element={
+            <PermissionProtectedRoute permission="manageDepartments" fallbackPath="/hr/employees/departments">
+              <LazyRoute module="Edit Department">
+                <DepartmentEditPage />
+              </LazyRoute>
+            </PermissionProtectedRoute>
+          }
+        />
+        <Route
           path="employees/departments/*"
           element={
             <LazyRoute module="Departments">
@@ -131,11 +157,51 @@ export function EmployeesApp() {
           }
         />
         <Route
+          path="employees/positions/new"
+          element={
+            <PermissionProtectedRoute permission="manageJobPositions" fallbackPath="/hr/employees/positions">
+              <LazyRoute module="New Job Position">
+                <JobPositionCreatePage />
+              </LazyRoute>
+            </PermissionProtectedRoute>
+          }
+        />
+        <Route
+          path="employees/positions/:id/edit"
+          element={
+            <PermissionProtectedRoute permission="manageJobPositions" fallbackPath="/hr/employees/positions">
+              <LazyRoute module="Edit Job Position">
+                <JobPositionEditPage />
+              </LazyRoute>
+            </PermissionProtectedRoute>
+          }
+        />
+        <Route
           path="employees/positions/*"
           element={
             <LazyRoute module="Job positions">
               <JobPositions />
             </LazyRoute>
+          }
+        />
+        <Route
+          path="employees/locations/new"
+          element={
+            <PermissionProtectedRoute permission="manageWorkLocations" fallbackPath="/hr/employees/locations">
+              <LazyRoute module="New Work Location">
+                <WorkLocationCreatePage />
+              </LazyRoute>
+            </PermissionProtectedRoute>
+          }
+        />
+        <Route
+          path="employees/locations/:id/edit"
+          element={
+            <PermissionProtectedRoute permission="manageWorkLocations" fallbackPath="/hr/employees/locations">
+              <LazyRoute module="Edit Work Location">
+                <WorkLocationEditPage />
+              </LazyRoute>
+            </PermissionProtectedRoute>
           }
         />
         <Route
