@@ -1,115 +1,96 @@
-# Fix `/hr/employees/new` to match the enterprise form standard
+## Why
 
-## Why it looks "weird"
+The Employees app currently ships **three** different form patterns and **two** different page-header patterns. The user's callout ("departments seems to have the ups") is Departments being the loudest outlier — a 500 px `<Dialog>` with `page-header` div chrome — while Employees itself has already moved onto `RecordFormShell` + `PageHeader`. Result: users see three visual languages inside a single app.
 
-Every other create route in the ERP (Contacts, Finance accounts, Bank accounts, etc.) now goes through `src/design-system/primitives/RecordFormShell.tsx`, which owns:
+Current state (verified in code):
 
-- the `RecordHeader` (eyebrow "New record" + title `New <Entity>`)
-- the `<form>` element
-- the `FooterActionBar` (Cancel leading, primary submit trailing, optional `extraLeadingActions` slot for things like "Save as draft")
-- the submitting / disabled state
+| Surface | Header | Create/Edit form | Standard? |
+| --- | --- | --- | --- |
+| `/hr/employees` list | `PageHeader` (new) | routed `EmployeeNewPage` → `RecordFormShell` | ✅ |
+| `/hr/employees` edit | `PageHeader` | inline `<Dialog>` via `EmployeeDirectoryDialogs` | ❌ |
+| `/hr/employees/departments` | legacy `page-header` div | narrow `<Dialog sm:max-w-[500px]>` | ❌ (worst) |
+| `/hr/employees/positions` | legacy `page-header` div | `WorkflowSheet` side drawer | ⚠️ |
+| `/hr/employees/locations` | legacy `page-header` div | `WorkflowSheet` side drawer | ⚠️ |
+| `/hr/employees/org-chart` | legacy `page-header` | n/a | ⚠️ |
+| `/hr/configuration/*` | `ConfigPageHeader` (bespoke) | mixed Dialog / WorkflowSheet | ⚠️ |
 
-`/hr/employees/new` (`src/pages/hr/EmployeeNewPage.tsx`) is the only remaining create route that does NOT use `RecordFormShell`. Instead it renders:
+Standard for this ERP (established by HR/Payroll and enforced across Finance, Sales, Purchases, Contacts): substantial business records go to routed `RecordFormShell` at `/<entity>/new` and `/<entity>/:id/edit`; list/page chrome uses `PageHeader` + `PageBody` + `Section`; confirm/utility flows remain small dialogs.
 
-- a bespoke `page-header` with a back button + "Add Employee" title + paragraph
-- a plain `<Card><CardContent>` wrapper
-- `EmployeeFormDialog renderAs="page"`, which internally renders its own `<form>` plus its own inline footer (`Discard draft` / `Back` / `Save as draft` / `Create`).
+## Scope (Employees app only, this pass)
 
-Result: different header style, different footer style (not sticky, not left/right split), Card padding instead of the shell's spacing, no "New record" eyebrow, "Back" instead of "Cancel", inconsistent button ordering. That's the visual mismatch the user is seeing.
+Sales / Purchases / Inventory / Finance / other HR workspaces (Attendance, Payroll, Talent, Contracts, Reports) are out of scope for this turn — they are separate waves in the platform initiative.
 
-Scope of this change: **only** `/hr/employees/new`. The edit route (`/hr/employees/:id`) and the rest of HR are out of scope for this turn.
+## Changes
 
-## Plan
+### 1. Departments → routed `RecordFormShell`
 
-### 1. Introduce a page-mode footer contract in `EmployeeFormDialog`
+- New `src/features/hr/departments/DepartmentRecordForm.tsx` — shared body (identity, parent, manager, description) using `Section` + `FieldGrid`.
+- New `src/features/hr/departments/DepartmentCreatePage.tsx` and `DepartmentEditPage.tsx` mounted on `RecordFormShell` (mirrors `ContactCreatePage` / `AccountCreatePage`).
+- Routes added under `EmployeesRoutes`:
+  - `employees/departments/new` → create
+  - `employees/departments/:id/edit` → edit
+- `src/pages/Departments.tsx`:
+  - delete the ~110-line inline `<Dialog>` (imports, state, JSX, handlers).
+  - `handleOpenDialog(dept?)` becomes `navigate(dept ? `.../${dept.id}/edit` : `.../new`)`.
+  - swap the `<div className="page-header">` block for `<PageHeader>` (matches Employees list).
+  - keep `ConfirmDeleteDialog` and `DepartmentDetailSheet` — they are confirm/peek utilities, in-spec.
+  - accept legacy `?action=create|edit&id=` query as a redirect for one release (same pattern used by `Contacts.tsx` after Wave 12).
 
-`EmployeeFormDialog` is shared by the dialog flow and the page flow, so we can't simply delete its footer. Add a minimal opt-out so the page can host the footer in `RecordFormShell` instead:
+### 2. Job Positions & Work Locations → routed `RecordFormShell`
 
-- Add prop `hideInlineFooter?: boolean` (default `false`).
-- When `renderAs === "page"` and `hideInlineFooter` is true:
-  - Do not render the inline `<div className="pt-4 border-t">{footerActions}</div>` block inside the `<form>`.
-  - Expose the individual action handlers/state via new render props or a `footerSlots` object passed through a new prop `onRenderFooter?: (slots) => void` — simpler: export the small pieces the page needs (submit is already handled via `form="employee-form-body"`; page needs `Save as draft`, `Discard draft`, `hasSavedDraft`, `isSavingDraft`, `isSubmitting`).
-- Concretely, add a `footerController?: { current: EmployeeFooterApi | null }` ref-style prop, OR (cleaner) split the tiny action bits into a new prop callback `onFooterState?: (state) => void` that the page uses to drive the shell's `extraLeadingActions` / `extraTrailingActions`.
+Both are substantive records (name, code, org placement, address, headcount, description) — they belong in the routed record pattern, not a side drawer. WorkflowSheet is retained for genuinely lightweight workflow steps elsewhere in the app; these two are not that.
 
-Chosen approach (least invasive): add `hideInlineFooter` + `onFooterState` callback that fires whenever `{ hasSavedDraft, isSavingDraft, isSubmitting, canSaveDraft }` changes, plus expose imperative `saveAsDraft()` / `discardDraft()` via a forwarded ref. The page wires those to `RecordFormShell`.
+- `src/features/hr/positions/{JobPositionRecordForm,JobPositionCreatePage,JobPositionEditPage}.tsx`
+- `src/features/hr/locations/{WorkLocationRecordForm,WorkLocationCreatePage,WorkLocationEditPage}.tsx`
+- Routes: `employees/positions/new`, `employees/positions/:id/edit`, `employees/locations/new`, `employees/locations/:id/edit`.
+- `JobPositions.tsx` / `WorkLocations.tsx`:
+  - swap `WorkflowSheet` + inline state for `navigate(...)`.
+  - swap legacy `page-header` for `<PageHeader>`.
 
-If the ref approach adds too much surface area, fall back to lifting the two callbacks (`onSaveAsDraft`, `onDiscardDraft`) — which the page already owns — and re-using them from the page's footer buttons directly. The dialog still renders its inline footer for `renderAs="dialog"`. This is the simplest path and is what will be implemented.
+### 3. Employees list — retire the edit `<Dialog>`
 
-### 2. Rewrite `src/pages/hr/EmployeeNewPage.tsx` on `RecordFormShell`
+- `handleOpenDialog(emp)` (edit path) navigates to `/hr/employees/:id/edit` instead of opening `EmployeeDirectoryDialogs`'s form dialog.
+- Introduce `src/pages/hr/EmployeeEditPage.tsx` (thin wrapper reusing `EmployeeFormDialog renderAs="page" hideInlineForm hideInlineFooter` inside `RecordFormShell mode="edit"`, matching the plumbing the previous agent added for `EmployeeNewPage`).
+- Add route `employees/:id/edit` in `EmployeesRoutes` (must be declared **before** `employees/:id` so it doesn't get captured by the profile route).
+- `EmployeeDirectoryDialogs` keeps its non-form dialogs (invite, link, set-manager, bulk assign) — those are workflow utilities, in-spec.
 
-- Remove the `page-header` block, the back button, the `<Card>` wrapper.
-- Remove the local `AlertDialog` "Leave without saving?" — `EmployeeFormDialog` already ships its own discard-guard and the page-level guard duplicates it; keep the `useUnsavedChangesGuard` hook and keep a single guard driven from the shell's Cancel.
-- Render:
+### 4. Configuration header consistency
 
-```tsx
-<RecordFormShell
-  mode="create"
-  entityLabel="Employee"
-  cancelHref="/hr/employees"
-  onSubmit={(e) => { e.preventDefault(); formRef.current?.requestSubmit(); }}
-  isSubmitting={isSubmitting}
-  submitLabel="Create Employee"
-  extraLeadingActions={
-    hasSavedDraft ? (
-      <Button variant="ghost" className="text-destructive" onClick={handleDiscardDraft}>
-        Discard draft
-      </Button>
-    ) : null
-  }
-  extraTrailingActions={
-    <Button variant="secondary" onClick={handleSaveDraft} disabled={isSavingDraft || isSubmitting}>
-      Save as draft
-    </Button>
-  }
->
-  <EmployeeFormDialog
-    renderAs="page"
-    hideInlineFooter
-    open
-    onOpenChange={...}
-    editingEmployee={null}
-    onSubmit={handleSubmit}
-    onSaveAsDraft={...}
-    onDirtyChange={setDirty}
-    onSubmittingChange={setIsSubmitting}
-    onDraftStateChange={({ hasSavedDraft, isSavingDraft }) => { ... }}
-    draftId={draftId}
-    onDiscardDraft={...}
-  />
-</RecordFormShell>
-```
+- `src/pages/hr/configuration/_ConfigShell.tsx`: rewrite `ConfigPageHeader` as a thin wrapper around `PageHeader` that adds the "← Configuration" eyebrow. All config sub-pages continue to import the same component; no per-page changes required. This aligns config chrome with the rest of the app without touching each sub-page's body.
 
-- The shell's primary Submit button uses `form={formId}` internally. `EmployeeFormDialog`'s inner form has id `employee-form-body`. Two options:
-  1. Have the page's submit handler call `document.getElementById('employee-form-body').requestSubmit()` — brittle.
-  2. Add an `formId?: string` prop to `EmployeeFormDialog` so the page can pass the shell's generated form id in, and drop the inner `<form>` in favor of using the shell's `<form>`.
+### 5. Ledger
 
-Option 2 is the correct enterprise fix: the shell owns the `<form>`. Add `formId` prop; when provided in `renderAs="page"`, `EmployeeFormDialog` renders its body inside a plain `<div>` and stops rendering its own `<form>`. Submit is triggered by the shell's Submit button, which is already `type="submit" form={formId}`. `handleSubmit` (the internal submit handler) is exposed via a new `onSubmitAttempt` that the page forwards to `RecordFormShell.onSubmit`.
+- New `docs/design-system/audit/employees.md` documenting the final surface map (matches the format of `contacts.md`).
 
-Cleanest concrete API changes to `EmployeeFormDialog` for page mode:
-- `hideInlineFooter?: boolean`
-- `hideInlineForm?: boolean` — when true, do not render the wrapping `<form>` (submit is owned by the shell).
-- `onSubmittingChange?: (b: boolean) => void`
-- `onDraftStateChange?: (s: { hasSavedDraft: boolean; isSavingDraft: boolean }) => void`
+## Explicitly NOT changing
 
-The page uses `onSubmittingChange` + `onDraftStateChange` to feed `RecordFormShell.isSubmitting` and to conditionally render `Discard draft` / `Save as draft`. The page's `RecordFormShell.onSubmit` calls the same `handleSubmit(form)` logic the dialog was calling internally; expose that as a callback `onFormSubmit(formData) => Promise<void>` (already the existing `onSubmit` prop — reuse it).
+- Underlying save RPCs, permissions (`manageEmployees`), data loaders, drafts, or delete/confirm dialogs.
+- `EmployeeFormDialog` internal contents — only the two opt-in props already added (`hideInlineForm`, `hideInlineFooter`) are reused.
+- Org Chart page (no record form — layout-only), Attendance, Payroll, Talent, Contracts, HR Reports.
+- Table/list ergonomics inside the pages (columns, filters, empty states) — those are already using the shared primitives.
 
-### 3. Retire the duplicate leave-guard AlertDialog
+## Verification
 
-`EmployeeFormDialog` already renders `discardGuard` internally. The page-level `AlertDialog` in `EmployeeNewPage` is dead weight once the shell owns Cancel — `useUnsavedChangesGuard` still catches route changes / tab close, so keep the hook but let the dialog's own guard cover the Cancel button click (since Cancel routes back via `navigate(-1)`, the hook intercepts it).
-
-### 4. Verify
-
-- Manual visual check via Playwright: navigate to `/hr/employees/new`, screenshot header + footer, compare to `/contacts-app/new` and one Finance create route. They should be structurally identical (eyebrow + title, sticky footer with Cancel on the left and Create Employee on the right, `Save as draft` + `Discard draft` sitting in the extra slots).
-- Regression check: `/hr/employees` list "Add employee" button still routes here; edit route unchanged; dialog mode of `EmployeeFormDialog` (used elsewhere, if any) still renders its own form + footer.
-- `rg "EmployeeFormDialog"` to confirm no other caller breaks from the new opt-in props (all default to `false`).
-
-### 5. Out of scope
-
-- No changes to `/hr/employees/:id` (edit), other HR pages, other apps.
-- No changes to the underlying save RPCs, draft logic, or `EmployeeFormTabContents`.
-- The 949-line `EmployeeFormDialog` is not being split up in this pass; only the four opt-in props above are added.
+- Playwright: screenshot `/hr/employees/new`, `/hr/employees/:id/edit`, `/hr/employees/departments/new`, `/hr/employees/positions/new`, `/hr/employees/locations/new` — headers/footers should be visually identical (eyebrow + title, sticky footer with Cancel left / primary right).
+- `rg "sm:max-w-\[500px\]" src/pages/Departments.tsx` returns nothing.
+- `rg "WorkflowSheet" src/pages/hr/{JobPositions,WorkLocations}.tsx` returns nothing.
+- Legacy deep links (`/hr/employees` "Add employee" and per-row "Edit") still land on the right routed page.
+- Typecheck + build pass (harness runs them automatically).
 
 ## Files touched
 
-- `src/pages/hr/EmployeeNewPage.tsx` — rewritten on `RecordFormShell`.
-- `src/components/employees/EmployeeFormDialog.tsx` — add `hideInlineFooter`, `hideInlineForm`, `onSubmittingChange`, `onDraftStateChange`; gate the inline `<form>` and inline footer on those flags. Dialog mode unchanged.
+Created:
+- `src/features/hr/departments/{DepartmentRecordForm,DepartmentCreatePage,DepartmentEditPage}.tsx`
+- `src/features/hr/positions/{JobPositionRecordForm,JobPositionCreatePage,JobPositionEditPage}.tsx`
+- `src/features/hr/locations/{WorkLocationRecordForm,WorkLocationCreatePage,WorkLocationEditPage}.tsx`
+- `src/pages/hr/EmployeeEditPage.tsx`
+- `docs/design-system/audit/employees.md`
+
+Modified:
+- `src/pages/Departments.tsx` — drop inline Dialog, swap page header, navigate to routed pages.
+- `src/pages/hr/JobPositions.tsx` — drop WorkflowSheet, swap page header, navigate to routed pages.
+- `src/pages/hr/WorkLocations.tsx` — same.
+- `src/pages/Employees.tsx` — edit path navigates to `/hr/employees/:id/edit`; `EmployeeDirectoryDialogs` no longer receives form-dialog props.
+- `src/components/employees/directory/EmployeeDirectoryDialogs.tsx` — remove the form-dialog branch (workflow dialogs remain).
+- `src/apps/hr/sub/EmployeesRoutes.tsx` — add the 7 new routes (in the correct order relative to `employees/:id`).
+- `src/pages/hr/configuration/_ConfigShell.tsx` — reimplement on top of `PageHeader`.
