@@ -17,3 +17,4 @@ Enterprise UX: every create/edit for a business record is a `/new` or `/:id/edit
 - [Payment reversal](mem://features/payment-reversal.md) — ADR 0012 wizard, intent enum, Customer Deposits primitive, refund rules
 - [Attendance enterprise model](mem://features/attendance.md) — Forensic clock RPCs, geofence/selfie/device-trust policies, append-only event log, portal-safe hook split, canonical error codes
 - [SoD self-action framework](mem://features/sod-self-action.md) — DB-enforced self-approval/self-benefit guards across payroll/HR/finance/purchasing/sales/inventory; per-org policy + one-time overrides
+- [Salary structure graph engine](mem://features/salary-structure-graph-engine.md) — runStructureEngine wired into compute-payroll behind use_structure_engine flag; payroll_rule_traces persisted; migrate_components_to_rules RPC; guard test asserts wire-in

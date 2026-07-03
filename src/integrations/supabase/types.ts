@@ -28475,6 +28475,198 @@ export type Database = {
         }
         Relationships: []
       }
+      payroll_rule_traces: {
+        Row: {
+          amount_base: string | null
+          amount_expression: string | null
+          amount_select: string
+          base_value: number
+          business_id: string
+          category: string
+          condition_expression: string | null
+          condition_passed: boolean
+          created_at: string
+          dependencies: string[]
+          employee_id: string
+          error: string | null
+          id: string
+          organization_id: string
+          payroll_run_id: string
+          payslip_id: string | null
+          resolved_amount: number
+          rule_code: string
+          rule_id: string | null
+          sequence: number
+          structure_id: string | null
+        }
+        Insert: {
+          amount_base?: string | null
+          amount_expression?: string | null
+          amount_select: string
+          base_value?: number
+          business_id: string
+          category: string
+          condition_expression?: string | null
+          condition_passed: boolean
+          created_at?: string
+          dependencies?: string[]
+          employee_id: string
+          error?: string | null
+          id?: string
+          organization_id: string
+          payroll_run_id: string
+          payslip_id?: string | null
+          resolved_amount?: number
+          rule_code: string
+          rule_id?: string | null
+          sequence?: number
+          structure_id?: string | null
+        }
+        Update: {
+          amount_base?: string | null
+          amount_expression?: string | null
+          amount_select?: string
+          base_value?: number
+          business_id?: string
+          category?: string
+          condition_expression?: string | null
+          condition_passed?: boolean
+          created_at?: string
+          dependencies?: string[]
+          employee_id?: string
+          error?: string | null
+          id?: string
+          organization_id?: string
+          payroll_run_id?: string
+          payslip_id?: string | null
+          resolved_amount?: number
+          rule_code?: string
+          rule_id?: string | null
+          sequence?: number
+          structure_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_rule_traces_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_setup_health"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "v_hr_payroll_distribution_by_department"
+            referencedColumns: ["payroll_run_id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_batch_register"
+            referencedColumns: ["run_id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_cost_by_department"
+            referencedColumns: ["payroll_run_id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_payslip_id_fkey"
+            columns: ["payslip_id"]
+            isOneToOne: false
+            referencedRelation: "payslips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_payslip_id_fkey"
+            columns: ["payslip_id"]
+            isOneToOne: false
+            referencedRelation: "v_termination_payout_reconciliation"
+            referencedColumns: ["payslip_id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_structure_id_fkey"
+            columns: ["structure_id"]
+            isOneToOne: false
+            referencedRelation: "salary_structures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_rule_types: {
         Row: {
           business_id: string | null
@@ -61622,6 +61814,14 @@ export type Database = {
           p_user_id?: string
         }
         Returns: Json
+      }
+      migrate_components_to_rules: {
+        Args: { p_structure_id: string }
+        Returns: {
+          already_migrated: boolean
+          flag_flipped: boolean
+          rules_created: number
+        }[]
       }
       migrate_opening_balances_to_je: {
         Args: { _business_id?: string; _entry_date?: string; _org_id: string }

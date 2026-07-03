@@ -25,6 +25,13 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { type InputRef, withInputRef } from "../_shared/inputRef.ts";
+import {
+  runStructureEngine,
+  type SalaryRule,
+  type StructureRuleTrace,
+  type WorkEntryType,
+  type WorkEntryRow,
+} from "./structureEngine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1156,6 +1163,18 @@ Deno.serve(async (req) => {
 
     const componentsByStructure: Record<string, any[]> = {};
     const ruleSetByStructure: Record<string, { id: string; version: number; rule_hash: string }> = {};
+    // ─── Phase 3 — Rule-graph engine wiring ───
+    // When a structure has `use_structure_engine=true` AND at least one
+    // `payroll_salary_rules` row, the per-employee salary resolution swaps
+    // the legacy two-pass component walk for `runStructureEngine`. Legacy
+    // structures are unaffected (flag defaults to false; walk still runs).
+    // NOTE ON HISTORICAL RECOMPUTE: graph rules are read live here, so
+    // structures whose rules are edited after the run WILL diverge on
+    // recompute. Snapshotting graph rules into `salary_structure_rule_sets`
+    // is tracked as follow-up; the flat-component path continues to be
+    // byte-identical via the existing rule-set snapshot.
+    const structureUsesEngine: Record<string, boolean> = {};
+    const structureRulesByStructure: Record<string, SalaryRule[]> = {};
     for (const sid of structureIds) {
       const { data: rs, error: rsErr } = await supabaseAdmin.rpc("resolve_or_publish_rule_set", {
         p_structure_id: sid,
@@ -1173,12 +1192,93 @@ Deno.serve(async (req) => {
         rule_hash: row.rule_hash,
       };
       const comps = (row.components || []) as any[];
-      // Re-attach structure_id + ensure ordering by sort_order so downstream
-      // logic that may sort or filter by structure still works.
       componentsByStructure[sid] = comps
         .map((c: any) => ({ ...c, structure_id: sid }))
         .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
     }
+
+    // Pull the engine flag + live rule graph in one pass.
+    if (structureIds.length > 0) {
+      const { data: structRows } = await supabaseAdmin
+        .from("salary_structures")
+        .select("id, use_structure_engine")
+        .in("id", structureIds);
+      for (const s of (structRows || []) as any[]) {
+        structureUsesEngine[s.id] = Boolean(s.use_structure_engine);
+      }
+      const graphIds = structureIds.filter((sid) => structureUsesEngine[sid]);
+      if (graphIds.length > 0) {
+        const { data: graphRows } = await supabaseAdmin
+          .from("payroll_salary_rules")
+          .select("*")
+          .in("structure_id", graphIds)
+          .eq("is_active", true)
+          .order("sequence", { ascending: true });
+        for (const r of (graphRows || []) as any[]) {
+          const rule: SalaryRule = {
+            id: r.id,
+            code: r.code,
+            name: r.name,
+            sequence: r.sequence,
+            category: r.category,
+            parent_rule_id: r.parent_rule_id,
+            condition_select: r.condition_select,
+            condition_expression: r.condition_expression,
+            amount_select: r.amount_select,
+            amount_fixed: r.amount_fixed,
+            amount_percentage: r.amount_percentage,
+            amount_base: r.amount_base,
+            amount_expression: r.amount_expression,
+            statutory_rule_id: r.statutory_rule_id,
+            appears_on_payslip: r.appears_on_payslip ?? true,
+            accounting_debit_account_id: r.accounting_debit_account_id,
+            accounting_credit_account_id: r.accounting_credit_account_id,
+            accounting_tag: r.accounting_tag,
+            is_active: r.is_active ?? true,
+          };
+          (structureRulesByStructure[r.structure_id] ||= []).push(rule);
+        }
+      }
+    }
+
+    // Work entry types (needed by runStructureEngine for hours→pay derivation).
+    // Cheap read; scoped to the org so unrelated tenant rows are excluded.
+    const workEntryTypes: WorkEntryType[] = [];
+    {
+      const { data: wetRows } = await supabaseAdmin
+        .from("payroll_work_entry_types")
+        .select("id, code, is_paid, counts_as_worked, multiplier_normal, multiplier_overtime")
+        .eq("organization_id", organization_id)
+        .eq("is_active", true);
+      for (const t of (wetRows || []) as any[]) {
+        workEntryTypes.push({
+          id: t.id,
+          code: t.code,
+          is_paid: t.is_paid,
+          counts_as_worked: t.counts_as_worked,
+          multiplier_normal: Number(t.multiplier_normal ?? 1),
+          multiplier_overtime: Number(t.multiplier_overtime ?? 1.5),
+        });
+      }
+    }
+
+    // Work entries for the period, grouped by employee. Feeds runStructureEngine
+    // via its `worked_hours` / `worked_days` derivations. When no rows exist
+    // for an employee the engine still runs — entries are optional.
+    const workEntriesByEmployee: Record<string, any[]> = {};
+    if (employee_ids.length > 0) {
+      const { data: weRows } = await supabaseAdmin
+        .from("payroll_work_entries")
+        .select("employee_id, work_entry_type_id, hours, overtime_hours, days")
+        .eq("organization_id", organization_id)
+        .in("employee_id", employee_ids)
+        .gte("date", pay_period_start)
+        .lte("date", pay_period_end);
+      for (const r of (weRows || []) as any[]) {
+        (workEntriesByEmployee[r.employee_id] ||= []).push(r);
+      }
+    }
+
 
     // ─── Fetch active benefit enrollments + plans ───
     const { data: benefitEnrollments } = await supabaseAdmin
@@ -1760,6 +1860,14 @@ Deno.serve(async (req) => {
     // Per-employee bracket-progressive trace, drained after the run is
     // inserted into payroll_run_issues (severity=info) for full auditability.
     const bracketTraceSink: Array<{ employee_id: string; traces: BracketTrace[] }> = [];
+    // ─── Phase 3 — runStructureEngine per-employee outputs, keyed for the
+    // structure-deduction/contrib block downstream and for
+    // payroll_rule_traces persistence after payslips insert.
+    const graphEarningsByEmployee: Record<string, Record<string, number>> = {};
+    const graphDeductionsByEmployee: Record<string, Array<{ code: string; label: string; amount: number }>> = {};
+    const graphEmployerByEmployee: Record<string, Array<{ code: string; label: string; amount: number }>> = {};
+    const graphTracesByEmployee: Record<string, { structure_id: string; traces: StructureRuleTrace[] }> = {};
+    const graphUsedForEmployee = new Set<string>();
     const loanDeductionsToRecord: { loan_id: string; employee_id: string; amount: number; rule_code: string }[] = [];
     // Warn-level run_issues for loans that were skipped or partially recovered.
     // One row per (employee, loan) skip so the run detail panel surfaces it.
@@ -1923,7 +2031,96 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (contract && structureComponents.length > 0) {
+      // ─── Phase 3 — Rule-graph engine branch ───
+      // Runs BEFORE the legacy 2-pass resolver. When the structure has
+      // `use_structure_engine=true` and at least one active
+      // `payroll_salary_rules` row, we invoke `runStructureEngine` and map
+      // its category outputs onto the same locals the downstream engine
+      // reads. Any cycle / expression / unresolved-token error is fatal —
+      // we do NOT silently fall through to the legacy path, otherwise
+      // graph-authored math would appear to "work" while being ignored.
+      const sid = contract?.salary_structure_id;
+      const graphRules = sid ? (structureRulesByStructure[sid] || []) : [];
+      const graphOn = Boolean(sid && structureUsesEngine[sid] && graphRules.length > 0);
+      if (graphOn && contract) {
+        const traceSink: StructureRuleTrace[] = [];
+        const empWorkEntries: WorkEntryRow[] = (workEntriesByEmployee?.[emp.id] || []).map((e: any) => ({
+          work_entry_type_id: e.work_entry_type_id ?? null,
+          hours: Number(e.hours || 0),
+          overtime_hours: Number(e.overtime_hours || 0),
+          days: e.days != null ? Number(e.days) : undefined,
+        }));
+        const engineRes = runStructureEngine({
+          rules: graphRules,
+          workEntryTypes,
+          workEntries: empWorkEntries,
+          employee: {
+            id: emp.id,
+            department_id: emp.department_id ?? null,
+            job_title: emp.job_title ?? null,
+          } as any,
+          contract: {
+            id: contract.id,
+            wage: contract.wage,
+            currency: contract.currency ?? null,
+          } as any,
+          traceSink,
+        });
+        if (engineRes.errors.length > 0) {
+          const first = engineRes.errors[0];
+          return new Response(JSON.stringify({
+            error:
+              `${emp.first_name} ${emp.last_name} (${emp.employee_number}): salary rule-graph error on rule '${first.rule_code}' — ${first.message}`,
+            code: "STRUCTURE_ENGINE_ERROR",
+            employee_id: emp.id,
+            contract_id: contract.id,
+            structure_id: sid,
+            errors: engineRes.errors,
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        graphUsedForEmployee.add(emp.id);
+        graphTracesByEmployee[emp.id] = { structure_id: sid!, traces: traceSink };
+
+        const baseWage = contract.wage || 0;
+        basicSalary = 0;
+        housingAllowance = 0;
+        transportAllowance = 0;
+        otherEarnings = {};
+        const otherEarn: Record<string, number> = {};
+        for (const line of engineRes.lines) {
+          const codeLc = (line.code || "").toLowerCase();
+          if (line.category === "basic") {
+            basicSalary += line.amount;
+          } else if (line.category === "allowance") {
+            if (codeLc === "housing" || codeLc === "housing_allowance" || codeLc === "hra") {
+              housingAllowance += line.amount;
+            } else if (codeLc === "transport" || codeLc === "transport_allowance") {
+              transportAllowance += line.amount;
+            } else {
+              otherEarn[line.name || line.code] = (otherEarn[line.name || line.code] || 0) + line.amount;
+            }
+          } else if (line.category === "deduction") {
+            (graphDeductionsByEmployee[emp.id] ||= []).push({
+              code: `graph_${line.code}`,
+              label: line.name || line.code,
+              amount: line.amount,
+            });
+          } else if (line.category === "employer_contribution") {
+            (graphEmployerByEmployee[emp.id] ||= []).push({
+              code: `graph_${line.code}`,
+              label: line.name || line.code,
+              amount: line.amount,
+            });
+          }
+        }
+        otherEarnings = otherEarn;
+        if (basicSalary === 0) basicSalary = baseWage;
+        graphEarningsByEmployee[emp.id] = { basic: basicSalary, housing: housingAllowance, transport: transportAllowance };
+        salarySource = "salary_structure_graph";
+      } else if (contract && structureComponents.length > 0) {
         const baseWage = contract.wage || 0;
         basicSalary = 0;
         housingAllowance = 0;
@@ -2365,7 +2562,18 @@ Deno.serve(async (req) => {
 
 
       // ─── Salary structure deduction/contribution components ───
-      if (structureComponents.length > 0) {
+      // Phase 3: when the rule-graph engine ran for this employee, its
+      // deduction + employer_contribution lines take the place of the
+      // flat-component walk. Structures without the flag continue to use
+      // the legacy walk unchanged.
+      if (graphUsedForEmployee.has(emp.id)) {
+        for (const d of graphDeductionsByEmployee[emp.id] || []) {
+          if (d.amount > 0) deductionsDetail[d.label] = (deductionsDetail[d.label] || 0) + d.amount;
+        }
+        for (const c of graphEmployerByEmployee[emp.id] || []) {
+          if (c.amount > 0) contributionsDetail[c.label] = (contributionsDetail[c.label] || 0) + c.amount;
+        }
+      } else if (structureComponents.length > 0) {
         for (const comp of structureComponents) {
           if (comp.component_type === "earning") continue;
 
@@ -3397,6 +3605,44 @@ Deno.serve(async (req) => {
         console.warn("[compute-payroll] payslip_inputs insert failed (non-fatal):", inErr.message);
       }
     }
+
+    // ─── Phase 3 — Persist rule-graph provenance traces ───
+    // Non-fatal: payslip_lines are the authoritative amounts. Traces
+    // back the historical simulator + rule-graph debug UI.
+    const traceRowsToInsert: any[] = [];
+    for (const [empId, entry] of Object.entries(graphTracesByEmployee)) {
+      const psId = psIdByEmployee.get(empId) ?? null;
+      for (const t of entry.traces) {
+        traceRowsToInsert.push({
+          organization_id,
+          business_id: business_id || null,
+          payroll_run_id: payrollRun.id,
+          payslip_id: psId,
+          employee_id: empId,
+          structure_id: entry.structure_id,
+          rule_id: t.rule_id,
+          rule_code: t.rule_code,
+          sequence: t.sequence,
+          category: t.category,
+          condition_expression: t.condition_expression,
+          condition_passed: t.condition_passed,
+          amount_select: t.amount_select,
+          amount_expression: t.amount_expression,
+          amount_base: t.amount_base,
+          base_value: t.base_value,
+          dependencies: t.dependencies,
+          resolved_amount: t.resolved_amount,
+          error: t.error,
+        });
+      }
+    }
+    if (traceRowsToInsert.length > 0) {
+      const { error: trErr } = await supabaseAdmin.from("payroll_rule_traces").insert(traceRowsToInsert);
+      if (trErr) {
+        console.warn("[compute-payroll] payroll_rule_traces insert failed (non-fatal):", trErr.message);
+      }
+    }
+
 
     // ─── Turn B2: consume approved loan skip overrides ───
     //
