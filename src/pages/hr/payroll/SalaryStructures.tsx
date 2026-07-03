@@ -241,37 +241,142 @@ export function PayrollSalaryStructuresPage() {
           {components.length === 0 && (
             <p className="text-xs text-muted-foreground">No components yet. Add earnings and deductions that make up this structure.</p>
           )}
-          {components.map((c, i) => (
-            <div key={i} className="border rounded-lg p-3 space-y-2">
-              <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
-                <Input placeholder="Name" value={c.name} onChange={(e) => { const nc = [...components]; nc[i].name = e.target.value; setComponents(nc); }} />
-                <Input placeholder="Code" value={c.code} onChange={(e) => { const nc = [...components]; nc[i].code = e.target.value; setComponents(nc); }} />
-                <Select value={c.component_type} onValueChange={(v) => { const nc = [...components]; nc[i].component_type = v; setComponents(nc); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="earning">Earning</SelectItem>
-                    <SelectItem value="deduction">Deduction</SelectItem>
-                    <SelectItem value="employer_contribution">Employer Contribution</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 flex-1 min-w-0">
-                  <Select value={c.computation_type} onValueChange={(v) => { const nc = [...components]; nc[i].computation_type = v; setComponents(nc); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+          {components.map((c, i) => {
+            const err = componentValidation[i];
+            return (
+              <div key={i} className="border rounded-lg p-3 space-y-2">
+                <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
+                  <Input
+                    placeholder="Name"
+                    value={c.name}
+                    onChange={(e) => patchComponent(i, { name: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Code (e.g. HRA)"
+                    value={c.code}
+                    onChange={(e) => patchComponent(i, { code: e.target.value.toUpperCase() })}
+                  />
+                  <Select
+                    value={c.component_type}
+                    onValueChange={(v) => patchComponent(i, { component_type: v as ComponentDraft["component_type"] })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fixed">Fixed Amount</SelectItem>
-                      <SelectItem value="percentage">Percentage</SelectItem>
+                      <SelectItem value="earning">Earning</SelectItem>
+                      <SelectItem value="deduction">Deduction</SelectItem>
+                      <SelectItem value="employer_contribution">Employer Contribution</SelectItem>
                     </SelectContent>
                   </Select>
-                  <NumericInput placeholder="Value" value={c.computation_value || null} onValueChange={(n) => { const nc = [...components]; nc[i].computation_value = n ?? 0; setComponents(nc); }} />
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setComponents((cs) => cs.filter((_, j) => j !== i))}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+
+                <div className="flex items-start gap-2">
+                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-[180px_1fr_1fr] flex-1 min-w-0">
+                    <Select
+                      value={c.computation_type}
+                      onValueChange={(v) =>
+                        patchComponent(i, {
+                          computation_type: v as ComponentDraft["computation_type"],
+                          // Reset value semantics when switching modes so a
+                          // "50" carried over from Fixed doesn't silently
+                          // become "50 %" of BASIC.
+                          computation_value: 0,
+                          percentage_of: v === "percentage" ? c.percentage_of ?? "BASIC" : null,
+                          formula: v === "formula" ? c.formula : "",
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixed Amount</SelectItem>
+                        <SelectItem value="percentage">Percentage of…</SelectItem>
+                        <SelectItem value="formula">Formula</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {c.computation_type === "fixed" && (
+                      <>
+                        <div className="relative">
+                          <NumericInput
+                            placeholder="0.00"
+                            value={c.computation_value || null}
+                            onValueChange={(n) => patchComponent(i, { computation_value: n ?? 0 })}
+                          />
+                        </div>
+                        <div className="text-xs text-muted-foreground self-center">
+                          Paid as a flat amount every period.
+                        </div>
+                      </>
+                    )}
+
+                    {c.computation_type === "percentage" && (
+                      <>
+                        <div className="relative">
+                          <NumericInput
+                            placeholder="0"
+                            value={c.computation_value || null}
+                            onValueChange={(n) => patchComponent(i, { computation_value: n ?? 0 })}
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            %
+                          </span>
+                        </div>
+                        <Select
+                          value={c.percentage_of ?? undefined}
+                          onValueChange={(v) => patchComponent(i, { percentage_of: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="of…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PERCENT_BASES.map((b) => (
+                              <SelectItem key={b.value} value={b.value}>
+                                {b.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </>
+                    )}
+
+                    {c.computation_type === "formula" && (
+                      <div className="sm:col-span-2">
+                        <Textarea
+                          placeholder="e.g. min(GROSS * 0.05, 15000)"
+                          value={c.formula}
+                          onChange={(e) => patchComponent(i, { formula: e.target.value })}
+                          rows={2}
+                          className="font-mono text-xs"
+                        />
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Expressions may reference BASIC, GROSS, TAXABLE and other component codes. Helpers: min, max, round, if.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => setComponents((cs) => cs.filter((_, j) => j !== i))}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+
+                {err && (
+                  <div className="flex items-center gap-1.5 text-xs text-destructive">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    {err}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
+
         </WorkflowSheetSection>
       </WorkflowSheet>
     </div>
