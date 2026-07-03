@@ -56,7 +56,7 @@ export default function ApplyCreditWizardPage() {
   const [search] = useSearchParams();
   const returnTo = search.get("returnTo") || "/finance/customer-credits";
 
-  const { creditNotes, applyCreditToInvoice, refetch } = useCreditNotes();
+  const { creditNotes, applyCreditToInvoice, refreshCreditNotes } = useCreditNotes();
   const { invoices } = useInvoices();
   const { formatCurrency } = useCurrency();
   const { branchId } = useFinanceScope();
