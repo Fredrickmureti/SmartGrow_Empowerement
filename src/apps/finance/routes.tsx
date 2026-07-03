@@ -31,7 +31,7 @@ const CustomerStatements = lazy(() => import("@/pages/CustomerStatements"));
 
 // Lazy imports for less frequently accessed pages
 const JournalEntries = lazy(() => import("@/pages/JournalEntries"));
-const JournalEntryDetailRedirect = lazy(() => import("@/pages/finance/JournalEntryDetailRedirect"));
+const JournalEntryDetailPage = lazy(() => import("@/features/finance/journal-entries/JournalEntryDetailPage"));
 const JournalEntryCreatePage = lazy(() => import("@/features/finance/journal-entries/JournalEntryCreatePage"));
 const JournalEntryEditPage = lazy(() => import("@/features/finance/journal-entries/JournalEntryEditPage"));
 const AccountDetailRedirect = lazy(() => import("@/pages/finance/AccountDetailRedirect"));
@@ -232,7 +232,7 @@ export function FinanceApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Journal Entry">
-                <JournalEntryDetailRedirect />
+                <JournalEntryDetailPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
