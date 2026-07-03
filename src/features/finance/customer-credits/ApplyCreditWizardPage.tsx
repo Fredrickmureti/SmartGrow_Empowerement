@@ -140,7 +140,6 @@ export default function ApplyCreditWizardPage() {
       <ErrorState
         title="Credit note not found"
         description="This credit note may have been deleted or you don't have access."
-        action={<Button onClick={goBack}>Back to credit notes</Button>}
       />
     );
   }
