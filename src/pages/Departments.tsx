@@ -457,122 +457,6 @@ export default function Departments() {
           </CardContent>
         </Card>
 
-        {/* Create/Edit Dialog */}
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>
-                {editingDepartment ? "Edit Department" : "Create Department"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingDepartment
-                  ? "Update department details"
-                  : "Add a new department to your organization"}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Name *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g., Human Resources"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={formData.code || ""}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="e.g., HR"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description || ""}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Brief description of the department"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="manager">Department Manager</Label>
-                  <Select
-                    value={formData.manager_id || "none"}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, manager_id: value === "none" ? null : value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select manager" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No Manager</SelectItem>
-                      {activeEmployees.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          {emp.first_name} {emp.last_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="parent">Parent Department</Label>
-                  <Select
-                    value={formData.parent_department_id || "none"}
-                    onValueChange={(value) =>
-                      setFormData({
-                        ...formData,
-                        parent_department_id: value === "none" ? null : value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select parent" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No Parent (Top Level)</SelectItem>
-                      {activeDepartments
-                        .filter((d) => d.id !== editingDepartment?.id)
-                        .map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : editingDepartment ? (
-                    "Update"
-                  ) : (
-                    "Create"
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-
         {/* Delete Confirmation Dialog */}
         <ConfirmDeleteDialog
           open={deleteConfirm.isOpen}
@@ -593,7 +477,7 @@ export default function Departments() {
           onEdit={handleOpenDialog}
           onDelete={handleDissolve}
         />
-      </div>
+      </PageBody>
     </>
   );
 }
