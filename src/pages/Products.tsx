@@ -13,6 +13,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { useListViewColumns, DefaultColumn } from "@/hooks/useListViewColumns";
 import { useCoreFieldDisplay } from "@/hooks/useCoreFieldDisplay";
 import { useTaxRates } from "@/hooks/useTaxRates";
+import { useTaxCompliance } from "@/hooks/useTaxCompliance";
 import { useProductCategories } from "@/hooks/useProductCategories";
 import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
