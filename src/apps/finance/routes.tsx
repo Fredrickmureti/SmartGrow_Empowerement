@@ -41,6 +41,7 @@ const RecurringJournalCreatePage = lazy(() => import("@/features/finance/recurri
 const AccountDetailRedirect = lazy(() => import("@/pages/finance/AccountDetailRedirect"));
 const FiscalPeriods = lazy(() => import("@/pages/FiscalPeriods"));
 const FiscalPeriodDetail = lazy(() => import("@/pages/finance/FiscalPeriodDetail"));
+const YearEndClosePage = lazy(() => import("@/features/finance/year-end-close/YearEndClosePage"));
 const Budgets = lazy(() => import("@/pages/Budgets"));
 const FixedAssets = lazy(() => import("@/pages/FixedAssets"));
 const AnalyticAccounts = lazy(() => import("@/pages/AnalyticAccounts"));
@@ -296,6 +297,16 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Fiscal Periods">
                 <FiscalPeriods />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="fiscal-periods/close"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Year-End Closing">
+                <YearEndClosePage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }

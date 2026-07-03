@@ -1,62 +1,52 @@
-## Verified status
+## Context
 
-I independently reverified the prior agent's claims against the code:
+Chart of Accounts is done (routed create/edit on `RecordFormShell`, inline dialog removed, redirect in place, typecheck + finance guard green). The rest of Slice B3 — **Analytic Accounts**, **Fiscal Periods**, **Year-End Close** — is still legacy: `src/pages/AnalyticAccounts.tsx` hosts two inline `<Dialog>`s (account + group), `src/pages/FiscalPeriods.tsx` hosts a create `<Dialog>` and mounts `YearEndClosingDialog`, and `src/components/finance/YearEndClosingDialog.tsx` is the last remaining legacy modal for the close workflow.
 
-- **Sales / Purchases / Inventory** — audit docs marked complete; guard tests green; allowlists empty. No outstanding work.
-- **Finance** — Journal Entry **Create** and **Edit** are now on `RecordFormShell` at `/finance/journal-entries/new` and `/:id/edit` (audit doc flipped to Done, files exist). The finance dialog-ban guard is green because it only enforces `Create*Dialog` / `Edit*Dialog` / `*DetailDialog` filename patterns — the twelve remaining legacy dialogs use different filenames (`BusinessTransactionDialog`, `RecurringJournalDialog`, `YearEndClosingDialog`, `ConnectBank…`, `Reconcile…`, `ImportTransactions…`, `TransactionRules…`, `ApplyCreditDialog`, `ProcessRefundDialog`, `CreditNoteDetailDialog`, `EditBankAccountDialog`) and are tracked only by the audit doc.
-- **Typecheck** — clean.
+This slice migrates all three to the enterprise design-system scaffolds, using the same pattern already applied to Journal Entries and CoA. No new primitives, no business-logic changes — only interaction architecture and route wiring.
 
-The prior agent's next‑slice notes match the actual audit gap. Pick up from Journal Entry Peek/View and finish Finance.
+## Scope (one entity at a time, verified before moving on)
 
-## Plan — Finish Finance (single slice at a time)
+### 1. Analytic Accounts — `DetailSheet` create/edit
+Two entities live on this page: **analytic accounts** (≤6 fields: code, name, group, parent, active, description) and **analytic groups** (≤3 fields: code, name, description). Both are lightweight configuration records → `DetailSheet` is the right scaffold (matches design-system audit rule: ≤6 fields = sheet, not a full record page).
 
-Reuse existing design‑system scaffolds only: `RecordFormShell`, `RecordScaffold`, `PeekScaffold` / `DocumentPeekShell`, `DetailSheet`, `WizardShell`, `LineItemsGrid`, `SummaryPanel`, `DocumentTotalsPanel`, `DocumentActivityPanel`, `useRecordFormSubmit`. No new primitives.
+- New: `src/features/finance/analytic-accounts/AnalyticAccountSheet.tsx` (create + edit modes, `useRecordFormSubmit`, `FieldGrid`).
+- New: `src/features/finance/analytic-accounts/AnalyticGroupSheet.tsx`.
+- Edit `src/pages/AnalyticAccounts.tsx`: delete both inline `<Dialog>` blocks and their `useState` gates; mount the two sheets driven by a single `sheet` URL param (`?sheet=account|group&id=<uuid>`) so deep-links work and the browser back button closes the sheet.
+- Preserve every RPC (`useAnalyticAccounts` mutations), toast copy, delete-confirm flow, RLS-scoped queries.
 
-For every entity: build route(s) → migrate the call site → delete the legacy dialog file → flip the audit row → keep guard test green.
+### 2. Fiscal Periods — `DetailSheet` create/edit + list page cleanup
+- New: `src/features/finance/fiscal-periods/FiscalPeriodSheet.tsx` (name, fiscal_year, start_date, end_date, status). Uses `DetailSheet` + `useRecordFormSubmit`.
+- Edit `src/pages/FiscalPeriods.tsx`: delete the create `<Dialog>` and its `Dialog*` imports; mount the sheet behind `?sheet=period[&id=...]`; keep the Year-End action pointing at the new route (below), not the old modal.
+- `FiscalPeriodDetail.tsx` already exists as the detail page — leave it in place; add an "Edit" button that opens the sheet with `?sheet=period&id=<id>` for parity.
 
-### Slice B1 — Journal Entry View + Peek
-- `RecordScaffold` at `/finance/journal-entries/:id` (identity, meta chips, line grid read‑only, totals + activity + attachments in `SummaryPanel`).
-- `JournalEntryPeekSheet` on `PeekScaffold` behind `?peek=<id>` on the list.
-- Remove `JournalEntryDetailRedirect` inline hop; redirect stays for back‑compat URLs pointing to `?selected=` if any external links exist.
+### 3. Year-End Close — `WizardShell` at `/finance/fiscal-periods/close`
+The close workflow is a real multi-step process (choose period → preview adjustments → post & lock). It belongs on a full page, not a dialog.
 
-### Slice B2 — Business Transaction + Recurring Journal
-- `BusinessTransactionDialog` → deep‑link `/finance/journal-entries/new?template=business` on the same JE `RecordFormShell` (template pre‑fills lines). Delete dialog.
-- `RecurringJournalDialog` → `/finance/recurring-journals/new` + `/:id/edit` on `RecordFormShell` with `LineItemsGrid`; `PeekScaffold` for the list. Delete dialog.
+- New route: `/finance/fiscal-periods/close` registered in `src/apps/finance/routes.tsx` (under `SubscriptionProtectedRoute`, no `allowReadOnly`).
+- New: `src/features/finance/year-end-close/YearEndCloseWizard.tsx` composed on `WizardShell` with three steps:
+  1. **Scope** — pick fiscal period, retained-earnings account, closing date.
+  2. **Preview** — read-only summary of P&L accounts to be zeroed and the resulting adjusting entry (calls the same RPC/helpers `YearEndClosingDialog` uses today for preview; no logic change).
+  3. **Post & lock** — confirm, submit, redirect to the newly created journal entry's record page on success.
+- All existing side effects (RPC calls, lock-date update, toasts, invalidations) are lifted verbatim out of `YearEndClosingDialog` into the wizard's step handlers.
+- Replace the Year-End trigger in `FiscalPeriods.tsx` with a `<Link>` to the new route (pre-select current period via `?periodId=`).
+- Delete `src/components/finance/YearEndClosingDialog.tsx` once no references remain.
 
-### Slice B3 — Chart of Accounts + Analytic Accounts + Fiscal Periods
-- CoA: `RecordFormShell` at `/finance/accounts/new` and `/:id/edit` (identity, type, parent, currency, tax mapping, opening balance).
-- Analytic Accounts: `DetailSheet` (≤6 fields).
-- Fiscal Periods: `DetailSheet` create/edit.
-- Year‑End Close: `WizardShell` at `/finance/fiscal-periods/close` (Scope → Adjustments preview → Post & lock). Delete `YearEndClosingDialog`.
+## Guardrails / verification (must pass before closing the slice)
 
-### Slice B4 — Budgets + Fixed Assets
-- Budgets: `RecordFormShell` at `/finance/budgets/new` + `/:id/edit` with `LineItemsGrid` for account × period.
-- Fixed Assets: `RecordFormShell` at `/finance/fixed-assets/new` + `/:id/edit`; `PeekScaffold` for the list.
+- `rg "YearEndClosingDialog|AnalyticAccountDialog|FiscalPeriodDialog"` → zero hits outside of git history.
+- No `<Dialog` JSX left in `AnalyticAccounts.tsx` or `FiscalPeriods.tsx` (only `ConfirmDeleteDialog`, which is the shared confirm primitive and out of scope).
+- Deep-links resolve: `/finance/analytic-accounts?sheet=account`, `/finance/fiscal-periods?sheet=period`, `/finance/fiscal-periods/close?periodId=<uuid>`.
+- Finance dialog-ban guard test stays green; if the inline `<Dialog>` scan from Slice B7 is not yet in place, the filename-based guard is still enforced.
+- `bunx tsgo --noEmit` clean.
+- Preserve branch/business scoping and RLS on every query and mutation — no changes to `useAnalyticAccounts`, `useFiscalPeriods`, or the year-end RPCs.
 
-### Slice B5 — Banking (highest risk)
-- `ConnectBankDialog` → `RecordFormShell` at `/finance/banking/accounts/new`.
-- `EditBankAccountDialog` → `RecordFormShell` at `/finance/banking/accounts/:id/edit` (also drops it off the filename allowlist).
-- Reconciliation workspace: `WizardShell` at `/finance/reconciliation/new` and split‑view `RecordScaffold` at `/finance/reconciliation/:id` — replaces `StartReconciliationDialog`, `ReconcileTransactionDialog`, `TransferReconcileDialog` (transfer becomes an inline workspace step). Build the workspace scaffold first, then port each dialog as a region/step.
-- `ImportTransactionsDialog` → `WizardShell` at `/finance/banking/:id/import` (Upload → Map columns → Preview → Commit).
-- `TransactionRulesDialog` → `RecordScaffold` at `/finance/banking/rules` + `RecordFormShell` for new/edit.
+## Out of scope for this slice
 
-### Slice B6 — Customer Credits + Legacy cleanup
-- `ApplyCreditDialog` → `WizardShell` at `/finance/customer-credits/:id/apply`.
-- `ProcessRefundDialog` → `WizardShell` at `/finance/customer-credits/:id/refund`.
-- Delete `CreditNoteDetailDialog`; repoint any remaining consumers to the Sales `/sales/credit-notes/:id` + peek that already exist.
+Budgets, Fixed Assets, Banking (B4/B5), Customer Credits (B6), and the guard extension (B7). Those pick up in subsequent slices, in the order the master plan already defines.
 
-### Slice B7 — Guard + integrity pass
-- Extend `finance-record-dialog-ban.test.ts` with an inline‑`<Dialog>` scan for Finance list pages (mirrors the Inventory guard's second section) so regressions on non‑filename‑matching dialogs are also blocked.
-- Empty the filename allowlist entirely (both `CreditNoteDetailDialog` and `EditBankAccountDialog` are deleted by then).
-- Grep for lingering `import …Dialog` references to deleted files; fix.
-- Verify deep‑links (`?action=create`, `?peek=<id>`, dashboard/notification/command‑palette inbound) resolve to the new routes.
-- Run `bunx tsgo --noEmit` + full architecture test suite; both must be green before closing the slice.
+## Technical notes
 
-### Ground rules
-
-- One entity per turn: route(s) → callsite migration → delete legacy dialog → flip audit row → guard green.
-- Preserve every existing RPC call, RLS‑scoped query, branch/business scoping, and toast wording verbatim — UX/architecture migration only, no business‑logic change.
-- No reach‑through into `@/features/sales/record/*` from Finance; import scaffolds from `@/design-system` only.
-- Do not touch Sales / Purchases / Inventory — those apps are already complete per their audit docs and guard tests.
-
-Ping me to switch to build mode and I'll start with **Slice B1 — Journal Entry View + Peek**.
+- Reuse only `@/design-system` scaffolds: `RecordFormShell`, `DetailSheet`, `WizardShell`, `FieldGrid`, `FooterActionBar`, `useRecordFormSubmit`. Do not import from `@/features/sales/*`.
+- URL-driven sheets (not React state) so the back button, refresh, and shared links behave correctly — matches the pattern used by Sales/Purchases peek sheets.
+- Wizard step state stays local to the wizard component; only the final commit hits the network. Preview step calls the existing read-only RPC used by the current dialog.
+- Delete legacy files in the same commit that removes their last import to keep the guard clean.
