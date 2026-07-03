@@ -293,9 +293,6 @@ export function EmployeeFormDialog({
   useEffect(() => {
     onSubmittingChange?.(isSubmitting);
   }, [isSubmitting, onSubmittingChange]);
-  useEffect(() => {
-    onDraftStateChange?.({ hasSavedDraft, isSavingDraft });
-  }, [hasSavedDraft, isSavingDraft, onDraftStateChange]);
 
   // ── Server-side draft autosave: removed ────────────────────────────────
   // Typing no longer triggers DB writes. Local-only debounced cache in
