@@ -147,7 +147,7 @@ function applyProgressive(
     if (taxable <= lo) break;
     const slice = Math.max(0, Math.min(taxable, up) - lo);
     if (slice <= 0) continue;
-    const fraction = rateAsFraction(safeNum(b.rate, 0));
+    const fraction = pct(safeNum(b.rate, 0));
     const amount = slice * fraction;
     tax += amount;
     result.breakdown.push({
