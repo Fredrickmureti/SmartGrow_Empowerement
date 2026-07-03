@@ -263,14 +263,9 @@ export default function CustomerCredits() {
   const collapseAll = () => setExpandedCustomers(new Set());
 
   const openApplyCredit = (cn: CreditRowEnriched) => {
-    setApplyCreditTarget({
-      creditNoteId: cn.id,
-      creditNoteNumber: cn.credit_note_number,
-      contactId: cn.contact_id,
-      contactName: cn.contact_name,
-      availableAmount: cn.available,
-    });
-    setApplyCreditOpen(true);
+    navigate(
+      `/finance/customer-credits/${cn.id}/apply?returnTo=/finance/customer-credits`,
+    );
   };
 
   const openDetail = (cn: CreditRowEnriched) => {
