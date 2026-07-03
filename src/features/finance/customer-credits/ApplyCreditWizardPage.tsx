@@ -120,7 +120,7 @@ export default function ApplyCreditWizardPage() {
         branchId,
       );
       toast({ title: "Credit applied successfully" });
-      await refetch?.();
+      await refreshCreditNotes?.();
       navigate(`${returnTo}?peek=${creditNoteId}`);
     } catch (err) {
       toast({
