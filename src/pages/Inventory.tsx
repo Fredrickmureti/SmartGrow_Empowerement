@@ -59,7 +59,6 @@ export default function Inventory() {
     stockAdjustments,
     lowStockProducts,
     isLoading: hookLoading,
-    createStockAdjustment,
     approveStockAdjustment,
     cancelStockAdjustment,
     reverseStockAdjustment,
@@ -74,6 +73,7 @@ export default function Inventory() {
   const organizationId = currentOrg?.id;
   const businessId = currentBusiness?.id;
   const branchId = currentBranch?.id;
+  const navigate = useNavigate();
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -86,15 +86,6 @@ export default function Inventory() {
   const [movementPage, setMovementPage] = useState(1);
   const [stockLevelPage, setStockLevelPage] = useState(1);
 
-  // Adjustment dialog — single warehouse per document (Odoo stock.inventory pattern)
-  const [showAdjustmentDialog, setShowAdjustmentDialog] = useState(false);
-  const [adjustmentWarehouseId, setAdjustmentWarehouseId] = useState("");
-  const [adjustmentItems, setAdjustmentItems] = useState<{
-    product_id: string; quantity_adjustment: number; unit_cost: number | ""; notes: string;
-  }[]>([]);
-  const [adjustmentReason, setAdjustmentReason] = useState("");
-  const [adjustmentNotes, setAdjustmentNotes] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   // Drawer state
