@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +11,6 @@ import {
   CreditCard, Wallet, TrendingUp, TrendingDown, BarChart3, Plus,
   PiggyBank, ArrowRightLeft,
 } from "lucide-react";
-import { BusinessTransactionDialog } from "@/components/finance/BusinessTransactionDialog";
-import type { BusinessTransactionType } from "@/hooks/useBusinessTransactions";
 import { supabase } from "@/integrations/supabase/client";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -38,8 +36,6 @@ export default function FinanceDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState<PeriodFilter>("month");
-  const [bizTxnOpen, setBizTxnOpen] = useState(false);
-  const [bizTxnType, setBizTxnType] = useState<BusinessTransactionType>("owner_investment");
   const { accounts: bankAccountsList, isLoading: bankLoading } = useBankAccounts();
   const { formatCurrency } = useCurrency();
 
