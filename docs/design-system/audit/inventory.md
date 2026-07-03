@@ -1,11 +1,12 @@
 # Inventory — Enterprise UX Audit
 
-> **2026-07 takeover audit.** Inventory still has legacy inline record
-> dialogs in Products, Warehouses, Stock Adjustments, Transfers, and Scrap.
-> UoM category/unit configuration has moved to `DetailSheet`. The guard test
-> now also scans list/workspace pages for inline record dialogs so no new
-> Inventory regressions can be introduced while this allowlist shrinks through
-> the route/sheet migration.
+> **Status: complete.** Every create / edit / peek / process surface in
+> Inventory now routes through the design-system scaffolds
+> (`RecordFormShell`, `WizardShell`, `DetailSheet`, `PeekScaffold`). The
+> guard test scans both the `Create*Dialog` / `Edit*Dialog` /
+> `*DetailDialog` filename patterns and inline `<Dialog>` record-form
+> blocks on Inventory list pages; both allowlists are empty and only
+> shrink.
 
 Companion to [`docs/design-system/records.md`](../records.md). Tracks every
 create / edit / duplicate / convert / configure / peek surface in the
