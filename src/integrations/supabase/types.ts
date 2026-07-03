@@ -25127,6 +25127,7 @@ export type Database = {
         Row: {
           anchor_day: number | null
           business_id: string
+          country_code: string | null
           created_at: string
           cutoff_offset_days: number
           frequency: string
@@ -25140,6 +25141,7 @@ export type Database = {
         Insert: {
           anchor_day?: number | null
           business_id: string
+          country_code?: string | null
           created_at?: string
           cutoff_offset_days?: number
           frequency: string
@@ -25153,6 +25155,7 @@ export type Database = {
         Update: {
           anchor_day?: number | null
           business_id?: string
+          country_code?: string | null
           created_at?: string
           cutoff_offset_days?: number
           frequency?: string
@@ -63036,6 +63039,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      payroll_period_archive: {
+        Args: { _period_id: string; _reason: string }
+        Returns: Json
+      }
       payroll_period_close_atomic: {
         Args: {
           _force?: boolean
@@ -63066,6 +63073,10 @@ export type Database = {
       payroll_period_is_writable: {
         Args: { _period_id: string }
         Returns: boolean
+      }
+      payroll_period_open_correction: {
+        Args: { _period_id: string; _reason: string }
+        Returns: Json
       }
       payroll_period_readiness: { Args: { _period_id: string }; Returns: Json }
       payroll_period_reopen_atomic: {
