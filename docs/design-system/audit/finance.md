@@ -29,7 +29,7 @@ Legend for **Target**:
 | Fixed Asset | Peek | `AssetDetailSheet` (Sheet-based) | `PeekScaffold` | **Deviation** — sheet shipped; promotion to `PeekScaffold` pending |
 | Analytic Account | Create / Edit | `AnalyticAccountSheet` + `AnalyticGroupSheet` (`DetailSheet`) | `DetailSheet` | Done |
 | Bank Account | Connect / Edit | `BankAccountSheet` at `?sheet=account[&id=…]` (Sheet-based; `ConnectBankDialog` + `EditBankAccountDialog` deleted) | Route + `RecordFormShell` at `/finance/banking/accounts/new` + `/:id/edit` | **Deviation** — unified sheet shipped; promotion to routes pending |
-| Bank Reconciliation | Start | `StartReconciliationDialog` | Route + `WizardShell` at `/finance/reconciliation/new` | **Pending** |
+| Bank Reconciliation | Start | Route + `RecordFormShell` at `/finance/reconciliation/new` (`StartReconciliationPage`); `StartReconciliationDialog` deleted | Route + `WizardShell` at `/finance/reconciliation/new` | Done (form-based; single-step route on `RecordFormShell` — dialog deleted) |
 | Bank Reconciliation | Workspace | `ReconcileTransactionDialog` (row-by-row) | Route + `RecordScaffold` split-view at `/finance/reconciliation/:id` (row edit inline in the workspace) | **Pending** |
 | Bank Transfer Reconcile | `TransferReconcileDialog` | Step inside the reconciliation workspace `WizardShell` | **Pending** |
 | Bank Transactions Import | `ImportTransactionsDialog` | `WizardShell` at `/finance/banking/:id/import` | **Pending** |

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +44,7 @@ import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
 import { useReconciliationSuggestions } from "@/hooks/useReconciliationSuggestions";
 import { ReconcileTransactionDialog } from "@/components/banking/ReconcileTransactionDialog";
 import { TransactionRulesDialog } from "@/components/banking/TransactionRulesDialog";
-import { StartReconciliationDialog } from "@/components/banking/StartReconciliationDialog";
+
 import { TransferReconcileDialog } from "@/components/banking/TransferReconcileDialog";
 import { ReconciliationWorkspace } from "@/components/banking/ReconciliationWorkspace";
 import { ImportHistoryTab } from "@/components/banking/ImportHistoryTab";
@@ -91,9 +92,11 @@ export default function BankReconciliation() {
   // Unreconcile confirmation
   const [unreconcileDialogOpen, setUnreconcileDialogOpen] = useState(false);
   const [transactionToUnreconcile, setTransactionToUnreconcile] = useState<any>(null);
+  const navigate = useNavigate();
 
-  // R1: Statement-level reconciliation
-  const [startReconDialogOpen, setStartReconDialogOpen] = useState(false);
+  // R1: Statement-level reconciliation lives on a routed page now
+  // (see /finance/reconciliation/new). Nothing to track locally.
+  
   // R2: Transfer dialog
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferTransaction, setTransferTransaction] = useState<any>(null);
@@ -236,7 +239,8 @@ export default function BankReconciliation() {
                   title={!canReconcile ? "You don't have permission to reconcile bank transactions in this scope." : undefined}
                   onClick={() => {
                     if (isReadOnly) { openUpgradeModal("banking"); return; }
-                    setStartReconDialogOpen(true);
+                    const q = selectedAccount !== "all" ? `?account=${selectedAccount}` : "";
+                    navigate(`/finance/reconciliation/new${q}`);
                   }}>
                   <Scale className="mr-2 h-4 w-4" />
                   Reconcile
@@ -669,13 +673,8 @@ export default function BankReconciliation() {
         onSuccess={fetchTransactions}
       />
 
-      {/* Start Statement Reconciliation Dialog */}
-      <StartReconciliationDialog
-        open={startReconDialogOpen}
-        onOpenChange={setStartReconDialogOpen}
-        onStart={startSession}
-        preselectedAccountId={selectedAccount !== "all" ? selectedAccount : undefined}
-      />
+      {/* Start Statement Reconciliation is now a routed page at
+          /finance/reconciliation/new — see StartReconciliationPage. */}
 
       {/* Rules Dialog */}
       <TransactionRulesDialog

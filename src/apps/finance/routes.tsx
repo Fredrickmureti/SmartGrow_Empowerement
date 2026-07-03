@@ -47,6 +47,7 @@ const FixedAssets = lazy(() => import("@/pages/FixedAssets"));
 const AnalyticAccounts = lazy(() => import("@/pages/AnalyticAccounts"));
 const Banking = lazy(() => import("@/pages/Banking"));
 const BankReconciliation = lazy(() => import("@/pages/BankReconciliation"));
+const StartReconciliationPage = lazy(() => import("@/features/finance/reconciliation/StartReconciliationPage"));
 const BankFeeds = lazy(() => import("@/pages/BankFeeds"));
 
 // Report pages (all lazy-loaded)
@@ -370,7 +371,17 @@ export function FinanceApp() {
           }
         />
         
-        {/* Bank Reconciliation */}
+        {/* Bank Reconciliation — routed start form (must come BEFORE `reconciliation` to avoid shadowing). */}
+        <Route
+          path="reconciliation/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Start Reconciliation">
+                <StartReconciliationPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         <Route
           path="reconciliation"
           element={
@@ -381,6 +392,7 @@ export function FinanceApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        
         
         {/* Bank Feeds */}
         <Route

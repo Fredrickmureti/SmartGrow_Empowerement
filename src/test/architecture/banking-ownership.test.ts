@@ -61,9 +61,9 @@ describe("banking ownership architecture", () => {
     expect(src).toMatch(/is_shared:\s*resolvedBranchId === null/);
   });
 
-  it("StartReconciliationDialog surfaces Resume CTA for an existing open session (G2)", () => {
+  it("StartReconciliationPage surfaces Resume CTA for an existing open session (G2)", () => {
     const src = readFileSync(
-      join(root, "src/components/banking/StartReconciliationDialog.tsx"),
+      join(root, "src/features/finance/reconciliation/StartReconciliationPage.tsx"),
       "utf8",
     );
     expect(src).toContain("useReconciliationSessions");
