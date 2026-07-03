@@ -38,14 +38,10 @@ const FINANCE_GLOBS = [
  * a Phase-1 migration target and MUST leave the list.
  */
 const LEGACY_DIALOG_ALLOWLIST = new Set<string>([
-  // Migration targets — MUST leave this list as each is completed.
-  // Only files matching the ban regex (Create*/Edit*/`*DetailDialog`)
-  // belong here. Other legacy Finance dialogs (Apply*, Process*,
-  // YearEndClosing*, ConnectBank*, ImportTransactions*, Reconcile*,
-  // StartReconciliation*, TransactionRules*, TransferReconcile*) are
-  // tracked in docs/design-system/audit/finance.md — not by this
-  // filename guard.
-  "src/components/finance/CreditNoteDetailDialog.tsx",
+  // Empty — the Finance record-dialog surface is frozen. All legacy
+  // Create*/Edit*/*DetailDialog files under Finance have been migrated
+  // to /new or /:id/edit routes on RecordFormShell (create/edit) or
+  // *PeekSheet on PeekScaffold (detail).
 ]);
 
 function scanRecordDialogs(): string[] {
