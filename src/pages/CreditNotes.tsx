@@ -422,35 +422,8 @@ export default function CreditNotes() {
         </DialogContent>
       </Dialog>
 
-      {/* Apply Credit Dialog (rich component) */}
-      {applyCreditNote && (
-        <ApplyCreditDialog
-          open={showApplyDialog}
-          onOpenChange={setShowApplyDialog}
-          creditNoteId={applyCreditNote.id}
-          creditNoteNumber={applyCreditNote.credit_note_number}
-          contactId={applyCreditNote.contact_id || ""}
-          contactName={applyCreditNote.contact?.name || "Unknown"}
-          availableAmount={applyCreditNote.total - applyCreditNote.amount_applied}
-          onSuccess={refreshCreditNotes}
-        />
-      )}
-
-      {/* Refund Dialog */}
-      {refundCreditNote && (
-        <ProcessRefundDialog
-          open={showRefundDialog}
-          onOpenChange={setShowRefundDialog}
-          creditNoteId={refundCreditNote.id}
-          creditNoteNumber={refundCreditNote.credit_note_number}
-          contactName={refundCreditNote.contact?.name || "Unknown"}
-          totalAmount={refundCreditNote.total}
-          amountApplied={refundCreditNote.amount_applied}
-          amountRefunded={(refundCreditNote as any).refund_amount || 0}
-          currency={refundCreditNote.currency}
-          onSuccess={refreshCreditNotes}
-        />
-      )}
+      {/* Apply-credit + refund are dedicated wizard routes under
+          /finance/customer-credits/:id/apply and /:id/refund. */}
 
       {/* Credit Note Peek Sheet */}
       <CreditNotePeekSheet
