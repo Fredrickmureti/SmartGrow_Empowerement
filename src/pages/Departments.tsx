@@ -163,23 +163,22 @@ export default function Departments() {
 
   return (
     <>
-      <div className="space-y-4 sm:space-y-6">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Departments</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Manage organizational departments and hierarchies
-            </p>
-          </div>
-          {canManage && (
-            <Button onClick={() => handleOpenDialog()}
-              className="w-full sm:w-auto"
-            >
+      <PageHeader
+        eyebrow="HR · Org"
+        title="Departments"
+        description="Manage organizational departments and hierarchies."
+        actions={
+          canManage ? (
+            <Button onClick={() => handleOpenDialog()}>
               <Plus className="mr-2 h-4 w-4" />
               Add Department
             </Button>
-          )}
-        </div>
+          ) : null
+        }
+      />
+      <PageBody fullWidth className="gap-4 sm:gap-6">
+
+
 
         {/* Stats */}
         <div className="stats-grid grid-cols-1 sm:grid-cols-3">
