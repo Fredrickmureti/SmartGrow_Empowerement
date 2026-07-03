@@ -15,6 +15,12 @@ import { ContactsLayout } from "./ContactsLayout";
 import Contacts from "@/pages/Contacts";
 
 const ContactProfile = lazy(() => import("@/pages/contacts/ContactProfile"));
+const ContactCreatePage = lazy(
+  () => import("@/features/contacts/ContactCreatePage"),
+);
+const ContactEditPage = lazy(
+  () => import("@/features/contacts/ContactEditPage"),
+);
 
 /**
  * Contacts App Component
@@ -62,7 +68,31 @@ export function ContactsApp() {
             </SubscriptionProtectedRoute>
           }
         />
-        
+
+        {/* Create — Phase 12 routed record form */}
+        <Route
+          path="new"
+          element={
+            <SubscriptionProtectedRoute>
+              <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
+                <ContactCreatePage />
+              </Suspense>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Edit — Phase 12 routed record form */}
+        <Route
+          path=":id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
+                <ContactEditPage />
+              </Suspense>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Contact Profile - 360-degree view */}
         <Route
           path="profile"
