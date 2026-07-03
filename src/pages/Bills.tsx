@@ -224,7 +224,7 @@ export default function Bills() {
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [isPrinting, setIsPrinting] = useState<string | null>(null);
 
-  const [showDialog, setShowDialog] = useState(false);
+  // Create/edit flow lives on /purchases/bills/new + /:id/edit (RecordFormShell).
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedBillForPayment, setSelectedBillForPayment] = useState<Bill | null>(null);
   const [peekId, setPeekId] = usePeekParam();
