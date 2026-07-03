@@ -77,19 +77,25 @@ export function PayrollSalaryStructuresPage() {
   const componentValidation = useMemo(
     () =>
       components.map((c) => {
+        if (!c.name.trim()) return "Name is required.";
+        if (!c.code.trim()) return "Code is required.";
         if (c.computation_type === "percentage" && !c.percentage_of) {
           return "Select what the percentage applies to (Basic, Gross, Taxable).";
         }
-        if (c.computation_type === "formula") {
-          if (!c.formula.trim()) return "Enter a formula expression.";
-          const res = validateExpression(c.formula);
-          if (!res.ok) return res.message || "Invalid expression.";
-
+        if (
+          c.computation_type === "percentage" &&
+          (c.computation_value <= 0 || c.computation_value > 100)
+        ) {
+          return "Percentage must be between 0 and 100.";
+        }
+        if (c.computation_type === "fixed" && c.computation_value < 0) {
+          return "Amount cannot be negative.";
         }
         return null;
       }),
     [components],
   );
+
 
   const hasComponentErrors = componentValidation.some(Boolean);
 
