@@ -213,7 +213,7 @@ export default function RFQs() {
                 } as ExportConfig;
               }}
             />
-            <Button onClick={() => { resetForm(); setShowCreateDialog(true); }}>
+            <Button onClick={() => navigate("/purchases/rfqs/new")}>
               <Plus className="mr-2 h-4 w-4" /> Create RFQ
             </Button>
           </div>
@@ -362,9 +362,17 @@ export default function RFQs() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setSelectedRFQ(rfq); setShowDetailDialog(true); }}>
-                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            <DropdownMenuItem onClick={() => setPeekId(rfq.id)}>
+                              <Eye className="mr-2 h-4 w-4" /> Quick view
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => navigate(`/purchases/rfqs/${rfq.id}`)}>
+                              <FileText className="mr-2 h-4 w-4" /> Open full page
+                            </DropdownMenuItem>
+                            {rfq.status === "draft" && (
+                              <DropdownMenuItem onClick={() => navigate(`/purchases/rfqs/${rfq.id}/edit`)}>
+                                <Pencil className="mr-2 h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                            )}
                             {rfq.status === "draft" && (
                               <DropdownMenuItem onClick={() => updateStatus({ id: rfq.id, status: "sent" })}>
                                 <Send className="mr-2 h-4 w-4" /> Mark as Sent
