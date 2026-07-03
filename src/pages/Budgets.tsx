@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useBudgets, Budget } from "@/hooks/useBudgets";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -27,10 +27,7 @@ import { PermissionGate } from "@/components/common/PermissionGate";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { normalizeError } from "@/services/resilience";
-import { BudgetFormSheet } from "@/features/finance/budgets/BudgetFormSheet";
-import { CopyBudgetSheet } from "@/features/finance/budgets/CopyBudgetSheet";
-import { BudgetItemSheet } from "@/features/finance/budgets/BudgetItemSheet";
-import { ManageBudgetSheet } from "@/features/finance/budgets/ManageBudgetSheet";
+import { CopyBudgetDetailSheet } from "@/features/finance/budgets/CopyBudgetDetailSheet";
 
 export default function Budgets() {
   const { budgets, isLoading, deleteBudget, activateBudget, closeBudget } = useBudgets();
@@ -40,46 +37,54 @@ export default function Budgets() {
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { allowed: canManageBudgets } = useFinancePermission("finance.manage_budgets");
 
-  // URL-driven sheet state so browser back + deep links behave.
-  // ?sheet=budget|copy|manage|item[&id=<uuid>]
+  // The Enterprise UX standard puts create/edit on dedicated routes
+  // (`/finance/budgets/new`, `/finance/budgets/:id/edit`). The only
+  // sheet left on this page is the confirm-style Copy sheet.
+  //
+  // Legacy `?sheet=budget|manage|item[&id]` deep-links land here from
+  // bookmarks / audit trail links — we transparently redirect them to
+  // the routed equivalents. `?sheet=copy&id=<uuid>` still opens the
+  // Copy sheet inline.
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const sheetKind = searchParams.get("sheet");
   const sheetId = searchParams.get("id");
 
-  const openSheet = (
-    kind: "budget" | "copy" | "manage" | "item",
-    id?: string,
-  ) => {
+  useEffect(() => {
+    if (sheetKind === "budget") {
+      // Legacy: ?sheet=budget (create) or ?sheet=budget&id=<uuid> (edit).
+      navigate(
+        sheetId ? `/finance/budgets/${sheetId}/edit` : "/finance/budgets/new",
+        { replace: true },
+      );
+    } else if (sheetKind === "manage" || sheetKind === "item") {
+      if (sheetId) {
+        navigate(`/finance/budgets/${sheetId}/edit`, { replace: true });
+      } else {
+        const next = new URLSearchParams(searchParams);
+        next.delete("sheet");
+        next.delete("id");
+        setSearchParams(next, { replace: true });
+      }
+    }
+  }, [sheetKind, sheetId, navigate, searchParams, setSearchParams]);
+
+  const openCopy = (id: string) => {
     const next = new URLSearchParams(searchParams);
-    next.set("sheet", kind);
-    if (id) next.set("id", id);
-    else next.delete("id");
+    next.set("sheet", "copy");
+    next.set("id", id);
     setSearchParams(next, { replace: false });
   };
-  const closeSheet = () => {
+  const closeCopy = () => {
     const next = new URLSearchParams(searchParams);
     next.delete("sheet");
     next.delete("id");
     setSearchParams(next, { replace: false });
   };
 
-  const editingBudget = useMemo<Budget | null>(
-    () =>
-      sheetKind === "budget" && sheetId
-        ? budgets.find((b) => b.id === sheetId) ?? null
-        : null,
-    [sheetKind, sheetId, budgets],
-  );
   const copySource = useMemo<Budget | null>(
     () =>
       sheetKind === "copy" && sheetId
-        ? budgets.find((b) => b.id === sheetId) ?? null
-        : null,
-    [sheetKind, sheetId, budgets],
-  );
-  const manageBudget = useMemo<Budget | null>(
-    () =>
-      (sheetKind === "manage" || sheetKind === "item") && sheetId
         ? budgets.find((b) => b.id === sheetId) ?? null
         : null,
     [sheetKind, sheetId, budgets],
@@ -98,7 +103,9 @@ export default function Budgets() {
       openUpgradeModal("budgets");
       return;
     }
-    openSheet("budget", budget?.id);
+    navigate(
+      budget ? `/finance/budgets/${budget.id}/edit` : "/finance/budgets/new",
+    );
   };
 
   const canTransitionTo = (
