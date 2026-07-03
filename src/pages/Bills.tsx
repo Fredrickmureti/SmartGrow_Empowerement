@@ -100,7 +100,7 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+
 
 // Workflow pipeline for Bills
 function BillWorkflowPipeline({ status }: { status: string }) {
