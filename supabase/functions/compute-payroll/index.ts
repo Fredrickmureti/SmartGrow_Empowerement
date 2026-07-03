@@ -25,6 +25,13 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { type InputRef, withInputRef } from "../_shared/inputRef.ts";
+import {
+  runStructureEngine,
+  type SalaryRule,
+  type StructureRuleTrace,
+  type WorkEntryType,
+  type WorkEntryRow,
+} from "./structureEngine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
