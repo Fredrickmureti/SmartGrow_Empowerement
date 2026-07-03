@@ -59,8 +59,7 @@ export default function ContactProfile() {
   // Dialog state
   const [applyCreditOpen, setApplyCreditOpen] = useState(false);
   const [applyCreditTarget, setApplyCreditTarget] = useState<any>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedCN, setSelectedCN] = useState<CreditNote | null>(null);
+  const [peekCreditNoteId, setPeekCreditNoteId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
