@@ -20,6 +20,8 @@ function ContactRedirect() {
 
 // Eager imports for commonly accessed pages
 import Accounts from "@/pages/Accounts";
+const AccountCreatePage = lazy(() => import("@/features/finance/accounts/AccountCreatePage"));
+const AccountEditPage = lazy(() => import("@/features/finance/accounts/AccountEditPage"));
 const FinanceDashboard = lazy(() => import("@/pages/finance/FinanceDashboard"));
 const AccountRegister = lazy(() => import("@/pages/finance/AccountRegister"));
 const ReportCenter = lazy(() => import("@/pages/finance/ReportCenter"));
@@ -160,7 +162,30 @@ export function FinanceApp() {
             </SubscriptionProtectedRoute>
           }
         />
-        
+
+        {/* Chart of Accounts — routed create/edit on RecordFormShell.
+            MUST come BEFORE `accounts/register` and `accounts/:id` to avoid shadowing. */}
+        <Route
+          path="accounts/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Account">
+                <AccountCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="accounts/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Edit Account">
+                <AccountEditPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Account Register (single account transaction view) */}
         <Route
           path="accounts/register"
