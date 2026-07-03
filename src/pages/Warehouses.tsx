@@ -372,7 +372,7 @@ export default function Warehouses() {
                                 {warehouse.is_active ? "Active" : "Inactive"}
                               </Badge>
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
