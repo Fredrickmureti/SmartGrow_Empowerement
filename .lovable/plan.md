@@ -135,7 +135,7 @@ Each phase is independently shippable, backward-compatible, and gated by pgTAP +
 - Add insert/update guards on `payroll_runs`, `journal_entries` (payroll source), `payroll_remittances`, `payroll_return_runs`, `payroll_bank_export_files` that consult period status.
 - Emit `business_event_outbox` rows on close/reopen; wire notification digest.
 
-### Phase 4 — Generator alignment with pay_schedules
+### Phase 4 — Generator alignment with pay_schedules ✅ shipped
 - New `payroll_periods_generate(pay_schedule_id, from, to)` implementing all frequencies.
 - Backfill `pay_schedule_id` on existing rows via best-match by business + frequency.
 - Keep `generate_payroll_periods` as a shim; add deprecation notice.
