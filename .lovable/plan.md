@@ -1,122 +1,81 @@
-## Implementation plan
+## Verified status
 
-### 1. Correct the Purchases handoff before starting Inventory
+- **Purchases** — complete. All rows in `docs/design-system/audit/purchases.md` are Done; both allowlists in `purchases-record-dialog-ban.test.ts` are empty.
+- **Inventory** — partially migrated by previous agents:
+  - Done: UoM (`DetailSheet`), Barcode Enrollment (kept), Warehouses routed (`WarehouseNew`/`WarehouseEdit`/`WarehouseForm`), Stock Transfers routed (`TransferNew` + `?action=new` forwarder), Scrap routed (`ScrapNew`).
+  - Still pending: Products, Stock Adjustments, Physical Count wizard, Reorder Rules, Product Categories, and every legacy `*Drawer.tsx` under `src/components/inventory/` (`WarehouseStockDrawer`, `MovementDetailDrawer`, `SourceDocumentDrawer`, `AdjustmentDetailDrawer`, `TransferDetailDrawer`).
+  - `src/pages/Products.tsx` still contains 41 `Dialog` references and `src/pages/Inventory.tsx` 23 — the biggest remaining Inventory surfaces.
+- **Sales phases 4–5** — not started (Record Payment / Convert / Apply credit / Refund / Statement / Merge wizards; `/sales/configuration/*` object pages).
+- **Finance** — untouched; no audit file, no `src/features/finance/*`.
 
-**Goal:** make `/purchases/bills/new` a real create surface, not a read-only record lookup with `id === ""`.
+## Plan
 
-- Replace the current Bills `/new` route target with a dedicated create page built on the existing enterprise record form pattern.
-- Reuse the existing Bills create logic that was removed from `src/pages/Bills.tsx` where practical, but place it in a full-page `RecordFormShell`/record route instead of a dialog.
-- Keep Bills list behavior intact:
-  - `Add Bill` navigates to `/purchases/bills/new`.
-  - `/purchases/bills?action=create&contact_id=...` redirects to `/purchases/bills/new?contact_id=...`.
-  - Existing bill view remains `/purchases/bills/:id`.
-  - Existing bill edit remains `/purchases/bills/:id/edit`.
-- Fix route ordering/imports if needed so `bills/new` cannot fall through to `bills/:id`.
-- Update Purchases audit notes only to reflect the truth: Bill create is complete only after the create page works.
+### 1. Inventory — Products master (highest impact)
 
-### 2. Strengthen Purchases enforcement
+Route the product create/edit/view flow off the inline dialogs in `Products.tsx`:
 
-**Goal:** prevent the exact regression from returning.
+- Add `/inventory-app/products/new`, `/inventory-app/products/:id/edit`, `/inventory-app/products/:id` (record page) plus `?peek=<id>` on the list.
+- Build a shared `ProductFormFields` used by both create and edit on `RecordFormShell`, with `Section` + `FieldGrid` grouping: Identity, Classification (category / brand / tax), Pricing, Inventory (base UoM, tracking, warehouses), Compliance, Identifiers/Barcodes, Packaging, Opening stock, Images.
+- Preserve every existing integration: category selection, image upload, tax fields, product accounts, identifiers, packaging editor, opening stock handoff, scanner `createWithCode` onboarding, `?action=create`, `?createWithCode`, and `?selected=` deep-link → peek/record.
+- Migrate Product Category create/edit to `DetailSheet` (≤6 fields).
+- List actions: Add → route; Edit → route; row click → peek (`?peek=<id>`) with "Open full page" jumping to the record route.
 
-- Keep the existing Purchases dialog-file ban.
-- Keep/repair the inline list-page scan that rejects `<DialogTitle>Add/Create/New/Edit ...</DialogTitle>` on Purchases list pages.
-- Add an assertion that Bills `/new` is not mounted to the read-only `BillRecordPage` route target.
-- Verify the guard fails for inline create/edit dialogs while allowing payment, print, email, preview, and confirmation dialogs.
+### 2. Inventory — Stock Adjustments
 
-### 3. Start Inventory migration with the highest-impact record flows
+- Add `/inventory-app/adjustments/new` + `/:id/edit` on `RecordFormShell` with `LineItemsGrid`, preserving branch/warehouse scoping, reason → offset-account preview, GL posting, and the existing `ReverseAdjustmentDialog` (confirm-style, stays a dialog).
+- Replace `AdjustmentDetailDrawer` with `AdjustmentPeekSheet` on `PeekScaffold` behind `?peek=<id>` on the Adjustments list.
 
-**Goal:** move Inventory away from modal CRUD and into the same enterprise architecture used by HR/Payroll, Sales, and Purchases.
+### 3. Inventory — Physical Count wizard
 
-Initial Inventory surfaces confirmed as legacy or partial:
+- Convert the inline `PhysicalCount.tsx` workspace into a routed `WizardShell` at `/inventory-app/count/new` and a `RecordScaffold` at `/:id`, preserving scanner counting and variance-apply step.
 
-- `src/pages/Products.tsx`
-  - Add/Edit Product dialog.
-  - Product detail dialog/panel pattern.
-  - `?action=create`, `?createWithCode`, scan-to-onboard, and `?selected=` deep links still open dialogs.
-- `src/pages/Warehouses.tsx`
-  - Add/Edit Warehouse dialog.
-  - Create Stock Transfer dialog.
-- `src/pages/Inventory.tsx`
-  - Create Stock Adjustment dialog.
-  - Several drawer/detail surfaces for warehouse stock, movements, source docs, and adjustment details need classification as `PeekScaffold` or route object pages.
-- `src/pages/inventory/Transfers.tsx`
-  - New Stock Transfer dialog.
-  - Transfer detail drawer.
-- `src/pages/inventory/ScrapRecording.tsx`
-  - Record Scrap/Waste dialog.
-- `src/pages/inventory/PhysicalCount.tsx`
-  - Already closer to a workspace, but should be formalized as a routed `WizardShell`-style count workspace.
-- `src/pages/inventory/UomManagement.tsx`
-  - UoM category and unit dialogs are small configuration forms; migrate to `DetailSheet` rather than object pages.
+### 4. Inventory — Drawers → PeekScaffold
 
-### 4. Inventory phase 1: product master records
+Replace the remaining detail drawers with `*PeekSheet` on `PeekScaffold` behind `?peek=<id>`:
 
-**Goal:** modernize the central Inventory master record first.
+- `WarehouseStockDrawer` → `WarehouseStockPeekSheet` (list on `Warehouses.tsx` / `Inventory.tsx`)
+- `MovementDetailDrawer` → `StockMovementPeekSheet`
+- `SourceDocumentDrawer` → delegate to the owning app's peek (Bill / SO / Adjustment) via router push; peek sheet only when no owning app peek exists
+- `TransferDetailDrawer` → `StockTransferPeekSheet`
+- Delete the legacy `*Drawer.tsx` files and remove their allowlist entries in `inventory-record-dialog-ban.test.ts`.
 
-- Add product create/edit routes:
-  - `/inventory-app/products/new`
-  - `/inventory-app/products/:id/edit`
-  - `/inventory-app/products/:id`
-- Build product create/edit on enterprise form primitives:
-  - `RecordFormShell` or `RecordShell` + `FooterActionBar`
-  - `Section`, `FieldGrid`, `FieldCell`, `FieldGroup`
-  - shared product field component to avoid duplicating the existing long form
-- Preserve critical integrations:
-  - category selection
-  - image upload
-  - tax/compliance fields
-  - product accounts
-  - identifiers/barcodes
-  - packaging editor
-  - opening stock/warehouse handoff
-  - scanner onboarding with `createWithCode`
-- Change Products list actions:
-  - Add → route
-  - Edit → route
-  - row click/view → record page or `?peek=<id>` depending on existing UX fit
-  - `?action=create`, `?createWithCode`, and scan miss → route-based create flow
-  - `?selected=` → product record/peek instead of dialog
+### 5. Inventory — Reorder Rules
 
-### 5. Inventory phase 2: warehouse, transfer, adjustment, scrap, and count workflows
+- Reorder Rule create/edit → `DetailSheet` (≤6 fields).
+- Reorder Rule view → `PeekScaffold` behind `?peek=<id>`.
 
-**Goal:** migrate transactional Inventory documents after the product foundation is stable.
+### 6. Inventory — guard + audit ledger
 
-- Warehouses:
-  - create/edit via route or `DetailSheet` depending on final field count and business complexity; current form is more than six fields, so prefer routes.
-  - object/peek page for warehouse stock context.
-- Stock transfers:
-  - `/inventory-app/transfers/new`
-  - `/inventory-app/transfers/:id`
-  - preserve dispatch/receive/cancel lifecycle actions.
-  - migrate transfer line scanner into the route workspace.
-- Stock adjustments:
-  - `/inventory-app/adjustments/new`
-  - `/inventory-app/adjustments/:id`
-  - preserve branch/warehouse scoping, reason-to-offset-account preview, GL posting, reversal workflow.
-- Scrap:
-  - `/inventory-app/scrap/new` as a focused process route using the existing `record_scrap_atomic` RPC.
-- Physical count:
-  - convert the current inline workspace into a formal routed `WizardShell` at `/inventory-app/count/new` while preserving scanner counting and variance application.
-- UoM configuration:
-  - replace category/unit dialogs with `DetailSheet` configuration surfaces, preserving delete confirmations.
+- Shrink `LEGACY_DIALOG_ALLOWLIST` and `LEGACY_INLINE_DIALOG_ALLOWLIST` in `inventory-record-dialog-ban.test.ts` to empty as each migration lands.
+- Update `docs/design-system/audit/inventory.md` per-row to **Done** with the actual route / component path — no rows may be marked Done until the corresponding dialog file is deleted and the guard passes.
 
-### 6. Add Inventory enforcement and update the audit ledger
+### 7. Sales — phases 4 & 5
 
-**Goal:** make the migration durable.
+- Convert `RecordPaymentDialog` (both copies) to a routed `WizardShell` at `/sales/invoices/:id/record-payment`.
+- Add `WizardShell` routes for Convert (quote→SO→invoice), Apply Credit, Refund, Generate Statement, Merge Customers.
+- Build `/sales/configuration/*` object pages on `RecordScaffold` for tax rules, numbering, terms, payment methods.
+- Add `sales-record-dialog-ban.test.ts` inline-dialog scan (mirror of Purchases guard) to catch regressions.
 
-- Extend or create an Inventory architecture guard that bans new Inventory `Create*Dialog`, `Edit*Dialog`, `*DetailDialog`, and legacy record drawers under Inventory/Product/Warehouse surfaces.
-- Add an inline list-page scan for Inventory pages similar to the Purchases guard.
-- Update `docs/design-system/audit/inventory.md` after each migrated surface with true status only.
-- Do not mark Inventory complete until all listed submodules are migrated or explicitly justified.
+### 8. Finance — full audit and migration
 
-### 7. Verification gates
+- Create `docs/design-system/audit/finance.md` (companion to the existing one referenced in code) enumerating every create/edit/convert/close surface: Journal Entry, Business Transaction (JE quick-post), Recurring Journal, Chart of Accounts entry, Fiscal Period, Year-End Close, Budget, Fixed Asset, Analytic Account, Bank Account, Bank Reconciliation, Bank Transfer Reconcile, Bank Transactions Import, Transaction Matching Rules, Customer Credit Apply / Refund, Default Account Mappings.
+- Migrate each per its target column (routes for records with line items, `WizardShell` for close / reconcile / import, `DetailSheet` for small configs).
+- Add `finance-record-dialog-ban.test.ts` mirroring the Purchases/Inventory guards.
 
-For each completed slice:
+### 9. Design-system promotion (do once, before Finance)
 
-- Run the targeted architecture test.
-- Run TypeScript typecheck.
-- Use Playwright smoke checks for the routed workflows:
-  - `/purchases/bills` → Add Bill → `/purchases/bills/new` renders a usable create form, no dialog.
-  - `/purchases/bills?action=create` redirects to `/purchases/bills/new`.
-  - Inventory list Add/Edit/View flows navigate to routes or open approved sheets, not legacy dialogs.
-- Confirm existing payment, email, print, delete confirmation, reverse-adjustment, and other allowed dialogs still work and are not accidentally removed.
+Promote the shared scaffolds still living under `@/features/sales/record` into `@/design-system/records/*` with domain-neutral names (`RecordScaffold`, `RecordBody`, `PeekScaffold`, `DocumentPeekShell`, `LineItemsGrid`, `DocumentTotalsPanel`, `DocumentActivityPanel`, `usePeekParam`, `useDocumentRecord`) and leave `@/features/sales/record` as a thin re-export shim. Finance and remaining Inventory work import from `@/design-system` only.
+
+### Technical notes
+
+- All new record routes go under the `_authenticated` layout in the TanStack file-based route tree; the router already exposes `/inventory-app/...` prefixes matching prior migrations.
+- Data fetching stays on `useSuspenseQuery` + `.functions.ts`; no RLS or schema changes are in scope.
+- All colors/spacing via tokens; verify at 1280 / 1024 / 768 / 375.
+- Verification gate per slice: targeted architecture test → `tsgo` → Playwright smoke on the migrated flow.
+
+### Order of execution
+
+1. Inventory Products → Adjustments → Physical Count → Drawers → Reorder Rules → guard/audit close-out.
+2. Design-system promotion.
+3. Sales phases 4–5.
+4. Finance audit + full migration.

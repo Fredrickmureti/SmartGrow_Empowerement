@@ -16,7 +16,7 @@ import { SourceDocumentDrawer } from "@/components/inventory/SourceDocumentDrawe
 import { MovementDetailDrawer } from "@/components/inventory/MovementDetailDrawer";
 import { WarehouseStockDrawer } from "@/components/inventory/WarehouseStockDrawer";
 import { AdjustmentItemsExpander } from "@/components/inventory/AdjustmentItemsExpander";
-import { AdjustmentDetailDrawer } from "@/components/inventory/AdjustmentDetailDrawer";
+import { AdjustmentPeekSheet } from "@/components/inventory/AdjustmentPeekSheet";
 import { ReverseAdjustmentDialog } from "@/components/inventory/ReverseAdjustmentDialog";
 import type { StockAdjustment } from "@/hooks/useInventory";
 import { exportMovementsToCSV } from "@/lib/exportMovements";
@@ -1029,7 +1029,7 @@ export default function Inventory() {
         onOpenSourceDocDrawer={handleOpenSourceDocDrawer}
       />
       <WarehouseStockDrawer open={warehouseStockDrawerOpen} onOpenChange={setWarehouseStockDrawerOpen} warehouseId={selectedWarehouseId} warehouseName={selectedWarehouseName} organizationId={organizationId} />
-      <AdjustmentDetailDrawer open={adjustmentDrawerOpen} onOpenChange={setAdjustmentDrawerOpen} adjustmentId={selectedAdjustmentId} />
+      <AdjustmentPeekSheet open={adjustmentDrawerOpen} onOpenChange={setAdjustmentDrawerOpen} adjustmentId={selectedAdjustmentId} />
       <ReverseAdjustmentDialog
         adjustment={reverseTarget}
         open={reverseOpen}

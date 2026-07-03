@@ -29,7 +29,7 @@ Legend for **Target**:
 | Stock Movement | Peek (list) | `MovementDetailDrawer` | `PeekScaffold` | **Pending** |
 | Stock Movement | Source doc peek | `SourceDocumentDrawer` | `PeekScaffold` (delegate to source app peek) | **Pending** |
 | Stock Adjustment | Create / Edit | inline dialog | Route + `RecordFormShell` at `/inventory/adjustments/new` + `/:id/edit` | **Pending** |
-| Stock Adjustment | Peek (list) | `AdjustmentDetailDrawer` | `PeekScaffold` | **Pending** |
+| Stock Adjustment | Peek (list) | `AdjustmentPeekSheet` at `src/components/inventory/AdjustmentPeekSheet.tsx` | `PeekScaffold` | Done |
 | Stock Adjustment | Reverse | `ReverseAdjustmentDialog` | `Dialog` (allowed — confirm-style) | Done |
 | Stock Transfer | Create / Edit | inline dialog in `src/pages/inventory/Transfers.tsx` | Route + `RecordFormShell` at `/inventory/transfers/new` + `/:id/edit` | **Pending** |
 | Stock Transfer | Peek (list) | `TransferDetailDrawer` | `PeekScaffold` | **Pending** |
