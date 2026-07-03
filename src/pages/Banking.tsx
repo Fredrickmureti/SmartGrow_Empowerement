@@ -14,7 +14,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Skeleton } from "@/components/ui/skeleton";
 import { BankAccountCard } from "@/components/banking/BankAccountCard";
 // ImportTransactionsDialog removed — import is now a routed WizardShell at /finance/banking/import.
-import { Link } from "react-router-dom";
 import { BankAccountSheet } from "@/features/finance/banking/BankAccountSheet";
 import { TransactionsList } from "@/components/banking/TransactionsList";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
