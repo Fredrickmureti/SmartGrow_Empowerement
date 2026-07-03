@@ -452,6 +452,19 @@ export function FinanceApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* Bank Statement Import — routed WizardShell. */}
+        <Route
+          path="banking/import"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Import Bank Statement">
+                <ImportStatementWizardPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        
         
         {/* Bank Reconciliation — routed start form (must come BEFORE `reconciliation` to avoid shadowing). */}
         <Route
