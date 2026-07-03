@@ -598,7 +598,7 @@ export default function Bills() {
                 <Button variant="outline" onClick={() => setShowImportWizard(true)} className="flex-1 sm:flex-none">
                   <Upload className="mr-2 h-4 w-4" /> Import
                 </Button>
-                <Button onClick={() => setShowDialog(true)} className="flex-1 sm:flex-none">
+                <Button onClick={() => navigate("/purchases/bills/new")} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" /> Add Bill
                 </Button>
               </>
