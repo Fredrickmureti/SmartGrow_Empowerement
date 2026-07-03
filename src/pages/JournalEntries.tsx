@@ -17,14 +17,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -90,6 +82,8 @@ import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { usePeekParam } from "@/design-system";
+import { JournalEntryPeekSheet } from "@/features/finance/journal-entries/JournalEntryPeekSheet";
 
 export default function JournalEntries() {
   const { 
@@ -114,7 +108,6 @@ export default function JournalEntries() {
   
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [viewingEntry, setViewingEntry] = useState<JournalEntry | null>(null);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [voidingEntryId, setVoidingEntryId] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("");
@@ -122,6 +115,7 @@ export default function JournalEntries() {
   const accountResolverRef = useRef<AccountResolver | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [peekId, setPeekId] = usePeekParam();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSource, setDrawerSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
 
@@ -136,16 +130,14 @@ export default function JournalEntries() {
     }
   }, [searchParams, isReadOnly, navigate, openUpgradeModal]);
 
-  // Handle ?selected={journalId} deep-link to auto-open detail view
+  // Back-compat: `?selected=<id>` now opens the peek sheet via `?peek=<id>`.
+  // Legacy inbound links from payments / bills / drilldowns keep working.
   useEffect(() => {
     const selectedId = searchParams.get("selected");
-    if (selectedId && journalEntries?.length) {
-      const entry = journalEntries.find(e => e.id === selectedId);
-      if (entry) {
-        setViewingEntry(entry);
-      }
+    if (selectedId && !peekId) {
+      setPeekId(selectedId);
     }
-  }, [searchParams, journalEntries]);
+  }, [searchParams, peekId, setPeekId]);
 
   const journalFieldDefinitions = JOURNAL_ENTRY_IMPORT_FIELDS;
 
@@ -438,7 +430,7 @@ export default function JournalEntries() {
                     <TableRow key={entry.id}>
                       <TableCell className="font-medium">
                         <button 
-                          onClick={() => setViewingEntry(entry)}
+                          onClick={() => setPeekId(entry.id)}
                           className="hover:underline"
                         >
                           {entry.entry_number}
@@ -461,7 +453,7 @@ export default function JournalEntries() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setViewingEntry(entry)}>
+                            <DropdownMenuItem onClick={() => setPeekId(entry.id)}>
                               <Eye className="mr-2 h-4 w-4" />
                               View
                             </DropdownMenuItem>
@@ -548,160 +540,11 @@ export default function JournalEntries() {
         </Card>
 
 
-        {/* View Entry Dialog */}
-        <Dialog open={!!viewingEntry} onOpenChange={() => setViewingEntry(null)}>
-          <DialogContent className="w-[95vw] max-w-3xl p-4 sm:p-6">
-            <DialogHeader>
-              <DialogTitle className="text-lg">Journal Entry {viewingEntry?.entry_number}</DialogTitle>
-              <DialogDescription>
-                {viewingEntry && format(new Date(viewingEntry.entry_date), "MMMM d, yyyy")}
-              </DialogDescription>
-            </DialogHeader>
-            
-            {viewingEntry && (
-              <div className="space-y-4 overflow-hidden">
-                <div className="flex flex-wrap items-center gap-2">
-                  {getStatusBadge(viewingEntry)}
-                  {viewingEntry.is_adjusting && <Badge variant="outline">Adjusting Entry</Badge>}
-                  {viewingEntry.is_reversal && viewingEntry.reversal_of_id && (
-                    <Badge variant="outline" className="text-purple-700">
-                      Reversal of {journalEntries.find(e => e.id === viewingEntry.reversal_of_id)?.entry_number || "unknown"}
-                    </Badge>
-                  )}
-                  {viewingEntry.reversed_by_id && (
-                    <Badge variant="outline" className="text-amber-700">
-                      Reversed by {journalEntries.find(e => e.id === viewingEntry.reversed_by_id)?.entry_number || "unknown"}
-                    </Badge>
-                  )}
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground">Description</Label>
-                  <p className="text-sm break-words">{viewingEntry.description}</p>
-                </div>
-
-                {viewingEntry.reference && (
-                  <div>
-                    <Label className="text-muted-foreground">Reference</Label>
-                    <p className="text-sm">{viewingEntry.reference}</p>
-                  </div>
-                )}
-
-                {/* Audit Trail Metadata */}
-                <div className="grid grid-cols-2 gap-3">
-                  {viewingEntry.posted_at && (
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Posted</Label>
-                      <p className="text-xs">{format(new Date(viewingEntry.posted_at), "MMM d, yyyy HH:mm")}</p>
-                    </div>
-                  )}
-                  {viewingEntry.voided_at && (
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Voided</Label>
-                      <p className="text-xs">{format(new Date(viewingEntry.voided_at), "MMM d, yyyy HH:mm")}</p>
-                    </div>
-                  )}
-                  {viewingEntry.void_reason && (
-                    <div className="col-span-2">
-                      <Label className="text-muted-foreground text-xs">Void Reason</Label>
-                      <p className="text-xs text-destructive">{viewingEntry.void_reason}</p>
-                    </div>
-                  )}
-                  {viewingEntry.created_at && (
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Created</Label>
-                      <p className="text-xs">{format(new Date(viewingEntry.created_at), "MMM d, yyyy HH:mm")}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Source Transaction Link */}
-                {(viewingEntry as any).source_type && (viewingEntry as any).source_id && (
-                  <div>
-                    <Label className="text-muted-foreground">Source Transaction</Label>
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto text-primary"
-                      onClick={() => {
-                        setDrawerSource({
-                          type: (viewingEntry as any).source_type,
-                          id: (viewingEntry as any).source_id,
-                        });
-                        setDrawerOpen(true);
-                      }}
-                    >
-                      View {(viewingEntry as any).source_type?.replace("_", " ")} →
-                    </Button>
-                  </div>
-                )}
-
-                {/* Mobile card layout for journal lines */}
-                <div className="sm:hidden space-y-3">
-                  {viewingEntry.lines?.map((line) => (
-                    <div key={line.id} className="p-3 border rounded-lg bg-muted/30 space-y-2">
-                      <p className="text-sm font-medium">{line.accounts?.code} - {line.accounts?.name}</p>
-                      {line.description && <p className="text-xs text-muted-foreground">{line.description}</p>}
-                      <div className="flex justify-between text-sm">
-                        <span>
-                          {line.debit > 0 && <span className="text-foreground">Dr: {formatCurrency(line.debit)}</span>}
-                        </span>
-                        <span>
-                          {line.credit > 0 && <span className="text-foreground">Cr: {formatCurrency(line.credit)}</span>}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="p-3 border rounded-lg bg-muted/50 flex justify-between font-bold text-sm">
-                    <span>Dr: {formatCurrency(viewingEntry.total_debit || 0)}</span>
-                    <span>Cr: {formatCurrency(viewingEntry.total_credit || 0)}</span>
-                  </div>
-                </div>
-
-                {/* Desktop table layout */}
-                <div className="hidden sm:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Account</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead className="text-right">Debit</TableHead>
-                        <TableHead className="text-right">Credit</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {viewingEntry.lines?.map((line) => (
-                        <TableRow key={line.id}>
-                          <TableCell>
-                            {line.accounts?.code} - {line.accounts?.name}
-                          </TableCell>
-                          <TableCell>{line.description || "-"}</TableCell>
-                          <TableCell className="text-right">
-                            {line.debit > 0 ? formatCurrency(line.debit) : "-"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {line.credit > 0 ? formatCurrency(line.credit) : "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="font-bold">
-                        <TableCell colSpan={2} className="text-right">Totals:</TableCell>
-                        <TableCell className="text-right">{formatCurrency(viewingEntry.total_debit || 0)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(viewingEntry.total_credit || 0)}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {viewingEntry.void_reason && (
-                  <div className="p-3 bg-destructive/10 rounded-lg">
-                    <Label className="text-destructive">Void Reason</Label>
-                    <p>{viewingEntry.void_reason}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* Journal Entry peek — the standardized ?peek=<id> surface. */}
+        <JournalEntryPeekSheet
+          entryId={peekId}
+          onOpenChange={(open) => !open && setPeekId(null)}
+        />
 
         {/* Void Confirmation Dialog */}
         <AlertDialog open={showVoidDialog} onOpenChange={setShowVoidDialog}>

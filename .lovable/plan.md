@@ -1,87 +1,62 @@
-## Independent assessment
+## Verified status
 
-I re-verified the previous agent's claims against the codebase before planning. Findings:
+I independently reverified the prior agent's claims against the code:
 
-**Sales** — audit doc marks everything Done; `sales-record-dialog-ban.test.ts` passes; both allowlists (create/edit + peek) are empty. No outstanding work.
+- **Sales / Purchases / Inventory** — audit docs marked complete; guard tests green; allowlists empty. No outstanding work.
+- **Finance** — Journal Entry **Create** and **Edit** are now on `RecordFormShell` at `/finance/journal-entries/new` and `/:id/edit` (audit doc flipped to Done, files exist). The finance dialog-ban guard is green because it only enforces `Create*Dialog` / `Edit*Dialog` / `*DetailDialog` filename patterns — the twelve remaining legacy dialogs use different filenames (`BusinessTransactionDialog`, `RecurringJournalDialog`, `YearEndClosingDialog`, `ConnectBank…`, `Reconcile…`, `ImportTransactions…`, `TransactionRules…`, `ApplyCreditDialog`, `ProcessRefundDialog`, `CreditNoteDetailDialog`, `EditBankAccountDialog`) and are tracked only by the audit doc.
+- **Typecheck** — clean.
 
-**Purchases** — audit doc all Done; `purchases-record-dialog-ban.test.ts` passes; allowlists empty. No outstanding work.
+The prior agent's next‑slice notes match the actual audit gap. Pick up from Journal Entry Peek/View and finish Finance.
 
-**Inventory** — Warehouses, Adjustments, Transfers, Scrap, UoM, and (as of the last turn) Products are migrated. `ProductForm.tsx` (1091 lines) + `ProductNew.tsx` + `ProductEdit.tsx` exist; `src/apps/inventory/routes.tsx` registers `products/new` and `products/:id/edit`; the inline product record dialog in `src/pages/Products.tsx` is gone (`ProductDetailPanel` peek remains, which is expected). Guard test green. Remaining Slice A items match the previous agent's note.
+## Plan — Finish Finance (single slice at a time)
 
-**Finance** — audit doc all Pending. `finance-record-dialog-ban.test.ts` **fails**: the allowlist has only `ApplyDefaultMappingsDialog` but 12 legacy dialogs still exist on disk under `src/components/finance` and `src/components/banking`. Nothing has been migrated in Finance yet.
+Reuse existing design‑system scaffolds only: `RecordFormShell`, `RecordScaffold`, `PeekScaffold` / `DocumentPeekShell`, `DetailSheet`, `WizardShell`, `LineItemsGrid`, `SummaryPanel`, `DocumentTotalsPanel`, `DocumentActivityPanel`, `useRecordFormSubmit`. No new primitives.
 
-**Typecheck** — `tsgo --noEmit` clean.
+For every entity: build route(s) → migrate the call site → delete the legacy dialog file → flip the audit row → keep guard test green.
 
-**Conclusion** — the previous agent's status report is accurate. Pick up exactly where they stopped: finish Inventory Slice A, then execute the full Finance migration.
+### Slice B1 — Journal Entry View + Peek
+- `RecordScaffold` at `/finance/journal-entries/:id` (identity, meta chips, line grid read‑only, totals + activity + attachments in `SummaryPanel`).
+- `JournalEntryPeekSheet` on `PeekScaffold` behind `?peek=<id>` on the list.
+- Remove `JournalEntryDetailRedirect` inline hop; redirect stays for back‑compat URLs pointing to `?selected=` if any external links exist.
 
----
+### Slice B2 — Business Transaction + Recurring Journal
+- `BusinessTransactionDialog` → deep‑link `/finance/journal-entries/new?template=business` on the same JE `RecordFormShell` (template pre‑fills lines). Delete dialog.
+- `RecurringJournalDialog` → `/finance/recurring-journals/new` + `/:id/edit` on `RecordFormShell` with `LineItemsGrid`; `PeekScaffold` for the list. Delete dialog.
 
-## Plan
+### Slice B3 — Chart of Accounts + Analytic Accounts + Fiscal Periods
+- CoA: `RecordFormShell` at `/finance/accounts/new` and `/:id/edit` (identity, type, parent, currency, tax mapping, opening balance).
+- Analytic Accounts: `DetailSheet` (≤6 fields).
+- Fiscal Periods: `DetailSheet` create/edit.
+- Year‑End Close: `WizardShell` at `/finance/fiscal-periods/close` (Scope → Adjustments preview → Post & lock). Delete `YearEndClosingDialog`.
 
-### Phase 1 — Inventory Slice A (finish inventory)
+### Slice B4 — Budgets + Fixed Assets
+- Budgets: `RecordFormShell` at `/finance/budgets/new` + `/:id/edit` with `LineItemsGrid` for account × period.
+- Fixed Assets: `RecordFormShell` at `/finance/fixed-assets/new` + `/:id/edit`; `PeekScaffold` for the list.
 
-Reuse the existing design-system scaffolds (`RecordFormShell`, `DetailSheet`, `WizardShell`, `PeekScaffold`, `useRecordFormSubmit`) — no new primitives.
-
-1. **Product Category** → `DetailSheet` (≤6 fields: name, parent, code, description, default income/expense accounts). Replace the inline create/edit dialog in `src/pages/Products.tsx` (Categories Manager) with the sheet. No route needed.
-2. **Physical Count** → `WizardShell` at `/inventory-app/physical-count/new` + `RecordScaffold` at `/inventory-app/physical-count/:id`. Steps: Scope (warehouse + filters) → Count (line grid with expected vs counted qty) → Review & commit (posts adjustment JE preview + variance summary). Retire the inline dialog in `src/pages/inventory/PhysicalCount.tsx`.
-3. **Reorder Rule** → `DetailSheet` for create/edit (product, warehouse, min qty, max qty, reorder qty, active) + `PeekScaffold` `?peek=<id>` for the list. Retire the inline dialog.
-4. **Stock Lot peek** → `StockLotPeekSheet` on `PeekScaffold` behind `?peek=<id>` on the lot list. Retire inline dialog.
-5. **Stock Reservation peek** → `StockReservationPeekSheet` on `PeekScaffold` behind `?peek=<id>`. Retire inline dialog.
-6. Update `docs/design-system/audit/inventory.md` — flip each row to Done, drop the pending header note.
-7. Guard: `inventory-record-dialog-ban.test.ts` must stay green (allowlist stays empty).
-
-### Phase 2 — Finance (full migration, 12 legacy surfaces)
-
-Per `docs/design-system/audit/finance.md`. All routes register in the finance app's route file; each entity uses the shared `RecordFormShell` / `WizardShell` / `PeekScaffold` / `LineItemsGrid` / `useRecordFormSubmit`.
-
-**Journal Entries (foundational — start here)**
-- `RecordFormShell` at `/finance/journal-entries/new` and `/:id/edit`, with `LineItemsGrid` for lines (account, debit, credit, description, analytic tags), balancing indicator, attach source doc.
-- `RecordScaffold` at `/finance/journal-entries/:id`.
-- `PeekScaffold` `?peek=<id>` on the list; retire `JournalEntryDetailRedirect` inline path.
-- `BusinessTransactionDialog` → deep-link `/finance/journal-entries/new?template=business` on the same shell.
-- `RecurringJournalDialog` → `/finance/recurring-journals/new` + `/:id/edit` + `PeekScaffold`.
-
-**Chart of Accounts** — `RecordFormShell` at `/finance/accounts/new` + `/:id/edit` (identity, type, parent, currency, tax mapping, tags, opening balance).
-
-**Fiscal Periods** — `DetailSheet` for create/edit (≤6 fields). `YearEndClosingDialog` → `WizardShell` at `/finance/fiscal-periods/close` (steps: Scope → Adjustments preview → Post & lock).
-
-**Budgets** — `RecordFormShell` at `/finance/budgets/new` + `/:id/edit` with `LineItemsGrid` for account budgets by period.
-
-**Fixed Assets** — `RecordFormShell` at `/finance/fixed-assets/new` + `/:id/edit` (identity, category, acquisition, depreciation method/life, salvage, GL mapping) + `PeekScaffold` on the list.
-
-**Analytic Accounts** — `DetailSheet` (≤6 fields).
-
-**Banking**
+### Slice B5 — Banking (highest risk)
 - `ConnectBankDialog` → `RecordFormShell` at `/finance/banking/accounts/new`.
-- `EditBankAccountDialog` → `RecordFormShell` at `/finance/banking/accounts/:id/edit`.
-- `StartReconciliationDialog` + `ReconcileTransactionDialog` + `TransferReconcileDialog` → single `WizardShell` at `/finance/reconciliation/new` and split-view `RecordScaffold` at `/finance/reconciliation/:id` (row-edit inline in workspace, transfer-reconcile is a workspace step).
+- `EditBankAccountDialog` → `RecordFormShell` at `/finance/banking/accounts/:id/edit` (also drops it off the filename allowlist).
+- Reconciliation workspace: `WizardShell` at `/finance/reconciliation/new` and split‑view `RecordScaffold` at `/finance/reconciliation/:id` — replaces `StartReconciliationDialog`, `ReconcileTransactionDialog`, `TransferReconcileDialog` (transfer becomes an inline workspace step). Build the workspace scaffold first, then port each dialog as a region/step.
 - `ImportTransactionsDialog` → `WizardShell` at `/finance/banking/:id/import` (Upload → Map columns → Preview → Commit).
 - `TransactionRulesDialog` → `RecordScaffold` at `/finance/banking/rules` + `RecordFormShell` for new/edit.
 
-**Customer Credits**
+### Slice B6 — Customer Credits + Legacy cleanup
 - `ApplyCreditDialog` → `WizardShell` at `/finance/customer-credits/:id/apply`.
 - `ProcessRefundDialog` → `WizardShell` at `/finance/customer-credits/:id/refund`.
+- Delete `CreditNoteDetailDialog`; repoint any remaining consumers to the Sales `/sales/credit-notes/:id` + peek that already exist.
 
-**Legacy cleanup** — delete `CreditNoteDetailDialog` (superseded by Sales `/sales/credit-notes/:id`); repoint any remaining consumers to the Sales route + peek.
+### Slice B7 — Guard + integrity pass
+- Extend `finance-record-dialog-ban.test.ts` with an inline‑`<Dialog>` scan for Finance list pages (mirrors the Inventory guard's second section) so regressions on non‑filename‑matching dialogs are also blocked.
+- Empty the filename allowlist entirely (both `CreditNoteDetailDialog` and `EditBankAccountDialog` are deleted by then).
+- Grep for lingering `import …Dialog` references to deleted files; fix.
+- Verify deep‑links (`?action=create`, `?peek=<id>`, dashboard/notification/command‑palette inbound) resolve to the new routes.
+- Run `bunx tsgo --noEmit` + full architecture test suite; both must be green before closing the slice.
 
-**Kept as Dialog** — `ApplyDefaultMappingsDialog` (confirm-style, already Done).
+### Ground rules
 
-**Guard** — as each migration lands, delete the dialog file. Once all 12 are gone, `finance-record-dialog-ban.test.ts` returns to green with an empty allowlist. Add finance list pages to an inline-dialog scanner section mirroring the inventory guard so no regressions land.
+- One entity per turn: route(s) → callsite migration → delete legacy dialog → flip audit row → guard green.
+- Preserve every existing RPC call, RLS‑scoped query, branch/business scoping, and toast wording verbatim — UX/architecture migration only, no business‑logic change.
+- No reach‑through into `@/features/sales/record/*` from Finance; import scaffolds from `@/design-system` only.
+- Do not touch Sales / Purchases / Inventory — those apps are already complete per their audit docs and guard tests.
 
-**Audit doc** — flip every Finance row to Done as it ships; add a shortlist banner ("all record surfaces routed") at the end.
-
-### Phase 3 — Cross-app integrity pass
-
-1. Grep for any lingering `import ...Dialog` referencing migrated files across the whole tree; fix or remove.
-2. Verify deep-links: `?action=create`, `?peek=<id>`, and inbound navigation from dashboards / notifications / command palette resolve to the new routes.
-3. Run `bunx tsgo --noEmit` and the full architecture test suite; both must be green before finishing each phase.
-4. Confirm no reach-through into `@/features/sales/record/*` from Finance or Inventory (per audit docs).
-
-### Technical notes
-
-- No new design-system primitives — everything already exists (`RecordFormShell`, `WizardShell`, `PeekScaffold`, `DetailSheet`, `LineItemsGrid`, `useRecordFormSubmit`, `SalesPeekScaffold`, `DocumentPeekShell`, `SummaryPanel`, `DocumentTotalsPanel`, `DocumentActivityPanel`).
-- Reconciliation is the highest-risk Finance slice (three interlocking dialogs → one workspace); build the workspace scaffold first, then port each dialog as a workspace region/step.
-- Preserve all existing RPC calls, RLS-scoped queries, branch/business scoping, and toast wording verbatim during each port — this is a UX/architecture migration, not a business-logic change.
-- Ship each entity in its own turn: routes → callsite migration → delete legacy dialog file → audit doc flip → guard test green. Do not batch multiple entities into one atomic drop.
-
-Ping me to switch to build mode and I'll start with Inventory Slice A item 1 (Product Category `DetailSheet`).
+Ping me to switch to build mode and I'll start with **Slice B1 — Journal Entry View + Peek**.

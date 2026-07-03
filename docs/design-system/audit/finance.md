@@ -17,8 +17,8 @@ Legend for **Target**:
 | --- | --- | --- | --- | --- |
 | Journal Entry | Create | Route + `RecordFormShell` at `/finance/journal-entries/new` | Route + `RecordFormShell` at `/finance/journal-entries/new` (with balanced-line grid) | Done |
 | Journal Entry | Edit | Route + `RecordFormShell` at `/finance/journal-entries/:id/edit` | Route + `RecordFormShell` at `/finance/journal-entries/:id/edit` | Done |
-| Journal Entry | View | inline (via `JournalEntryDetailRedirect`) | Route + `RecordScaffold` at `/finance/journal-entries/:id` | **Pending** |
-| Journal Entry | Peek (list) | inline dialog | `PeekScaffold` behind `?peek=<id>` | **Pending** |
+| Journal Entry | View | Route + `RecordScaffold` at `/finance/journal-entries/:id` (`JournalEntryDetailPage`) | Route + `RecordScaffold` at `/finance/journal-entries/:id` | Done |
+| Journal Entry | Peek (list) | `JournalEntryPeekSheet` on `PeekScaffold` behind `?peek=<id>` | `PeekScaffold` behind `?peek=<id>` | Done |
 | Business Transaction (JE quick-post) | `BusinessTransactionDialog` | Route + `RecordFormShell` at `/finance/journal-entries/new?template=business` | **Pending** |
 | Recurring Journal | `RecurringJournalDialog` | Route + `RecordFormShell` at `/finance/recurring-journals/new` + `/:id/edit` + `PeekScaffold` | **Pending** |
 | Chart of Accounts entry | Create / Edit | inline form | Route + `RecordFormShell` at `/finance/accounts/new` + `/:id/edit` | **Pending** |
