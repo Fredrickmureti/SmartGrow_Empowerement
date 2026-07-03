@@ -962,13 +962,10 @@ export default function ContactProfile() {
           creditNote={applyCreditTarget}
         />
       )}
-      {selectedCN && (
-        <CreditNoteDetailDialog
-          open={detailOpen}
-          onOpenChange={setDetailOpen}
-          creditNote={selectedCN}
-        />
-      )}
+      <CreditNotePeekSheet
+        creditNoteId={peekCreditNoteId}
+        onOpenChange={(open) => { if (!open) setPeekCreditNoteId(null); }}
+      />
     </div>
   );
 }
