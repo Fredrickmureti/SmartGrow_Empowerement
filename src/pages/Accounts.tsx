@@ -330,7 +330,7 @@ export default function Accounts() {
               </Button>
             )}
             {canEditCoa && (
-              <Button onClick={() => handleOpenDialog()} className="flex-1 sm:flex-none">
+              <Button onClick={handleCreate} className="flex-1 sm:flex-none">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Account
               </Button>
@@ -432,7 +432,7 @@ export default function Accounts() {
                 Set up your chart of accounts to start tracking finances.
               </p>
               {canEditCoa && (
-                <Button onClick={() => handleOpenDialog()}>
+                <Button onClick={handleCreate}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Your First Account
                 </Button>
@@ -536,7 +536,7 @@ export default function Accounts() {
                                     </DropdownMenuItem>
                                     {canEditCoa && (
                                       <DropdownMenuItem
-                                        onClick={() => handleOpenDialog(account)}
+                                        onClick={() => handleEdit(account)}
                                       >
                                         <Pencil className="mr-2 h-4 w-4" />
                                         Edit
@@ -603,7 +603,7 @@ export default function Accounts() {
                                           <BookOpen className="mr-2 h-4 w-4" /> View Register
                                         </DropdownMenuItem>
                                         {canEditCoa && (
-                                          <DropdownMenuItem onClick={() => handleOpenDialog(child)}>
+                                          <DropdownMenuItem onClick={() => handleEdit(child)}>
                                             <Pencil className="mr-2 h-4 w-4" /> Edit
                                           </DropdownMenuItem>
                                         )}
