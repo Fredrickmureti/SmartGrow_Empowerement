@@ -43,7 +43,7 @@ Legend for **Target**:
 | Reorder Rule | Peek | inline dialog | `PeekScaffold` | **Pending** |
 | Product | Create / Edit | inline dialog in `src/pages/Products.tsx` | Route + `RecordFormShell` at `/inventory/products/new` + `/:id/edit` | **Pending** |
 | Product | View | inline dialog | Route + `RecordScaffold` at `/inventory/products/:id` | **Pending** |
-| Product Category | Create / Edit | inline dialog | `DetailSheet` | **Pending** |
+| Product Category | Create / Edit | `ProductCategoriesManager` on `DetailSheet` | `DetailSheet` | Done |
 | UoM & Packaging | Create / Edit | `DetailSheet` in `src/pages/inventory/UomManagement.tsx` | `DetailSheet` | Done |
 | Stock Lot | Peek | inline dialog | `PeekScaffold` | **Pending** |
 | Stock Reservation | Peek | inline dialog | `PeekScaffold` | **Pending** |

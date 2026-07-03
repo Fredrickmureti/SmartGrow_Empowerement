@@ -1,12 +1,6 @@
 import { useState } from "react";
 import { useProductCategories, type CategoryTreeNode } from "@/hooks/useProductCategories";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DetailSheet } from "@/design-system";
 import {
   Select,
   SelectContent,
@@ -198,18 +192,19 @@ export function ProductCategoriesManager({ open, onOpenChange }: ProductCategori
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[85vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FolderTree className="h-5 w-5" />
-            Product Categories
-          </DialogTitle>
-          <DialogDescription>
-            Create and manage hierarchical product categories.
-          </DialogDescription>
-        </DialogHeader>
-
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      size="md"
+      title={
+        <span className="flex items-center gap-2">
+          <FolderTree className="h-5 w-5" />
+          Product Categories
+        </span>
+      }
+      description="Create and manage hierarchical product categories."
+    >
+      <div className="space-y-4">
         {showForm && (
           <div className="space-y-3 rounded-md border p-3 bg-muted/30">
             <div className="space-y-1.5">
@@ -291,7 +286,7 @@ export function ProductCategoriesManager({ open, onOpenChange }: ProductCategori
           </div>
         )}
 
-        <ScrollArea className="max-h-[400px]">
+        <ScrollArea className="max-h-[60vh]">
           {categoryTree.length === 0 ? (
             <div className="flex flex-col items-center py-8 text-center">
               <FolderTree className="h-10 w-10 text-muted-foreground mb-3" />
@@ -317,7 +312,7 @@ export function ProductCategoriesManager({ open, onOpenChange }: ProductCategori
             New Category
           </Button>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DetailSheet>
   );
 }
