@@ -76,8 +76,19 @@ export function useSalaryStructures() {
       }
       return structure;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
+    onSuccess: async (structure) => {
+      // Optimistic insert so the list updates before the refetch resolves.
+      // The row is added at the top of every cached key that prefix-matches
+      // ["salary-structures", ...]. Invalidate + await so any active refetch
+      // completes before the mutation promise settles — root-causes the
+      // "list only updates after a page refresh" symptom reported in Phase 1.
+      const inserted = { ...(structure as any), salary_components: [], components: [] } as SalaryStructure;
+      queryClient.setQueriesData<SalaryStructure[]>({ queryKey: ["salary-structures"] }, (old) => {
+        if (!Array.isArray(old)) return old as any;
+        if (old.some((s) => s.id === inserted.id)) return old;
+        return [inserted, ...old].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      });
+      await queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
       toast.success("Salary structure created");
     },
     onError: (err: any) => {
