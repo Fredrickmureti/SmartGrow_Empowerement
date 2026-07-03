@@ -73,8 +73,9 @@ export function usePayrollPeriods() {
     },
   });
 
-  // Get open periods available for payroll runs
-  const openPeriods = periods.filter((p) => p.status === "open");
+  // Periods available for new payroll runs (any non-terminal, non-locked state)
+  const OPEN_LIKE = new Set(["open", "preparing", "processing", "awaiting_approval", "reopened"]);
+  const openPeriods = periods.filter((p) => OPEN_LIKE.has(p.status));
 
   // Get current period (today falls within)
   const getCurrentPeriod = (): PayrollPeriod | undefined => {
@@ -87,29 +88,56 @@ export function usePayrollPeriods() {
   };
 
   /**
-   * Close a payroll period AND lock all approved timesheets that fall in
-   * the period window. Server-side `lock_timesheets_for_payroll` enforces
-   * the role check; we just orchestrate.
+   * Governed close via `payroll_period_close_atomic`:
+   *   - runs readiness aggregation
+   *   - refuses when blockers exist unless `force` + `overrideReason`
+   *   - cascades timesheet lock, transitions status, writes audit + outbox
+   * The old two-step (RPC + client UPDATE) flow is deprecated; the DB
+   * sentinel now refuses direct status writes.
    */
   const closePeriod = useMutation({
-    mutationFn: async (periodId: string) => {
-      const { data: locked, error: lockErr } = await (supabase as any).rpc(
-        "lock_timesheets_for_payroll",
-        { _payroll_period_id: periodId },
-      );
-      if (lockErr) throw lockErr;
-      const { error } = await supabase
-        .from("payroll_periods")
-        .update({ status: "closed" } as any)
-        .eq("id", periodId);
+    mutationFn: async ({
+      periodId,
+      reason,
+      force = false,
+      overrideReason,
+    }: {
+      periodId: string;
+      reason?: string;
+      force?: boolean;
+      overrideReason?: string;
+    }) => {
+      const { data, error } = await (supabase as any).rpc("payroll_period_close_atomic", {
+        _period_id: periodId,
+        _reason: reason ?? null,
+        _force: force,
+        _override_reason: overrideReason ?? null,
+      });
       if (error) throw error;
-      return Number(locked || 0);
+      return data as {
+        ok: boolean;
+        code: "closed" | "blocked";
+        timesheets_locked?: number;
+        readiness: any;
+      };
     },
-    onSuccess: (count) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["payroll-periods"] });
-      toast.success(`Period closed. ${count} timesheet rows locked.`);
+      if (result?.ok) {
+        toast.success(
+          `Period closed. ${result.timesheets_locked ?? 0} timesheet rows locked.`,
+        );
+      } else {
+        const blockers = (result?.readiness?.blockers ?? []) as Array<{
+          code: string;
+          count: number;
+        }>;
+        const summary = blockers.map((b) => `${b.code} (${b.count})`).join(", ");
+        toast.error(`Period close blocked: ${summary || "readiness check failed"}`);
+      }
     },
-    onError: (e: any) => toast.error(normalizeError(e).message || "Failed to close period"),
+    onError: (e: any) =>
+      toast.error(normalizeError(e).message || "Failed to close period"),
   });
 
   /**
@@ -118,23 +146,21 @@ export function usePayrollPeriods() {
    */
   const reopenPeriod = useMutation({
     mutationFn: async ({ periodId, reason }: { periodId: string; reason: string }) => {
-      const { data: unlocked, error: unlockErr } = await (supabase as any).rpc(
-        "unlock_timesheets_for_payroll",
-        { _payroll_period_id: periodId, _reason: reason },
-      );
-      if (unlockErr) throw unlockErr;
-      const { error } = await supabase
-        .from("payroll_periods")
-        .update({ status: "open" } as any)
-        .eq("id", periodId);
+      const { data, error } = await (supabase as any).rpc("payroll_period_reopen_atomic", {
+        _period_id: periodId,
+        _reason: reason,
+      });
       if (error) throw error;
-      return Number(unlocked || 0);
+      return data as { ok: boolean; timesheets_unlocked: number };
     },
-    onSuccess: (count) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["payroll-periods"] });
-      toast.success(`Period reopened. ${count} timesheet rows unlocked.`);
+      toast.success(
+        `Period reopened. ${result?.timesheets_unlocked ?? 0} timesheet rows unlocked.`,
+      );
     },
-    onError: (e: any) => toast.error(normalizeError(e).message || "Failed to reopen period"),
+    onError: (e: any) =>
+      toast.error(normalizeError(e).message || "Failed to reopen period"),
   });
 
   return {

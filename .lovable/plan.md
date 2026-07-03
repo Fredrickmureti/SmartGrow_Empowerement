@@ -122,7 +122,7 @@ Each phase is independently shippable, backward-compatible, and gated by pgTAP +
 - Grants + RLS as per house rules.
 - pgTAP: contract test for columns + enum values.
 
-### Phase 2 — State machine + governed RPCs
+### Phase 2 — State machine + governed RPCs ✅ shipped
 - `payroll_period_transition(period_id, next, actor, reason, payload jsonb)` with transition matrix + audit insert.
 - `payroll_period_readiness(period_id)` returns structured blocker jsonb (reuses `payroll_readiness_*` engine per ADR-0041).
 - `payroll_period_close_atomic(period_id, force, override_reason)` — replaces the two-step hook path.

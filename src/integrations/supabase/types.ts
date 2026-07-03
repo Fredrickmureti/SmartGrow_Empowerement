@@ -27206,11 +27206,15 @@ export type Database = {
           payroll_run_id: string | null
           period_number: number | null
           period_type: string
+          previous_status:
+            | Database["public"]["Enums"]["payroll_period_status"]
+            | null
           readiness_snapshot_id: string | null
           reopen_reason: string | null
           reopened_at: string | null
           reopened_by: string | null
           start_date: string
+          state_transitioned_at: string
           status: Database["public"]["Enums"]["payroll_period_status"]
           updated_at: string
         }
@@ -27230,11 +27234,15 @@ export type Database = {
           payroll_run_id?: string | null
           period_number?: number | null
           period_type?: string
+          previous_status?:
+            | Database["public"]["Enums"]["payroll_period_status"]
+            | null
           readiness_snapshot_id?: string | null
           reopen_reason?: string | null
           reopened_at?: string | null
           reopened_by?: string | null
           start_date: string
+          state_transitioned_at?: string
           status?: Database["public"]["Enums"]["payroll_period_status"]
           updated_at?: string
         }
@@ -27254,11 +27262,15 @@ export type Database = {
           payroll_run_id?: string | null
           period_number?: number | null
           period_type?: string
+          previous_status?:
+            | Database["public"]["Enums"]["payroll_period_status"]
+            | null
           readiness_snapshot_id?: string | null
           reopen_reason?: string | null
           reopened_at?: string | null
           reopened_by?: string | null
           start_date?: string
+          state_transitioned_at?: string
           status?: Database["public"]["Enums"]["payroll_period_status"]
           updated_at?: string
         }
@@ -63024,6 +63036,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      payroll_period_close_atomic: {
+        Args: {
+          _force?: boolean
+          _override_reason?: string
+          _period_id: string
+          _reason?: string
+        }
+        Returns: Json
+      }
       payroll_period_employees: {
         Args: {
           p_business_id?: string
@@ -63037,6 +63058,53 @@ export type Database = {
           first_name: string
           last_name: string
         }[]
+      }
+      payroll_period_readiness: { Args: { _period_id: string }; Returns: Json }
+      payroll_period_reopen_atomic: {
+        Args: { _period_id: string; _reason: string }
+        Returns: Json
+      }
+      payroll_period_transition: {
+        Args: {
+          _payload?: Json
+          _period_id: string
+          _reason?: string
+          _to_status: Database["public"]["Enums"]["payroll_period_status"]
+        }
+        Returns: {
+          business_id: string
+          close_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          end_date: string
+          fiscal_year: number | null
+          id: string
+          name: string
+          organization_id: string
+          pay_schedule_id: string | null
+          payment_date: string | null
+          payroll_run_id: string | null
+          period_number: number | null
+          period_type: string
+          previous_status:
+            | Database["public"]["Enums"]["payroll_period_status"]
+            | null
+          readiness_snapshot_id: string | null
+          reopen_reason: string | null
+          reopened_at: string | null
+          reopened_by: string | null
+          start_date: string
+          state_transitioned_at: string
+          status: Database["public"]["Enums"]["payroll_period_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payroll_periods"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       payroll_project_termination: {
         Args: {
