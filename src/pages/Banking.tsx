@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BankAccountCard } from "@/components/banking/BankAccountCard";
 import { ConnectBankDialog } from "@/components/banking/ConnectBankDialog";
 import { ImportTransactionsDialog } from "@/components/banking/ImportTransactionsDialog";
-import { EditBankAccountDialog } from "@/components/banking/EditBankAccountDialog";
+import { BankAccountEditSheet } from "@/features/finance/banking/BankAccountEditSheet";
 import { TransactionsList } from "@/components/banking/TransactionsList";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
