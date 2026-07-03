@@ -25,8 +25,8 @@ Legend for **Target**:
 | Fiscal Period | Create / Edit | `GeneratePeriodsSheet` (`DetailSheet`) | `DetailSheet` (≤6 fields) | Done |
 | Year-End Close | Route + `RecordScaffold` at `/finance/year-end-close` (`YearEndClosePage`); `YearEndClosingDialog` deleted | `WizardShell` at `/finance/fiscal-periods/close` | Done (page-based; deviation from wizard target — dialog deleted) |
 | Budget | Create / Edit | `BudgetFormSheet` + `BudgetItemSheet` + `ManageBudgetSheet` (Sheet-based) | Route + `RecordFormShell` at `/finance/budgets/new` + `/:id/edit` (line grid for account budgets) | **Deviation** — sheets shipped; promotion to routes pending |
-| Fixed Asset | Create / Edit | `AssetFormSheet` (Sheet-based) | Route + `RecordFormShell` at `/finance/fixed-assets/new` + `/:id/edit` | **Deviation** — sheet shipped; promotion to route pending |
-| Fixed Asset | Peek | `AssetDetailSheet` (Sheet-based) | `PeekScaffold` | **Deviation** — sheet shipped; promotion to `PeekScaffold` pending |
+| Fixed Asset | Create / Edit | Route + `RecordFormShell` at `/finance/fixed-assets/new` (`AssetCreatePage`) + `/:id/edit` (`AssetEditPage`); `AssetFormSheet` deleted | Route + `RecordFormShell` at `/finance/fixed-assets/new` + `/:id/edit` | Done |
+| Fixed Asset | Peek | `AssetPeekSheet` on `PeekScaffold` behind `?peek=<id>`; `AssetDetailSheet` deleted | `PeekScaffold` | Done |
 | Analytic Account | Create / Edit | `AnalyticAccountSheet` + `AnalyticGroupSheet` (`DetailSheet`) | `DetailSheet` | Done |
 | Bank Account | Connect / Edit | `BankAccountSheet` at `?sheet=account[&id=…]` (Sheet-based; `ConnectBankDialog` + `EditBankAccountDialog` deleted) | Route + `RecordFormShell` at `/finance/banking/accounts/new` + `/:id/edit` | **Deviation** — unified sheet shipped; promotion to routes pending |
 | Bank Reconciliation | Start | Route + `RecordFormShell` at `/finance/reconciliation/new` (`StartReconciliationPage`); `StartReconciliationDialog` deleted | Route + `WizardShell` at `/finance/reconciliation/new` | Done (form-based; single-step route on `RecordFormShell` — dialog deleted) |
