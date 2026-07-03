@@ -17,6 +17,8 @@ const InventoryDashboard = lazy(() => import("@/pages/inventory/InventoryDashboa
 // Lazy imports
 const Inventory = lazy(() => import("@/pages/Inventory"));
 const Warehouses = lazy(() => import("@/pages/Warehouses"));
+const WarehouseNew = lazy(() => import("@/pages/inventory/WarehouseNew"));
+const WarehouseEdit = lazy(() => import("@/pages/inventory/WarehouseEdit"));
 const StockReports = lazy(() => import("@/pages/reports/StockReports"));
 const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryValuationReport"));
 const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
@@ -101,6 +103,30 @@ export function InventoryApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Warehouses">
                 <Warehouses />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Warehouse — routed create */}
+        <Route
+          path="warehouses/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Warehouse">
+                <WarehouseNew />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Warehouse — routed edit */}
+        <Route
+          path="warehouses/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Edit Warehouse">
+                <WarehouseEdit />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
