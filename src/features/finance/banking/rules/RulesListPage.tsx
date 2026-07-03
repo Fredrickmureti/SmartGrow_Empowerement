@@ -68,7 +68,7 @@ export default function RulesListPage() {
             <LoadingState />
           ) : rules.length === 0 ? (
             <EmptyState
-              icon={<Sparkles className="h-6 w-6" />}
+              icon={Sparkles}
               title="No rules yet"
               description="Create a rule to automatically categorize incoming bank transactions."
               action={
