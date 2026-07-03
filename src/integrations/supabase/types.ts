@@ -57895,6 +57895,16 @@ export type Database = {
         Args: { _from?: string; _to?: string }
         Returns: number
       }
+      attendance_unlock_for_period: {
+        Args: {
+          _employee_ids?: string[]
+          _from: string
+          _organization_id: string
+          _payroll_run_id?: string
+          _to: string
+        }
+        Returns: number
+      }
       audit_system_account_writer_allowlist: {
         Args: never
         Returns: {
@@ -63069,6 +63079,10 @@ export type Database = {
       payroll_period_for_date: {
         Args: { _business_id: string; _on: string }
         Returns: string
+      }
+      payroll_period_frozen: {
+        Args: { _business_id: string; _from: string; _to: string }
+        Returns: boolean
       }
       payroll_period_is_writable: {
         Args: { _period_id: string }
