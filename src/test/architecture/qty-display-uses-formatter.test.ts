@@ -32,8 +32,8 @@ const ALLOWLIST = new Set<string>([
   // re-export are fine. The allowlist below covers components that pass qty
   // through props to other formatter-using components OR display non-qty data.
   "src/components/inventory/SourceDocumentBadge.tsx",
-  "src/components/inventory/SourceDocumentDrawer.tsx",
-  "src/components/inventory/MovementDetailDrawer.tsx",
+  "src/components/inventory/SourceDocumentPeekSheet.tsx",
+  "src/components/inventory/StockMovementPeekSheet.tsx",
   "src/components/inventory/AdjustmentDetailDrawer.tsx",
   "src/components/inventory/ActiveBranchBadge.tsx",
   "src/components/inventory/WarehouseBadge.tsx",
@@ -47,7 +47,7 @@ const ALLOWLIST = new Set<string>([
   "src/pages/inventory/ScrapRecording.tsx",
   "src/components/products/ProductStockPanel.tsx",
   "src/components/products/detail/tabs/LotsExpiryTab.tsx",
-  "src/components/inventory/TransferDetailDrawer.tsx",
+  "src/components/inventory/StockTransferPeekSheet.tsx",
 ]);
 
 const QTY_REFERENCE = /\b(warehouse_stock\.quantity|stock_quantity|on_hand|reserved_quantity|available_quantity|\.quantity\b)/;

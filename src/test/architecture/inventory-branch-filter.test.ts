@@ -38,8 +38,8 @@ const ALLOWLIST = new Set<string>([
   "src/components/settings/OrgDataResetTool.tsx",
   // Source-document drawers: scoped by reference_id, not branch.
   "src/components/inventory/SourceDocumentBadge.tsx",
-  "src/components/inventory/SourceDocumentDrawer.tsx",
-  "src/components/inventory/MovementDetailDrawer.tsx",
+  "src/components/inventory/SourceDocumentPeekSheet.tsx",
+  "src/components/inventory/StockMovementPeekSheet.tsx",
   "src/components/inventory/AdjustmentDetailDrawer.tsx",
   // Product detail panel reads warehouse_stock filtered by org+business+branch
   // through useProductDetailData. Allowed.
