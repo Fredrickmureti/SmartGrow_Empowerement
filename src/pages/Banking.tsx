@@ -13,7 +13,8 @@ import { useTenantFx } from "@/hooks/useTenantFx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BankAccountCard } from "@/components/banking/BankAccountCard";
-import { ImportTransactionsDialog } from "@/components/banking/ImportTransactionsDialog";
+// ImportTransactionsDialog removed — import is now a routed WizardShell at /finance/banking/import.
+import { Link } from "react-router-dom";
 import { BankAccountSheet } from "@/features/finance/banking/BankAccountSheet";
 import { TransactionsList } from "@/components/banking/TransactionsList";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
@@ -33,7 +34,7 @@ function formatCurrencyValue(amount: number, currencyCode: string = "USD") {
 }
 
 export default function Banking() {
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  // Import dialog was removed — import now opens as a routed wizard.
   // Bank account create + edit both mount the same URL-driven sheet:
   //   ?sheet=account            → connect / new account
   //   ?sheet=account&id=<uuid>  → edit existing
@@ -192,12 +193,11 @@ export default function Banking() {
             <PermissionGate permission="manageFinancials">
               {activeAccounts.length > 0 && (
                 <>
-                  <Button variant="outline"
-                    onClick={() => setImportDialogOpen(true)}
-                    className="flex-1 sm:flex-none"
-                  >
-                    <FileUp className="mr-2 h-4 w-4" />
-                    Import Statement
+                  <Button asChild variant="outline" className="flex-1 sm:flex-none">
+                    <Link to="/finance/banking/import">
+                      <FileUp className="mr-2 h-4 w-4" />
+                      Import Statement
+                    </Link>
                   </Button>
                   <Button variant="outline"
                     onClick={handleSyncAll}
