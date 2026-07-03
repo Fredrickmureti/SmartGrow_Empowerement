@@ -74,38 +74,15 @@ export default function Warehouses() {
     transfers,
     isLoading,
     deleteWarehouse,
-    createStockTransfer,
     approveTransfer,
     completeTransfer,
     cancelTransfer,
   } = useWarehouses();
-  const { products } = useProducts();
   const { formatCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { branches, currentBranch } = useBranches();
   const [activeTab, setActiveTab] = useState("warehouses");
-  const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [transferForm, setTransferForm] = useState({
-    from_warehouse_id: "",
-    to_warehouse_id: "",
-    transfer_date: format(new Date(), "yyyy-MM-dd"),
-    notes: "",
-    items: [{ product_id: "", quantity: 1 }],
-  });
-
-  const resetTransferForm = () => {
-    setTransferForm({
-      from_warehouse_id: "",
-      to_warehouse_id: "",
-      transfer_date: format(new Date(), "yyyy-MM-dd"),
-      notes: "",
-      items: [{ product_id: "", quantity: 1 }],
-    });
-  };
 
   const handleOpenWarehouseCreate = () => {
     if (isReadOnly) {
@@ -121,55 +98,6 @@ export default function Warehouses() {
       return;
     }
     navigate(`/inventory-app/warehouses/${warehouse.id}/edit`);
-  };
-
-  const handleSubmitTransfer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (transferForm.from_warehouse_id === transferForm.to_warehouse_id) {
-      toast({
-        title: "Invalid transfer",
-        description: "Source and destination warehouses must be different.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const validItems = transferForm.items.filter(
-      (item) => item.product_id && item.quantity > 0
-    ).map((item) => ({
-      product_id: item.product_id,
-      quantity_requested: item.quantity,
-    }));
-    if (validItems.length === 0) {
-      toast({
-        title: "No items",
-        description: "Add at least one item to transfer.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      await createStockTransfer(
-        transferForm.from_warehouse_id,
-        transferForm.to_warehouse_id,
-        validItems,
-        transferForm.notes || undefined
-      );
-      toast({ title: "Stock transfer created successfully" });
-      setShowTransferDialog(false);
-      resetTransferForm();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const executeDeleteWarehouse = async (warehouse: Warehouse) => {
@@ -250,30 +178,6 @@ export default function Warehouses() {
     }
   };
 
-  const addTransferItem = () => {
-    setTransferForm({
-      ...transferForm,
-      items: [...transferForm.items, { product_id: "", quantity: 1 }],
-    });
-  };
-
-  const removeTransferItem = (index: number) => {
-    setTransferForm({
-      ...transferForm,
-      items: transferForm.items.filter((_, i) => i !== index),
-    });
-  };
-
-  const updateTransferItem = (
-    index: number,
-    field: "product_id" | "quantity",
-    value: string | number
-  ) => {
-    const newItems = [...transferForm.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setTransferForm({ ...transferForm, items: newItems });
-  };
-
   const filteredWarehouses = warehouses.filter((w) =>
     w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     w.code?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -318,7 +222,7 @@ export default function Warehouses() {
             <PermissionGate permission="manageProducts">
               <Button variant="outline" onClick={() => {
                 if (isReadOnly) { openUpgradeModal("warehouses"); return; }
-                setShowTransferDialog(true);
+                navigate("/inventory-app/transfers/new");
               }}>
                 <ArrowRightLeft className="mr-2 h-4 w-4" />
                 New Transfer
@@ -594,143 +498,6 @@ export default function Warehouses() {
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Transfer Dialog */}
-        <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Create Stock Transfer</DialogTitle>
-              <DialogDescription>
-                Transfer stock between warehouses.
-              </DialogDescription>
-            </DialogHeader>
-
-            <ScrollArea className="max-h-[60vh]">
-              <form onSubmit={handleSubmitTransfer} className="space-y-4 pr-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>From Warehouse *</Label>
-                    <Select
-                      value={transferForm.from_warehouse_id}
-                      onValueChange={(value) =>
-                        setTransferForm({ ...transferForm, from_warehouse_id: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select source" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {warehouses.map((wh) => (
-                          <SelectItem key={wh.id} value={wh.id}>
-                            {wh.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>To Warehouse *</Label>
-                    <Select
-                      value={transferForm.to_warehouse_id}
-                      onValueChange={(value) =>
-                        setTransferForm({ ...transferForm, to_warehouse_id: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select destination" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {warehouses.map((wh) => (
-                          <SelectItem key={wh.id} value={wh.id}>
-                            {wh.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Transfer Date *</Label>
-                    <Input
-                      type="date"
-                      value={transferForm.transfer_date}
-                      onChange={(e) =>
-                        setTransferForm({ ...transferForm, transfer_date: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label>Items</Label>
-                    <Button type="button" variant="ghost" size="sm" onClick={addTransferItem}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Item
-                    </Button>
-                  </div>
-                  {transferForm.items.map((item, index) => (
-                    <div key={index} className="flex gap-2 items-end">
-                      <div className="flex-1">
-                        <Select
-                          value={item.product_id}
-                          onValueChange={(value) =>
-                            updateTransferItem(index, "product_id", value)
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="w-24">
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            updateTransferItem(index, "quantity", parseInt(e.target.value) || 1)
-                          }
-                        />
-                      </div>
-                      {transferForm.items.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeTransferItem(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowTransferDialog(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Create Transfer
-                  </Button>
-                </div>
-              </form>
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
 
         {/* Delete Confirmation Dialog */}
         <ConfirmDeleteDialog

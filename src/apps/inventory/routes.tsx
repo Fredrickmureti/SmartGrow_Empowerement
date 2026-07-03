@@ -27,6 +27,7 @@ const ScrapRecording = lazy(() => import("@/pages/inventory/ScrapRecording"));
 const ScrapNew = lazy(() => import("@/pages/inventory/ScrapNew"));
 const PhysicalCount = lazy(() => import("@/pages/inventory/PhysicalCount"));
 const Transfers = lazy(() => import("@/pages/inventory/Transfers"));
+const TransferNew = lazy(() => import("@/pages/inventory/TransferNew"));
 const Forecast = lazy(() => import("@/pages/inventory/Forecast"));
 const BarcodeEnrollment = lazy(() => import("@/pages/inventory/BarcodeEnrollment"));
 const UomManagement = lazy(() => import("@/pages/inventory/UomManagement"));
@@ -151,6 +152,18 @@ export function InventoryApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Stock Transfers">
                 <Transfers />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Stock Transfer — routed create */}
+        <Route
+          path="transfers/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Stock Transfer">
+                <TransferNew />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
