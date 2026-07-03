@@ -31,6 +31,7 @@ const TransferNew = lazy(() => import("@/pages/inventory/TransferNew"));
 const Forecast = lazy(() => import("@/pages/inventory/Forecast"));
 const BarcodeEnrollment = lazy(() => import("@/pages/inventory/BarcodeEnrollment"));
 const UomManagement = lazy(() => import("@/pages/inventory/UomManagement"));
+const AdjustmentNew = lazy(() => import("@/pages/inventory/AdjustmentNew"));
 
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
