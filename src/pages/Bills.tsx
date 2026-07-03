@@ -334,7 +334,7 @@ export default function Bills() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams, showDialog, setSearchParams, setPeekId]);
+  }, [searchParams, setSearchParams, setPeekId, navigate]);
 
 
   const billFieldDefinitions = BILL_IMPORT_FIELDS;
