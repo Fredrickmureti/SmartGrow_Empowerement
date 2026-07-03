@@ -2,7 +2,7 @@
  * BankAccountSheet — Slice B5 · Step 1 (connect + edit, unified).
  *
  * URL-driven `DetailSheet` replacement for BOTH the legacy
- * `ConnectBankDialog` (create/connect) and `EditBankAccountDialog`
+ * the legacy connect + edit bank-account dialogs
  * (edit). Same fields, same currency-lock guard, same branch
  * re-attribution confirmation, same opening-balance JE atomic post —
  * composed on the enterprise design-system scaffolds (`DetailSheet`,
@@ -119,7 +119,7 @@ export function BankAccountSheet(props: Props) {
 export default BankAccountSheet;
 
 /* ------------------------------------------------------------------ */
-/* Edit body — 1:1 port of the previous BankAccountEditSheet           */
+/* Edit body — existing bank account                                  */
 /* ------------------------------------------------------------------ */
 
 function EditBody({ open, onOpenChange, account, onSuccess }: Props) {
@@ -491,7 +491,7 @@ function EditBody({ open, onOpenChange, account, onSuccess }: Props) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Connect body — 1:1 port of the previous ConnectBankDialog           */
+/* Connect body — new bank account (provider picker → details)         */
 /* ------------------------------------------------------------------ */
 
 function ConnectBody({ open, onOpenChange, onSuccess }: Props) {

@@ -103,7 +103,7 @@ export function MigrationStepBankBalances({ onComplete, onSkip }: Props) {
         // C-8: stop writing accounts.current_balance directly.
         // Set the bank account's opening_balance metadata; the GL balance is
         // posted via the canonical opening-balance JE flow (Trial Balance step
-        // or ConnectBankDialog post_journal_entry_atomic call).
+        // or the bank-account connect sheet post_journal_entry_atomic call).
         const { error } = await supabase
           .from("bank_accounts")
           .update({ opening_balance: row.openingBalance })
