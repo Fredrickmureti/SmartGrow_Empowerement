@@ -463,6 +463,24 @@ function StructureCard({ structure: s }: StructureCardProps) {
             Versions{s.version_count > 0 ? ` (${s.version_count})` : ""}
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            onClick={handleMigrate}
+            disabled={migrating || s.components.length === 0}
+            title={
+              s.components.length === 0
+                ? "No components to migrate"
+                : "Backfill payroll_salary_rules from these components and enable the rule graph engine (idempotent)."
+            }
+          >
+            {migrating ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <GitBranch className="h-4 w-4 mr-1" />
+            )}
+            Migrate to rule graph
+          </Button>
+          <Button
             size="sm"
             onClick={() => publish.mutate({ structureId: s.id })}
             disabled={publish.isPending || s.components.length === 0}
