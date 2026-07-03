@@ -12,9 +12,9 @@ import { useQuery } from "@tanstack/react-query";
 import { StockCell } from "@/components/products/StockCell";
 import { SourceDocumentBadge } from "@/components/inventory/SourceDocumentBadge";
 import { ProductDetailPanel } from "@/components/products/detail/ProductDetailPanel";
-import { SourceDocumentDrawer } from "@/components/inventory/SourceDocumentDrawer";
-import { MovementDetailDrawer } from "@/components/inventory/MovementDetailDrawer";
-import { WarehouseStockDrawer } from "@/components/inventory/WarehouseStockDrawer";
+import { SourceDocumentPeekSheet } from "@/components/inventory/SourceDocumentPeekSheet";
+import { StockMovementPeekSheet } from "@/components/inventory/StockMovementPeekSheet";
+import { WarehouseStockPeekSheet } from "@/components/inventory/WarehouseStockPeekSheet";
 import { AdjustmentItemsExpander } from "@/components/inventory/AdjustmentItemsExpander";
 import { AdjustmentPeekSheet } from "@/components/inventory/AdjustmentPeekSheet";
 import { ReverseAdjustmentDialog } from "@/components/inventory/ReverseAdjustmentDialog";
@@ -782,8 +782,8 @@ export default function Inventory() {
 
       {/* Drawers */}
       <ProductDetailPanel open={productDrawerOpen} onOpenChange={setProductDrawerOpen} productId={selectedProductId} />
-      <SourceDocumentDrawer open={sourceDocDrawerOpen} onOpenChange={setSourceDocDrawerOpen} referenceType={selectedRefType} referenceId={selectedRefId} />
-      <MovementDetailDrawer
+      <SourceDocumentPeekSheet open={sourceDocDrawerOpen} onOpenChange={setSourceDocDrawerOpen} referenceType={selectedRefType} referenceId={selectedRefId} />
+      <StockMovementPeekSheet
         open={movementDrawerOpen}
         onOpenChange={setMovementDrawerOpen}
         movementId={selectedMovementId}
@@ -791,7 +791,7 @@ export default function Inventory() {
         onOpenWarehouseDrawer={handleOpenWarehouseStock}
         onOpenSourceDocDrawer={handleOpenSourceDocDrawer}
       />
-      <WarehouseStockDrawer open={warehouseStockDrawerOpen} onOpenChange={setWarehouseStockDrawerOpen} warehouseId={selectedWarehouseId} warehouseName={selectedWarehouseName} organizationId={organizationId} />
+      <WarehouseStockPeekSheet open={warehouseStockDrawerOpen} onOpenChange={setWarehouseStockDrawerOpen} warehouseId={selectedWarehouseId} warehouseName={selectedWarehouseName} organizationId={organizationId} />
       <AdjustmentPeekSheet open={adjustmentDrawerOpen} onOpenChange={setAdjustmentDrawerOpen} adjustmentId={selectedAdjustmentId} />
       <ReverseAdjustmentDialog
         adjustment={reverseTarget}

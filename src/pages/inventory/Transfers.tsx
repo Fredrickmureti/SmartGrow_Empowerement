@@ -1,6 +1,6 @@
 /**
  * Stock Transfers — list + new-transfer dialog. Reuses the existing
- * `useWarehouses().createStockTransfer` mutation and `TransferDetailDrawer`.
+ * `useWarehouses().createStockTransfer` mutation and `StockTransferPeekSheet`.
  * Honors `?action=new&product=<id>` for deep-link prefill from the product
  * form's "Transfer" CTA.
  */
@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useBranches } from "@/hooks/useBranches";
-import { TransferDetailDrawer } from "@/components/inventory/TransferDetailDrawer";
+import { StockTransferPeekSheet } from "@/components/inventory/StockTransferPeekSheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -174,7 +174,7 @@ export default function Transfers() {
         </CardContent>
       </Card>
 
-      <TransferDetailDrawer
+      <StockTransferPeekSheet
         open={!!drawerId}
         onOpenChange={(o) => { if (!o) setDrawerId(null); }}
         transferId={drawerId}
