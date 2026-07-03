@@ -1,16 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { useRFQs, RFQItem } from "@/hooks/useRFQs";
+import { useRFQs } from "@/hooks/useRFQs";
 import { useContacts } from "@/hooks/useContacts";
-import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
-import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { usePeekParam } from "@/design-system";
+import { RFQPeekSheet } from "@/features/purchases/rfqs/RFQPeekSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -26,14 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,12 +45,11 @@ import {
   TrendingUp,
   Clock,
   Ban,
+  Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
-import { normalizeError } from "@/services/resilience";
 
 // Compact workflow pipeline for table rows
 function RFQPipeline({ status }: { status: string }) {
@@ -116,122 +104,25 @@ function RFQPipeline({ status }: { status: string }) {
 }
 
 export default function RFQs() {
-  const { rfqs, isLoading, createRFQ, updateStatus, awardVendor, deleteRFQ, isCreating } = useRFQs();
-  const { createPurchaseOrder, getNextPONumber } = usePurchaseOrders();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { rfqs, isLoading, updateStatus, deleteRFQ } = useRFQs();
   const { contacts } = useContacts();
-  const { products } = useProducts();
   const { formatCurrency, baseCurrency } = useCurrency();
+  const [peekId, setPeekId] = usePeekParam();
 
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showDetailDialog, setShowDetailDialog] = useState(false);
-  const [selectedRFQ, setSelectedRFQ] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // Create form state
-  const [deadline, setDeadline] = useState("");
-  const [notes, setNotes] = useState("");
-  const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
-  const [lineItems, setLineItems] = useState<Omit<RFQItem, "id" | "rfq_id">[]>([
-    { product_id: null, description: "", quantity: 1, target_price: null, sort_order: 0 },
-  ]);
-
-  const vendors = contacts.filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active);
-
-  const resetForm = () => {
-    setDeadline("");
-    setNotes("");
-    setSelectedVendorIds([]);
-    setLineItems([{ product_id: null, description: "", quantity: 1, target_price: null, sort_order: 0 }]);
-  };
-
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].target_price = product.cost_price || product.unit_price || null;
-      }
+  // Intercept ?action=create from the GlobalCreateMenu.
+  useEffect(() => {
+    if (searchParams.get("action") === "create") {
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      setSearchParams(next, { replace: true });
+      navigate("/purchases/rfqs/new");
     }
-    setLineItems(updated);
-  };
-
-  const addLineItem = () => {
-    setLineItems([...lineItems, { product_id: null, description: "", quantity: 1, target_price: null, sort_order: lineItems.length }]);
-  };
-
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) setLineItems(lineItems.filter((_, i) => i !== index));
-  };
-
-  const toggleVendor = (vendorId: string) => {
-    setSelectedVendorIds((prev) =>
-      prev.includes(vendorId) ? prev.filter((id) => id !== vendorId) : [...prev, vendorId]
-    );
-  };
-
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    const validItems = lineItems.filter((item) => item.description);
-    if (validItems.length === 0 || selectedVendorIds.length === 0) {
-      toast.error("Add at least one item and one vendor");
-      return;
-    }
-
-    createRFQ({
-      rfq: { deadline: deadline || null, notes: notes || null },
-      items: validItems,
-      vendorIds: selectedVendorIds,
-    });
-    setShowCreateDialog(false);
-    resetForm();
-  };
-
-  const handleConvertToPO = async (rfq: any, rfqVendor: any) => {
-    try {
-      const poNumber = await getNextPONumber();
-      const items = (rfq.items || []).map((item: any, idx: number) => ({
-        product_id: item.product_id,
-        description: item.description,
-        quantity: item.quantity,
-        quantity_received: 0,
-        unit_price: item.target_price || 0,
-        tax_rate: 0,
-        tax_amount: 0,
-        line_total: (item.target_price || 0) * item.quantity,
-        sort_order: idx,
-      }));
-
-      await createPurchaseOrder(
-        {
-          po_number: poNumber,
-          vendor_id: rfqVendor.vendor_id,
-          status: "draft",
-          order_date: new Date().toISOString().split("T")[0],
-          expected_date: null,
-          subtotal: 0,
-          tax_amount: 0,
-          discount_amount: 0,
-          total: 0,
-          currency: baseCurrency,
-          shipping_address: null,
-          notes: `Converted from ${rfq.rfq_number}`,
-          converted_bill_id: null,
-          converted_at: null,
-        },
-        items
-      );
-
-      awardVendor({ rfqId: rfq.id, rfqVendorId: rfqVendor.id });
-      toast.success(`PO ${poNumber} created from ${rfq.rfq_number}`);
-      setShowDetailDialog(false);
-    } catch (error: any) {
-      toast.error(`Failed to convert: ${normalizeError(error).message}`);
-    }
-  };
+  }, [searchParams, setSearchParams, navigate]);
 
   const filteredRFQs = rfqs.filter((rfq) => {
     const matchesSearch = rfq.rfq_number.toLowerCase().includes(searchQuery.toLowerCase());
@@ -322,7 +213,7 @@ export default function RFQs() {
                 } as ExportConfig;
               }}
             />
-            <Button onClick={() => { resetForm(); setShowCreateDialog(true); }}>
+            <Button onClick={() => navigate("/purchases/rfqs/new")}>
               <Plus className="mr-2 h-4 w-4" /> Create RFQ
             </Button>
           </div>
@@ -471,9 +362,17 @@ export default function RFQs() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setSelectedRFQ(rfq); setShowDetailDialog(true); }}>
-                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            <DropdownMenuItem onClick={() => setPeekId(rfq.id)}>
+                              <Eye className="mr-2 h-4 w-4" /> Quick view
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => navigate(`/purchases/rfqs/${rfq.id}`)}>
+                              <FileText className="mr-2 h-4 w-4" /> Open full page
+                            </DropdownMenuItem>
+                            {rfq.status === "draft" && (
+                              <DropdownMenuItem onClick={() => navigate(`/purchases/rfqs/${rfq.id}/edit`)}>
+                                <Pencil className="mr-2 h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                            )}
                             {rfq.status === "draft" && (
                               <DropdownMenuItem onClick={() => updateStatus({ id: rfq.id, status: "sent" })}>
                                 <Send className="mr-2 h-4 w-4" /> Mark as Sent
@@ -502,191 +401,10 @@ export default function RFQs() {
         </div>
       </div>
 
-      {/* Create RFQ Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create Request for Quotation</DialogTitle>
-            <DialogDescription>Select products, quantities, and vendors to request quotes from</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Response Deadline</Label>
-                <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes..." />
-              </div>
-            </div>
-
-            {/* Line Items */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm sm:text-base font-semibold">Products</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                  <Plus className="mr-1 h-3 w-3" /> Add Item
-                </Button>
-              </div>
-              {lineItems.map((item, index) => (
-                <div key={index} className="border rounded-lg p-3 space-y-3 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-end sm:border-0 sm:p-0 sm:rounded-none">
-                  <div className="sm:col-span-5">
-                    <Label className="text-xs text-muted-foreground sm:hidden mb-1 block">Product</Label>
-                    <Select value={item.product_id || ""} onValueChange={(v) => updateLineItem(index, "product_id", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                      <SelectContent>
-                        {products.filter((p) => p.is_active).map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="sm:col-span-3">
-                    <Label className="text-xs text-muted-foreground sm:hidden mb-1 block">Description</Label>
-                    <Input placeholder="Description" value={item.description} onChange={(e) => updateLineItem(index, "description", e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:contents">
-                    <div className="sm:col-span-2">
-                      <Label className="text-xs text-muted-foreground sm:hidden mb-1 block">Quantity</Label>
-                      <NumericInput placeholder="Qty" value={item.quantity} onValueChange={(v) => updateLineItem(index, "quantity", v ?? 0)} />
-                    </div>
-                    <div className="sm:col-span-1">
-                      <Label className="text-xs text-muted-foreground sm:hidden mb-1 block">Target Price</Label>
-                      <NumericInput placeholder="Target $" value={item.target_price ?? null} onValueChange={(v) => updateLineItem(index, "target_price", v ?? 0)} />
-                    </div>
-                  </div>
-                  <div className="sm:col-span-1 flex justify-end">
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removeLineItem(index)} disabled={lineItems.length === 1}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Vendor Selection */}
-            <div className="space-y-3">
-              <Label className="text-sm sm:text-base font-semibold">Invite Suppliers ({selectedVendorIds.length} selected)</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
-                {vendors.length === 0 ? (
-                  <p className="text-sm text-muted-foreground col-span-full">No suppliers found. Add suppliers in Contacts first.</p>
-                ) : (
-                  vendors.map((vendor) => (
-                    <div key={vendor.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`vendor-${vendor.id}`}
-                        checked={selectedVendorIds.includes(vendor.id)}
-                        onCheckedChange={() => toggleVendor(vendor.id)}
-                      />
-                      <label htmlFor={`vendor-${vendor.id}`} className="text-sm cursor-pointer">
-                        {vendor.name}
-                      </label>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
-              <Button type="submit" disabled={isCreating}>
-                {isCreating ? "Creating..." : "Create RFQ"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* RFQ Detail Dialog */}
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          {selectedRFQ && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center justify-between">
-                  <DialogTitle>{selectedRFQ.rfq_number}</DialogTitle>
-                  {getStatusBadge(selectedRFQ.status)}
-                </div>
-                <DialogDescription>
-                  Created {format(new Date(selectedRFQ.created_at), "MMM d, yyyy")}
-                  {selectedRFQ.deadline && ` · Deadline: ${format(new Date(selectedRFQ.deadline), "MMM d, yyyy")}`}
-                </DialogDescription>
-              </DialogHeader>
-
-              {/* Pipeline */}
-              <div className="py-1">
-                <RFQPipeline status={selectedRFQ.status} />
-              </div>
-
-              {selectedRFQ.notes && (
-                <p className="text-sm text-muted-foreground">{selectedRFQ.notes}</p>
-              )}
-
-              {/* Items */}
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Requested Items</h4>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Target Price</TableHead>
-                      <TableHead className="text-right">Est. Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(selectedRFQ.items || []).map((item: any) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.description}</TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">
-                          {item.target_price ? formatCurrency(item.target_price, baseCurrency) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {item.target_price
-                            ? formatCurrency(item.target_price * item.quantity, baseCurrency)
-                            : "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Vendors */}
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Invited Suppliers</h4>
-                <div className="space-y-2">
-                  {(selectedRFQ.vendors || []).map((rfqVendor: any) => (
-                    <div key={rfqVendor.id} className="flex items-center justify-between p-3 rounded-lg border">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
-                          {rfqVendor.vendor?.name?.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{rfqVendor.vendor?.name}</p>
-                          {getVendorStatusBadge(rfqVendor.status)}
-                        </div>
-                      </div>
-                      {selectedRFQ.status === "received" && rfqVendor.status !== "awarded" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleConvertToPO(selectedRFQ, rfqVendor)}
-                        >
-                          <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
-                          Convert to PO
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <RFQPeekSheet
+        rfqId={peekId}
+        onOpenChange={(open) => !open && setPeekId(null)}
+      />
     </>
   );
 }
