@@ -68,8 +68,8 @@ export function PayrollSalaryStructuresPage() {
         computation_type: "fixed",
         computation_value: 0,
         percentage_of: null,
-        formula: "",
         is_taxable: true,
+
       },
     ]);
 
