@@ -1,24 +1,15 @@
-import { useState } from "react";
-import { useAnalyticAccounts, AnalyticAccount, AnalyticType, AnalyticGroup } from "@/hooks/useAnalyticAccounts";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useAnalyticAccounts, AnalyticAccount, AnalyticType } from "@/hooks/useAnalyticAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -35,7 +26,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
@@ -58,6 +48,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { normalizeError } from "@/services/resilience";
+import { AnalyticAccountSheet } from "@/features/finance/analytic-accounts/AnalyticAccountSheet";
+import { AnalyticGroupSheet } from "@/features/finance/analytic-accounts/AnalyticGroupSheet";
 
 const ANALYTIC_TYPES: { value: AnalyticType; label: string; icon: React.ElementType }[] = [
   { value: "cost_center", label: "Cost Center", icon: Target },
@@ -68,128 +60,72 @@ const ANALYTIC_TYPES: { value: AnalyticType; label: string; icon: React.ElementT
 ];
 
 export default function AnalyticAccounts() {
-  const {
-    groups,
-    accounts,
-    isLoading,
-    createGroup,
-    createAccount,
-    updateAccount,
-    deleteAccount,
-  } = useAnalyticAccounts();
+  const { groups, accounts, isLoading, deleteAccount } = useAnalyticAccounts();
   const { formatCurrency } = useCurrency();
   const { toast } = useToast();
 
-  const [showAccountDialog, setShowAccountDialog] = useState(false);
-  const [showGroupDialog, setShowGroupDialog] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<AnalyticAccount | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // URL-driven sheet state so the browser back button and deep links behave.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sheetKind = searchParams.get("sheet"); // "account" | "group" | null
+  const sheetId = searchParams.get("id");
 
-  const [accountForm, setAccountForm] = useState({
-    code: "",
-    name: "",
-    description: "",
-    analytic_type: "cost_center" as AnalyticType,
-    group_id: "",
-  });
-
-  const [groupForm, setGroupForm] = useState({
-    name: "",
-    description: "",
-  });
-
-  const resetAccountForm = () => {
-    setAccountForm({
-      code: "",
-      name: "",
-      description: "",
-      analytic_type: "cost_center",
-      group_id: "",
-    });
-    setEditingAccount(null);
+  const openAccountSheet = (id?: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("sheet", "account");
+    if (id) next.set("id", id);
+    else next.delete("id");
+    setSearchParams(next, { replace: false });
+  };
+  const openGroupSheet = () => {
+    const next = new URLSearchParams(searchParams);
+    next.set("sheet", "group");
+    next.delete("id");
+    setSearchParams(next, { replace: false });
+  };
+  const closeSheet = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("sheet");
+    next.delete("id");
+    setSearchParams(next, { replace: false });
   };
 
-  const handleOpenAccountDialog = (account?: AnalyticAccount) => {
-    if (account) {
-      setEditingAccount(account);
-      setAccountForm({
-        code: account.code || "",
-        name: account.name,
-        description: account.description || "",
-        analytic_type: account.analytic_type,
-        group_id: account.group_id || "",
-      });
-    } else {
-      resetAccountForm();
-    }
-    setShowAccountDialog(true);
-  };
-
-  const handleSubmitAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      if (editingAccount) {
-        await updateAccount.mutateAsync({
-          id: editingAccount.id,
-          code: accountForm.code || null,
-          name: accountForm.name,
-          description: accountForm.description || null,
-          analytic_type: accountForm.analytic_type,
-          group_id: accountForm.group_id || null,
-        });
-        toast({ title: "Analytic account updated" });
-      } else {
-        await createAccount.mutateAsync({
-          code: accountForm.code || undefined,
-          name: accountForm.name,
-          description: accountForm.description || undefined,
-          analytic_type: accountForm.analytic_type,
-          group_id: accountForm.group_id || undefined,
-        });
-        toast({ title: "Analytic account created" });
-      }
-      setShowAccountDialog(false);
-      resetAccountForm();
-    } catch (error: any) {
-      toast({ title: "Error", description: normalizeError(error).message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSubmitGroup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      await createGroup.mutateAsync({
-        name: groupForm.name,
-        description: groupForm.description || undefined,
-      });
-      toast({ title: "Group created" });
-      setShowGroupDialog(false);
-      setGroupForm({ name: "", description: "" });
-    } catch (error: any) {
-      toast({ title: "Error", description: normalizeError(error).message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const editingAccount = useMemo<AnalyticAccount | null>(
+    () =>
+      sheetKind === "account" && sheetId
+        ? accounts.find((a) => a.id === sheetId) ?? null
+        : null,
+    [sheetKind, sheetId, accounts],
+  );
 
   const executeDelete = async (account: AnalyticAccount) => {
     try {
       await deleteAccount.mutateAsync(account.id);
       toast({ title: "Account deleted" });
-    } catch (error: any) {
-      toast({ title: "Error", description: normalizeError(error).message, variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: normalizeError(error).message,
+        variant: "destructive",
+      });
     }
   };
 
   const deleteConfirm = useConfirmDelete<AnalyticAccount>({ onConfirm: executeDelete });
+
+  const searchQuery = searchParams.get("q") ?? "";
+  const typeFilter = searchParams.get("type") ?? "all";
+  const setSearchQuery = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (v) next.set("q", v);
+    else next.delete("q");
+    setSearchParams(next, { replace: true });
+  };
+  const setTypeFilter = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (v && v !== "all") next.set("type", v);
+    else next.delete("type");
+    setSearchParams(next, { replace: true });
+  };
 
   const filteredAccounts = accounts.filter((account) => {
     const matchesSearch =
@@ -239,11 +175,11 @@ export default function AnalyticAccounts() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <Button variant="outline" onClick={() => setShowGroupDialog(true)}>
+            <Button variant="outline" onClick={openGroupSheet}>
               <Plus className="mr-2 h-4 w-4" />
               Add Group
             </Button>
-            <Button onClick={() => handleOpenAccountDialog()}>
+            <Button onClick={() => openAccountSheet()}>
               <Plus className="mr-2 h-4 w-4" />
               Add Account
             </Button>
@@ -352,7 +288,7 @@ export default function AnalyticAccounts() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleOpenAccountDialog(account)}>
+                              <DropdownMenuItem onClick={() => openAccountSheet(account.id)}>
                                 <Pencil className="mr-2 h-4 w-4" />
                                 Edit
                               </DropdownMenuItem>
@@ -375,140 +311,6 @@ export default function AnalyticAccounts() {
           </CardContent>
         </Card>
 
-        {/* Create/Edit Account Dialog */}
-        <Dialog open={showAccountDialog} onOpenChange={setShowAccountDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingAccount ? "Edit Analytic Account" : "Create Analytic Account"}
-              </DialogTitle>
-              <DialogDescription>
-                Track costs and revenues by cost center, project, or department.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmitAccount} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={accountForm.code}
-                    onChange={(e) => setAccountForm({ ...accountForm, code: e.target.value })}
-                    placeholder="e.g., CC-001"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="analytic_type">Type *</Label>
-                  <Select
-                    value={accountForm.analytic_type}
-                    onValueChange={(v) => setAccountForm({ ...accountForm, analytic_type: v as AnalyticType })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ANALYTIC_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Name *</Label>
-                <Input
-                  id="name"
-                  value={accountForm.name}
-                  onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
-                  placeholder="e.g., Marketing Department"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="group_id">Group</Label>
-                <Select
-                  value={accountForm.group_id}
-                  onValueChange={(v) => setAccountForm({ ...accountForm, group_id: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select group (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">No group</SelectItem>
-                    {groups.map((g) => (
-                      <SelectItem key={g.id} value={g.id}>
-                        {g.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={accountForm.description}
-                  onChange={(e) => setAccountForm({ ...accountForm, description: e.target.value })}
-                  rows={2}
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowAccountDialog(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingAccount ? "Update" : "Create"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Create Group Dialog */}
-        <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Analytic Group</DialogTitle>
-              <DialogDescription>
-                Group related analytic accounts together.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmitGroup} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="group_name">Name *</Label>
-                <Input
-                  id="group_name"
-                  value={groupForm.name}
-                  onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
-                  placeholder="e.g., Regional Cost Centers"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="group_description">Description</Label>
-                <Textarea
-                  id="group_description"
-                  value={groupForm.description}
-                  onChange={(e) => setGroupForm({ ...groupForm, description: e.target.value })}
-                  rows={2}
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowGroupDialog(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-
         <ConfirmDeleteDialog
           open={deleteConfirm.isOpen}
           onOpenChange={deleteConfirm.setIsOpen}
@@ -518,6 +320,18 @@ export default function AnalyticAccounts() {
           isLoading={deleteConfirm.isDeleting}
         />
       </div>
+
+      {/* Enterprise UX: create/edit surfaces mounted on DetailSheet, driven by ?sheet=… */}
+      <AnalyticAccountSheet
+        open={sheetKind === "account"}
+        onOpenChange={(o) => (o ? openAccountSheet(sheetId ?? undefined) : closeSheet())}
+        account={editingAccount}
+        groups={groups}
+      />
+      <AnalyticGroupSheet
+        open={sheetKind === "group"}
+        onOpenChange={(o) => (o ? openGroupSheet() : closeSheet())}
+      />
     </>
   );
 }
