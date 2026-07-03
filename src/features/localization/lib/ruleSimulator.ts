@@ -162,13 +162,23 @@ function applyProgressive(
 }
 
 /**
- * Main simulator entry. Country-agnostic: dispatches off `parameters.type`
- * (the `computation_kind` discriminator from the JSON-Schema registry).
+ * Main simulator entry.
+ *
+ * Dispatch precedence:
+ *   1. Explicit `computation_method` (mirrors the engine's dispatch on
+ *      `payroll_statutory_rules.computation_method`) mapped via
+ *      ENGINE_METHOD_TO_KIND.
+ *   2. Otherwise `parameters.type` (the pack JSON-Schema discriminator).
+ *
+ * Callers that have the DB row available (e.g. RuleSimulator inside
+ * RuleForm) SHOULD pass `computation_method` so the preview cannot drift
+ * from the engine even when a pack has stale `parameters.type` values.
  */
 export function simulateRule(
   rule_type: string,
   parameters: any,
   inputs: SimulatorInputs,
+  computation_method?: string | null,
 ): SimulationResult {
   const result: SimulationResult = {
     employee_amount: 0,
@@ -183,9 +193,10 @@ export function simulateRule(
     return result;
   }
 
-  const kind = parameters.type;
+  const methodKey = (computation_method || "").toString().toLowerCase();
+  const kind = (methodKey && ENGINE_METHOD_TO_KIND[methodKey]) || parameters.type;
   const gross = safeNum(inputs.gross, 0);
-  const housing = safeNum(inputs.housing, 0);
+  const _housing = safeNum(inputs.housing, 0);
   const pension = safeNum(inputs.pension, 0);
 
   // Common taxable derivation: gross − pension, capped by an optional
