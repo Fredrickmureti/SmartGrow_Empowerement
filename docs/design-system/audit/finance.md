@@ -34,8 +34,8 @@ Legend for **Target**:
 | Bank Transfer Reconcile | `TransferReconcileDialog` | Step inside the reconciliation workspace `WizardShell` | **Pending** |
 | Bank Transactions Import | `ImportTransactionsDialog` | `WizardShell` at `/finance/banking/:id/import` | **Pending** |
 | Transaction Matching Rules | `TransactionRulesDialog` | Route + `RecordScaffold` at `/finance/banking/rules` + `RecordFormShell` for new/edit | **Pending** |
-| Customer Credit — Apply | `ApplyCreditDialog` | `WizardShell` at `/finance/customer-credits/:id/apply` | **Pending** |
-| Customer Credit — Refund | `ProcessRefundDialog` | `WizardShell` at `/finance/customer-credits/:id/refund` | **Pending** |
+| Customer Credit — Apply | Route + `WizardShell` at `/finance/customer-credits/:id/apply` (`ApplyCreditWizardPage`); `ApplyCreditDialog` deleted | `WizardShell` at `/finance/customer-credits/:id/apply` | Done |
+| Customer Credit — Refund | Route + `WizardShell` at `/finance/customer-credits/:id/refund` (`ProcessRefundWizardPage`); `ProcessRefundDialog` deleted | `WizardShell` at `/finance/customer-credits/:id/refund` | Done |
 | Default Account Mappings — Apply | `ApplyDefaultMappingsDialog` | `Dialog` (allowed — confirm-style) | Done |
 | Credit Note (legacy finance surface) | Deleted — call sites now use Sales `CreditNotePeekSheet` at `?peek=<id>` and the full page at `/sales/credit-notes/:id` | Delete — superseded by Sales `/sales/credit-notes/:id` + peek | Done |
 
