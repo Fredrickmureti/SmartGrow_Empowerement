@@ -2014,7 +2014,96 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (contract && structureComponents.length > 0) {
+      // ─── Phase 3 — Rule-graph engine branch ───
+      // Runs BEFORE the legacy 2-pass resolver. When the structure has
+      // `use_structure_engine=true` and at least one active
+      // `payroll_salary_rules` row, we invoke `runStructureEngine` and map
+      // its category outputs onto the same locals the downstream engine
+      // reads. Any cycle / expression / unresolved-token error is fatal —
+      // we do NOT silently fall through to the legacy path, otherwise
+      // graph-authored math would appear to "work" while being ignored.
+      const sid = contract?.salary_structure_id;
+      const graphRules = sid ? (structureRulesByStructure[sid] || []) : [];
+      const graphOn = Boolean(sid && structureUsesEngine[sid] && graphRules.length > 0);
+      if (graphOn && contract) {
+        const traceSink: StructureRuleTrace[] = [];
+        const empWorkEntries: WorkEntryRow[] = (workEntriesByEmployee?.[emp.id] || []).map((e: any) => ({
+          work_entry_type_id: e.work_entry_type_id ?? null,
+          hours: Number(e.hours || 0),
+          overtime_hours: Number(e.overtime_hours || 0),
+          days: e.days != null ? Number(e.days) : undefined,
+        }));
+        const engineRes = runStructureEngine({
+          rules: graphRules,
+          workEntryTypes,
+          workEntries: empWorkEntries,
+          employee: {
+            id: emp.id,
+            department_id: emp.department_id ?? null,
+            job_title: emp.job_title ?? null,
+          } as any,
+          contract: {
+            id: contract.id,
+            wage: contract.wage,
+            currency: contract.currency ?? null,
+          } as any,
+          traceSink,
+        });
+        if (engineRes.errors.length > 0) {
+          const first = engineRes.errors[0];
+          return new Response(JSON.stringify({
+            error:
+              `${emp.first_name} ${emp.last_name} (${emp.employee_number}): salary rule-graph error on rule '${first.rule_code}' — ${first.message}`,
+            code: "STRUCTURE_ENGINE_ERROR",
+            employee_id: emp.id,
+            contract_id: contract.id,
+            structure_id: sid,
+            errors: engineRes.errors,
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        graphUsedForEmployee.add(emp.id);
+        graphTracesByEmployee[emp.id] = { structure_id: sid!, traces: traceSink };
+
+        const baseWage = contract.wage || 0;
+        basicSalary = 0;
+        housingAllowance = 0;
+        transportAllowance = 0;
+        otherEarnings = {};
+        const otherEarn: Record<string, number> = {};
+        for (const line of engineRes.lines) {
+          const codeLc = (line.code || "").toLowerCase();
+          if (line.category === "basic") {
+            basicSalary += line.amount;
+          } else if (line.category === "allowance") {
+            if (codeLc === "housing" || codeLc === "housing_allowance" || codeLc === "hra") {
+              housingAllowance += line.amount;
+            } else if (codeLc === "transport" || codeLc === "transport_allowance") {
+              transportAllowance += line.amount;
+            } else {
+              otherEarn[line.name || line.code] = (otherEarn[line.name || line.code] || 0) + line.amount;
+            }
+          } else if (line.category === "deduction") {
+            (graphDeductionsByEmployee[emp.id] ||= []).push({
+              code: `graph_${line.code}`,
+              label: line.name || line.code,
+              amount: line.amount,
+            });
+          } else if (line.category === "employer_contribution") {
+            (graphEmployerByEmployee[emp.id] ||= []).push({
+              code: `graph_${line.code}`,
+              label: line.name || line.code,
+              amount: line.amount,
+            });
+          }
+        }
+        otherEarnings = otherEarn;
+        if (basicSalary === 0) basicSalary = baseWage;
+        graphEarningsByEmployee[emp.id] = { basic: basicSalary, housing: housingAllowance, transport: transportAllowance };
+        salarySource = "salary_structure_graph";
+      } else if (contract && structureComponents.length > 0) {
         const baseWage = contract.wage || 0;
         basicSalary = 0;
         housingAllowance = 0;
