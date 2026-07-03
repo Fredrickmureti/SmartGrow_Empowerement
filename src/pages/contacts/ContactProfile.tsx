@@ -57,8 +57,7 @@ export default function ContactProfile() {
   );
 
   // Dialog state
-  const [applyCreditOpen, setApplyCreditOpen] = useState(false);
-  const [applyCreditTarget, setApplyCreditTarget] = useState<any>(null);
+  // Apply-credit is a routed wizard now — no local state needed.
   const [peekCreditNoteId, setPeekCreditNoteId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
