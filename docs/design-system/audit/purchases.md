@@ -42,7 +42,11 @@ Legend for **Target**:
 | Expenses | Peek (list) | `ExpensePeekSheet` behind `?peek=<id>` in `src/pages/Expenses.tsx` | `PeekSheet` (`PeekScaffold`) | Done |
 | Vendors (Contacts) | Create / Edit | reuses shared Contacts flow | Route + `RecordFormShell` at contacts level | Deferred (owned by Contacts) |
 | Vendor Statements | View | `VendorStatementPeekSheet` behind `?peek=<id>` in `src/pages/VendorStatements.tsx` + `/purchases/statements/:id` → `VendorStatementRecordPage` | `PeekSheet` (`PeekScaffold`) + `RecordScaffold` object page | Done |
-| RFQs | Create / Edit | legacy dialog in `src/pages/RFQs.tsx` | Route + `RecordFormShell` | **Pending** |
+| RFQ | Create | `/purchases/rfqs/new` → `RFQCreatePage` | Route + `RecordFormShell` | Done |
+| RFQ | Edit | `/purchases/rfqs/:id/edit` → `RFQEditPage` (draft only) | Route + `RecordFormShell` | Done |
+| RFQ | View | `/purchases/rfqs/:id` → `RFQRecordPage` | Route + `RecordScaffold` | Done |
+| RFQ | Peek (list) | `RFQPeekSheet` behind `?peek=<id>` in `src/pages/RFQs.tsx` | `PeekSheet` (`PeekScaffold`) | Done |
+| RFQ | Convert to PO | side-rail action on `RFQRecordPage` calling `convert_rfq_to_po_atomic` RPC | Stay as confirm action | Done |
 | Billing History | Peek | (legacy dialog file already removed — no live consumers) | `PeekSheet` (`PeekScaffold`) | Done |
 
 ## Enforcement
