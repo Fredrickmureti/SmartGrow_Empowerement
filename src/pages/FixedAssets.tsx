@@ -63,6 +63,7 @@ import { DisposeAssetSheet } from "@/features/finance/fixed-assets/DisposeAssetS
 import { DepreciationRunSheet } from "@/features/finance/fixed-assets/DepreciationRunSheet";
 
 export default function FixedAssets() {
+  const navigate = useNavigate();
   const { assets, isLoading, deleteAsset } = useFixedAssets();
   const { formatCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
@@ -72,11 +73,15 @@ export default function FixedAssets() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("active");
 
-  // URL-driven sheet state.
-  // ?sheet=asset|category|dispose|depreciation|detail[&id=<uuid>]
+  // URL-driven UI state.
+  //   ?sheet=category|dispose|depreciation  → auxiliary sheets
+  //   ?peek=<uuid>                          → canonical peek surface
+  // Create/edit are dedicated routes (/finance/fixed-assets/new + /:id/edit).
   const [searchParams, setSearchParams] = useSearchParams();
   const sheetKind = searchParams.get("sheet");
   const sheetId = searchParams.get("id");
+  const peekId = searchParams.get("peek");
+
 
   const openSheet = (
     kind: "asset" | "category" | "dispose" | "depreciation" | "detail",
