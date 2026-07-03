@@ -58,12 +58,12 @@ export function PayrollPeriodsAdmin() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {p.status === "open" ? (
+              {["open","preparing","processing","awaiting_approval","reopened"].includes(p.status) ? (
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={closePeriod.isPending}
-                  onClick={() => closePeriod.mutate(p.id)}
+                  onClick={() => closePeriod.mutate({ periodId: p.id })}
                 >
                   <Lock className="h-4 w-4 mr-1" /> Close & lock timesheets
                 </Button>
