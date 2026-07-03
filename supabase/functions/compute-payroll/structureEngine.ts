@@ -174,8 +174,13 @@ function ruleDependencies(rule: SalaryRule, codeSet: Set<string>): string[] {
       return;
     }
     for (const id of ids) {
-      if (BUILTIN_BASES.has(id) || CTX_ROOTS.has(id)) continue;
-      if (codeSet.has(id)) deps.add(id);
+      if (id === rule.code) continue;
+      if (CTX_ROOTS.has(id)) continue;
+      // Sibling rule reference wins over built-in name shadowing —
+      // a rule whose code equals a built-in (e.g. "BASIC") IS what
+      // populates that running total, so the edge is real.
+      if (codeSet.has(id)) { deps.add(id); continue; }
+      if (BUILTIN_BASES.has(id)) continue;
     }
   };
   if (rule.condition_select === "expression") scan(rule.condition_expression);
