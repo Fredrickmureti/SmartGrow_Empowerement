@@ -1,0 +1,355 @@
+/**
+ * ApplyCreditWizardPage — routed WizardShell replacement for the legacy
+ * `ApplyCreditDialog`. Route: `/finance/customer-credits/:id/apply`.
+ *
+ * Ports every behaviour from the retired dialog verbatim:
+ *  - Branch-scoped open-invoice list for the credit note's contact
+ *  - Max-applicable = min(availableCredit, invoiceBalance)
+ *  - Applies via `useCreditNotes().applyCreditToInvoice(...)` with the
+ *    current `useFinanceScope().branchId`
+ *  - Success/error toasts match the dialog copy
+ *  - Redirects back to `/finance/customer-credits?peek=<id>` on success
+ *    so the caller re-sees the updated credit note
+ */
+import { useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowRight, Loader2, FileText } from "lucide-react";
+
+import {
+  WizardShell,
+  WizardStepper,
+  Section,
+  ErrorState,
+  LoadingState,
+  type WizardStep,
+} from "@/design-system";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useInvoices } from "@/hooks/useInvoices";
+import { useCreditNotes } from "@/hooks/useCreditNotes";
+import { useCurrency } from "@/hooks/useCurrency";
+import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
+import { useToast } from "@/hooks/use-toast";
+import { normalizeError } from "@/services/resilience";
+
+const STEPS: WizardStep[] = [
+  { id: "invoice", label: "Select invoice", description: "Choose an open invoice" },
+  { id: "review", label: "Review & apply", description: "Confirm the allocation" },
+];
+
+export default function ApplyCreditWizardPage() {
+  const navigate = useNavigate();
+  const { id: creditNoteId = "" } = useParams<{ id: string }>();
+  const [search] = useSearchParams();
+  const returnTo = search.get("returnTo") || "/finance/customer-credits";
+
+  const { creditNotes, applyCreditToInvoice, refetch } = useCreditNotes();
+  const { invoices } = useInvoices();
+  const { formatCurrency } = useCurrency();
+  const { branchId } = useFinanceScope();
+  const { toast } = useToast();
+
+  const creditNote = useMemo(
+    () => creditNotes.find((c) => c.id === creditNoteId) || null,
+    [creditNotes, creditNoteId],
+  );
+
+  const availableAmount = creditNote
+    ? (creditNote.total || 0) - (creditNote.amount_applied || 0)
+    : 0;
+  const contactId = creditNote?.contact_id || "";
+  const contactName = creditNote?.contact?.name || "";
+  const creditNoteNumber = creditNote?.credit_note_number || "";
+
+  // Branch-scoped open invoices for this customer (mirrors RPC guard).
+  const openInvoices = useMemo(
+    () =>
+      invoices.filter((inv) => {
+        if (inv.contact_id !== contactId) return false;
+        if (
+          inv.status === "paid" ||
+          inv.status === "cancelled" ||
+          inv.status === "draft"
+        )
+          return false;
+        if ((inv.total || 0) - (inv.amount_paid || 0) <= 0) return false;
+        if (branchId && inv.branch_id && inv.branch_id !== branchId) return false;
+        return true;
+      }),
+    [invoices, contactId, branchId],
+  );
+
+  const [stepId, setStepId] = useState<"invoice" | "review">("invoice");
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [notes, setNotes] = useState("");
+  const [isApplying, setIsApplying] = useState(false);
+
+  const selectedInvoice = openInvoices.find((i) => i.id === selectedInvoiceId);
+  const invoiceBalance = selectedInvoice
+    ? (selectedInvoice.total || 0) - (selectedInvoice.amount_paid || 0)
+    : 0;
+  const maxApplicable = Math.min(availableAmount, invoiceBalance);
+  const parsedAmount = parseFloat(amount) || 0;
+  const overMax = parsedAmount > maxApplicable;
+
+  const goBack = () => navigate(`${returnTo}?peek=${creditNoteId}`);
+
+  const handleApply = async () => {
+    if (!creditNote || !selectedInvoiceId || parsedAmount <= 0) return;
+    if (overMax) {
+      toast({
+        title: "Amount exceeds maximum applicable",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsApplying(true);
+    try {
+      await applyCreditToInvoice(
+        creditNoteId,
+        selectedInvoiceId,
+        parsedAmount,
+        notes || undefined,
+        branchId,
+      );
+      toast({ title: "Credit applied successfully" });
+      await refetch?.();
+      navigate(`${returnTo}?peek=${creditNoteId}`);
+    } catch (err) {
+      toast({
+        title: "Failed to apply credit",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  if (!creditNote) {
+    // Hook still loading credit notes list. Show a soft skeleton — the
+    // route may 404 the credit note by id once we know it truly doesn't
+    // exist (list resolved & empty).
+    return creditNotes.length === 0 ? (
+      <LoadingState />
+    ) : (
+      <ErrorState
+        title="Credit note not found"
+        description="This credit note may have been deleted or you don't have access."
+        action={<Button onClick={goBack}>Back to credit notes</Button>}
+      />
+    );
+  }
+
+  const canGoReview = !!selectedInvoiceId && parsedAmount > 0 && !overMax;
+
+  return (
+    <WizardShell
+      title={`Apply credit · ${creditNoteNumber}`}
+      description={
+        <span className="flex items-center gap-2">
+          <span>To an open invoice for {contactName}</span>
+          <Badge variant="outline">
+            Available {formatCurrency(availableAmount)}
+          </Badge>
+        </span>
+      }
+      stepper={
+        <WizardStepper
+          steps={STEPS}
+          activeStepId={stepId}
+          completedStepIds={
+            stepId === "review" ? ["invoice"] : []
+          }
+          onStepClick={(id) => setStepId(id as typeof stepId)}
+        />
+      }
+      leadingActions={
+        <Button variant="ghost" onClick={goBack} disabled={isApplying}>
+          Cancel
+        </Button>
+      }
+      trailingActions={
+        stepId === "invoice" ? (
+          <Button
+            onClick={() => setStepId("review")}
+            disabled={!canGoReview}
+          >
+            Continue
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setStepId("invoice")}
+              disabled={isApplying}
+            >
+              Back
+            </Button>
+            <Button onClick={handleApply} disabled={!canGoReview || isApplying}>
+              {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Apply {formatCurrency(parsedAmount)}
+            </Button>
+          </>
+        )
+      }
+    >
+      {stepId === "invoice" && (
+        <Section
+          title="Invoice & amount"
+          description="Pick the invoice to apply this credit against."
+        >
+          {openInvoices.length === 0 ? (
+            <Alert>
+              <FileText className="h-4 w-4" />
+              <AlertTitle>No open invoices</AlertTitle>
+              <AlertDescription>
+                {contactName} has no outstanding invoices in this branch to
+                apply credit to.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label>Invoice</Label>
+                <Select
+                  value={selectedInvoiceId}
+                  onValueChange={(v) => {
+                    setSelectedInvoiceId(v);
+                    setAmount("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an invoice…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {openInvoices.map((inv) => (
+                      <SelectItem key={inv.id} value={inv.id}>
+                        <span className="mr-2 font-mono text-xs">
+                          {inv.invoice_number}
+                        </span>
+                        <span className="text-muted-foreground">
+                          Balance{" "}
+                          {formatCurrency(
+                            (inv.total || 0) - (inv.amount_paid || 0),
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedInvoiceId && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Amount to apply</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={maxApplicable}
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder={`Max ${maxApplicable.toFixed(2)}`}
+                    />
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      onClick={() => setAmount(maxApplicable.toFixed(2))}
+                    >
+                      Apply maximum ({formatCurrency(maxApplicable)})
+                    </Button>
+                    {overMax && (
+                      <p className="text-xs text-destructive">
+                        Cannot exceed the maximum applicable amount.
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Notes (optional)</Label>
+                    <Textarea
+                      rows={2}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Application notes…"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {stepId === "review" && (
+        <Section title="Confirm application">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs font-medium text-muted-foreground">
+                Credit note
+              </dt>
+              <dd className="mt-0.5 font-mono">{creditNoteNumber}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-muted-foreground">
+                Customer
+              </dt>
+              <dd className="mt-0.5">{contactName}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-muted-foreground">
+                Invoice
+              </dt>
+              <dd className="mt-0.5 font-mono">
+                {selectedInvoice?.invoice_number}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-muted-foreground">
+                Invoice balance
+              </dt>
+              <dd className="mt-0.5">{formatCurrency(invoiceBalance)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-muted-foreground">
+                Available credit
+              </dt>
+              <dd className="mt-0.5">{formatCurrency(availableAmount)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-muted-foreground">
+                Amount to apply
+              </dt>
+              <dd className="mt-0.5 text-base font-semibold text-primary">
+                {formatCurrency(parsedAmount)}
+              </dd>
+            </div>
+            {notes && (
+              <div className="sm:col-span-2">
+                <dt className="text-xs font-medium text-muted-foreground">
+                  Notes
+                </dt>
+                <dd className="mt-0.5 whitespace-pre-wrap">{notes}</dd>
+              </div>
+            )}
+          </dl>
+        </Section>
+      )}
+    </WizardShell>
+  );
+}
