@@ -7,20 +7,22 @@
  *  - Max-applicable = min(availableCredit, invoiceBalance)
  *  - Applies via `useCreditNotes().applyCreditToInvoice(...)` with the
  *    current `useFinanceScope().branchId`
- *  - Success/error toasts match the dialog copy
- *  - Redirects back to `/finance/customer-credits?peek=<id>` on success
- *    so the caller re-sees the updated credit note
+ *  - Redirects back to the caller (default `/finance/customer-credits?peek=<id>`)
+ *    via `?returnTo=<path>` so the caller re-sees the updated credit note
  */
 import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowRight, Loader2, FileText } from "lucide-react";
+import { ArrowRight, FileText, Loader2 } from "lucide-react";
 
 import {
+  ActionBar,
+  ErrorState,
+  FooterActionBar,
+  LoadingState,
+  RecordHeader,
+  Section,
   WizardShell,
   WizardStepper,
-  Section,
-  ErrorState,
-  LoadingState,
   type WizardStep,
 } from "@/design-system";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -72,7 +74,6 @@ export default function ApplyCreditWizardPage() {
   const contactName = creditNote?.contact?.name || "";
   const creditNoteNumber = creditNote?.credit_note_number || "";
 
-  // Branch-scoped open invoices for this customer (mirrors RPC guard).
   const openInvoices = useMemo(
     () =>
       invoices.filter((inv) => {
@@ -90,7 +91,7 @@ export default function ApplyCreditWizardPage() {
     [invoices, contactId, branchId],
   );
 
-  const [stepId, setStepId] = useState<"invoice" | "review">("invoice");
+  const [step, setStep] = useState<"invoice" | "review">("invoice");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
@@ -103,18 +104,12 @@ export default function ApplyCreditWizardPage() {
   const maxApplicable = Math.min(availableAmount, invoiceBalance);
   const parsedAmount = parseFloat(amount) || 0;
   const overMax = parsedAmount > maxApplicable;
+  const canProceed = !!selectedInvoiceId && parsedAmount > 0 && !overMax;
 
   const goBack = () => navigate(`${returnTo}?peek=${creditNoteId}`);
 
   const handleApply = async () => {
-    if (!creditNote || !selectedInvoiceId || parsedAmount <= 0) return;
-    if (overMax) {
-      toast({
-        title: "Amount exceeds maximum applicable",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!creditNote || !canProceed) return;
     setIsApplying(true);
     try {
       await applyCreditToInvoice(
@@ -139,9 +134,6 @@ export default function ApplyCreditWizardPage() {
   };
 
   if (!creditNote) {
-    // Hook still loading credit notes list. Show a soft skeleton — the
-    // route may 404 the credit note by id once we know it truly doesn't
-    // exist (list resolved & empty).
     return creditNotes.length === 0 ? (
       <LoadingState />
     ) : (
@@ -153,61 +145,66 @@ export default function ApplyCreditWizardPage() {
     );
   }
 
-  const canGoReview = !!selectedInvoiceId && parsedAmount > 0 && !overMax;
+  const primary =
+    step === "invoice" ? (
+      <Button onClick={() => setStep("review")} disabled={!canProceed}>
+        Continue
+        <ArrowRight className="ml-2 h-4 w-4" />
+      </Button>
+    ) : (
+      <Button onClick={handleApply} disabled={!canProceed || isApplying}>
+        {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        Apply {formatCurrency(parsedAmount)}
+      </Button>
+    );
 
   return (
     <WizardShell
-      title={`Apply credit · ${creditNoteNumber}`}
-      description={
-        <span className="flex items-center gap-2">
-          <span>To an open invoice for {contactName}</span>
-          <Badge variant="outline">
-            Available {formatCurrency(availableAmount)}
-          </Badge>
-        </span>
+      header={
+        <RecordHeader
+          eyebrow="Customer credits"
+          title={`Apply credit · ${creditNoteNumber}`}
+          meta={
+            <span className="flex items-center gap-2">
+              <span>To an open invoice for {contactName}</span>
+              <Badge variant="outline">
+                Available {formatCurrency(availableAmount)}
+              </Badge>
+            </span>
+          }
+        />
       }
       stepper={
         <WizardStepper
           steps={STEPS}
-          activeStepId={stepId}
-          completedStepIds={
-            stepId === "review" ? ["invoice"] : []
-          }
-          onStepClick={(id) => setStepId(id as typeof stepId)}
+          activeStepId={step}
+          completedStepIds={step === "review" ? ["invoice"] : []}
+          onStepClick={(id) => setStep(id as "invoice" | "review")}
         />
       }
-      leadingActions={
-        <Button variant="ghost" onClick={goBack} disabled={isApplying}>
-          Cancel
-        </Button>
-      }
-      trailingActions={
-        stepId === "invoice" ? (
-          <Button
-            onClick={() => setStepId("review")}
-            disabled={!canGoReview}
-          >
-            Continue
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        ) : (
-          <>
-            <Button
-              variant="outline"
-              onClick={() => setStepId("invoice")}
-              disabled={isApplying}
-            >
-              Back
-            </Button>
-            <Button onClick={handleApply} disabled={!canGoReview || isApplying}>
-              {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Apply {formatCurrency(parsedAmount)}
-            </Button>
-          </>
-        )
+      footer={
+        <FooterActionBar
+          anchor="page"
+          leading={
+            step === "invoice" ? (
+              <Button variant="ghost" onClick={goBack} disabled={isApplying}>
+                Cancel
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setStep("invoice")}
+                disabled={isApplying}
+              >
+                Back
+              </Button>
+            )
+          }
+          trailing={<ActionBar>{primary}</ActionBar>}
+        />
       }
     >
-      {stepId === "invoice" && (
+      {step === "invoice" && (
         <Section
           title="Invoice & amount"
           description="Pick the invoice to apply this credit against."
@@ -296,7 +293,7 @@ export default function ApplyCreditWizardPage() {
         </Section>
       )}
 
-      {stepId === "review" && (
+      {step === "review" && (
         <Section title="Confirm application">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
             <div>
