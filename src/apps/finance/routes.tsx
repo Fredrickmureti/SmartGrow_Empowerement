@@ -41,6 +41,7 @@ const RecurringJournalCreatePage = lazy(() => import("@/features/finance/recurri
 const AccountDetailRedirect = lazy(() => import("@/pages/finance/AccountDetailRedirect"));
 const FiscalPeriods = lazy(() => import("@/pages/FiscalPeriods"));
 const FiscalPeriodDetail = lazy(() => import("@/pages/finance/FiscalPeriodDetail"));
+const YearEndClosePage = lazy(() => import("@/features/finance/year-end-close/YearEndClosePage"));
 const Budgets = lazy(() => import("@/pages/Budgets"));
 const FixedAssets = lazy(() => import("@/pages/FixedAssets"));
 const AnalyticAccounts = lazy(() => import("@/pages/AnalyticAccounts"));
