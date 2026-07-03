@@ -431,12 +431,9 @@ export default function FixedAssets() {
         />
       </div>
 
-      {/* Enterprise UX: create/edit/dispose/detail/depreciation on DetailSheet */}
-      <AssetFormSheet
-        open={sheetKind === "asset"}
-        onOpenChange={(o) => (o ? openSheet("asset", sheetId ?? undefined) : closeSheet())}
-        asset={editingAsset}
-      />
+      {/* Enterprise UX: create/edit are dedicated routes; peek is on
+          PeekScaffold. Category / dispose / depreciation are still
+          DetailSheet-based auxiliary flows. */}
       <AssetCategorySheet
         open={sheetKind === "category"}
         onOpenChange={(o) => (o ? openSheet("category") : closeSheet())}
@@ -450,10 +447,9 @@ export default function FixedAssets() {
         open={sheetKind === "depreciation"}
         onOpenChange={(o) => (o ? openSheet("depreciation") : closeSheet())}
       />
-      <AssetDetailSheet
-        open={sheetKind === "detail"}
-        onOpenChange={(o) => (o ? openSheet("detail", sheetId ?? undefined) : closeSheet())}
-        asset={detailAsset}
+      <AssetPeekSheet
+        assetId={peekId}
+        onOpenChange={(o) => { if (!o) setPeek(null); }}
       />
     </>
   );
