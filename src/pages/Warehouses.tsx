@@ -339,7 +339,11 @@ export default function Warehouses() {
                       </TableHeader>
                       <TableBody>
                         {filteredWarehouses.map((warehouse) => (
-                          <TableRow key={warehouse.id}>
+                          <TableRow
+                            key={warehouse.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setPeek(warehouse.id)}
+                          >
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">{warehouse.name}</span>
