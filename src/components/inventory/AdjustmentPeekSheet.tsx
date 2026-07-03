@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
-interface AdjustmentDetailDrawerProps {
+interface AdjustmentPeekSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   adjustmentId: string | null;
@@ -24,7 +24,13 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-100 text-red-800",
 };
 
-export function AdjustmentDetailDrawer({ open, onOpenChange, adjustmentId }: AdjustmentDetailDrawerProps) {
+/**
+ * Peek sheet for a stock adjustment. Used behind `?peek=<id>` from the
+ * Inventory adjustments list. Wraps `DetailSheet` (the primitive backing
+ * `PeekScaffold` in the sales/purchases record system) so callers do not
+ * need to know the underlying sheet primitive.
+ */
+export function AdjustmentPeekSheet({ open, onOpenChange, adjustmentId }: AdjustmentPeekSheetProps) {
   const navigate = useNavigate();
 
   const { data: adjustment, isLoading } = useQuery({
