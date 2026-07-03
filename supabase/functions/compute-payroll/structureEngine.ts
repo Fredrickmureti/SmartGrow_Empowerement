@@ -291,7 +291,7 @@ function resolveBase(base: string | null, ctx: PayrollContext, results: Record<s
 }
 
 export function runStructureEngine(input: StructureEngineInput): StructureEngineResult {
-  const { rules, workEntryTypes, workEntries, employee, contract, statutoryResolver } = input;
+  const { rules, workEntryTypes, workEntries, employee, contract, statutoryResolver, traceSink } = input;
 
   const { worked_hours, worked_days } = aggregateWorkedHours(workEntries, workEntryTypes);
 
@@ -300,8 +300,24 @@ export function runStructureEngine(input: StructureEngineInput): StructureEngine
   const errors: StructureEngineResult["errors"] = [];
   let basic = 0, gross = 0, taxable = 0, deductions = 0, employer = 0;
 
-  // Sort by sequence (parent ordering is the editor's responsibility).
-  const sorted = rules.filter((r) => r.is_active).sort((a, b) => a.sequence - b.sequence);
+  // Phase 3 — Topological sort with cycle detection. Falls back to
+  // sequence-only ordering (previous behaviour) when the sort surfaces a
+  // dependency cycle: we short-circuit and return the cycle as a
+  // payroll-blocking error so the run is not silently zeroed.
+  const codeSet = new Set(rules.filter((r) => r.is_active).map((r) => r.code));
+  const topo = topoSortRules(rules);
+  if ("cycle" in topo) {
+    errors.push({
+      rule_code: topo.cycle.join(" → "),
+      message: `dependency cycle detected among salary rules: ${topo.cycle.join(" → ")}. Fix by breaking one of the references (parent_rule_id, amount_base, or an expression).`,
+    });
+    return {
+      lines: [],
+      totals: { gross: 0, deductions: 0, employer: 0, net: 0, basic: 0, taxable: 0 },
+      errors,
+    };
+  }
+  const sorted = topo.ordered;
 
   for (const rule of sorted) {
     const ctx: PayrollContext = {
@@ -316,31 +332,69 @@ export function runStructureEngine(input: StructureEngineInput): StructureEngine
       result: results,
     };
 
+    // Precompute the dependency set for the trace sink so historical
+    // simulators can rebuild the DAG without re-parsing expressions.
+    const deps = ruleDependencies(rule, codeSet).filter((d) => !d.startsWith("__parent__:"));
+
     // Condition
+    let conditionPassed = true;
     try {
       if (rule.condition_select === "expression" && rule.condition_expression) {
         const passed = evaluateExpression(rule.condition_expression, ctx);
-        if (!passed) {
+        conditionPassed = Boolean(passed);
+        if (!conditionPassed) {
           results[rule.code] = 0;
+          traceSink?.push({
+            rule_id: rule.id,
+            rule_code: rule.code,
+            sequence: rule.sequence,
+            category: rule.category,
+            condition_expression: rule.condition_expression,
+            condition_passed: false,
+            amount_select: rule.amount_select,
+            amount_expression: rule.amount_expression,
+            amount_base: rule.amount_base,
+            base_value: 0,
+            dependencies: deps,
+            resolved_amount: 0,
+            error: null,
+          });
           continue;
         }
       }
     } catch (e) {
       const re = e instanceof RuleExpressionError ? e : null;
-      errors.push({ rule_code: rule.code, message: `condition: ${(e as Error).message}`, offset: re?.offset });
+      const msg = `condition: ${(e as Error).message}`;
+      errors.push({ rule_code: rule.code, message: msg, offset: re?.offset });
+      traceSink?.push({
+        rule_id: rule.id,
+        rule_code: rule.code,
+        sequence: rule.sequence,
+        category: rule.category,
+        condition_expression: rule.condition_expression,
+        condition_passed: false,
+        amount_select: rule.amount_select,
+        amount_expression: rule.amount_expression,
+        amount_base: rule.amount_base,
+        base_value: 0,
+        dependencies: deps,
+        resolved_amount: 0,
+        error: msg,
+      });
       continue;
     }
 
     // Amount
     let amount = 0;
+    let baseValue = 0;
     try {
       switch (rule.amount_select) {
         case "fixed":
           amount = rule.amount_fixed ?? 0;
           break;
         case "percentage": {
-          const base = resolveBase(rule.amount_base, ctx, results);
-          amount = base * ((rule.amount_percentage ?? 0) / 100);
+          baseValue = resolveBase(rule.amount_base, ctx, results);
+          amount = baseValue * ((rule.amount_percentage ?? 0) / 100);
           break;
         }
         case "expression":
@@ -348,7 +402,23 @@ export function runStructureEngine(input: StructureEngineInput): StructureEngine
           break;
         case "statutory_ref":
           if (!rule.statutory_rule_id || !statutoryResolver) {
-            errors.push({ rule_code: rule.code, message: "statutory_ref rule missing resolver or rule_id" });
+            const msg = "statutory_ref rule missing resolver or rule_id";
+            errors.push({ rule_code: rule.code, message: msg });
+            traceSink?.push({
+              rule_id: rule.id,
+              rule_code: rule.code,
+              sequence: rule.sequence,
+              category: rule.category,
+              condition_expression: rule.condition_expression,
+              condition_passed: true,
+              amount_select: rule.amount_select,
+              amount_expression: rule.amount_expression,
+              amount_base: rule.amount_base,
+              base_value: 0,
+              dependencies: deps,
+              resolved_amount: 0,
+              error: msg,
+            });
             continue;
           }
           amount = statutoryResolver(rule.statutory_rule_id, ctx);
@@ -356,7 +426,23 @@ export function runStructureEngine(input: StructureEngineInput): StructureEngine
       }
     } catch (e) {
       const re = e instanceof RuleExpressionError ? e : null;
-      errors.push({ rule_code: rule.code, message: `amount: ${(e as Error).message}`, offset: re?.offset });
+      const msg = `amount: ${(e as Error).message}`;
+      errors.push({ rule_code: rule.code, message: msg, offset: re?.offset });
+      traceSink?.push({
+        rule_id: rule.id,
+        rule_code: rule.code,
+        sequence: rule.sequence,
+        category: rule.category,
+        condition_expression: rule.condition_expression,
+        condition_passed: true,
+        amount_select: rule.amount_select,
+        amount_expression: rule.amount_expression,
+        amount_base: rule.amount_base,
+        base_value: baseValue,
+        dependencies: deps,
+        resolved_amount: 0,
+        error: msg,
+      });
       continue;
     }
 
@@ -386,6 +472,22 @@ export function runStructureEngine(input: StructureEngineInput): StructureEngine
       accounting_credit_account_id: rule.accounting_credit_account_id,
       accounting_tag: rule.accounting_tag,
     });
+
+    traceSink?.push({
+      rule_id: rule.id,
+      rule_code: rule.code,
+      sequence: rule.sequence,
+      category: rule.category,
+      condition_expression: rule.condition_expression,
+      condition_passed: true,
+      amount_select: rule.amount_select,
+      amount_expression: rule.amount_expression,
+      amount_base: rule.amount_base,
+      base_value: baseValue,
+      dependencies: deps,
+      resolved_amount: amount,
+      error: null,
+    });
   }
 
   return {
@@ -393,4 +495,5 @@ export function runStructureEngine(input: StructureEngineInput): StructureEngine
     totals: { gross, deductions, employer, net: gross - deductions, basic, taxable },
     errors,
   };
+}
 }
