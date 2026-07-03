@@ -234,7 +234,7 @@ export default function FixedAssets() {
                   <Plus className="mr-2 h-4 w-4" />
                   Add Category
                 </Button>
-                <Button onClick={() => openAssetSheet()}>
+                <Button onClick={openAssetCreate}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Asset
                 </Button>
