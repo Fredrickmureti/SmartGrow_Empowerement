@@ -405,6 +405,10 @@ function StructureCard({ structure: s }: StructureCardProps) {
   const [showVersions, setShowVersions] = useState(false);
   const [showRuleGraph, setShowRuleGraph] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const { restoreStructure } = useSalaryStructures();
   const publish = usePublishRuleSet();
   const versions = useRuleSetVersions(showVersions ? s.id : undefined);
   const queryClient = useQueryClient();
