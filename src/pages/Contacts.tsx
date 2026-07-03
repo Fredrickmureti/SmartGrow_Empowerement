@@ -143,35 +143,22 @@ export default function Contacts({ defaultTypeFilter, showCompaniesOnly }: Conta
     setTypeFilter(defaultTypeFilter || "all");
   }, [defaultTypeFilter]);
 
-  // Handle ?action=create query param
-  const [pendingCreateAction, setPendingCreateAction] = useState(false);
+  // Handle legacy ?action=create — Phase 12: redirect to the routed create page.
   useEffect(() => {
     const action = searchParams.get("action");
     const typeParam = searchParams.get("type") as "customer" | "supplier" | null;
     if (action === "create") {
-      setPendingCreateAction(true);
-      const presetType = typeParam || (defaultTypeFilter && defaultTypeFilter !== "both" ? defaultTypeFilter : "customer");
-      setFormData(prev => ({
-        ...prev,
-        name: "",
-        email: "",
-        phone: "",
-        type: presetType as "customer" | "supplier" | "both",
-        address_line1: "",
-        city: "",
-        state: "",
-        postal_code: "",
-        country: defaultCountry,
-        notes: "",
-        credit_limit: "",
-        credit_hold: false,
-        payment_term_id: "none",
-        customer_group_id: "none",
-      }));
-      setEditingContact(null);
-      setShowDialog(true);
+      const presetType =
+        typeParam ||
+        (defaultTypeFilter && defaultTypeFilter !== "both"
+          ? defaultTypeFilter
+          : undefined);
+      navigate(
+        `/contacts-app/new${presetType ? `?type=${presetType}` : ""}`,
+        { replace: true },
+      );
     }
-  }, [searchParams]);
+  }, [searchParams, defaultTypeFilter, navigate]);
 
   // Debounced search
   const debouncedSearch = useDebouncedCallback((value: string) => {
