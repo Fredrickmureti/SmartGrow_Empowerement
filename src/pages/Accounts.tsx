@@ -9,7 +9,6 @@ import { useBalanceIntegrityCheck } from "@/hooks/useBalanceIntegrityCheck";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -17,20 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -75,22 +60,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { AlertCircle } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DeleteAllAccountsDialog } from "@/components/accounts/DeleteAllAccountsDialog";
-import { getDetailTypesForAccountType, getDefaultDetailType, getSuggestedNames, getDetailTypeLabel, getDetailTypeDescription, resolveDetailTypeFromName, ACCOUNT_CATEGORIES, getDetailTypesForCategory, getDefaultDetailTypeForCategory, getCategoryValue } from "@/lib/accountDetailTypes";
+import { getDetailTypesForAccountType, getDetailTypeLabel, resolveDetailTypeFromName } from "@/lib/accountDetailTypes";
 import { normalizeError } from "@/services/resilience";
 // useSearchParams already imported above
 
 export default function Accounts() {
-  const { accounts, isLoading, createAccount, updateAccount, deleteAccount, archiveAccount, restoreAccount, getAccountsByType, refreshAccounts } =
+  const { accounts, isLoading, createAccount, deleteAccount, archiveAccount, restoreAccount, getAccountsByType, refreshAccounts } =
     useAccounts();
   const { formatCurrency } = useCurrency();
   const { getEffectiveBalance: rpcBalance, refetch: refetchBalances } = useAccountBalances();
@@ -106,10 +88,7 @@ export default function Accounts() {
   const { toast } = useToast();
   const navigate = useNavigate();
   // openingBalanceCheck removed — balances should not be editable on accounts
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
 
@@ -170,124 +149,18 @@ export default function Accounts() {
 
 
   const [searchParams] = useSearchParams();
-  const [formData, setFormData] = useState({
-    account_type: "asset" as Account["account_type"],
-    category: "bank",
-    detail_type: "",
-    code: "",
-    name: "",
-    description: "",
-    opening_balance: 0,
-    is_sub_account: false,
-    parent_id: "" as string,
-  });
-
-  const resetForm = () => {
-    setFormData({
-      account_type: "asset",
-      category: "bank",
-      detail_type: getDefaultDetailTypeForCategory("bank"),
-      code: "",
-      name: "",
-      description: "",
-      opening_balance: 0,
-      is_sub_account: false,
-      parent_id: "",
-    });
-    setEditingAccount(null);
-  };
-
-  // Handle ?action=create from global create menu
+  // Handle ?action=create from global create menu → navigate to routed create page
   useEffect(() => {
-    if (searchParams.get("action") === "create" && !showDialog) {
-      setShowDialog(true);
+    if (searchParams.get("action") === "create") {
+      navigate("/finance/accounts/new", { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
-  const handleOpenDialog = (account?: Account) => {
-    if (account) {
-      setEditingAccount(account);
-      const cat = getCategoryValue(account.account_type, account.detail_type);
-      setFormData({
-        account_type: account.account_type,
-        category: cat,
-        detail_type: account.detail_type || "",
-        code: account.code,
-        name: account.name,
-        description: account.description || "",
-        opening_balance: account.opening_balance || 0,
-        is_sub_account: !!account.parent_id,
-        parent_id: account.parent_id || "",
-      });
-    } else {
-      resetForm();
-    }
-    setShowDialog(true);
-  };
-
-  // Get detail types filtered by the selected category
-  const detailTypes = getDetailTypesForCategory(formData.category);
-  const nameSuggestions = formData.detail_type ? getSuggestedNames(formData.account_type, formData.detail_type) : [];
-  const selectedDetailTypeDescription = formData.detail_type ? getDetailTypeDescription(formData.account_type, formData.detail_type) : "";
-  
-  // Get potential parent accounts (same type, active, not self)
-  const parentCandidates = accounts.filter(
-    a => a.account_type === formData.account_type && a.is_active && a.id !== editingAccount?.id && !a.parent_id
-  );
+  const handleCreate = () => navigate("/finance/accounts/new");
+  const handleEdit = (account: Account) => navigate(`/finance/accounts/${account.id}/edit`);
 
   // Build tree structure for display
   const getChildAccounts = (parentId: string) => accounts.filter(a => a.parent_id === parentId);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.detail_type) {
-      toast({
-        title: "Detail Type is required",
-        description: "Please select a Detail Type to ensure correct financial report classification.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const { is_sub_account, category: _category, opening_balance: _ob, ...dbFields } = formData;
-      const parent_id = is_sub_account && formData.parent_id ? formData.parent_id : null;
-
-      if (editingAccount) {
-        // Never send opening_balance on edit — balances come from journal entries only
-        await updateAccount(editingAccount.id, {
-          ...dbFields,
-          detail_type: dbFields.detail_type || null,
-          parent_id,
-        });
-        toast({ title: "Account updated successfully" });
-      } else {
-        await createAccount({
-          ...dbFields,
-          opening_balance: formData.opening_balance,
-          detail_type: dbFields.detail_type || null,
-          is_active: true,
-          is_system: false,
-          current_balance: 0,
-          parent_id,
-        });
-        toast({ title: "Account created successfully" });
-      }
-      setShowDialog(false);
-      resetForm();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const executeDeleteAccount = async (account: Account) => {
     try {
@@ -457,7 +330,7 @@ export default function Accounts() {
               </Button>
             )}
             {canEditCoa && (
-              <Button onClick={() => handleOpenDialog()} className="flex-1 sm:flex-none">
+              <Button onClick={handleCreate} className="flex-1 sm:flex-none">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Account
               </Button>
@@ -559,7 +432,7 @@ export default function Accounts() {
                 Set up your chart of accounts to start tracking finances.
               </p>
               {canEditCoa && (
-                <Button onClick={() => handleOpenDialog()}>
+                <Button onClick={handleCreate}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Your First Account
                 </Button>
@@ -663,7 +536,7 @@ export default function Accounts() {
                                     </DropdownMenuItem>
                                     {canEditCoa && (
                                       <DropdownMenuItem
-                                        onClick={() => handleOpenDialog(account)}
+                                        onClick={() => handleEdit(account)}
                                       >
                                         <Pencil className="mr-2 h-4 w-4" />
                                         Edit
@@ -730,7 +603,7 @@ export default function Accounts() {
                                           <BookOpen className="mr-2 h-4 w-4" /> View Register
                                         </DropdownMenuItem>
                                         {canEditCoa && (
-                                          <DropdownMenuItem onClick={() => handleOpenDialog(child)}>
+                                          <DropdownMenuItem onClick={() => handleEdit(child)}>
                                             <Pencil className="mr-2 h-4 w-4" /> Edit
                                           </DropdownMenuItem>
                                         )}
@@ -767,244 +640,6 @@ export default function Accounts() {
           </Accordion>
         )}
 
-        {/* Add/Edit Dialog */}
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingAccount ? "Edit Account" : "Add Account"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingAccount
-                  ? "Update the account details."
-                  : "Create a new account for your chart of accounts."}
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="account_type">
-                    Account Type *
-                    {editingAccount && editingAccount.is_system && (
-                      <Badge variant="secondary" className="ml-2 text-[10px] font-normal">System account</Badge>
-                    )}
-                  </Label>
-                  <Select
-                    value={formData.category}
-                    onValueChange={(catValue) => {
-                      const cat = ACCOUNT_CATEGORIES.find(c => c.value === catValue);
-                      if (cat) {
-                        const newDetailType = getDefaultDetailTypeForCategory(catValue);
-                        setFormData({
-                          ...formData,
-                          account_type: cat.baseType,
-                          category: catValue,
-                          detail_type: newDetailType,
-                          name: "",
-                        });
-                      }
-                    }}
-                    disabled={editingAccount?.is_system}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Balance Sheet group */}
-                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Balance Sheet</div>
-                      {ACCOUNT_CATEGORIES.filter(c => c.group === "Balance Sheet").map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value}>
-                          {cat.label}
-                        </SelectItem>
-                      ))}
-                      {/* Income & Expense group */}
-                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-1.5">Income & Expense</div>
-                      {ACCOUNT_CATEGORIES.filter(c => c.group === "Income & Expense").map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value}>
-                          {cat.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Detail Type - filtered by selected Account Category */}
-                <div className="space-y-2">
-                  <Label htmlFor="detail_type">Detail Type *</Label>
-                  {detailTypes.length <= 1 ? (
-                    <Input
-                      value={detailTypes.length === 1 ? detailTypes[0].label : "—"}
-                      disabled
-                      className="bg-muted cursor-not-allowed"
-                    />
-                  ) : (
-                    <Select
-                      value={formData.detail_type || "none"}
-                      onValueChange={(value) => {
-                        const dt = value === "none" ? "" : value;
-                        setFormData({ ...formData, detail_type: dt });
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select detail type..." />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        {detailTypes.map((dt) => (
-                          <SelectItem key={dt.value} value={dt.value}>
-                            {dt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-
-                {/* Detail Type Description - QuickBooks-style info panel */}
-                {selectedDetailTypeDescription && (
-                  <div className="md:col-span-2 rounded-md border border-border bg-muted/50 px-3 py-2">
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      {selectedDetailTypeDescription}
-                    </p>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="code">Account Code *</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="e.g., 1000"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Account Name *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder={nameSuggestions[0] || "Enter account name"}
-                    required
-                    list="name-suggestions"
-                  />
-                  {nameSuggestions.length > 0 && (
-                    <datalist id="name-suggestions">
-                      {nameSuggestions.map((s) => (
-                        <option key={s} value={s} />
-                      ))}
-                    </datalist>
-                  )}
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    rows={2}
-                  />
-                </div>
-
-                {/* Sub-account toggle */}
-                <div className="space-y-2 md:col-span-2">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="is_sub_account"
-                      checked={formData.is_sub_account}
-                      onCheckedChange={(checked) => setFormData({ ...formData, is_sub_account: !!checked, parent_id: "" })}
-                    />
-                    <Label htmlFor="is_sub_account" className="cursor-pointer">Is a sub-account</Label>
-                  </div>
-                  {formData.is_sub_account && (
-                    <Select
-                      value={formData.parent_id || "none"}
-                      onValueChange={(value) => setFormData({ ...formData, parent_id: value === "none" ? "" : value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select parent account..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">— Select parent —</SelectItem>
-                        {parentCandidates.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.code} - {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-
-                {/* Opening Balance — only on CREATE, never on edit */}
-                {!editingAccount && (
-                  <div className="space-y-2">
-                    <Label htmlFor="opening_balance">Opening Balance (Initial Setup)</Label>
-                    <Input
-                      id="opening_balance"
-                      type="number"
-                      step="0.01"
-                      value={formData.opening_balance}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          opening_balance: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      For initial setup only. Should be converted to an Opening Balance Journal Entry via the migration tool for proper double-entry accounting.
-                    </p>
-                  </div>
-                )}
-
-                {/* On EDIT — show balance as read-only, derived from JEs */}
-                {editingAccount && (
-                  <div className="space-y-2">
-                    <Label>Account Balance</Label>
-                    <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Opening Balance:</span>
-                        <span className="font-medium">{(editingAccount.opening_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">JE Movements:</span>
-                        <span className="font-medium">{(editingAccount.current_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between border-t pt-1 mt-1">
-                        <span className="font-medium">Effective Balance:</span>
-                        <span className="font-bold">{rpcBalance(editingAccount.id, editingAccount.opening_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <BookOpen className="h-3 w-3" />
-                      Balances are derived from journal entries. To adjust, post a journal entry.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowDialog(false)}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingAccount ? "Update" : "Create Account"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
 
         {/* Delete Confirmation Dialog */}
         <ConfirmDeleteDialog
