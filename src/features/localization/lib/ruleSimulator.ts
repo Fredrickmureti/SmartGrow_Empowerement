@@ -237,17 +237,14 @@ export function simulateRule(
 
   // ── Statutory deduction / percentage ───────────────────────────────────
   if (kind === "percentage") {
-    const fraction = rateAsFraction(safeNum(parameters.rate, 0));
+    const fraction = pct(safeNum(parameters.rate, 0));
     const baseLabel: string = parameters.base ?? "gross";
     const baseAmount = baseLabel === "taxable" ? taxable : gross;
     let amount = baseAmount * fraction;
-    const cap = parameters.cap;
-    if (cap !== null && cap !== undefined) {
-      const capN = safeNum(cap, Infinity);
-      if (amount > capN) {
-        result.explanation.push(`Computed ${round2(amount).toLocaleString()} exceeds cap ${capN.toLocaleString()} — capped.`);
-        amount = capN;
-      }
+    const capN = readCap(parameters);
+    if (capN !== null && amount > capN) {
+      result.explanation.push(`Computed ${round2(amount).toLocaleString()} exceeds cap ${capN.toLocaleString()} — capped.`);
+      amount = capN;
     }
     result.breakdown.push({
       label: `${parameters.label ?? "Deduction"} (${(fraction * 100).toFixed(2)}% of ${baseLabel})`,
