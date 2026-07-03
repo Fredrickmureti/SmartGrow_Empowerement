@@ -763,7 +763,7 @@ export default function ContactProfile() {
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSelectedCN(cn as any); setDetailOpen(true); }}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPeekCreditNoteId(cn.id)}>
                                   <Eye className="h-4 w-4" />
                                 </Button>
                                 {available > 0 && (
