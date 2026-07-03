@@ -43,7 +43,7 @@ import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
 import { useReconciliationSuggestions } from "@/hooks/useReconciliationSuggestions";
 import { ReconcileTransactionDialog } from "@/components/banking/ReconcileTransactionDialog";
-import { TransactionRulesDialog } from "@/components/banking/TransactionRulesDialog";
+// TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
 
 import { TransferReconcileDialog } from "@/components/banking/TransferReconcileDialog";
 import { ReconciliationWorkspace } from "@/components/banking/ReconciliationWorkspace";
@@ -82,7 +82,7 @@ export default function BankReconciliation() {
   const [selectedStatus, setSelectedStatus] = useState<string>("unreconciled");
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [reconcileDialogOpen, setReconcileDialogOpen] = useState(false);
-  const [rulesDialogOpen, setRulesDialogOpen] = useState(false);
+  // Rules dialog was removed — Rules now open as a routed page.
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [isAutoMatching, setIsAutoMatching] = useState(false);
   const [activeTab, setActiveTab] = useState("transactions");
@@ -251,7 +251,7 @@ export default function BankReconciliation() {
                   title={!canReconcile ? "You don't have permission to manage reconciliation rules in this scope." : undefined}
                   onClick={() => {
                     if (isReadOnly) { openUpgradeModal("banking"); return; }
-                    setRulesDialogOpen(true);
+                    navigate("/finance/banking/rules");
                   }}>
                   <Settings2 className="mr-2 h-4 w-4" />
                   Rules
@@ -676,11 +676,6 @@ export default function BankReconciliation() {
       {/* Start Statement Reconciliation is now a routed page at
           /finance/reconciliation/new — see StartReconciliationPage. */}
 
-      {/* Rules Dialog */}
-      <TransactionRulesDialog
-        open={rulesDialogOpen}
-        onOpenChange={setRulesDialogOpen}
-      />
 
       {/* Unreconcile Confirmation */}
       <AlertDialog open={unreconcileDialogOpen} onOpenChange={setUnreconcileDialogOpen}>
