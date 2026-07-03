@@ -4,6 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import { tanstackStart } from "@tanstack/react-start/dist/esm/plugin/vite";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -15,6 +16,9 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [
+    // Provides TanStack Start's virtual client/server entries used by the
+    // Lovable preview dev shell (`#tanstack-start-entry`).
+    ...tanstackStart(),
     // Generates src/routeTree.gen.ts from files in src/routes/. Required by
     // the Lovable sandbox dev shell which serves the app via TanStack Start.
     // The actual ERP UI is rendered by react-router-dom inside <App />.
