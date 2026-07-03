@@ -135,6 +135,28 @@ export function FinanceApp() {
           }
         />
 
+        {/* Customer Credits — apply + refund wizards (list route below). */}
+        <Route
+          path="customer-credits/:id/apply"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Apply Customer Credit">
+                <ApplyCreditWizardPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="customer-credits/:id/refund"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Process Credit Refund">
+                <ProcessRefundWizardPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Customer Credits */}
         <Route
           path="customer-credits"
