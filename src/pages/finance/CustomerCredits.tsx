@@ -7,7 +7,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useCreditNotes, CreditNote } from "@/hooks/useCreditNotes";
+import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { financeKey } from "@/lib/finance/financeKey";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
