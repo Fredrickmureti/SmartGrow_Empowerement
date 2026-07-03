@@ -9,10 +9,13 @@ import { describe, it, expect } from "vitest";
 import {
   runStructureEngine,
   aggregateWorkedHours,
+  topoSortRules,
   type SalaryRule,
   type WorkEntryType,
   type WorkEntryRow,
+  type StructureRuleTrace,
 } from "../../../supabase/functions/compute-payroll/structureEngine";
+import { extractIdentifiers } from "../../../supabase/functions/compute-payroll/expressionEngine";
 
 const types: WorkEntryType[] = [
   { id: "w1", code: "WORK", is_paid: true, counts_as_worked: true, multiplier_normal: 1, multiplier_overtime: 1.5 },
