@@ -53,6 +53,9 @@ const ProcessRefundWizardPage = lazy(() => import("@/features/finance/customer-c
 const AssetCreatePage = lazy(() => import("@/features/finance/fixed-assets/AssetCreatePage"));
 const AssetEditPage = lazy(() => import("@/features/finance/fixed-assets/AssetEditPage"));
 const BankFeeds = lazy(() => import("@/pages/BankFeeds"));
+const RulesListPage = lazy(() => import("@/features/finance/banking/rules/RulesListPage"));
+const RuleCreatePage = lazy(() => import("@/features/finance/banking/rules/RuleCreatePage"));
+const RuleEditPage = lazy(() => import("@/features/finance/banking/rules/RuleEditPage"));
 
 // Report pages (all lazy-loaded)
 const FinancialReports = lazy(() => import("@/pages/reports/FinancialReports"));
@@ -412,6 +415,38 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Banking">
                 <Banking />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Transaction Rules — /new + /:id/edit must precede the list. */}
+        <Route
+          path="banking/rules/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Transaction Rule">
+                <RuleCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="banking/rules/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Edit Transaction Rule">
+                <RuleEditPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="banking/rules"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Transaction Rules">
+                <RulesListPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
