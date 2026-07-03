@@ -331,8 +331,11 @@ export function computeTieredBrackets(
     if (income <= upper) break;
   }
 
-  // Optional cap per tier or rule-wide
-  const cap = Number(p.cap ?? Infinity);
+  // Optional cap per tier or rule-wide. Packs and editors historically
+  // use either `cap` or `ceiling` for the same concept — Phase 2 accepts
+  // both aliases so authoring-time UI (which writes `ceiling`) matches
+  // engine semantics (which read `cap`).
+  const cap = Number(p.cap ?? p.ceiling ?? Infinity);
   return { employee: Math.min(round2(employee), cap), employer: Math.min(round2(employer), cap) };
 }
 
