@@ -524,9 +524,8 @@ export default function Bills() {
     overdue: filteredBills.filter((b) => b.status === "overdue").reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0),
   };
 
-  const subtotal = lineItems.reduce((sum, item) => sum + item.line_total, 0);
-  const totalTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
-  const grandTotal = subtotal + totalTax - formData.discount_amount;
+
+
 
   return (
     <>
