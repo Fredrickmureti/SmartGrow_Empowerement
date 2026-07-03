@@ -49,7 +49,6 @@ export function JournalEntryPeekSheet({
       fullPageHref={entryId ? `/finance/journal-entries/${entryId}` : undefined}
       loading={isLoading && !entry}
       error={notFound ? "This journal entry no longer exists or you don't have access." : null}
-      errorTitle="Journal entry not found"
       detailFields={view?.detailFields}
       lineColumns={view?.lineColumns}
       lineRows={view?.lineRows}
