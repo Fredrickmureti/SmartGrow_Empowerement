@@ -92,9 +92,11 @@ export default function BankReconciliation() {
   // Unreconcile confirmation
   const [unreconcileDialogOpen, setUnreconcileDialogOpen] = useState(false);
   const [transactionToUnreconcile, setTransactionToUnreconcile] = useState<any>(null);
+  const navigate = useNavigate();
 
-  // R1: Statement-level reconciliation
-  const [startReconDialogOpen, setStartReconDialogOpen] = useState(false);
+  // R1: Statement-level reconciliation lives on a routed page now
+  // (see /finance/reconciliation/new). Nothing to track locally.
+  
   // R2: Transfer dialog
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferTransaction, setTransferTransaction] = useState<any>(null);
