@@ -496,4 +496,4 @@ export function runStructureEngine(input: StructureEngineInput): StructureEngine
     errors,
   };
 }
-}
+
