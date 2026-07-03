@@ -6,7 +6,7 @@
  * Editing happens via the existing salary structure form (reachable from
  * Employees → Contract). No new business logic.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,10 +17,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Loader2, Trash2, History, UploadCloud, Lock, Network } from "lucide-react";
+import { Plus, Loader2, Trash2, History, UploadCloud, Lock, Network, AlertCircle } from "lucide-react";
 import { SalaryRuleGraphEditor } from "@/components/payroll/SalaryRuleGraphEditor";
 import { WorkflowSheet, WorkflowSheetGrid, WorkflowSheetSection, WorkflowField } from "@/components/workflow/WorkflowSheet";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -28,29 +28,105 @@ import { useSalaryStructures } from "@/hooks/useSalaryStructures";
 import { usePublishRuleSet, useRuleSetVersions } from "@/hooks/payroll/useSalaryRuleSets";
 import { RuleSetComponentsTable } from "@/components/payroll/PayrollRuleSetPanel";
 
+
+type ComputationType = "fixed" | "percentage";
+
+type ComponentDraft = {
+  name: string;
+  code: string;
+  component_type: "earning" | "deduction" | "employer_contribution";
+  computation_type: ComputationType;
+  computation_value: number;
+  percentage_of: string | null;
+  is_taxable: boolean;
+};
+
+
+const PERCENT_BASES = [
+  { value: "BASIC", label: "Basic salary" },
+  { value: "GROSS", label: "Gross pay" },
+  { value: "TAXABLE", label: "Taxable income" },
+];
+
+
 export function PayrollSalaryStructuresPage() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { createStructure } = useSalaryStructures();
+  const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", code: "", description: "" });
-  const [components, setComponents] = useState<{ name: string; code: string; component_type: string; computation_type: string; computation_value: number; is_taxable: boolean }[]>([]);
+  const [components, setComponents] = useState<ComponentDraft[]>([]);
 
-  const addComponent = () => setComponents((c) => [...c, { name: "", code: "", component_type: "earning", computation_type: "fixed", computation_value: 0, is_taxable: true }]);
+  const addComponent = () =>
+    setComponents((c) => [
+      ...c,
+      {
+        name: "",
+        code: "",
+        component_type: "earning",
+        computation_type: "fixed",
+        computation_value: 0,
+        percentage_of: null,
+        is_taxable: true,
+
+      },
+    ]);
+
+  const patchComponent = (i: number, patch: Partial<ComponentDraft>) =>
+    setComponents((cs) => cs.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+
+  const componentValidation = useMemo(
+    () =>
+      components.map((c) => {
+        if (!c.name.trim()) return "Name is required.";
+        if (!c.code.trim()) return "Code is required.";
+        if (c.computation_type === "percentage" && !c.percentage_of) {
+          return "Select what the percentage applies to (Basic, Gross, Taxable).";
+        }
+        if (
+          c.computation_type === "percentage" &&
+          (c.computation_value <= 0 || c.computation_value > 100)
+        ) {
+          return "Percentage must be between 0 and 100.";
+        }
+        if (c.computation_type === "fixed" && c.computation_value < 0) {
+          return "Amount cannot be negative.";
+        }
+        return null;
+      }),
+    [components],
+  );
+
+
+  const hasComponentErrors = componentValidation.some(Boolean);
+
   const handleCreate = async () => {
-    if (!form.name.trim()) return;
-    // Catch the rejection locally so the mutation's onError toast (with the
-    // real Supabase error.message / details) is the only thing the user sees.
-    // Leaving the promise unhandled surfaces a generic "Something unexpected
-    // happened" upstream and the dialog closes before the user can correct
-    // the input.
+    if (!form.name.trim() || hasComponentErrors) return;
     try {
       await createStructure.mutateAsync({
         name: form.name.trim(),
         code: form.code.trim() || undefined,
         description: form.description,
-        components: components.map((c, i) => ({ ...c, sort_order: i, is_active: true, is_statutory: false, statutory_rule_type: null, percentage_of: null })),
+        components: components.map((c, i) => ({
+          name: c.name,
+          code: c.code,
+          component_type: c.component_type,
+          computation_type: c.computation_type,
+          computation_value: c.computation_value,
+          percentage_of: c.computation_type === "percentage" ? c.percentage_of : null,
+
+          is_taxable: c.is_taxable,
+          sort_order: i,
+          is_active: true,
+          is_statutory: false,
+          statutory_rule_type: null,
+        })),
       });
+      // The mutation invalidates ["salary-structures"] (a different hook's
+      // key). This page owns its own query — invalidate it explicitly so the
+      // new row appears without a page refresh.
+      queryClient.invalidateQueries({ queryKey: ["payroll-salary-structures"] });
       setShowCreate(false);
       setForm({ name: "", code: "", description: "" });
       setComponents([]);
@@ -58,6 +134,7 @@ export function PayrollSalaryStructuresPage() {
       // onError already toasted the actionable message; keep the dialog open.
     }
   };
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["payroll-salary-structures", currentOrg?.id, currentBusiness?.id],
@@ -136,9 +213,10 @@ export function PayrollSalaryStructuresPage() {
         footer={
           <>
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={!form.name || createStructure.isPending}>
+            <Button onClick={handleCreate} disabled={!form.name || hasComponentErrors || createStructure.isPending}>
               {createStructure.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Create
             </Button>
+
           </>
         }
       >
@@ -170,37 +248,126 @@ export function PayrollSalaryStructuresPage() {
           {components.length === 0 && (
             <p className="text-xs text-muted-foreground">No components yet. Add earnings and deductions that make up this structure.</p>
           )}
-          {components.map((c, i) => (
-            <div key={i} className="border rounded-lg p-3 space-y-2">
-              <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
-                <Input placeholder="Name" value={c.name} onChange={(e) => { const nc = [...components]; nc[i].name = e.target.value; setComponents(nc); }} />
-                <Input placeholder="Code" value={c.code} onChange={(e) => { const nc = [...components]; nc[i].code = e.target.value; setComponents(nc); }} />
-                <Select value={c.component_type} onValueChange={(v) => { const nc = [...components]; nc[i].component_type = v; setComponents(nc); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="earning">Earning</SelectItem>
-                    <SelectItem value="deduction">Deduction</SelectItem>
-                    <SelectItem value="employer_contribution">Employer Contribution</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 flex-1 min-w-0">
-                  <Select value={c.computation_type} onValueChange={(v) => { const nc = [...components]; nc[i].computation_type = v; setComponents(nc); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+          {components.map((c, i) => {
+            const err = componentValidation[i];
+            return (
+              <div key={i} className="border rounded-lg p-3 space-y-2">
+                <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
+                  <Input
+                    placeholder="Name"
+                    value={c.name}
+                    onChange={(e) => patchComponent(i, { name: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Code (e.g. HRA)"
+                    value={c.code}
+                    onChange={(e) => patchComponent(i, { code: e.target.value.toUpperCase() })}
+                  />
+                  <Select
+                    value={c.component_type}
+                    onValueChange={(v) => patchComponent(i, { component_type: v as ComponentDraft["component_type"] })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fixed">Fixed Amount</SelectItem>
-                      <SelectItem value="percentage">Percentage</SelectItem>
+                      <SelectItem value="earning">Earning</SelectItem>
+                      <SelectItem value="deduction">Deduction</SelectItem>
+                      <SelectItem value="employer_contribution">Employer Contribution</SelectItem>
                     </SelectContent>
                   </Select>
-                  <NumericInput placeholder="Value" value={c.computation_value || null} onValueChange={(n) => { const nc = [...components]; nc[i].computation_value = n ?? 0; setComponents(nc); }} />
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setComponents((cs) => cs.filter((_, j) => j !== i))}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+
+                <div className="flex items-start gap-2">
+                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-[180px_1fr_1fr] flex-1 min-w-0">
+                    <Select
+                      value={c.computation_type}
+                      onValueChange={(v) =>
+                        patchComponent(i, {
+                          computation_type: v as ComputationType,
+                          // Reset value semantics when switching modes so a
+                          // "50" carried over from Fixed doesn't silently
+                          // become "50 %" of BASIC.
+                          computation_value: 0,
+                          percentage_of: v === "percentage" ? c.percentage_of ?? "BASIC" : null,
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixed Amount</SelectItem>
+                        <SelectItem value="percentage">Percentage of…</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {c.computation_type === "fixed" && (
+                      <>
+                        <div className="relative">
+                          <NumericInput
+                            placeholder="0.00"
+                            value={c.computation_value || null}
+                            onValueChange={(n) => patchComponent(i, { computation_value: n ?? 0 })}
+                          />
+                        </div>
+                        <div className="text-xs text-muted-foreground self-center">
+                          Paid as a flat amount every period.
+                        </div>
+                      </>
+                    )}
+
+                    {c.computation_type === "percentage" && (
+                      <>
+                        <div className="relative">
+                          <NumericInput
+                            placeholder="0"
+                            value={c.computation_value || null}
+                            onValueChange={(n) => patchComponent(i, { computation_value: n ?? 0 })}
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            %
+                          </span>
+                        </div>
+                        <Select
+                          value={c.percentage_of ?? undefined}
+                          onValueChange={(v) => patchComponent(i, { percentage_of: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="of…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PERCENT_BASES.map((b) => (
+                              <SelectItem key={b.value} value={b.value}>
+                                {b.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </>
+                    )}
+
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => setComponents((cs) => cs.filter((_, j) => j !== i))}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+
+                {err && (
+                  <div className="flex items-center gap-1.5 text-xs text-destructive">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    {err}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
+
         </WorkflowSheetSection>
       </WorkflowSheet>
     </div>

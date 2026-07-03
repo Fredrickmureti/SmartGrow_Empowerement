@@ -1,171 +1,154 @@
-# Payroll Schedules — Architectural Assessment & Phased Remediation
+
+# Salary Structures — Architectural Audit & Remediation Plan
 
 ## 1. Verdict
 
-The Schedules subsystem is **not** enterprise-grade. It is a thin CRUD surface over a calendar table with a single side-effect (locking timesheets). The HTTP 400 on `lock_timesheets_for_payroll` is a symptom; the real defect is that **there is no canonical Payroll Period business object** governing the payroll lifecycle. Multiple parallel constructs (`payroll_periods`, `pay_schedules`, `payroll_run_groups`, `payroll_runs`, `fiscal_periods`, `timesheets.payroll_locked`) each answer a slice of "is this window open?" independently, and none of them is authoritative.
+**Salary Structures are NOT the authoritative payroll calculation engine today.** They are a *named container* whose components are snapshotted into `salary_structure_rule_sets.components` and evaluated by an inline legacy two‑pass resolver inside `supabase/functions/compute-payroll/index.ts` (lines 1929–1983). The purpose-built rule‑graph engine (`compute-payroll/structureEngine.ts:runStructureEngine`, backed by `payroll_salary_rules` and edited by `SalaryRuleGraphEditor.tsx`) is fully wired to schema, tests, and UI **but is never invoked in production** — rules authored through the graph editor silently produce zero effect on real payslips.
 
-## 2. What exists today (evidence)
+Payroll math currently lives in **five distinct places** with three material duplications and one dead canonical implementation. Localization publication, immutability, versioning, retro engine plumbing, GL/report derivation are all solid. The gap is between the *designed* calculation model (rule graph + expression engine) and the *executing* calculation model (inline legacy resolver).
 
-| Construct | Role today | File |
-|---|---|---|
-| `payroll_periods` (table, 14 cols, status TEXT default `'open'`) | Monthly calendar. Two states used in code: `open` / `closed`. | `20260326183327_*.sql` |
-| `pay_schedules` (weekly/biweekly/…/annual) | Frequency definitions consumed by `payroll_batch_create`. **No FK to `payroll_periods`.** | `20260507115814_*.sql` |
-| `payroll_run_groups` (batches, ADR-0045) | The real orchestrator: rich state machine, events, readiness snapshots. **Does not reference `payroll_periods`.** | `payroll_batch_lifecycle_test.sql` |
-| `payroll_runs` | Own status + `period_start/period_end` free-floating. | many |
-| `generate_payroll_periods(org, year, business, period_type)` | **Monthly only** — silently ignores weekly/bi-weekly/semi-monthly/quarterly despite `pay_schedules.frequency` supporting them. Ignores `pay_schedules` entirely. | `20260326183327_*.sql:37` |
-| `lock_timesheets_for_payroll(period_id)` | Flips approved timesheets → `payroll_locked=true`. Returns count. | `20260504223516_*.sql:258` |
-| `unlock_timesheets_for_payroll(period_id, reason)` | Admin only, reason required, no audit-row insert visible in the function body itself. | `20260504223516_*.sql:280` |
-| `payroll_periods_guard()` trigger | Blocks UPDATE/DELETE **only** when an overlapping posted/approved/paid/reversed run exists. Passive gate; does not govern. | `20260613170002_*.sql:182` |
-| `usePayrollPeriods.closePeriod` | Two-step: RPC lock, then client `UPDATE payroll_periods SET status='closed'`. **Non-atomic.** | `src/hooks/usePayrollPeriods.ts:96-114` |
-| `PayrollPeriodsAdmin.tsx` | List + "Close & lock timesheets" / "Reopen with reason". No blockers, no status of runs, no cross-module readiness. | `src/components/payroll/PayrollPeriodsAdmin.tsx` |
-
-## 3. Weaknesses & disconnects
-
-1. **No canonical period entity.** `payroll_periods`, `pay_schedules`, `payroll_run_groups`, and `payroll_runs.period_start/end` all describe overlapping windows with no referential link. A run can be created outside any `payroll_periods` row; a batch can be closed without touching `payroll_periods.status`.
-2. **Trivial lifecycle.** `status TEXT` default `'open'`; UI toggles between `open`/`closed`. No enum, no state machine, no `preparing / processing / awaiting_approval / posted / paid / closed / reopened / archived / cancelled` states, no `closed_by / closed_at / closed_reason / reopened_by / reopened_at / reopen_reason` columns, no history table.
-3. **Non-atomic close.** `closePeriod` calls the RPC then updates the row from the client under RLS. Partial-failure is invisible; the RPC's SECURITY DEFINER guard is bypassed for the status change (only the module-permission RLS applies). Likely origin of the 400: RPC name/arg drift or role check refusing the caller; but even after fixing it the two-step flow will silently drift.
-4. **Locking is scoped to timesheets only.** Closing a period does **not** freeze:
-   - `attendance` / `attendance_events` / `attendance_corrections`
-   - `leave_requests` finalization
-   - `payroll_work_entries` (has its own projector, no period lock)
-   - `payslip_inputs` (manual variable earnings)
-   - draft `payroll_runs` / `payroll_run_groups`
-   - `journal_entries` posted from payroll
-   - `payroll_remittances`, `payroll_return_runs`, `payroll_bank_export_files`
-   - `payroll_correction_adjustments` (post-close correction path is undefined)
-5. **No pre-close validation.** Nothing checks pending timesheet submissions, pending leave approvals, draft runs, unposted payroll journals, unpaid remittances, unfiled returns, failed calculations, incomplete correction runs, or unresolved `payroll_readiness_findings` for the period.
-6. **Generator ignores pay_schedules.** `generate_payroll_periods` only understands `'monthly'`. A business on a `weekly` or `semimonthly` `pay_schedule` cannot produce matching periods. `pay_schedule_id` is not on `payroll_periods` at all.
-7. **No business events.** No emission to `business_event_outbox` on period open/close/reopen — despite ADR-0045 batch events. Downstream services (finance close, reporting snapshots, notifications) have nothing to subscribe to.
-8. **Reopen has no cascade.** `unlock_timesheets_for_payroll` unlocks timesheets and the client flips status back to `open`. Nothing reverses payroll runs, un-posts journals, invalidates remittances, or emits an audit event. In an ERP, reopening after posting is a *governed* event (maker-checker + reversal generation).
-9. **Multi-business / multi-country blind.** `payroll_periods.business_id` was made NOT NULL client-side (hook comment) but the SQL still declares it nullable with `ON DELETE SET NULL`. Country/localization pack calendars (statutory return periods) are not linked.
-10. **UI communicates nothing operational.** The admin panel shows name/dates/status/close-button. It does not show: current period, readiness blockers, run counts, approval state, posting state, remittance state, compliance state, or audit history.
-11. **Symptomatic 400.** The RPC signature is `lock_timesheets_for_payroll(_payroll_period_id uuid)` with role-gated SECURITY DEFINER. A 400 typically means (a) arg name drift after a rename, (b) caller lacks `admin/hr_admin/payroll_admin`, or (c) the RPC is not in the exposed schema after a migration reset. Fixing it changes nothing architecturally.
-
-## 4. Target architecture
-
-Introduce a **Payroll Period Service** as the single source of truth. `payroll_periods` becomes the parent aggregate; every payroll-adjacent write consults it.
+## 2. Business‑Event Trace (as it actually executes)
 
 ```text
-                +----------------------+
-                |  pay_schedules       |  (frequency, cutoffs, anchors)
-                +----------+-----------+
-                           |
-                           v
-+----------+     +----------------------+     +----------------------+
-| fiscal_  |<----+  payroll_periods     +---->| payroll_run_groups   |
-| periods  |     |  (aggregate root)    |     | (batches, ADR-0045)  |
-+----------+     |  status enum + FSM   |     +----------+-----------+
-                 |  pay_schedule_id FK  |                |
-                 |  closed_by/at/reason |                v
-                 |  reopen_by/at/reason |     +----------------------+
-                 +----+-------+---------+     | payroll_runs         |
-                      |       |               +----------+-----------+
-        +-------------+       +--------------+          |
-        v                                    v          v
-+---------------+  +------------------+  +--------------------+
-| timesheets    |  | attendance /     |  | payslip_inputs /   |
-| payroll_lock  |  | leave / work_    |  | remittances /      |
-|               |  | entries          |  | returns / bank exp |
-+---------------+  +------------------+  +--------------------+
+Contract references salary_structure_id
+   └─► compute-payroll pre-loop:
+         resolve_or_publish_rule_set()  → salary_structure_rule_sets.components (JSON snapshot)
+                                          ├─ legacy flat model (computation_type/percentage_of)
+                                          └─ payroll_salary_rules is NOT read here
+         payroll_statutory_rules (pack-published, effective-dated, superseded_by)
+         benefit_plans, loans, advances, garnishments, attendance, leave, termination
+   └─► per-employee loop:
+         [A] earnings   ← inline 2-pass (fixed → percentage)  ...index.ts:1929
+         [B] statutory  ← computeOneRule dispatch on computation_method
+                          (Pass A: reduces_taxable; Pass B: tax + employer levies)
+         [C] structure deductions/contributions  ← inline resolver again
+         [D] benefits   [E] loans   [F] advances   [G] garnishments (inline)
+         → payslip_lines (authoritative sink; pins rule_version_hash + pack_version_id)
+   └─► post-payroll-gl / reports / tax certificates / remittances → READ ONLY
 ```
 
-### 4.1 State machine (enum + transition table)
+The orphaned canonical path:
 
-`open → preparing → processing → awaiting_approval → posted → paid → closed`
-Side branches: `→ cancelled` (from open/preparing), `closed → reopened → preparing` (governed, audited), `closed → archived` (after retention window).
+```text
+SalaryRuleGraphEditor → payroll_salary_rules  (sequence, condition_expression,
+                        amount_expression, statutory_ref, parent_rule_id)
+                        └─► runStructureEngine ── never called ──► ⛔
+```
 
-Enforced by trigger + `payroll_period_transition(period_id, next, actor, reason, payload)` RPC — mirror of `payroll_return_transition` (already the house pattern, see `return_run_state_machine_test.sql`).
+## 3. Calculation Sites Inventory
 
-### 4.2 Governed close (`payroll_period_close_atomic`)
+| # | Site | File | Status |
+|---|---|---|---|
+| 1 | Statutory dispatch (`computeOneRule` + 6 methods) | `compute-payroll/index.ts:507` | Canonical |
+| 2 | Legacy 2‑pass salary component resolver | `compute-payroll/index.ts:1929` | Canonical (legacy) |
+| 3 | Rule‑graph engine (`runStructureEngine`) | `compute-payroll/structureEngine.ts:129` | **Orphaned / dead in prod** |
+| 4 | Garnishment loop (inline) | `compute-payroll/index.ts:2546` | Canonical |
+| 5 | Garnishment pure lib | `src/lib/payroll/garnishment-engine.ts:72` | **Duplicate of #4** |
+| 6 | Rule simulator (localization editor) | `src/features/localization/lib/ruleSimulator.ts:79` | **Duplicate of #1**, dispatches off `parameters.type` (wrong key) with a `rateAsFraction` heuristic that does not exist in the engine |
+| 7 | Expression engine (server, Pratt parser + sandbox) | `compute-payroll/expressionEngine.ts` | Canonical |
+| 8 | Expression validator (client) | `src/lib/payroll/expressionValidator.ts` | Pure re‑export (safe) |
+| 9 | `computationMethods.ts` normalizer | `src/lib/payroll/computationMethods.ts` | UI validator; field‑name drift vs engine (`ceiling` vs `cap`) |
+| 10–20 | benefits / loans / advances / proration / OT / leave / termination / tax method / taxable adjust / GL / reports | see subagent trace | Canonical or Derived |
 
-Single SECURITY DEFINER RPC that, in one transaction:
-1. Runs `payroll_period_readiness(period_id)` — aggregates: pending timesheets/leave/attendance, draft/failed runs, unposted JEs, unpaid remittances, unfiled returns, unresolved readiness findings.
-2. Refuses if any blocker unless `force=true` + `override_reason` (audited).
-3. Cascades locks: timesheets, attendance corrections, work entries, payslip inputs.
-4. Flips status → `closed`, stamps `closed_by/at/reason`.
-5. Inserts `pack_return_run_audit`-style audit row.
-6. Emits `business_event_outbox` events: `payroll.period.closed`.
+## 4. Critical Findings
 
-### 4.3 Governed reopen (`payroll_period_reopen_atomic`)
+### C‑SS‑1 — `runStructureEngine` is dead code in production (Critical)
+`payroll_salary_rules` is designed to be the canonical rule graph. `compute-payroll/index.ts` never imports or invokes `structureEngine.ts`. Every rule authored through `SalaryRuleGraphEditor.tsx` is silently ignored by real payroll. This is the single biggest architectural defect and the root cause of the "Rule Graph functionality requires architectural validation" concern.
 
-Maker-checker: admin + reason + optional second approver. Cascades: un-lock downstream, mark posted runs `requires_correction`, freeze new corrections behind an explicit correction-run workflow (already exists in `payroll_correction_adjustments`). Emit `payroll.period.reopened`.
+### C‑SS‑2 — Two parallel component models (Critical)
+Legacy: `salary_components` (flat: `computation_type` fixed/percentage/formula, `percentage_of`, `computation_value`).
+Modern: `payroll_salary_rules` (graph: `condition_expression`, `amount_expression`, `sequence`, `parent_rule_id`, `statutory_ref`).
+Both are writable, only the legacy one runs. There is no migration or bridge.
 
-### 4.4 Generator alignment
+### C‑SS‑3 — Garnishment engine duplicated (High)
+`src/lib/payroll/garnishment-engine.ts` mirrors `index.ts:2546–2662` and is out of sync (missing carry‑forward, employer fees, `total_accrued` vs `total_paid`). Any policy fix must be applied twice.
 
-Replace `generate_payroll_periods(year, monthly-only)` with `payroll_periods_generate(pay_schedule_id, from, to)` that reads frequency, cutoff, payment offset, anchor day, and produces the correct calendar (weekly / biweekly / semimonthly / monthly / quarterly / annual). Keep the old signature as a thin shim that resolves the business's default monthly schedule for backward compatibility.
+### C‑SS‑4 — Rule simulator uses wrong discriminator (High)
+`ruleSimulator.ts` dispatches on `parameters.type` while the engine dispatches on `rule.computation_method`. Its `rateAsFraction` heuristic causes divergent previews for rates stored as decimals. Pack authors get misleading test output.
 
-### 4.5 Cross-module gates (defense in depth)
+### C‑SS‑5 — No dependency graph / cycle detection (Medium)
+Even in the orphaned engine, ordering is a linear `sequence.sort()`. `parent_rule_id` is stored but never traversed. There is no topological sort and no cycle detection anywhere. Circular `result[code]` references would evaluate to 0 silently.
 
-- `timesheets` write trigger already blocks when locked — extend to check parent period status, not just `payroll_locked`.
-- `payroll_runs` insert/update trigger: require the run's window to lie inside an `open|preparing|processing|awaiting_approval` period.
-- `journal_entries` with `source_type='payroll'`: require parent period not in `closed|archived`.
-- `payroll_remittances`, `payroll_return_runs`, `payroll_bank_export_files`: FK to `payroll_period_id` (nullable during transition, then required).
+### C‑SS‑6 — Component model is missing enterprise attributes (Medium)
+`salary_components` lacks: pensionable flag, recurring vs one‑time, effective_from/to per component, eligibility filter, currency, cost allocation (`analytic_distribution_id`), GL account override, payslip visibility, proration policy, overtime‑base inclusion, leave‑encashment base, severance inclusion, net/gross participation, retro behaviour. Some equivalents exist at `payroll_statutory_rules` / `contract_compensation_components` but not at the structure‑component level.
 
-### 4.6 UI (operational workspace, not CRUD)
+### C‑SS‑7 — Salary structures are not versioned or effective‑dated (Medium)
+`salary_structures` has no `version`, `effective_from`, `effective_to`, `status` (draft/active/archived). The *rule set* attached to it is versioned + hashed (good), and payslips pin `rule_version_hash` + `pack_version_id` (good), so historical *math* is reproducible, but structure‑level metadata edits (name, description, reassignments) have no temporal audit trail.
 
-Mirror ADR-0041 pattern (Payroll Readiness workspace). Per period card shows: state chip, readiness score, counts per blocker category with drill-in links, run/approval/posting/payment/remittance/return status bars, audit trail, close/reopen governed buttons that surface the blocker list before firing the RPC.
+### C‑SS‑8 — UI defects rooted in the fragmentation (High‑visibility, Low‑fix)
+- "Newly created structure appears only after refresh": query key is `["salary-structures", currentOrg?.id]`; invalidation uses `["salary-structures"]`. Prefix match works, so the real cause is likely the query fires before `currentBusiness?.id` is available or the list is filtered by business elsewhere. Needs a targeted trace + optimistic update in `useSalaryStructures.createStructure`.
+- "Fixed vs Percentage behaves identically": the form persists `computation_type` but the input field renders the same numeric control for both and there is no unit affordance (KES vs %), no `percentage_of` selector when `percentage`, and no formula editor when `formula`.
 
-## 5. Phased implementation plan
+### C‑SS‑9 — Retro pay is half‑built (High)
+Engine drain + `retro_pay_adjustments` + delta payslips exist. But (a) no authoring UI, (b) back‑dated `employee_compensation_history` edits do not auto‑enqueue a retro, (c) retro amounts are folded into the regular run's GL journal — no distinct retro JE for audit.
 
-Each phase is independently shippable, backward-compatible, and gated by pgTAP + architecture tests.
+### C‑SS‑10 — Historical recompute / dry‑run RPC missing (Medium)
+There is no `simulate_payroll(period, employee, rule_set_hash)` surface. Proving reproducibility today requires manual queries against `pack_versions.snapshot`. ADR‑0056 P2.c already tracks this as deferred.
 
-### Phase 0 — Stabilize (1 day, symptom triage)
-- Reproduce the 400: verify RPC signature, caller role, and exposed schema; fix the immediate cause (likely a role check or arg-name drift).
-- Add a pgTAP test pinning `lock_timesheets_for_payroll` / `unlock_timesheets_for_payroll` arity so it can't drift silently again.
-- No behavior change.
+### C‑SS‑11 — `computationMethods.ts` field drift (Medium)
+Editor writes `ceiling` but engine reads `cap` (`index.ts:349`). Editor writes `employer_rate`/`employee_rate` shape not consistently honored by all method dispatchers. Silent zero.
 
-### Phase 1 — Period aggregate hardening (schema)
-- Enum `payroll_period_status` with the 9 states above; migrate `status TEXT` with a `USING` clause; add CHECK on legal set.
-- Columns: `pay_schedule_id uuid FK`, `closed_by`, `closed_at`, `close_reason`, `reopened_by`, `reopened_at`, `reopen_reason`, `readiness_snapshot_id`.
-- Make `business_id` NOT NULL (backfill first; hook already assumes it).
-- Add `pack_return_run_audit`-style `payroll_period_audit` table.
-- Grants + RLS as per house rules.
-- pgTAP: contract test for columns + enum values.
+### C‑SS‑12 — SalaryStructures page shows CRUD, not operational reality (UX)
+No column for: version, employees using it, effective window, localization pack, payroll frequency, last run date, draft/active status, dependencies, warnings, rule count, health. Editor is a form, not a payroll admin cockpit.
 
-### Phase 2 — State machine + governed RPCs ✅ shipped
-- `payroll_period_transition(period_id, next, actor, reason, payload jsonb)` with transition matrix + audit insert.
-- `payroll_period_readiness(period_id)` returns structured blocker jsonb (reuses `payroll_readiness_*` engine per ADR-0041).
-- `payroll_period_close_atomic(period_id, force, override_reason)` — replaces the two-step hook path.
-- `payroll_period_reopen_atomic(period_id, reason, second_approver)`.
-- Deprecate direct client `UPDATE payroll_periods SET status=…`; add trigger refusing UPDATE of `status` unless done by these RPCs (using `set_config('app.period_rpc',…)` sentinel, same pattern used by return-runs).
-- pgTAP: 8-state edge matrix; illegal transitions raise.
+### Findings verified as already solid (no action)
+- Statutory engine is truly country‑agnostic (arch tests + eslint rule + pgTAP guards enforce it).
+- Localization publish → propose → apply → rollback lifecycle is complete, with `pack_rule_conflicts` protecting tenant edits.
+- Payslip / run / line immutability guards are country‑agnostic and cover the correction‑delta pattern.
+- GL, reports, tax certs, remittances are strictly derived from `payslip_lines` — no formula duplication downstream.
+- Expression engine is a single source (client is a pure re‑export). Sandbox is real (Pratt parser, whitelisted identifiers/functions, no `eval`).
 
-### Phase 3 — Cross-module lock cascade ✅ shipped
-- Extend `lock_timesheets_for_payroll` into `payroll_period_apply_locks(period_id)` covering timesheets, attendance_corrections, work_entries, payslip_inputs.
-- Add insert/update guards on `payroll_runs`, `journal_entries` (payroll source), `payroll_remittances`, `payroll_return_runs`, `payroll_bank_export_files` that consult period status.
-- Emit `business_event_outbox` rows on close/reopen; wire notification digest.
+## 5. Phased Implementation Plan
 
-### Phase 4 — Generator alignment with pay_schedules ✅ shipped
-- New `payroll_periods_generate(pay_schedule_id, from, to)` implementing all frequencies.
-- Backfill `pay_schedule_id` on existing rows via best-match by business + frequency.
-- Keep `generate_payroll_periods` as a shim; add deprecation notice.
+Each phase is independently shippable and does not break existing payroll runs. Phase 1 is the bug‑surface the user reported. Phases 2–4 close the architectural debt. Phase 5+ are enterprise‑grade uplifts.
 
-### Phase 5 — Readiness workspace UI ✅ shipped
-- Replace `PayrollPeriodsAdmin.tsx` with a per-period operational card (readiness score, blocker list with deep links, run/JE/remittance/return badges, audit timeline).
-- New hook `usePayrollPeriodDetail(periodId)` consuming `payroll_period_readiness` and audit rows.
-- `closePeriod` / `reopenPeriod` in `usePayrollPeriods` route through the atomic RPCs; toasts show blocker summary when refused.
-- Architecture test forbidding client `UPDATE payroll_periods SET status`.
+### Phase 1 — Stop the visible bleeding (1–2 days)
+- Fix "list doesn't refresh": add optimistic insert into `["salary-structures", orgId]` cache and remove the stale `enabled: !!currentOrg?.id` race; ensure the query re‑fires when `currentBusiness` changes if the page filters by business.
+- Fix "fixed vs percentage input": in `SalaryStructures.tsx` component editor, branch the input by `computation_type`:
+  - `fixed` → currency input with org currency suffix
+  - `percentage` → number input with `%` suffix + required `percentage_of` selector (BASIC / GROSS / another component code)
+  - `formula` → mount a small monaco/textarea backed by `validateExpression` from `src/lib/payroll/expressionValidator.ts`
+- No behaviour change to the engine.
 
-### Phase 6 — Correction & archival ✅ shipped
-- Formalize `closed → reopened → preparing → closed_v2` path emitting correction runs (leverages existing `payroll_correction_adjustments`).
-- `payroll_period_archive(period_id)` after retention window; archived periods refuse all writes, including reopen, without platform-admin override.
-- Multi-country: add `country_code` on `pay_schedules` for statutory calendar alignment; wire `payroll_return_runs.period_id`.
+### Phase 2 — Retire duplicate calculators (2–3 days)
+- Delete `src/lib/payroll/garnishment-engine.ts` and refactor its tests to import a pure function extracted from `compute-payroll/index.ts` (move the inline garnishment block into `compute-payroll/garnishmentEngine.ts`, import from both engine and tests).
+- Rewrite `src/features/localization/lib/ruleSimulator.ts` to be a thin wrapper around a new exportable pure function inside `compute-payroll/statutoryEngine.ts` that takes `(rule, ctx)` and returns the amount — same dispatch on `computation_method`, no `rateAsFraction` heuristic.
+- Reconcile `computationMethods.ts` field names with what the engine actually reads (`cap` vs `ceiling`, employer/employee rate shapes) and add an arch test that fails if a documented field is not consumed.
 
-## 6. What to retire
+### Phase 3 — Wire the rule graph into production (5–8 days)  ← the architectural fix
+Goal: `payroll_salary_rules` becomes the single canonical earnings/deductions/employer‑contrib model; `salary_components` becomes a compatibility view.
+1. Add topological sort + cycle detection to `runStructureEngine` (walk `parent_rule_id` + expression AST dependency extraction from the existing parser).
+2. Backfill: one‑time migration + RPC `migrate_components_to_rules(structure_id)` that materialises each `salary_components` row as a `payroll_salary_rules` row with equivalent `amount_expression` (`BASIC`, `GROSS * 0.1`, etc.).
+3. Feature‑flag in `compute-payroll`: if `structure.uses_rule_graph = true` (new column, default false), call `runStructureEngine` for section [A] and [C]; otherwise legacy path. Migrate structures one by one via `migrate_components_to_rules`.
+4. Once all structures are migrated, remove legacy resolver and drop `salary_components` (keep view).
+5. Extend audit trail: the bracket‑trace sink already exists for statutory — add the same trace surface to structure‑engine outputs so payslip lines carry per‑expression provenance.
 
-- Direct client update of `payroll_periods.status` (both close and reopen).
-- Monthly-only assumption in `generate_payroll_periods` (kept as shim only).
-- Any component using `p.status === "open"` heuristics — replace with the enum + helper `getPeriodLifecycle(period)` mirroring `getRunLifecycle` in `src/lib/payroll/runLifecycle.ts`.
+### Phase 4 — Enterprise component attributes (3–5 days)
+Extend `payroll_salary_rules` (or a joined `payroll_rule_attributes` table) with: `is_pensionable`, `is_recurring`, `effective_from`, `effective_to`, `eligibility_expression`, `currency`, `analytic_distribution_id`, `gl_account_id`, `payslip_visibility`, `proration_policy`, `overtime_base`, `leave_encashment_base`, `severance_base`, `net_gross_flag`, `retro_behaviour`. Reference them from the engine at appropriate stages (proration in [A], GL mapping at payslip‑lines write, taxable/pensionable flags in Pass A of [B]).
 
-## 7. Non-goals for this plan
+### Phase 5 — Version & effective‑date salary structures (2–3 days)
+Add `salary_structures.version`, `effective_from`, `effective_to`, `status` (`draft|active|archived`), `parent_structure_id`. Publishing a change forks a new version; contracts pin `salary_structure_version_id` at compute time; payslip stamp already extends via `rule_version_hash` (no schema break).
 
-- No changes to the payroll calculation engine, GL posting rules, or return templates. Those are consumers of period status, not owners.
-- No new UI framework or design system work; reuse the Payroll Readiness workspace idioms.
+### Phase 6 — Retro authoring + distinct GL JE (3 days)
+- UI: `RetroPayScheduler` inside SalaryStructures / Employee compensation history that inserts into `retro_pay_adjustments`.
+- Trigger: back‑dated `employee_compensation_history` insert auto‑enqueues a retro row.
+- `post-payroll-gl`: emit a separate JE with `journal_type='retro'` for lines where `retro_of_payslip_id IS NOT NULL`.
 
-## 8. Success criteria
+### Phase 7 — Historical simulator RPC (2 days)
+`simulate_payroll(payslip_id)` reads the stored `rule_version_hash` + `pack_version_id`, rehydrates rule sets from `pack_versions.snapshot` and `salary_structure_rule_sets`, re‑runs the engine, returns diff. Backs a "Reproduce this payslip" affordance.
 
-- One canonical period aggregate; all payroll-adjacent writes reject when the parent period is `closed`/`archived`.
-- Close/reopen are single atomic RPCs with structured blockers, audit rows, and outbox events.
-- Generator supports every `pay_schedules.frequency`.
-- pgTAP suite covers state machine, cascade locks, generator parity, and RPC arity.
-- Admin UI shows operational reality of every period (status, blockers, downstream state, audit) — not a status toggle.
+### Phase 8 — SalaryStructures page becomes an operational cockpit (2 days)
+Rework the list into a cockpit with columns/badges for: version, status (draft/active/archived), employees using, active contracts, last payroll run using it, effective window, localization pack, rule count, warnings (missing GL mapping, orphaned components, cycle in graph, unresolved token), health traffic light. Detail page: dependency graph tab, usage tab, audit tab, simulator tab (Phase 7).
+
+## 6. Sequencing Notes
+
+- Phase 1 is safe to ship immediately (pure UI/hook).
+- Phase 2 is prerequisite for Phase 3 (removes wrong dispatcher before we start relying on graph output).
+- Phase 3 is the load‑bearing change; feature‑flagged per‑structure so a bad migration cannot blast production.
+- Phases 4–8 layer cleanly on top and can be prioritised against product needs.
+
+## 7. Explicit Non‑Goals
+
+- No changes to `payroll_statutory_rules`, localization pack lifecycle, or the correction‑delta / immutability guards — those are already enterprise‑grade.
+- No rewrite of GL posting, reports, remittances, or tax certificates — they correctly consume `payslip_lines` and require nothing.
+- No country‑specific code anywhere; every step must remain pack‑driven.
