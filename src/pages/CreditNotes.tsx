@@ -386,7 +386,7 @@ export default function CreditNotes() {
             onEdit={(cn) => navigate(`/sales/credit-notes/${cn.id}/edit`)}
             onIssue={handleIssue}
             onApply={openApplyDialog}
-            onRefund={(cn) => { setRefundCreditNote(cn); setShowRefundDialog(true); }}
+            onRefund={(cn) => navigate(`/finance/customer-credits/${cn.id}/refund?returnTo=/sales/credit-notes`)}
             onVoid={(cn) => updateCreditNote(cn.id, { status: "void" as any })}
             onDelete={handleDelete}
             onSendEmail={handleSendEmail}
