@@ -1,14 +1,15 @@
 /**
  * Shared shell primitives for /hr/configuration/* sub-pages.
  *
- * Wave J: replaces the bespoke `SectionHeader` exported out of
- * OnboardingTemplatesPage and the now-removed sticky sidebar. Every
- * sub-page renders the same header pattern so the configuration area
- * matches Attendance and the rest of the platform.
+ * Wraps the design-system `PageHeader` primitive and adds a
+ * "← Configuration" eyebrow link so every configuration sub-page reads
+ * the same as Employees, Departments, Job Positions, and Work Locations
+ * (all of which now use `PageHeader` directly).
  */
 import { Link } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { ReactNode } from "react";
+import { PageHeader } from "@/design-system";
 
 interface ConfigPageHeaderProps {
   title: string;
@@ -18,11 +19,6 @@ interface ConfigPageHeaderProps {
   hideBack?: boolean;
 }
 
-/**
- * Standard header for a configuration sub-page. Mirrors the platform
- * `page-header` / `page-title` pattern used by Attendance Settings,
- * Departments, Employees, etc.
- */
 export function ConfigPageHeader({
   title,
   subtitle,
@@ -30,27 +26,21 @@ export function ConfigPageHeader({
   hideBack = false,
 }: ConfigPageHeaderProps) {
   return (
-    <div className="space-y-2">
-      {!hideBack && (
-        <Link
-          to="/hr/configuration"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          Configuration
-        </Link>
-      )}
-      <div className="page-header">
-        <div className="min-w-0">
-          <h1 className="page-title">{title}</h1>
-          {subtitle && (
-            <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-              {subtitle}
-            </p>
-          )}
-        </div>
-        {action && <div className="action-buttons">{action}</div>}
-      </div>
-    </div>
+    <PageHeader
+      eyebrow={
+        hideBack ? undefined : (
+          <Link
+            to="/hr/configuration"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Configuration
+          </Link>
+        )
+      }
+      title={title}
+      description={subtitle}
+      actions={action}
+    />
   );
 }
