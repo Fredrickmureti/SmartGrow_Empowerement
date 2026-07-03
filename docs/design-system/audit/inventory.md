@@ -23,8 +23,8 @@ Legend for **Target**:
 
 | Entity | Surface | Today | Target | Status |
 | --- | --- | --- | --- | --- |
-| Warehouse | Create / Edit | inline dialog in `src/pages/Products.tsx` warehouse tab | Route + `RecordFormShell` at `/inventory/warehouses/new` + `/:id/edit` | **Pending** |
-| Warehouse | View | inline expander | Route + `RecordScaffold` at `/inventory/warehouses/:id` | **Pending** |
+| Warehouse | Create / Edit | Route + `RecordFormShell` at `src/pages/inventory/WarehouseForm.tsx` (`/inventory-app/warehouses/new` + `/:id/edit`) | Route + `RecordFormShell` | Done |
+| Warehouse | View | Route + `RecordScaffold` at `src/pages/inventory/WarehouseView.tsx` (`/inventory-app/warehouses/:id`) + `WarehousePeekSheet` (`?peek=<id>`) | Route + `RecordScaffold` | Done |
 | Warehouse Stock | Peek (list) | `WarehouseStockPeekSheet` on `DetailSheet` | `PeekScaffold` | Done |
 | Stock Movement | Peek (list) | `StockMovementPeekSheet` on `DetailSheet` | `PeekScaffold` | Done |
 | Stock Movement | Source doc peek | `SourceDocumentPeekSheet` on `DetailSheet` | `PeekScaffold` (delegate to source app peek) | Done |
