@@ -331,7 +331,7 @@ export default function JournalEntries() {
                   <Upload className="mr-2 h-4 w-4" />
                   Import
                 </Button>
-                <Button onClick={() => handleOpenDialog()} className="flex-1 sm:flex-none">
+                <Button onClick={handleOpenCreate} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" />
                   New Entry
                 </Button>
@@ -477,7 +477,7 @@ export default function JournalEntries() {
                             )}
                             {entry.status === "draft" && canManageJE && (
                               <>
-                                <DropdownMenuItem onClick={() => handleOpenDialog(entry)}>
+                                <DropdownMenuItem onClick={() => handleOpenEdit(entry)}>
                                   <BookOpen className="mr-2 h-4 w-4" />
                                   Edit
                                 </DropdownMenuItem>
