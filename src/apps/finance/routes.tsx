@@ -371,7 +371,17 @@ export function FinanceApp() {
           }
         />
         
-        {/* Bank Reconciliation */}
+        {/* Bank Reconciliation — routed start form (must come BEFORE `reconciliation` to avoid shadowing). */}
+        <Route
+          path="reconciliation/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Start Reconciliation">
+                <StartReconciliationPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         <Route
           path="reconciliation"
           element={
@@ -382,6 +392,7 @@ export function FinanceApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        
         
         {/* Bank Feeds */}
         <Route
