@@ -1,154 +1,87 @@
 
-# Salary Structures — Architectural Audit & Remediation Plan
+# Salary Structures — Continuation Plan
 
-## 1. Verdict
+## Verified state of the previous agent's work
 
-**Salary Structures are NOT the authoritative payroll calculation engine today.** They are a *named container* whose components are snapshotted into `salary_structure_rule_sets.components` and evaluated by an inline legacy two‑pass resolver inside `supabase/functions/compute-payroll/index.ts` (lines 1929–1983). The purpose-built rule‑graph engine (`compute-payroll/structureEngine.ts:runStructureEngine`, backed by `payroll_salary_rules` and edited by `SalaryRuleGraphEditor.tsx`) is fully wired to schema, tests, and UI **but is never invoked in production** — rules authored through the graph editor silently produce zero effect on real payslips.
+Confirmed against source, not notes:
 
-Payroll math currently lives in **five distinct places** with three material duplications and one dead canonical implementation. Localization publication, immutability, versioning, retro engine plumbing, GL/report derivation are all solid. The gap is between the *designed* calculation model (rule graph + expression engine) and the *executing* calculation model (inline legacy resolver).
+- **Phase 3 (partial, safe slice):** `expressionEngine.extractIdentifiers`, `structureEngine.topoSortRules`, `StructureRuleTrace` + `traceSink`, cycle detection, and 8 new tests are present in `supabase/functions/compute-payroll/{expressionEngine,structureEngine}.ts` and `src/test/architecture/salary-rule-graph.test.ts`. The `salary_structures.use_structure_engine` column exists (migration `20260510103130`).
+- **NOT done:** `compute-payroll/index.ts` never imports `structureEngine.ts` and never reads `use_structure_engine`. The graph engine is still dead in production — the headline defect (C‑SS‑1) is unresolved.
+- **NOT done:** Phase 1 UI (list refresh race, fixed‑vs‑percentage input branching in `SalaryStructures.tsx`).
+- **NOT done:** Phase 2 dedup — `src/lib/payroll/garnishment-engine.ts`, `src/features/localization/lib/ruleSimulator.ts`, and `computationMethods.ts` `ceiling`/`cap` drift all still present.
+- **NOT done:** `migrate_components_to_rules` RPC, `payroll_rule_traces` persistence.
+- Phases 4–8 untouched (correctly deferred).
 
-## 2. Business‑Event Trace (as it actually executes)
+Plan below picks up exactly at the wire-in and closes Phases 1–3 to production quality.
 
-```text
-Contract references salary_structure_id
-   └─► compute-payroll pre-loop:
-         resolve_or_publish_rule_set()  → salary_structure_rule_sets.components (JSON snapshot)
-                                          ├─ legacy flat model (computation_type/percentage_of)
-                                          └─ payroll_salary_rules is NOT read here
-         payroll_statutory_rules (pack-published, effective-dated, superseded_by)
-         benefit_plans, loans, advances, garnishments, attendance, leave, termination
-   └─► per-employee loop:
-         [A] earnings   ← inline 2-pass (fixed → percentage)  ...index.ts:1929
-         [B] statutory  ← computeOneRule dispatch on computation_method
-                          (Pass A: reduces_taxable; Pass B: tax + employer levies)
-         [C] structure deductions/contributions  ← inline resolver again
-         [D] benefits   [E] loans   [F] advances   [G] garnishments (inline)
-         → payslip_lines (authoritative sink; pins rule_version_hash + pack_version_id)
-   └─► post-payroll-gl / reports / tax certificates / remittances → READ ONLY
-```
+## Scope (what this plan ships)
 
-The orphaned canonical path:
+### Step 1 — Wire `runStructureEngine` into production (the load-bearing fix)
 
-```text
-SalaryRuleGraphEditor → payroll_salary_rules  (sequence, condition_expression,
-                        amount_expression, statutory_ref, parent_rule_id)
-                        └─► runStructureEngine ── never called ──► ⛔
-```
+In `supabase/functions/compute-payroll/index.ts` (around the section [A]/[C] legacy 2‑pass resolver at lines ~1929–1983):
 
-## 3. Calculation Sites Inventory
+1. Import `runStructureEngine`, `StructureRuleTrace` from `./structureEngine.ts`.
+2. In the pre-loop resolver where the structure is loaded, also fetch `salary_structures.use_structure_engine` and, when true, fetch that structure's rows from `payroll_salary_rules` (ordered, with `parent_rule_id`, `condition_expression`, `amount_expression`, `sequence`, `statutory_ref`, `rule_type`).
+3. Per employee: if the resolved structure has `use_structure_engine=true` **and** at least one active rule, call `runStructureEngine({ rules, workEntryTypes, workEntries, employee, contract, statutoryResolver, traceSink })` and use its `earnings`/`deductions`/`employer_contributions` outputs in place of the legacy resolver for sections [A] and [C]. Statutory dispatch [B], benefits, loans, advances, garnishments continue to use their canonical paths unchanged.
+4. If `runStructureEngine` returns non-empty `errors` (cycle, unresolved token, expression error) surface as a blocking `payroll_run_issues` row for that employee — do **not** silently fall through to legacy.
+5. Statutory tokens referenced from a rule graph resolve via a `statutoryResolver` closure that returns already-computed statutory amounts from Pass [B]; this avoids double-running the statutory dispatcher.
 
-| # | Site | File | Status |
-|---|---|---|---|
-| 1 | Statutory dispatch (`computeOneRule` + 6 methods) | `compute-payroll/index.ts:507` | Canonical |
-| 2 | Legacy 2‑pass salary component resolver | `compute-payroll/index.ts:1929` | Canonical (legacy) |
-| 3 | Rule‑graph engine (`runStructureEngine`) | `compute-payroll/structureEngine.ts:129` | **Orphaned / dead in prod** |
-| 4 | Garnishment loop (inline) | `compute-payroll/index.ts:2546` | Canonical |
-| 5 | Garnishment pure lib | `src/lib/payroll/garnishment-engine.ts:72` | **Duplicate of #4** |
-| 6 | Rule simulator (localization editor) | `src/features/localization/lib/ruleSimulator.ts:79` | **Duplicate of #1**, dispatches off `parameters.type` (wrong key) with a `rateAsFraction` heuristic that does not exist in the engine |
-| 7 | Expression engine (server, Pratt parser + sandbox) | `compute-payroll/expressionEngine.ts` | Canonical |
-| 8 | Expression validator (client) | `src/lib/payroll/expressionValidator.ts` | Pure re‑export (safe) |
-| 9 | `computationMethods.ts` normalizer | `src/lib/payroll/computationMethods.ts` | UI validator; field‑name drift vs engine (`ceiling` vs `cap`) |
-| 10–20 | benefits / loans / advances / proration / OT / leave / termination / tax method / taxable adjust / GL / reports | see subagent trace | Canonical or Derived |
+Feature gate: purely per-structure via the existing boolean column. Legacy path remains the default. No new env flag.
 
-## 4. Critical Findings
+### Step 2 — Persist rule traces (audit + future simulator)
 
-### C‑SS‑1 — `runStructureEngine` is dead code in production (Critical)
-`payroll_salary_rules` is designed to be the canonical rule graph. `compute-payroll/index.ts` never imports or invokes `structureEngine.ts`. Every rule authored through `SalaryRuleGraphEditor.tsx` is silently ignored by real payroll. This is the single biggest architectural defect and the root cause of the "Rule Graph functionality requires architectural validation" concern.
+Migration: `payroll_rule_traces` (id, org_id, business_id, payroll_run_id, payslip_id, employee_id, rule_id, rule_code, condition_passed, base_value, amount, dependencies text[], error text, evaluated_at). RLS: read via existing `has_payroll_read`, insert only from service_role; SELECT/INSERT grants to `authenticated`/`service_role` per public-schema grant rules. Add to `supabase_realtime` NOT required.
 
-### C‑SS‑2 — Two parallel component models (Critical)
-Legacy: `salary_components` (flat: `computation_type` fixed/percentage/formula, `percentage_of`, `computation_value`).
-Modern: `payroll_salary_rules` (graph: `condition_expression`, `amount_expression`, `sequence`, `parent_rule_id`, `statutory_ref`).
-Both are writable, only the legacy one runs. There is no migration or bridge.
+`compute-payroll/index.ts` writes the `traceSink` returned per employee alongside `payslip_lines` in the same transactional block. This gives per-expression provenance without changing `payslip_lines`.
 
-### C‑SS‑3 — Garnishment engine duplicated (High)
-`src/lib/payroll/garnishment-engine.ts` mirrors `index.ts:2546–2662` and is out of sync (missing carry‑forward, employer fees, `total_accrued` vs `total_paid`). Any policy fix must be applied twice.
+### Step 3 — Backfill RPC `migrate_components_to_rules(p_structure_id uuid)`
 
-### C‑SS‑4 — Rule simulator uses wrong discriminator (High)
-`ruleSimulator.ts` dispatches on `parameters.type` while the engine dispatches on `rule.computation_method`. Its `rateAsFraction` heuristic causes divergent previews for rates stored as decimals. Pack authors get misleading test output.
+Migration adds a SECURITY DEFINER function that, for the given structure:
 
-### C‑SS‑5 — No dependency graph / cycle detection (Medium)
-Even in the orphaned engine, ordering is a linear `sequence.sort()`. `parent_rule_id` is stored but never traversed. There is no topological sort and no cycle detection anywhere. Circular `result[code]` references would evaluate to 0 silently.
+- Reads each `salary_components` row.
+- Inserts a matching `payroll_salary_rules` row: `rule_type` from category, `sequence` from source order, `amount_expression` derived (`fixed` → literal; `percentage` → `"${percentage_of} * ${value/100}"`; `formula` → passthrough), `condition_expression` = `'true'`.
+- Sets `salary_structures.use_structure_engine = true` in the same statement.
+- Idempotent: no-ops if rules already exist for that structure.
 
-### C‑SS‑6 — Component model is missing enterprise attributes (Medium)
-`salary_components` lacks: pensionable flag, recurring vs one‑time, effective_from/to per component, eligibility filter, currency, cost allocation (`analytic_distribution_id`), GL account override, payslip visibility, proration policy, overtime‑base inclusion, leave‑encashment base, severance inclusion, net/gross participation, retro behaviour. Some equivalents exist at `payroll_statutory_rules` / `contract_compensation_components` but not at the structure‑component level.
+Called from a new "Migrate to rule graph" button in `SalaryStructures.tsx` (admin-gated by existing payroll write permission).
 
-### C‑SS‑7 — Salary structures are not versioned or effective‑dated (Medium)
-`salary_structures` has no `version`, `effective_from`, `effective_to`, `status` (draft/active/archived). The *rule set* attached to it is versioned + hashed (good), and payslips pin `rule_version_hash` + `pack_version_id` (good), so historical *math* is reproducible, but structure‑level metadata edits (name, description, reassignments) have no temporal audit trail.
+### Step 4 — Phase 1 UI fixes (as originally scoped)
 
-### C‑SS‑8 — UI defects rooted in the fragmentation (High‑visibility, Low‑fix)
-- "Newly created structure appears only after refresh": query key is `["salary-structures", currentOrg?.id]`; invalidation uses `["salary-structures"]`. Prefix match works, so the real cause is likely the query fires before `currentBusiness?.id` is available or the list is filtered by business elsewhere. Needs a targeted trace + optimistic update in `useSalaryStructures.createStructure`.
-- "Fixed vs Percentage behaves identically": the form persists `computation_type` but the input field renders the same numeric control for both and there is no unit affordance (KES vs %), no `percentage_of` selector when `percentage`, and no formula editor when `formula`.
+`src/hooks/useSalaryStructures.ts`:
+- Ensure the query key includes business scope if the list is business-filtered (`["salary-structures", currentOrg?.id, currentBusiness?.id]`) and invalidate with the same prefix.
+- On create success: also perform an optimistic `setQueryData` insert so the list updates before the refetch resolves. Root-cause the "refresh required" symptom rather than only adding invalidation.
 
-### C‑SS‑9 — Retro pay is half‑built (High)
-Engine drain + `retro_pay_adjustments` + delta payslips exist. But (a) no authoring UI, (b) back‑dated `employee_compensation_history` edits do not auto‑enqueue a retro, (c) retro amounts are folded into the regular run's GL journal — no distinct retro JE for audit.
+`src/pages/hr/payroll/SalaryStructures.tsx`:
+- In the component editor, branch the value input on `computation_type`:
+  - `fixed` → numeric input with the org currency suffix.
+  - `percentage` → numeric input with `%` suffix + required `percentage_of` selector (`BASIC` / `GROSS` / peer component code).
+  - `formula` → textarea backed by `validateExpression` from `src/lib/payroll/expressionValidator.ts` with inline error rendering.
 
-### C‑SS‑10 — Historical recompute / dry‑run RPC missing (Medium)
-There is no `simulate_payroll(period, employee, rule_set_hash)` surface. Proving reproducibility today requires manual queries against `pack_versions.snapshot`. ADR‑0056 P2.c already tracks this as deferred.
+### Step 5 — Phase 2 deduplication
 
-### C‑SS‑11 — `computationMethods.ts` field drift (Medium)
-Editor writes `ceiling` but engine reads `cap` (`index.ts:349`). Editor writes `employer_rate`/`employee_rate` shape not consistently honored by all method dispatchers. Silent zero.
+- Extract the inline garnishment block from `compute-payroll/index.ts` into `supabase/functions/_shared/garnishment-engine.ts` as a pure function. Rewrite `src/lib/payroll/garnishment-engine.ts` as a thin re-export mirror (same pattern as `payslipClassifier.ts` / `expressionValidator.ts`), so tests and any future client callers exercise the same code the engine runs. Sync missing fields (carry-forward, employer fees, `total_accrued` vs `total_paid`).
+- Extract a pure `evaluateStatutoryRule(rule, ctx)` from the statutory dispatcher in `index.ts` into `compute-payroll/statutoryEngine.ts`. Rewrite `src/features/localization/lib/ruleSimulator.ts` to delegate to it (dispatch on `computation_method`, drop the `rateAsFraction` heuristic, drop the wrong `parameters.type` discriminator).
+- Reconcile `src/lib/payroll/computationMethods.ts`: rename `ceiling` → `cap` (and any other drifted fields) to match what the engine actually reads. Add `src/test/architecture/computation-method-field-parity.test.ts` that fails if a UI-declared field is not consumed by the engine.
 
-### C‑SS‑12 — SalaryStructures page shows CRUD, not operational reality (UX)
-No column for: version, employees using it, effective window, localization pack, payroll frequency, last run date, draft/active status, dependencies, warnings, rule count, health. Editor is a form, not a payroll admin cockpit.
+### Step 6 — Guard tests (regression protection)
 
-### Findings verified as already solid (no action)
-- Statutory engine is truly country‑agnostic (arch tests + eslint rule + pgTAP guards enforce it).
-- Localization publish → propose → apply → rollback lifecycle is complete, with `pack_rule_conflicts` protecting tenant edits.
-- Payslip / run / line immutability guards are country‑agnostic and cover the correction‑delta pattern.
-- GL, reports, tax certs, remittances are strictly derived from `payslip_lines` — no formula duplication downstream.
-- Expression engine is a single source (client is a pure re‑export). Sandbox is real (Pratt parser, whitelisted identifiers/functions, no `eval`).
+- `src/test/architecture/structure-engine-wired.test.ts` — greps `compute-payroll/index.ts` for the `runStructureEngine(` call site and the `use_structure_engine` branch; fails if either disappears.
+- `src/test/architecture/no-duplicate-garnishment-engine.test.ts` — fails if `src/lib/payroll/garnishment-engine.ts` contains logic that is not a re-export from `supabase/functions/_shared/garnishment-engine.ts`.
+- pgTAP `supabase/tests/migrate_components_to_rules_test.sql` — asserts idempotency and that the RPC flips `use_structure_engine` only when rules are actually created.
 
-## 5. Phased Implementation Plan
+## Explicitly out of scope (deferred, unchanged from previous plan)
 
-Each phase is independently shippable and does not break existing payroll runs. Phase 1 is the bug‑surface the user reported. Phases 2–4 close the architectural debt. Phase 5+ are enterprise‑grade uplifts.
+Phases 4 (enterprise component attributes), 5 (structure versioning), 6 (retro authoring + distinct GL JE), 7 (historical simulator RPC), 8 (SalaryStructures operational cockpit). Each is a separate turn once Steps 1–6 stabilise in production.
 
-### Phase 1 — Stop the visible bleeding (1–2 days)
-- Fix "list doesn't refresh": add optimistic insert into `["salary-structures", orgId]` cache and remove the stale `enabled: !!currentOrg?.id` race; ensure the query re‑fires when `currentBusiness` changes if the page filters by business.
-- Fix "fixed vs percentage input": in `SalaryStructures.tsx` component editor, branch the input by `computation_type`:
-  - `fixed` → currency input with org currency suffix
-  - `percentage` → number input with `%` suffix + required `percentage_of` selector (BASIC / GROSS / another component code)
-  - `formula` → mount a small monaco/textarea backed by `validateExpression` from `src/lib/payroll/expressionValidator.ts`
-- No behaviour change to the engine.
+## Verification checklist before handing back
 
-### Phase 2 — Retire duplicate calculators (2–3 days)
-- Delete `src/lib/payroll/garnishment-engine.ts` and refactor its tests to import a pure function extracted from `compute-payroll/index.ts` (move the inline garnishment block into `compute-payroll/garnishmentEngine.ts`, import from both engine and tests).
-- Rewrite `src/features/localization/lib/ruleSimulator.ts` to be a thin wrapper around a new exportable pure function inside `compute-payroll/statutoryEngine.ts` that takes `(rule, ctx)` and returns the amount — same dispatch on `computation_method`, no `rateAsFraction` heuristic.
-- Reconcile `computationMethods.ts` field names with what the engine actually reads (`cap` vs `ceiling`, employer/employee rate shapes) and add an arch test that fails if a documented field is not consumed.
+- `tsgo` clean, `bunx vitest run` green (existing 14 + new tests).
+- pgTAP suite green.
+- Manual: create a fresh salary structure, run `migrate_components_to_rules`, execute a payroll run, confirm `payroll_rule_traces` rows exist and payslip totals match the legacy run for the same employee within 1 minor unit.
 
-### Phase 3 — Wire the rule graph into production (5–8 days)  ← the architectural fix
-Goal: `payroll_salary_rules` becomes the single canonical earnings/deductions/employer‑contrib model; `salary_components` becomes a compatibility view.
-1. Add topological sort + cycle detection to `runStructureEngine` (walk `parent_rule_id` + expression AST dependency extraction from the existing parser).
-2. Backfill: one‑time migration + RPC `migrate_components_to_rules(structure_id)` that materialises each `salary_components` row as a `payroll_salary_rules` row with equivalent `amount_expression` (`BASIC`, `GROSS * 0.1`, etc.).
-3. Feature‑flag in `compute-payroll`: if `structure.uses_rule_graph = true` (new column, default false), call `runStructureEngine` for section [A] and [C]; otherwise legacy path. Migrate structures one by one via `migrate_components_to_rules`.
-4. Once all structures are migrated, remove legacy resolver and drop `salary_components` (keep view).
-5. Extend audit trail: the bracket‑trace sink already exists for statutory — add the same trace surface to structure‑engine outputs so payslip lines carry per‑expression provenance.
+## Technical notes
 
-### Phase 4 — Enterprise component attributes (3–5 days)
-Extend `payroll_salary_rules` (or a joined `payroll_rule_attributes` table) with: `is_pensionable`, `is_recurring`, `effective_from`, `effective_to`, `eligibility_expression`, `currency`, `analytic_distribution_id`, `gl_account_id`, `payslip_visibility`, `proration_policy`, `overtime_base`, `leave_encashment_base`, `severance_base`, `net_gross_flag`, `retro_behaviour`. Reference them from the engine at appropriate stages (proration in [A], GL mapping at payslip‑lines write, taxable/pensionable flags in Pass A of [B]).
-
-### Phase 5 — Version & effective‑date salary structures (2–3 days)
-Add `salary_structures.version`, `effective_from`, `effective_to`, `status` (`draft|active|archived`), `parent_structure_id`. Publishing a change forks a new version; contracts pin `salary_structure_version_id` at compute time; payslip stamp already extends via `rule_version_hash` (no schema break).
-
-### Phase 6 — Retro authoring + distinct GL JE (3 days)
-- UI: `RetroPayScheduler` inside SalaryStructures / Employee compensation history that inserts into `retro_pay_adjustments`.
-- Trigger: back‑dated `employee_compensation_history` insert auto‑enqueues a retro row.
-- `post-payroll-gl`: emit a separate JE with `journal_type='retro'` for lines where `retro_of_payslip_id IS NOT NULL`.
-
-### Phase 7 — Historical simulator RPC (2 days)
-`simulate_payroll(payslip_id)` reads the stored `rule_version_hash` + `pack_version_id`, rehydrates rule sets from `pack_versions.snapshot` and `salary_structure_rule_sets`, re‑runs the engine, returns diff. Backs a "Reproduce this payslip" affordance.
-
-### Phase 8 — SalaryStructures page becomes an operational cockpit (2 days)
-Rework the list into a cockpit with columns/badges for: version, status (draft/active/archived), employees using, active contracts, last payroll run using it, effective window, localization pack, rule count, warnings (missing GL mapping, orphaned components, cycle in graph, unresolved token), health traffic light. Detail page: dependency graph tab, usage tab, audit tab, simulator tab (Phase 7).
-
-## 6. Sequencing Notes
-
-- Phase 1 is safe to ship immediately (pure UI/hook).
-- Phase 2 is prerequisite for Phase 3 (removes wrong dispatcher before we start relying on graph output).
-- Phase 3 is the load‑bearing change; feature‑flagged per‑structure so a bad migration cannot blast production.
-- Phases 4–8 layer cleanly on top and can be prioritised against product needs.
-
-## 7. Explicit Non‑Goals
-
-- No changes to `payroll_statutory_rules`, localization pack lifecycle, or the correction‑delta / immutability guards — those are already enterprise‑grade.
-- No rewrite of GL posting, reports, remittances, or tax certificates — they correctly consume `payslip_lines` and require nothing.
-- No country‑specific code anywhere; every step must remain pack‑driven.
+- Import protection: `structureEngine.ts` and `expressionEngine.ts` are `supabase/functions/compute-payroll/` files (Deno). Browser code must keep importing them only through the existing `src/lib/payroll/expressionValidator.ts` re-export pattern to avoid Vite pulling Deno code into the client bundle.
+- Grants: every new public table (`payroll_rule_traces`) gets `GRANT SELECT ... TO authenticated; GRANT ALL ... TO service_role;` in the same migration, RLS ON, policies scoped to org/business + `has_payroll_read`.
+- No `service_role_key` in client code; the RPC is invoked from a `createServerFn` with `requireSupabaseAuth` + `has_role('admin')` check, following the modern server-function pattern.
+- No country-specific code — pack-driven throughout.
