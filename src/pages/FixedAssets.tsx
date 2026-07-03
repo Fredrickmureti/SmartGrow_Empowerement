@@ -84,7 +84,7 @@ export default function FixedAssets() {
 
 
   const openSheet = (
-    kind: "asset" | "category" | "dispose" | "depreciation" | "detail",
+    kind: "category" | "dispose" | "depreciation",
     id?: string,
   ) => {
     const next = new URLSearchParams(searchParams);
@@ -99,14 +99,13 @@ export default function FixedAssets() {
     next.delete("id");
     setSearchParams(next, { replace: false });
   };
+  const setPeek = (id: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (id) next.set("peek", id);
+    else next.delete("peek");
+    setSearchParams(next, { replace: false });
+  };
 
-  const editingAsset = useMemo<FixedAsset | null>(
-    () =>
-      sheetKind === "asset" && sheetId
-        ? assets.find((a) => a.id === sheetId) ?? null
-        : null,
-    [sheetKind, sheetId, assets],
-  );
   const disposingAsset = useMemo<FixedAsset | null>(
     () =>
       sheetKind === "dispose" && sheetId
@@ -114,20 +113,20 @@ export default function FixedAssets() {
         : null,
     [sheetKind, sheetId, assets],
   );
-  const detailAsset = useMemo<FixedAsset | null>(
-    () =>
-      sheetKind === "detail" && sheetId
-        ? assets.find((a) => a.id === sheetId) ?? null
-        : null,
-    [sheetKind, sheetId, assets],
-  );
 
-  const openAssetSheet = (asset?: FixedAsset) => {
+  const openAssetCreate = () => {
     if (isReadOnly) {
       openUpgradeModal("fixed_assets");
       return;
     }
-    openSheet("asset", asset?.id);
+    navigate("/finance/fixed-assets/new");
+  };
+  const openAssetEdit = (asset: FixedAsset) => {
+    if (isReadOnly) {
+      openUpgradeModal("fixed_assets");
+      return;
+    }
+    navigate(`/finance/fixed-assets/${asset.id}/edit`);
   };
   const openCategorySheet = () => {
     if (isReadOnly) {
