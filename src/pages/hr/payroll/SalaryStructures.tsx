@@ -6,7 +6,7 @@
  * Editing happens via the existing salary structure form (reachable from
  * Employees → Contract). No new business logic.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,16 +17,35 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Loader2, Trash2, History, UploadCloud, Lock, Network } from "lucide-react";
+import { Plus, Loader2, Trash2, History, UploadCloud, Lock, Network, AlertCircle } from "lucide-react";
 import { SalaryRuleGraphEditor } from "@/components/payroll/SalaryRuleGraphEditor";
 import { WorkflowSheet, WorkflowSheetGrid, WorkflowSheetSection, WorkflowField } from "@/components/workflow/WorkflowSheet";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useSalaryStructures } from "@/hooks/useSalaryStructures";
 import { usePublishRuleSet, useRuleSetVersions } from "@/hooks/payroll/useSalaryRuleSets";
 import { RuleSetComponentsTable } from "@/components/payroll/PayrollRuleSetPanel";
+import { validateExpression } from "@/lib/payroll/expressionValidator";
+
+type ComponentDraft = {
+  name: string;
+  code: string;
+  component_type: "earning" | "deduction" | "employer_contribution";
+  computation_type: "fixed" | "percentage" | "formula";
+  computation_value: number;
+  percentage_of: string | null;
+  formula: string;
+  is_taxable: boolean;
+};
+
+const PERCENT_BASES = [
+  { value: "BASIC", label: "Basic salary" },
+  { value: "GROSS", label: "Gross pay" },
+  { value: "TAXABLE", label: "Taxable income" },
+];
+
 
 export function PayrollSalaryStructuresPage() {
   const { currentOrg } = useOrganization();
