@@ -98,6 +98,7 @@ interface ApplicationRow {
 
 // ─── Component ────────────────────────────────────────────────────
 export default function CustomerCredits() {
+  const navigate = useNavigate();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { formatCurrency } = useCurrency();
@@ -114,15 +115,7 @@ export default function CustomerCredits() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
 
-  // Apply credit dialog state
-  const [applyCreditOpen, setApplyCreditOpen] = useState(false);
-  const [applyCreditTarget, setApplyCreditTarget] = useState<{
-    creditNoteId: string;
-    creditNoteNumber: string;
-    contactId: string;
-    contactName: string;
-    availableAmount: number;
-  } | null>(null);
+  // Apply-credit is a routed wizard — no local dialog state needed.
 
   // Peek sheet state — canonical Sales credit-note peek surface.
   const [peekId, setPeekId] = useState<string | null>(null);
