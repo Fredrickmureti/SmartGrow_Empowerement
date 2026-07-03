@@ -1,70 +1,44 @@
-# Continue Enterprise UX Standardization
+## Bills list — remove the legacy "Add Bill" popup dialog
 
-Picking up exactly where the previous agent stopped. The Purchases ledger has one row left (**RFQs**); after that Purchases closes out and Phase I (Inventory) begins.
+The previous agent added `BillRecordPage` at `/purchases/bills/new` and marked "Bill · Create" as **Done** in `docs/design-system/audit/purchases.md`, but never removed the inline create `<Dialog>` from `src/pages/Bills.tsx`. Clicking "Add Bill" still opens the legacy popup instead of navigating to the new record page. The dialog ban guard didn't catch it because the guard only scans dedicated `Create*Dialog.tsx` files, not inline `<Dialog>` blocks inside list pages.
 
-## P.3 — RFQs (full 4-surface set)
+Cross-checked every other Purchases list page (POs, Credit Notes, Expenses, Purchase Returns, RFQs) — all of them correctly `navigate("…/new")`. Bills is the only regression.
 
-`src/pages/RFQs.tsx` still hosts two inline `<Dialog>`s (Create + Detail) plus a "Convert to PO" action buried in the Detail dialog. Bring it to the same standard as POs / Bills / Credit Notes / Returns / Expenses.
+### 1. Wire Bills.tsx to the record route
 
-**New surfaces**
+`src/pages/Bills.tsx`
 
-1. `src/features/purchases/rfqs/RFQCreatePage.tsx` — route `/purchases/rfqs/new`, `RecordFormShell` mode=create, sections: *RFQ header* (deadline, notes), *Vendors* (multi-select chips of vendors to solicit), *Line items* (`LineItemsGrid`-style rows: product, qty, uom, notes). Aside = live vendor/line counts summary. Ported verbatim from the existing `handleCreate` in RFQs.tsx.
-2. `src/features/purchases/rfqs/RFQEditPage.tsx` — route `/purchases/rfqs/:id/edit`, edit only while `status = 'draft'` (guarded — otherwise redirect to record page with toast). Same layout as create.
-3. `src/features/purchases/rfqs/RFQRecordPage.tsx` — route `/purchases/rfqs/:id`, read-only `RecordScaffold` composition: header (RFQ #, status badge, vendor count, deadline), body via a shared `RFQRecordBody` (Details + Line items + Vendor responses table), aside = `DocumentActivityPanel` + status actions (Send / Close / Award).
-4. `src/features/purchases/rfqs/RFQPeekSheet.tsx` — `?peek=<id>` on the list, `PeekScaffold` reusing the same `RFQRecordBody` for peek/full parity. Includes "Open full page" link and inline status actions.
-5. `src/features/purchases/rfqs/useRFQRecord.ts` — shared hook: load rfq + items + responses, derive totals/stats, expose `convertToPO(vendorId)` calling the existing `awardVendor` + `createPurchaseOrder` pipeline currently inlined in RFQs.tsx.
-6. **Award / Convert to PO** stays a `Dialog` (confirmation with vendor picker) — matches the ledger convention for "≤3-field confirm-style picker" actions (same as Credit-Note "Apply to bill").
+- "Add Bill" button (line 693) → `navigate("/purchases/bills/new")` instead of `setShowDialog(true)`.
+- `?action=create` deep link handler (~lines 300–305) → `navigate("/purchases/bills/new" + preserved query)` with `replace: true`, matching the pattern in `PurchaseOrders.tsx` and `Expenses.tsx`.
+- Delete the entire inline `<Dialog>` block (lines ~994–1157) and all state / helpers that only fed it:
+  - `showDialog`, `setShowDialog`
+  - `formData`, `setFormData`, `resetForm`
+  - `lineItems`, `setLineItems`, `addLineItem`, `updateLineItem`, `removeLineItem`, `calculateLineTotal`
+  - `subtotal`, `totalTax`, `grandTotal`
+  - `handleSubmit`, `isSubmitting`
+  - Any imports that become unused: `Dialog`, `DialogContent`, `DialogDescription`, `DialogFooter`, `DialogHeader`, `DialogTitle`, `Select*`, `Label`, `Textarea`, `Input` (if unused elsewhere), `NumericInput`, `PackagedQtyCell`, `CustomFieldsSection`, `fetchContactDefaults`, `paymentTerms`, `products` (if only used by the dialog), `vendors` (keep if used by filters), `Plus`/`Trash2` (recheck usage).
+- Keep everything else on the page untouched (row actions, bulk delete, payment history dialog, print/email, peek sheet).
 
-**List page rewrite (`src/pages/RFQs.tsx`)**
+### 2. Close the guard loophole
 
-- Delete both inline `<Dialog>` blocks and their state (`showCreateDialog`, `showDetailDialog`, `deadline`, `notes`, `selectedVendorIds`, `lineItems`, `resetForm`, `handleCreate`, `handleConvertToPO`).
-- "Create" button → `navigate("/purchases/rfqs/new")`.
-- Row click / "View" action → `setPeek(rfq.id)` (drives `?peek=<id>` → `RFQPeekSheet`).
-- "Edit" row action (drafts only) → `/purchases/rfqs/:id/edit`.
-- Handle `?action=create` deep link from `GlobalCreateMenu` with the same `useEffect` redirect used on POs.
+`src/test/architecture/purchases-record-dialog-ban.test.ts`
 
-**Route registration (`src/apps/purchases/routes.tsx`)**
+Add a second scan that also fails on any `src/pages/*.tsx` inside the Purchases surface (Bills, PurchaseOrders, Expenses, CreditNotes, PurchaseReturns, RFQs, VendorStatements, VendorPriceLists) containing a top-level `<Dialog ` whose `<DialogTitle>` matches `/^(Add|Create|New|Edit)\s+(Bill|Purchase Order|Expense|Credit Note|Return|RFQ|Vendor)/i`. Confirmation dialogs (`AlertDialog`) and print/email/payment dialogs stay allowed because they don't match those titles. This is what should have caught the Bills regression.
 
-Add three lazy routes under the existing `rfqs` branch:
-```
-rfqs/new              → RFQCreatePage
-rfqs/:id              → RFQRecordPage
-rfqs/:id/edit         → RFQEditPage
-```
+### 3. Audit trail
 
-**Audit ledger update (`docs/design-system/audit/purchases.md`)**
+`docs/design-system/audit/purchases.md`
 
-Flip the RFQs row from **Pending** → **Done** and add the four new rows (Create / Edit / View / Peek) mirroring the Bill / PO entries.
+Add a short line under the RFQ close-out note explaining the Bills list-page cleanup and pointing at the strengthened guard test. Bill row stays **Done** (it now genuinely is).
 
-## Purchases close-out
+### 4. Verification
 
-After P.3:
+- `bunx vitest run src/test/architecture/purchases-record-dialog-ban.test.ts`
+- `tsgo` typecheck clean
+- Playwright smoke: `/purchases/bills` → click "Add Bill" → URL is `/purchases/bills/new` and `BillRecordPage` renders (no popup); `/purchases/bills?action=create` also redirects to the record page.
 
-1. Re-run `src/test/architecture/purchases-record-dialog-ban.test.ts` — allowlist should still be empty, no new leaks.
-2. `tsgo` typecheck clean.
-3. Playwright smoke: list → create → save → record page → peek → edit → convert-to-PO for RFQs; sanity-visit POs / Bills / Credit Notes / Returns / Expenses / Statements list pages to confirm no regressions from earlier phases.
-4. Add a short "Purchases app — complete" note at the top of `docs/design-system/audit/purchases.md` with the guard-test filename.
+### Out of scope
 
-## Phase I — Inventory (starts after Purchases signs off)
-
-Preliminary target list, to be confirmed by re-auditing `src/pages/{Warehouses,Inventory,UomManagement,StockTransfers,StockAdjustments}.tsx`:
-
-- **Stock Transfer** — route + `RecordFormShell` create/edit, `PeekScaffold` peek, `RecordScaffold` view. Line items via `LineItemsGrid`.
-- **Stock Adjustment** — same 4-surface set. Reversal stays a `Dialog` (confirm).
-- **Warehouse** — `DetailSheet` create/edit + `PeekSheet` (small config record, ≤6 fields).
-- **UoM Category / Unit** — `DetailSheet` create/edit (config records).
-- **Product / Item Record** — audit; if a full record page already exists, only migrate any remaining Create/Edit dialogs.
-
-Deliverables mirror Purchases:
-- `src/features/inventory/<entity>/…` for pages + shared body/hook.
-- Routes under `src/apps/inventory/routes.tsx`.
-- New audit ledger `docs/design-system/audit/inventory.md`.
-- Architecture guard `src/test/architecture/inventory-record-dialog-ban.test.ts` (empty allowlist, mirrors purchases guard).
-
-Phase F (Finance) follows the same template after Inventory signs off — scope determined from a fresh audit at that point.
-
-## Out of scope
-
-- No changes to business logic or DB schema — only interaction/composition.
-- Email / send / print dialogs stay `Dialog` (correct pattern).
-- Action confirmations (Approve, Cancel, Award, Apply Credit, Reverse) stay `Dialog`.
+- No changes to `BillRecordPage`, `BillEditPage`, or the bill mutation pipeline.
+- No changes to Payment / Email / Print / Bulk-Delete dialogs on the Bills page — those are correct `Dialog` usages.
+- No other Purchases pages need edits (verified).
