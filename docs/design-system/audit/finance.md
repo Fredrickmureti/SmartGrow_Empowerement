@@ -19,8 +19,8 @@ Legend for **Target**:
 | Journal Entry | Edit | Route + `RecordFormShell` at `/finance/journal-entries/:id/edit` | Route + `RecordFormShell` at `/finance/journal-entries/:id/edit` | Done |
 | Journal Entry | View | Route + `RecordScaffold` at `/finance/journal-entries/:id` (`JournalEntryDetailPage`) | Route + `RecordScaffold` at `/finance/journal-entries/:id` | Done |
 | Journal Entry | Peek (list) | `JournalEntryPeekSheet` on `PeekScaffold` behind `?peek=<id>` | `PeekScaffold` behind `?peek=<id>` | Done |
-| Business Transaction (JE quick-post) | `BusinessTransactionDialog` | Route + `RecordFormShell` at `/finance/journal-entries/new?template=business` | **Pending** |
-| Recurring Journal | `RecurringJournalDialog` | Route + `RecordFormShell` at `/finance/recurring-journals/new` + `/:id/edit` + `PeekScaffold` | **Pending** |
+| Business Transaction (JE quick-post) | Route + `RecordFormShell` at `/finance/business-transactions/new?type=<t>` (`BusinessTransactionCreatePage`) | Route + `RecordFormShell` at `/finance/business-transactions/new` | Done |
+| Recurring Journal | Route + `RecordFormShell` at `/finance/recurring-journals/new` (`RecurringJournalCreatePage`) | Route + `RecordFormShell` at `/finance/recurring-journals/new` + `/:id/edit` + `PeekScaffold` | Create Done · Edit/Peek deferred (no list surface today) |
 | Chart of Accounts entry | Create / Edit | inline form | Route + `RecordFormShell` at `/finance/accounts/new` + `/:id/edit` | **Pending** |
 | Fiscal Period | Create / Edit | inline dialog | `DetailSheet` (≤6 fields) | **Pending** |
 | Year-End Close | `YearEndClosingDialog` | `WizardShell` at `/finance/fiscal-periods/close` | **Pending** |
