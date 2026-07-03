@@ -1029,7 +1029,7 @@ export default function Inventory() {
         onOpenSourceDocDrawer={handleOpenSourceDocDrawer}
       />
       <WarehouseStockDrawer open={warehouseStockDrawerOpen} onOpenChange={setWarehouseStockDrawerOpen} warehouseId={selectedWarehouseId} warehouseName={selectedWarehouseName} organizationId={organizationId} />
-      <AdjustmentDetailDrawer open={adjustmentDrawerOpen} onOpenChange={setAdjustmentDrawerOpen} adjustmentId={selectedAdjustmentId} />
+      <AdjustmentPeekSheet open={adjustmentDrawerOpen} onOpenChange={setAdjustmentDrawerOpen} adjustmentId={selectedAdjustmentId} />
       <ReverseAdjustmentDialog
         adjustment={reverseTarget}
         open={reverseOpen}
