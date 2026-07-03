@@ -29,16 +29,18 @@ import { usePublishRuleSet, useRuleSetVersions } from "@/hooks/payroll/useSalary
 import { RuleSetComponentsTable } from "@/components/payroll/PayrollRuleSetPanel";
 
 
+type ComputationType = "fixed" | "percentage";
+
 type ComponentDraft = {
   name: string;
   code: string;
   component_type: "earning" | "deduction" | "employer_contribution";
-  computation_type: "fixed" | "percentage" | "formula";
+  computation_type: ComputationType;
   computation_value: number;
   percentage_of: string | null;
-  formula: string;
   is_taxable: boolean;
 };
+
 
 const PERCENT_BASES = [
   { value: "BASIC", label: "Basic salary" },
