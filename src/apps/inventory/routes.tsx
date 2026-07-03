@@ -205,6 +205,18 @@ export function InventoryApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* Stock Adjustment — routed create */}
+        <Route
+          path="adjustments/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Stock Adjustment">
+                <AdjustmentNew />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         
         {/* Physical Count */}
         <Route
