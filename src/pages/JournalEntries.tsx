@@ -430,7 +430,7 @@ export default function JournalEntries() {
                     <TableRow key={entry.id}>
                       <TableCell className="font-medium">
                         <button 
-                          onClick={() => setViewingEntry(entry)}
+                          onClick={() => setPeekId(entry.id)}
                           className="hover:underline"
                         >
                           {entry.entry_number}
@@ -453,7 +453,7 @@ export default function JournalEntries() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setViewingEntry(entry)}>
+                            <DropdownMenuItem onClick={() => setPeekId(entry.id)}>
                               <Eye className="mr-2 h-4 w-4" />
                               View
                             </DropdownMenuItem>
