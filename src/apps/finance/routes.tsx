@@ -48,6 +48,10 @@ const AnalyticAccounts = lazy(() => import("@/pages/AnalyticAccounts"));
 const Banking = lazy(() => import("@/pages/Banking"));
 const BankReconciliation = lazy(() => import("@/pages/BankReconciliation"));
 const StartReconciliationPage = lazy(() => import("@/features/finance/reconciliation/StartReconciliationPage"));
+const ApplyCreditWizardPage = lazy(() => import("@/features/finance/customer-credits/ApplyCreditWizardPage"));
+const ProcessRefundWizardPage = lazy(() => import("@/features/finance/customer-credits/ProcessRefundWizardPage"));
+const AssetCreatePage = lazy(() => import("@/features/finance/fixed-assets/AssetCreatePage"));
+const AssetEditPage = lazy(() => import("@/features/finance/fixed-assets/AssetEditPage"));
 const BankFeeds = lazy(() => import("@/pages/BankFeeds"));
 
 // Report pages (all lazy-loaded)
