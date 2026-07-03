@@ -516,6 +516,12 @@ export default function Warehouses() {
           onConfirm={deleteConfirm.confirmDelete}
           isLoading={deleteConfirm.isDeleting}
         />
+
+        <WarehousePeekSheet
+          open={Boolean(peekId)}
+          onOpenChange={(o) => (o ? undefined : setPeek(null))}
+          warehouseId={peekId}
+        />
       </div>
     </>
   );
