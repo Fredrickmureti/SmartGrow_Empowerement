@@ -573,13 +573,8 @@ export function EmployeeFormDialog({
     </div>
   );
 
-  const formBody = (
-    <form
-      id="employee-form-body"
-      ref={formRef}
-      onSubmit={handleSubmit}
-      className="space-y-4"
-    >
+  const formInner = (
+    <>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap h-auto gap-1 w-full">
           <TabsTrigger value="personal" className="flex-1 min-w-[4.5rem] text-xs sm:text-sm">Personal</TabsTrigger>
@@ -608,12 +603,26 @@ export function EmployeeFormDialog({
 
       <CustomFieldsSection entityType="employee" entityId={editingEmployee?.id || null} />
 
-      {/* In page mode the footer renders inline below the form. In sheet
-          mode the footer is sticky outside this <form>, and the submit
-          button references this form via `form="employee-form-body"`. */}
-      {renderAs === "page" && (
+      {/* In page mode the footer renders inline below the form unless the
+          host shell opted out via `hideInlineFooter`. In sheet mode the
+          footer is sticky outside this <form>, and the submit button
+          references this form via `form="employee-form-body"`. */}
+      {renderAs === "page" && !hideInlineFooter && (
         <div className="pt-4 border-t">{footerActions}</div>
       )}
+    </>
+  );
+
+  const formBody = hideInlineForm ? (
+    <div className="space-y-4">{formInner}</div>
+  ) : (
+    <form
+      id="employee-form-body"
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className="space-y-4"
+    >
+      {formInner}
     </form>
   );
 
