@@ -635,19 +635,8 @@ export default function CustomerCredits() {
         </TabsContent>
       </Tabs>
 
-      {/* ── Dialogs ── */}
-      {applyCreditTarget && (
-        <ApplyCreditDialog
-          open={applyCreditOpen}
-          onOpenChange={setApplyCreditOpen}
-          creditNoteId={applyCreditTarget.creditNoteId}
-          creditNoteNumber={applyCreditTarget.creditNoteNumber}
-          contactId={applyCreditTarget.contactId}
-          contactName={applyCreditTarget.contactName}
-          availableAmount={applyCreditTarget.availableAmount}
-          onSuccess={handleRefresh}
-        />
-      )}
+      {/* Apply-credit is a dedicated wizard route at
+          /finance/customer-credits/:id/apply — no dialog mount here. */}
 
       <CreditNotePeekSheet
         creditNoteId={peekId}
