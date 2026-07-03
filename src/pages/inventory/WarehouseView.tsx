@@ -3,15 +3,15 @@
  * warehouse. Composed on the design-system `RecordShell` +
  * `RecordHeader` primitives per `docs/design-system/records.md`.
  */
+import type { ReactNode } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { ArrowLeft, Pencil, MapPin, User, Mail, Phone, Warehouse as WarehouseIcon } from "lucide-react";
+import { ArrowLeft, Pencil, MapPin, User, Mail, Phone } from "lucide-react";
 
 import {
   ActionBar,
   ErrorState,
   FooterActionBar,
   LoadingState,
-  PageBody,
   RecordHeader,
   RecordShell,
   Section,
@@ -25,6 +25,15 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 
 const LIST_PATH = "/inventory-app/warehouses";
 
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="text-sm">{children}</div>
+    </div>
+  );
+}
+
 export default function WarehouseView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -33,11 +42,9 @@ export default function WarehouseView() {
   if (isLoading) {
     return (
       <RecordShell header={<RecordHeader eyebrow="Warehouse" title="Loading…" />}>
-        <PageBody>
-          <Section>
-            <LoadingState />
-          </Section>
-        </PageBody>
+        <Section>
+          <LoadingState />
+        </Section>
       </RecordShell>
     );
   }
@@ -46,15 +53,13 @@ export default function WarehouseView() {
   if (!warehouse) {
     return (
       <RecordShell header={<RecordHeader eyebrow="Warehouse" title="Not found" />}>
-        <PageBody>
-          <Section>
-            <ErrorState
-              title="Warehouse not found"
-              description="It may have been deleted or you don't have access."
-              onRetry={() => navigate(LIST_PATH)}
-            />
-          </Section>
-        </PageBody>
+        <Section>
+          <ErrorState
+            title="Warehouse not found"
+            description="It may have been deleted or you don't have access."
+            onRetry={() => navigate(LIST_PATH)}
+          />
+        </Section>
       </RecordShell>
     );
   }
@@ -104,58 +109,72 @@ export default function WarehouseView() {
         />
       }
     >
-      <PageBody>
-        <Section title="Location" description="Where this warehouse lives.">
-          <FieldGrid columns={2}>
-            <FieldCell label="Name">{warehouse.name}</FieldCell>
-            <FieldCell label="Code">{warehouse.code || "—"}</FieldCell>
-            <FieldCell span={2} label="Address">
+      <Section title="Location" description="Where this warehouse lives.">
+        <FieldGrid columns={2}>
+          <FieldCell>
+            <Field label="Name">{warehouse.name}</Field>
+          </FieldCell>
+          <FieldCell>
+            <Field label="Code">{warehouse.code || "—"}</Field>
+          </FieldCell>
+          <FieldCell span={2}>
+            <Field label="Address">
               <span className="flex items-start gap-2">
                 <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
                 {location || "—"}
               </span>
-            </FieldCell>
-            <FieldCell label="City">{warehouse.city || "—"}</FieldCell>
-            <FieldCell label="Country">{warehouse.country || "—"}</FieldCell>
-          </FieldGrid>
-        </Section>
+            </Field>
+          </FieldCell>
+          <FieldCell>
+            <Field label="City">{warehouse.city || "—"}</Field>
+          </FieldCell>
+          <FieldCell>
+            <Field label="Country">{warehouse.country || "—"}</Field>
+          </FieldCell>
+        </FieldGrid>
+      </Section>
 
-        <Section title="Manager" description="Point of contact for this location.">
-          <FieldGrid columns={3}>
-            <FieldCell label="Name">
+      <Section title="Manager" description="Point of contact for this location.">
+        <FieldGrid columns={3}>
+          <FieldCell>
+            <Field label="Name">
               <span className="flex items-center gap-2">
                 <User className="h-4 w-4 text-muted-foreground" />
                 {warehouse.manager_name || "—"}
               </span>
-            </FieldCell>
-            <FieldCell label="Email">
+            </Field>
+          </FieldCell>
+          <FieldCell>
+            <Field label="Email">
               <span className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-muted-foreground" />
                 {warehouse.manager_email || "—"}
               </span>
-            </FieldCell>
-            <FieldCell label="Phone">
+            </Field>
+          </FieldCell>
+          <FieldCell>
+            <Field label="Phone">
               <span className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-muted-foreground" />
                 {warehouse.manager_phone || "—"}
               </span>
-            </FieldCell>
-          </FieldGrid>
-        </Section>
+            </Field>
+          </FieldCell>
+        </FieldGrid>
+      </Section>
 
-        <Section title="Status">
-          <FieldGrid columns={2}>
-            <FieldCell label="Active">{warehouse.is_active ? "Yes" : "No"}</FieldCell>
-            <FieldCell label="Default warehouse">
+      <Section title="Status">
+        <FieldGrid columns={2}>
+          <FieldCell>
+            <Field label="Active">{warehouse.is_active ? "Yes" : "No"}</Field>
+          </FieldCell>
+          <FieldCell>
+            <Field label="Default warehouse">
               {warehouse.is_default ? "Yes" : "No"}
-            </FieldCell>
-          </FieldGrid>
-        </Section>
-
-        <div className="sr-only">
-          <WarehouseIcon />
-        </div>
-      </PageBody>
+            </Field>
+          </FieldCell>
+        </FieldGrid>
+      </Section>
     </RecordShell>
   );
 }
