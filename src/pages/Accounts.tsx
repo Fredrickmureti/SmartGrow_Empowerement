@@ -9,6 +9,7 @@ import { useBalanceIntegrityCheck } from "@/hooks/useBalanceIntegrityCheck";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -16,6 +17,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -31,6 +46,7 @@ import {
   Search,
   Landmark,
   MoreHorizontal,
+  Loader2,
   Pencil,
   Trash2,
   TrendingUp,
@@ -59,19 +75,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { AlertCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DeleteAllAccountsDialog } from "@/components/accounts/DeleteAllAccountsDialog";
-import { getDetailTypesForAccountType, getDetailTypeLabel, resolveDetailTypeFromName } from "@/lib/accountDetailTypes";
+import { getDetailTypesForAccountType, getDefaultDetailType, getSuggestedNames, getDetailTypeLabel, getDetailTypeDescription, resolveDetailTypeFromName, ACCOUNT_CATEGORIES, getDetailTypesForCategory, getDefaultDetailTypeForCategory, getCategoryValue } from "@/lib/accountDetailTypes";
 import { normalizeError } from "@/services/resilience";
 // useSearchParams already imported above
 
 export default function Accounts() {
-  const { accounts, isLoading, createAccount, deleteAccount, archiveAccount, restoreAccount, getAccountsByType, refreshAccounts } =
+  const { accounts, isLoading, createAccount, updateAccount, deleteAccount, archiveAccount, restoreAccount, getAccountsByType, refreshAccounts } =
     useAccounts();
   const { formatCurrency } = useCurrency();
   const { getEffectiveBalance: rpcBalance, refetch: refetchBalances } = useAccountBalances();
@@ -87,7 +106,10 @@ export default function Accounts() {
   const { toast } = useToast();
   const navigate = useNavigate();
   // openingBalanceCheck removed — balances should not be editable on accounts
+  const [showDialog, setShowDialog] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
 
