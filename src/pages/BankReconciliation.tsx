@@ -42,10 +42,10 @@ import { useBankTransactions } from "@/hooks/useBankTransactions";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
 import { useReconciliationSuggestions } from "@/hooks/useReconciliationSuggestions";
-import { ReconcileTransactionDialog } from "@/components/banking/ReconcileTransactionDialog";
+import { ReconcileTransactionSheet } from "@/features/finance/reconciliation/ReconcileTransactionSheet";
 // TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
 
-import { TransferReconcileDialog } from "@/components/banking/TransferReconcileDialog";
+import { TransferReconcileSheet } from "@/features/finance/reconciliation/TransferReconcileSheet";
 import { ReconciliationWorkspace } from "@/components/banking/ReconciliationWorkspace";
 import { ImportHistoryTab } from "@/components/banking/ImportHistoryTab";
 import { ReconciliationHistoryTab } from "@/components/banking/ReconciliationHistoryTab";
@@ -657,16 +657,16 @@ export default function BankReconciliation() {
         )}
       </div>
 
-      {/* Reconcile Dialog */}
-      <ReconcileTransactionDialog
+      {/* Reconcile side rail — enterprise DetailSheet (no modal). */}
+      <ReconcileTransactionSheet
         open={reconcileDialogOpen}
         onOpenChange={setReconcileDialogOpen}
         transaction={selectedTransaction}
         onReconcile={reconcileTransaction}
       />
 
-      {/* R2: Transfer Dialog */}
-      <TransferReconcileDialog
+      {/* Transfer side rail — enterprise DetailSheet (no modal). */}
+      <TransferReconcileSheet
         open={transferDialogOpen}
         onOpenChange={setTransferDialogOpen}
         transaction={transferTransaction}
