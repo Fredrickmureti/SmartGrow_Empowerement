@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useInventory, useOffsetAccountPreview } from "@/hooks/useInventory";
+import { useInventory } from "@/hooks/useInventory";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -31,9 +31,6 @@ import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
@@ -59,7 +56,6 @@ export default function Inventory() {
     stockAdjustments,
     lowStockProducts,
     isLoading: hookLoading,
-    createStockAdjustment,
     approveStockAdjustment,
     cancelStockAdjustment,
     reverseStockAdjustment,
@@ -74,6 +70,7 @@ export default function Inventory() {
   const organizationId = currentOrg?.id;
   const businessId = currentBusiness?.id;
   const branchId = currentBranch?.id;
+  const navigate = useNavigate();
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -86,15 +83,6 @@ export default function Inventory() {
   const [movementPage, setMovementPage] = useState(1);
   const [stockLevelPage, setStockLevelPage] = useState(1);
 
-  // Adjustment dialog — single warehouse per document (Odoo stock.inventory pattern)
-  const [showAdjustmentDialog, setShowAdjustmentDialog] = useState(false);
-  const [adjustmentWarehouseId, setAdjustmentWarehouseId] = useState("");
-  const [adjustmentItems, setAdjustmentItems] = useState<{
-    product_id: string; quantity_adjustment: number; unit_cost: number | ""; notes: string;
-  }[]>([]);
-  const [adjustmentReason, setAdjustmentReason] = useState("");
-  const [adjustmentNotes, setAdjustmentNotes] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   // Drawer state
@@ -146,53 +134,23 @@ export default function Inventory() {
 
   // Deep-link prefill: /inventory/stock?action=adjust&product=<id>
   // Used by Products.tsx to send the user here with a pre-filled adjustment row.
-  // We only react once the dialog is closed and stays untouched.
+  // Deep-link redirect: /inventory-app/stock?action=adjust&product=<id>
+  // Products.tsx sends users here; forward them to the routed create page.
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get("action") !== "adjust") return;
     const productId = searchParams.get("product");
-    if (!productId) return;
-    if (showAdjustmentDialog) return;
-    // Pre-fill unit_cost from the product master so the user doesn't have to
-    // re-type a cost they already entered when creating the product. The
-    // backfill effect below also covers the case where the products list
-    // hasn't loaded yet at the moment the deep link fires.
-    const prod = inventoryProducts.find((p) => p.id === productId) as any;
-    const prefilledCost: number | "" =
-      prod && Number(prod.cost_price) > 0 ? Number(prod.cost_price) : "";
-    setAdjustmentReason("opening_balance");
-    setAdjustmentItems([
-      { product_id: productId, quantity_adjustment: 0, unit_cost: prefilledCost, notes: "" },
-    ]);
-    setShowAdjustmentDialog(true);
+    const query = new URLSearchParams();
+    if (productId) query.set("product", productId);
+    query.set("reason", "opening_balance");
     const next = new URLSearchParams(searchParams);
     next.delete("action");
     next.delete("product");
     setSearchParams(next, { replace: true });
-  }, [searchParams, showAdjustmentDialog, setSearchParams, inventoryProducts]);
+    navigate(`/inventory-app/adjustments/new?${query.toString()}`);
+  }, [searchParams, setSearchParams, navigate]);
 
-  // Backfill: when the products list loads after a row is added (deep-link
-  // race or user picked a product before products were cached), populate any
-  // empty unit_cost from products.cost_price so the cost field reads as
-  // "already known" instead of "fill me in again".
-  useEffect(() => {
-    if (adjustmentItems.length === 0 || inventoryProducts.length === 0) return;
-    let changed = false;
-    const next = adjustmentItems.map((it) => {
-      const c = typeof it.unit_cost === "number" ? it.unit_cost : Number(it.unit_cost);
-      if (it.product_id && (!Number.isFinite(c) || c <= 0)) {
-        const prod = inventoryProducts.find((p) => p.id === it.product_id) as any;
-        const cp = prod && Number(prod.cost_price);
-        if (cp && cp > 0) {
-          changed = true;
-          return { ...it, unit_cost: cp };
-        }
-      }
-      return it;
-    });
-    if (changed) setAdjustmentItems(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventoryProducts]);
+
 
 
   // ===== SERVER-SIDE PAGINATED MOVEMENTS =====
@@ -349,90 +307,8 @@ export default function Inventory() {
   const handleOpenWarehouseStock = (whId: string, whName: string) => { setSelectedWarehouseId(whId); setSelectedWarehouseName(whName); setWarehouseStockDrawerOpen(true); };
   const handleOpenAdjustmentDrawer = (adjId: string) => { setSelectedAdjustmentId(adjId); setAdjustmentDrawerOpen(true); };
 
-  const handleAddAdjustmentItem = () => {
-    setAdjustmentItems([...adjustmentItems, { product_id: "", quantity_adjustment: 0, unit_cost: "", notes: "" }]);
-  };
-  const handleRemoveAdjustmentItem = (index: number) => {
-    setAdjustmentItems(adjustmentItems.filter((_, i) => i !== index));
-  };
-  const handleAdjustmentItemChange = (index: number, field: string, value: string | number) => {
-    const updated = [...adjustmentItems];
-    updated[index] = { ...updated[index], [field]: value } as typeof updated[number];
-    // When the user picks a product, prefill the cost with the product's
-    // current cost_price so the GL post has a sensible default. The user
-    // can still override it for a write-up / write-down.
-    if (field === "product_id" && typeof value === "string") {
-      const prod = inventoryProducts.find(p => p.id === value);
-      if (prod && (prod as any).cost_price && !updated[index].unit_cost) {
-        updated[index].unit_cost = Number((prod as any).cost_price);
-      }
-    }
-    setAdjustmentItems(updated);
-  };
 
-  // Context-aware warehouse pre-selection for the Adjust Stock dialog.
-  // Priority:
-  //   1. Default warehouse for the active branch (branch_id match + is_default)
-  //   2. Single warehouse in current scope
-  //   3. Any default warehouse in current scope
-  // The user can always override via the dropdown when more than one exists.
-  useEffect(() => {
-    if (!showAdjustmentDialog || adjustmentWarehouseId || warehouses.length === 0) return;
-    const branchDefault = branchId
-      ? warehouses.find(w => w.branch_id === branchId && w.is_default)
-      : undefined;
-    if (branchDefault) { setAdjustmentWarehouseId(branchDefault.id); return; }
-    if (warehouses.length === 1) { setAdjustmentWarehouseId(warehouses[0].id); return; }
-    const orgDefault = warehouses.find(w => w.is_default);
-    if (orgDefault) { setAdjustmentWarehouseId(orgDefault.id); return; }
-  }, [showAdjustmentDialog, adjustmentWarehouseId, warehouses, branchId]);
 
-  const handleCreateAdjustment = async () => {
-    if (!adjustmentReason || adjustmentItems.length === 0) return;
-    if (!adjustmentWarehouseId) {
-      toast.error("Pick the warehouse you are adjusting before submitting");
-      return;
-    }
-    const filtered = adjustmentItems.filter(i => i.product_id && i.quantity_adjustment !== 0);
-    if (filtered.length === 0) return;
-    // Server now refuses to approve adjustments with no resolvable cost.
-    // Surface that to the user up front instead of letting the RPC raise.
-    const missingCost = filtered.find(i => {
-      const c = typeof i.unit_cost === "number" ? i.unit_cost : Number(i.unit_cost);
-      return !Number.isFinite(c) || c <= 0;
-    });
-    if (missingCost) {
-      const prod = inventoryProducts.find(p => p.id === missingCost.product_id);
-      toast.error(
-        `Enter a unit cost for "${prod?.name ?? "this line"}". Inventory adjustments must post a valuation to the general ledger.`
-      );
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      await createStockAdjustment.mutateAsync({
-        reason: adjustmentReason,
-        notes: adjustmentNotes,
-        items: filtered.map(i => ({
-          product_id: i.product_id,
-          quantity_adjustment: i.quantity_adjustment,
-          unit_cost: typeof i.unit_cost === "number" ? i.unit_cost : Number(i.unit_cost),
-          notes: i.notes,
-          warehouse_id: adjustmentWarehouseId,
-        })),
-      });
-      setShowAdjustmentDialog(false);
-      setAdjustmentItems([]);
-      setAdjustmentReason("");
-      setAdjustmentNotes("");
-      setAdjustmentWarehouseId("");
-    } catch (err: any) {
-      // Surface friendly message; keep diagnostic detail in the console.
-      console.error("Stock adjustment failed", err);
-      const msg = err?.message || err?.error?.message || "Unknown error";
-      toast.error(`Could not adjust stock: ${msg}`);
-    } finally { setIsSubmitting(false); }
-  };
 
   const handleExport = async () => {
     if (!organizationId) return;
@@ -503,8 +379,10 @@ export default function Inventory() {
               tooltip="Refresh inventory"
             />
             <PermissionGate permission="manageProducts">
-              <Button onClick={() => setShowAdjustmentDialog(true)} className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />Stock Adjustment
+              <Button asChild className="w-full sm:w-auto">
+                <Link to="/inventory-app/adjustments/new">
+                  <Plus className="mr-2 h-4 w-4" />Stock Adjustment
+                </Link>
               </Button>
             </PermissionGate>
           </div>
@@ -900,121 +778,6 @@ export default function Inventory() {
           </TabsContent>
         </Tabs>
 
-        {/* Stock Adjustment Dialog */}
-        <Dialog open={showAdjustmentDialog} onOpenChange={setShowAdjustmentDialog}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Create Stock Adjustment</DialogTitle>
-              <DialogDescription>Adjust inventory quantities for one or more products</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Warehouse *</Label>
-                  {warehouses.length === 0 ? (
-                    <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                      No warehouse exists in this scope yet.{" "}
-                      <Link to="/inventory-app/warehouses?action=new" className="text-primary underline">
-                        Create one first
-                      </Link>{" "}
-                      to enable stock adjustments.
-                    </div>
-                  ) : (
-                    <Select value={adjustmentWarehouseId} onValueChange={setAdjustmentWarehouseId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select warehouse" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {warehouses.map(w => (
-                          <SelectItem key={w.id} value={w.id}>
-                            {w.name}{w.is_default ? " (default)" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    All lines in one adjustment must come from the same warehouse{currentBranch ? ` (showing only ${currentBranch.name})` : ""}.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Reason *</Label>
-                  <Select value={adjustmentReason} onValueChange={setAdjustmentReason}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select adjustment reason" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="shrinkage">Shrinkage / Theft</SelectItem>
-                      <SelectItem value="damage">Damage</SelectItem>
-                      <SelectItem value="count_variance">Count Variance</SelectItem>
-                      <SelectItem value="found_stock">Found Stock</SelectItem>
-                      <SelectItem value="write_off">Write-off</SelectItem>
-                      <SelectItem value="revaluation">Revaluation</SelectItem>
-                      <SelectItem value="opening_balance">Opening Balance</SelectItem>
-                    </SelectContent>
-                  </Select>
-                    <OffsetAccountHint reason={adjustmentReason} />
-                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Input value={adjustmentNotes} onChange={(e) => setAdjustmentNotes(e.target.value)} placeholder="Additional notes" />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Items</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={handleAddAdjustmentItem}><Plus className="h-4 w-4 mr-1" />Add Item</Button>
-                </div>
-                {adjustmentItems.map((item, index) => (
-                  <div key={index} className="border rounded-lg p-3 space-y-3">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Product</Label>
-                      <Select value={item.product_id} onValueChange={(v) => handleAdjustmentItemChange(index, "product_id", v)}>
-                        <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                        <SelectContent>{inventoryProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    {(() => {
-                      const selProd = inventoryProducts.find(p => p.id === item.product_id) as any;
-                      const baseLabel = selProd?.unit_of_measure ?? "ea";
-                      return (
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[7rem_8rem_1fr]">
-                          <div>
-                            <Label className="text-xs text-muted-foreground mb-1 block">Qty (+/-) <span className="text-muted-foreground/70">[{baseLabel}]</span></Label>
-                            <Input type="number" value={item.quantity_adjustment}
-                              onChange={(e) => handleAdjustmentItemChange(index, "quantity_adjustment", parseFloat(e.target.value) || 0)} placeholder={`Qty in ${baseLabel}`} />
-                          </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Unit cost *</Label>
-                        <Input type="number" step="0.0001" min="0" value={item.unit_cost}
-                          onChange={(e) => handleAdjustmentItemChange(index, "unit_cost", e.target.value === "" ? "" : parseFloat(e.target.value) || 0)}
-                          placeholder="Cost" />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Notes</Label>
-                        <Input value={item.notes} onChange={(e) => handleAdjustmentItemChange(index, "notes", e.target.value)} placeholder="Line notes" />
-                      </div>
-                        </div>
-                      );
-                    })()}
-                    <Button type="button" variant="ghost" size="icon" className="self-end" onClick={() => handleRemoveAdjustmentItem(index)}>
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                {adjustmentItems.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">Click "Add Item" to add products to adjust</p>
-                )}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAdjustmentDialog(false)}>Cancel</Button>
-              <Button onClick={handleCreateAdjustment} disabled={isSubmitting || !adjustmentReason || adjustmentItems.length === 0}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Adjustment
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Drawers */}
@@ -1053,39 +816,5 @@ export default function Inventory() {
         }}
       />
     </>
-  );
-}
-
-/**
- * Wave 5 G6 — read-only hint under the reason picker showing which GL
- * offset account the chosen reason will post to. Pure transparency.
- */
-function OffsetAccountHint({ reason }: { reason: string }) {
-  const { data, isLoading } = useOffsetAccountPreview(reason || null);
-  if (!reason) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        The reason drives the offset account on the journal entry.
-      </p>
-    );
-  }
-  if (isLoading) {
-    return <p className="text-xs text-muted-foreground">Resolving offset account…</p>;
-  }
-  if (!data) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        The reason drives the offset account on the journal entry.
-      </p>
-    );
-  }
-  return (
-    <p className="text-xs text-muted-foreground">
-      Posts contra to{" "}
-      <span className="font-medium text-foreground">
-        {data.account_code} — {data.account_name}
-      </span>
-      .
-    </p>
   );
 }
