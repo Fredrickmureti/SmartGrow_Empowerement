@@ -23,7 +23,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
-import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
+// Apply-credit is a routed wizard at /finance/customer-credits/:id/apply.
 import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
 import { LeadForm } from "@/components/crm/LeadForm";
