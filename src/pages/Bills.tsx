@@ -28,8 +28,6 @@ import { useCustomFieldFiltering } from "@/hooks/useCustomFieldFiltering";
 import { StudioQuickPanelTrigger } from "@/components/studio/StudioQuickPanelTrigger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -46,14 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
 import {
   AlertDialog,
   AlertDialogAction,
