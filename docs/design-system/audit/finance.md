@@ -25,8 +25,8 @@ Legend for **Target**:
 | Fiscal Period | Create / Edit | `GeneratePeriodsSheet` (`DetailSheet`) | `DetailSheet` (≤6 fields) | Done |
 | Year-End Close | Route + `RecordScaffold` at `/finance/year-end-close` (`YearEndClosePage`); `YearEndClosingDialog` deleted | `WizardShell` at `/finance/fiscal-periods/close` | Done (page-based; deviation from wizard target — dialog deleted) |
 | Budget | Create / Edit | `BudgetFormSheet` + `BudgetItemSheet` + `ManageBudgetSheet` (Sheet-based) | Route + `RecordFormShell` at `/finance/budgets/new` + `/:id/edit` (line grid for account budgets) | **Deviation** — sheets shipped; promotion to routes pending |
-| Fixed Asset | Create / Edit | `AssetFormSheet` (Sheet-based) | Route + `RecordFormShell` at `/finance/fixed-assets/new` + `/:id/edit` | **Deviation** — sheet shipped; promotion to route pending |
-| Fixed Asset | Peek | `AssetDetailSheet` (Sheet-based) | `PeekScaffold` | **Deviation** — sheet shipped; promotion to `PeekScaffold` pending |
+| Fixed Asset | Create / Edit | Route + `RecordFormShell` at `/finance/fixed-assets/new` (`AssetCreatePage`) + `/:id/edit` (`AssetEditPage`); `AssetFormSheet` deleted | Route + `RecordFormShell` at `/finance/fixed-assets/new` + `/:id/edit` | Done |
+| Fixed Asset | Peek | `AssetPeekSheet` on `PeekScaffold` behind `?peek=<id>`; `AssetDetailSheet` deleted | `PeekScaffold` | Done |
 | Analytic Account | Create / Edit | `AnalyticAccountSheet` + `AnalyticGroupSheet` (`DetailSheet`) | `DetailSheet` | Done |
 | Bank Account | Connect / Edit | `BankAccountSheet` at `?sheet=account[&id=…]` (Sheet-based; `ConnectBankDialog` + `EditBankAccountDialog` deleted) | Route + `RecordFormShell` at `/finance/banking/accounts/new` + `/:id/edit` | **Deviation** — unified sheet shipped; promotion to routes pending |
 | Bank Reconciliation | Start | Route + `RecordFormShell` at `/finance/reconciliation/new` (`StartReconciliationPage`); `StartReconciliationDialog` deleted | Route + `WizardShell` at `/finance/reconciliation/new` | Done (form-based; single-step route on `RecordFormShell` — dialog deleted) |
@@ -34,8 +34,8 @@ Legend for **Target**:
 | Bank Transfer Reconcile | `TransferReconcileDialog` | Step inside the reconciliation workspace `WizardShell` | **Pending** |
 | Bank Transactions Import | `ImportTransactionsDialog` | `WizardShell` at `/finance/banking/:id/import` | **Pending** |
 | Transaction Matching Rules | `TransactionRulesDialog` | Route + `RecordScaffold` at `/finance/banking/rules` + `RecordFormShell` for new/edit | **Pending** |
-| Customer Credit — Apply | `ApplyCreditDialog` | `WizardShell` at `/finance/customer-credits/:id/apply` | **Pending** |
-| Customer Credit — Refund | `ProcessRefundDialog` | `WizardShell` at `/finance/customer-credits/:id/refund` | **Pending** |
+| Customer Credit — Apply | Route + `WizardShell` at `/finance/customer-credits/:id/apply` (`ApplyCreditWizardPage`); `ApplyCreditDialog` deleted | `WizardShell` at `/finance/customer-credits/:id/apply` | Done |
+| Customer Credit — Refund | Route + `WizardShell` at `/finance/customer-credits/:id/refund` (`ProcessRefundWizardPage`); `ProcessRefundDialog` deleted | `WizardShell` at `/finance/customer-credits/:id/refund` | Done |
 | Default Account Mappings — Apply | `ApplyDefaultMappingsDialog` | `Dialog` (allowed — confirm-style) | Done |
 | Credit Note (legacy finance surface) | Deleted — call sites now use Sales `CreditNotePeekSheet` at `?peek=<id>` and the full page at `/sales/credit-notes/:id` | Delete — superseded by Sales `/sales/credit-notes/:id` + peek | Done |
 

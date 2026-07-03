@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -59,7 +59,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
+// Apply-credit is a routed wizard at /finance/customer-credits/:id/apply.
 import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -98,6 +98,7 @@ interface ApplicationRow {
 
 // ─── Component ────────────────────────────────────────────────────
 export default function CustomerCredits() {
+  const navigate = useNavigate();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { formatCurrency } = useCurrency();
@@ -114,15 +115,7 @@ export default function CustomerCredits() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
 
-  // Apply credit dialog state
-  const [applyCreditOpen, setApplyCreditOpen] = useState(false);
-  const [applyCreditTarget, setApplyCreditTarget] = useState<{
-    creditNoteId: string;
-    creditNoteNumber: string;
-    contactId: string;
-    contactName: string;
-    availableAmount: number;
-  } | null>(null);
+  // Apply-credit is a routed wizard — no local dialog state needed.
 
   // Peek sheet state — canonical Sales credit-note peek surface.
   const [peekId, setPeekId] = useState<string | null>(null);
@@ -270,14 +263,9 @@ export default function CustomerCredits() {
   const collapseAll = () => setExpandedCustomers(new Set());
 
   const openApplyCredit = (cn: CreditRowEnriched) => {
-    setApplyCreditTarget({
-      creditNoteId: cn.id,
-      creditNoteNumber: cn.credit_note_number,
-      contactId: cn.contact_id,
-      contactName: cn.contact_name,
-      availableAmount: cn.available,
-    });
-    setApplyCreditOpen(true);
+    navigate(
+      `/finance/customer-credits/${cn.id}/apply?returnTo=/finance/customer-credits`,
+    );
   };
 
   const openDetail = (cn: CreditRowEnriched) => {
@@ -647,19 +635,8 @@ export default function CustomerCredits() {
         </TabsContent>
       </Tabs>
 
-      {/* ── Dialogs ── */}
-      {applyCreditTarget && (
-        <ApplyCreditDialog
-          open={applyCreditOpen}
-          onOpenChange={setApplyCreditOpen}
-          creditNoteId={applyCreditTarget.creditNoteId}
-          creditNoteNumber={applyCreditTarget.creditNoteNumber}
-          contactId={applyCreditTarget.contactId}
-          contactName={applyCreditTarget.contactName}
-          availableAmount={applyCreditTarget.availableAmount}
-          onSuccess={handleRefresh}
-        />
-      )}
+      {/* Apply-credit is a dedicated wizard route at
+          /finance/customer-credits/:id/apply — no dialog mount here. */}
 
       <CreditNotePeekSheet
         creditNoteId={peekId}

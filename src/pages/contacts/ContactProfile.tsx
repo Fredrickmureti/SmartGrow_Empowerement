@@ -23,7 +23,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
-import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
+// Apply-credit is a routed wizard at /finance/customer-credits/:id/apply.
 import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
 import { LeadForm } from "@/components/crm/LeadForm";
@@ -57,8 +57,7 @@ export default function ContactProfile() {
   );
 
   // Dialog state
-  const [applyCreditOpen, setApplyCreditOpen] = useState(false);
-  const [applyCreditTarget, setApplyCreditTarget] = useState<any>(null);
+  // Apply-credit is a routed wizard now — no local state needed.
   const [peekCreditNoteId, setPeekCreditNoteId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
@@ -767,7 +766,7 @@ export default function ContactProfile() {
                                   <Eye className="h-4 w-4" />
                                 </Button>
                                 {available > 0 && (
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setApplyCreditTarget(cn); setApplyCreditOpen(true); }}>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/finance/customer-credits/${cn.id}/apply?returnTo=/contacts-app/profile?id=${contactId}`)}>
                                     <Wallet className="h-4 w-4" />
                                   </Button>
                                 )}
@@ -954,14 +953,7 @@ export default function ContactProfile() {
         defaultContactName={contact?.name}
       />
 
-      {/* Credit Dialogs */}
-      {applyCreditTarget && (
-        <ApplyCreditDialog
-          open={applyCreditOpen}
-          onOpenChange={setApplyCreditOpen}
-          creditNote={applyCreditTarget}
-        />
-      )}
+      {/* Apply-credit is a dedicated wizard route — no dialog mount here. */}
       <CreditNotePeekSheet
         creditNoteId={peekCreditNoteId}
         onOpenChange={(open) => { if (!open) setPeekCreditNoteId(null); }}

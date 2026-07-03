@@ -1,99 +1,56 @@
 ## Assessment of prior work
 
-Sales, Purchases, and Inventory ledgers are at 0 pending — spot-checks confirm the guards enforce empty/frozen allowlists and the record scaffolds are in place. Those three apps are genuinely done.
+I audited the four in-scope apps against the enterprise-UX ledgers under `docs/design-system/audit/` and verified every "Done" claim against the code.
 
-Finance is partly done. Verified against the codebase (not the ledger, not agent claims):
+**Sales · Purchases · Inventory — verified complete.**
+Every entity in those three ledgers is on `RecordFormShell` (`/new` + `/:id/edit`), `RecordScaffold` (object page), or `PeekScaffold` (`?peek=<id>`). Architecture guards (`sales-record-dialog-ban`, `purchases-record-dialog-ban`, `inventory-record-dialog-ban`) are wired and their legacy allowlists are empty or shrink-only. No `Create*Dialog` / `Edit*Dialog` / `*DetailDialog` files remain in those surfaces.
 
-**Actually complete**
-- Journal Entries — create/edit routes, detail page, `?peek=` sheet ✅
-- Business Transactions — create route ✅
-- Recurring Journals — create route ✅
-- Chart of Accounts — `AccountCreatePage` + `AccountEditPage` + `AccountForm` exist (ledger still says Pending — stale)
-- Year-End Close — `/finance/year-end-close` page exists; `YearEndClosingDialog` deleted
-- Fiscal Periods — `ClosePeriodSheet` + `GeneratePeriodsSheet` (DetailSheet target, matches)
-- Analytic Accounts — `AnalyticAccountSheet` + `AnalyticGroupSheet` (DetailSheet target, matches)
-- `ApplyDefaultMappingsDialog` — allowed confirm-style ✅
+**Finance — partially complete. Previous agent stopped mid-migration.**
+Journal Entry, Business Transaction, Recurring Journal, CoA, Fiscal Period, Year-End Close, Analytic Account, Reconciliation-start, and legacy Credit Note surfaces are all migrated. `StartReconciliationPage` and its route (`/finance/reconciliation/new`) are landed as claimed. The `finance-record-dialog-ban` guard exists but its regex only matches `Create*/Edit*/*DetailDialog` filenames, so the remaining dialogs (which use verb-noun names) are not caught by the guard even though they violate the standard. **The ledger correctly lists them as Pending / Deviation — the guard is the loose part, not the ledger.**
 
-**Deviation from ledger** — the previous agent used `Sheet` where the ledger specified full-page routes. These record surfaces are substantial and the platform standard in `mem://index.md` is unambiguous: *every create/edit for a business record is a `/new` or `/:id/edit` route on `RecordFormShell`*. The sheets need promotion to routes:
-- `BankAccountSheet` (1107 lines) → `/finance/banking/accounts/new` + `/:id/edit`
-- `BudgetFormSheet` / `BudgetItemSheet` / `CopyBudgetSheet` / `ManageBudgetSheet` → `/finance/budgets/new` + `/:id/edit` with line grid
-- `AssetFormSheet` (+ Category / Dispose / DepreciationRun) → `/finance/fixed-assets/new` + `/:id/edit`
-- `AssetDetailSheet` → `PeekScaffold` at `?peek=<id>`
+### Remaining Finance work (verified against the tree)
 
-**Legacy dialogs still present** (8 files under the ban regex or ledger scope):
-```
-src/components/banking/StartReconciliationDialog.tsx
-src/components/banking/ReconcileTransactionDialog.tsx
-src/components/banking/TransferReconcileDialog.tsx
-src/components/banking/ImportTransactionsDialog.tsx
-src/components/banking/TransactionRulesDialog.tsx
-src/components/finance/ApplyCreditDialog.tsx
-src/components/finance/ProcessRefundDialog.tsx
-src/components/finance/CreditNoteDetailDialog.tsx   (delete — superseded by Sales)
-```
+| # | Surface | File(s) | LOC | Target |
+| - | - | - | - | - |
+| 1 | Reconcile transaction (row match) | `src/components/banking/ReconcileTransactionDialog.tsx` | 498 | Inline into the reconciliation workspace `RecordScaffold` at `/finance/reconciliation/:id` (split-view; row-edit inline) |
+| 2 | Bank transfer reconcile | `src/components/banking/TransferReconcileDialog.tsx` | 152 | Step inside the same reconciliation workspace |
+| 3 | Bank transactions import | `src/components/banking/ImportTransactionsDialog.tsx` | 670 | `WizardShell` at `/finance/banking/:id/import` (Upload → Map columns → Preview → Commit) |
+| 4 | Transaction matching rules | `src/components/banking/TransactionRulesDialog.tsx` | 551 | `RecordScaffold` list at `/finance/banking/rules` + `RecordFormShell` at `/finance/banking/rules/new` and `/:id/edit` |
+| 5 | Apply customer credit | `src/components/finance/ApplyCreditDialog.tsx` | 221 | `WizardShell` at `/finance/customer-credits/:id/apply` (Select invoices → Allocate → Confirm) |
+| 6 | Process credit refund | `src/components/finance/ProcessRefundDialog.tsx` | 219 | `WizardShell` at `/finance/customer-credits/:id/refund` (Amount + method → Confirm) |
+| 7 | Bank account connect/edit | `src/features/finance/banking/BankAccountSheet.tsx` | 1107 | `RecordFormShell` at `/finance/banking/accounts/new` + `/:id/edit` |
+| 8 | Budget create/edit + lines | `BudgetFormSheet` + `BudgetItemSheet` + `ManageBudgetSheet` | 794 | `RecordFormShell` at `/finance/budgets/new` + `/:id/edit` with a line grid; delete the three sheets |
+| 9 | Fixed asset create/edit | `src/features/finance/fixed-assets/AssetFormSheet.tsx` | 324 | `RecordFormShell` at `/finance/fixed-assets/new` + `/:id/edit` |
+| 10 | Fixed asset peek | `src/features/finance/fixed-assets/AssetDetailSheet.tsx` | 136 | `PeekScaffold` at `?peek=<id>` |
 
-The finance ledger shows 17 Pending rows; the true remaining scope is 12 migrations + 1 deletion + audit reconciliation.
+Call-site sweep (must all be rewired): `src/pages/Budgets.tsx`, `Banking.tsx`, `BankReconciliation.tsx`, `BankFeeds.tsx`, `CreditNotes.tsx`, `FixedAssets.tsx`, `finance/CustomerCredits.tsx`, `contacts/ContactProfile.tsx`, `src/test/architecture/banking-ownership.test.ts`.
 
-## Plan
+### Execution plan (one wave per row, ledger-honest)
 
-Work in the order below. Each step ships routes/scaffolds, deletes the legacy file, shrinks the guard allowlist where applicable, updates the audit ledger, and runs `tsgo` + the four dialog-ban tests.
+For each item above, the same recipe:
 
-### Step 1 — Reconcile ledger with reality (no code changes)
-Update `docs/design-system/audit/finance.md`:
-- Mark Chart of Accounts create/edit **Done** (routes exist).
-- Mark Year-End Close **Done** (page exists, dialog deleted).
-- Add a "Deviation" note for Bank Account / Budget / Fixed Asset explaining the sheet-first landing and the follow-up to promote to routes (tracked by Steps 3–5).
+1. **Build the target surface** — route file(s) under `src/routes/`, page under `src/features/finance/<domain>/`, composed on `RecordFormShell` / `RecordScaffold` / `WizardShell` / `PeekScaffold` from `@/design-system`; submit lifecycle via `useRecordFormSubmit`; peek deep-link via `usePeekParam`.
+2. **Port every existing behaviour verbatim** — validation, RPC calls, toast copy, permission gates, side-panel activity, unbalanced-line guards, credit checks, oversell confirms. No behavioural regressions.
+3. **Rewire every call site** to `navigate(...)` (create/edit) or `?peek=<id>` (peek). Grep the file's basename after each wave to prove zero live imports.
+4. **Delete the legacy file** in the same wave.
+5. **Update the ledger row** (`docs/design-system/audit/finance.md`) to `Done` with the new file paths, and mirror the change in the guard test's data-model row.
+6. **Tighten the guard** — after item 10, extend `finance-record-dialog-ban` to (a) match arbitrary `*Dialog.tsx` under the finance/banking/accounting surface with an explicit empty allowlist, (b) match `*Sheet.tsx` under `src/features/finance/` with a shrinking allowlist, so future regressions surface immediately. Then freeze the memory core rule.
+7. **Verify each wave** — `tsgo -p tsconfig.app.json --noEmit`, `bunx vitest run src/test/architecture/finance-record-dialog-ban.test.ts src/test/architecture/banking-ownership.test.ts`, and a smoke Playwright pass on the migrated route.
 
-### Step 2 — Banking workflows (5 dialogs → routes/wizards)
-```text
-StartReconciliationDialog   → /finance/reconciliation/new                (WizardShell)
-ReconcileTransactionDialog  → /finance/reconciliation/:id                (RecordScaffold split-view; row edit inline)
-TransferReconcileDialog     → step inside the reconciliation workspace   (no standalone surface)
-ImportTransactionsDialog    → /finance/banking/:id/import                (WizardShell: upload → map → preview → post)
-TransactionRulesDialog      → /finance/banking/rules  +  /rules/new  +  /rules/:id/edit
-                              (RecordScaffold list + RecordFormShell)
-```
-For each: build routes, port hooks/mutations 1:1, replace call-sites, `rm` the dialog, verify guards.
+Waves 1 + 2 land together (they share the reconciliation workspace). Waves 3, 4, 5, 6 are independent. Wave 8 splits Budgets into a routed form + line grid in a single edit — no partial Sheet retention. Waves 9 + 10 land together (asset form + peek share the same list page rewire). Wave 11 = guard tightening + memory freeze.
 
-### Step 3 — Customer credit wizards (2 dialogs → routes)
-```text
-ApplyCreditDialog    → /finance/customer-credits/:id/apply    (WizardShell)
-ProcessRefundDialog  → /finance/customer-credits/:id/refund   (WizardShell)
-```
-Same migration recipe; delete dialogs when call-sites are gone.
+### Technical notes
 
-### Step 4 — Bank Account: promote sheet → route
-- Create `/finance/banking/accounts/new` and `/finance/banking/accounts/:id/edit` on `RecordFormShell`, backed by a shared `BankAccountForm` factored out of `BankAccountSheet`.
-- Update Banking list + `BankAccountCard` to navigate instead of opening the sheet.
-- Remove `BankAccountSheet` and the `?sheet=account` param handling.
+- Reconciliation workspace becomes the canonical example of a Finance **split-view** `RecordScaffold`: transactions list on the left, side rail for the currently-selected txn with inline match/create-JE/transfer actions. The two dialogs collapse into inline forms inside the side rail — no navigation, no modals.
+- Bank Account promotion is the largest single file (1107 LOC). It contains connect flow + edit flow + provider onboarding. Route split: `/finance/banking/accounts/new` (create — manual + connect provider tabs live inside the form as `RecordFormShell` sections), `/:id/edit` (edit — no provider tabs). Provider OAuth handoff logic moves unchanged into a shared hook so both routes reuse it.
+- Budgets: the `ManageBudgetSheet` line-editor becomes a `LineItemsGrid` embedded in the edit page, eliminating the sheet-inside-sheet nesting.
+- Fixed Assets peek uses `PeekScaffold` with the existing depreciation-schedule table as an `extraSection`, matching the Sales/Purchases peek shape.
+- No database migrations required — all RPCs already exist. Every remaining item is presentation-layer work.
 
-### Step 5 — Budget: promote sheets → routes
-- `/finance/budgets/new` and `/:id/edit` on `RecordFormShell` with the line grid for account budgets.
-- Absorb `BudgetItemSheet` into the line grid, keep `CopyBudgetSheet` as a `DetailSheet` action (small config), keep `ManageBudgetSheet` only if it hosts allocation editing — otherwise fold into the object page.
-- Update Budgets list to navigate; remove the promoted sheets.
+### Definition of done
 
-### Step 6 — Fixed Asset: promote sheets → routes + peek
-- `/finance/fixed-assets/new` + `/:id/edit` on `RecordFormShell` (from `AssetFormSheet`).
-- `?peek=<id>` `PeekScaffold` from `AssetDetailSheet`.
-- Keep `AssetCategorySheet` (small config, DetailSheet target OK), `DepreciationRunSheet` and `DisposeAssetSheet` as `WizardShell` steps or DetailSheets depending on field count.
-
-### Step 7 — Delete `CreditNoteDetailDialog`
-The Sales credit-note record page + peek supersedes it. Rewrite any remaining call-sites to route to `/sales/credit-notes/:id` (or open the peek), then `rm` the file.
-
-### Step 8 — Freeze the guard + close the ledger
-- Shrink `LEGACY_DIALOG_ALLOWLIST` in `src/test/architecture/finance-record-dialog-ban.test.ts` to `[]` (currently allows only `CreditNoteDetailDialog.tsx`, which Step 7 removes).
-- Ledger: every row → **Done** (or **Deleted**); update `mem://index.md` core rule to note the finance allowlist is now frozen empty.
-- Verify: `bunx vitest run src/test/architecture` (all four dialog-ban tests) + `tsgo`.
-
-## Technical notes
-
-- All new routes go under `src/routes/finance/…` as TanStack Start file-based routes; feature code lives in `src/features/finance/<area>/`.
-- Reuse `useRecordFormSubmit`, `FieldGrid`, `SummaryPanel`, `WizardShell`, `RecordScaffold`, `PeekScaffold`, `LineItemsGrid` from `@/design-system` — no new primitives are needed.
-- Hooks and mutations are already parameterised inside the dialogs; migrations lift the JSX into a route component and swap the trigger for a `<Link>`/`navigate()`.
-- Keep RLS / permissions untouched — this is a presentation refactor.
-- After each step: `rg` for the deleted symbol to prove no orphan imports; run the corresponding dialog-ban test.
-
-## Out of scope
-
-- Business-logic changes (RPCs, RLS, mutations) — pure UI/UX migration.
-- Sales / Purchases / Inventory — already at 0 pending and verified.
+- All 6 dialogs and 6 sheets above deleted; every call site navigates to a route or opens a `?peek=<id>` sheet on `PeekScaffold`.
+- `docs/design-system/audit/finance.md` shows every row `Done`; no "Pending" / "Deviation" markers remain.
+- `finance-record-dialog-ban` guard broadened to `*Dialog.tsx` + `*Sheet.tsx` under the finance surface with empty allowlists.
+- Memory core line updated: finance guard flipped from "shrink-only" to "frozen (empty allowlist)".
+- `tsgo` clean, all architecture tests green.

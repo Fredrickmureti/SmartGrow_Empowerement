@@ -48,6 +48,10 @@ const AnalyticAccounts = lazy(() => import("@/pages/AnalyticAccounts"));
 const Banking = lazy(() => import("@/pages/Banking"));
 const BankReconciliation = lazy(() => import("@/pages/BankReconciliation"));
 const StartReconciliationPage = lazy(() => import("@/features/finance/reconciliation/StartReconciliationPage"));
+const ApplyCreditWizardPage = lazy(() => import("@/features/finance/customer-credits/ApplyCreditWizardPage"));
+const ProcessRefundWizardPage = lazy(() => import("@/features/finance/customer-credits/ProcessRefundWizardPage"));
+const AssetCreatePage = lazy(() => import("@/features/finance/fixed-assets/AssetCreatePage"));
+const AssetEditPage = lazy(() => import("@/features/finance/fixed-assets/AssetEditPage"));
 const BankFeeds = lazy(() => import("@/pages/BankFeeds"));
 
 // Report pages (all lazy-loaded)
@@ -126,6 +130,28 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Accounts Payable">
                 <AccountsPayable />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Customer Credits — apply + refund wizards (list route below). */}
+        <Route
+          path="customer-credits/:id/apply"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Apply Customer Credit">
+                <ApplyCreditWizardPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="customer-credits/:id/refund"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Process Credit Refund">
+                <ProcessRefundWizardPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
@@ -347,7 +373,27 @@ export function FinanceApp() {
           }
         />
         
-        {/* Fixed Assets */}
+        {/* Fixed Assets — /new + /:id/edit routes must precede the list. */}
+        <Route
+          path="fixed-assets/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Fixed Asset">
+                <AssetCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="fixed-assets/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Edit Fixed Asset">
+                <AssetEditPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         <Route
           path="fixed-assets"
           element={

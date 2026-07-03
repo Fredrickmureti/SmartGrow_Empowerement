@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useFixedAssets, FixedAsset } from "@/hooks/useFixedAssets";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -54,13 +54,16 @@ import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
-import { AssetFormSheet } from "@/features/finance/fixed-assets/AssetFormSheet";
+// Asset create/edit are dedicated routes now:
+//   /finance/fixed-assets/new  and  /finance/fixed-assets/:id/edit
+// Peek moved to PeekScaffold behind `?peek=<id>`.
+import { AssetPeekSheet } from "@/features/finance/fixed-assets/AssetPeekSheet";
 import { AssetCategorySheet } from "@/features/finance/fixed-assets/AssetCategorySheet";
 import { DisposeAssetSheet } from "@/features/finance/fixed-assets/DisposeAssetSheet";
 import { DepreciationRunSheet } from "@/features/finance/fixed-assets/DepreciationRunSheet";
-import { AssetDetailSheet } from "@/features/finance/fixed-assets/AssetDetailSheet";
 
 export default function FixedAssets() {
+  const navigate = useNavigate();
   const { assets, isLoading, deleteAsset } = useFixedAssets();
   const { formatCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
@@ -70,14 +73,18 @@ export default function FixedAssets() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("active");
 
-  // URL-driven sheet state.
-  // ?sheet=asset|category|dispose|depreciation|detail[&id=<uuid>]
+  // URL-driven UI state.
+  //   ?sheet=category|dispose|depreciation  → auxiliary sheets
+  //   ?peek=<uuid>                          → canonical peek surface
+  // Create/edit are dedicated routes (/finance/fixed-assets/new + /:id/edit).
   const [searchParams, setSearchParams] = useSearchParams();
   const sheetKind = searchParams.get("sheet");
   const sheetId = searchParams.get("id");
+  const peekId = searchParams.get("peek");
+
 
   const openSheet = (
-    kind: "asset" | "category" | "dispose" | "depreciation" | "detail",
+    kind: "category" | "dispose" | "depreciation",
     id?: string,
   ) => {
     const next = new URLSearchParams(searchParams);
@@ -92,14 +99,13 @@ export default function FixedAssets() {
     next.delete("id");
     setSearchParams(next, { replace: false });
   };
+  const setPeek = (id: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (id) next.set("peek", id);
+    else next.delete("peek");
+    setSearchParams(next, { replace: false });
+  };
 
-  const editingAsset = useMemo<FixedAsset | null>(
-    () =>
-      sheetKind === "asset" && sheetId
-        ? assets.find((a) => a.id === sheetId) ?? null
-        : null,
-    [sheetKind, sheetId, assets],
-  );
   const disposingAsset = useMemo<FixedAsset | null>(
     () =>
       sheetKind === "dispose" && sheetId
@@ -107,20 +113,20 @@ export default function FixedAssets() {
         : null,
     [sheetKind, sheetId, assets],
   );
-  const detailAsset = useMemo<FixedAsset | null>(
-    () =>
-      sheetKind === "detail" && sheetId
-        ? assets.find((a) => a.id === sheetId) ?? null
-        : null,
-    [sheetKind, sheetId, assets],
-  );
 
-  const openAssetSheet = (asset?: FixedAsset) => {
+  const openAssetCreate = () => {
     if (isReadOnly) {
       openUpgradeModal("fixed_assets");
       return;
     }
-    openSheet("asset", asset?.id);
+    navigate("/finance/fixed-assets/new");
+  };
+  const openAssetEdit = (asset: FixedAsset) => {
+    if (isReadOnly) {
+      openUpgradeModal("fixed_assets");
+      return;
+    }
+    navigate(`/finance/fixed-assets/${asset.id}/edit`);
   };
   const openCategorySheet = () => {
     if (isReadOnly) {
@@ -228,7 +234,7 @@ export default function FixedAssets() {
                   <Plus className="mr-2 h-4 w-4" />
                   Add Category
                 </Button>
-                <Button onClick={() => openAssetSheet()}>
+                <Button onClick={openAssetCreate}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Asset
                 </Button>
@@ -374,14 +380,14 @@ export default function FixedAssets() {
                             <DropdownMenuContent align="end">
                               {canManageAssets && (
                                 <DropdownMenuItem
-                                  onClick={() => openAssetSheet(asset)}
+                                  onClick={() => openAssetEdit(asset)}
                                 >
                                   <Pencil className="mr-2 h-4 w-4" />
                                   Edit
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
-                                onClick={() => openSheet("detail", asset.id)}
+                                onClick={() => setPeek(asset.id)}
                               >
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
@@ -425,12 +431,9 @@ export default function FixedAssets() {
         />
       </div>
 
-      {/* Enterprise UX: create/edit/dispose/detail/depreciation on DetailSheet */}
-      <AssetFormSheet
-        open={sheetKind === "asset"}
-        onOpenChange={(o) => (o ? openSheet("asset", sheetId ?? undefined) : closeSheet())}
-        asset={editingAsset}
-      />
+      {/* Enterprise UX: create/edit are dedicated routes; peek is on
+          PeekScaffold. Category / dispose / depreciation are still
+          DetailSheet-based auxiliary flows. */}
       <AssetCategorySheet
         open={sheetKind === "category"}
         onOpenChange={(o) => (o ? openSheet("category") : closeSheet())}
@@ -444,10 +447,9 @@ export default function FixedAssets() {
         open={sheetKind === "depreciation"}
         onOpenChange={(o) => (o ? openSheet("depreciation") : closeSheet())}
       />
-      <AssetDetailSheet
-        open={sheetKind === "detail"}
-        onOpenChange={(o) => (o ? openSheet("detail", sheetId ?? undefined) : closeSheet())}
-        asset={detailAsset}
+      <AssetPeekSheet
+        assetId={peekId}
+        onOpenChange={(o) => { if (!o) setPeek(null); }}
       />
     </>
   );

@@ -73,8 +73,8 @@ import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 import { usePeekParam } from "@/features/sales/record";
-import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
-import { ProcessRefundDialog } from "@/components/finance/ProcessRefundDialog";
+// Apply-credit + refund flows are dedicated wizard routes under
+// /finance/customer-credits/:id/apply and /:id/refund — see rewires below.
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -110,13 +110,7 @@ export default function CreditNotes() {
 
   // Edit is now a full route (`/sales/credit-notes/:id/edit`).
 
-  // Apply credit dialog
-  const [applyCreditNote, setApplyCreditNote] = useState<CreditNote | null>(null);
-  const [showApplyDialog, setShowApplyDialog] = useState(false);
-
-  // Refund dialog
-  const [refundCreditNote, setRefundCreditNote] = useState<CreditNote | null>(null);
-  const [showRefundDialog, setShowRefundDialog] = useState(false);
+  // Apply-credit + refund are dedicated wizard routes now (see openApply/onRefund).
 
 
   // Contact preview drawer
@@ -184,8 +178,9 @@ export default function CreditNotes() {
   };
 
   const openApplyDialog = (cn: CreditNote) => {
-    setApplyCreditNote(cn);
-    setShowApplyDialog(true);
+    navigate(
+      `/finance/customer-credits/${cn.id}/apply?returnTo=/sales/credit-notes`,
+    );
   };
 
   const handleDelete = async (id: string) => {
@@ -391,7 +386,7 @@ export default function CreditNotes() {
             onEdit={(cn) => navigate(`/sales/credit-notes/${cn.id}/edit`)}
             onIssue={handleIssue}
             onApply={openApplyDialog}
-            onRefund={(cn) => { setRefundCreditNote(cn); setShowRefundDialog(true); }}
+            onRefund={(cn) => navigate(`/finance/customer-credits/${cn.id}/refund?returnTo=/sales/credit-notes`)}
             onVoid={(cn) => updateCreditNote(cn.id, { status: "void" as any })}
             onDelete={handleDelete}
             onSendEmail={handleSendEmail}
@@ -427,35 +422,8 @@ export default function CreditNotes() {
         </DialogContent>
       </Dialog>
 
-      {/* Apply Credit Dialog (rich component) */}
-      {applyCreditNote && (
-        <ApplyCreditDialog
-          open={showApplyDialog}
-          onOpenChange={setShowApplyDialog}
-          creditNoteId={applyCreditNote.id}
-          creditNoteNumber={applyCreditNote.credit_note_number}
-          contactId={applyCreditNote.contact_id || ""}
-          contactName={applyCreditNote.contact?.name || "Unknown"}
-          availableAmount={applyCreditNote.total - applyCreditNote.amount_applied}
-          onSuccess={refreshCreditNotes}
-        />
-      )}
-
-      {/* Refund Dialog */}
-      {refundCreditNote && (
-        <ProcessRefundDialog
-          open={showRefundDialog}
-          onOpenChange={setShowRefundDialog}
-          creditNoteId={refundCreditNote.id}
-          creditNoteNumber={refundCreditNote.credit_note_number}
-          contactName={refundCreditNote.contact?.name || "Unknown"}
-          totalAmount={refundCreditNote.total}
-          amountApplied={refundCreditNote.amount_applied}
-          amountRefunded={(refundCreditNote as any).refund_amount || 0}
-          currency={refundCreditNote.currency}
-          onSuccess={refreshCreditNotes}
-        />
-      )}
+      {/* Apply-credit + refund are dedicated wizard routes under
+          /finance/customer-credits/:id/apply and /:id/refund. */}
 
       {/* Credit Note Peek Sheet */}
       <CreditNotePeekSheet
