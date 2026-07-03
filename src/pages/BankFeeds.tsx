@@ -17,7 +17,7 @@ import { useBankTransactions } from "@/hooks/useBankTransactions";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useTransactionRules } from "@/hooks/useTransactionRules";
 // TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
-import { ReconcileTransactionDialog } from "@/components/banking/ReconcileTransactionDialog";
+import { ReconcileTransactionSheet } from "@/features/finance/reconciliation/ReconcileTransactionSheet";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 
@@ -513,12 +513,12 @@ export default function BankFeeds() {
         </div>
       </div>
 
-      <ReconcileTransactionDialog
+      <ReconcileTransactionSheet
         open={reconcileDialogOpen}
         onOpenChange={setReconcileDialogOpen}
         transaction={selectedTransaction}
         onReconcile={async (_transactionId: string, _reconcileData: any) => {
-          // The dialog handles the reconciliation internally, we just refresh
+          // The sheet handles the reconciliation internally, we just refresh.
           await fetchTransactions();
           setSelectedTransaction(null);
         }}
