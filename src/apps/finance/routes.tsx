@@ -373,7 +373,27 @@ export function FinanceApp() {
           }
         />
         
-        {/* Fixed Assets */}
+        {/* Fixed Assets — /new + /:id/edit routes must precede the list. */}
+        <Route
+          path="fixed-assets/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Fixed Asset">
+                <AssetCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="fixed-assets/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Edit Fixed Asset">
+                <AssetEditPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         <Route
           path="fixed-assets"
           element={
