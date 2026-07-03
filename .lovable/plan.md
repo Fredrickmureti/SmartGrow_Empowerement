@@ -1,126 +1,70 @@
-## Independent verification of prior work
+# Continue Enterprise UX Standardization
 
-I re-checked the codebase against the previous agent's claims and the existing plan at `.lovable/plan.md`:
+Picking up exactly where the previous agent stopped. The Purchases ledger has one row left (**RFQs**); after that Purchases closes out and Phase I (Inventory) begins.
 
-- **Sales** — allowlist empty, all 10 entities on `RecordFormShell` / `RecordScaffold` / `PeekScaffold`. **Done.**
-- **Purchases** — Bills, POs, Goods Receipts, Vendor Credit Notes, Purchase Returns, Vendor Price Lists all migrated. **P.1 Expenses verified done**: `ExpenseCreatePage` + `ExpenseEditPage` exist under `src/features/purchases/expenses/`, wired in `src/apps/purchases/routes.tsx`, ledger row flipped to Done. Purchases guard allowlist is empty.
-- **Remaining Purchases**: Vendor Statements (still inline peek dialog in `src/pages/VendorStatements.tsx`) and RFQs (inline create/edit dialog in `src/pages/RFQs.tsx`).
-- **Inventory** — untouched: 5 legacy drawers, every create/edit is an inline dialog.
-- **Finance** — untouched: 13 legacy dialogs pending, 1 permanent confirm-style.
+## P.3 — RFQs (full 4-surface set)
 
-The existing plan is sound and matches the codebase reality. I will continue from P.2 without re-doing P.1.
+`src/pages/RFQs.tsx` still hosts two inline `<Dialog>`s (Create + Detail) plus a "Convert to PO" action buried in the Detail dialog. Bring it to the same standard as POs / Bills / Credit Notes / Returns / Expenses.
 
-## Phase P — Purchases tail (finish the app)
+**New surfaces**
 
-**P.2 Vendor Statements**
-- `VendorStatementPeekSheet` on `PeekScaffold` behind `?peek=<vendorId>` in `src/pages/VendorStatements.tsx`.
-- `/purchases/statements/:vendor_id` record page on `RecordScaffold` (reuse the shared statement body between peek and full page).
-- Delete inline peek dialog.
+1. `src/features/purchases/rfqs/RFQCreatePage.tsx` — route `/purchases/rfqs/new`, `RecordFormShell` mode=create, sections: *RFQ header* (deadline, notes), *Vendors* (multi-select chips of vendors to solicit), *Line items* (`LineItemsGrid`-style rows: product, qty, uom, notes). Aside = live vendor/line counts summary. Ported verbatim from the existing `handleCreate` in RFQs.tsx.
+2. `src/features/purchases/rfqs/RFQEditPage.tsx` — route `/purchases/rfqs/:id/edit`, edit only while `status = 'draft'` (guarded — otherwise redirect to record page with toast). Same layout as create.
+3. `src/features/purchases/rfqs/RFQRecordPage.tsx` — route `/purchases/rfqs/:id`, read-only `RecordScaffold` composition: header (RFQ #, status badge, vendor count, deadline), body via a shared `RFQRecordBody` (Details + Line items + Vendor responses table), aside = `DocumentActivityPanel` + status actions (Send / Close / Award).
+4. `src/features/purchases/rfqs/RFQPeekSheet.tsx` — `?peek=<id>` on the list, `PeekScaffold` reusing the same `RFQRecordBody` for peek/full parity. Includes "Open full page" link and inline status actions.
+5. `src/features/purchases/rfqs/useRFQRecord.ts` — shared hook: load rfq + items + responses, derive totals/stats, expose `convertToPO(vendorId)` calling the existing `awardVendor` + `createPurchaseOrder` pipeline currently inlined in RFQs.tsx.
+6. **Award / Convert to PO** stays a `Dialog` (confirmation with vendor picker) — matches the ledger convention for "≤3-field confirm-style picker" actions (same as Credit-Note "Apply to bill").
 
-**P.3 RFQs**
-- `RFQCreatePage`, `RFQEditPage`, `RFQRecordPage`, `RFQPeekSheet` — full 4-surface set at `/purchases/rfqs/{new,:id/edit,:id}` + `?peek=<id>`. `RecordFormShell` + `useRecordFormSubmit` with line-items grid.
-- Retire inline dialog in `src/pages/RFQs.tsx`; navigate() from list actions.
+**List page rewrite (`src/pages/RFQs.tsx`)**
 
-**P.4 Purchases close-out**
-- Flip Vendor Statements + RFQs rows to `Done` in `docs/design-system/audit/purchases.md`.
-- Extend `purchases-record-dialog-ban.test.ts` with an inline-JSX grep assertion against `src/pages/Expenses.tsx`, `src/pages/RFQs.tsx`, `src/pages/VendorStatements.tsx` to prevent regressions.
-- `tsgo` + guard test green.
+- Delete both inline `<Dialog>` blocks and their state (`showCreateDialog`, `showDetailDialog`, `deadline`, `notes`, `selectedVendorIds`, `lineItems`, `resetForm`, `handleCreate`, `handleConvertToPO`).
+- "Create" button → `navigate("/purchases/rfqs/new")`.
+- Row click / "View" action → `setPeek(rfq.id)` (drives `?peek=<id>` → `RFQPeekSheet`).
+- "Edit" row action (drafts only) → `/purchases/rfqs/:id/edit`.
+- Handle `?action=create` deep link from `GlobalCreateMenu` with the same `useEffect` redirect used on POs.
 
-## Phase I — Inventory (full app)
+**Route registration (`src/apps/purchases/routes.tsx`)**
 
-Order: retire drawers/peek surfaces first (allowlist to 0), then create/edit routes, then wizards. Each entity gets the standard 4 surfaces unless noted.
+Add three lazy routes under the existing `rfqs` branch:
+```
+rfqs/new              → RFQCreatePage
+rfqs/:id              → RFQRecordPage
+rfqs/:id/edit         → RFQEditPage
+```
 
-**I.1 Peek + read-only object pages (retires 5 legacy drawers)**
-- Warehouse Stock → `WarehouseStockPeekSheet`, delete `WarehouseStockDrawer`.
-- Stock Movement → `StockMovementPeekSheet`, delete `MovementDetailDrawer`.
-- Stock Movement source doc → delegate to source app peek (Sales/Purchases already have peek routes), delete `SourceDocumentDrawer`.
-- Stock Adjustment → `AdjustmentPeekSheet` + `/inventory/adjustments/:id` record page, delete `AdjustmentDetailDrawer`.
-- Stock Transfer → `TransferPeekSheet` + `/inventory/transfers/:id`, delete `TransferDetailDrawer`.
+**Audit ledger update (`docs/design-system/audit/purchases.md`)**
 
-**I.2 Create/edit routes on `RecordFormShell`**
-- Warehouse (`/inventory/warehouses/{new,:id/edit,:id}`).
-- Stock Adjustment (line-item grid; cost-required rule enforced client-side per core mem).
-- Stock Transfer (line-item grid, from/to warehouse fields).
-- Scrap / Write-off (`/inventory/scrap/new`).
-- Product + Product Category (`/inventory/products/{new,:id/edit,:id}`; category as `DetailSheet`).
-- Reorder Rule → `DetailSheet` per target.
-- UoM & Packaging → `DetailSheet`.
+Flip the RFQs row from **Pending** → **Done** and add the four new rows (Create / Edit / View / Peek) mirroring the Bill / PO entries.
 
-**I.3 Wizards**
-- Physical Count → `/inventory/physical-count/new` on `WizardShell` (scope → counting → variance review → commit). `/inventory/physical-count/:id` on `RecordScaffold`.
+## Purchases close-out
 
-**I.4 Peek-only entities** (`PeekScaffold`, no /new)
-- Stock Lot, Stock Reservation, Reorder Rule peek.
+After P.3:
 
-**I.5 Close-out**
-- Every ledger row → `Done` in `docs/design-system/audit/inventory.md`.
-- Empty the `inventory-record-dialog-ban.test.ts` allowlist.
-- Add inline-dialog grep assertion for `src/pages/Products.tsx`, `src/pages/inventory/*.tsx`.
+1. Re-run `src/test/architecture/purchases-record-dialog-ban.test.ts` — allowlist should still be empty, no new leaks.
+2. `tsgo` typecheck clean.
+3. Playwright smoke: list → create → save → record page → peek → edit → convert-to-PO for RFQs; sanity-visit POs / Bills / Credit Notes / Returns / Expenses / Statements list pages to confirm no regressions from earlier phases.
+4. Add a short "Purchases app — complete" note at the top of `docs/design-system/audit/purchases.md` with the guard-test filename.
 
-## Phase F — Finance (full app)
+## Phase I — Inventory (starts after Purchases signs off)
 
-Order: read-only + peek surfaces first so object-page destinations exist before create/edit routes are wired.
+Preliminary target list, to be confirmed by re-auditing `src/pages/{Warehouses,Inventory,UomManagement,StockTransfers,StockAdjustments}.tsx`:
 
-**F.1 Journal Entry family**
-- `/finance/journal-entries/:id` (`RecordScaffold`) + `?peek=<id>` (`PeekScaffold`) with debit/credit `LineItemsGrid`.
-- `/finance/journal-entries/new` + `/:id/edit` on `RecordFormShell` with balanced-entry validation client-side + DB constraint.
-- `BusinessTransactionDialog` → same `/new?template=business` route with a template selector step; delete the dialog.
-- `RecurringJournalDialog` → `/finance/recurring-journals/{new,:id/edit,:id}` + `?peek=<id>` on `RecordFormShell` / `RecordScaffold`; delete the dialog.
+- **Stock Transfer** — route + `RecordFormShell` create/edit, `PeekScaffold` peek, `RecordScaffold` view. Line items via `LineItemsGrid`.
+- **Stock Adjustment** — same 4-surface set. Reversal stays a `Dialog` (confirm).
+- **Warehouse** — `DetailSheet` create/edit + `PeekSheet` (small config record, ≤6 fields).
+- **UoM Category / Unit** — `DetailSheet` create/edit (config records).
+- **Product / Item Record** — audit; if a full record page already exists, only migrate any remaining Create/Edit dialogs.
 
-**F.2 Chart of Accounts + Fiscal**
-- `/finance/accounts/{new,:id/edit}` on `RecordFormShell`.
-- Fiscal Period → `DetailSheet` (≤6 fields).
-- Year-End Close → `/finance/fiscal-periods/close` `WizardShell` (period selection → validation → post → confirmation).
+Deliverables mirror Purchases:
+- `src/features/inventory/<entity>/…` for pages + shared body/hook.
+- Routes under `src/apps/inventory/routes.tsx`.
+- New audit ledger `docs/design-system/audit/inventory.md`.
+- Architecture guard `src/test/architecture/inventory-record-dialog-ban.test.ts` (empty allowlist, mirrors purchases guard).
 
-**F.3 Budgets, Fixed Assets, Analytic**
-- Budgets → `/finance/budgets/{new,:id/edit,:id}` on `RecordFormShell` (line grid for account budgets).
-- Fixed Assets → same 4 surfaces + `?peek=<id>` `PeekScaffold`.
-- Analytic Account → `DetailSheet`.
+Phase F (Finance) follows the same template after Inventory signs off — scope determined from a fresh audit at that point.
 
-**F.4 Banking**
-- Bank Account: `/finance/banking/accounts/{new,:id/edit}`; delete `ConnectBankDialog` + `EditBankAccountDialog`.
-- Bank Reconciliation: `/finance/reconciliation/new` `WizardShell` (start ← `StartReconciliationDialog`; workspace row matching ← `ReconcileTransactionDialog`; bank-transfer match ← `TransferReconcileDialog`; commit). `/finance/reconciliation/:id` `RecordScaffold` split-view for the workspace.
-- Bank Transactions Import → `/finance/banking/:id/import` `WizardShell` (file → mapping → preview → commit).
-- Transaction Matching Rules → `/finance/banking/rules` list + `RecordFormShell` for new/edit.
+## Out of scope
 
-**F.5 Customer Credits**
-- Apply Credit → `/finance/customer-credits/:id/apply` `WizardShell`.
-- Process Refund → `/finance/customer-credits/:id/refund` `WizardShell`.
-
-**F.6 Legacy delete**
-- Delete `CreditNoteDetailDialog.tsx` — Sales already owns the surface.
-
-**F.7 Close-out**
-- Every ledger row → `Done`.
-- Shrink `finance-record-dialog-ban.test.ts` allowlist to `{ApplyDefaultMappingsDialog}` (permanent confirm-style).
-- Add inline-dialog grep assertion for `src/pages/finance/*.tsx`.
-
-## Cross-cutting invariants
-
-- Every new route: `WorkspaceShell` → `PageHeader` → `PageBody` → `Section` from `@/design-system`. No bespoke shell markup.
-- Every create/edit route: `RecordFormShell` + `useRecordFormSubmit`. No hand-rolled `<form>`, no bespoke Save/Cancel pair.
-- Every peek: `PeekScaffold` / `DocumentPeekShell` reading via `useDocumentRecord` (or entity wrapper). Body reuses the same `*RecordBody` as the object page for peek/full parity.
-- Design tokens only (`--ds-*`); no hardcoded colors/sizes.
-- Responsive: two-column `FieldGrid` collapses to single-column at `sm:`; sticky `FooterActionBar` anchored to viewport bottom.
-- TanStack Router flat-dot filenames; `createFileRoute` string matches generated id exactly.
-- Guard-test allowlists only shrink.
-- Update `mem://index.md` core rule allowlist counts as each phase closes (inventory 5→0, finance 14→1).
-
-## Verification per app (checklist)
-
-1. `bunx vitest run src/test/architecture/<app>-record-dialog-ban.test.ts` — green.
-2. `rg -n "Dialog|Drawer" src/pages/<app-dirs>` — no create/edit/detail matches for the app's own records.
-3. `tsgo` clean.
-4. Manual click-through: list → row → `?peek=<id>` opens; "Open full page" → `/:id`; "New" → `/new`; edit → `/:id/edit`; submit → object page.
-5. Ledger flipped to `Done` in `docs/design-system/audit/<app>.md`.
-
-## Technical notes
-
-- Reusable primitives already in `@/design-system` — do not duplicate: `RecordShell`, `RecordFormShell`, `RecordHeader`, `Section`, `FieldGrid`, `FooterActionBar`, `SummaryPanel`, `LineItemsGrid`, `DocumentTotalsPanel`, `DocumentActivityPanel`, `PeekScaffold`, `DocumentPeekShell`, `useDocumentRecord`, `usePeekParam`, `useRecordFormSubmit`, `WizardShell`.
-- Extend `RecordShell` with `variant="split"` for reconciliation workspace instead of creating a new shell.
-- Each entity gets a `use<Entity>Record` wrapper (same pattern as `useEstimateRecord`) shared by peek sheet + record page.
-- Not in scope: DB schema, RLS, RPC surface, business logic, POS, HR/Payroll, Contacts create/edit (owned by Contacts module).
-
-## Starting point after approval
-
-Begin at **P.2 Vendor Statements**, then P.3 RFQs, then Purchases close-out, then move into Inventory Phase I.
+- No changes to business logic or DB schema — only interaction/composition.
+- Email / send / print dialogs stay `Dialog` (correct pattern).
+- Action confirmations (Approve, Cancel, Award, Apply Credit, Reverse) stay `Dialog`.
