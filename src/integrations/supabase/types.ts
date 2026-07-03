@@ -56836,11 +56836,11 @@ export type Database = {
       _ss_authorize: {
         Args: { p_id: string; p_permission: string }
         Returns: {
-          archived_at: string
-          biz_id: string
-          is_active: boolean
-          org_id: string
-          structure_name: string
+          out_archived_at: string
+          out_biz_id: string
+          out_is_active: boolean
+          out_org_id: string
+          out_structure_name: string
         }[]
       }
       _talent_guard_on: { Args: never; Returns: boolean }
