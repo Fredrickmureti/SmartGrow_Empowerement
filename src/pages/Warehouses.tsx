@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { WarehousePeekSheet } from "@/components/warehouses/WarehousePeekSheet";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useWarehouses, Warehouse, StockTransfer } from "@/hooks/useWarehouses";
 import { useProducts } from "@/hooks/useProducts";
