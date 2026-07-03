@@ -69,6 +69,37 @@ export interface PayslipLine {
   accounting_tag: string | null;
 }
 
+/**
+ * Phase 3 — Per-expression provenance trace.
+ *
+ * When callers pass a `traceSink`, `runStructureEngine` records one row
+ * per rule it evaluates capturing exactly which expression fired, which
+ * base/context bindings it saw, and the resolved amount. The trace is
+ * additive (no engine-behaviour change) and lets the historical
+ * simulator + audit UI reproduce per-line math without re-running the
+ * whole engine speculatively.
+ *
+ * `dependencies` is the list of top-level identifiers the expression
+ * referenced (extracted from the AST via `extractIdentifiers`), same
+ * source of truth the cycle detector uses. Downstream tools can build a
+ * DAG visualisation from this without re-parsing.
+ */
+export interface StructureRuleTrace {
+  rule_id: string;
+  rule_code: string;
+  sequence: number;
+  category: string;
+  condition_expression: string | null;
+  condition_passed: boolean;
+  amount_select: SalaryRule["amount_select"];
+  amount_expression: string | null;
+  amount_base: string | null;
+  base_value: number;
+  dependencies: string[];
+  resolved_amount: number;
+  error: string | null;
+}
+
 export interface StructureEngineInput {
   rules: SalaryRule[];
   workEntryTypes: WorkEntryType[];
@@ -77,6 +108,8 @@ export interface StructureEngineInput {
   contract: PayrollContext["contract"];
   /** Optional resolver for `statutory_ref` rules — usually delegates to the legacy statutory engine. */
   statutoryResolver?: (statutoryRuleId: string, ctx: PayrollContext) => number;
+  /** Optional per-rule provenance trace. Additive; caller owns storage. */
+  traceSink?: StructureRuleTrace[];
 }
 
 export interface StructureEngineResult {
@@ -89,6 +122,137 @@ export class StructureEngineError extends Error {
   constructor(message: string, public code: string, public ruleCode?: string) {
     super(message);
   }
+}
+
+// ─── Phase 3 — Dependency graph + cycle detection ─────────────────────────
+
+/** Identifiers that are BUILT-IN running totals, not sibling rule codes. */
+const BUILTIN_BASES = new Set(["BASIC", "GROSS", "TAXABLE", "NET"]);
+/** Roots of context objects (member accesses like `employee.department`). */
+const CTX_ROOTS = new Set(["employee", "contract", "worked_hours", "worked_days", "result"]);
+
+/**
+ * Extract the sibling-rule dependencies a rule declares.
+ *
+ * Sources of dependency edges (all coalesced):
+ *   1. `parent_rule_id` — explicit parent linkage from the editor.
+ *   2. `amount_base` when it references another rule code (i.e. not one
+ *      of BASIC/GROSS/TAXABLE/NET).
+ *   3. Identifiers pulled from `condition_expression` and
+ *      `amount_expression` via `extractIdentifiers`, filtered to actual
+ *      rule codes in the current rule set (built-in bases and context
+ *      roots are dropped).
+ *
+ * Returned as rule *codes*; the graph builder resolves them to ids.
+ */
+function ruleDependencies(rule: SalaryRule, codeSet: Set<string>): string[] {
+  const deps = new Set<string>();
+  // Explicit editor linkage
+  if (rule.parent_rule_id) {
+    // parent id → resolved by the caller (we return codes only); include
+    // as a synthetic edge via `__parent__:<id>` so cycle detection sees it.
+    deps.add(`__parent__:${rule.parent_rule_id}`);
+  }
+  // Percentage rules that reference a sibling code as their base
+  if (
+    rule.amount_select === "percentage" &&
+    rule.amount_base &&
+    !BUILTIN_BASES.has(rule.amount_base) &&
+    codeSet.has(rule.amount_base)
+  ) {
+    deps.add(rule.amount_base);
+  }
+  // Expression dependencies — parse both condition and amount
+  const scan = (src: string | null | undefined) => {
+    if (!src) return;
+    let ids: string[] = [];
+    try {
+      ids = extractIdentifiers(src);
+    } catch {
+      // Bad expressions surface later via the evaluator; ignore here so
+      // cycle detection still runs on the rules with valid syntax.
+      return;
+    }
+    for (const id of ids) {
+      if (BUILTIN_BASES.has(id) || CTX_ROOTS.has(id)) continue;
+      if (codeSet.has(id)) deps.add(id);
+    }
+  };
+  if (rule.condition_select === "expression") scan(rule.condition_expression);
+  if (rule.amount_select === "expression") scan(rule.amount_expression);
+  return [...deps];
+}
+
+/**
+ * Return a topological order of rules honoring:
+ *   - `sequence` as the natural tie-breaker (matches editor-visible order)
+ *   - dependency edges from `ruleDependencies`
+ *
+ * Detects cycles via DFS coloring. On cycle, returns `{ cycle: [codes] }`
+ * — the caller emits it as a `StructureEngineResult.errors` entry and
+ * short-circuits the run (a cycle is a payroll-blocking authoring bug).
+ */
+export function topoSortRules(
+  rules: SalaryRule[],
+): { ordered: SalaryRule[] } | { cycle: string[] } {
+  const active = rules.filter((r) => r.is_active);
+  const byId = new Map(active.map((r) => [r.id, r]));
+  const byCode = new Map(active.map((r) => [r.code, r]));
+  const codeSet = new Set(byCode.keys());
+
+  // Build adjacency: from dependency → this rule (Kahn semantics).
+  const deps = new Map<string, Set<string>>();
+  for (const r of active) deps.set(r.id, new Set());
+  for (const r of active) {
+    for (const d of ruleDependencies(r, codeSet)) {
+      let depId: string | undefined;
+      if (d.startsWith("__parent__:")) {
+        depId = d.slice("__parent__:".length);
+      } else {
+        depId = byCode.get(d)?.id;
+      }
+      if (!depId || !byId.has(depId) || depId === r.id) continue;
+      deps.get(r.id)!.add(depId);
+    }
+  }
+
+  // DFS with three colors: white/grey/black. Grey re-entry = cycle.
+  const color = new Map<string, 0 | 1 | 2>();
+  const stack: string[] = [];
+  const ordered: SalaryRule[] = [];
+  const roots = [...active].sort((a, b) => a.sequence - b.sequence);
+
+  const visit = (id: string): string[] | null => {
+    const c = color.get(id) ?? 0;
+    if (c === 2) return null;
+    if (c === 1) {
+      // Cycle — reconstruct from the current DFS stack.
+      const idx = stack.indexOf(id);
+      const cyc = stack.slice(idx).concat(id).map((x) => byId.get(x)!.code);
+      return cyc;
+    }
+    color.set(id, 1);
+    stack.push(id);
+    const outgoing = [...deps.get(id)!].sort((a, b) => {
+      const sa = byId.get(a)?.sequence ?? 0;
+      const sb = byId.get(b)?.sequence ?? 0;
+      return sa - sb;
+    });
+    for (const d of outgoing) {
+      const cyc = visit(d);
+      if (cyc) return cyc;
+    }
+    stack.pop();
+    color.set(id, 2);
+    ordered.push(byId.get(id)!);
+    return null;
+  };
+
+  for (const r of roots) {
+    const cyc = visit(r.id);
+    if (cyc) return { cycle: cyc };
+  }
+  return { ordered };
 }
 
 // ─── Work entry aggregation ──────────────────────────────────────────────
