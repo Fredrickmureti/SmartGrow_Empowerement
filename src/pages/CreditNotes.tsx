@@ -73,8 +73,8 @@ import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 import { usePeekParam } from "@/features/sales/record";
-import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
-import { ProcessRefundDialog } from "@/components/finance/ProcessRefundDialog";
+// Apply-credit + refund flows are dedicated wizard routes under
+// /finance/customer-credits/:id/apply and /:id/refund — see rewires below.
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { RefreshButton } from "@/components/ui/RefreshButton";
