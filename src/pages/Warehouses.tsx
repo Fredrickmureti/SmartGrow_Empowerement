@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useWarehouses, Warehouse, StockTransfer } from "@/hooks/useWarehouses";
 import { useProducts } from "@/hooks/useProducts";
@@ -67,12 +68,11 @@ import { PermissionGate } from "@/components/common/PermissionGate";
 import { normalizeError } from "@/services/resilience";
 
 export default function Warehouses() {
+  const navigate = useNavigate();
   const {
     warehouses,
     transfers,
     isLoading,
-    createWarehouse,
-    updateWarehouse,
     deleteWarehouse,
     createStockTransfer,
     approveTransfer,
@@ -85,25 +85,9 @@ export default function Warehouses() {
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { branches, currentBranch } = useBranches();
   const [activeTab, setActiveTab] = useState("warehouses");
-  const [showWarehouseDialog, setShowWarehouseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
-  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [warehouseForm, setWarehouseForm] = useState({
-    name: "",
-    code: "",
-    address: "",
-    city: "",
-    country: "",
-    is_default: false,
-    branch_id: "" as string,
-    manager_name: "",
-    manager_email: "",
-    manager_phone: "",
-    is_active: true,
-  });
 
   const [transferForm, setTransferForm] = useState({
     from_warehouse_id: "",
@@ -112,23 +96,6 @@ export default function Warehouses() {
     notes: "",
     items: [{ product_id: "", quantity: 1 }],
   });
-
-  const resetWarehouseForm = () => {
-    setWarehouseForm({
-      name: "",
-      code: "",
-      address: "",
-      city: "",
-      country: "",
-      is_default: false,
-      branch_id: "",
-      manager_name: "",
-      manager_email: "",
-      manager_phone: "",
-      is_active: true,
-    });
-    setEditingWarehouse(null);
-  };
 
   const resetTransferForm = () => {
     setTransferForm({
@@ -140,89 +107,20 @@ export default function Warehouses() {
     });
   };
 
-  const handleOpenWarehouseDialog = (warehouse?: Warehouse) => {
+  const handleOpenWarehouseCreate = () => {
     if (isReadOnly) {
       openUpgradeModal("warehouses");
       return;
     }
-    if (warehouse) {
-      setEditingWarehouse(warehouse);
-      setWarehouseForm({
-        name: warehouse.name,
-        code: warehouse.code || "",
-        address: warehouse.address || "",
-        city: warehouse.city || "",
-        country: warehouse.country || "",
-        is_default: warehouse.is_default,
-        branch_id: warehouse.branch_id ?? "",
-        manager_name: warehouse.manager_name || "",
-        manager_email: warehouse.manager_email || "",
-        manager_phone: warehouse.manager_phone || "",
-        is_active: warehouse.is_active,
-      });
-    } else {
-      resetWarehouseForm();
-      // Pre-select the active branch when one is in scope so single-branch
-      // workspaces are zero-friction and multi-branch users see a sensible
-      // default they can override.
-      if (currentBranch) {
-        setWarehouseForm((f) => ({ ...f, branch_id: currentBranch.id }));
-      }
-    }
-    setShowWarehouseDialog(true);
+    navigate("/inventory-app/warehouses/new");
   };
 
-  const handleSubmitWarehouse = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // A warehouse must live in a branch. Refuse to silently default to the
-    // legacy "company-wide / null" bucket — that was the source of cross-
-    // branch contamination.
-    if (branches.length > 1 && !warehouseForm.branch_id) {
-      toast({
-        title: "Branch required",
-        description: "Pick the branch that owns this warehouse.",
-        variant: "destructive",
-      });
+  const handleOpenWarehouseEdit = (warehouse: Warehouse) => {
+    if (isReadOnly) {
+      openUpgradeModal("warehouses");
       return;
     }
-    setIsSubmitting(true);
-
-    try {
-      const data = {
-        name: warehouseForm.name,
-        code: warehouseForm.code,
-        address: warehouseForm.address || null,
-        city: warehouseForm.city || null,
-        country: warehouseForm.country || null,
-        is_default: warehouseForm.is_default,
-        branch_id:
-          warehouseForm.branch_id ||
-          currentBranch?.id ||
-          null,
-        manager_name: warehouseForm.manager_name || null,
-        manager_email: warehouseForm.manager_email || null,
-        manager_phone: warehouseForm.manager_phone || null,
-        is_active: warehouseForm.is_active,
-      };
-
-      if (editingWarehouse) {
-        await updateWarehouse(editingWarehouse.id, data);
-        toast({ title: "Warehouse updated successfully" });
-      } else {
-        await createWarehouse(data);
-        toast({ title: "Warehouse created successfully" });
-      }
-      setShowWarehouseDialog(false);
-      resetWarehouseForm();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    navigate(`/inventory-app/warehouses/${warehouse.id}/edit`);
   };
 
   const handleSubmitTransfer = async (e: React.FormEvent) => {
