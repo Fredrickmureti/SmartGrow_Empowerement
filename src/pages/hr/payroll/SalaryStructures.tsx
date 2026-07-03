@@ -27,8 +27,6 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useSalaryStructures } from "@/hooks/useSalaryStructures";
 import { usePublishRuleSet, useRuleSetVersions } from "@/hooks/payroll/useSalaryRuleSets";
 import { RuleSetComponentsTable } from "@/components/payroll/PayrollRuleSetPanel";
-import { validateExpression as _reservedForPhase3 } from "@/lib/payroll/expressionValidator";
-void _reservedForPhase3;
 
 
 type ComponentDraft = {
