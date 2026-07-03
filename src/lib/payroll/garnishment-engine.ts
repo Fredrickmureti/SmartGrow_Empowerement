@@ -1,24 +1,36 @@
 /**
- * Pure garnishment computation engine.
+ * Pure garnishment computation engine (browser mirror).
  *
- * Mirrors the clamping algorithm in supabase/functions/compute-payroll/index.ts
- * (Turn C: garnishments). Lives here so it can be unit-tested without booting
- * the Deno edge function runtime, and so future fixes have one single place
- * to update.
+ * ─────────────────────────────────────────────────────────────────────────
+ * Phase 2 — This file mirrors `supabase/functions/_shared/garnishment-engine.ts`
+ * byte-for-byte on the shared subset of the algorithm. The Deno edge
+ * function cannot import from `src/`, so the code is duplicated and
+ * kept in sync manually. Any edit here MUST be applied to the shared
+ * mirror in the same commit (an architecture test asserts equality).
  *
- * Algorithm:
+ * The FULL production algorithm — including per-period carry-forward
+ * (`pendingCfByGarn`, `cfInserts`), `total_accrued` cap and employer
+ * admin-fee bookkeeping — lives inline in
+ * `supabase/functions/compute-payroll/index.ts` (Turn C: garnishments,
+ * ~line 2546). Those pieces are DB-integrated and cannot be reduced to
+ * a pure function without threading a large amount of run-level state.
+ * Consolidation into a single canonical `garnishmentEngine.ts` module is
+ * tracked as Phase 2 follow-up (see `.lovable/plan.md`).
+ *
+ * Algorithm (shared subset):
  *   1. disposable = max(0, gross − preGarnishmentDeductions)
  *   2. aggregateCapPool = disposable × org.aggregate_cap_pct  (∞ if null)
  *      — only orders flagged counts_toward_aggregate_cap consume from this pool.
- *   3. floor = max(org.min_take_home_amount, gross × org.min_take_home_pct, perOrder.min_take_home_amount)
+ *   3. floor = max(org.min_take_home_amount, gross × org.min_take_home_pct,
+ *                  perOrder.min_take_home_amount)
  *   4. For each order in priority order:
  *        raw = cap_rule formula
  *        clamp to remaining owed
  *        clamp to floor headroom
  *        clamp to disposableRemaining
  *        clamp to cappedPoolRemaining (only if counts toward cap)
- *
- * The compute-payroll edge function still owns DB I/O; this file is the math.
+ *      Record employer admin fee (kindDefault.employer_fee_amount) on
+ *      the applied row; caller books it as an employer_contribution.
  */
 
 export type GarnishmentCapRule = "fixed_amount" | "percent_disposable" | "lesser_of_fixed_or_pct";
@@ -44,6 +56,10 @@ export interface GarnishmentPolicy {
 
 export interface KindDefault {
   counts_toward_aggregate_cap: boolean;
+  always_first?: boolean;
+  default_priority?: number;
+  employer_fee_amount?: number | null;
+  employer_fee_account_role?: string | null;
 }
 
 export interface GarnishmentApplied {
@@ -51,6 +67,8 @@ export interface GarnishmentApplied {
   code: string;
   label: string;
   amount: number;
+  employer_fee_amount: number;
+  employer_fee_account_role: string | null;
 }
 
 export interface ComputeArgs {
@@ -87,8 +105,8 @@ export function computeGarnishments(args: ComputeArgs): ComputeResult {
 
   for (const g of orders) {
     if (disposableRemaining <= 0) break;
-    const countsTowardCap =
-      !g.aggregate_cap_exempt && (kindDefaults[g.kind]?.counts_toward_aggregate_cap ?? true);
+    const kd = kindDefaults[g.kind];
+    const countsTowardCap = !g.aggregate_cap_exempt && (kd?.counts_toward_aggregate_cap ?? true);
     if (countsTowardCap && cappedPoolRemaining <= 0) continue;
 
     let raw = 0;
@@ -121,11 +139,17 @@ export function computeGarnishments(args: ComputeArgs): ComputeResult {
     const key = `garnishment_${g.id}`;
     disposableRemaining -= amt;
     if (countsTowardCap) cappedPoolRemaining -= amt;
+
+    const feeRaw = Number(kd?.employer_fee_amount || 0);
+    const employerFee = feeRaw > 0 ? Math.round(feeRaw * 100) / 100 : 0;
+
     applied.push({
       id: g.id,
       code: key,
       label: `${g.kind}${g.case_reference ? ` (${g.case_reference})` : ""}`,
       amount: amt,
+      employer_fee_amount: employerFee,
+      employer_fee_account_role: kd?.employer_fee_account_role ?? null,
     });
   }
 

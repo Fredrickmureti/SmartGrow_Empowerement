@@ -4,14 +4,34 @@
  * Used by the editor's RuleSimulator panel to preview employee/employer
  * deductions BEFORE a statutory rule is saved. Operates on the same
  * `parameters` payload shape that `pack_rule_type_schemas` JSON-Schemas
- * already validate, so authoring-time UI and runtime payroll cannot drift
- * on shape (only the evaluator semantics need to track production).
+ * already validate.
  *
- * NOT the production payroll engine. Production payroll uses
- * `compute-payroll/structureEngine.ts`, which references statutory rules
- * via `statutory_ref` salary-rule rows. This module mirrors the math
- * applied to the same parameter shapes so the simulator gives a faithful
- * preview without round-tripping to the edge function.
+ * ─────────────────────────────────────────────────────────────────────────
+ * Phase 2 — Alignment with the production engine
+ * (compute-payroll/index.ts:computeOneRule).
+ *
+ * 1. Dispatch key. The production engine dispatches on
+ *    `payroll_statutory_rules.computation_method` (a top-level column).
+ *    Pack authoring uses `parameters.type` as the schema discriminator.
+ *    Both are accepted here; when both are provided,
+ *    `computation_method` (passed as the 4th arg) wins and
+ *    `parameters.type` is a fallback. The mapping in ENGINE_METHOD_TO_KIND
+ *    is the single source of truth for the alias table.
+ *
+ * 2. Rate semantics. The engine's `pct(n) = Number(n)/100` always treats
+ *    the raw value as PERCENT (e.g. 10 → 0.10). The previous
+ *    `rateAsFraction` heuristic in this file — treating rate ≤ 1 as
+ *    already-fractional and rate > 1 as percent — silently diverged from
+ *    production for any pack that stores rates as decimals. Removed.
+ *    Packs (and this simulator) must express rates as percent.
+ *
+ * 3. `ceiling` vs `cap`. Both names are accepted (the engine now aliases
+ *    `ceiling → cap`), so the simulator honours whichever the pack ships.
+ *
+ * NOT the production payroll engine. Production payroll still runs
+ * `compute-payroll/index.ts:computeOneRule` server-side. This module is a
+ * faithful preview so authoring-time output cannot drift from what a real
+ * payroll run would produce for the same parameter shape.
  */
 
 export interface SimulatorInputs {
@@ -49,12 +69,45 @@ const safeNum = (v: any, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-/** Detect whether a `rate` field is expressed in percent (0..100) or fraction (0..1). */
-function rateAsFraction(rate: number): number {
-  if (!Number.isFinite(rate)) return 0;
-  // Heuristic: anything > 1 is treated as a percent value (10 → 0.10).
-  return rate > 1 ? rate / 100 : rate;
+/**
+ * Convert a percent-shaped rate (e.g. 10 for 10%) to a fraction (0.10).
+ * MUST match `pct` in compute-payroll/index.ts. Rates < 1 are NOT auto-
+ * promoted to fractions — a decimal is treated as a very small percent,
+ * exactly as production does, so authoring mistakes surface here instead
+ * of silently producing wrong payslips.
+ */
+const pct = (rate: unknown): number => (Number(rate) || 0) / 100;
+
+/**
+ * Read a cap value from parameters. Packs and schemas historically ship
+ * either `cap` or `ceiling` for the same concept; the engine now accepts
+ * both. Keep the alias list in one place.
+ */
+function readCap(p: any): number | null {
+  const raw = p?.cap ?? p?.ceiling;
+  if (raw === null || raw === undefined) return null;
+  const n = safeNum(raw, NaN);
+  return Number.isFinite(n) ? n : null;
 }
+
+/**
+ * Maps `payroll_statutory_rules.computation_method` values (as consumed by
+ * `compute-payroll/index.ts:computeOneRule`) to the simulator's internal
+ * dispatch keys. Kept as a data table so an arch test can assert both
+ * sides stay in lockstep as new methods are added.
+ */
+export const ENGINE_METHOD_TO_KIND: Record<string, string> = {
+  bracket_progressive: "progressive",
+  tiered_brackets: "tiered_employer_employee",
+  tiered: "tiered_employer_employee",
+  percentage_of_gross: "percentage",
+  percentage: "percentage",
+  graduated_table: "graduated",
+  graduated: "graduated",
+  flat_amount: "flat",
+  fixed: "flat",
+  per_employee_flat: "flat",
+};
 
 function pickBracketKeys(brackets: any[]): { lowerKey: string; upperKey: string } {
   const sample = brackets[0] ?? {};
@@ -94,7 +147,7 @@ function applyProgressive(
     if (taxable <= lo) break;
     const slice = Math.max(0, Math.min(taxable, up) - lo);
     if (slice <= 0) continue;
-    const fraction = rateAsFraction(safeNum(b.rate, 0));
+    const fraction = pct(safeNum(b.rate, 0));
     const amount = slice * fraction;
     tax += amount;
     result.breakdown.push({
@@ -109,13 +162,23 @@ function applyProgressive(
 }
 
 /**
- * Main simulator entry. Country-agnostic: dispatches off `parameters.type`
- * (the `computation_kind` discriminator from the JSON-Schema registry).
+ * Main simulator entry.
+ *
+ * Dispatch precedence:
+ *   1. Explicit `computation_method` (mirrors the engine's dispatch on
+ *      `payroll_statutory_rules.computation_method`) mapped via
+ *      ENGINE_METHOD_TO_KIND.
+ *   2. Otherwise `parameters.type` (the pack JSON-Schema discriminator).
+ *
+ * Callers that have the DB row available (e.g. RuleSimulator inside
+ * RuleForm) SHOULD pass `computation_method` so the preview cannot drift
+ * from the engine even when a pack has stale `parameters.type` values.
  */
 export function simulateRule(
   rule_type: string,
   parameters: any,
   inputs: SimulatorInputs,
+  computation_method?: string | null,
 ): SimulationResult {
   const result: SimulationResult = {
     employee_amount: 0,
@@ -130,9 +193,10 @@ export function simulateRule(
     return result;
   }
 
-  const kind = parameters.type;
+  const methodKey = (computation_method || "").toString().toLowerCase();
+  const kind = (methodKey && ENGINE_METHOD_TO_KIND[methodKey]) || parameters.type;
   const gross = safeNum(inputs.gross, 0);
-  const housing = safeNum(inputs.housing, 0);
+  const _housing = safeNum(inputs.housing, 0);
   const pension = safeNum(inputs.pension, 0);
 
   // Common taxable derivation: gross − pension, capped by an optional
@@ -173,17 +237,14 @@ export function simulateRule(
 
   // ── Statutory deduction / percentage ───────────────────────────────────
   if (kind === "percentage") {
-    const fraction = rateAsFraction(safeNum(parameters.rate, 0));
+    const fraction = pct(safeNum(parameters.rate, 0));
     const baseLabel: string = parameters.base ?? "gross";
     const baseAmount = baseLabel === "taxable" ? taxable : gross;
     let amount = baseAmount * fraction;
-    const cap = parameters.cap;
-    if (cap !== null && cap !== undefined) {
-      const capN = safeNum(cap, Infinity);
-      if (amount > capN) {
-        result.explanation.push(`Computed ${round2(amount).toLocaleString()} exceeds cap ${capN.toLocaleString()} — capped.`);
-        amount = capN;
-      }
+    const capN = readCap(parameters);
+    if (capN !== null && amount > capN) {
+      result.explanation.push(`Computed ${round2(amount).toLocaleString()} exceeds cap ${capN.toLocaleString()} — capped.`);
+      amount = capN;
     }
     result.breakdown.push({
       label: `${parameters.label ?? "Deduction"} (${(fraction * 100).toFixed(2)}% of ${baseLabel})`,
@@ -202,8 +263,8 @@ export function simulateRule(
   // ── Statutory deduction / flat ─────────────────────────────────────────
   if (kind === "flat") {
     const amount = safeNum(parameters.amount, 0);
-    const cap = parameters.cap;
-    const final = cap == null ? amount : Math.min(amount, safeNum(cap, Infinity));
+    const capN = readCap(parameters);
+    const final = capN === null ? amount : Math.min(amount, capN);
     result.breakdown.push({
       label: `${parameters.label ?? "Flat deduction"}`,
       base: 0,
@@ -217,13 +278,11 @@ export function simulateRule(
 
   // ── Pension (employee + employer mirror) ───────────────────────────────
   if (kind === "pension") {
-    const fraction = rateAsFraction(safeNum(parameters.rate, 0));
+    const fraction = pct(safeNum(parameters.rate, 0));
     const baseAmount = gross;
     let amount = baseAmount * fraction;
-    const cap = parameters.cap;
-    if (cap !== null && cap !== undefined) {
-      amount = Math.min(amount, safeNum(cap, Infinity));
-    }
+    const capN = readCap(parameters);
+    if (capN !== null) amount = Math.min(amount, capN);
     result.breakdown.push({
       label: `Pension employee (${(fraction * 100).toFixed(2)}%)`,
       base: round2(baseAmount),
@@ -263,8 +322,8 @@ export function simulateRule(
       if (gross <= lo) break;
       const slice = Math.max(0, Math.min(gross, up) - lo);
       if (slice <= 0) continue;
-      const eFrac = rateAsFraction(safeNum(t.employee_rate, 0));
-      const rFrac = rateAsFraction(safeNum(t.employer_rate, 0));
+      const eFrac = pct(safeNum(t.employee_rate, 0));
+      const rFrac = pct(safeNum(t.employer_rate, 0));
       const eAmt = slice * eFrac;
       const rAmt = slice * rFrac;
       employeeTotal += eAmt;
