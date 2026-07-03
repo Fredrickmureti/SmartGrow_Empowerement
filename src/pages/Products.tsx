@@ -599,7 +599,7 @@ export default function Products() {
                   <Upload className="mr-2 h-4 w-4" />
                   Import
                 </Button>
-                <Button onClick={() => handleOpenDialog()} className="flex-1 sm:flex-none">
+                <Button onClick={() => openCreate()} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Item
                 </Button>
@@ -847,7 +847,7 @@ export default function Products() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleOpenDialog(product)}>
+                              <DropdownMenuItem onClick={() => openEdit(product)}>
                                 <Pencil className="mr-2 h-4 w-4" />
                                 Edit
                               </DropdownMenuItem>
@@ -922,7 +922,7 @@ export default function Products() {
           onOpenChange={setShowDetailDialog}
           onEdit={(id) => {
             const p = products.find((x) => x.id === id);
-            if (p) handleOpenDialog(p);
+            if (p) openEdit(p);
           }}
           onDelete={(id) => {
             const p = products.find((x) => x.id === id);
