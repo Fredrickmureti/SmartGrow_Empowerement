@@ -37,11 +37,11 @@ const INVENTORY_GLOBS = [
  * dialogs MAY NOT be added — this list only shrinks.
  */
 const LEGACY_DIALOG_ALLOWLIST = new Set<string>([
-  "src/components/inventory/AdjustmentDetailDrawer.tsx",
   "src/components/inventory/MovementDetailDrawer.tsx",
   "src/components/inventory/SourceDocumentDrawer.tsx",
   "src/components/inventory/TransferDetailDrawer.tsx",
   "src/components/inventory/WarehouseStockDrawer.tsx",
+  // AdjustmentDetailDrawer migrated to AdjustmentPeekSheet.
   // ReverseAdjustmentDialog is a confirm-style dialog and target says "keep".
 ]);
 
