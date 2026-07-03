@@ -77,7 +77,7 @@ export default function WarehouseView() {
           docNumber={warehouse.code || undefined}
           status={
             <div className="flex flex-wrap gap-1">
-              <StatusBadge tone={warehouse.is_active ? "success" : "muted"}>
+              <StatusBadge tone={warehouse.is_active ? "success" : "neutral"}>
                 {warehouse.is_active ? "Active" : "Inactive"}
               </StatusBadge>
               {warehouse.is_default && <Badge variant="outline">Default</Badge>}
