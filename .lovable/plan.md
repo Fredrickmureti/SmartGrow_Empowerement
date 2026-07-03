@@ -146,7 +146,7 @@ Each phase is independently shippable, backward-compatible, and gated by pgTAP +
 - `closePeriod` / `reopenPeriod` in `usePayrollPeriods` route through the atomic RPCs; toasts show blocker summary when refused.
 - Architecture test forbidding client `UPDATE payroll_periods SET status`.
 
-### Phase 6 — Correction & archival
+### Phase 6 — Correction & archival ✅ shipped
 - Formalize `closed → reopened → preparing → closed_v2` path emitting correction runs (leverages existing `payroll_correction_adjustments`).
 - `payroll_period_archive(period_id)` after retention window; archived periods refuse all writes, including reopen, without platform-admin override.
 - Multi-country: add `country_code` on `pay_schedules` for statutory calendar alignment; wire `payroll_return_runs.period_id`.
