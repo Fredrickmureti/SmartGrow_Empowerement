@@ -1,5 +1,15 @@
 # Purchases — Enterprise UX Audit
 
+> **2026-07 follow-up.** The Bill row was marked Done after `BillRecordPage`
+> shipped at `/purchases/bills/new`, but `src/pages/Bills.tsx` still opened
+> the legacy inline `<Dialog>` on "Add Bill". The list page now navigates to
+> the record route (and the `?action=create` deep-link redirects there too).
+> The guard test
+> [`purchases-record-dialog-ban`](../../../src/test/architecture/purchases-record-dialog-ban.test.ts)
+> gained a third assertion that scans list pages for inline `<Dialog>`
+> record-create/edit blocks so this class of regression fails CI.
+
+
 Companion to [`docs/design-system/records.md`](../records.md). Tracks every
 create / edit / duplicate / convert / configure / peek surface in the
 Purchases application against the enterprise UX standard.

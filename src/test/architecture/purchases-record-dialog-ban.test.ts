@@ -56,6 +56,38 @@ function scanRecordDialogs(): string[] {
   );
 }
 
+/**
+ * List pages under `src/pages` in the Purchases surface. Each one must
+ * navigate to a `/new` or `/:id/edit` route for record create/edit —
+ * inline `<Dialog>`s titled "Add/Create/New/Edit <Entity>" are what
+ * regressed Bills after the RecordFormShell landed and are exactly the
+ * loophole this scan closes.
+ */
+const PURCHASES_LIST_PAGES = [
+  "src/pages/Bills.tsx",
+  "src/pages/PurchaseOrders.tsx",
+  "src/pages/Expenses.tsx",
+  "src/pages/CreditNotes.tsx",
+  "src/pages/PurchaseReturns.tsx",
+  "src/pages/RFQs.tsx",
+  "src/pages/VendorStatements.tsx",
+  "src/pages/VendorPriceLists.tsx",
+];
+
+const INLINE_RECORD_DIALOG_TITLE =
+  /<DialogTitle[^>]*>\s*(?:Add|Create|New|Edit)\s+(Bill|Purchase\s+Order|Expense|Credit\s+Note|Return|RFQ|Vendor)\b/i;
+
+function scanInlineRecordDialogs(): string[] {
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const leaked: string[] = [];
+  for (const p of PURCHASES_LIST_PAGES) {
+    if (!existsSync(p)) continue;
+    const src = readFileSync(p, "utf8");
+    if (INLINE_RECORD_DIALOG_TITLE.test(src)) leaked.push(p);
+  }
+  return leaked;
+}
+
 describe("purchases record dialog ban", () => {
   it("no NEW Create*Dialog / Edit*Dialog / *DetailDialog files under the Purchases surface", () => {
     const found = scanRecordDialogs();
@@ -77,4 +109,15 @@ describe("purchases record dialog ban", () => {
         `from LEGACY_DIALOG_ALLOWLIST in this test:\n${stale.join("\n")}`,
     ).toEqual([]);
   });
+
+  it("no inline <Dialog> record-create/edit blocks on Purchases list pages", () => {
+    const leaked = scanInlineRecordDialogs();
+    expect(
+      leaked,
+      `Purchases list pages must navigate to /new or /:id/edit on ` +
+        `RecordFormShell — inline <Dialog>Add/Create/Edit <Entity></Dialog> ` +
+        `blocks are banned. Offenders:\n${leaked.join("\n")}`,
+    ).toEqual([]);
+  });
 });
+

@@ -3,10 +3,10 @@ import { BILL_IMPORT_FIELDS } from "@/lib/importConfigs/billImportConfig";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useBills, BillItem, Bill } from "@/hooks/useBills";
+import { useBills, Bill } from "@/hooks/useBills";
 import { useContacts } from "@/hooks/useContacts";
-import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
-import { useProducts } from "@/hooks/useProducts";
+
+
 import { useCurrency } from "@/hooks/useCurrency";
 import { useToast } from "@/hooks/use-toast";
 import { useExport } from "@/hooks/useExport";
@@ -17,7 +17,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { queryKeys } from "@/lib/queryKeys";
-import { usePaymentTerms } from "@/hooks/usePaymentTerms";
+
 import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { ViewSwitcher } from "@/components/common/ViewSwitcher";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
@@ -28,9 +28,6 @@ import { useCustomFieldFiltering } from "@/hooks/useCustomFieldFiltering";
 import { StudioQuickPanelTrigger } from "@/components/studio/StudioQuickPanelTrigger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -47,14 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,7 +86,7 @@ import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
 import { ContactResolver, ProductResolver } from "@/lib/entityResolver";
 import { format, isWithinInterval, parseISO, startOfMonth, endOfMonth } from "date-fns";
-import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
+
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
@@ -110,7 +100,7 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+
 
 // Workflow pipeline for Bills
 function BillWorkflowPipeline({ status }: { status: string }) {
@@ -194,9 +184,8 @@ export default function Bills() {
 
   const { bills, isLoading, getNextBillNumber, createBill, confirmBill, updateBill, deleteBill, voidBill, recordBillPayment, getDefaultDueDate } = useBills();
   const navigate = useNavigate();
-  const { paymentTerms, defaultPaymentTerm } = usePaymentTerms();
   const { contacts } = useContacts();
-  const { products } = useProducts();
+
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
   const { exportBills } = useExport();
@@ -224,7 +213,7 @@ export default function Bills() {
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [isPrinting, setIsPrinting] = useState<string | null>(null);
 
-  const [showDialog, setShowDialog] = useState(false);
+  // Create/edit flow lives on /purchases/bills/new + /:id/edit (RecordFormShell).
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedBillForPayment, setSelectedBillForPayment] = useState<Bill | null>(null);
   const [peekId, setPeekId] = usePeekParam();
@@ -238,7 +227,7 @@ export default function Bills() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // isSubmitting removed with the inline create dialog.
   const [showImportWizard, setShowImportWizard] = useState(false);
   const contactResolverRef = useRef<ContactResolver | null>(null);
   const productResolverRef = useRef<ProductResolver | null>(null);
@@ -297,13 +286,15 @@ export default function Bills() {
     };
 
     const handleDeepLinks = async () => {
-      if (searchParams.get("action") === "create" && !showDialog) {
+      if (searchParams.get("action") === "create") {
         const prefillContactId = searchParams.get("contact_id");
-        if (prefillContactId) {
-          setFormData((prev) => ({ ...prev, vendor_id: prefillContactId }));
-        }
-        setShowDialog(true);
+        const q = new URLSearchParams();
+        if (prefillContactId) q.set("contact_id", prefillContactId);
+        const qs = q.toString();
+        navigate(`/purchases/bills/new${qs ? `?${qs}` : ""}`, { replace: true });
+        return;
       }
+
 
       const legacyBillId = searchParams.get("id");
       if (legacyBillId) {
@@ -332,7 +323,7 @@ export default function Bills() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams, showDialog, setSearchParams, setPeekId]);
+  }, [searchParams, setSearchParams, setPeekId, navigate]);
 
 
   const billFieldDefinitions = BILL_IMPORT_FIELDS;
@@ -396,104 +387,11 @@ export default function Bills() {
     productResolverRef.current = null;
   };
 
-  const [formData, setFormData] = useState({
-    vendor_id: "",
-    vendor_invoice_number: "",
-    bill_date: new Date().toISOString().split("T")[0],
-    due_date: "",
-    notes: "",
-    discount_amount: 0,
-  });
+  // formData / lineItems / handleSubmit / calculateLineTotal / addLineItem /
+  // updateLineItem / removeLineItem removed — the create flow is now the
+  // full-page RecordFormShell at /purchases/bills/new.
 
-  // Payment data removed — using shared RecordBillPaymentDialog
 
-  const [lineItems, setLineItems] = useState<Omit<BillItem, "id" | "bill_id">[]>([
-    { account_id: null, product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, line_total: 0, sort_order: 0 },
-  ]);
-
-  const vendors = contacts.filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active);
-
-  const resetForm = () => {
-    setFormData({ vendor_id: "", vendor_invoice_number: "", bill_date: new Date().toISOString().split("T")[0], due_date: "", notes: "", discount_amount: 0 });
-    setLineItems([{ account_id: null, product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, line_total: 0, sort_order: 0 }]);
-  };
-
-  const calculateLineTotal = (item: typeof lineItems[0]) => {
-    const subtotal = item.quantity * item.unit_price;
-    const tax = subtotal * (item.tax_rate / 100);
-    return { lineTotal: subtotal, taxAmount: tax };
-  };
-
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = product.cost_price || product.unit_price;
-        updated[index].tax_rate = product.tax_rate || 0;
-      }
-    }
-
-    const { lineTotal, taxAmount } = calculateLineTotal(updated[index]);
-    updated[index].line_total = lineTotal;
-    updated[index].tax_amount = taxAmount;
-
-    setLineItems(updated);
-  };
-
-  const addLineItem = () => {
-    setLineItems([...lineItems, { account_id: null, product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, line_total: 0, sort_order: lineItems.length }]);
-  };
-
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) {
-      setLineItems(lineItems.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.vendor_id || lineItems.every((item) => !item.description)) {
-      toast({ title: "Please fill required fields", variant: "destructive" });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const billNumber = await getNextBillNumber();
-      await createBill(
-        {
-          bill_number: billNumber,
-          vendor_id: formData.vendor_id,
-          project_id: searchParams.get("project_id") || null,
-          vendor_invoice_number: formData.vendor_invoice_number || null,
-          account_id: null,
-          status: "received",
-          bill_date: formData.bill_date,
-          due_date: formData.due_date || getDefaultDueDate(formData.bill_date),
-          subtotal: 0,
-          tax_amount: 0,
-          discount_amount: formData.discount_amount,
-          total: 0,
-          amount_paid: 0,
-          currency: baseCurrency,
-          notes: formData.notes || null,
-          attachment_url: null,
-        },
-        lineItems.filter((item) => item.description)
-      );
-      toast({ title: "Bill created successfully" });
-      setShowDialog(false);
-      resetForm();
-    } catch (error: any) {
-      toast({ title: "Error creating bill", description: normalizeError(error).message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   // handleRecordPayment removed — using shared RecordBillPaymentDialog
 
@@ -615,9 +513,8 @@ export default function Bills() {
     overdue: filteredBills.filter((b) => b.status === "overdue").reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0),
   };
 
-  const subtotal = lineItems.reduce((sum, item) => sum + item.line_total, 0);
-  const totalTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
-  const grandTotal = subtotal + totalTax - formData.discount_amount;
+
+
 
   return (
     <>
@@ -690,7 +587,7 @@ export default function Bills() {
                 <Button variant="outline" onClick={() => setShowImportWizard(true)} className="flex-1 sm:flex-none">
                   <Upload className="mr-2 h-4 w-4" /> Import
                 </Button>
-                <Button onClick={() => setShowDialog(true)} className="flex-1 sm:flex-none">
+                <Button onClick={() => navigate("/purchases/bills/new")} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" /> Add Bill
                 </Button>
               </>
@@ -991,170 +888,9 @@ export default function Bills() {
         onOpenChange={setShowBillPaymentHistory}
       />
 
-      {/* Create Bill Dialog */}
-      <Dialog open={showDialog} onOpenChange={(open) => {
-        setShowDialog(open);
-        if (!open) {
-          const next = new URLSearchParams(searchParams);
-          if (next.has("action") || next.has("contact_id")) {
-            next.delete("action");
-            next.delete("contact_id");
-            setSearchParams(next, { replace: true });
-          }
-          resetForm();
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Bill</DialogTitle>
-            <DialogDescription>Record a new bill from a supplier</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Supplier *</Label>
-                <Select value={formData.vendor_id} onValueChange={async (v) => {
-                  setFormData((prev) => ({ ...prev, vendor_id: v }));
-                  // Auto-populate payment terms from vendor contact defaults
-                  try {
-                    const defaults = await fetchContactDefaults(v);
-                    if (defaults.payment_term_id) {
-                      const term = paymentTerms.find((t) => t.id === defaults.payment_term_id);
-                      if (term && formData.bill_date) {
-                        const d = new Date(formData.bill_date);
-                        d.setDate(d.getDate() + term.days);
-                        setFormData((prev) => ({ ...prev, due_date: d.toISOString().split("T")[0] }));
-                      }
-                    }
-                  } catch (e) {
-                    console.error("Failed to fetch vendor defaults:", e);
-                  }
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
-                  <SelectContent>
-                    {vendors.map((v) => (<SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Vendor Invoice #</Label>
-                <Input value={formData.vendor_invoice_number} onChange={(e) => setFormData({ ...formData, vendor_invoice_number: e.target.value })} placeholder="Original invoice number" />
-              </div>
-              <div className="space-y-2">
-                <Label>Bill Date</Label>
-                <Input type="date" value={formData.bill_date} onChange={(e) => setFormData({ ...formData, bill_date: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Payment Terms</Label>
-                <Select value="" onValueChange={(termId) => {
-                  const term = paymentTerms.find((t) => t.id === termId);
-                  if (term && formData.bill_date) {
-                    const d = new Date(formData.bill_date);
-                    d.setDate(d.getDate() + term.days);
-                    setFormData({ ...formData, due_date: d.toISOString().split("T")[0] });
-                  }
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select terms (optional)" /></SelectTrigger>
-                  <SelectContent>
-                    {paymentTerms.map((t) => (<SelectItem key={t.id} value={t.id}>{t.name} ({t.days} days)</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Due Date</Label>
-                <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} />
-              </div>
-            </div>
+      {/* Create/edit bill lives on /purchases/bills/new + /:id/edit (RecordFormShell). */}
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label>Line Items</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addLineItem}><Plus className="mr-1 h-3 w-3" /> Add Item</Button>
-              </div>
-              <div className="space-y-3">
-                {lineItems.map((item, index) => (
-                  <div key={index} className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-end border rounded-lg p-3 sm:border-0 sm:p-0">
-                    <div className="sm:col-span-4">
-                      <Label className="text-xs text-muted-foreground sm:hidden">Product</Label>
-                      <Select value={item.product_id || ""} onValueChange={(v) => updateLineItem(index, "product_id", v)}>
-                        <SelectTrigger><SelectValue placeholder="Product (optional)" /></SelectTrigger>
-                        <SelectContent>
-                          {products.filter((p) => p.is_active).map((p) => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="sm:col-span-3">
-                      <Label className="text-xs text-muted-foreground sm:hidden">Description</Label>
-                      <Input placeholder="Description" value={item.description} onChange={(e) => updateLineItem(index, "description", e.target.value)} />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 sm:contents">
-                      <div className="sm:col-span-1">
-                        <Label className="text-xs text-muted-foreground sm:hidden">Qty</Label>
-                        <PackagedQtyCell
-                          productId={item.product_id}
-                          value={item}
-                          onChange={(patch) => setLineItems((prev) => {
-                            const next = [...prev];
-                            const merged = { ...next[index], ...patch };
-                            const { lineTotal, taxAmount } = calculateLineTotal(merged);
-                            next[index] = { ...merged, line_total: lineTotal, tax_amount: taxAmount };
-                            return next;
-                          })}
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label className="text-xs text-muted-foreground sm:hidden">Price</Label>
-                        <NumericInput placeholder="Price" value={item.unit_price} onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)} />
-                      </div>
-                      <div className="sm:col-span-1">
-                        <Label className="text-xs text-muted-foreground sm:hidden">Tax %</Label>
-                        <NumericInput placeholder="Tax %" value={item.tax_rate} onValueChange={(v) => updateLineItem(index, "tax_rate", v ?? 0)} />
-                      </div>
-                    </div>
-                    <div className="sm:col-span-1 flex justify-end">
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeLineItem(index)} disabled={lineItems.length === 1}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            <div className="flex justify-end">
-              <div className="w-full sm:w-64 space-y-2 text-sm">
-                <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(subtotal)}</span></div>
-                <div className="flex justify-between"><span>Tax:</span><span>{formatCurrency(totalTax)}</span></div>
-                <div className="flex justify-between items-center">
-                  <span>Discount:</span>
-                  <Input type="number" className="w-24 h-8" value={formData.discount_amount} onChange={(e) => setFormData({ ...formData, discount_amount: parseFloat(e.target.value) || 0 })} />
-                </div>
-                <div className="flex justify-between font-bold text-lg border-t pt-2">
-                  <span>Total:</span><span>{formatCurrency(grandTotal)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Internal notes..." />
-            </div>
-
-            {/* Custom Fields */}
-            <CustomFieldsSection
-              entityType="bill"
-              entityId={null}
-              formValues={formData}
-              disabled={isSubmitting}
-            />
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create Bill"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Record Payment Dialog — shared component */}
       <RecordBillPaymentDialog
