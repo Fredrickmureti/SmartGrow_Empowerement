@@ -56,6 +56,7 @@ const BankFeeds = lazy(() => import("@/pages/BankFeeds"));
 const RulesListPage = lazy(() => import("@/features/finance/banking/rules/RulesListPage"));
 const RuleCreatePage = lazy(() => import("@/features/finance/banking/rules/RuleCreatePage"));
 const RuleEditPage = lazy(() => import("@/features/finance/banking/rules/RuleEditPage"));
+const ImportStatementWizardPage = lazy(() => import("@/features/finance/banking/import/ImportStatementWizardPage"));
 
 // Report pages (all lazy-loaded)
 const FinancialReports = lazy(() => import("@/pages/reports/FinancialReports"));
