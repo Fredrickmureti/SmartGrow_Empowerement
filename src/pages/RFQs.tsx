@@ -1,16 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { useRFQs, RFQItem } from "@/hooks/useRFQs";
+import { useRFQs } from "@/hooks/useRFQs";
 import { useContacts } from "@/hooks/useContacts";
-import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
-import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { usePeekParam } from "@/design-system";
+import { RFQPeekSheet } from "@/features/purchases/rfqs/RFQPeekSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -26,14 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,12 +45,11 @@ import {
   TrendingUp,
   Clock,
   Ban,
+  Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
-import { normalizeError } from "@/services/resilience";
 
 // Compact workflow pipeline for table rows
 function RFQPipeline({ status }: { status: string }) {
