@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useWarehouses, Warehouse, StockTransfer } from "@/hooks/useWarehouses";
 import { useProducts } from "@/hooks/useProducts";
@@ -67,12 +68,11 @@ import { PermissionGate } from "@/components/common/PermissionGate";
 import { normalizeError } from "@/services/resilience";
 
 export default function Warehouses() {
+  const navigate = useNavigate();
   const {
     warehouses,
     transfers,
     isLoading,
-    createWarehouse,
-    updateWarehouse,
     deleteWarehouse,
     createStockTransfer,
     approveTransfer,
@@ -85,25 +85,9 @@ export default function Warehouses() {
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { branches, currentBranch } = useBranches();
   const [activeTab, setActiveTab] = useState("warehouses");
-  const [showWarehouseDialog, setShowWarehouseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
-  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [warehouseForm, setWarehouseForm] = useState({
-    name: "",
-    code: "",
-    address: "",
-    city: "",
-    country: "",
-    is_default: false,
-    branch_id: "" as string,
-    manager_name: "",
-    manager_email: "",
-    manager_phone: "",
-    is_active: true,
-  });
 
   const [transferForm, setTransferForm] = useState({
     from_warehouse_id: "",
@@ -112,23 +96,6 @@ export default function Warehouses() {
     notes: "",
     items: [{ product_id: "", quantity: 1 }],
   });
-
-  const resetWarehouseForm = () => {
-    setWarehouseForm({
-      name: "",
-      code: "",
-      address: "",
-      city: "",
-      country: "",
-      is_default: false,
-      branch_id: "",
-      manager_name: "",
-      manager_email: "",
-      manager_phone: "",
-      is_active: true,
-    });
-    setEditingWarehouse(null);
-  };
 
   const resetTransferForm = () => {
     setTransferForm({
@@ -140,89 +107,20 @@ export default function Warehouses() {
     });
   };
 
-  const handleOpenWarehouseDialog = (warehouse?: Warehouse) => {
+  const handleOpenWarehouseCreate = () => {
     if (isReadOnly) {
       openUpgradeModal("warehouses");
       return;
     }
-    if (warehouse) {
-      setEditingWarehouse(warehouse);
-      setWarehouseForm({
-        name: warehouse.name,
-        code: warehouse.code || "",
-        address: warehouse.address || "",
-        city: warehouse.city || "",
-        country: warehouse.country || "",
-        is_default: warehouse.is_default,
-        branch_id: warehouse.branch_id ?? "",
-        manager_name: warehouse.manager_name || "",
-        manager_email: warehouse.manager_email || "",
-        manager_phone: warehouse.manager_phone || "",
-        is_active: warehouse.is_active,
-      });
-    } else {
-      resetWarehouseForm();
-      // Pre-select the active branch when one is in scope so single-branch
-      // workspaces are zero-friction and multi-branch users see a sensible
-      // default they can override.
-      if (currentBranch) {
-        setWarehouseForm((f) => ({ ...f, branch_id: currentBranch.id }));
-      }
-    }
-    setShowWarehouseDialog(true);
+    navigate("/inventory-app/warehouses/new");
   };
 
-  const handleSubmitWarehouse = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // A warehouse must live in a branch. Refuse to silently default to the
-    // legacy "company-wide / null" bucket — that was the source of cross-
-    // branch contamination.
-    if (branches.length > 1 && !warehouseForm.branch_id) {
-      toast({
-        title: "Branch required",
-        description: "Pick the branch that owns this warehouse.",
-        variant: "destructive",
-      });
+  const handleOpenWarehouseEdit = (warehouse: Warehouse) => {
+    if (isReadOnly) {
+      openUpgradeModal("warehouses");
       return;
     }
-    setIsSubmitting(true);
-
-    try {
-      const data = {
-        name: warehouseForm.name,
-        code: warehouseForm.code,
-        address: warehouseForm.address || null,
-        city: warehouseForm.city || null,
-        country: warehouseForm.country || null,
-        is_default: warehouseForm.is_default,
-        branch_id:
-          warehouseForm.branch_id ||
-          currentBranch?.id ||
-          null,
-        manager_name: warehouseForm.manager_name || null,
-        manager_email: warehouseForm.manager_email || null,
-        manager_phone: warehouseForm.manager_phone || null,
-        is_active: warehouseForm.is_active,
-      };
-
-      if (editingWarehouse) {
-        await updateWarehouse(editingWarehouse.id, data);
-        toast({ title: "Warehouse updated successfully" });
-      } else {
-        await createWarehouse(data);
-        toast({ title: "Warehouse created successfully" });
-      }
-      setShowWarehouseDialog(false);
-      resetWarehouseForm();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    navigate(`/inventory-app/warehouses/${warehouse.id}/edit`);
   };
 
   const handleSubmitTransfer = async (e: React.FormEvent) => {
@@ -425,7 +323,7 @@ export default function Warehouses() {
                 <ArrowRightLeft className="mr-2 h-4 w-4" />
                 New Transfer
               </Button>
-              <Button onClick={() => handleOpenWarehouseDialog()} className="w-full sm:w-auto">
+              <Button onClick={handleOpenWarehouseCreate} className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Warehouse
               </Button>
@@ -571,7 +469,7 @@ export default function Warehouses() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
-                                    onClick={() => handleOpenWarehouseDialog(warehouse)}
+                                    onClick={() => handleOpenWarehouseEdit(warehouse)}
                                   >
                                     <Pencil className="mr-2 h-4 w-4" />
                                     Edit
@@ -696,118 +594,6 @@ export default function Warehouses() {
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Warehouse Dialog */}
-        <Dialog open={showWarehouseDialog} onOpenChange={setShowWarehouseDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingWarehouse ? "Edit Warehouse" : "Add New Warehouse"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingWarehouse
-                  ? "Update the warehouse details."
-                  : "Enter the warehouse information."}
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleSubmitWarehouse} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                {branches.length > 1 && (
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="wh_branch">Branch *</Label>
-                    <Select
-                      value={warehouseForm.branch_id}
-                      onValueChange={(value) =>
-                        setWarehouseForm({ ...warehouseForm, branch_id: value })
-                      }
-                    >
-                      <SelectTrigger id="wh_branch">
-                        <SelectValue placeholder="Pick the branch that owns this warehouse" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {branches.map((b) => (
-                          <SelectItem key={b.id} value={b.id}>
-                            {b.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      A warehouse lives in exactly one branch — its stock cannot
-                      leak to other branches.
-                    </p>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="wh_name">Name *</Label>
-                  <Input
-                    id="wh_name"
-                    value={warehouseForm.name}
-                    onChange={(e) =>
-                      setWarehouseForm({ ...warehouseForm, name: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wh_code">Code</Label>
-                  <Input
-                    id="wh_code"
-                    value={warehouseForm.code}
-                    onChange={(e) =>
-                      setWarehouseForm({ ...warehouseForm, code: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="wh_address">Address</Label>
-                  <Input
-                    id="wh_address"
-                    value={warehouseForm.address}
-                    onChange={(e) =>
-                      setWarehouseForm({ ...warehouseForm, address: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wh_city">City</Label>
-                  <Input
-                    id="wh_city"
-                    value={warehouseForm.city}
-                    onChange={(e) =>
-                      setWarehouseForm({ ...warehouseForm, city: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wh_country">Country</Label>
-                  <Input
-                    id="wh_country"
-                    value={warehouseForm.country}
-                    onChange={(e) =>
-                      setWarehouseForm({ ...warehouseForm, country: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowWarehouseDialog(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingWarehouse ? "Update" : "Create"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
 
         {/* Transfer Dialog */}
         <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
