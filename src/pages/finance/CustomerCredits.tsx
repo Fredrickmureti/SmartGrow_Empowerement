@@ -59,7 +59,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
+// Apply-credit is a routed wizard at /finance/customer-credits/:id/apply.
 import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 
 // ─── Types ────────────────────────────────────────────────────────
