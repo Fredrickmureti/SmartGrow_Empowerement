@@ -22,7 +22,6 @@
  * outcome from attendance_ingest_log.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual, createHash } from "node:crypto";
 
 type IngestKind = "in" | "out" | "break_start" | "break_end";
 interface Payload {
@@ -42,22 +41,23 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function verifySig(secret: Buffer, body: string, sig: string): boolean {
-  const expected = createHmac("sha256", secret).update(body).digest();
-  let provided: Buffer;
-  try {
-    provided = Buffer.from(sig, "hex");
-  } catch {
-    return false;
-  }
-  if (provided.length !== expected.length) return false;
-  return timingSafeEqual(provided, expected);
-}
-
 export const Route = createFileRoute("/api/public/attendance/ingest")(({
   server: {
     handlers: {
       POST: async ({ request }: { request: Request }) => {
+        const { createHash, createHmac, timingSafeEqual } = await import("node:crypto");
+        const verifySig = (secret: Buffer, body: string, sig: string): boolean => {
+          const expected = createHmac("sha256", secret).update(body).digest();
+          let provided: Buffer;
+          try {
+            provided = Buffer.from(sig, "hex");
+          } catch {
+            return false;
+          }
+          if (provided.length !== expected.length) return false;
+          return timingSafeEqual(provided, expected);
+        };
+
         const deviceId = request.headers.get("x-device-id");
         const sig = request.headers.get("x-signature");
         const tsHeader = request.headers.get("x-timestamp");
