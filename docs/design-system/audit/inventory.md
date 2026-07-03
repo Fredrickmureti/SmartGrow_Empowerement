@@ -35,8 +35,8 @@ Legend for **Target**:
 | Stock Transfer | Create | Route + `RecordFormShell` at `src/pages/inventory/TransferNew.tsx` (`/inventory-app/transfers/new`) | Route + `RecordFormShell` | Done |
 | Stock Transfer | Edit | N/A — an in-transit or completed transfer is immutable; corrections use cancel/reverse + fresh create. | Cancel-and-recreate (no edit route) | Done |
 | Stock Transfer | Peek (list) | `StockTransferPeekSheet` on `DetailSheet` | `PeekScaffold` | Done |
-| Physical Count | Create session | inline dialog in `src/pages/inventory/PhysicalCount.tsx` | `WizardShell` at `/inventory/physical-count/new` | **Pending** |
-| Physical Count | View / commit | inline dialog | Route + `RecordScaffold` + `WizardShell` finalize step | **Pending** |
+| Physical Count | Create session | `WizardShell` at `/inventory-app/physical-count` (Scope → Count → Review) | `WizardShell` | Done |
+| Physical Count | View / commit | `WizardShell` review step posts via `apply_physical_count_atomic` RPC | `WizardShell` finalize step | Done |
 | Scrap / Write-off | Create | Route + `RecordFormShell` at `src/pages/inventory/ScrapNew.tsx` (`/inventory-app/scrap/new`) | Route + `RecordFormShell` | Done |
 | Scrap / Write-off | Edit | N/A — posted scrap is immutable; corrections use reverse + fresh create. | Reverse-and-recreate | Done |
 | Reorder Rule | Create / Edit | inline dialog | `DetailSheet` (≤6 fields) | **Pending** |

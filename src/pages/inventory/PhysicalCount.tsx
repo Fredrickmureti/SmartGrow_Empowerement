@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardCheck, Loader2, Save, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ClipboardCheck, Loader2, Save, AlertTriangle, CheckCircle2, ArrowLeft, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -20,6 +20,14 @@ import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { normalizeError } from "@/services/resilience";
+import {
+  WizardShell,
+  WizardStepper,
+  RecordHeader,
+  FooterActionBar,
+  ActionBar,
+  type WizardStep,
+} from "@/design-system";
 
 interface CountLine {
   product_id: string;
@@ -50,7 +58,7 @@ export default function PhysicalCount() {
   const [scanFlash, setScanFlash] = useState<string | null>(null);
   const [countLines, setCountLines] = useState<CountLine[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [countStarted, setCountStarted] = useState(false);
+  const [step, setStep] = useState<"scope" | "count" | "review">("scope");
 
   const [warehouses, setWarehouses] = useState<{id: string; name: string}[]>([]);
   useEffect(() => {
@@ -106,7 +114,7 @@ export default function PhysicalCount() {
     }));
 
     setCountLines(lines);
-    setCountStarted(true);
+    setStep("count");
   };
 
   const updateCount = (index: number, counted: number | null) => {
@@ -200,7 +208,7 @@ export default function PhysicalCount() {
       queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
       queryClient.invalidateQueries({ queryKey: ["stock-adjustments"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      setCountStarted(false);
+      setStep("scope");
       setCountLines([]);
     } catch (err: any) {
       toast.error(normalizeError(err).message);
@@ -209,16 +217,25 @@ export default function PhysicalCount() {
     }
   };
 
-  if (!countStarted) {
-    return (
-      <div className="space-y-6">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Physical Count</h1>
-            <p className="text-sm text-muted-foreground">
-              Conduct a physical inventory count and generate adjustment movements
-            </p>
-          </div>
+  const steps: WizardStep[] = [
+    { id: "scope", label: "Scope", description: "Pick warehouse" },
+    { id: "count", label: "Count", description: "Enter counted qty" },
+    { id: "review", label: "Review & post", description: "Confirm variance" },
+  ];
+  const completed =
+    step === "count" ? ["scope"] : step === "review" ? ["scope", "count"] : [];
+
+  const header = (
+    <RecordHeader
+      eyebrow="Inventory"
+      title="Physical Count"
+      meta={
+        <span className="text-xs text-muted-foreground">
+          {currentBranch?.name ? `Branch: ${currentBranch.name}` : "All branches"}
+        </span>
+      }
+      actions={
+        <ActionBar>
           <RefreshButton
             queryKeyPrefixes={[
               ["physical-counts"] as const,
@@ -228,79 +245,59 @@ export default function PhysicalCount() {
             ]}
             tooltip="Refresh physical count"
           />
+        </ActionBar>
+      }
+    />
+  );
+
+  const stepper = (
+    <WizardStepper
+      steps={steps}
+      activeStepId={step}
+      completedStepIds={completed}
+      onStepClick={(id) => setStep(id as typeof step)}
+    />
+  );
+
+  const renderScope = () => (
+    <Card className="mx-auto max-w-xl">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ClipboardCheck className="h-5 w-5" />
+          Start New Count
+        </CardTitle>
+        <CardDescription>
+          Pick a warehouse to begin a physical count — counts are always per
+          warehouse so the variance applies to the right location.
+          {currentBranch?.name ? ` Active branch: ${currentBranch.name}.` : ""}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>Warehouse <span className="text-destructive">*</span></Label>
+          <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a warehouse" />
+            </SelectTrigger>
+            <SelectContent>
+              {warehouses.map((w) => (
+                <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {warehouses.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No warehouses available in this branch. Create one in Warehouses first.
+            </p>
+          )}
         </div>
+      </CardContent>
+    </Card>
+  );
 
-        <Card className="max-w-lg mx-auto">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardCheck className="h-5 w-5" />
-              Start New Count
-            </CardTitle>
-            <CardDescription>
-              Pick a warehouse to begin a physical count — counts are always per
-              warehouse so the variance applies to the right location.
-              {currentBranch?.name ? ` Active branch: ${currentBranch.name}.` : ""}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Warehouse <span className="text-destructive">*</span></Label>
-              <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a warehouse" />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses.map(w => (
-                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {warehouses.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  No warehouses available in this branch. Create one in Warehouses first.
-                </p>
-              )}
-            </div>
-            <Button
-              onClick={startCount}
-              className="w-full"
-              disabled={inventoryProducts.length === 0 || !warehouseFilter}
-            >
-              <ClipboardCheck className="mr-2 h-4 w-4" />
-              Start Count ({inventoryProducts.length} products)
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
+  const renderCount = () => (
     <div className="space-y-6">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Physical Count — In Progress</h1>
-          <p className="text-sm text-muted-foreground">
-            Enter counted quantities. Variances will be highlighted.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => { setCountStarted(false); setCountLines([]); }}>
-            Cancel
-          </Button>
-          <ScannerPairingButton
-            businessId={currentBusiness?.id}
-            branchId={currentBranch?.id ?? null}
-            label="Physical count"
-          />
-          <Button onClick={handleApplyAdjustments} disabled={isSubmitting || varianceLines.length === 0}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Apply {varianceLines.length} Adjustment{varianceLines.length !== 1 ? "s" : ""}
-          </Button>
-        </div>
-      </div>
-
-      <div className="stats-grid grid-cols-1 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Products</CardTitle>
@@ -311,28 +308,23 @@ export default function PhysicalCount() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Counted</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{countedLines.length}</div>
-          </CardContent>
+          <CardContent><div className="text-2xl font-bold text-primary">{countedLines.length}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Surplus (+)</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">+{totalPositiveVar}</div>
-          </CardContent>
+          <CardContent><div className="text-2xl font-bold text-success">+{totalPositiveVar}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Shortage (−)</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">−{totalNegativeVar}</div>
-          </CardContent>
+          <CardContent><div className="text-2xl font-bold text-destructive">−{totalNegativeVar}</div></CardContent>
         </Card>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:items-end">
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Scan to count</Label>
           <BarcodeInputField
@@ -346,9 +338,7 @@ export default function PhysicalCount() {
             fieldLabel="Physical count"
             placeholder="Scan a barcode to increment its counted qty"
           />
-          {scanFlash && (
-            <p className="text-xs text-muted-foreground">{scanFlash}</p>
-          )}
+          {scanFlash && <p className="text-xs text-muted-foreground">{scanFlash}</p>}
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Search</Label>
@@ -374,8 +364,8 @@ export default function PhysicalCount() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLines.map((line, idx) => {
-                const realIdx = countLines.findIndex(l => l.product_id === line.product_id);
+              {filteredLines.map((line) => {
+                const realIdx = countLines.findIndex((l) => l.product_id === line.product_id);
                 return (
                   <TableRow key={line.product_id} className={line.variance !== 0 ? "bg-warning/5" : ""}>
                     <TableCell className="font-medium">{line.product_name}</TableCell>
@@ -386,7 +376,7 @@ export default function PhysicalCount() {
                         type="number"
                         className="w-24 ml-auto text-right"
                         value={line.counted_qty ?? ""}
-                        onChange={e => {
+                        onChange={(e) => {
                           const val = e.target.value === "" ? null : parseInt(e.target.value);
                           updateCount(realIdx, val);
                         }}
@@ -421,5 +411,113 @@ export default function PhysicalCount() {
         </CardContent>
       </Card>
     </div>
+  );
+
+  const renderReview = () => (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Variance summary</CardTitle>
+          <CardDescription>
+            {varianceLines.length === 0
+              ? "No variances detected — nothing to post."
+              : `Posting ${varianceLines.length} adjustment${varianceLines.length !== 1 ? "s" : ""} will create stock movements and a balanced GL entry.`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div><div className="text-xs text-muted-foreground">Counted lines</div><div className="text-xl font-semibold">{countedLines.length}</div></div>
+          <div><div className="text-xs text-muted-foreground">Variances</div><div className="text-xl font-semibold">{varianceLines.length}</div></div>
+          <div><div className="text-xs text-muted-foreground">Surplus</div><div className="text-xl font-semibold text-success">+{totalPositiveVar}</div></div>
+          <div><div className="text-xs text-muted-foreground">Shortage</div><div className="text-xl font-semibold text-destructive">−{totalNegativeVar}</div></div>
+        </CardContent>
+      </Card>
+      {varianceLines.length > 0 && (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-right">System</TableHead>
+                  <TableHead className="text-right">Counted</TableHead>
+                  <TableHead className="text-right">Variance</TableHead>
+                  <TableHead className="text-right">Cost impact</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {varianceLines.map((l) => (
+                  <TableRow key={l.product_id}>
+                    <TableCell className="font-medium">{l.product_name}</TableCell>
+                    <TableCell className="text-right">{l.system_qty}</TableCell>
+                    <TableCell className="text-right">{l.counted_qty}</TableCell>
+                    <TableCell className={`text-right font-medium ${l.variance > 0 ? "text-success" : "text-destructive"}`}>
+                      {l.variance > 0 ? "+" : ""}{l.variance}
+                    </TableCell>
+                    <TableCell className="text-right">{(l.variance * l.cost_price).toFixed(2)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+
+  const footer = (
+    <FooterActionBar
+      leading={
+        step !== "scope" ? (
+          <Button
+            variant="ghost"
+            onClick={() => setStep(step === "review" ? "count" : "scope")}
+          >
+            <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
+          </Button>
+        ) : null
+      }
+      trailing={
+        <ActionBar>
+          {step === "count" && (
+            <ScannerPairingButton
+              businessId={currentBusiness?.id}
+              branchId={currentBranch?.id ?? null}
+              label="Physical count"
+            />
+          )}
+          {step === "scope" && (
+            <Button
+              onClick={startCount}
+              disabled={inventoryProducts.length === 0 || !warehouseFilter}
+            >
+              <ClipboardCheck className="mr-2 h-4 w-4" />
+              Start Count ({inventoryProducts.length} products)
+            </Button>
+          )}
+          {step === "count" && (
+            <Button onClick={() => setStep("review")} disabled={countedLines.length === 0}>
+              Continue to review <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Button>
+          )}
+          {step === "review" && (
+            <Button
+              onClick={handleApplyAdjustments}
+              disabled={isSubmitting || varianceLines.length === 0}
+            >
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Post {varianceLines.length} Adjustment{varianceLines.length !== 1 ? "s" : ""}
+            </Button>
+          )}
+        </ActionBar>
+      }
+    />
+  );
+
+  return (
+    <WizardShell header={header} stepper={stepper} footer={footer}>
+      {step === "scope" && renderScope()}
+      {step === "count" && renderCount()}
+      {step === "review" && renderReview()}
+    </WizardShell>
   );
 }
