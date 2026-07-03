@@ -349,7 +349,8 @@ export function computePercentageOfBase(
   const employerOnly = !!p.employer_only;
   const empRate = pct(p.employee_rate ?? (employerOnly ? 0 : p.rate ?? 0));
   const erRate  = pct(p.employer_rate ?? (employeeOnly ? 0 : (p.employer_rate ?? 0)));
-  const cap = Number(p.cap ?? Infinity);
+  // `ceiling` alias — see computeTieredBrackets note. Phase 2 alignment.
+  const cap = Number(p.cap ?? p.ceiling ?? Infinity);
   return {
     employee: Math.min(round2(base * empRate), cap),
     employer: Math.min(round2(base * erRate), cap),
