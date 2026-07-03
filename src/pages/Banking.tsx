@@ -56,9 +56,9 @@ export default function Banking() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { accounts: bankAccounts, isLoading: accountsLoading, syncTransactions, isSaving: isSyncing, fetchAccounts, deleteAccount, canManage } = useBankAccounts();
+  const { accounts: bankAccounts, isLoading: accountsLoading, syncTransactions, isSaving: isSyncing, deleteAccount, canManage } = useBankAccounts();
   const scope = useFinanceScope();
-  const { transactions, isLoading: transactionsLoading, stats, fetchTransactions } = useBankTransactions();
+  const { transactions, isLoading: transactionsLoading, stats } = useBankTransactions();
   const { accounts: glAccounts } = useAccounts();
   const { getEffectiveBalance } = useAccountBalances();
   const fx = useTenantFx();
@@ -415,17 +415,6 @@ export default function Banking() {
           </TabsContent>
         </Tabs>
       </div>
-
-
-      <BankAccountSheet
-        open={sheetOpen}
-        onOpenChange={(open) => { if (!open) closeSheet(); }}
-        account={(bankAccounts || []).find((a) => a.id === editingAccountId) ?? null}
-        onSuccess={() => {
-          fetchAccounts();
-          fetchTransactions();
-        }}
-      />
     </>
   );
 }
