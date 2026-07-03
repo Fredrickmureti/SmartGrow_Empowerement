@@ -1,5 +1,11 @@
 # Inventory — Enterprise UX Audit
 
+> **2026-07 takeover audit.** Inventory still has legacy inline record
+> dialogs in Products, Warehouses, Stock Adjustments, Transfers, Scrap, and
+> UoM configuration. The guard test now also scans list/workspace pages for
+> inline record dialogs so no new Inventory regressions can be introduced while
+> this allowlist shrinks through the route/sheet migration.
+
 Companion to [`docs/design-system/records.md`](../records.md). Tracks every
 create / edit / duplicate / convert / configure / peek surface in the
 Inventory application against the enterprise UX standard established by
