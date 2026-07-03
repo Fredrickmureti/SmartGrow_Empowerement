@@ -432,15 +432,6 @@ export default function Banking() {
         </Tabs>
       </div>
 
-      <ImportTransactionsDialog
-        open={importDialogOpen}
-        onOpenChange={setImportDialogOpen}
-        accounts={bankAccounts || []}
-        onSuccess={() => {
-          fetchTransactions();
-          fetchAccounts();
-        }}
-      />
 
       <BankAccountSheet
         open={sheetOpen}
