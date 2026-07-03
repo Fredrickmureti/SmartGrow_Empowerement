@@ -36,19 +36,33 @@ function formatCurrencyValue(amount: number, currencyCode: string = "USD") {
 export default function Banking() {
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
   // Deep-link convention shared with DashboardCreateBar / GlobalCreateMenu:
   // /finance/banking?action=create auto-opens the connect-bank dialog.
+  // The edit surface is URL-driven via ?sheet=account&id=<uuid>, matching
+  // the peek/sheet pattern established across Finance slices B1–B4.
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get("action") === "create" && !connectDialogOpen) {
       setConnectDialogOpen(true);
-      // Strip the query so the dialog doesn't re-open on close.
       const next = new URLSearchParams(searchParams);
       next.delete("action");
       setSearchParams(next, { replace: true });
     }
   }, [searchParams, connectDialogOpen, setSearchParams]);
+  const editingAccountId =
+    searchParams.get("sheet") === "account" ? searchParams.get("id") : null;
+  const closeEditSheet = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("sheet");
+    next.delete("id");
+    setSearchParams(next, { replace: true });
+  };
+  const openEditSheet = (accountId: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("sheet", "account");
+    next.set("id", accountId);
+    setSearchParams(next, { replace: true });
+  };
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
