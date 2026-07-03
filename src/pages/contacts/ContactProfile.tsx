@@ -20,7 +20,7 @@ import {
 import { useContactProfile } from "@/hooks/useContactProfile";
 import { useContactsPaginated } from "@/hooks/useContactsPaginated";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useCreditNotes, CreditNote } from "@/hooks/useCreditNotes";
+import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ApplyCreditDialog } from "@/components/finance/ApplyCreditDialog";
