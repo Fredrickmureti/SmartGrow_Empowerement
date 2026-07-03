@@ -63059,6 +63059,14 @@ export type Database = {
           last_name: string
         }[]
       }
+      payroll_period_for_date: {
+        Args: { _business_id: string; _on: string }
+        Returns: string
+      }
+      payroll_period_is_writable: {
+        Args: { _period_id: string }
+        Returns: boolean
+      }
       payroll_period_readiness: { Args: { _period_id: string }; Returns: Json }
       payroll_period_reopen_atomic: {
         Args: { _period_id: string; _reason: string }
