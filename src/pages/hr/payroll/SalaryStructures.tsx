@@ -207,9 +207,10 @@ export function PayrollSalaryStructuresPage() {
         footer={
           <>
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={!form.name || createStructure.isPending}>
+            <Button onClick={handleCreate} disabled={!form.name || hasComponentErrors || createStructure.isPending}>
               {createStructure.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Create
             </Button>
+
           </>
         }
       >
