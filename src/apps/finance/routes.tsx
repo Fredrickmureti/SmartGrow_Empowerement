@@ -57,6 +57,8 @@ const RulesListPage = lazy(() => import("@/features/finance/banking/rules/RulesL
 const RuleCreatePage = lazy(() => import("@/features/finance/banking/rules/RuleCreatePage"));
 const RuleEditPage = lazy(() => import("@/features/finance/banking/rules/RuleEditPage"));
 const ImportStatementWizardPage = lazy(() => import("@/features/finance/banking/import/ImportStatementWizardPage"));
+const BankAccountCreatePage = lazy(() => import("@/features/finance/banking/BankAccountCreatePage"));
+const BankAccountEditPage = lazy(() => import("@/features/finance/banking/BankAccountEditPage"));
 
 // Report pages (all lazy-loaded)
 const FinancialReports = lazy(() => import("@/pages/reports/FinancialReports"));
@@ -416,6 +418,30 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Banking">
                 <Banking />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Bank Account — routed create/edit on RecordFormShell.
+            MUST come BEFORE `banking/rules` sibling routes are declared
+            already above with concrete prefixes, so ordering here is safe. */}
+        <Route
+          path="banking/accounts/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Add Bank Account">
+                <BankAccountCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="banking/accounts/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Edit Bank Account">
+                <BankAccountEditPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }

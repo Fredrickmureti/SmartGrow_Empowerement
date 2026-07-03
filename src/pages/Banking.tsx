@@ -14,7 +14,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Skeleton } from "@/components/ui/skeleton";
 import { BankAccountCard } from "@/components/banking/BankAccountCard";
 // ImportTransactionsDialog removed — import is now a routed WizardShell at /finance/banking/import.
-import { BankAccountSheet } from "@/features/finance/banking/BankAccountSheet";
+// BankAccountSheet removed — create/edit are routed pages at
+// /finance/banking/accounts/new and /finance/banking/accounts/:id/edit.
 import { TransactionsList } from "@/components/banking/TransactionsList";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
@@ -23,7 +24,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { queryKeys } from "@/lib/queryKeys";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
@@ -33,47 +34,31 @@ function formatCurrencyValue(amount: number, currencyCode: string = "USD") {
 }
 
 export default function Banking() {
-  // Import dialog was removed — import now opens as a routed wizard.
-  // Bank account create + edit both mount the same URL-driven sheet:
-  //   ?sheet=account            → connect / new account
-  //   ?sheet=account&id=<uuid>  → edit existing
-  // Deep-link `?action=create` (kept for DashboardCreateBar / GlobalCreateMenu
-  // compatibility) is normalised to `?sheet=account` on arrival.
+  // Bank-account create/edit are routed full pages. Legacy deep links
+  // (`?action=create`, `?sheet=account`, `?sheet=account&id=…`) are
+  // normalised to the new routes so external launchers keep working.
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
-    if (searchParams.get("action") === "create") {
+    if (searchParams.get("action") === "create" || searchParams.get("sheet") === "account") {
+      const id = searchParams.get("id");
       const next = new URLSearchParams(searchParams);
       next.delete("action");
-      next.set("sheet", "account");
+      next.delete("sheet");
+      next.delete("id");
       setSearchParams(next, { replace: true });
+      navigate(id ? `/finance/banking/accounts/${id}/edit` : "/finance/banking/accounts/new");
     }
-  }, [searchParams, setSearchParams]);
-  const sheetOpen = searchParams.get("sheet") === "account";
-  const editingAccountId = sheetOpen ? searchParams.get("id") : null;
-  const closeSheet = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete("sheet");
-    next.delete("id");
-    setSearchParams(next, { replace: true });
-  };
-  const openConnectSheet = () => {
-    const next = new URLSearchParams(searchParams);
-    next.set("sheet", "account");
-    next.delete("id");
-    setSearchParams(next, { replace: true });
-  };
-  const openEditSheet = (accountId: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set("sheet", "account");
-    next.set("id", accountId);
-    setSearchParams(next, { replace: true });
-  };
+  }, [searchParams, setSearchParams, navigate]);
+  const openConnectSheet = () => navigate("/finance/banking/accounts/new");
+  const openEditSheet = (accountId: string) =>
+    navigate(`/finance/banking/accounts/${accountId}/edit`);
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { accounts: bankAccounts, isLoading: accountsLoading, syncTransactions, isSaving: isSyncing, fetchAccounts, deleteAccount, canManage } = useBankAccounts();
+  const { accounts: bankAccounts, isLoading: accountsLoading, syncTransactions, isSaving: isSyncing, deleteAccount, canManage } = useBankAccounts();
   const scope = useFinanceScope();
-  const { transactions, isLoading: transactionsLoading, stats, fetchTransactions } = useBankTransactions();
+  const { transactions, isLoading: transactionsLoading, stats } = useBankTransactions();
   const { accounts: glAccounts } = useAccounts();
   const { getEffectiveBalance } = useAccountBalances();
   const fx = useTenantFx();
@@ -430,17 +415,6 @@ export default function Banking() {
           </TabsContent>
         </Tabs>
       </div>
-
-
-      <BankAccountSheet
-        open={sheetOpen}
-        onOpenChange={(open) => { if (!open) closeSheet(); }}
-        account={(bankAccounts || []).find((a) => a.id === editingAccountId) ?? null}
-        onSuccess={() => {
-          fetchAccounts();
-          fetchTransactions();
-        }}
-      />
     </>
   );
 }

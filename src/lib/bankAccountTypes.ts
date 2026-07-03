@@ -1,6 +1,6 @@
 /**
  * Unified bank account type definitions with GL account mapping.
- * Single source of truth for BankAccountSheet and BankAccountCard.
+ * Single source of truth for the Bank Account create/edit pages and BankAccountCard.
  *
  * Bank `account_type` values map to COA `detail_type` — NOT to COA `account_type`.
  * This mapping drives dynamic GL account filtering so users can't accidentally
