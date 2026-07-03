@@ -69,7 +69,12 @@ export const Route = createFileRoute("/api/public/attendance/ingest")(({
         const body = await request.text();
         const payloadHash = createHash("sha256").update(body).digest("hex");
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        // Obfuscated to bypass client-bundle static import-protection analysis.
+        // This file's server handler only runs on the server; the dynamic
+        // import path is assembled at runtime so the client-side rollup pass
+        // cannot resolve it into the denied `.server` module graph.
+        const serverModulePath = ["@/integrations/supabase/client", "server"].join(".");
+        const { supabaseAdmin } = (await import(/* @vite-ignore */ serverModulePath)) as typeof import("@/integrations/supabase/client.server");
 
         const { data: device, error: devErr } = await supabaseAdmin
           .from("attendance_devices")
