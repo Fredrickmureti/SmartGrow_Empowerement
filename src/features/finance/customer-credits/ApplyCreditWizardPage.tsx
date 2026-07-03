@@ -85,7 +85,8 @@ export default function ApplyCreditWizardPage() {
         )
           return false;
         if ((inv.total || 0) - (inv.amount_paid || 0) <= 0) return false;
-        if (branchId && inv.branch_id && inv.branch_id !== branchId) return false;
+        const invBranchId = (inv as { branch_id?: string | null }).branch_id;
+        if (branchId && invBranchId && invBranchId !== branchId) return false;
         return true;
       }),
     [invoices, contactId, branchId],
