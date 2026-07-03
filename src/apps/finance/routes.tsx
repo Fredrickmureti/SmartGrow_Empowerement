@@ -32,6 +32,8 @@ const CustomerStatements = lazy(() => import("@/pages/CustomerStatements"));
 // Lazy imports for less frequently accessed pages
 const JournalEntries = lazy(() => import("@/pages/JournalEntries"));
 const JournalEntryDetailRedirect = lazy(() => import("@/pages/finance/JournalEntryDetailRedirect"));
+const JournalEntryCreatePage = lazy(() => import("@/features/finance/journal-entries/JournalEntryCreatePage"));
+const JournalEntryEditPage = lazy(() => import("@/features/finance/journal-entries/JournalEntryEditPage"));
 const AccountDetailRedirect = lazy(() => import("@/pages/finance/AccountDetailRedirect"));
 const FiscalPeriods = lazy(() => import("@/pages/FiscalPeriods"));
 const FiscalPeriodDetail = lazy(() => import("@/pages/finance/FiscalPeriodDetail"));
@@ -196,6 +198,29 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Journal Entries">
                 <JournalEntries />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Journal Entry — routed create/edit on RecordFormShell.
+            MUST come BEFORE `journal-entries/:id` to avoid shadowing. */}
+        <Route
+          path="journal-entries/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Journal Entry">
+                <JournalEntryCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="journal-entries/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Edit Journal Entry">
+                <JournalEntryEditPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
