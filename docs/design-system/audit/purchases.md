@@ -1,9 +1,10 @@
 # Purchases — Enterprise UX Audit
 
 > **2026-07 follow-up.** The Bill row was marked Done after `BillRecordPage`
-> shipped at `/purchases/bills/new`, but `src/pages/Bills.tsx` still opened
-> the legacy inline `<Dialog>` on "Add Bill". The list page now navigates to
-> the record route (and the `?action=create` deep-link redirects there too).
+> was incorrectly mounted at `/purchases/bills/new`, while the list page still
+> opened the legacy inline `<Dialog>` on "Add Bill". The list page now
+> navigates to a dedicated `BillCreatePage` record form route (and the
+> `?action=create` deep-link redirects there too).
 > The guard test
 > [`purchases-record-dialog-ban`](../../../src/test/architecture/purchases-record-dialog-ban.test.ts)
 > gained a third assertion that scans list pages for inline `<Dialog>`

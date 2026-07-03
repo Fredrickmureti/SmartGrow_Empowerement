@@ -21,7 +21,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const PURCHASES_GLOBS = [
   "src/components/purchases",
@@ -78,7 +78,6 @@ const INLINE_RECORD_DIALOG_TITLE =
   /<DialogTitle[^>]*>\s*(?:Add|Create|New|Edit)\s+(Bill|Purchase\s+Order|Expense|Credit\s+Note|Return|RFQ|Vendor)\b/i;
 
 function scanInlineRecordDialogs(): string[] {
-  const { readFileSync } = require("node:fs") as typeof import("node:fs");
   const leaked: string[] = [];
   for (const p of PURCHASES_LIST_PAGES) {
     if (!existsSync(p)) continue;
@@ -86,6 +85,14 @@ function scanInlineRecordDialogs(): string[] {
     if (INLINE_RECORD_DIALOG_TITLE.test(src)) leaked.push(p);
   }
   return leaked;
+}
+
+function billsNewRouteUsesCreatePage(): boolean {
+  const routesPath = "src/apps/purchases/routes.tsx";
+  if (!existsSync(routesPath)) return false;
+  const src = readFileSync(routesPath, "utf8");
+  const billsNewBlock = src.match(/path="bills\/new"[\s\S]*?<\/Route>/)?.[0] ?? "";
+  return billsNewBlock.includes("<BillCreatePage />") && !billsNewBlock.includes("<BillRecordPage />");
 }
 
 describe("purchases record dialog ban", () => {
@@ -118,6 +125,13 @@ describe("purchases record dialog ban", () => {
         `RecordFormShell — inline <Dialog>Add/Create/Edit <Entity></Dialog> ` +
         `blocks are banned. Offenders:\n${leaked.join("\n")}`,
     ).toEqual([]);
+  });
+
+  it("/purchases/bills/new is mounted to the create form, not the read-only record page", () => {
+    expect(
+      billsNewRouteUsesCreatePage(),
+      "The Bills /new route must render BillCreatePage. Mounting BillRecordPage here makes `new` flow into the read-only UUID lookup and breaks Add Bill.",
+    ).toBe(true);
   });
 });
 
