@@ -238,7 +238,7 @@ export default function Bills() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // isSubmitting removed with the inline create dialog.
   const [showImportWizard, setShowImportWizard] = useState(false);
   const contactResolverRef = useRef<ContactResolver | null>(null);
   const productResolverRef = useRef<ProductResolver | null>(null);
