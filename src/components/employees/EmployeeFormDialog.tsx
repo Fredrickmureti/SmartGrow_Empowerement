@@ -158,6 +158,12 @@ const fromEmployee = (e: Employee): EmployeeFormData => ({
   country: (e as any).country || "",
 });
 
+export interface EmployeeFormActions {
+  submit: () => Promise<void>;
+  saveAsDraft: () => Promise<void>;
+  discardDraft: () => Promise<void>;
+}
+
 interface EmployeeFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -190,6 +196,24 @@ interface EmployeeFormDialogProps {
    *  row is hard-deleted instead of leaking into the 30-day cron sweep.
    *  No-op when there is no draft id. */
   onDiscardDraft?: (draftId: string) => Promise<void>;
+  /** When true (page mode only), suppress the inline action row so the host
+   *  page can render Cancel/Submit/Save-as-draft inside a shared shell like
+   *  `RecordFormShell`. */
+  hideInlineFooter?: boolean;
+  /** When true (page mode only), render the body inside a plain `<div>`
+   *  instead of a `<form>`. Submit must be triggered imperatively via
+   *  `actionsRef.current.submit()`. Prevents nested-form invalid HTML when
+   *  the host shell already owns the outer `<form>`. */
+  hideInlineForm?: boolean;
+  /** Imperative handle exposing submit / saveAsDraft / discardDraft so a
+   *  shell footer can wire buttons without duplicating validation. */
+  actionsRef?: React.MutableRefObject<EmployeeFormActions | null>;
+  /** Fires whenever internal `isSubmitting` flips. Lets the shell show a
+   *  spinner on its primary Submit button. */
+  onSubmittingChange?: (submitting: boolean) => void;
+  /** Fires whenever local-draft state changes. Lets the shell decide
+   *  whether to render "Discard draft" / show the "Draft saved" chip. */
+  onDraftStateChange?: (s: { hasSavedDraft: boolean; isSavingDraft: boolean }) => void;
 }
 
 export function EmployeeFormDialog({
@@ -205,7 +229,11 @@ export function EmployeeFormDialog({
   onSaveAsDraft,
   draftId,
   onDiscardDraft,
-
+  hideInlineFooter = false,
+  hideInlineForm = false,
+  actionsRef,
+  onSubmittingChange,
+  onDraftStateChange,
 }: EmployeeFormDialogProps) {
 
   const [activeTab, setActiveTab] = useState("personal");
@@ -260,6 +288,14 @@ export function EmployeeFormDialog({
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
+
+  // Surface submit + draft state so a host shell can drive its own footer.
+  useEffect(() => {
+    onSubmittingChange?.(isSubmitting);
+  }, [isSubmitting, onSubmittingChange]);
+  useEffect(() => {
+    onDraftStateChange?.({ hasSavedDraft, isSavingDraft });
+  }, [hasSavedDraft, isSavingDraft, onDraftStateChange]);
 
   // ── Server-side draft autosave: removed ────────────────────────────────
   // Typing no longer triggers DB writes. Local-only debounced cache in
@@ -398,26 +434,24 @@ export function EmployeeFormDialog({
     });
   }, [open, existingIdentifiers]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
 
     if (formData.first_name.trim() === "" || formData.last_name.trim() === "") {
       setActiveTab("personal");
-      window.requestAnimationFrame(() => formRef.current?.reportValidity());
+      window.requestAnimationFrame(() => formRef.current?.reportValidity?.());
       return;
     }
 
     if (formData.hire_date.trim() === "") {
       setActiveTab("employment");
-      window.requestAnimationFrame(() => formRef.current?.reportValidity());
+      window.requestAnimationFrame(() => formRef.current?.reportValidity?.());
       return;
     }
 
     setIsSubmitting(true);
     try {
       await onSubmit(formData);
-      // Only reset & close on success — failures keep the dialog open
-      // with the user's input intact so they can fix and retry.
       if (!editingEmployee) {
         clearDraft();
         const seed = emptyForm();
@@ -425,8 +459,6 @@ export function EmployeeFormDialog({
         setFormData(seed);
         setSnapshotVersion((v) => v + 1);
       } else {
-        // Edit-mode: keep values, advance the baseline so the leave-guard
-        // stops firing for what we just saved.
         rebaselineDirty(formData);
       }
       onOpenChange(false);
@@ -434,6 +466,35 @@ export function EmployeeFormDialog({
       setIsSubmitting(false);
     }
   };
+
+  // Draft-save handler shared by the inline footer button and the imperative
+  // actionsRef so a host shell can drive the same code path.
+  const handleSaveAsDraft = async () => {
+    if (!onSaveAsDraft) return;
+    setIsSavingDraft(true);
+    try {
+      await onSaveAsDraft(formData);
+      clearDraft();
+      rebaselineDirty(formData);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  // Expose imperative actions so `RecordFormShell`-hosted footers can wire
+  // Submit / Save-as-draft / Discard without duplicating validation.
+  useEffect(() => {
+    if (!actionsRef) return;
+    actionsRef.current = {
+      submit: () => handleSubmit(),
+      saveAsDraft: handleSaveAsDraft,
+      discardDraft: handleDiscardDraft,
+    };
+    return () => {
+      if (actionsRef) actionsRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionsRef, formData, editingEmployee, draftId]);
 
   // Shared body rendered inside either a Sheet (modal) or a plain div
   // (full-page route). The header is rendered as SheetHeader in modal mode
@@ -512,13 +573,8 @@ export function EmployeeFormDialog({
     </div>
   );
 
-  const formBody = (
-    <form
-      id="employee-form-body"
-      ref={formRef}
-      onSubmit={handleSubmit}
-      className="space-y-4"
-    >
+  const formInner = (
+    <>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap h-auto gap-1 w-full">
           <TabsTrigger value="personal" className="flex-1 min-w-[4.5rem] text-xs sm:text-sm">Personal</TabsTrigger>
@@ -547,12 +603,26 @@ export function EmployeeFormDialog({
 
       <CustomFieldsSection entityType="employee" entityId={editingEmployee?.id || null} />
 
-      {/* In page mode the footer renders inline below the form. In sheet
-          mode the footer is sticky outside this <form>, and the submit
-          button references this form via `form="employee-form-body"`. */}
-      {renderAs === "page" && (
+      {/* In page mode the footer renders inline below the form unless the
+          host shell opted out via `hideInlineFooter`. In sheet mode the
+          footer is sticky outside this <form>, and the submit button
+          references this form via `form="employee-form-body"`. */}
+      {renderAs === "page" && !hideInlineFooter && (
         <div className="pt-4 border-t">{footerActions}</div>
       )}
+    </>
+  );
+
+  const formBody = hideInlineForm ? (
+    <div className="space-y-4">{formInner}</div>
+  ) : (
+    <form
+      id="employee-form-body"
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className="space-y-4"
+    >
+      {formInner}
     </form>
   );
 

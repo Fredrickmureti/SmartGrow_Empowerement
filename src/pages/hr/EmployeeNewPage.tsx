@@ -1,22 +1,19 @@
 /**
- * Full-page "Add Employee" — the Odoo-grade alternative to the modal.
+ * Full-page "Add Employee" — now hosted on `RecordFormShell` so it matches
+ * every other create route in the ERP (Contacts, Finance accounts, etc.).
  *
- * Lifecycle (after the redesign):
- *   - Typing never hits the DB. The form keeps a local crash-recovery copy
- *     in localStorage (handled inside EmployeeFormDialog).
- *   - "Save as draft" creates a `lifecycle_status='draft'` row in one
- *     transactional RPC (`create_employee_with_identifiers`).
- *   - "Create" calls a single `finalize_employee_draft` RPC that applies the
- *     final field values + identifier replacement + status flip in one
- *     transaction. No more update-then-promote split, no contradictory
- *     "updated successfully" + "could not save" toast pair.
+ * The heavy lifting still lives inside `EmployeeFormDialog` (tabs, draft
+ * autosave, validation, statutory identifiers). This page:
+ *   - hosts the shell header ("New record" eyebrow + "New Employee" title)
+ *   - hosts the shell footer (Cancel · Save as draft · Create Employee)
+ *   - drives the dialog imperatively via `actionsRef`
+ *   - keeps the same server-side draft + finalize RPC flow
  */
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { Save, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,8 +33,10 @@ import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { normalizeError } from "@/services/resilience";
 import { supabase } from "@/integrations/supabase/client";
 
+import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import {
   EmployeeFormDialog,
+  type EmployeeFormActions,
   type EmployeeFormData,
 } from "@/components/employees/EmployeeFormDialog";
 import { saveEmployeeForm } from "@/lib/hr/saveEmployeeForm";
@@ -48,14 +47,18 @@ export default function EmployeeNewPage() {
   const { toast } = useToast();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
-  // `useEmployees` is needed for the create-without-draft path
-  // (`saveEmployeeForm`) which uses the hook's `updateEmployee` only in
-  // edit mode. Disabled to avoid an extra list fetch on this page.
   const { updateEmployee } = useEmployees({ enabled: false });
 
   const [dirty, setDirty] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [draftState, setDraftState] = useState<{
+    hasSavedDraft: boolean;
+    isSavingDraft: boolean;
+  }>({ hasSavedDraft: false, isSavingDraft: false });
+
   const submittingRef = useRef(false);
+  const actionsRef = useRef<EmployeeFormActions | null>(null);
   const guard = useUnsavedChangesGuard(dirty);
 
   const createDraft = useCallback(
@@ -97,7 +100,6 @@ export default function EmployeeNewPage() {
       try {
         const countryCode = (currentBusiness?.country || "").toUpperCase().trim();
 
-        // Path A: a server-side draft already exists → atomic finalize.
         if (draftId) {
           const payload = buildEmployeePayload(form, {
             user_id: null,
@@ -126,7 +128,6 @@ export default function EmployeeNewPage() {
           return;
         }
 
-        // Path B: no draft → create-active in a single transactional RPC.
         const { employeeId } = await saveEmployeeForm({
           form,
           editingEmployee: null,
@@ -152,64 +153,91 @@ export default function EmployeeNewPage() {
     [draftId, currentOrg?.id, currentBusiness?.id, currentBusiness?.country, updateEmployee, toast, navigate],
   );
 
+  const handleDiscardServerDraft = useCallback(
+    async (id: string) => {
+      const { error } = await supabase.rpc("discard_employee_draft" as any, {
+        p_employee_id: id,
+      });
+      if (error) {
+        toast({
+          title: "Could not discard draft",
+          description: normalizeError(error).message,
+          variant: "destructive",
+        });
+        throw error;
+      }
+      setDraftId(null);
+      setDirty(false);
+      toast({ title: "Draft discarded" });
+    },
+    [toast],
+  );
+
+  const { hasSavedDraft, isSavingDraft } = draftState;
+  const showDiscard = hasSavedDraft || draftId !== null;
+
+  const meta = hasSavedDraft ? (
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      <Save className="h-3 w-3" /> Draft saved
+    </span>
+  ) : null;
+
   return (
     <>
-      <div className="space-y-4 sm:space-y-6">
-        <div className="page-header">
-          <div>
+      <RecordFormShell
+        mode="create"
+        entityLabel="Employee"
+        meta={meta}
+        cancelHref="/hr/employees"
+        submitLabel="Create Employee"
+        isSubmitting={isSubmitting}
+        onSubmit={(e) => {
+          e.preventDefault();
+          actionsRef.current?.submit();
+        }}
+        extraLeadingActions={
+          showDiscard ? (
             <Button
+              type="button"
               variant="ghost"
-              size="sm"
-              className="-ml-3 mb-2 text-muted-foreground hover:text-foreground"
-              onClick={() => navigate("/hr/employees")}
+              className="text-destructive hover:text-destructive"
+              disabled={isSubmitting || isSavingDraft}
+              onClick={() => actionsRef.current?.discardDraft()}
             >
-              <ArrowLeft className="h-4 w-4 mr-1" /> Back to employees
+              <Trash2 className="h-4 w-4 mr-2" /> Discard draft
             </Button>
-            <h1 className="page-title">Add Employee</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Create a new employee record. Use "Save as draft" to keep an
-              unfinished record under My drafts, or "Create" to publish.
-            </p>
-          </div>
-        </div>
-
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <EmployeeFormDialog
-              renderAs="page"
-              open
-              onOpenChange={(next) => {
-                if (!next) navigate("/hr/employees");
-              }}
-              editingEmployee={null}
-              onSubmit={handleSubmit}
-              onSaveAsDraft={(form) => createDraft(form).then(() => undefined)}
-              onDirtyChange={setDirty}
-              draftId={draftId}
-              onDiscardDraft={async (id) => {
-                // Hard-delete the server-side draft so it does not leak
-                // into the 30-day stale-draft cron sweep. The local form
-                // is reset by the dialog regardless of this RPC's outcome.
-                const { error } = await supabase.rpc("discard_employee_draft" as any, {
-                  p_employee_id: id,
-                });
-                if (error) {
-                  toast({
-                    title: "Could not discard draft",
-                    description: normalizeError(error).message,
-                    variant: "destructive",
-                  });
-                  throw error;
-                }
-                setDraftId(null);
-                setDirty(false);
-                toast({ title: "Draft discarded" });
-              }}
-            />
-
-          </CardContent>
-        </Card>
-      </div>
+          ) : null
+        }
+        extraTrailingActions={
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={isSubmitting || isSavingDraft}
+            onClick={() => actionsRef.current?.saveAsDraft()}
+          >
+            Save as draft
+          </Button>
+        }
+      >
+        <EmployeeFormDialog
+          renderAs="page"
+          hideInlineFooter
+          hideInlineForm
+          actionsRef={actionsRef}
+          open
+          onOpenChange={(next) => {
+            if (!next) navigate("/hr/employees");
+          }}
+          editingEmployee={null}
+          onSubmit={handleSubmit}
+          onSaveAsDraft={(form) => createDraft(form).then(() => undefined)}
+          onDirtyChange={setDirty}
+          onSubmittingChange={setIsSubmitting}
+          onDraftStateChange={setDraftState}
+          draftId={draftId}
+          onDiscardDraft={handleDiscardServerDraft}
+        />
+      </RecordFormShell>
 
       <AlertDialog open={guard.isBlocked} onOpenChange={(o) => { if (!o) guard.cancel(); }}>
         <AlertDialogContent>
