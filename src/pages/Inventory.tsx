@@ -137,53 +137,23 @@ export default function Inventory() {
 
   // Deep-link prefill: /inventory/stock?action=adjust&product=<id>
   // Used by Products.tsx to send the user here with a pre-filled adjustment row.
-  // We only react once the dialog is closed and stays untouched.
+  // Deep-link redirect: /inventory-app/stock?action=adjust&product=<id>
+  // Products.tsx sends users here; forward them to the routed create page.
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get("action") !== "adjust") return;
     const productId = searchParams.get("product");
-    if (!productId) return;
-    if (showAdjustmentDialog) return;
-    // Pre-fill unit_cost from the product master so the user doesn't have to
-    // re-type a cost they already entered when creating the product. The
-    // backfill effect below also covers the case where the products list
-    // hasn't loaded yet at the moment the deep link fires.
-    const prod = inventoryProducts.find((p) => p.id === productId) as any;
-    const prefilledCost: number | "" =
-      prod && Number(prod.cost_price) > 0 ? Number(prod.cost_price) : "";
-    setAdjustmentReason("opening_balance");
-    setAdjustmentItems([
-      { product_id: productId, quantity_adjustment: 0, unit_cost: prefilledCost, notes: "" },
-    ]);
-    setShowAdjustmentDialog(true);
+    const query = new URLSearchParams();
+    if (productId) query.set("product", productId);
+    query.set("reason", "opening_balance");
     const next = new URLSearchParams(searchParams);
     next.delete("action");
     next.delete("product");
     setSearchParams(next, { replace: true });
-  }, [searchParams, showAdjustmentDialog, setSearchParams, inventoryProducts]);
+    navigate(`/inventory-app/adjustments/new?${query.toString()}`);
+  }, [searchParams, setSearchParams, navigate]);
 
-  // Backfill: when the products list loads after a row is added (deep-link
-  // race or user picked a product before products were cached), populate any
-  // empty unit_cost from products.cost_price so the cost field reads as
-  // "already known" instead of "fill me in again".
-  useEffect(() => {
-    if (adjustmentItems.length === 0 || inventoryProducts.length === 0) return;
-    let changed = false;
-    const next = adjustmentItems.map((it) => {
-      const c = typeof it.unit_cost === "number" ? it.unit_cost : Number(it.unit_cost);
-      if (it.product_id && (!Number.isFinite(c) || c <= 0)) {
-        const prod = inventoryProducts.find((p) => p.id === it.product_id) as any;
-        const cp = prod && Number(prod.cost_price);
-        if (cp && cp > 0) {
-          changed = true;
-          return { ...it, unit_cost: cp };
-        }
-      }
-      return it;
-    });
-    if (changed) setAdjustmentItems(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventoryProducts]);
+
 
 
   // ===== SERVER-SIDE PAGINATED MOVEMENTS =====
