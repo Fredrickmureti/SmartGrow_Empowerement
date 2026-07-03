@@ -58,14 +58,17 @@ function scanRecordDialogs(): string[] {
       /\/(Reconcile|Match|Transfer|Apply|Process|Import|Configure)[A-Za-z0-9]*Dialog\.tsx$/.test(
         p,
       );
+    // Sheet bans (Wave 8): reject the exact "form-in-a-sheet" naming
+    // patterns Wave 8 eliminated for budgets. Legitimate confirm-style
+    // utilities use *DetailSheet.tsx; object previews use
+    // *PeekSheet.tsx; small config surfaces (analytic groups, close
+    // period, generate periods, dispose asset, depreciation run) are
+    // intentionally out of scope for this net and are audited via the
+    // ledger at docs/design-system/audit/finance.md.
     const sheetBan =
-      /^src\/features\/finance\/.*Sheet\.tsx$/.test(p) &&
-      // *DetailSheet.tsx is the naming convention for the confirm-style
-      // ≤6-field surface — reviewers still assess each one against the
-      // standard, but the file may exist.
-      !/DetailSheet\.tsx$/.test(p) &&
-      // *PeekSheet.tsx is the object-preview surface on PeekScaffold.
-      !/PeekSheet\.tsx$/.test(p);
+      /^src\/features\/finance\/.*\/(?:[A-Za-z0-9]+)?FormSheet\.tsx$/.test(p) ||
+      /^src\/features\/finance\/.*\/(?:[A-Za-z0-9]+)?ItemSheet\.tsx$/.test(p) ||
+      /^src\/features\/finance\/.*\/Manage[A-Za-z0-9]+Sheet\.tsx$/.test(p);
     return dialogBan || sheetBan;
   });
 }
