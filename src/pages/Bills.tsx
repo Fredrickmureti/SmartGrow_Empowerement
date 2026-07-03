@@ -398,104 +398,11 @@ export default function Bills() {
     productResolverRef.current = null;
   };
 
-  const [formData, setFormData] = useState({
-    vendor_id: "",
-    vendor_invoice_number: "",
-    bill_date: new Date().toISOString().split("T")[0],
-    due_date: "",
-    notes: "",
-    discount_amount: 0,
-  });
+  // formData / lineItems / handleSubmit / calculateLineTotal / addLineItem /
+  // updateLineItem / removeLineItem removed — the create flow is now the
+  // full-page RecordFormShell at /purchases/bills/new.
 
-  // Payment data removed — using shared RecordBillPaymentDialog
 
-  const [lineItems, setLineItems] = useState<Omit<BillItem, "id" | "bill_id">[]>([
-    { account_id: null, product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, line_total: 0, sort_order: 0 },
-  ]);
-
-  const vendors = contacts.filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active);
-
-  const resetForm = () => {
-    setFormData({ vendor_id: "", vendor_invoice_number: "", bill_date: new Date().toISOString().split("T")[0], due_date: "", notes: "", discount_amount: 0 });
-    setLineItems([{ account_id: null, product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, line_total: 0, sort_order: 0 }]);
-  };
-
-  const calculateLineTotal = (item: typeof lineItems[0]) => {
-    const subtotal = item.quantity * item.unit_price;
-    const tax = subtotal * (item.tax_rate / 100);
-    return { lineTotal: subtotal, taxAmount: tax };
-  };
-
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = product.cost_price || product.unit_price;
-        updated[index].tax_rate = product.tax_rate || 0;
-      }
-    }
-
-    const { lineTotal, taxAmount } = calculateLineTotal(updated[index]);
-    updated[index].line_total = lineTotal;
-    updated[index].tax_amount = taxAmount;
-
-    setLineItems(updated);
-  };
-
-  const addLineItem = () => {
-    setLineItems([...lineItems, { account_id: null, product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, line_total: 0, sort_order: lineItems.length }]);
-  };
-
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) {
-      setLineItems(lineItems.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.vendor_id || lineItems.every((item) => !item.description)) {
-      toast({ title: "Please fill required fields", variant: "destructive" });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const billNumber = await getNextBillNumber();
-      await createBill(
-        {
-          bill_number: billNumber,
-          vendor_id: formData.vendor_id,
-          project_id: searchParams.get("project_id") || null,
-          vendor_invoice_number: formData.vendor_invoice_number || null,
-          account_id: null,
-          status: "received",
-          bill_date: formData.bill_date,
-          due_date: formData.due_date || getDefaultDueDate(formData.bill_date),
-          subtotal: 0,
-          tax_amount: 0,
-          discount_amount: formData.discount_amount,
-          total: 0,
-          amount_paid: 0,
-          currency: baseCurrency,
-          notes: formData.notes || null,
-          attachment_url: null,
-        },
-        lineItems.filter((item) => item.description)
-      );
-      toast({ title: "Bill created successfully" });
-      setShowDialog(false);
-      resetForm();
-    } catch (error: any) {
-      toast({ title: "Error creating bill", description: normalizeError(error).message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   // handleRecordPayment removed — using shared RecordBillPaymentDialog
 
