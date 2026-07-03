@@ -373,7 +373,7 @@ export default function Banking() {
                         lastReconciledDate={acctStats?.lastReconciledDate}
                         onSync={() => syncTransactions(account.id)}
                         isSyncing={isSyncing}
-                        onEdit={() => canManage && setEditingAccount(account)}
+                        onEdit={() => { if (canManage) openEditSheet(account.id); }}
                         onDelete={() => { if (canManage) handleDeleteAccount(account.id); }}
                       />
                   );
