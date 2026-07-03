@@ -35,6 +35,9 @@ const FINANCE_GLOBS = [
  */
 const LEGACY_DIALOG_ALLOWLIST = new Set<string>([
   "src/features/finance/budgets/CopyBudgetDetailSheet.tsx",
+  // Confirm-style: pre-flight preview of mapping keep/overwrite (no
+  // record fields). Explicitly not a record editor.
+  "src/components/finance/ApplyDefaultMappingsDialog.tsx",
 ]);
 
 function scanRecordDialogs(): string[] {
