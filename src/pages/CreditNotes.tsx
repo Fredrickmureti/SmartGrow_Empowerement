@@ -178,8 +178,9 @@ export default function CreditNotes() {
   };
 
   const openApplyDialog = (cn: CreditNote) => {
-    setApplyCreditNote(cn);
-    setShowApplyDialog(true);
+    navigate(
+      `/finance/customer-credits/${cn.id}/apply?returnTo=/sales/credit-notes`,
+    );
   };
 
   const handleDelete = async (id: string) => {
