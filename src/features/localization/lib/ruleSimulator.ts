@@ -263,8 +263,8 @@ export function simulateRule(
   // ── Statutory deduction / flat ─────────────────────────────────────────
   if (kind === "flat") {
     const amount = safeNum(parameters.amount, 0);
-    const cap = parameters.cap;
-    const final = cap == null ? amount : Math.min(amount, safeNum(cap, Infinity));
+    const capN = readCap(parameters);
+    const final = capN === null ? amount : Math.min(amount, capN);
     result.breakdown.push({
       label: `${parameters.label ?? "Flat deduction"}`,
       base: 0,
@@ -278,13 +278,11 @@ export function simulateRule(
 
   // ── Pension (employee + employer mirror) ───────────────────────────────
   if (kind === "pension") {
-    const fraction = rateAsFraction(safeNum(parameters.rate, 0));
+    const fraction = pct(safeNum(parameters.rate, 0));
     const baseAmount = gross;
     let amount = baseAmount * fraction;
-    const cap = parameters.cap;
-    if (cap !== null && cap !== undefined) {
-      amount = Math.min(amount, safeNum(cap, Infinity));
-    }
+    const capN = readCap(parameters);
+    if (capN !== null) amount = Math.min(amount, capN);
     result.breakdown.push({
       label: `Pension employee (${(fraction * 100).toFixed(2)}%)`,
       base: round2(baseAmount),
@@ -324,8 +322,8 @@ export function simulateRule(
       if (gross <= lo) break;
       const slice = Math.max(0, Math.min(gross, up) - lo);
       if (slice <= 0) continue;
-      const eFrac = rateAsFraction(safeNum(t.employee_rate, 0));
-      const rFrac = rateAsFraction(safeNum(t.employer_rate, 0));
+      const eFrac = pct(safeNum(t.employee_rate, 0));
+      const rFrac = pct(safeNum(t.employer_rate, 0));
       const eAmt = slice * eFrac;
       const rAmt = slice * rFrac;
       employeeTotal += eAmt;
