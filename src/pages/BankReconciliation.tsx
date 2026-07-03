@@ -670,13 +670,8 @@ export default function BankReconciliation() {
         onSuccess={fetchTransactions}
       />
 
-      {/* Start Statement Reconciliation Dialog */}
-      <StartReconciliationDialog
-        open={startReconDialogOpen}
-        onOpenChange={setStartReconDialogOpen}
-        onStart={startSession}
-        preselectedAccountId={selectedAccount !== "all" ? selectedAccount : undefined}
-      />
+      {/* Start Statement Reconciliation is now a routed page at
+          /finance/reconciliation/new — see StartReconciliationPage. */}
 
       {/* Rules Dialog */}
       <TransactionRulesDialog
