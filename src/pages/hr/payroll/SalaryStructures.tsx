@@ -17,7 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Loader2, Trash2, History, UploadCloud, Lock, Network, AlertCircle } from "lucide-react";
+import { Plus, Loader2, Trash2, History, UploadCloud, Lock, Network, AlertCircle, GitBranch } from "lucide-react";
+import { toast } from "sonner";
 import { SalaryRuleGraphEditor } from "@/components/payroll/SalaryRuleGraphEditor";
 import { WorkflowSheet, WorkflowSheetGrid, WorkflowSheetSection, WorkflowField } from "@/components/workflow/WorkflowSheet";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -390,10 +391,38 @@ interface StructureCardProps {
 function StructureCard({ structure: s }: StructureCardProps) {
   const [showVersions, setShowVersions] = useState(false);
   const [showRuleGraph, setShowRuleGraph] = useState(false);
+  const [migrating, setMigrating] = useState(false);
   const publish = usePublishRuleSet();
   const versions = useRuleSetVersions(showVersions ? s.id : undefined);
+  const queryClient = useQueryClient();
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const isFrozen = s.version_count > 0;
+
+  const handleMigrate = async () => {
+    setMigrating(true);
+    try {
+      const { data, error } = await supabase.rpc(
+        "migrate_components_to_rules" as any,
+        { p_structure_id: s.id },
+      );
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row?.already_migrated) {
+        toast.info("Rule graph already exists for this structure.");
+      } else {
+        toast.success(
+          `Migrated ${row?.rules_created ?? 0} component${
+            row?.rules_created === 1 ? "" : "s"
+          } to the rule graph.`,
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ["payroll-salary-structures"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Migration failed.");
+    } finally {
+      setMigrating(false);
+    }
+  };
 
   return (
     <Card>
@@ -432,6 +461,24 @@ function StructureCard({ structure: s }: StructureCardProps) {
           >
             <History className="h-4 w-4 mr-1" />
             Versions{s.version_count > 0 ? ` (${s.version_count})` : ""}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleMigrate}
+            disabled={migrating || s.components.length === 0}
+            title={
+              s.components.length === 0
+                ? "No components to migrate"
+                : "Backfill payroll_salary_rules from these components and enable the rule graph engine (idempotent)."
+            }
+          >
+            {migrating ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <GitBranch className="h-4 w-4 mr-1" />
+            )}
+            Migrate to rule graph
           </Button>
           <Button
             size="sm"
