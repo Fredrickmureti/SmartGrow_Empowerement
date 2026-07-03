@@ -56,15 +56,8 @@ export default function FiscalPeriods() {
   };
 
   const [closingPeriodId, setClosingPeriodId] = useState<string | null>(null);
-  const [periodToClose, setPeriodToClose] = useState<PeriodToClose | null>(
-    () => {
-      if (closingPeriodParam) {
-        const p = null; // resolved below
-        return p;
-      }
-      return null;
-    },
-  );
+  const [periodToClose, setPeriodToClose] = useState<PeriodToClose | null>(null);
+  void closingPeriodParam;
 
   const currentPeriod = getCurrentPeriod();
 
