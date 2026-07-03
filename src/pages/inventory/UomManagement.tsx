@@ -24,13 +24,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
-import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDeleteDialog } from "@/components/shared/ConfirmDeleteDialog";
+import { DetailSheet, FieldGrid, FooterActionBar } from "@/design-system";
 import { Plus, Pencil, Trash2, Ruler, Scale } from "lucide-react";
 
 type UomCategory = {
@@ -388,127 +386,128 @@ export default function UomManagement() {
         );
       })}
 
-      {/* Category dialog */}
-      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingCategory ? "Edit Category" : "New UoM Category"}</DialogTitle>
-            <DialogDescription>
-              Categories group commensurable units (e.g. all weight units convert into kilograms).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label>Name</Label>
-              <Input
-                value={categoryName}
-                onChange={(e) => setCategoryName(e.target.value)}
-                placeholder="e.g. Weight, Length, Count"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => saveCategory.mutate()} disabled={saveCategory.isPending}>
-              {editingCategory ? "Save" : "Create"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DetailSheet
+        open={categoryDialogOpen}
+        onOpenChange={setCategoryDialogOpen}
+        size="sm"
+        title={editingCategory ? "Edit Category" : "New UoM Category"}
+        description="Categories group commensurable units, such as all weight units converting into kilograms."
+        footer={
+          <FooterActionBar
+            anchor="sheet"
+            leading={<Button variant="ghost" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button>}
+            trailing={
+              <Button onClick={() => saveCategory.mutate()} disabled={saveCategory.isPending}>
+                {editingCategory ? "Save" : "Create"}
+              </Button>
+            }
+          />
+        }
+      >
+        <div className="space-y-2">
+          <Label>Name</Label>
+          <Input
+            value={categoryName}
+            onChange={(e) => setCategoryName(e.target.value)}
+            placeholder="e.g. Weight, Length, Count"
+          />
+        </div>
+      </DetailSheet>
 
-      {/* Unit dialog */}
-      <Dialog open={unitDialogOpen} onOpenChange={setUnitDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingUnit ? "Edit Unit" : "New Unit of Measure"}</DialogTitle>
-            <DialogDescription>
-              The reference unit has factor 1. A bigger unit (e.g. kg vs g) has factor &gt; 1.
-              A smaller unit (e.g. g vs kg) has factor &lt; 1.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1 col-span-2">
-              <Label>Category</Label>
-              <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId} disabled={!!editingUnit}>
-                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Code</Label>
-              <Input
-                value={unitForm.code}
-                onChange={(e) => setUnitForm((s) => ({ ...s, code: e.target.value }))}
-                placeholder="kg"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Name</Label>
-              <Input
-                value={unitForm.name}
-                onChange={(e) => setUnitForm((s) => ({ ...s, name: e.target.value }))}
-                placeholder="Kilogram"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Type</Label>
-              <Select
-                value={unitForm.uom_type}
-                onValueChange={(v: "reference" | "bigger" | "smaller") =>
-                  setUnitForm((s) => ({
-                    ...s,
-                    uom_type: v,
-                    factor: v === "reference" ? "1" : s.factor,
-                  }))
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="reference">Reference</SelectItem>
-                  <SelectItem value="bigger">Bigger than reference</SelectItem>
-                  <SelectItem value="smaller">Smaller than reference</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Factor to reference</Label>
-              <Input
-                type="number"
-                step="any"
-                value={unitForm.factor}
-                onChange={(e) => setUnitForm((s) => ({ ...s, factor: e.target.value }))}
-                disabled={unitForm.uom_type === "reference"}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Rounding</Label>
-              <Input
-                type="number"
-                step="any"
-                value={unitForm.rounding}
-                onChange={(e) => setUnitForm((s) => ({ ...s, rounding: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-center gap-2 col-span-2">
-              <Switch
-                checked={unitForm.is_active}
-                onCheckedChange={(v) => setUnitForm((s) => ({ ...s, is_active: v }))}
-              />
-              <Label>Active</Label>
-            </div>
+      <DetailSheet
+        open={unitDialogOpen}
+        onOpenChange={setUnitDialogOpen}
+        size="md"
+        title={editingUnit ? "Edit Unit" : "New Unit of Measure"}
+        description="Reference units use factor 1; bigger and smaller units declare their conversion against that reference."
+        footer={
+          <FooterActionBar
+            anchor="sheet"
+            leading={<Button variant="ghost" onClick={() => setUnitDialogOpen(false)}>Cancel</Button>}
+            trailing={
+              <Button onClick={() => saveUnit.mutate()} disabled={saveUnit.isPending}>
+                {editingUnit ? "Save" : "Create"}
+              </Button>
+            }
+          />
+        }
+      >
+        <FieldGrid columns={2}>
+          <div className="space-y-1 sm:col-span-2">
+            <Label>Category</Label>
+            <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId} disabled={!!editingUnit}>
+              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUnitDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => saveUnit.mutate()} disabled={saveUnit.isPending}>
-              {editingUnit ? "Save" : "Create"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="space-y-1">
+            <Label>Code</Label>
+            <Input
+              value={unitForm.code}
+              onChange={(e) => setUnitForm((s) => ({ ...s, code: e.target.value }))}
+              placeholder="kg"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Name</Label>
+            <Input
+              value={unitForm.name}
+              onChange={(e) => setUnitForm((s) => ({ ...s, name: e.target.value }))}
+              placeholder="Kilogram"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Type</Label>
+            <Select
+              value={unitForm.uom_type}
+              onValueChange={(v: "reference" | "bigger" | "smaller") =>
+                setUnitForm((s) => ({
+                  ...s,
+                  uom_type: v,
+                  factor: v === "reference" ? "1" : s.factor,
+                }))
+              }
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="reference">Reference</SelectItem>
+                <SelectItem value="bigger">Bigger than reference</SelectItem>
+                <SelectItem value="smaller">Smaller than reference</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Factor to reference</Label>
+            <Input
+              type="number"
+              step="any"
+              value={unitForm.factor}
+              onChange={(e) => setUnitForm((s) => ({ ...s, factor: e.target.value }))}
+              disabled={unitForm.uom_type === "reference"}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Rounding</Label>
+            <Input
+              type="number"
+              step="any"
+              value={unitForm.rounding}
+              onChange={(e) => setUnitForm((s) => ({ ...s, rounding: e.target.value }))}
+            />
+          </div>
+          <div className="flex items-center gap-2 sm:col-span-2">
+            <Switch
+              checked={unitForm.is_active}
+              onCheckedChange={(v) => setUnitForm((s) => ({ ...s, is_active: v }))}
+            />
+            <Label>Active</Label>
+          </div>
+        </FieldGrid>
+      </DetailSheet>
 
       <ConfirmDeleteDialog
         open={!!deleteCategoryTarget}
