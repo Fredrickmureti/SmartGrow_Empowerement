@@ -620,6 +620,22 @@ function StructureCard({ structure: s }: StructureCardProps) {
           structureName={s.name}
         />
       )}
+
+      <EditSalaryStructureSheet
+        open={showEdit}
+        onOpenChange={setShowEdit}
+        structure={{ id: s.id, name: s.name, code: s.code, description: s.description ?? null }}
+      />
+      <ArchiveSalaryStructureDialog
+        open={showArchive}
+        onOpenChange={setShowArchive}
+        structure={{ id: s.id, name: s.name }}
+      />
+      <DeleteSalaryStructureDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        structure={{ id: s.id, name: s.name, is_active: s.is_active }}
+      />
     </Card>
   );
 }
