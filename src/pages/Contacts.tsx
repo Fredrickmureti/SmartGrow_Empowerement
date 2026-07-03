@@ -195,10 +195,6 @@ export default function Contacts({ defaultTypeFilter, showCompaniesOnly }: Conta
   const { toast } = useToast();
   const { inviteVendor, isInviting } = useVendorPortalInvite();
   const { currentOrg } = useOrganization();
-  const [showDialog, setShowDialog] = useState(false);
-  const [isGroupsDialogOpen, setIsGroupsDialogOpen] = useState(false);
-  const [editingContact, setEditingContact] = useState<Contact | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
@@ -226,198 +222,32 @@ export default function Contacts({ defaultTypeFilter, showCompaniesOnly }: Conta
     ? { title: "Suppliers", description: "Manage your suppliers and payables", addButton: "Add Vendor", searchPlaceholder: "Search suppliers...", emptyTitle: "No suppliers found", emptyHint: "Get started by adding your first supplier." }
     : { title: "All Contacts", description: "Manage your customers, suppliers, and companies", addButton: "Add Contact", searchPlaceholder: "Search contacts...", emptyTitle: "No contacts found", emptyHint: "Get started by adding your first contact." };
 
-  const defaultFormType = (defaultTypeFilter === "customer" || defaultTypeFilter === "supplier") ? defaultTypeFilter : "customer";
-
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    type: defaultFormType as "customer" | "supplier" | "both",
-    address_line1: "",
-    city: "",
-    state: "",
-    postal_code: "",
-    country: defaultCountry,
-    notes: "",
-    credit_limit: "",
-    credit_hold: false,
-    payment_term_id: "none",
-    customer_group_id: "none",
-    default_expense_account_id: null as string | null,
-    default_payable_account_id: null as string | null,
-    default_receivable_account_id: null as string | null,
-    default_tax_rate_id: null as string | null,
-    withholding_tax_rate: "",
-    tax_exemption_number: "",
-    // Phase E — Odoo-grade hierarchy
-    parent_contact_id: "none" as string,
-    is_company: false,
-    child_address_type: "none" as string,
-  });
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      
-      type: defaultFormType,
-      address_line1: "",
-      city: "",
-      state: "",
-      postal_code: "",
-      country: defaultCountry,
-      notes: "",
-      credit_limit: "",
-      credit_hold: false,
-      payment_term_id: "none",
-      customer_group_id: "none",
-      default_expense_account_id: null,
-      default_payable_account_id: null,
-      default_receivable_account_id: null,
-      default_tax_rate_id: null,
-      withholding_tax_rate: "",
-      tax_exemption_number: "",
-      parent_contact_id: "none",
-      is_company: false,
-      child_address_type: "none",
-    });
-    setEditingContact(null);
-  };
-
+  /**
+   * Phase-12: replaced the inline "Add/Edit Contact" Dialog with routed
+   * pages at `/contacts-app/new` and `/contacts-app/:id/edit`. This
+   * helper is now a thin navigation shim; the form, submit logic and
+   * validation live in `src/features/contacts/ContactRecordForm.tsx`.
+   */
   const handleOpenDialog = (contact?: Contact) => {
     if (contact) {
-      setEditingContact(contact);
-      setFormData({
-        name: contact.name,
-        email: contact.email || "",
-        phone: contact.phone || "",
-        
-        type: contact.type,
-        address_line1: contact.address_line1 || "",
-        city: contact.city || "",
-        state: contact.state || "",
-        postal_code: contact.postal_code || "",
-        country: contact.country || defaultCountry,
-        notes: contact.notes || "",
-        credit_limit: contact.credit_limit?.toString() || "",
-        credit_hold: contact.credit_hold || false,
-        payment_term_id: contact.payment_term_id || "none",
-        customer_group_id: contact.customer_group_id || "none",
-        default_expense_account_id: contact.default_expense_account_id || null,
-        default_payable_account_id: contact.default_payable_account_id || null,
-        default_receivable_account_id: (contact as any).default_receivable_account_id || null,
-        default_tax_rate_id: contact.default_tax_rate_id || null,
-        withholding_tax_rate: contact.withholding_tax_rate?.toString() || "",
-        tax_exemption_number: contact.tax_exemption_number || "",
-        parent_contact_id: (contact as any).parent_contact_id || "none",
-        is_company: (contact as any).is_company ?? false,
-        child_address_type: (contact as any).child_address_type || "none",
-      });
+      navigate(`/contacts-app/${contact.id}/edit`);
     } else {
-      resetForm();
+      const presetType =
+        defaultTypeFilter && defaultTypeFilter !== "both"
+          ? defaultTypeFilter
+          : undefined;
+      navigate(`/contacts-app/new${presetType ? `?type=${presetType}` : ""}`);
     }
-    setShowDialog(true);
   };
 
-  // Handle ?action=edit&id=... — auto-open edit dialog
-  const editHandledRef = useRef<string | null>(null);
+  // Handle legacy ?action=edit&id=... — Phase 12: redirect to the routed edit page.
   useEffect(() => {
     const action = searchParams.get("action");
     const editId = searchParams.get("id");
-    if (action !== "edit" || !editId || editHandledRef.current === editId) return;
-
-    const found = contacts.find((c) => c.id === editId);
-    if (found) {
-      editHandledRef.current = editId;
-      handleOpenDialog(found);
-    } else if (!isLoading) {
-      // Not in current page — fetch directly
-      editHandledRef.current = editId;
-      (async () => {
-        const { data, error } = await supabase
-          .from("contacts")
-          .select("*")
-          .eq("id", editId)
-          .single();
-        if (!error && data) {
-          handleOpenDialog(data as unknown as Contact);
-        }
-      })();
+    if (action === "edit" && editId) {
+      navigate(`/contacts-app/${editId}/edit`, { replace: true });
     }
-  }, [searchParams, contacts, isLoading]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      const isCustomer = formData.type === "customer" || formData.type === "both";
-      const isSupplier = formData.type === "supplier" || formData.type === "both";
-      const curC = Number((editingContact as any)?.customer_rank ?? 0);
-      const curS = Number((editingContact as any)?.supplier_rank ?? 0);
-      const submitData = {
-        ...formData,
-        credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : null,
-        payment_term_id: formData.payment_term_id === "none" ? null : formData.payment_term_id,
-        customer_group_id: formData.customer_group_id === "none" ? null : formData.customer_group_id,
-        default_expense_account_id: formData.default_expense_account_id || null,
-        default_payable_account_id: formData.default_payable_account_id || null,
-        default_tax_rate_id: formData.default_tax_rate_id === "none" ? null : formData.default_tax_rate_id || null,
-        withholding_tax_rate: formData.withholding_tax_rate ? parseFloat(formData.withholding_tax_rate) : null,
-        tax_exemption_number: formData.tax_exemption_number || null,
-        parent_contact_id: formData.parent_contact_id === "none" ? null : formData.parent_contact_id,
-        child_address_type: formData.child_address_type === "none" ? null : (formData.child_address_type as "contact" | "invoice" | "delivery" | "other"),
-        is_company: formData.is_company,
-        // Rank bookkeeping — never overwrite a non-zero rank (only real
-        // transactions bump those); user toggles flip between 0 and 1.
-        customer_rank: isCustomer ? Math.max(1, curC) : 0,
-        supplier_rank: isSupplier ? Math.max(1, curS) : 0,
-      };
-      
-      if (editingContact) {
-        await updateContact(editingContact.id, submitData);
-        toast({ title: "Contact updated successfully" });
-      } else {
-        const newContact = await createContact({
-          ...submitData,
-          is_active: true,
-        });
-        const contactId = (newContact as any)?.id;
-        toast({
-          title: "Contact created successfully",
-          description: submitData.type === "customer" || submitData.type === "both"
-            ? "Create an invoice for this customer?"
-            : "Create a bill from this supplier?",
-          action: (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (submitData.type === "supplier") {
-                  navigate(`/purchases/bills?action=create${contactId ? `&contact_id=${contactId}` : ""}`);
-                } else {
-                  navigate(`/sales/invoices?action=create${contactId ? `&contact_id=${contactId}` : ""}`);
-                }
-              }}
-            >
-              {submitData.type === "supplier" ? "Create Bill" : "Create Invoice"}
-            </Button>
-          ),
-        });
-      }
-      setShowDialog(false);
-      resetForm();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  }, [searchParams, navigate]);
 
   const handleDelete = (contact: Contact) => {
     setDeleteTarget(contact);
