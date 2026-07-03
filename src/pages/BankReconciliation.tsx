@@ -44,7 +44,7 @@ import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
 import { useReconciliationSuggestions } from "@/hooks/useReconciliationSuggestions";
 import { ReconcileTransactionDialog } from "@/components/banking/ReconcileTransactionDialog";
 import { TransactionRulesDialog } from "@/components/banking/TransactionRulesDialog";
-import { StartReconciliationDialogRemoved as _StartReconciliationDialogRemoved } from "@/pages/BankReconciliation._removed"; // sentinel — see below
+
 import { TransferReconcileDialog } from "@/components/banking/TransferReconcileDialog";
 import { ReconciliationWorkspace } from "@/components/banking/ReconciliationWorkspace";
 import { ImportHistoryTab } from "@/components/banking/ImportHistoryTab";
