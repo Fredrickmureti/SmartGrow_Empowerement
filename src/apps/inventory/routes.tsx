@@ -22,6 +22,7 @@ const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryVal
 const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
 const ReplenishmentLog = lazy(() => import("@/pages/ReplenishmentLog"));
 const ScrapRecording = lazy(() => import("@/pages/inventory/ScrapRecording"));
+const ScrapNew = lazy(() => import("@/pages/inventory/ScrapNew"));
 const PhysicalCount = lazy(() => import("@/pages/inventory/PhysicalCount"));
 const Transfers = lazy(() => import("@/pages/inventory/Transfers"));
 const Forecast = lazy(() => import("@/pages/inventory/Forecast"));
@@ -148,6 +149,18 @@ export function InventoryApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Scrap Recording">
                 <ScrapRecording />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Scrap Recording — routed create */}
+        <Route
+          path="scrap/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Record Scrap">
+                <ScrapNew />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
