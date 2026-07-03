@@ -1,21 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
-import { useDepartments, Department, DepartmentFormData, DepartmentStatus } from "@/hooks/useDepartments";
+import { useDepartments, Department, DepartmentStatus } from "@/hooks/useDepartments";
 import { useEmployees } from "@/hooks/useEmployees";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -59,6 +50,7 @@ import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { useOrganization } from "@/hooks/useOrganization";
 import { format } from "date-fns";
 import { normalizeError } from "@/services/resilience";
+import { PageHeader, PageBody } from "@/design-system";
 
 export default function Departments() {
   const {
