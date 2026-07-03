@@ -184,7 +184,7 @@ export default function ScrapNew() {
       </Section>
 
       <Section title="Reason" description="Why this stock is being written off.">
-        <FieldGrid columns={1}>
+        <FieldGrid columns={2}>
           <div className="space-y-2">
             <Label>Reason *</Label>
             <Select
