@@ -41,10 +41,10 @@ const LEGACY_DIALOG_ALLOWLIST = new Set<string>([
   // Migration targets — MUST leave this list as each is completed.
   // Only files matching the ban regex (Create*/Edit*/`*DetailDialog`)
   // belong here. Other legacy Finance dialogs (Apply*, Process*,
-  // BusinessTransaction*, RecurringJournal*, YearEndClosing*,
-  // ConnectBank*, ImportTransactions*, Reconcile*, StartReconciliation*,
-  // TransactionRules*, TransferReconcile*) are tracked in
-  // docs/design-system/audit/finance.md — not by this filename guard.
+  // YearEndClosing*, ConnectBank*, ImportTransactions*, Reconcile*,
+  // StartReconciliation*, TransactionRules*, TransferReconcile*) are
+  // tracked in docs/design-system/audit/finance.md — not by this
+  // filename guard.
   "src/components/finance/CreditNoteDetailDialog.tsx",
   "src/components/banking/EditBankAccountDialog.tsx",
 ]);
