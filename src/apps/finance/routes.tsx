@@ -43,6 +43,8 @@ const FiscalPeriods = lazy(() => import("@/pages/FiscalPeriods"));
 const FiscalPeriodDetail = lazy(() => import("@/pages/finance/FiscalPeriodDetail"));
 const YearEndClosePage = lazy(() => import("@/features/finance/year-end-close/YearEndClosePage"));
 const Budgets = lazy(() => import("@/pages/Budgets"));
+const BudgetCreatePage = lazy(() => import("@/features/finance/budgets/BudgetCreatePage"));
+const BudgetEditPage = lazy(() => import("@/features/finance/budgets/BudgetEditPage"));
 const FixedAssets = lazy(() => import("@/pages/FixedAssets"));
 const AnalyticAccounts = lazy(() => import("@/pages/AnalyticAccounts"));
 const Banking = lazy(() => import("@/pages/Banking"));
@@ -356,6 +358,28 @@ export function FinanceApp() {
         />
         
         {/* Budgets */}
+        {/* /new + /:id/edit MUST precede the list to avoid the list
+            swallowing "new" as a param. */}
+        <Route
+          path="budgets/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Budget">
+                <BudgetCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="budgets/:id/edit"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Edit Budget">
+                <BudgetEditPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         <Route
           path="budgets"
           element={

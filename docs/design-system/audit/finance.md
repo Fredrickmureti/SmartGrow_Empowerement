@@ -24,11 +24,13 @@ Legend for **Target**:
 | Chart of Accounts entry | Create / Edit | Route + `RecordFormShell` at `/finance/accounts/new` (`AccountCreatePage`) + `/:id/edit` (`AccountEditPage`) | Route + `RecordFormShell` at `/finance/accounts/new` + `/:id/edit` | Done |
 | Fiscal Period | Create / Edit | `GeneratePeriodsSheet` (`DetailSheet`) | `DetailSheet` (≤6 fields) | Done |
 | Year-End Close | Route + `RecordScaffold` at `/finance/year-end-close` (`YearEndClosePage`); `YearEndClosingDialog` deleted | `WizardShell` at `/finance/fiscal-periods/close` | Done (page-based; deviation from wizard target — dialog deleted) |
-| Budget | Create / Edit | `BudgetFormSheet` + `BudgetItemSheet` + `ManageBudgetSheet` (Sheet-based) | Route + `RecordFormShell` at `/finance/budgets/new` + `/:id/edit` (line grid for account budgets) | **Deviation** — sheets shipped; promotion to routes pending |
+| Budget | Create | Route + `RecordFormShell` at `/finance/budgets/new` (`BudgetCreatePage`) | Route + `RecordFormShell` at `/finance/budgets/new` | Done |
+| Budget | Edit / Manage | Route + `RecordFormShell` at `/finance/budgets/:id/edit` (`BudgetEditPage`) with inline add-line composer, variance summary, and BvA chart; `BudgetFormSheet` + `BudgetItemSheet` + `ManageBudgetSheet` deleted | Route + `RecordFormShell` at `/finance/budgets/:id/edit` (line grid for account budgets) | Done |
+| Budget | Copy to next year | `CopyBudgetDetailSheet` (`DetailSheet`, 2 fields — confirm-style, allowlisted) | `DetailSheet` (≤6 fields) | Done |
 | Fixed Asset | Create / Edit | Route + `RecordFormShell` at `/finance/fixed-assets/new` (`AssetCreatePage`) + `/:id/edit` (`AssetEditPage`); `AssetFormSheet` deleted | Route + `RecordFormShell` at `/finance/fixed-assets/new` + `/:id/edit` | Done |
 | Fixed Asset | Peek | `AssetPeekSheet` on `PeekScaffold` behind `?peek=<id>`; `AssetDetailSheet` deleted | `PeekScaffold` | Done |
 | Analytic Account | Create / Edit | `AnalyticAccountSheet` + `AnalyticGroupSheet` (`DetailSheet`) | `DetailSheet` | Done |
-| Bank Account | Connect / Edit | `BankAccountSheet` at `?sheet=account[&id=…]` (Sheet-based; `ConnectBankDialog` + `EditBankAccountDialog` deleted) | Route + `RecordFormShell` at `/finance/banking/accounts/new` + `/:id/edit` | **Deviation** — unified sheet shipped; promotion to routes pending |
+| Bank Account | Connect / Edit | Route + `RecordFormShell` at `/finance/banking/accounts/new` (`BankAccountCreatePage`) + `/:id/edit` (`BankAccountEditPage`); `BankAccountSheet` + `ConnectBankDialog` + `EditBankAccountDialog` deleted | Route + `RecordFormShell` at `/finance/banking/accounts/new` + `/:id/edit` | Done |
 | Bank Reconciliation | Start | Route + `RecordFormShell` at `/finance/reconciliation/new` (`StartReconciliationPage`); `StartReconciliationDialog` deleted | Route + `WizardShell` at `/finance/reconciliation/new` | Done (form-based; single-step route on `RecordFormShell` — dialog deleted) |
 | Bank Reconciliation | Workspace | `ReconcileTransactionSheet` (row-by-row `DetailSheet` side rail; `ReconcileTransactionDialog` deleted) | Enterprise side rail on `DetailSheet` (no modal); full workspace split-view promotion tracked separately | Done (side-rail; modal eliminated — split-view route deferred) |
 | Bank Transfer Reconcile | `TransferReconcileSheet` (`DetailSheet` side rail; `TransferReconcileDialog` deleted) | Enterprise side rail on `DetailSheet` (no modal) | Done (side-rail; modal eliminated) |
@@ -49,8 +51,17 @@ or `src/components/accounting` matching either:
 - `*DetailDialog.tsx` — must be a `*PeekSheet.tsx` on `PeekScaffold`,
 
 is blocked by [`src/test/architecture/finance-record-dialog-ban.test.ts`](../../../src/test/architecture/finance-record-dialog-ban.test.ts).
-The allowlist is frozen against the 14 legacy dialogs listed today and
-may only shrink.
+
+Post Wave 11 the guard is **frozen**: the allowlist contains only two
+genuine confirm-style utilities — `CopyBudgetDetailSheet.tsx` (2 fields)
+and `ApplyDefaultMappingsDialog.tsx` (preview). The scan now also
+covers `src/components/budgets` and `src/features/finance/**`, and
+additionally rejects verb-noun dialogs (`Reconcile*Dialog`,
+`Match*Dialog`, `Apply*Dialog`, etc.) and the `*FormSheet` /
+`*ItemSheet` / `Manage*Sheet` naming patterns Wave 8 eliminated for
+budgets. Any new dialog or sheet under those trees is a hard build
+failure unless explicitly added to `LEGACY_DIALOG_ALLOWLIST` with a
+documented confirm-style justification.
 
 ## Standard imports
 

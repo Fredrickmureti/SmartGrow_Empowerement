@@ -1,6 +1,8 @@
 /**
- * CopyBudgetSheet — clone an existing Budget's items into a new fiscal
- * year as a Draft. Mounted on DetailSheet.
+ * CopyBudgetDetailSheet — clone an existing Budget's items into a new
+ * fiscal year as a Draft. A confirm-style DetailSheet (2 fields, no
+ * line items) — allowlisted by the Finance record-dialog/sheet ban
+ * test because it fits the ≤6-field standard.
  *
  * URL-driven behind `?sheet=copy&id=<source-uuid>`.
  */
@@ -30,7 +32,7 @@ interface Props {
   source: Budget | null;
 }
 
-export function CopyBudgetSheet({ open, onOpenChange, source }: Props) {
+export function CopyBudgetDetailSheet({ open, onOpenChange, source }: Props) {
   const { createBudget } = useBudgets();
   const { toast } = useToast();
   const currentYear = new Date().getFullYear();
@@ -133,4 +135,4 @@ export function CopyBudgetSheet({ open, onOpenChange, source }: Props) {
   );
 }
 
-export default CopyBudgetSheet;
+export default CopyBudgetDetailSheet;

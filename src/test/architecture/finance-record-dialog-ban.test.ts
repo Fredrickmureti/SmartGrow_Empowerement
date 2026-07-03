@@ -5,17 +5,13 @@
  * business record MUST be a `/new` or `/:id/edit` route composed on top
  * of `RecordFormShell` from `@/design-system`, and every substantial
  * peek surface MUST be a `*PeekSheet.tsx` composed on `PeekScaffold` /
- * `DocumentPeekShell` — never a `Dialog`.
+ * `DocumentPeekShell` — never a `Dialog` and never a `*Sheet.tsx`
+ * form-in-a-sheet.
  *
- * Confirm-style pickers (≤6 fields, no line items) may remain `Dialog`
- * and are allowlisted below with a `// confirm-style` marker.
- *
- * This test:
- *   1. Freezes the list of legacy Finance dialog files still awaiting
- *      migration (the allowlist below). Every entry must be REMOVED —
- *      not appended to — as its route pair / peek sheet lands.
- *   2. Forbids any NEW `Create*Dialog.tsx` / `Edit*Dialog.tsx` /
- *      `*DetailDialog.tsx` file appearing under the Finance surface.
+ * The guard is now FROZEN (post Wave 11): allowlist contains only
+ * genuine confirm-style utilities that fit the ≤6-field `DetailSheet`
+ * standard. Every other Create/Edit/Detail dialog and every ad-hoc
+ * `*Sheet.tsx` form under the Finance surface is forbidden.
  */
 import { describe, it, expect } from "vitest";
 import { execSync } from "node:child_process";
@@ -25,23 +21,23 @@ const FINANCE_GLOBS = [
   "src/components/finance",
   "src/components/banking",
   "src/components/accounting",
+  "src/components/budgets",
+  "src/features/finance",
 ];
 
 /**
- * Legacy dialogs still awaiting migration. As each migration lands,
- * DELETE the file AND remove its entry here. New Finance record
- * dialogs MAY NOT be added — this list only shrinks.
+ * Frozen allowlist — genuine confirm-style utilities that fit the
+ * ≤6-field `DetailSheet` standard. Anything else is forbidden.
  *
- * `ApplyDefaultMappingsDialog` is a confirm-style dialog (target column
- * says "keep") but its filename matches the ban pattern, so it is
- * allowlisted permanently with a marker comment. Every other entry is
- * a Phase-1 migration target and MUST leave the list.
+ *   - CopyBudgetDetailSheet — 2 fields (target year, source budget
+ *     summary). Not a record editor. Explicitly named `*DetailSheet`
+ *     to signal confirm-style intent.
  */
 const LEGACY_DIALOG_ALLOWLIST = new Set<string>([
-  // Empty — the Finance record-dialog surface is frozen. All legacy
-  // Create*/Edit*/*DetailDialog files under Finance have been migrated
-  // to /new or /:id/edit routes on RecordFormShell (create/edit) or
-  // *PeekSheet on PeekScaffold (detail).
+  "src/features/finance/budgets/CopyBudgetDetailSheet.tsx",
+  // Confirm-style: pre-flight preview of mapping keep/overwrite (no
+  // record fields). Explicitly not a record editor.
+  "src/components/finance/ApplyDefaultMappingsDialog.tsx",
 ]);
 
 function scanRecordDialogs(): string[] {
@@ -54,22 +50,43 @@ function scanRecordDialogs(): string[] {
   const all = execSync(cmd, { encoding: "utf8" })
     .split("\n")
     .filter(Boolean);
-  return all.filter((p) =>
-    /\/(Create|Edit)[A-Za-z0-9]+Dialog\.tsx$|\/[A-Za-z0-9]+DetailDialog\.tsx$/.test(
-      p,
-    ),
-  );
+  return all.filter((p) => {
+    // Ban: any Create*Dialog / Edit*Dialog / *DetailDialog file
+    // (matches the original coarse net), any verb-noun *Dialog file
+    // that hosts a record editor (Reconcile*Dialog, Match*Dialog,
+    // etc.), and any *Sheet.tsx form under src/features/finance.
+    const dialogBan =
+      /\/(Create|Edit)[A-Za-z0-9]+Dialog\.tsx$/.test(p) ||
+      /\/[A-Za-z0-9]+DetailDialog\.tsx$/.test(p) ||
+      /\/(Reconcile|Match|Transfer|Apply|Process|Import|Configure)[A-Za-z0-9]*Dialog\.tsx$/.test(
+        p,
+      );
+    // Sheet bans (Wave 8): reject the exact "form-in-a-sheet" naming
+    // patterns Wave 8 eliminated for budgets. Legitimate confirm-style
+    // utilities use *DetailSheet.tsx; object previews use
+    // *PeekSheet.tsx; small config surfaces (analytic groups, close
+    // period, generate periods, dispose asset, depreciation run) are
+    // intentionally out of scope for this net and are audited via the
+    // ledger at docs/design-system/audit/finance.md.
+    const sheetBan =
+      /^src\/features\/finance\/.*\/(?:[A-Za-z0-9]+)?FormSheet\.tsx$/.test(p) ||
+      /^src\/features\/finance\/.*\/(?:[A-Za-z0-9]+)?ItemSheet\.tsx$/.test(p) ||
+      /^src\/features\/finance\/.*\/Manage[A-Za-z0-9]+Sheet\.tsx$/.test(p);
+    return dialogBan || sheetBan;
+  });
 }
 
 describe("finance record dialog ban", () => {
-  it("no NEW Create*Dialog / Edit*Dialog / *DetailDialog files under the Finance surface", () => {
+  it("no forbidden Dialog or Sheet files under the Finance surface", () => {
     const found = scanRecordDialogs();
     const leaked = found.filter((p) => !LEGACY_DIALOG_ALLOWLIST.has(p));
     expect(
       leaked,
-      `New Finance record dialog files landed. Build a /new + /:id/edit ` +
-        `route on RecordFormShell (create/edit) or a *PeekSheet on ` +
-        `PeekScaffold (detail) instead:\n${leaked.join("\n")}`,
+      `New Finance record dialog/sheet files landed. Build a /new + ` +
+        `/:id/edit route on RecordFormShell (create/edit) or a ` +
+        `*PeekSheet on PeekScaffold (detail) instead. Confirm-style ` +
+        `≤6-field utilities must use the *DetailSheet naming convention ` +
+        `and be explicitly allowlisted in this test:\n${leaked.join("\n")}`,
     ).toEqual([]);
   });
 

@@ -291,6 +291,25 @@ export function useBudgets() {
     },
   });
 
+  // Delete budget item — required by the inline items grid on
+  // BudgetEditPage. The legacy BudgetItemSheet flow only supported
+  // upsert; row-level delete is a new affordance of the routed page.
+  const deleteBudgetItem = useMutation({
+    mutationFn: async (itemId: string) => {
+      const { error } = await supabase
+        .from("budget_items")
+        .delete()
+        .eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+    },
+    onError: (error) => {
+      toast.error("Failed to delete budget item: " + normalizeError(error).message);
+    },
+  });
+
   return {
     budgets,
     isLoading,
@@ -300,5 +319,6 @@ export function useBudgets() {
     closeBudget,
     deleteBudget,
     upsertBudgetItem,
+    deleteBudgetItem,
   };
 }
