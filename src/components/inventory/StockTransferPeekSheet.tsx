@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
-interface TransferDetailDrawerProps {
+interface StockTransferPeekSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transferId: string | null;
@@ -26,7 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-100 text-red-800",
 };
 
-export function TransferDetailDrawer({ open, onOpenChange, transferId }: TransferDetailDrawerProps) {
+export function StockTransferPeekSheet({ open, onOpenChange, transferId }: StockTransferPeekSheetProps) {
   const navigate = useNavigate();
 
   const { data: transfer, isLoading } = useQuery({

@@ -25,16 +25,16 @@ Legend for **Target**:
 | --- | --- | --- | --- | --- |
 | Warehouse | Create / Edit | inline dialog in `src/pages/Products.tsx` warehouse tab | Route + `RecordFormShell` at `/inventory/warehouses/new` + `/:id/edit` | **Pending** |
 | Warehouse | View | inline expander | Route + `RecordScaffold` at `/inventory/warehouses/:id` | **Pending** |
-| Warehouse Stock | Peek (list) | `WarehouseStockDrawer` | `PeekScaffold` | **Pending** |
-| Stock Movement | Peek (list) | `MovementDetailDrawer` | `PeekScaffold` | **Pending** |
-| Stock Movement | Source doc peek | `SourceDocumentDrawer` | `PeekScaffold` (delegate to source app peek) | **Pending** |
+| Warehouse Stock | Peek (list) | `WarehouseStockPeekSheet` on `DetailSheet` | `PeekScaffold` | Done |
+| Stock Movement | Peek (list) | `StockMovementPeekSheet` on `DetailSheet` | `PeekScaffold` | Done |
+| Stock Movement | Source doc peek | `SourceDocumentPeekSheet` on `DetailSheet` | `PeekScaffold` (delegate to source app peek) | Done |
 | Stock Adjustment | Create | Route + `RecordFormShell` at `src/pages/inventory/AdjustmentNew.tsx` (`/inventory-app/adjustments/new`) | Route + `RecordFormShell` | Done |
 | Stock Adjustment | Edit | N/A — posted adjustments are immutable (enterprise ERP standard: SAP/Oracle/D365/Odoo). Corrections flow through `ReverseAdjustmentDialog` + a fresh create. | Reverse-and-recreate (no edit route) | Done |
 | Stock Adjustment | Peek (list) | `AdjustmentPeekSheet` at `src/components/inventory/AdjustmentPeekSheet.tsx` | `PeekScaffold` | Done |
 | Stock Adjustment | Reverse | `ReverseAdjustmentDialog` | `Dialog` (allowed — confirm-style) | Done |
 | Stock Transfer | Create | Route + `RecordFormShell` at `src/pages/inventory/TransferNew.tsx` (`/inventory-app/transfers/new`) | Route + `RecordFormShell` | Done |
 | Stock Transfer | Edit | N/A — an in-transit or completed transfer is immutable; corrections use cancel/reverse + fresh create. | Cancel-and-recreate (no edit route) | Done |
-| Stock Transfer | Peek (list) | `TransferDetailDrawer` | `PeekScaffold` | **Pending** |
+| Stock Transfer | Peek (list) | `StockTransferPeekSheet` on `DetailSheet` | `PeekScaffold` | Done |
 | Physical Count | Create session | inline dialog in `src/pages/inventory/PhysicalCount.tsx` | `WizardShell` at `/inventory/physical-count/new` | **Pending** |
 | Physical Count | View / commit | inline dialog | Route + `RecordScaffold` + `WizardShell` finalize step | **Pending** |
 | Scrap / Write-off | Create | Route + `RecordFormShell` at `src/pages/inventory/ScrapNew.tsx` (`/inventory-app/scrap/new`) | Route + `RecordFormShell` | Done |

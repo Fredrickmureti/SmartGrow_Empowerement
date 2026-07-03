@@ -27,9 +27,10 @@ const ALLOWLIST = new Set<string>([
   // Per-warehouse physical count: query is keyed on warehouse_id and is the
   // source-of-truth read for the count baseline.
   "src/pages/inventory/PhysicalCount.tsx",
-  // Movement & adjustment drawers: scoped by reference, not branch.
-  "src/components/inventory/SourceDocumentDrawer.tsx",
-  "src/components/inventory/MovementDetailDrawer.tsx",
+  // Movement, adjustment, and per-warehouse stock peeks: scoped by warehouse_id/reference.
+  "src/components/inventory/SourceDocumentPeekSheet.tsx",
+  "src/components/inventory/StockMovementPeekSheet.tsx",
+  "src/components/inventory/WarehouseStockPeekSheet.tsx",
   "src/components/inventory/AdjustmentDetailDrawer.tsx",
   // ProductDetailPanel reads warehouse_stock filtered by org+business+branch
   // via useProductDetailData. Validated by inventory-branch-filter.
