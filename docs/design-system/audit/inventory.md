@@ -37,7 +37,8 @@ Legend for **Target**:
 | Stock Transfer | Peek (list) | `TransferDetailDrawer` | `PeekScaffold` | **Pending** |
 | Physical Count | Create session | inline dialog in `src/pages/inventory/PhysicalCount.tsx` | `WizardShell` at `/inventory/physical-count/new` | **Pending** |
 | Physical Count | View / commit | inline dialog | Route + `RecordScaffold` + `WizardShell` finalize step | **Pending** |
-| Scrap / Write-off | Create | inline dialog in `src/pages/inventory/ScrapRecording.tsx` | Route + `RecordFormShell` at `/inventory/scrap/new` | **Pending** |
+| Scrap / Write-off | Create | Route + `RecordFormShell` at `src/pages/inventory/ScrapNew.tsx` (`/inventory-app/scrap/new`) | Route + `RecordFormShell` | Done |
+| Scrap / Write-off | Edit | N/A — posted scrap is immutable; corrections use reverse + fresh create. | Reverse-and-recreate | Done |
 | Reorder Rule | Create / Edit | inline dialog | `DetailSheet` (≤6 fields) | **Pending** |
 | Reorder Rule | Peek | inline dialog | `PeekScaffold` | **Pending** |
 | Product | Create / Edit | inline dialog in `src/pages/Products.tsx` | Route + `RecordFormShell` at `/inventory/products/new` + `/:id/edit` | **Pending** |
