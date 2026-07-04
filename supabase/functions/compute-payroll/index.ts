@@ -3212,6 +3212,28 @@ Deno.serve(async (req) => {
       for (const rl of reimbursementLineMeta) {
         pushLine(`reimbursement_${rl.id}`, "earning", rl.label, rl.amount, 0, false, "reimbursement", { expense_id: rl.id }, null, { kind: "reimbursement", code: `reimbursement_${rl.id}`, expense_id: rl.id, label: rl.label });
       }
+      // Turn D: custom deduction lines (Slice 2 — post-tax only in this pass)
+      for (const cd of customDeductionLineMeta) {
+        pushLine(
+          `custom_${cd.code}`,
+          cd.is_employer_contribution ? "employer_contribution" : "deduction",
+          cd.label,
+          cd.is_employer_contribution ? 0 : cd.amount,
+          cd.is_employer_contribution ? cd.amount : 0,
+          false,
+          "custom_deduction",
+          {
+            source: "custom_deduction",
+            assignment_id: cd.assignment_id,
+            deduction_type_id: cd.type_id,
+            gl_liability_account_id: cd.gl_liability_account_id,
+            gl_expense_account_id: cd.gl_expense_account_id,
+            payslip_group: cd.payslip_group,
+          },
+          null,
+          { kind: "custom_deduction", code: cd.code, assignment_id: cd.assignment_id, deduction_type_id: cd.type_id, label: cd.label },
+        );
+      }
       // P1: Employer admin fees — one employer_contribution line per resolved
       // role. rule_code = role so post-payroll-gl looks up <role>_employer_expense
       // / <role>_payable mappings and payroll_liabilities tracks remittance.
