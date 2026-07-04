@@ -35,9 +35,10 @@ interface Props {
 export function ReviewFormBody({ reviewId }: Props) {
   const { user } = useAuth();
   const { currentEmployee } = useCurrentEmployee();
-  const { review, sections, questions, responses, isLoading, saveResponse, submitReview, signOff, acknowledge } = useReview(reviewId);
+  const { review, sections, questions, responses, reviewGoals, isLoading, saveResponse, saveGoalResponse, submitReview, signOff, acknowledge } = useReview(reviewId);
 
   const [answers, setAnswers] = useState<Record<string, { rating?: number | null; comment?: string | null }>>({});
+  const [goalAnswers, setGoalAnswers] = useState<Record<string, { rating?: number | null; comment?: string | null }>>({});
   const [overall, setOverall] = useState<number>(0);
   const [summary, setSummary] = useState("");
   const [strengths, setStrengths] = useState("");
@@ -52,6 +53,23 @@ export function ReviewFormBody({ reviewId }: Props) {
     }
     setAnswers(map);
   }, [responses]);
+
+  // Pre-fill per-goal answers: existing goal-linked response wins, else
+  // seed from performance_goals.final_rating so managers see the latest
+  // rating captured on the goal itself (Phase 4 tail).
+  useEffect(() => {
+    const respByGoal = new Map(
+      responses.filter((r) => r.goal_id && !r.question_id).map((r) => [r.goal_id as string, r]),
+    );
+    const map: Record<string, { rating?: number | null; comment?: string | null }> = {};
+    for (const g of reviewGoals ?? []) {
+      const existing = respByGoal.get(g.id);
+      map[g.id] = existing
+        ? { rating: existing.rating, comment: existing.comment }
+        : { rating: g.final_rating ?? null, comment: null };
+    }
+    setGoalAnswers(map);
+  }, [responses, reviewGoals]);
 
   useEffect(() => {
     if (review) {
