@@ -272,6 +272,12 @@ Deno.serve(async (req) => {
     }
     const deductionMap = new Map<string, DeductionAgg>();
 
+    // Phase C — split labour cost by accounting_tag when the compute layer
+    // stamped one. `null` bucket is the legacy "post to generic
+    // salary_expense" path; when every earning is untagged the split
+    // collapses to a single DR identical to the pre-Phase-C shape.
+    const earningsByTag = new Map<string | null, number>();
+
     // Garnishment lines are aggregated separately because they are per-order
     // (one liability + remittance per garnishment_id), not per-rule_code like
     // statutory deductions. Each row drives one CR to garnishment_payable and
@@ -286,7 +292,7 @@ Deno.serve(async (req) => {
 
     const { data: payslipLines, error: linesError } = await supabaseAdmin
       .from("payslip_lines")
-      .select("rule_code, label, category, employee_amount, employer_amount, details")
+      .select("rule_code, label, category, employee_amount, employer_amount, details, accounting_tag")
       .eq("payroll_run_id", payroll_run_id);
 
     if (linesError) {
@@ -319,6 +325,12 @@ Deno.serve(async (req) => {
       const cat = line.category as string;
       const empAmt = Number(line.employee_amount || 0);
       const erAmt = Number(line.employer_amount || 0);
+
+      // Phase C — accumulate earnings by accounting_tag for salary_expense split.
+      if (cat === "earning" && empAmt > 0) {
+        const tag = (line.accounting_tag as string | null) ?? null;
+        earningsByTag.set(tag, (earningsByTag.get(tag) ?? 0) + empAmt);
+      }
 
       // ─── Garnishment lines: aggregate per garnishment order ───
       if (cat === "garnishment" && empAmt > 0) {
@@ -463,7 +475,7 @@ Deno.serve(async (req) => {
     }
 
 
-    const salaryExpense = resolveAccount("salary_expense")!;
+    const salaryExpense = resolveAccount("salary_expense");
     const netSalaryPayable = resolveAccount("net_salary_payable")!;
 
     // Phase 3.4-followup #3 — correction runs post signed-delta payslip
@@ -480,14 +492,65 @@ Deno.serve(async (req) => {
       ? `Correction Δ ${payrollRun.payroll_number}${parentRunRef ? ` (of run ${parentRunRef})` : ""}`
       : `Payroll ${payrollRun.payroll_number}`;
 
-    // DR: Salary Expense
-    lines.push({
-      account_id: salaryExpense,
-      debit: totalGross,
-      credit: 0,
-      description: `${runLabel} - Salary Expense`,
-      contact_id: null,
-    });
+    // DR: Salary Expense — split by accounting_tag when compute stamped one.
+    // Each tag `T` posts to salary_expense_<T> if mapped, otherwise folds
+    // into the generic salary_expense bucket. Sum across all buckets equals
+    // totalGross, so the balance invariant below is preserved.
+    const salaryDrByAccount = new Map<string, { debit: number; labelSuffix: string | null }>();
+    let unmappedTagAccum = 0;
+    for (const [tag, amt] of earningsByTag) {
+      if (tag) {
+        const specific = resolveAccount(`salary_expense_${tag}`);
+        if (specific) {
+          const cur = salaryDrByAccount.get(specific);
+          salaryDrByAccount.set(specific, {
+            debit: (cur?.debit ?? 0) + amt,
+            labelSuffix: cur?.labelSuffix ?? tag,
+          });
+          continue;
+        }
+      }
+      unmappedTagAccum += amt;
+    }
+    // Any remainder that wasn't sent to a tag-specific account still needs
+    // the generic salary_expense mapping. Also cover the pre-Phase-C case
+    // where no earning lines were tag-aggregated (e.g. correction runs that
+    // predate the column) by falling back to `totalGross`.
+    const genericAmount =
+      earningsByTag.size === 0 ? totalGross : unmappedTagAccum;
+    if (genericAmount > 0.005) {
+      if (!salaryExpense) {
+        return new Response(JSON.stringify({
+          error: "missing_mappings",
+          message: "Salary Expense account is not mapped. Configure it under Payroll → GL Account Mapping.",
+          missing: [{
+            setting_key: "salary_expense",
+            label: "Salary Expense",
+            rule_code: null,
+            kind: "core",
+          }],
+          action: { label: "Open GL Account Mapping", to: "/hr/payroll/configuration/accounts" },
+        }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const cur = salaryDrByAccount.get(salaryExpense);
+      salaryDrByAccount.set(salaryExpense, {
+        debit: (cur?.debit ?? 0) + genericAmount,
+        labelSuffix: cur?.labelSuffix ?? null,
+      });
+    }
+    for (const [acct, entry] of salaryDrByAccount) {
+      lines.push({
+        account_id: acct,
+        debit: Math.round(entry.debit * 100) / 100,
+        credit: 0,
+        description: entry.labelSuffix
+          ? `${runLabel} - Salary Expense (${entry.labelSuffix})`
+          : `${runLabel} - Salary Expense`,
+        contact_id: null,
+      });
+    }
 
     // CR: Each deduction — require explicit mapping
     for (const [key, deduction] of deductionMap) {

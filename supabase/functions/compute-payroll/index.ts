@@ -1247,7 +1247,7 @@ Deno.serve(async (req) => {
     {
       const { data: wetRows } = await supabaseAdmin
         .from("payroll_work_entry_types")
-        .select("id, code, is_paid, counts_as_worked, multiplier_normal, multiplier_overtime")
+        .select("id, code, is_paid, counts_as_worked, multiplier_normal, multiplier_overtime, accounting_tag")
         .eq("organization_id", organization_id)
         .eq("is_active", true);
       for (const t of (wetRows || []) as any[]) {
@@ -1258,6 +1258,7 @@ Deno.serve(async (req) => {
           counts_as_worked: t.counts_as_worked,
           multiplier_normal: Number(t.multiplier_normal ?? 1),
           multiplier_overtime: Number(t.multiplier_overtime ?? 1.5),
+          accounting_tag: t.accounting_tag ?? null,
         });
       }
     }
@@ -1875,6 +1876,12 @@ Deno.serve(async (req) => {
     // structure-deduction/contrib block downstream and for
     // payroll_rule_traces persistence after payslips insert.
     const graphEarningsByEmployee: Record<string, Record<string, number>> = {};
+    // Phase C — per-employee earning-key → accounting_tag map. Populated
+    // from engine rule outputs (rule.accounting_tag) so post-payroll-gl
+    // can split the salary_expense DR into per-tag buckets. Absent tags
+    // fall through to the generic salary_expense mapping — full backward
+    // compatibility with runs that leave every rule untagged.
+    const graphEarningTagByEmployee: Record<string, Record<string, string | null>> = {};
     const graphDeductionsByEmployee: Record<string, Array<{ code: string; label: string; amount: number }>> = {};
     const graphEmployerByEmployee: Record<string, Array<{ code: string; label: string; amount: number }>> = {};
     const graphTracesByEmployee: Record<string, { structure_id: string; traces: StructureRuleTrace[] }> = {};
@@ -2101,17 +2108,23 @@ Deno.serve(async (req) => {
         transportAllowance = 0;
         otherEarnings = {};
         const otherEarn: Record<string, number> = {};
+        const tagByKey: Record<string, string | null> = {};
         for (const line of engineRes.lines) {
           const codeLc = (line.code || "").toLowerCase();
           if (line.category === "basic") {
             basicSalary += line.amount;
+            if (line.accounting_tag) tagByKey["basic"] = line.accounting_tag;
           } else if (line.category === "allowance") {
             if (codeLc === "housing" || codeLc === "housing_allowance" || codeLc === "hra") {
               housingAllowance += line.amount;
+              if (line.accounting_tag) tagByKey["housing_allowance"] = line.accounting_tag;
             } else if (codeLc === "transport" || codeLc === "transport_allowance") {
               transportAllowance += line.amount;
+              if (line.accounting_tag) tagByKey["transport_allowance"] = line.accounting_tag;
             } else {
-              otherEarn[line.name || line.code] = (otherEarn[line.name || line.code] || 0) + line.amount;
+              const k = line.name || line.code;
+              otherEarn[k] = (otherEarn[k] || 0) + line.amount;
+              if (line.accounting_tag) tagByKey[k] = line.accounting_tag;
             }
           } else if (line.category === "deduction") {
             (graphDeductionsByEmployee[emp.id] ||= []).push({
@@ -2128,6 +2141,7 @@ Deno.serve(async (req) => {
           }
         }
         otherEarnings = otherEarn;
+        graphEarningTagByEmployee[emp.id] = tagByKey;
         if (basicSalary === 0) basicSalary = baseWage;
         graphEarningsByEmployee[emp.id] = { basic: basicSalary, housing: housingAllowance, transport: transportAllowance };
         salarySource = "salary_structure_graph";
@@ -2945,6 +2959,15 @@ Deno.serve(async (req) => {
       const lineRows: Array<Record<string, unknown>> = [];
       const inputRows: Array<Record<string, unknown>> = [];
       let seq = 0;
+      // Phase C — earning-key → accounting_tag lookup for this employee.
+      // Graph earnings supply their rule's tag; the fixed `overtime` bucket
+      // falls back to the WET-level accounting_tag when the OT WET carries
+      // one. Everything else stays untagged (NULL) and posts to the
+      // generic salary_expense mapping in post-payroll-gl.
+      const earnTag = graphEarningTagByEmployee[emp.id] || {};
+      const wetOtTag =
+        workEntryTypes.find((w) => w.code === "OT")?.accounting_tag ?? null;
+      if (!earnTag["overtime"] && wetOtTag) earnTag["overtime"] = wetOtTag;
       const pushLine = (
         rule_code: string,
         category: string,
@@ -2963,6 +2986,9 @@ Deno.serve(async (req) => {
         // Merged into `source.input_ref` — country-agnostic, mirrors the
         // doc-comment on public.payslip_lines.source.
         input_ref: InputRef | null = null,
+        // Phase C: optional posting bucket copied onto payslip_lines.
+        // NULL preserves legacy behaviour (posts to generic salary_expense).
+        accounting_tag: string | null = null,
       ) => {
         if (!employee_amount && !employer_amount) return;
         const finalSource = input_ref ? withInputRef(source, input_ref) : source;
@@ -2977,21 +3003,22 @@ Deno.serve(async (req) => {
           taxable,
           source: finalSource,
           statutory_rule_id,
+          accounting_tag,
         });
       };
 
       // Earnings
-      if (basicSalary > 0) pushLine("basic", "earning", "Basic Salary", basicSalary, 0, true, "earning", null, null, { kind: "contract", code: "basic", component: "basic", contract_id: (emp as any).active_contract_id ?? null, label: "Employment contract — basic" });
-      if (housingAllowance > 0) pushLine("housing_allowance", "earning", "Housing Allowance", housingAllowance, 0, true, "earning", null, null, { kind: "contract", code: "housing_allowance", component: "housing", contract_id: (emp as any).active_contract_id ?? null, label: "Employment contract — housing" });
-      if (transportAllowance > 0) pushLine("transport_allowance", "earning", "Transport Allowance", transportAllowance, 0, true, "earning", null, null, { kind: "contract", code: "transport_allowance", component: "transport", contract_id: (emp as any).active_contract_id ?? null, label: "Employment contract — transport" });
+      if (basicSalary > 0) pushLine("basic", "earning", "Basic Salary", basicSalary, 0, true, "earning", null, null, { kind: "contract", code: "basic", component: "basic", contract_id: (emp as any).active_contract_id ?? null, label: "Employment contract — basic" }, earnTag["basic"] ?? null);
+      if (housingAllowance > 0) pushLine("housing_allowance", "earning", "Housing Allowance", housingAllowance, 0, true, "earning", null, null, { kind: "contract", code: "housing_allowance", component: "housing", contract_id: (emp as any).active_contract_id ?? null, label: "Employment contract — housing" }, earnTag["housing_allowance"] ?? null);
+      if (transportAllowance > 0) pushLine("transport_allowance", "earning", "Transport Allowance", transportAllowance, 0, true, "earning", null, null, { kind: "contract", code: "transport_allowance", component: "transport", contract_id: (emp as any).active_contract_id ?? null, label: "Employment contract — transport" }, earnTag["transport_allowance"] ?? null);
       for (const [k, v] of Object.entries(otherEarnings)) {
         const amt = Number(v) || 0;
-        if (amt > 0) pushLine(k, "earning", k.replace(/_/g, " "), amt, 0, true, "earning", null, null, { kind: "salary_structure", code: k, label: `Salary structure — ${k.replace(/_/g, " ")}` });
+        if (amt > 0) pushLine(k, "earning", k.replace(/_/g, " "), amt, 0, true, "earning", null, null, { kind: "salary_structure", code: k, label: `Salary structure — ${k.replace(/_/g, " ")}` }, earnTag[k] ?? null);
       }
-      if (overtimePay > 0) pushLine("overtime", "earning", "Overtime", overtimePay, 0, true, "earning", null, null, { kind: "variable_input", code: "overtime", label: "Variable input — overtime" });
-      if (bonus > 0) pushLine("bonus", "earning", "Bonus", bonus, 0, true, "earning", null, null, { kind: "variable_input", code: "bonus", label: "Variable input — bonus" });
-      if (commission > 0) pushLine("commission", "earning", "Commission", commission, 0, true, "earning", null, null, { kind: "variable_input", code: "commission", label: "Variable input — commission" });
-      if (arrears > 0) pushLine("arrears", "earning", "Arrears", arrears, 0, true, "earning", null, null, { kind: "variable_input", code: "arrears", label: "Variable input — arrears" });
+      if (overtimePay > 0) pushLine("overtime", "earning", "Overtime", overtimePay, 0, true, "earning", null, null, { kind: "variable_input", code: "overtime", label: "Variable input — overtime" }, earnTag["overtime"] ?? null);
+      if (bonus > 0) pushLine("bonus", "earning", "Bonus", bonus, 0, true, "earning", null, null, { kind: "variable_input", code: "bonus", label: "Variable input — bonus" }, earnTag["bonus"] ?? null);
+      if (commission > 0) pushLine("commission", "earning", "Commission", commission, 0, true, "earning", null, null, { kind: "variable_input", code: "commission", label: "Variable input — commission" }, earnTag["commission"] ?? null);
+      if (arrears > 0) pushLine("arrears", "earning", "Arrears", arrears, 0, true, "earning", null, null, { kind: "variable_input", code: "arrears", label: "Variable input — arrears" }, earnTag["arrears"] ?? null);
       for (const [k, v] of Object.entries(varEarnings)) {
         if (["employee_id", "overtime_pay", "bonus", "commission", "arrears"].includes(k)) continue;
         const amt = Number(v) || 0;
@@ -3430,7 +3457,7 @@ Deno.serve(async (req) => {
       if (parentIds.length > 0) {
         const { data: parentLines, error: pLnErr } = await supabaseAdmin
           .from("payslip_lines")
-          .select("payslip_id, employee_id, rule_code, rule_type, category, label, sequence, employee_amount, employer_amount, taxable")
+          .select("payslip_id, employee_id, rule_code, rule_type, category, label, sequence, employee_amount, employer_amount, taxable, accounting_tag")
           .in("payslip_id", parentIds);
         if (pLnErr) {
           await supabaseAdmin.from("payroll_runs").delete().eq("id", payrollRun.id);

@@ -30794,6 +30794,7 @@ export type Database = {
       }
       payslip_lines: {
         Row: {
+          accounting_tag: string | null
           business_id: string
           category: Database["public"]["Enums"]["payslip_line_category"]
           created_at: string
@@ -30815,6 +30816,7 @@ export type Database = {
           taxable: boolean
         }
         Insert: {
+          accounting_tag?: string | null
           business_id: string
           category: Database["public"]["Enums"]["payslip_line_category"]
           created_at?: string
@@ -30836,6 +30838,7 @@ export type Database = {
           taxable?: boolean
         }
         Update: {
+          accounting_tag?: string | null
           business_id?: string
           category?: Database["public"]["Enums"]["payslip_line_category"]
           created_at?: string
