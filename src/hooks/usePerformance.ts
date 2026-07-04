@@ -7,6 +7,7 @@ import { useBusinesses } from "./useBusinesses";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
+import { notifyTalent, notifyTalentBulk } from "@/lib/talent/notifications";
 
 export type CycleStatus = "draft" | "open" | "in_progress" | "closed";
 export type ReviewStatus = "not_started" | "in_progress" | "submitted" | "acknowledged";
@@ -211,6 +212,17 @@ export function useTrainingEnrollments(employeeId?: string) {
         due_date: input.due_date ?? null,
       });
       if (error) throw error;
+      // Fire-and-forget notification to the assignee.
+      const { data: course } = await supabase.from("training_courses").select("name").eq("id", input.course_id).maybeSingle();
+      const title = (course as any)?.name ?? "a course";
+      await notifyTalent({
+        organizationId: currentOrg.id, kind: "training.assigned",
+        employeeId: input.employee_id,
+        title: "Training assigned",
+        message: `You've been enrolled in "${title}"${input.due_date ? ` · due ${input.due_date}` : ""}.`,
+        entityType: "training_course", entityId: input.course_id,
+        link: "/me/learning",
+      }).catch(() => {});
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["training-enrollments"] }); toast.success("Enrolled"); },
     onError: (e: any) => toast.error(normalizeError(e).message),
@@ -243,6 +255,16 @@ export function useTrainingEnrollments(employeeId?: string) {
       if (rows.length === 0) return { created: 0, skipped: skip.size };
       const { error } = await supabase.from("training_enrollments").insert(rows);
       if (error) throw error;
+      const { data: course } = await supabase.from("training_courses").select("name").eq("id", input.course_id).maybeSingle();
+      const title = (course as any)?.name ?? "a course";
+      await notifyTalentBulk({
+        organizationId: currentOrg.id, kind: "training.assigned",
+        employeeIds: rows.map(r => r.employee_id),
+        title: "Training assigned",
+        message: `You've been enrolled in "${title}"${input.due_date ? ` · due ${input.due_date}` : ""}.`,
+        entityType: "training_course", entityId: input.course_id,
+        link: "/me/learning",
+      }).catch(() => {});
       return { created: rows.length, skipped: skip.size };
     },
     onSuccess: (r: any) => {

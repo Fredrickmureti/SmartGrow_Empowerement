@@ -53,7 +53,6 @@ Progress against the approved continuation plan.
 
 ## Remaining (not started this session)
 
-- **Phase 3 tail** — MeritPage "Seeded from review" provenance chip.
 - **Phase 4 tail** — Goal-linked review question pre-fill from
   `performance_goals.final_rating` in the response UI.
 - **Phase 6** — Approval-workflow binding for merit/dev-plan-activation/
@@ -64,7 +63,15 @@ Progress against the approved continuation plan.
   and delete four duplicates.
 - **Phase 8 UI** — "Create requisition" CTA on ready-now successors
   (backend lifecycle events already flowing).
-- Client-side `training.assigned` fire in the training-enrollment path.
+
+### Shipped this pass
+- MeritPage "From review" provenance chip next to the rating column
+  (visible whenever the row carries a `review_id`).
+- `training.assigned` notifications now fire from `createEnrollment` and
+  `bulkEnroll` in `usePerformance` — recipients get a bell + /me link.
+- Fixed goal-completion comparison in `useTalent.checkIn` to use the
+  actual `GoalStatus` value `"completed"` (was `"done"`, which never
+  matched the enum and silently disabled the `goal.completed` notify path).
 
 ## Migrations delivered
 
