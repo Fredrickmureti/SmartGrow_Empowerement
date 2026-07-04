@@ -2108,17 +2108,23 @@ Deno.serve(async (req) => {
         transportAllowance = 0;
         otherEarnings = {};
         const otherEarn: Record<string, number> = {};
+        const tagByKey: Record<string, string | null> = {};
         for (const line of engineRes.lines) {
           const codeLc = (line.code || "").toLowerCase();
           if (line.category === "basic") {
             basicSalary += line.amount;
+            if (line.accounting_tag) tagByKey["basic"] = line.accounting_tag;
           } else if (line.category === "allowance") {
             if (codeLc === "housing" || codeLc === "housing_allowance" || codeLc === "hra") {
               housingAllowance += line.amount;
+              if (line.accounting_tag) tagByKey["housing_allowance"] = line.accounting_tag;
             } else if (codeLc === "transport" || codeLc === "transport_allowance") {
               transportAllowance += line.amount;
+              if (line.accounting_tag) tagByKey["transport_allowance"] = line.accounting_tag;
             } else {
-              otherEarn[line.name || line.code] = (otherEarn[line.name || line.code] || 0) + line.amount;
+              const k = line.name || line.code;
+              otherEarn[k] = (otherEarn[k] || 0) + line.amount;
+              if (line.accounting_tag) tagByKey[k] = line.accounting_tag;
             }
           } else if (line.category === "deduction") {
             (graphDeductionsByEmployee[emp.id] ||= []).push({
@@ -2135,6 +2141,7 @@ Deno.serve(async (req) => {
           }
         }
         otherEarnings = otherEarn;
+        graphEarningTagByEmployee[emp.id] = tagByKey;
         if (basicSalary === 0) basicSalary = baseWage;
         graphEarningsByEmployee[emp.id] = { basic: basicSalary, housing: housingAllowance, transport: transportAllowance };
         salarySource = "salary_structure_graph";
