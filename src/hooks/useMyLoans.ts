@@ -67,6 +67,22 @@ export function useMyLoans() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["my-loans", employeeId] });
 
+  /**
+   * Employee self-service loan request.
+   *
+   * Delegates the entire creation + policy-validation + approval-workflow
+   * bootstrap to the SECURITY DEFINER RPC `request_employee_loan` (Phase B
+   * of the loan-types policy engine). The RPC:
+   *   • refuses inactive loan types
+   *   • validates principal / installments / tenure against the type's policy
+   *   • enforces `requires_consent` and `requires_collateral`
+   *   • opens an `approval_requests` row when the type requires approval
+   *     (single-step, or two-step under `requires_dual_approval`)
+   *   • is idempotent when `idempotency_key` is supplied
+   *
+   * The client no longer computes derived amounts or fills defaults — the
+   * database is the single source of truth for loan policy.
+   */
   const requestLoan = useMutation({
     mutationFn: async (
       args: MyLoanRequestInput | { input: MyLoanRequestInput; options?: MyLoanRequestOptions },
@@ -80,66 +96,25 @@ export function useMyLoans() {
       }
       const principal = Number(input.principal_amount);
       if (!principal || principal <= 0) throw new Error("Enter a valid amount");
-      const installments = Math.max(1, Number(input.total_installments || 1));
-      // Provisional figures only — the approver/HR can adjust before activation.
-      const totalAmount = principal;
-      const monthly =
-        input.repayment_method === "one_off_next_payroll"
-          ? totalAmount
-          : Math.max(1, Math.round((totalAmount / installments) * 100) / 100);
 
-      const legacyLoanType =
-        input.repayment_method === "one_off_next_payroll" ? "advance" : "loan";
+      const payload = {
+        organization_id: currentOrg.id,
+        business_id: currentBusiness?.id ?? currentEmployee.business_id ?? null,
+        employee_id: currentEmployee.id,
+        loan_type_id: input.loan_type_id,
+        principal_amount: principal,
+        total_installments: input.total_installments ?? null,
+        start_date: input.start_date,
+        repayment_method: input.repayment_method,
+        reason: input.reason ?? null,
+        idempotency_key: options?.idempotencyKey ?? null,
+        // Consent/collateral inputs are optional here; the RPC rejects the
+        // request when the loan type requires them and they are absent.
+      };
 
-      // Idempotency — re-submits within the same org with the same key
-      // (e.g. a double-tap on "Submit" or a retried offline op) reuse the
-      // existing row instead of duplicating the request.
-      if (options?.idempotencyKey) {
-        const { data: existing, error: existingErr } = await (supabase as any)
-          .from("employee_loans")
-          .select("*")
-          .eq("organization_id", currentOrg.id)
-          .eq("idempotency_key", options.idempotencyKey)
-          .maybeSingle();
-        if (existingErr) throw existingErr;
-        if (existing) return existing;
-      }
-
-      const { data: loanNumber } = await (supabase as any).rpc("get_next_loan_number", {
-        _org_id: currentOrg.id,
+      const { data, error } = await (supabase as any).rpc("request_employee_loan", {
+        _input: payload,
       });
-
-      const { data, error } = await (supabase as any)
-        .from("employee_loans")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness?.id ?? currentEmployee.business_id ?? null,
-          employee_id: currentEmployee.id,
-          loan_number: loanNumber || `LR-${Date.now()}`,
-          loan_type: legacyLoanType,
-          loan_type_id: input.loan_type_id,
-          description: input.reason ?? null,
-          principal_amount: principal,
-          interest_rate: 0,
-          total_amount: totalAmount,
-          amount_repaid: 0,
-          outstanding_balance: totalAmount,
-          monthly_deduction: monthly,
-          total_installments: installments,
-          installments_paid: 0,
-          start_date: input.start_date,
-          end_date: null,
-          status: "requested",
-          repayment_method: input.repayment_method,
-          requested_by: user.id,
-          requested_at: new Date().toISOString(),
-          created_by: user.id,
-          notes: input.reason ?? null,
-          idempotency_key: options?.idempotencyKey ?? null,
-        })
-        .select()
-        .single();
-
       if (error) throw error;
       return data;
     },
@@ -157,8 +132,6 @@ export function useMyLoans() {
       }
       invalidate();
     },
-
-
     onError: (err: any) => {
       toast.error(err?.message || "Could not submit loan request");
     },
