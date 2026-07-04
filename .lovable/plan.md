@@ -1,59 +1,88 @@
-# Phase C — Wire `accounting_tag` from Work Entry Types into the GL
 
-## Why
+# Work Entry Types — Audit close-out (Phases A–C already landed)
 
-Today `payroll_work_entry_types.accounting_tag` is a configurable field with no
-downstream effect. The GL posts a single `salary_expense` DR for the entire
-gross. Enterprises need labour cost split by bucket (regular wages vs OT vs
-holiday premium vs paid leave) so P&L, project costing and analytic
-distributions line up with the rest of the ERP.
+## Independent verification of prior work
 
-## Scope
+I re-read the previous agent's plan (`.lovable/plan.md`) and validated each claim against the actual codebase and live DB schema:
 
-Additive only. No behaviour change when every rule/WET leaves `accounting_tag`
-NULL — the run still posts a single `salary_expense` DR and existing runs stay
-byte-for-byte identical.
+- **Phase A (override 409 fix)** — verified. Global `(org, code)` unique index dropped in `20260704025730`; the correct partial-unique `uq_work_entry_types_business_code` remains; `payroll_resolve_wet(org, business, code)` exists and the projector (`payroll_work_entries_project`) routes every canonical code through it. Client `overrideFromPack` also pre-checks and handles `23505` cleanly.
+- **Phase B (pack-templated seeding + optimistic locking + impact RPC)** — verified. `localization_pack_work_entry_type_templates` exists with RLS + platform-admin write; `ensure_canonical_work_entry_types` prefers installed-pack rows and falls back to canonical six; `version` column + `bump_payroll_wet_version` trigger present; client sends `.eq("version", …)` on update and surfaces `STALE_VERSION`; `wet_impact_metrics` RPC returns rows/employees (90d) + rule refs + leave-type routing and is consumed by the KPI strip and Impact column.
+- **Phase C (accounting_tag → GL split)** — verified. `payslip_lines.accounting_tag` + partial index landed in `20260704030954`; `compute-payroll` stamps the tag on every earning line and OT inherits the WET tag when the rule leaves it null (correction/reversal deltas preserve tag via parent-row spread); `post-payroll-gl` aggregates earnings by tag and emits per-bucket DRs against `salary_expense_<TAG>` with fallthrough to the generic `salary_expense`, so all-NULL runs remain byte-identical and the debit total still equals `totalGross`.
 
-## Changes
+Nothing shallow or cosmetic found in those phases. The two items the previous agent explicitly left open are the only remaining work.
 
-1. **Schema** — one migration:
-   - Add nullable `accounting_tag text` to `public.payslip_lines`.
-   - Index `(payroll_run_id, accounting_tag)` for the GL aggregation query.
+## What remains
 
-2. **compute-payroll** — stamp the tag when writing earning lines:
-   - When inserting earning-category `payslip_lines` from a salary rule, copy
-     `rule.accounting_tag` onto the row (rule already carries it via
-     `structureEngine`).
-   - No change to computed amounts. Tag is purely a routing dimension.
+1. **Dead-field cleanup on `payroll_work_entry_types`**
+2. **pgTAP coverage** for the resolver, the version trigger, and the tag-split GL aggregation
 
-3. **post-payroll-gl** — split the salary expense debit:
-   - Aggregate earning-category `payslip_lines` by `accounting_tag`.
-   - For each non-null tag `T`, resolve `resolveAccount("salary_expense_" + T)`;
-     fall back to the generic `salary_expense` mapping when the specific key
-     is not mapped.
-   - Emit one DR line per tag bucket labelled `<runLabel> — Salary Expense (T)`;
-     the untagged remainder posts to the generic `salary_expense` as today.
-   - Debit total remains `totalGross`; balance invariants unchanged.
+## 1. Dead-field cleanup
 
-4. **GL mapping resolver** — extend `payroll_required_gl_mappings_for_run` so
-   the missing-mappings dialog only surfaces `salary_expense_<T>` keys when
-   there is *no* generic `salary_expense` fallback. This keeps the preflight
-   quiet for existing tenants.
+Field-by-field usage sweep against `src/`, `supabase/functions/`, and `pg_proc`:
 
-5. **UI** — no changes required. The mapping page already surfaces any
-   `salary_expense_*` key that the resolver reports.
+| Field | Consumer? | Verdict |
+|---|---|---|
+| `code`, `name`, `is_paid`, `counts_as_worked`, `multiplier_normal`, `multiplier_overtime`, `accounting_tag`, `sequence`, `is_active`, `is_pack_default`, `version`, `organization_id`, `business_id`, `localization_pack_id` | Read by projector, compute-payroll, post-payroll-gl, structure engine, resolver, seeder, UI | **Live** |
+| `color` | Never rendered anywhere; not read by any RPC or edge function; only echoed by seed/override paths | **Dead — remove** |
+| `is_unpaid_leave` | Not read by any downstream consumer. `is_paid=false` already fully expresses "unpaid". UI form doesn't even expose it. Only echoed by seed/override/upsert paths and mentioned in `bump_payroll_wet_version` row-diff | **Dead — remove** |
 
-## Out of scope (future phases)
+Both fields are pure metadata with no behavioural effect. Keeping them is exactly the "dead configuration" the audit prompt calls out.
 
-- Analytic distribution splits by tag.
-- Dead-field cleanup on `payroll_work_entry_types`.
-- pgTAP coverage of the new aggregation (Phase E follow-up).
+### Migration (single file)
 
-## Verification
+- `ALTER TABLE public.payroll_work_entry_types DROP COLUMN color, DROP COLUMN is_unpaid_leave;`
+- Same drop on `public.localization_pack_work_entry_type_templates`.
+- Re-create `public.bump_payroll_wet_version()` without those columns in the row diff (keep the OT/OT-multiplier and paid/worked/tag columns — every field that actually affects payroll or GL).
+- Backfill: none needed (drop is destructive-safe; no data depends on it).
 
-- Run the existing payroll compute + post flow on a run with all-NULL tags →
-  identical JE to before.
-- Add one WET with `accounting_tag='OT'`, map `salary_expense_OT`, re-post →
-  two salary-expense DRs (OT bucket + remainder), same total gross, balanced.
-- Preflight resolver only asks for `salary_expense_OT` when the generic
-  `salary_expense` key is unmapped.
+### Code follow-up (same batch as migration approval)
+
+- Drop `color` and `is_unpaid_leave` from `WorkEntryType`, `WorkEntryTypeInput`, `EMPTY`, `upsert` payload, and `overrideFromPack` payload in `src/hooks/payroll/useWorkEntryTypes.ts`.
+- Drop the `color` prop from `openEdit` in `src/pages/hr/payroll/WorkEntryTypes.tsx`. The form already doesn't render an unpaid-leave switch — no UI change beyond removing the type field.
+- `src/integrations/supabase/types.ts` is regenerated by the platform after migration; no manual edit.
+- Grep-verify zero remaining references to `is_unpaid_leave` / WET-scoped `.color` outside historical migrations.
+
+## 2. pgTAP coverage
+
+Add three focused test files under `supabase/tests/`, modelled on the existing `payroll_gl_binding_resolver_test.sql` and `payroll_work_entries_projector_contract_test.sql` (same `plan()` / `finish()` shape, same fixture helpers).
+
+### `payroll_wet_resolver_test.sql`
+- Seeds one org + one business + a pack row (`business_id IS NULL`) and a tenant override (`business_id = b`) sharing `code='OT'`.
+- Asserts:
+  - `payroll_resolve_wet(org, business, 'OT')` returns the **tenant** row's id (override wins).
+  - `payroll_resolve_wet(org, business, 'WORK')` with only a pack row returns the **pack** id.
+  - `payroll_resolve_wet(org, business, 'UNKNOWN')` returns NULL.
+  - `payroll_resolve_wet(org, NULL, 'OT')` returns the pack id (no tenant scope).
+  - The pre-Phase-A global `(org, code)` unique index does **not** exist (regression guard against re-adding it).
+  - `uq_work_entry_types_business_code` (partial unique on `(org, coalesce(business_id, sentinel), code)`) is present.
+
+### `payroll_wet_version_trigger_test.sql`
+- Inserts a tenant WET row, asserts `version = 1`.
+- Updates a payroll-relevant column (`multiplier_overtime`): asserts `version` bumped to 2.
+- Updates `updated_at` only via a no-op touch: asserts `version` stays 2 (guards the "only bump on meaningful diff" behaviour).
+- Update-with-stale-version (`WHERE version = 1`) affects 0 rows after the bump — proves optimistic-lock contract the client relies on.
+
+### `payroll_gl_tag_split_test.sql`
+- Builds a minimal fixture: 1 run, 1 payslip, 4 earning `payslip_lines` — two tagged `OT`, one tagged `HOLIDAY`, one with `accounting_tag IS NULL`, plus one employer-cost line that must be ignored.
+- Runs the same aggregation the edge function uses (SQL projection in the test, mirroring the function): `SUM(employee_amount) GROUP BY accounting_tag` over `category IN ('earning','allowance','bonus','overtime')`.
+- Asserts:
+  - Per-tag totals match expected buckets.
+  - Untagged bucket sums to only the NULL-tag row.
+  - Grand total across all buckets = sum of every earning line (no double count, no drop).
+  - When `payroll_work_entry_types.accounting_tag` is edited (tag on OT changed) and `compute-payroll` re-stamps on next run, the aggregation snaps to the new bucket (uses a stubbed `payslip_lines` insert to represent the recompute output; edge function itself isn't executed in pgTAP).
+  - Regression guard: `payslip_lines_run_tag_idx` exists and is partial on `accounting_tag IS NOT NULL`.
+
+Each test uses `SET LOCAL role authenticated` where needed and cleans up with a rollback-safe `truncate ... cascade` in `teardown` blocks matching the neighbouring tests.
+
+## Verification strategy
+
+- Migration approval + regeneration of `types.ts` → typecheck passes with the two fields removed from the hook/page.
+- `supabase test db` (or the project's pgTAP runner used by the other suites) → all three new files green; existing `payroll_gl_binding_resolver_test.sql` and `payroll_work_entries_projector_contract_test.sql` still green (regression check for shared fixtures).
+- Manual smoke on a run with all-NULL tags → GL journal byte-identical to pre-Phase-C (already the Phase C invariant; re-checked after column drop to prove the trigger rewrite didn't disturb it).
+- `rg -n "is_unpaid_leave|payroll_work_entry_types.*color"` in `src/` and `supabase/functions/` returns zero hits.
+
+## Out of scope (correctly deferred earlier, still deferred)
+
+- Analytic-distribution splits by tag (Phase D+).
+- Project-costing consumption of `accounting_tag` (needs analytic groundwork first).
+- Attendance/Timesheet UI redesign — the operational-intelligence surface asked for by the audit prompt is already delivered via the KPI strip and Impact column in Phase B.
