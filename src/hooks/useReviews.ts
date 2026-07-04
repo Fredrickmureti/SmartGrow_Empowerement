@@ -516,12 +516,14 @@ export function useReview(reviewId?: string) {
   });
 
   const saveResponse = useMutation({
-    mutationFn: async (input: { question_id: string; rating?: number | null; comment?: string | null }) => {
+    mutationFn: async (input: { question_id: string; rating?: number | null; comment?: string | null; goal_id?: string | null }) => {
       if (!review || !currentOrg?.id) throw new Error("No review loaded");
       const existing = responses.find((r) => r.question_id === input.question_id);
       if (existing) {
+        const patch: any = { rating: input.rating ?? null, comment: input.comment ?? null };
+        if (input.goal_id !== undefined) patch.goal_id = input.goal_id;
         const { error } = await (supabase.from("review_responses") as any)
-          .update({ rating: input.rating ?? null, comment: input.comment ?? null })
+          .update(patch)
           .eq("id", existing.id);
         if (error) throw error;
       } else {
@@ -531,6 +533,7 @@ export function useReview(reviewId?: string) {
           question_id: input.question_id,
           rating: input.rating ?? null,
           comment: input.comment ?? null,
+          goal_id: input.goal_id ?? null,
         });
         if (error) throw error;
       }
