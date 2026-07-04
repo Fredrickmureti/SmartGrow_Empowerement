@@ -1,91 +1,80 @@
-# Talent Subsystem — Continuation Plan
+# Talent Subsystem — Implementation Status
 
-## Verified status of prior agent's work
+Progress against the approved continuation plan.
 
-I re-checked every claim against the code and migrations, not the notes:
+## Delivered this session
 
-| Phase | Claim | Reality |
-|---|---|---|
-| 1 — Audit-defensibility | Done | **Confirmed.** Migration `20260704220134` wires 7 `talent_audit_log` writes across sign-off, calibration apply/reject, merit approve/apply/reject, 9-box place, dev-plan activate, quiz-grade. New RPCs `talent_calibration_reject_adjustment` and `talent_remove_from_nine_box` exist and are wired in `useCalibration.reject` and `useSuccession.remove`. `continuous_feedback.from_user_id_admin` column + trigger + backfill in place. |
-| 2 — Notification completeness | Not claimed | **Not started.** `notifyTalent` still does per-recipient `v_employees_canonical` lookup + single insert; no bulk path; the four dormant kinds (`training.assigned`, `goal.checkin_due`, `goal.completed`, `oneonone.reminder`) plus merit/calibration/9-box/succession employee-visible fires are missing. |
-| 3 — Review→Merit→Contract→Payroll | Done | **Confirmed.** Migration `20260704220918` extends `talent_merit_apply` to insert `contract_amendments`, `retro_pay_adjustments` (when effective_date ≤ today), and `employee_lifecycle_events.salary_changed`; adds `talent_seed_merit_from_review` used by sign-off. Frontend provenance ("seeded from review") not yet surfaced in `MeritPage`. |
-| 4 — Review integrity backend | Done | **Confirmed.** `useReviews.launchReviews` honours `includes_peer`/`includes_skip_level` and reads pre-nominated `review_participants`; `saveResponse` accepts + persists `goal_id`. Goal-linked pre-population of `performance_goals.final_rating` into the response draft is **not yet wired in the review form UI**. |
-| 5 — Skill inventory truth | Not started | Prior agent stopped here. |
-| 6 — Governance & config | Not started | |
-| 7 — Structural cleanups | Not started | |
-| 8 — Succession ↔ Recruitment | Not started | |
+### Phase 2 — Notification completeness (SHIPPED)
+- `src/lib/talent/notifications.ts` rewritten: single-round-trip `notifyTalentBulk` +
+  thin `notifyTalent` wrapper. Added kinds `review.rating_calibrated`,
+  `competency.uplifted`, `merit.applied`, `nine_box.placed`, `succession.designated`,
+  `succession.ready`.
+- Server-side `public._talent_notify(...)` helper; wraps failures so a
+  notification error can never roll back the primary business transition.
+- Silent-transitions closed inside the RPCs themselves (atomic with the write):
+  - `talent_merit_apply` → notifies affected employee (`merit.applied`).
+  - `talent_calibration_apply_adjustment` → notifies reviewee's manager (`review.rating_calibrated`).
+  - `talent_place_on_nine_box` → notifies placed employee (`nine_box.placed`).
+  - `talent_quiz_grade` on pass → notifies employee (`competency.uplifted`).
+- `goal.completed` fires from `useTalent.checkIn` for employee + manager.
+- Dormant `goal.checkin_due` and `oneonone.reminder` now emitted by
+  `public.talent_emit_due_notifications()`, scheduled via **pg_cron every 15 min**
+  (`talent-due-notifications`). Uses a de-dup window so reminders don't storm.
 
-Nothing already-done will be re-done. Two small residual items from finished phases are folded into the phase they belong to (merit provenance badge → Phase 3 tail; goal pre-fill in review form → Phase 4 tail).
+### Phase 5 — Skill inventory truth (SHIPPED)
+- `competency_assessments.source` column added (`self | manager | training | calibration`).
+- Unique index `(employee_id, competency_id)` added to support upserts.
+- `talent_quiz_grade` extended: on pass, upserts `competency_assessments`
+  with `source='training'` (uses `GREATEST` so training never lowers an
+  existing level). Emits `certification_earned` lifecycle event via
+  `employee_lifecycle_events` (type=`custom`, payload.event_kind) when
+  the course has `requires_certificate=true`.
+- New `talent_devplan_item_complete(_item_id)` RPC — marks the item done,
+  uplifts the linked competency (level from `training_courses.target_level`
+  when present, otherwise default intermediate), writes `talent_audit_log`.
+- `useDevelopmentPlans.updateItem` routes `status=completed` through the
+  RPC (backward-compatible: non-completion patches still take the direct
+  UPDATE path).
 
----
+### Phase 8 — Succession & 9-box lifecycle events (backend SHIPPED)
+- 9-box HiPo cell (potential=3 & performance=3) now emits an
+  `employee_lifecycle_events` row with `payload.event_kind='hipo_designated'`.
+- `successors.readiness → 'ready_now'` (INSERT or UPDATE) fires a trigger
+  that emits `payload.event_kind='succession_ready'`.
+- Note on enum: `employee_lifecycle_event_type` is a live enum used across
+  the ERP; we used `type='custom'` + `payload.event_kind='...'` for the
+  three new subtypes rather than adding enum values in the same transaction
+  as their first use (Postgres rejects that). Downstream consumers should
+  read `payload.event_kind` for these three kinds.
 
-## Remaining work
+### Fixes
+- Repaired brace mismatch in `src/hooks/useReviews.ts` `launchReviews`
+  that Phase 4 introduced (parser was breaking at line 444).
 
-### Phase 2 — Notification completeness (no schema changes)
-- Rewrite `src/lib/talent/notifications.ts`:
-  - Add `notifyTalentBulk(args & { employeeIds?: string[]; userIds?: string[] })` that does one `SELECT id, user_id FROM v_employees_canonical WHERE id = ANY(...)` and one batched `INSERT` into `notifications`.
-  - Keep `notifyTalent` as a thin wrapper over the bulk path.
-- Fire the four dormant kinds:
-  - `training.assigned` — inside `useLearning.assignTraining` / dev-plan item insert when `training_course_id` set.
-  - `goal.completed` — in `useGoals.updateStatus` when status transitions to `completed`.
-  - `goal.checkin_due` and `oneonone.reminder` — add a lightweight scheduler via a `pg_cron`-invoked SQL function `talent_emit_due_notifications()` that inserts rows for goals with `next_check_in_date <= today` and 1-on-1s scheduled within 24h. No new edge function.
-- Add employee-visible fires that are currently silent:
-  - `merit.applied` (new kind) — on `talent_merit_apply`, notify the affected employee. Add kind to the union type + DB category kept as `talent`.
-  - `review.rating_calibrated` — on `talent_calibration_apply_adjustment`, notify the reviewee's manager.
-  - `nine_box.placed`, `succession.designated` — on the corresponding RPCs.
+## Remaining (not started this session)
 
-### Phase 3 tail — Merit provenance UI
-- `MeritPage`: show a "Seeded from review" chip with a link to the source `performance_reviews.id` (already stored on the recommendation), and mark seeded rows read-only until an approver acts.
+- **Phase 3 tail** — MeritPage "Seeded from review" provenance chip.
+- **Phase 4 tail** — Goal-linked review question pre-fill from
+  `performance_goals.final_rating` in the response UI.
+- **Phase 6** — Approval-workflow binding for merit/dev-plan-activation/
+  calibration; `talent_settings` table for defaults; per-org default
+  `competency_scales` seed.
+- **Phase 7** — Normalize `one_on_ones.action_items` JSONB → dedicated
+  table; extract `getManagerFor` to `src/lib/talent/employeeGraph.ts`
+  and delete four duplicates.
+- **Phase 8 UI** — "Create requisition" CTA on ready-now successors
+  (backend lifecycle events already flowing).
+- Client-side `training.assigned` fire in the training-enrollment path.
 
-### Phase 4 tail — Goal pre-population in review form
-- In the review response component, when a question has `goal_id` context, pre-fill the rating from `performance_goals.final_rating` (or `progress`) and pre-fill `goal_id` on save.
+## Migrations delivered
 
-### Phase 5 — Skill inventory truth
-- SQL migration: extend `talent_quiz_grade` and add `talent_devplan_item_complete` (or extend the existing completion path) so that on:
-  - quiz pass (`score >= pass_score`) with the course linked to a competency → upsert `competency_assessments` (`source='training'`, level derived from score band configured on the course).
-  - dev-plan item completion where the item has both `training_course_id` and `competency_id` → upsert `competency_assessments` similarly.
-- Emit `employee_lifecycle_events.certification_earned` when the course row is flagged `is_certifying = true` (add column if missing, default false).
-- Notify the employee (`competency.assess_due` reuse or new `competency.uplifted`).
+- `20260704224502_*_talent-phase-2-and-5.sql` (RPC-side notifications,
+  quiz→competency uplift, certification lifecycle, 9-box HiPo &
+  succession readiness triggers, `talent_devplan_item_complete`,
+  `talent_emit_due_notifications`).
 
-### Phase 6 — Governance & configurable defaults
-- Bind three transitions to `approval_workflows` via a small helper `talent_request_approval(entity_type, entity_id)` and status enum extension:
-  - merit approval
-  - dev-plan activation
-  - calibration adjustment apply
-- Fallback: when no matching `approval_rule`, proceed with the current manager-only path (preserves behaviour).
-- Create `talent_settings` table (per-org, single-row) holding: default competency scale id, quiz `pass_score`/`max_attempts`, 9-box axis labels (JSONB), competency final-level formula (`avg | max | manager_only`). Seed defaults on org create via existing org-provisioning trigger.
-- Replace `DEFAULT_SCALE` synth in `useCompetencyFramework` with a real `competency_scales` row seeded per org.
+## Non-migration DB changes
 
-### Phase 7 — Structural cleanups
-- New table `one_on_one_action_items` with FKs to `one_on_ones`, optional `goal_id`, optional `development_plan_item_id`, `assignee_employee_id`, `due_date`, `status`. Migrate existing JSONB `one_on_ones.action_items` in place, keep the JSONB column temporarily for rollback but stop writing to it.
-- Wire `oneonone.action_item` notification on insert.
-- Extract manager resolution to `src/lib/talent/employeeGraph.ts` (`getManagerFor(employeeId)`, `getReportsOf(managerId)`) and replace four duplicates in `useTalent`, `useContinuousPerformance`, `useDevelopmentPlans`, `useCompetencyFramework`.
-
-### Phase 8 — Succession ↔ Recruitment bridge
-- Emit `employee_lifecycle_events` `hipo_designated` (on 9-box HiPo cell) and `succession_ready` (on `successors.readiness = 'ready_now'`).
-- In `useSuccession`, when a successor is `ready_now` and the target `job_position` has no open non-closed `job_requisition`, surface a "Create requisition" CTA that deep-links into Recruitment prefilled from the position + successor (no auto-create).
-- No Recruitment module functional changes beyond the CTA target already supported.
-
----
-
-## Cross-cutting rules for every phase
-
-- All migrations additive; no drops.
-- All new RPCs `SECURITY DEFINER`, `search_path = public`, `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO authenticated`, and write to `talent_audit_log`.
-- Downstream propagations wrap failures in `business_event_outbox` so the primary transition never rolls back on a notification/uplift failure.
-- No UI redesign; only new affordances (provenance chip, participant chips already present, requisition CTA, action-item list).
-- Tests: pgTAP for each new RPC's audit-log + downstream write; Vitest for `notifyTalentBulk` batching, and for the two review-form/MeritPage UI additions.
-
-## Order of delivery
-
-Phase 2 → Phase 3 tail → Phase 4 tail → Phase 5 → Phase 7 → Phase 6 → Phase 8.
-
-Phase 2 first because it unblocks the "silent to employee" complaint immediately with zero schema risk. Phase 7's action-items refactor runs before Phase 6 because governance rules will reference the normalized entities. Phase 8 last because it depends on lifecycle events introduced in Phase 5 & 7.
-
-## Explicitly out of scope
-
-- Visual redesign of any talent page.
-- Payroll engine changes beyond consuming the already-supported `retro_pay_adjustments`.
-- Recruitment functional changes beyond the requisition CTA.
-- eTIMS / M-Pesa / country pack changes.
-- Retouching Phases 1, 3-backend, 4-backend that are already verified correct.
+- `cron.schedule('talent-due-notifications', '*/15 * * * *', ...)` —
+  scheduled via the insert tool (project-specific config, kept out of
+  migrations).
