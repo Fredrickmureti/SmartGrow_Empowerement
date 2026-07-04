@@ -272,6 +272,12 @@ Deno.serve(async (req) => {
     }
     const deductionMap = new Map<string, DeductionAgg>();
 
+    // Phase C — split labour cost by accounting_tag when the compute layer
+    // stamped one. `null` bucket is the legacy "post to generic
+    // salary_expense" path; when every earning is untagged the split
+    // collapses to a single DR identical to the pre-Phase-C shape.
+    const earningsByTag = new Map<string | null, number>();
+
     // Garnishment lines are aggregated separately because they are per-order
     // (one liability + remittance per garnishment_id), not per-rule_code like
     // statutory deductions. Each row drives one CR to garnishment_payable and
