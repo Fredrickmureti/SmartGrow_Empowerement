@@ -445,6 +445,20 @@ function MappingRow({
         </TableCell>
         <TableCell className="align-top text-right">
           <div className="flex flex-wrap items-center justify-end gap-1">
+            {mapped?.source === "tenant_override" && (
+              <Button
+                size="sm"
+                variant="outline"
+                title="Revert this mapping to the localization pack's suggested account"
+                disabled={details.revertToPackDefault.isPending}
+                onClick={() =>
+                  details.revertToPackDefault.mutate(row.setting_key)
+                }
+              >
+                <Undo2 className="mr-1 h-3.5 w-3.5" />
+                Revert
+              </Button>
+            )}
             {row.suggested_account_id && !isMapped && (
               <Button
                 size="sm"
