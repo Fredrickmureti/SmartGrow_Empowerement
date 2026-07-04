@@ -24145,6 +24145,63 @@ export type Database = {
           },
         ]
       }
+      oneonone_action_items: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          id: string
+          one_on_one_id: string
+          organization_id: string
+          owner: string
+          status: string
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          one_on_one_id: string
+          organization_id: string
+          owner: string
+          status?: string
+          text: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          one_on_one_id?: string
+          organization_id?: string
+          owner?: string
+          status?: string
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oneonone_action_items_one_on_one_id_fkey"
+            columns: ["one_on_one_id"]
+            isOneToOne: false
+            referencedRelation: "one_on_ones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oneonone_action_items_one_on_one_id_fkey"
+            columns: ["one_on_one_id"]
+            isOneToOne: false
+            referencedRelation: "one_on_ones_visible"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_change_log: {
         Row: {
           actor_user_id: string | null
@@ -48510,6 +48567,88 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_settings: {
+        Row: {
+          action_item_reminder_days: number
+          auto_close_cycles: boolean
+          calibration_requires_approval: boolean
+          created_at: string
+          default_competency_scale_id: string | null
+          default_review_scale_max: number
+          default_review_scale_min: number
+          devplan_activation_requires_approval: boolean
+          goal_checkin_reminder_days: number
+          hipo_performance_threshold: number
+          hipo_potential_threshold: number
+          merit_requires_approval: boolean
+          oneonone_reminder_hours: number
+          organization_id: string
+          require_manager_ack_on_review: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          action_item_reminder_days?: number
+          auto_close_cycles?: boolean
+          calibration_requires_approval?: boolean
+          created_at?: string
+          default_competency_scale_id?: string | null
+          default_review_scale_max?: number
+          default_review_scale_min?: number
+          devplan_activation_requires_approval?: boolean
+          goal_checkin_reminder_days?: number
+          hipo_performance_threshold?: number
+          hipo_potential_threshold?: number
+          merit_requires_approval?: boolean
+          oneonone_reminder_hours?: number
+          organization_id: string
+          require_manager_ack_on_review?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          action_item_reminder_days?: number
+          auto_close_cycles?: boolean
+          calibration_requires_approval?: boolean
+          created_at?: string
+          default_competency_scale_id?: string | null
+          default_review_scale_max?: number
+          default_review_scale_min?: number
+          devplan_activation_requires_approval?: boolean
+          goal_checkin_reminder_days?: number
+          hipo_performance_threshold?: number
+          hipo_potential_threshold?: number
+          merit_requires_approval?: boolean
+          oneonone_reminder_hours?: number
+          organization_id?: string
+          require_manager_ack_on_review?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_settings_default_competency_scale_id_fkey"
+            columns: ["default_competency_scale_id"]
+            isOneToOne: false
+            referencedRelation: "competency_scales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "talent_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
