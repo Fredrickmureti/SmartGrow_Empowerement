@@ -28,6 +28,7 @@ import {
   usePayrollMappingHistory,
   rankCandidateAccounts,
   type PayrollMappedAccount,
+  type PayrollMappingSource,
 } from "@/hooks/payroll/usePayrollMappingDetails";
 import {
   Card,
