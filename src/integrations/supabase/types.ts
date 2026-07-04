@@ -7661,6 +7661,7 @@ export type Database = {
           feedback_type: string
           from_employee_id: string | null
           from_user_id: string
+          from_user_id_admin: string | null
           goal_id: string | null
           id: string
           is_anonymous: boolean
@@ -7679,6 +7680,7 @@ export type Database = {
           feedback_type: string
           from_employee_id?: string | null
           from_user_id: string
+          from_user_id_admin?: string | null
           goal_id?: string | null
           id?: string
           is_anonymous?: boolean
@@ -7697,6 +7699,7 @@ export type Database = {
           feedback_type?: string
           from_employee_id?: string | null
           from_user_id?: string
+          from_user_id_admin?: string | null
           goal_id?: string | null
           id?: string
           is_anonymous?: boolean
@@ -66200,6 +66203,33 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      talent_calibration_reject_adjustment: {
+        Args: { _adjustment_id: string; _reason?: string }
+        Returns: {
+          applied_at: string | null
+          created_at: string
+          cycle_id: string
+          decided_at: string | null
+          decided_by: string | null
+          decision: string
+          employee_id: string
+          id: string
+          organization_id: string
+          original_rating: number | null
+          proposed_by: string
+          proposed_rating: number
+          rationale: string
+          review_id: string
+          session_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "calibration_adjustments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       talent_merit_apply: {
         Args: { _ids: string[] }
         Returns: {
@@ -66407,6 +66437,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      talent_remove_from_nine_box: {
+        Args: { _rating_id: string }
+        Returns: undefined
       }
       talent_sign_off_review: {
         Args: {
