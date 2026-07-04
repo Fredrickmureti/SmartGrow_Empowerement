@@ -7,8 +7,10 @@
  * so HR can manage curated groupings separately from formal succession.
  */
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSuccessionPlans, useTalentPools, type Criticality, type SuccessorReadiness, type PoolType, type ReadinessTag } from "@/hooks/useSuccession";
 import { useEmployees } from "@/hooks/useEmployees";
+import { useRequisitions } from "@/hooks/useRecruitment";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TalentFormShell } from "@/components/talent/_shared/TalentFormShell";
 import { WorkflowSheetSection, WorkflowSheetGrid, WorkflowField } from "@/components/workflow/WorkflowSheet";
-import { Crown, Shield, Trash2, UserPlus, Plus } from "lucide-react";
+import { Crown, Shield, Trash2, UserPlus, Plus, Briefcase } from "lucide-react";
 
 const READINESS_LABEL: Record<SuccessorReadiness, string> = {
   ready_now: "Ready now",
