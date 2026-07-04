@@ -267,6 +267,7 @@ export function PayrollAccountMappingPage() {
                         <TableHead className="min-w-[220px]">Posting key</TableHead>
                         <TableHead>Required type</TableHead>
                         <TableHead className="min-w-[260px]">Bound account</TableHead>
+                        <TableHead>Source</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Last modified</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -280,6 +281,7 @@ export function PayrollAccountMappingPage() {
                           accounts={accounts}
                           mapped={details.mappedByKey[r.setting_key]}
                           readiness={readiness}
+                          details={details}
                         />
                       ))}
                     </TableBody>
