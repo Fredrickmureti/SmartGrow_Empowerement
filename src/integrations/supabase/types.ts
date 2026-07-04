@@ -62801,6 +62801,26 @@ export type Database = {
               suggested_account_label: string
             }[]
           }
+      payroll_gl_upgrade_diff: {
+        Args: { _business_id?: string; _org_id: string }
+        Returns: {
+          current_account_code: string
+          current_account_id: string
+          current_account_name: string
+          current_pack_version: string
+          current_source: string
+          installed_pack_version: string
+          kind: string
+          label: string
+          recommended_account_code: string
+          recommended_account_id: string
+          recommended_account_name: string
+          required_account_type: string
+          rule_code: string
+          setting_key: string
+          status: string
+        }[]
+      }
       payroll_install_pack_account_roles: {
         Args: { p_pack_id: string }
         Returns: number
