@@ -2994,7 +2994,7 @@ Deno.serve(async (req) => {
         if (!t) continue;
         // Reject pre_tax loudly: PAYE has already been computed above.
         if (t.tax_treatment === "pre_tax") {
-          issuesToInsert.push({
+          ruleConfigIssues.push({
             severity: "warning",
             employee_id: emp.id,
             code: "CUSTOM_DEDUCTION_PRE_TAX_UNSUPPORTED",
@@ -3014,7 +3014,7 @@ Deno.serve(async (req) => {
           const rate = Number(a.rate_override ?? (t.parameters as any)?.rate ?? 0);
           raw = (Number(emp.basic_salary) || 0) * rate;
         } else {
-          issuesToInsert.push({
+          ruleConfigIssues.push({
             severity: "warning",
             employee_id: emp.id,
             code: "CUSTOM_DEDUCTION_METHOD_UNSUPPORTED",
