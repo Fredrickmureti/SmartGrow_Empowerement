@@ -4134,6 +4134,44 @@ Deno.serve(async (req) => {
       console.warn("[compute-payroll] garnishment/reimbursement stamping failed:", e?.message ?? e);
     }
 
+    // ─── Slice 2: custom deductions post-run bookkeeping ───
+    // Bump cumulative_recovered; auto-complete when cap is reached; write
+    // a lifecycle event stamped with the payroll_run_id so an operator
+    // can audit which run consumed which amount.
+    try {
+      const cdTotals: Record<string, { amount: number; type_id: string; employee_id: string }> = {};
+      for (const c of customDeductionsApplied) {
+        const slot = cdTotals[c.assignment_id] ||= { amount: 0, type_id: c.type_id, employee_id: c.employee_id };
+        slot.amount = Math.round((slot.amount + c.amount) * 100) / 100;
+      }
+      for (const [assignmentId, agg] of Object.entries(cdTotals)) {
+        const { data: cur } = await supabaseAdmin
+          .from("employee_custom_deductions")
+          .select("cumulative_recovered, cumulative_cap, status")
+          .eq("id", assignmentId)
+          .single();
+        if (!cur) continue;
+        const newRecovered = Math.round(((Number(cur.cumulative_recovered) || 0) + agg.amount) * 100) / 100;
+        const shouldComplete =
+          cur.cumulative_cap != null && newRecovered >= Number(cur.cumulative_cap) - 0.005;
+        const patch: Record<string, unknown> = { cumulative_recovered: newRecovered };
+        if (shouldComplete) patch.status = "completed";
+        await supabaseAdmin
+          .from("employee_custom_deductions")
+          .update(patch)
+          .eq("id", assignmentId);
+        await supabaseAdmin.from("employee_custom_deduction_events").insert({
+          assignment_id: assignmentId,
+          business_id: business_id || null,
+          event_type: "recovered",
+          amount: agg.amount,
+          payroll_run_id: payrollRun.id,
+        });
+      }
+    } catch (e: any) {
+      console.warn("[compute-payroll] custom deduction bookkeeping failed:", e?.message ?? e);
+    }
+
 
 
     // ─── Drain retro_pay_adjustments queue (B-2) ───
