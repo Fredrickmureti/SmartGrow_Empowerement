@@ -239,6 +239,7 @@ export default function EmployeeProfilePage() {
             <div className="space-y-4">
               {canViewPayrollRuns && <EmployeeReadinessPanel employeeId={employee.id} />}
               {canViewEmpPayroll && <EmployeePayrollInfo employee={employee} />}
+              {canViewEmpPayroll && <EmployeeCustomDeductionsSection employeeId={employee.id} />}
               {canViewPayrollRuns && <EmployeePayslipHistory employeeId={employee.id} />}
             </div>
           )}
