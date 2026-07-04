@@ -47,14 +47,27 @@ describe("payroll architecture guard — Stage B cleanup", () => {
     expect(PAGE).not.toMatch(/const\s+saveRuleMutation\s*=/);
   });
 
-  it("custom deduction types can only declare flat_amount or percentage_of_gross", () => {
-    // The new typed picker enforces the engine contract for tenant-defined
-    // deduction types.
-    expect(PAGE).toMatch(/CUSTOM_TYPE_METHODS/);
-    expect(PAGE).toMatch(/value:\s*"flat_amount"/);
-    expect(PAGE).toMatch(/value:\s*"percentage_of_gross"/);
-    // The old freeform builder is gone.
-    expect(PAGE).not.toMatch(/addParamField|removeParamField|updateParamField/);
+  it("rule type definitions expose engine-known computation methods only", () => {
+    // Slice 1 of the Custom Deduction Types audit widened the picker beyond
+    // the original flat_amount / percentage_of_gross pair to cover the full
+    // set the compute-payroll engine can dispatch. The catalog lives in the
+    // dialog module now — check there, not in the Statutory Rules page.
+    const DIALOG = readFileSync(
+      join(process.cwd(), "src/components/payroll/CustomDeductionTypeDialog.tsx"),
+      "utf8",
+    );
+    expect(DIALOG).toMatch(/RULE_TYPE_METHODS/);
+    for (const method of [
+      "flat_amount",
+      "percentage_of_gross",
+      "bracket_progressive",
+      "tiered_brackets",
+      "per_employee_flat",
+    ]) {
+      expect(DIALOG).toMatch(new RegExp(`value:\\s*"${method}"`));
+    }
+    // The old freeform parameter-field builder must stay gone.
+    expect(DIALOG).not.toMatch(/addParamField|removeParamField|updateParamField/);
   });
 
   it("a Stage-B migration locking computation_method exists", () => {
