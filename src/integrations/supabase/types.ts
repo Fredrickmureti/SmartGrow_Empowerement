@@ -66659,6 +66659,17 @@ export type Database = {
         }
         Returns: string
       }
+      wet_impact_metrics: {
+        Args: { _business_id: string; _org_id: string }
+        Returns: {
+          code: string
+          employees_last_90d: number
+          leave_types_routed: number
+          rows_last_90d: number
+          rules_referencing: number
+          work_entry_type_id: string
+        }[]
+      }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "income" | "expense"
