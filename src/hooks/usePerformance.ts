@@ -255,6 +255,16 @@ export function useTrainingEnrollments(employeeId?: string) {
       if (rows.length === 0) return { created: 0, skipped: skip.size };
       const { error } = await supabase.from("training_enrollments").insert(rows);
       if (error) throw error;
+      const { data: course } = await supabase.from("training_courses").select("name").eq("id", input.course_id).maybeSingle();
+      const title = (course as any)?.name ?? "a course";
+      await notifyTalentBulk({
+        organizationId: currentOrg.id, kind: "training.assigned",
+        employeeIds: rows.map(r => r.employee_id),
+        title: "Training assigned",
+        message: `You've been enrolled in "${title}"${input.due_date ? ` · due ${input.due_date}` : ""}.`,
+        entityType: "training_course", entityId: input.course_id,
+        link: "/me/learning",
+      }).catch(() => {});
       return { created: rows.length, skipped: skip.size };
     },
     onSuccess: (r: any) => {
