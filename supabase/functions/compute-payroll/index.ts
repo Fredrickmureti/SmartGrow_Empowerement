@@ -3457,7 +3457,7 @@ Deno.serve(async (req) => {
       if (parentIds.length > 0) {
         const { data: parentLines, error: pLnErr } = await supabaseAdmin
           .from("payslip_lines")
-          .select("payslip_id, employee_id, rule_code, rule_type, category, label, sequence, employee_amount, employer_amount, taxable")
+          .select("payslip_id, employee_id, rule_code, rule_type, category, label, sequence, employee_amount, employer_amount, taxable, accounting_tag")
           .in("payslip_id", parentIds);
         if (pLnErr) {
           await supabaseAdmin.from("payroll_runs").delete().eq("id", payrollRun.id);
