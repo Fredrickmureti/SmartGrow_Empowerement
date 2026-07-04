@@ -51,11 +51,12 @@ BEGIN;
     END IF;
   END $$;
 
-  -- (3) Specificity cascade — branch override wins over business, business over org.
+  -- (3) Specificity cascade — legal-entity (business) wins over org, and a
+  --     branch (which never owns an account) CASCADES to the shared default.
   DO $$
   DECLARE
     v_org uuid; v_biz uuid; v_branch uuid;
-    v_a_org uuid; v_a_biz uuid; v_a_branch uuid;
+    v_a_org uuid; v_a_biz uuid;
     v_res uuid;
     v_key text := '__test_binding_key__';
   BEGIN
@@ -65,7 +66,7 @@ BEGIN;
     SELECT id INTO v_branch FROM public.branches
       WHERE organization_id = v_org LIMIT 1;
 
-    -- Need three distinct postable accounts to bind at the three scopes.
+    -- Need two distinct postable accounts to bind at org and legal-entity scope.
     SELECT id INTO v_a_org FROM public.accounts
       WHERE organization_id = v_org ORDER BY code LIMIT 1;
     SELECT id INTO v_a_biz FROM public.accounts
@@ -79,7 +80,7 @@ BEGIN;
       (organization_id, business_id, branch_id, setting_key, account_id, source)
     VALUES (v_org, NULL, NULL, v_key, v_a_org, 'manual');
 
-    -- Business-level binding.
+    -- Legal-entity (business) binding.
     INSERT INTO public.default_account_setting_bindings
       (organization_id, business_id, branch_id, setting_key, account_id, source)
     VALUES (v_org, v_biz, NULL, v_key, v_a_biz, 'manual');
@@ -96,19 +97,16 @@ BEGIN;
       RAISE EXCEPTION 'org scope should resolve org binding, got %', v_res;
     END IF;
 
+    -- HQ-authoritative invariant: a branch has NO branch-scoped account and
+    -- must cascade to the shared legal-entity default — never a branch account.
+    -- (We deliberately do NOT author a branch binding; branch differentiation
+    --  lives on the JE line as a posting dimension, not in the COA mapping.)
     IF v_branch IS NOT NULL THEN
-      SELECT id INTO v_a_branch FROM public.accounts
-        WHERE organization_id = v_org AND id NOT IN (v_a_org, v_a_biz)
-        ORDER BY code LIMIT 1;
-      IF v_a_branch IS NOT NULL THEN
-        INSERT INTO public.default_account_setting_bindings
-          (organization_id, business_id, branch_id, setting_key, account_id, source)
-        VALUES (v_org, v_biz, v_branch, v_key, v_a_branch, 'tenant_override');
-
-        v_res := public.resolve_default_account_binding(v_key, v_org, v_biz, v_branch, now());
-        IF v_res <> v_a_branch THEN
-          RAISE EXCEPTION 'branch scope should resolve branch override, got %', v_res;
-        END IF;
+      v_res := public.resolve_default_account_binding(v_key, v_org, v_biz, v_branch, now());
+      IF v_res <> v_a_biz THEN
+        RAISE EXCEPTION
+          'branch must cascade to the shared legal-entity default (%), got %',
+          v_a_biz, v_res;
       END IF;
     END IF;
   END $$;
