@@ -84,6 +84,7 @@ Deno.serve(async (req) => {
 
     const body: PostPayrollGLRequest = await req.json();
     const { payroll_run_id, organization_id, business_id } = body;
+    const dryRun = body.dry_run === true;
 
     if (!payroll_run_id || !organization_id) {
       return new Response(JSON.stringify({ error: "Missing payroll_run_id or organization_id" }), {
