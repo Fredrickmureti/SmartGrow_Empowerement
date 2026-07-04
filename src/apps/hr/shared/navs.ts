@@ -209,7 +209,7 @@ export const PAYROLL_NAV: WorkspaceNav = {
             { to: "/hr/payroll/configuration/accounts", label: "GL account mapping", icon: Landmark, permission: "managePayroll" },
             { to: "/hr/payroll/configuration/loan-types", label: "Loan types", icon: Wallet, permission: "managePayroll" },
             { to: "/hr/payroll/configuration/work-entry-types", label: "Work entry types", icon: Tags, permission: "managePayroll" },
-            { to: "/hr/payroll/configuration/deduction-types", label: "Custom deduction types", icon: Settings2, permission: "manageStatutoryRules" },
+            { to: "/hr/payroll/configuration/rule-types", label: "Rule type definitions", icon: Settings2, permission: "manageStatutoryRules" },
             { to: "/hr/payroll/configuration/templates", label: "Templates", icon: FileBox, permission: "managePayroll" },
             { to: "/hr/payroll/configuration/localization", label: "Localization", icon: Globe, permission: "managePayroll" },
           ],
