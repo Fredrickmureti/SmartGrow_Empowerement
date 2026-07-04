@@ -1,88 +1,116 @@
 
-# Work Entry Types — Audit close-out (Phases A–C already landed)
+# Custom Deduction Types — Architectural Audit
 
-## Independent verification of prior work
+## 1. What this subsystem actually is (traced, not assumed)
 
-I re-read the previous agent's plan (`.lovable/plan.md`) and validated each claim against the actual codebase and live DB schema:
+Table: `public.payroll_rule_types`. Frontend: `CustomDeductionTypes.tsx`, `CustomDeductionTypeDialog.tsx`, `usePayrollRuleTypes.ts`. Route: `/hr/payroll/configuration/deduction-types`.
 
-- **Phase A (override 409 fix)** — verified. Global `(org, code)` unique index dropped in `20260704025730`; the correct partial-unique `uq_work_entry_types_business_code` remains; `payroll_resolve_wet(org, business, code)` exists and the projector (`payroll_work_entries_project`) routes every canonical code through it. Client `overrideFromPack` also pre-checks and handles `23505` cleanly.
-- **Phase B (pack-templated seeding + optimistic locking + impact RPC)** — verified. `localization_pack_work_entry_type_templates` exists with RLS + platform-admin write; `ensure_canonical_work_entry_types` prefers installed-pack rows and falls back to canonical six; `version` column + `bump_payroll_wet_version` trigger present; client sends `.eq("version", …)` on update and surfaces `STALE_VERSION`; `wet_impact_metrics` RPC returns rows/employees (90d) + rule refs + leave-type routing and is consumed by the KPI strip and Impact column.
-- **Phase C (accounting_tag → GL split)** — verified. `payslip_lines.accounting_tag` + partial index landed in `20260704030954`; `compute-payroll` stamps the tag on every earning line and OT inherits the WET tag when the rule leaves it null (correction/reversal deltas preserve tag via parent-row spread); `post-payroll-gl` aggregates earnings by tag and emits per-bucket DRs against `salary_expense_<TAG>` with fallthrough to the generic `salary_expense`, so all-NULL runs remain byte-identical and the debit total still equals `totalGross`.
+**Cross-module trace of every consumer of `payroll_rule_types`:**
 
-Nothing shallow or cosmetic found in those phases. The two items the previous agent explicitly left open are the only remaining work.
-
-## What remains
-
-1. **Dead-field cleanup on `payroll_work_entry_types`**
-2. **pgTAP coverage** for the resolver, the version trigger, and the tag-split GL aggregation
-
-## 1. Dead-field cleanup
-
-Field-by-field usage sweep against `src/`, `supabase/functions/`, and `pg_proc`:
-
-| Field | Consumer? | Verdict |
+| Consumer | What it reads | What it does with it |
 |---|---|---|
-| `code`, `name`, `is_paid`, `counts_as_worked`, `multiplier_normal`, `multiplier_overtime`, `accounting_tag`, `sequence`, `is_active`, `is_pack_default`, `version`, `organization_id`, `business_id`, `localization_pack_id` | Read by projector, compute-payroll, post-payroll-gl, structure engine, resolver, seeder, UI | **Live** |
-| `color` | Never rendered anywhere; not read by any RPC or edge function; only echoed by seed/override paths | **Dead — remove** |
-| `is_unpaid_leave` | Not read by any downstream consumer. `is_paid=false` already fully expresses "unpaid". UI form doesn't even expose it. Only echoed by seed/override/upsert paths and mentioned in `bump_payroll_wet_version` row-diff | **Dead — remove** |
+| `PayrollStatutoryRules.tsx` | `code`, `label`, `parameter_schema` | Populates the rule-editor's "type" dropdown; renders parameter field hints in `RuleParameters` |
+| `CustomDeductionTypes.tsx` | Full row | CRUD screen |
+| `CustomDeductionTypeDialog.tsx` | Full row | Writes rows |
+| `compute-payroll` edge function | **Nothing** | Never queried. Verified. |
+| `payroll_salary_rules` / rule-graph engine | Nothing | No reference |
+| `payslip_lines` / `payslips` | Nothing | No reference |
+| `post-payroll-gl` / journal entries | Nothing | No reference |
+| `employee_loans`, `employee_advances`, `employee_garnishments` | Nothing | No FK, no lookup |
+| Any RPC, trigger, view | Nothing | No reference |
 
-Both fields are pure metadata with no behavioural effect. Keeping them is exactly the "dead configuration" the audit prompt calls out.
+There is **no foreign key** anywhere in the schema pointing at `payroll_rule_types`. Its `code` is stuffed into `payroll_statutory_rules.rule_type` as free text — a soft, unenforced label. The comment on the table itself admits this: *"Dynamic rule type definitions for payroll statutory rules"*.
 
-### Migration (single file)
+**Conclusion:** `payroll_rule_types` is a **form-schema catalog for the Statutory Rules editor**. It is neither a deduction type, nor a deduction, nor a driver of any payroll behaviour. Renaming it "Custom Deduction Types" and giving it its own top-level workspace was an information-architecture error introduced in Phase C of the Statutory Rules split.
 
-- `ALTER TABLE public.payroll_work_entry_types DROP COLUMN color, DROP COLUMN is_unpaid_leave;`
-- Same drop on `public.localization_pack_work_entry_type_templates`.
-- Re-create `public.bump_payroll_wet_version()` without those columns in the row diff (keep the OT/OT-multiplier and paid/worked/tag columns — every field that actually affects payroll or GL).
-- Backfill: none needed (drop is destructive-safe; no data depends on it).
+## 2. Business-event lifecycle — the honest version
 
-### Code follow-up (same batch as migration approval)
+```text
+User opens /hr/payroll/configuration/deduction-types
+  → creates a "type" row (code, label, parameter_schema)
+    → row lands in payroll_rule_types
+      → NO business event fires
+        → NO downstream consumer reacts
+          → NEXT time someone opens the Statutory Rules editor,
+             the type dropdown has one more option and the
+             parameter form renders `amount` or `rate` fields
+END OF LIFECYCLE.
+```
 
-- Drop `color` and `is_unpaid_leave` from `WorkEntryType`, `WorkEntryTypeInput`, `EMPTY`, `upsert` payload, and `overrideFromPack` payload in `src/hooks/payroll/useWorkEntryTypes.ts`.
-- Drop the `color` prop from `openEdit` in `src/pages/hr/payroll/WorkEntryTypes.tsx`. The form already doesn't render an unpaid-leave switch — no UI change beyond removing the type field.
-- `src/integrations/supabase/types.ts` is regenerated by the platform after migration; no manual edit.
-- Grep-verify zero remaining references to `is_unpaid_leave` / WET-scoped `.color` outside historical migrations.
+That is the entire causal chain. Nothing on an employee changes. No payslip line is created. No GL entry is posted. No approval is triggered. No audit event beyond the row's own `updated_at`.
 
-## 2. pgTAP coverage
+## 3. Field-by-field audit
 
-Add three focused test files under `supabase/tests/`, modelled on the existing `payroll_gl_binding_resolver_test.sql` and `payroll_work_entries_projector_contract_test.sql` (same `plan()` / `finish()` shape, same fixture helpers).
+| Field | Purpose claimed | Actual behaviour | Verdict |
+|---|---|---|---|
+| `code` | Machine name referenced by rules | Free-text tag copied into `payroll_statutory_rules.rule_type`; no FK, no uniqueness across pack + tenant, no migration path when renamed | Weakly wired |
+| `label` | Human name | Rendered in one dropdown, one list | OK |
+| `description` | Docs | Rendered on the card | OK |
+| `parameter_schema` | Drives compute | Drives only form rendering in `RuleParameters`. Compute engine reads `payroll_statutory_rules.parameters` + `computation_method` directly | Misleading |
+| `is_bracket` | Selects bracket editor | Dialog hard-codes `is_bracket:false` — user can never set it here | **Dead in this workspace** |
+| `is_system` | Guard against edits/delete | Enforced only client-side | Weakly enforced |
+| `is_active` | Soft-delete flag | Dialog hard-codes `true`; delete is hard-delete. No listing filter surfaces inactive types | **Dead** |
+| `sort_order` | Ordering | Applied in `useRuleTypes` | OK |
+| `business_id` | Scope | Never written by the dialog; `useRuleTypes` never filters by it. Column is orphaned | **Dead** |
+| **Missing** `computation_method` | — | Dialog forces user to pick `flat_amount` \| `percentage_of_gross`, then discards it and infers it back later by looking for the `rate` key. Fragile, lossy, unnecessary | **Bug** |
 
-### `payroll_wet_resolver_test.sql`
-- Seeds one org + one business + a pack row (`business_id IS NULL`) and a tenant override (`business_id = b`) sharing `code='OT'`.
-- Asserts:
-  - `payroll_resolve_wet(org, business, 'OT')` returns the **tenant** row's id (override wins).
-  - `payroll_resolve_wet(org, business, 'WORK')` with only a pack row returns the **pack** id.
-  - `payroll_resolve_wet(org, business, 'UNKNOWN')` returns NULL.
-  - `payroll_resolve_wet(org, NULL, 'OT')` returns the pack id (no tenant scope).
-  - The pre-Phase-A global `(org, code)` unique index does **not** exist (regression guard against re-adding it).
-  - `uq_work_entry_types_business_code` (partial unique on `(org, coalesce(business_id, sentinel), code)`) is present.
+## 4. Enterprise concepts the workspace claims to cover — and doesn't
 
-### `payroll_wet_version_trigger_test.sql`
-- Inserts a tenant WET row, asserts `version = 1`.
-- Updates a payroll-relevant column (`multiplier_overtime`): asserts `version` bumped to 2.
-- Updates `updated_at` only via a no-op touch: asserts `version` stays 2 (guards the "only bump on meaningful diff" behaviour).
-- Update-with-stale-version (`WHERE version = 1`) affects 0 rows after the bump — proves optimistic-lock contract the client relies on.
+The subtitle enumerates *"loans, advances, SACCO, gym fees"*. Each of these already has a **first-class, correctly modelled** home:
 
-### `payroll_gl_tag_split_test.sql`
-- Builds a minimal fixture: 1 run, 1 payslip, 4 earning `payslip_lines` — two tagged `OT`, one tagged `HOLIDAY`, one with `accounting_tag IS NULL`, plus one employer-cost line that must be ignored.
-- Runs the same aggregation the edge function uses (SQL projection in the test, mirroring the function): `SUM(employee_amount) GROUP BY accounting_tag` over `category IN ('earning','allowance','bonus','overtime')`.
-- Asserts:
-  - Per-tag totals match expected buckets.
-  - Untagged bucket sums to only the NULL-tag row.
-  - Grand total across all buckets = sum of every earning line (no double count, no drop).
-  - When `payroll_work_entry_types.accounting_tag` is edited (tag on OT changed) and `compute-payroll` re-stamps on next run, the aggregation snaps to the new bucket (uses a stubbed `payslip_lines` insert to represent the recompute output; edge function itself isn't executed in pgTAP).
-  - Regression guard: `payslip_lines_run_tag_idx` exists and is partial on `accounting_tag IS NOT NULL`.
+| Concept | Real home | What it does that this workspace does not |
+|---|---|---|
+| Loans | `loan_types`, `employee_loans`, `loan_repayment_schedule`, `payroll_loan_recovery_policy` | Lifecycle (requested → approved → disbursed → recovering → recovered), amortisation, skip-overrides, GL wiring, compute-payroll consumption |
+| Advances | `employee_advances`, `advance_repayment_schedule` | Full lifecycle, min-net floor, recovery in compute-payroll |
+| Garnishments | `employee_garnishments`, `garnishment_kind_defaults`, `garnishment_carry_forward`, `garnishment_lifecycle_events` | Court-order metadata, priority ordering, carry-forward, audit |
+| Statutory (PAYE / SHIF / NSSF / housing levy) | `payroll_statutory_rules` + localization packs | Pack governance, effective dating, upgrade inbox, conflicts, provenance |
+| Salary rules (allowances, custom formulas) | `payroll_salary_rules` + `salary_structure_rule_sets` + structure engine | Ordered graph, expressions, snapshots, traces |
+| Benefits | `benefit_plans`, `employee_benefits`, `benefit_enrollment_windows` | Enrollment windows, employer/employee split |
 
-Each test uses `SET LOCAL role authenticated` where needed and cleans up with a rollback-safe `truncate ... cascade` in `teardown` blocks matching the neighbouring tests.
+The only thing *not* covered by any of the above is: **a truly ad-hoc, tenant-defined, recurring or one-time deduction that isn't a loan, advance, garnishment, statutory item, benefit, or salary-structure line** — e.g. "gym membership deducted at KES 1,500/month". Today the ERP has **no first-class home for that**. This workspace pretends to be that home but is not.
 
-## Verification strategy
+## 5. Architectural risks
 
-- Migration approval + regeneration of `types.ts` → typecheck passes with the two fields removed from the hook/page.
-- `supabase test db` (or the project's pgTAP runner used by the other suites) → all three new files green; existing `payroll_gl_binding_resolver_test.sql` and `payroll_work_entries_projector_contract_test.sql` still green (regression check for shared fixtures).
-- Manual smoke on a run with all-NULL tags → GL journal byte-identical to pre-Phase-C (already the Phase C invariant; re-checked after column drop to prove the trigger rewrite didn't disturb it).
-- `rg -n "is_unpaid_leave|payroll_work_entry_types.*color"` in `src/` and `supabase/functions/` returns zero hits.
+1. **Naming lies.** The screen title, subtitle, nav label, permission (`manageStatutoryRules`), and route all say "deduction types". No deduction exists here. Payroll officers will assume creating a row here causes deductions.
+2. **`is_bracket=false` hard-coded.** Bracket-shaped rule types (PAYE brackets, tiered rates) can NOT be authored from this workspace even though the underlying table supports them — but the workspace calls itself the tenant-authoring surface for rule types. Users hit a silent ceiling.
+3. **`computation_method` round-trip.** Dialog stores a schema-shape and re-infers method via `keys.has("rate")`. Renaming a parameter key changes the inferred method. This is fragile.
+4. **`business_id` orphan.** Migration 20260421213742 added the column but nothing writes or filters by it, so tenant/business scoping is inconsistent with the rest of the payroll module.
+5. **`is_active` and soft-delete unused.** Delete is hard, breaking any historical rule that still references a deleted code.
+6. **No lifecycle for the actual gap** (ad-hoc recurring/one-time employee deductions): no assignment table, no effective dates, no approval, no suspension, no reversal, no compute-payroll integration, no payslip line contract, no GL mapping, no reporting classification, no year-end handling.
 
-## Out of scope (correctly deferred earlier, still deferred)
+## 6. Recommendation
 
-- Analytic-distribution splits by tag (Phase D+).
-- Project-costing consumption of `accounting_tag` (needs analytic groundwork first).
-- Attendance/Timesheet UI redesign — the operational-intelligence surface asked for by the audit prompt is already delivered via the KPI strip and Impact column in Phase B.
+**Do not add features to the current `payroll_rule_types` workspace pretending it is a deduction engine. Fix the IA lie first, then decide whether to add a real "Custom Deductions" subsystem in a separate slice.**
+
+### Slice 1 — Truth in labelling (small, safe, no schema change to consumers)
+
+1. **Rename route + nav + page** from *Custom Deduction Types* to ***Rule Type Definitions*** (or *Statutory Rule Type Catalog*). New route: `/hr/payroll/configuration/rule-types`. Add a 301-style redirect from the old path. Update `navs.ts`, `PayrollRoutes.tsx`, page title, dialog copy, and the architecture guard test.
+2. **Rewrite the page copy** to say what it truly does: *"Defines the shape (label + parameter schema) that appears in the Statutory Rules editor for tenant-authored rule types. Does not create deductions. To manage employee deductions see Loans, Advances, Garnishments, or Salary Structures."*
+3. **Add outbound links** on the empty state and header to Loans, Advances, Garnishments, Salary Structures, Statutory Rules — so users who mis-navigated here find the right home.
+4. **Fix the `computation_method` round-trip:** persist the picked method on the type row (add `computation_method text` column, backfill from `methodForSchema`, drop the inference). Statutory rule editor should default `computation_method` from the picked type.
+5. **Un-hard-code `is_bracket`:** allow the dialog to author bracket-shaped types (matches the underlying table capability the workspace claims to expose).
+6. **Wire `is_active`:** the delete action becomes soft delete; the list filters out inactive by default; `useRuleTypes` already filters `is_active=true`, so historical rules keep resolving their type label.
+7. **Drop the orphan `business_id` column** OR start writing/filtering by it consistently. Given rule-type catalogs are workspace-level HR-policy artefacts (same reasoning as `leave_types` in `useLeaveTypes.ts`), drop the column and mark the table `SCOPE-EXEMPT` explicitly in `businessScopedTables.ts`.
+8. **Add pgTAP test** pinning: no FK to `payroll_rule_types` from anywhere except future explicit rule-type FKs; `payroll_statutory_rules.rule_type` values referenced in `payroll_rule_types` are the only tenant-defined values; deletes cascade-safely.
+
+### Slice 2 — (Deferred, only if the real gap is confirmed by a tenant) *Ad-hoc Custom Deductions*
+
+If — and only if — workspaces actually need a first-class ad-hoc deduction that is not a loan, advance, garnishment, statutory, or benefit, model it properly rather than bolting fields onto `payroll_rule_types`. Sketch (not built now):
+
+- `custom_deduction_types` — tenant catalog: code, label, `deduction_kind (recurring|one_time|voluntary|involuntary)`, `tax_treatment (pre_tax|post_tax)`, `is_taxable`, `is_employer_contribution`, `computation_method`, `parameters jsonb`, `gl_liability_account_id`, `gl_expense_account_id`, `payslip_group`, `sort_order`, `requires_approval`, `is_active`, `version`.
+- `employee_custom_deductions` — assignment: `type_id`, `employee_id`, `effective_from`, `effective_to`, `amount_or_rate_override`, `status (pending|approved|active|suspended|cancelled|completed)`, `cumulative_cap`, `min_net_floor`, `approver_id`, `approved_at`, `lifecycle events` table.
+- Consumers to wire: `compute-payroll` (new branch after loans/advances, before net), `payslip_lines` (new `source='custom_deduction'`), `post-payroll-gl` (respect the GL mapping), `payroll_readiness_rules` (mapping-completeness rule), reversal/correction pipeline, termination final-pay recovery, year-end reporting classification, employee self-service visibility flag.
+- Governance: this must NOT overlap with garnishments (court-ordered, priority-ordered) or loans (amortisation). A DB `CHECK` or trigger ensures a type declared as `deduction_kind='installment_loan'` is not allowed here — those belong to `loan_types`.
+
+Slice 2 is a separate audit and separate build. Do not start it as part of this cleanup.
+
+### Explicitly out of scope for this slice
+
+- Rewriting compute-payroll (nothing needs to change there).
+- Touching Statutory Rules governance (packs, upgrades, conflicts).
+- Touching loans / advances / garnishments (they are correctly modelled).
+- Any UI polish beyond copy/nav/links needed for truth-in-labelling.
+
+## 7. Deliverable of this slice
+
+A single, honest configuration screen named *Rule Type Definitions* that owns exactly the concept it manipulates, plus a fixed `computation_method` persistence, un-hard-coded `is_bracket`, real soft-delete, orphan-column cleanup, and a pgTAP guard. Total surface: ~200 lines of frontend edits, one migration, one test file.

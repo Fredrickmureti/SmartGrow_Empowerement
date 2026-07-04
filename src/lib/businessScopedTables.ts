@@ -126,7 +126,7 @@ export const BUSINESS_SCOPED_TABLES = [
   // Payroll / HR (res.company)
   "salary_components",
   "payroll_statutory_rules",
-  "payroll_rule_types",
+  // payroll_rule_types is a workspace-level catalog (like leave_types) — no business_id.
   "benefit_plans",
   "leave_types",
   "public_holidays",
