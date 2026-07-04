@@ -441,7 +441,7 @@ export function useTalentGoal(goalId?: string) {
 
       // Phase 2: fire goal.completed when the check-in transitions the goal to done/100%
       const isCompleted =
-        input.status === "done" || (patch.progress_pct >= 100 && (input.status ?? goal.status) !== "cancelled");
+        input.status === "completed" || (patch.progress_pct >= 100 && (input.status ?? goal.status) !== "cancelled");
       if (isCompleted) {
         // Notify employee (self-service confirmation) and manager
         await notifyTalent({
