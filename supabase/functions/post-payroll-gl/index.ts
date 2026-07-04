@@ -30,6 +30,15 @@ interface PostPayrollGLRequest {
   payroll_run_id: string;
   organization_id: string;
   business_id: string | null;
+  /**
+   * Phase 4 — posting simulation. When true, the function performs every
+   * validation step and builds the projected journal entry, but does NOT
+   * write to `journal_entries`, `payroll_runs`, `payroll_liabilities`,
+   * or `audit_logs`. The response returns `{ dry_run: true, lines: [...],
+   * totals, warnings }` so accountants can preview the posting from
+   * Payroll → Account Mapping before authorising the real post.
+   */
+  dry_run?: boolean;
 }
 
 interface GLLine {
