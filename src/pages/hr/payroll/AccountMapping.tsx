@@ -74,6 +74,7 @@ import {
 } from "lucide-react";
 import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMappingFindingsPanel";
 import { PayrollGlUpgradeDiffPanel } from "@/components/payroll/PayrollGlUpgradeDiffPanel";
+import { PayrollPostingSimulator } from "@/components/payroll/PayrollPostingSimulator";
 import { formatDistanceToNow } from "date-fns";
 
 const SOURCE_META: Record<
