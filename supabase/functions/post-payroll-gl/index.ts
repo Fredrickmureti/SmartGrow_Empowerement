@@ -326,6 +326,12 @@ Deno.serve(async (req) => {
       const empAmt = Number(line.employee_amount || 0);
       const erAmt = Number(line.employer_amount || 0);
 
+      // Phase C — accumulate earnings by accounting_tag for salary_expense split.
+      if (cat === "earning" && empAmt > 0) {
+        const tag = (line.accounting_tag as string | null) ?? null;
+        earningsByTag.set(tag, (earningsByTag.get(tag) ?? 0) + empAmt);
+      }
+
       // ─── Garnishment lines: aggregate per garnishment order ───
       if (cat === "garnishment" && empAmt > 0) {
         const gid: string | null =
