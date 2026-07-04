@@ -9437,6 +9437,135 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_deduction_types: {
+        Row: {
+          business_id: string
+          code: string
+          computation_method: string
+          created_at: string
+          created_by: string | null
+          deduction_kind: Database["public"]["Enums"]["custom_deduction_kind"]
+          description: string | null
+          gl_expense_account_id: string | null
+          gl_liability_account_id: string | null
+          id: string
+          is_active: boolean
+          is_employer_contribution: boolean
+          is_taxable: boolean
+          label: string
+          parameters: Json
+          payslip_group: string
+          requires_approval: boolean
+          sort_order: number
+          tax_treatment: Database["public"]["Enums"]["custom_deduction_tax_treatment"]
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          business_id: string
+          code: string
+          computation_method: string
+          created_at?: string
+          created_by?: string | null
+          deduction_kind: Database["public"]["Enums"]["custom_deduction_kind"]
+          description?: string | null
+          gl_expense_account_id?: string | null
+          gl_liability_account_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_employer_contribution?: boolean
+          is_taxable?: boolean
+          label: string
+          parameters?: Json
+          payslip_group?: string
+          requires_approval?: boolean
+          sort_order?: number
+          tax_treatment?: Database["public"]["Enums"]["custom_deduction_tax_treatment"]
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          computation_method?: string
+          created_at?: string
+          created_by?: string | null
+          deduction_kind?: Database["public"]["Enums"]["custom_deduction_kind"]
+          description?: string | null
+          gl_expense_account_id?: string | null
+          gl_liability_account_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_employer_contribution?: boolean
+          is_taxable?: boolean
+          label?: string
+          parameters?: Json
+          payslip_group?: string
+          requires_approval?: boolean
+          sort_order?: number
+          tax_treatment?: Database["public"]["Enums"]["custom_deduction_tax_treatment"]
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_deduction_types_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_deduction_types_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "custom_deduction_types_gl_expense_account_id_fkey"
+            columns: ["gl_expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_deduction_types_gl_expense_account_id_fkey"
+            columns: ["gl_expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "custom_deduction_types_gl_expense_account_id_fkey"
+            columns: ["gl_expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_deduction_types_gl_liability_account_id_fkey"
+            columns: ["gl_liability_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_deduction_types_gl_liability_account_id_fkey"
+            columns: ["gl_liability_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "custom_deduction_types_gl_liability_account_id_fkey"
+            columns: ["gl_liability_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_groups: {
         Row: {
           business_id: string
@@ -12815,6 +12944,246 @@ export type Database = {
             foreignKeyName: "employee_credentials_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: true
+            referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_custom_deduction_events: {
+        Row: {
+          actor_id: string | null
+          amount: number | null
+          assignment_id: string
+          business_id: string
+          created_at: string
+          event_type: string
+          from_status:
+            | Database["public"]["Enums"]["custom_deduction_status"]
+            | null
+          id: string
+          notes: string | null
+          payroll_run_id: string | null
+          to_status:
+            | Database["public"]["Enums"]["custom_deduction_status"]
+            | null
+        }
+        Insert: {
+          actor_id?: string | null
+          amount?: number | null
+          assignment_id: string
+          business_id: string
+          created_at?: string
+          event_type: string
+          from_status?:
+            | Database["public"]["Enums"]["custom_deduction_status"]
+            | null
+          id?: string
+          notes?: string | null
+          payroll_run_id?: string | null
+          to_status?:
+            | Database["public"]["Enums"]["custom_deduction_status"]
+            | null
+        }
+        Update: {
+          actor_id?: string | null
+          amount?: number | null
+          assignment_id?: string
+          business_id?: string
+          created_at?: string
+          event_type?: string
+          from_status?:
+            | Database["public"]["Enums"]["custom_deduction_status"]
+            | null
+          id?: string
+          notes?: string | null
+          payroll_run_id?: string | null
+          to_status?:
+            | Database["public"]["Enums"]["custom_deduction_status"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_custom_deduction_events_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "employee_custom_deductions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deduction_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deduction_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deduction_events_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deduction_events_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "v_hr_payroll_distribution_by_department"
+            referencedColumns: ["payroll_run_id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deduction_events_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_batch_register"
+            referencedColumns: ["run_id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deduction_events_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_cost_by_department"
+            referencedColumns: ["payroll_run_id"]
+          },
+        ]
+      }
+      employee_custom_deductions: {
+        Row: {
+          amount_override: number | null
+          approved_at: string | null
+          approver_id: string | null
+          business_id: string
+          cancelled_reason: string | null
+          created_at: string
+          created_by: string | null
+          cumulative_cap: number | null
+          cumulative_recovered: number
+          deduction_type_id: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          min_net_floor: number | null
+          notes: string | null
+          rate_override: number | null
+          reference: string | null
+          status: Database["public"]["Enums"]["custom_deduction_status"]
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          amount_override?: number | null
+          approved_at?: string | null
+          approver_id?: string | null
+          business_id: string
+          cancelled_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          cumulative_cap?: number | null
+          cumulative_recovered?: number
+          deduction_type_id: string
+          effective_from: string
+          effective_to?: string | null
+          employee_id: string
+          id?: string
+          min_net_floor?: number | null
+          notes?: string | null
+          rate_override?: number | null
+          reference?: string | null
+          status?: Database["public"]["Enums"]["custom_deduction_status"]
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          amount_override?: number | null
+          approved_at?: string | null
+          approver_id?: string | null
+          business_id?: string
+          cancelled_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          cumulative_cap?: number | null
+          cumulative_recovered?: number
+          deduction_type_id?: string
+          effective_from?: string
+          effective_to?: string | null
+          employee_id?: string
+          id?: string
+          min_net_floor?: number | null
+          notes?: string | null
+          rate_override?: number | null
+          reference?: string | null
+          status?: Database["public"]["Enums"]["custom_deduction_status"]
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_custom_deductions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deductions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deductions_deduction_type_id_fkey"
+            columns: ["deduction_type_id"]
+            isOneToOne: false
+            referencedRelation: "custom_deduction_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deductions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deductions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deductions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deductions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_setup_health"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deductions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deductions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "v_employees_safe"
             referencedColumns: ["id"]
           },
@@ -66726,6 +67095,19 @@ export type Database = {
         | "end_date_change"
         | "other"
       credit_note_status: "draft" | "issued" | "applied" | "void" | "refunded"
+      custom_deduction_kind:
+        | "recurring"
+        | "one_time"
+        | "voluntary"
+        | "involuntary"
+      custom_deduction_status:
+        | "pending"
+        | "approved"
+        | "active"
+        | "suspended"
+        | "cancelled"
+        | "completed"
+      custom_deduction_tax_treatment: "pre_tax" | "post_tax"
       department_status: "active" | "archived" | "dissolved"
       employee_advance_status:
         | "requested"
@@ -67310,6 +67692,21 @@ export const Constants = {
         "other",
       ],
       credit_note_status: ["draft", "issued", "applied", "void", "refunded"],
+      custom_deduction_kind: [
+        "recurring",
+        "one_time",
+        "voluntary",
+        "involuntary",
+      ],
+      custom_deduction_status: [
+        "pending",
+        "approved",
+        "active",
+        "suspended",
+        "cancelled",
+        "completed",
+      ],
+      custom_deduction_tax_treatment: ["pre_tax", "post_tax"],
       department_status: ["active", "archived", "dissolved"],
       employee_advance_status: [
         "requested",
