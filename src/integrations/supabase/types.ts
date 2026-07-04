@@ -9867,7 +9867,13 @@ export type Database = {
           created_at: string
           id: string
           organization_id: string
+          origin_pack_id: string | null
+          origin_pack_version: string | null
+          overridden_at: string | null
+          overridden_by: string | null
+          override_reason: string | null
           setting_key: string
+          source: string
           updated_at: string
         }
         Insert: {
@@ -9877,7 +9883,13 @@ export type Database = {
           created_at?: string
           id?: string
           organization_id: string
+          origin_pack_id?: string | null
+          origin_pack_version?: string | null
+          overridden_at?: string | null
+          overridden_by?: string | null
+          override_reason?: string | null
           setting_key: string
+          source?: string
           updated_at?: string
         }
         Update: {
@@ -9887,7 +9899,13 @@ export type Database = {
           created_at?: string
           id?: string
           organization_id?: string
+          origin_pack_id?: string | null
+          origin_pack_version?: string | null
+          overridden_at?: string | null
+          overridden_by?: string | null
+          override_reason?: string | null
           setting_key?: string
+          source?: string
           updated_at?: string
         }
         Relationships: [
@@ -56854,7 +56872,12 @@ export type Database = {
           _branch_id: string
           _business_id: string
           _org_id: string
+          _origin_pack_id?: string
+          _origin_pack_version?: string
+          _overridden_by?: string
+          _override_reason?: string
           _setting_key: string
+          _source?: string
         }
         Returns: undefined
       }
@@ -62082,6 +62105,8 @@ export type Database = {
           _branch_id?: string
           _business_id: string
           _org_id: string
+          _reason?: string
+          _source?: string
         }
         Returns: number
       }
@@ -62684,6 +62709,7 @@ export type Database = {
           _name: string
           _org_id: string
           _setting_key: string
+          _source?: string
         }
         Returns: string
       }
@@ -65026,6 +65052,10 @@ export type Database = {
       }
       revert_pack_upgrade_atomic: {
         Args: { _proposal_id: string }
+        Returns: Json
+      }
+      revert_payroll_mapping_to_pack_default: {
+        Args: { _business_id: string; _org_id: string; _setting_key: string }
         Returns: Json
       }
       revoke_app_override: {
