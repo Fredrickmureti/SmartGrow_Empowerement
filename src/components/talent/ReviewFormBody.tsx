@@ -35,9 +35,10 @@ interface Props {
 export function ReviewFormBody({ reviewId }: Props) {
   const { user } = useAuth();
   const { currentEmployee } = useCurrentEmployee();
-  const { review, sections, questions, responses, isLoading, saveResponse, submitReview, signOff, acknowledge } = useReview(reviewId);
+  const { review, sections, questions, responses, reviewGoals, isLoading, saveResponse, saveGoalResponse, submitReview, signOff, acknowledge } = useReview(reviewId);
 
   const [answers, setAnswers] = useState<Record<string, { rating?: number | null; comment?: string | null }>>({});
+  const [goalAnswers, setGoalAnswers] = useState<Record<string, { rating?: number | null; comment?: string | null }>>({});
   const [overall, setOverall] = useState<number>(0);
   const [summary, setSummary] = useState("");
   const [strengths, setStrengths] = useState("");
@@ -52,6 +53,23 @@ export function ReviewFormBody({ reviewId }: Props) {
     }
     setAnswers(map);
   }, [responses]);
+
+  // Pre-fill per-goal answers: existing goal-linked response wins, else
+  // seed from performance_goals.final_rating so managers see the latest
+  // rating captured on the goal itself (Phase 4 tail).
+  useEffect(() => {
+    const respByGoal = new Map(
+      responses.filter((r) => r.goal_id && !r.question_id).map((r) => [r.goal_id as string, r]),
+    );
+    const map: Record<string, { rating?: number | null; comment?: string | null }> = {};
+    for (const g of reviewGoals ?? []) {
+      const existing = respByGoal.get(g.id);
+      map[g.id] = existing
+        ? { rating: existing.rating, comment: existing.comment }
+        : { rating: g.final_rating ?? null, comment: null };
+    }
+    setGoalAnswers(map);
+  }, [responses, reviewGoals]);
 
   useEffect(() => {
     if (review) {
@@ -153,6 +171,83 @@ export function ReviewFormBody({ reviewId }: Props) {
           </Card>
         );
       })}
+
+      {/* Goals — one row per performance_goal in this cycle. Rating pre-fills
+          from performance_goals.final_rating; comments and adjusted ratings
+          persist as review_responses (goal_id set, question_id null). */}
+      {(reviewGoals?.length ?? 0) > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Goals</CardTitle>
+            <CardDescription>
+              Rate each goal in this cycle. Starting ratings are pulled from the goal's
+              own final rating so you can adjust rather than re-enter.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {reviewGoals!.map((g) => {
+              const a = goalAnswers[g.id] ?? {};
+              const seededFromGoal = g.final_rating != null && (a.rating ?? null) === g.final_rating;
+              return (
+                <div key={g.id} className="space-y-2 border-b pb-3 last:border-b-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <Label className="text-sm">{g.title}</Label>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Badge variant="outline" className="text-[10px] font-normal">
+                        {g.status.replace(/_/g, " ")} · {g.progress_pct}%
+                      </Badge>
+                      {seededFromGoal ? (
+                        <Badge variant="secondary" className="text-[10px] font-normal">
+                          From goal
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </div>
+                  {g.description ? (
+                    <p className="text-xs text-muted-foreground">{g.description}</p>
+                  ) : null}
+                  <div className="flex items-center gap-2">
+                    <Slider
+                      value={[a.rating ?? 0]}
+                      onValueChange={(v) =>
+                        setGoalAnswers((cur) => ({ ...cur, [g.id]: { ...cur[g.id], rating: v[0] } }))
+                      }
+                      max={5}
+                      step={1}
+                      disabled={!editable}
+                      className="max-w-xs"
+                    />
+                    <span className="text-sm tabular-nums w-8">{a.rating ?? 0}/5</span>
+                  </div>
+                  <Textarea
+                    rows={2}
+                    value={a.comment ?? ""}
+                    onChange={(e) =>
+                      setGoalAnswers((cur) => ({ ...cur, [g.id]: { ...cur[g.id], comment: e.target.value } }))
+                    }
+                    disabled={!editable}
+                    placeholder="Comment on this goal…"
+                  />
+                  {editable ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        saveGoalResponse.mutate({
+                          goal_id: g.id,
+                          rating: a.rating ?? null,
+                          comment: a.comment ?? null,
+                        })
+                      }
+                    >Save</Button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
+
 
       {/* Reviewer summary + submit */}
       {(editable || review.status === "submitted" || review.status === "signed_off" || review.status === "acknowledged") ? (
