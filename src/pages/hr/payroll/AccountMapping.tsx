@@ -74,6 +74,7 @@ import {
 } from "lucide-react";
 import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMappingFindingsPanel";
 import { PayrollGlUpgradeDiffPanel } from "@/components/payroll/PayrollGlUpgradeDiffPanel";
+import { PayrollPostingSimulator } from "@/components/payroll/PayrollPostingSimulator";
 import { formatDistanceToNow } from "date-fns";
 
 const SOURCE_META: Record<
@@ -183,6 +184,7 @@ export function PayrollAccountMappingPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <PayrollPostingSimulator />
           {readiness.suggestedPairs.length > 0 && (
             <Button
               size="sm"

@@ -30,6 +30,15 @@ interface PostPayrollGLRequest {
   payroll_run_id: string;
   organization_id: string;
   business_id: string | null;
+  /**
+   * Phase 4 — posting simulation. When true, the function performs every
+   * validation step and builds the projected journal entry, but does NOT
+   * write to `journal_entries`, `payroll_runs`, `payroll_liabilities`,
+   * or `audit_logs`. The response returns `{ dry_run: true, lines: [...],
+   * totals, warnings }` so accountants can preview the posting from
+   * Payroll → Account Mapping before authorising the real post.
+   */
+  dry_run?: boolean;
 }
 
 interface GLLine {
@@ -75,6 +84,7 @@ Deno.serve(async (req) => {
 
     const body: PostPayrollGLRequest = await req.json();
     const { payroll_run_id, organization_id, business_id } = body;
+    const dryRun = body.dry_run === true;
 
     if (!payroll_run_id || !organization_id) {
       return new Response(JSON.stringify({ error: "Missing payroll_run_id or organization_id" }), {
@@ -510,6 +520,48 @@ Deno.serve(async (req) => {
           });
       }
     }
+
+    // ─── Phase 4: posting simulation ─────────────────────────────────────
+    // When dry_run=true we return the projected JE payload enriched with
+    // account code/name/type so the accountant can inspect it before
+    // authorising the real post. No writes to the ledger, no payroll_runs
+    // status change, no liabilities, no audit log.
+    if (dryRun) {
+      const acctIds = Array.from(new Set(lines.map((l) => l.account_id).filter(Boolean)));
+      const { data: acctRows } = await supabaseAdmin
+        .from("accounts")
+        .select("id, code, name, account_type")
+        .in("id", acctIds);
+      const acctById = new Map<string, any>(
+        (acctRows || []).map((a: any) => [a.id, a]),
+      );
+      const enriched = lines.map((l) => {
+        const a = acctById.get(l.account_id) || {};
+        return {
+          ...l,
+          account_code: a.code ?? null,
+          account_name: a.name ?? null,
+          account_type: a.account_type ?? null,
+        };
+      });
+      const dryTotalDebits = enriched.reduce((s, l) => s + Number(l.debit || 0), 0);
+      const dryTotalCredits = enriched.reduce((s, l) => s + Number(l.credit || 0), 0);
+      return new Response(JSON.stringify({
+        dry_run: true,
+        payroll_run_id,
+        payroll_number: payrollRun.payroll_number,
+        pay_period_end: payrollRun.pay_period_end,
+        employee_count: payslips.length,
+        lines: enriched,
+        total_debits: dryTotalDebits,
+        total_credits: dryTotalCredits,
+        balanced: Math.abs(dryTotalDebits - dryTotalCredits) < 0.01,
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     // ─── Get journal entry number ───
     const { data: entryNumber } = await supabaseAdmin.rpc("get_next_journal_entry_number", {
