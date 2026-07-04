@@ -27,9 +27,7 @@ import { useWorkEntryTypes, type WorkEntryType, type WorkEntryTypeInput } from "
 const EMPTY: WorkEntryTypeInput = {
   code: "",
   name: "",
-  color: null,
   is_paid: true,
-  is_unpaid_leave: false,
   counts_as_worked: true,
   multiplier_normal: 1,
   multiplier_overtime: 1.5,
@@ -83,9 +81,7 @@ export default function WorkEntryTypes() {
     setForm({
       code: t.code,
       name: t.name,
-      color: t.color,
       is_paid: t.is_paid,
-      is_unpaid_leave: t.is_unpaid_leave,
       counts_as_worked: t.counts_as_worked,
       multiplier_normal: t.multiplier_normal,
       multiplier_overtime: t.multiplier_overtime,

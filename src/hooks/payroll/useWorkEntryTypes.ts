@@ -19,9 +19,7 @@ export interface WorkEntryType {
   localization_pack_id: string | null;
   code: string;
   name: string;
-  color: string | null;
   is_paid: boolean;
-  is_unpaid_leave: boolean;
   counts_as_worked: boolean;
   multiplier_normal: number;
   multiplier_overtime: number;
@@ -34,9 +32,7 @@ export interface WorkEntryType {
 export interface WorkEntryTypeInput {
   code: string;
   name: string;
-  color?: string | null;
   is_paid: boolean;
-  is_unpaid_leave: boolean;
   counts_as_worked: boolean;
   multiplier_normal: number;
   multiplier_overtime: number;
@@ -106,9 +102,7 @@ export function useWorkEntryTypes() {
         business_id: currentBusiness.id,
         code: input.code.trim().toUpperCase(),
         name: input.name.trim(),
-        color: input.color ?? null,
         is_paid: input.is_paid,
-        is_unpaid_leave: input.is_unpaid_leave,
         counts_as_worked: input.counts_as_worked,
         multiplier_normal: input.multiplier_normal,
         multiplier_overtime: input.multiplier_overtime,
@@ -181,9 +175,7 @@ export function useWorkEntryTypes() {
           localization_pack_id: packDefault.localization_pack_id,
           code: packDefault.code,
           name: packDefault.name,
-          color: packDefault.color,
           is_paid: packDefault.is_paid,
-          is_unpaid_leave: packDefault.is_unpaid_leave,
           counts_as_worked: packDefault.counts_as_worked,
           multiplier_normal: packDefault.multiplier_normal,
           multiplier_overtime: packDefault.multiplier_overtime,

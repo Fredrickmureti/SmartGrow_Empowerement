@@ -21867,13 +21867,11 @@ export type Database = {
         Row: {
           accounting_tag: string | null
           code: string
-          color: string | null
           counts_as_worked: boolean
           created_at: string
           description: string | null
           id: string
           is_paid: boolean
-          is_unpaid_leave: boolean
           multiplier_normal: number
           multiplier_overtime: number
           name: string
@@ -21885,13 +21883,11 @@ export type Database = {
         Insert: {
           accounting_tag?: string | null
           code: string
-          color?: string | null
           counts_as_worked?: boolean
           created_at?: string
           description?: string | null
           id?: string
           is_paid?: boolean
-          is_unpaid_leave?: boolean
           multiplier_normal?: number
           multiplier_overtime?: number
           name: string
@@ -21903,13 +21899,11 @@ export type Database = {
         Update: {
           accounting_tag?: string | null
           code?: string
-          color?: string | null
           counts_as_worked?: boolean
           created_at?: string
           description?: string | null
           id?: string
           is_paid?: boolean
-          is_unpaid_leave?: boolean
           multiplier_normal?: number
           multiplier_overtime?: number
           name?: string
@@ -30560,7 +30554,6 @@ export type Database = {
           accounting_tag: string | null
           business_id: string | null
           code: string
-          color: string | null
           counts_as_worked: boolean
           created_at: string
           created_by: string | null
@@ -30568,7 +30561,6 @@ export type Database = {
           is_active: boolean
           is_pack_default: boolean
           is_paid: boolean
-          is_unpaid_leave: boolean
           localization_pack_id: string | null
           multiplier_normal: number
           multiplier_overtime: number
@@ -30583,7 +30575,6 @@ export type Database = {
           accounting_tag?: string | null
           business_id?: string | null
           code: string
-          color?: string | null
           counts_as_worked?: boolean
           created_at?: string
           created_by?: string | null
@@ -30591,7 +30582,6 @@ export type Database = {
           is_active?: boolean
           is_pack_default?: boolean
           is_paid?: boolean
-          is_unpaid_leave?: boolean
           localization_pack_id?: string | null
           multiplier_normal?: number
           multiplier_overtime?: number
@@ -30606,7 +30596,6 @@ export type Database = {
           accounting_tag?: string | null
           business_id?: string | null
           code?: string
-          color?: string | null
           counts_as_worked?: boolean
           created_at?: string
           created_by?: string | null
@@ -30614,7 +30603,6 @@ export type Database = {
           is_active?: boolean
           is_pack_default?: boolean
           is_paid?: boolean
-          is_unpaid_leave?: boolean
           localization_pack_id?: string | null
           multiplier_normal?: number
           multiplier_overtime?: number
