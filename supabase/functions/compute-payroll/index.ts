@@ -1605,6 +1605,37 @@ Deno.serve(async (req) => {
       payroll_run_id?: string | null;
     }> = [];
 
+    // ─── Fetch active custom deduction assignments (Slice 2) ───
+    // Workspace-defined ad-hoc deductions. Applied after loans/advances/
+    // garnishments and reimbursements. Post-tax only in this pass — pre_tax
+    // types are rejected loudly below (would require reordering the PAYE
+    // calculation, tracked as a follow-up).
+    const customDeductionsByEmployee: Record<string, any[]> = {};
+    const customDeductionsApplied: Array<{
+      assignment_id: string;
+      employee_id: string;
+      amount: number;
+      type_id: string;
+    }> = [];
+    if (business_id) {
+      const { data: cdAssignments, error: cdErr } = await supabaseAdmin
+        .from("employee_custom_deductions")
+        .select("*, deduction_type:custom_deduction_types(*)")
+        .eq("business_id", business_id)
+        .in("status", ["approved", "active"])
+        .in("employee_id", employee_ids)
+        .lte("effective_from", pay_period_end)
+        .or(`effective_to.is.null,effective_to.gte.${pay_period_start}`);
+      if (cdErr) {
+        console.warn("[compute-payroll] custom deductions fetch failed:", cdErr.message);
+      }
+      for (const a of (cdAssignments || [])) {
+        (customDeductionsByEmployee[a.employee_id] ||= []).push(a);
+      }
+    }
+
+
+
     // ─── Guard: refuse to compute while corrections are pending ───
     {
       const { data: pendingCount, error: pendingErr } = await supabaseAdmin.rpc(
