@@ -701,5 +701,5 @@ export function useReview(reviewId?: string) {
     onError: (e: any) => toast.error(normalizeError(e).message),
   });
 
-  return { review, sections, questions, responses, isLoading, saveResponse, submitReview, signOff, acknowledge };
+  return { review, sections, questions, responses, reviewGoals, isLoading, saveResponse, saveGoalResponse, submitReview, signOff, acknowledge };
 }
