@@ -157,9 +157,32 @@ function SuccessionPlansTab() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeSuccessor.mutate(s.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        {s.readiness === "ready_now" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={async () => {
+                              const name = e ? `${e.first_name} ${e.last_name}` : "successor";
+                              await createRequisition.mutateAsync({
+                                title: plan.role_title,
+                                headcount: 1,
+                                status: "draft",
+                                notes: `Auto-seeded from succession plan — ${name} flagged ready_now for ${plan.role_title}.`,
+                              } as any);
+                              navigate("/hr/recruitment");
+                            }}
+                            disabled={createRequisition.isPending}
+                            title="Create a draft requisition for this role"
+                          >
+                            <Briefcase className="h-3.5 w-3.5 mr-1" /> Create requisition
+                          </Button>
+                        ) : null}
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeSuccessor.mutate(s.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
