@@ -54,7 +54,12 @@ Progress against the approved continuation plan.
 ## Remaining (not started this session)
 
 - **Phase 4 tail** — Goal-linked review question pre-fill from
-  `performance_goals.final_rating` in the response UI.
+  `performance_goals.final_rating` — SHIPPED. `useReview` now exposes
+  `reviewGoals` (goals for the review's employee + cycle) and
+  `saveGoalResponse` (upserts `review_responses` with `goal_id` set,
+  `question_id` null). `ReviewFormBody` renders a "Goals" section with a
+  slider + comment per goal, pre-filled from `goal.final_rating` and
+  flagged with a "From goal" chip until the reviewer changes it.
 - **Phase 6** — Approval-workflow binding for merit/dev-plan-activation/
   calibration; `talent_settings` table for defaults; per-org default
   `competency_scales` seed.
