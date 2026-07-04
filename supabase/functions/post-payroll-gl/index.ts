@@ -230,12 +230,25 @@ Deno.serve(async (req) => {
 
     // ─── Resolve accounts — effective-dated bindings (authoritative) ───
     // `bindingMap` is populated below via `resolve_default_account_binding`,
-    // which honours the branch → business → org cascade AND the temporal
-    // window in effect at the run's pay-period end. A re-post of a historical
-    // run therefore resolves the account that was mapped *then*, not today's.
+    // which honours the temporal window in effect at the run's pay-period end.
+    // A re-post of a historical run therefore resolves the account that was
+    // mapped *then*, not today's.
+    //
+    // GL ACCOUNT MAPPING IS HQ-AUTHORITATIVE. The chart of accounts is
+    // governed centrally at the organization and, where books are separate,
+    // the legal-entity (`business_id`) level. A branch/store/location does NOT
+    // own GL accounts — it shares the company/entity COA (this mirrors SAP FI,
+    // Oracle, Workday, Dynamics 365 F&O). No branch-scoped account bindings are
+    // ever authored, so the branch → business → org cascade always collapses to
+    // the shared company/entity default for a branch. Branch cost attribution
+    // is expressed as a POSTING DIMENSION on the journal line (`branch_id` on
+    // journal_entries/journal_entry_lines and, where used, analytic
+    // distributions) — never as a different account.
+    //
     // The flat `default_account_settings` map is the migration-safety fallback
     // used only when no binding row resolves. The sync trigger keeps the two
     // in lock-step, so the fallback is inert in steady state.
+
     const bindingMap: Record<string, string> = {};
     const resolveAccount = (key: string): string | null =>
       bindingMap[key] || mappingsMap[key] || null;
