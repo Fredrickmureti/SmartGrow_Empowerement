@@ -73,6 +73,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMappingFindingsPanel";
+import { PayrollGlUpgradeDiffPanel } from "@/components/payroll/PayrollGlUpgradeDiffPanel";
 import { formatDistanceToNow } from "date-fns";
 
 const SOURCE_META: Record<
