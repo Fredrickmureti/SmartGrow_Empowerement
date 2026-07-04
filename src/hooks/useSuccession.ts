@@ -420,7 +420,7 @@ export function useNineBox(cycleId?: string | null) {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase.from("talent_potential_ratings") as any).delete().eq("id", id);
+      const { error } = await (supabase.rpc as any)("talent_remove_from_nine_box", { p_rating_id: id });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["nine-box"] }),
