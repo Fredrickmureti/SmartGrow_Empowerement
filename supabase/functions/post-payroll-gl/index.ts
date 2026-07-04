@@ -290,6 +290,20 @@ Deno.serve(async (req) => {
     }
     const garnishmentMap = new Map<string, GarnishmentAgg>();
 
+    // Slice 2 — custom deduction lines are aggregated per (deduction_type_id)
+    // and posted using the per-type gl_liability_account_id / gl_expense_account_id
+    // that the compute layer stamped into details.
+    interface CustomDedAgg {
+      deduction_type_id: string;
+      code: string;
+      label: string;
+      employee_amount: number;
+      employer_amount: number;
+      gl_liability_account_id: string | null;
+      gl_expense_account_id: string | null;
+    }
+    const customDedMap = new Map<string, CustomDedAgg>();
+
     const { data: payslipLines, error: linesError } = await supabaseAdmin
       .from("payslip_lines")
       .select("rule_code, label, category, employee_amount, employer_amount, details, accounting_tag")
