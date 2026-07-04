@@ -66308,6 +66308,50 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      talent_merit_draft_from_review: {
+        Args: {
+          _cycle_id: string
+          _default_pct?: number
+          _effective_date: string
+          _review_id: string
+        }
+        Returns: {
+          applied_at: string | null
+          applied_by: string | null
+          applied_history_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          currency_code: string | null
+          current_salary: number
+          cycle_id: string
+          effective_date: string
+          employee_id: string
+          final_rating: number | null
+          id: string
+          new_salary: number
+          notes: string | null
+          organization_id: string
+          proposed_at: string | null
+          proposed_by: string | null
+          recommended_amount: number
+          recommended_pct: number
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          review_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "merit_recommendations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       talent_merit_propose: {
         Args: { _cycle_id: string; _items: Json }
         Returns: {
