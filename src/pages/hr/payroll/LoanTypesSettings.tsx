@@ -302,7 +302,7 @@ function LoanTypeForm({
   const { accounts } = useAccounts();
   const assets   = useMemo(() => accounts.filter((a) => a.account_type === "asset"), [accounts]);
   const clearing = useMemo(() => accounts.filter((a) => a.account_type === "liability" || a.account_type === "asset"), [accounts]);
-  const income   = useMemo(() => accounts.filter((a) => a.account_type === "income"  || a.account_type === "revenue"), [accounts]);
+  const income   = useMemo(() => accounts.filter((a) => (a.account_type as string) === "income" || (a.account_type as string) === "revenue"), [accounts]);
   const expense  = useMemo(() => accounts.filter((a) => a.account_type === "expense"), [accounts]);
 
   const fields = value.dynamic_field_schema?.fields ?? [];
