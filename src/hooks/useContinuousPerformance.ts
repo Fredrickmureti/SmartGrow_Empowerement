@@ -196,6 +196,27 @@ export function useOneOnOne(id?: string) {
     enabled: !!id,
   });
 
+  // Action items — now a first-class table. Shape preserved for consumers.
+  const { data: actionItems = [] } = useQuery({
+    queryKey: ["one-on-one-ai", id],
+    queryFn: async () => {
+      if (!id) return [] as OneOnOne["action_items"];
+      const { data, error } = await (supabase.from("oneonone_action_items") as any)
+        .select("id, text, owner, due_date, status")
+        .eq("one_on_one_id", id)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id as string,
+        text: r.text as string,
+        owner: r.owner as "manager" | "employee",
+        due: (r.due_date ?? null) as string | null,
+        done: r.status === "done",
+      }));
+    },
+    enabled: !!id,
+  });
+
   const { data: talkingPoints = [] } = useQuery({
     queryKey: ["one-on-one-tp", id],
     queryFn: async () => {
@@ -256,19 +277,79 @@ export function useOneOnOne(id?: string) {
     onError: (e: any) => toast.error(normalizeError(e).message),
   });
 
+  /**
+   * Diffs the incoming list against the current normalized rows and issues
+   * per-row insert / update / delete. Preserves the JSONB-era UX contract
+   * (callers still pass `{id, text, owner, due, done}` arrays).
+   *
+   * Items with an `id` that already exists → update.
+   * Items without an `id` (or with an id not in the current set) → insert.
+   * Existing rows missing from the incoming list → delete.
+   */
   const saveActionItems = useMutation({
     mutationFn: async (items: OneOnOne["action_items"]) => {
-      if (!id) throw new Error("No meeting");
-      const { error } = await (supabase.from("one_on_ones") as any)
-        .update({ action_items: items }).eq("id", id);
-      if (error) throw error;
+      if (!id || !meeting) throw new Error("No meeting");
+      const existingIds = new Set(actionItems.map((a) => a.id));
+      const incomingIds = new Set(
+        items.map((a) => a.id).filter((v): v is string => typeof v === "string" && existingIds.has(v)),
+      );
+
+      const toDelete = actionItems.filter((a) => !incomingIds.has(a.id)).map((a) => a.id);
+      const toInsert = items.filter((a) => !a.id || !existingIds.has(a.id));
+      const toUpdate = items.filter((a) => a.id && existingIds.has(a.id));
+
+      if (toDelete.length) {
+        const { error } = await (supabase.from("oneonone_action_items") as any)
+          .delete().in("id", toDelete);
+        if (error) throw error;
+      }
+      for (const a of toUpdate) {
+        const { error } = await (supabase.from("oneonone_action_items") as any)
+          .update({
+            text: a.text,
+            owner: a.owner,
+            due_date: a.due ?? null,
+            status: a.done ? "done" : "open",
+            completed_at: a.done ? new Date().toISOString() : null,
+          })
+          .eq("id", a.id);
+        if (error) throw error;
+      }
+      if (toInsert.length) {
+        const rows = toInsert.map((a) => ({
+          organization_id: meeting.organization_id,
+          one_on_one_id: id,
+          text: a.text,
+          owner: a.owner,
+          due_date: a.due ?? null,
+          status: a.done ? "done" : "open",
+          completed_at: a.done ? new Date().toISOString() : null,
+          created_by: user?.id ?? null,
+        }));
+        const { error } = await (supabase.from("oneonone_action_items") as any).insert(rows);
+        if (error) throw error;
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["one-on-one", id] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["one-on-one-ai", id] }),
     onError: (e: any) => toast.error(normalizeError(e).message),
   });
 
-  return { meeting, talkingPoints, addTalkingPoint, toggleAddressed, removeTalkingPoint, saveNotes, saveActionItems };
+  // Merge normalized action items into the meeting shape so existing UI
+  // (which reads meeting.action_items) keeps working without changes.
+  const meetingWithItems = meeting ? { ...meeting, action_items: actionItems } : meeting;
+
+  return {
+    meeting: meetingWithItems,
+    actionItems,
+    talkingPoints,
+    addTalkingPoint,
+    toggleAddressed,
+    removeTalkingPoint,
+    saveNotes,
+    saveActionItems,
+  };
 }
+
 
 // =====================================================================
 // Continuous Feedback
