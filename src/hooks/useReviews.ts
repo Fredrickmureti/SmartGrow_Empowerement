@@ -379,6 +379,36 @@ export function useReviews(opts: { cycleId?: string; employeeId?: string; review
               role: "manager",
               title: `Manager review of ${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim(),
             });
+        }
+
+        // Peer & skip-level reviewers come from review_participants (HR/manager pre-nominates them)
+        if (tpl.includes_peer || tpl.includes_skip_level) {
+          const wantedRoles: string[] = [];
+          if (tpl.includes_peer) wantedRoles.push("peer");
+          if (tpl.includes_skip_level) wantedRoles.push("skip_level");
+          const { data: parts } = await (supabase.from("review_participants") as any)
+            .select("participant_user_id, role")
+            .eq("cycle_id", input.cycle_id)
+            .eq("employee_id", emp.id)
+            .in("role", wantedRoles);
+          for (const p of (parts ?? []) as Array<{ participant_user_id: string | null; role: string }>) {
+            if (!p.participant_user_id) continue;
+            rows.push({
+              organization_id: currentOrg.id,
+              cycle_id: input.cycle_id,
+              employee_id: emp.id,
+              reviewer_user_id: p.participant_user_id,
+              review_type: p.role,
+              template_id: input.template_id,
+              status: "draft",
+              due_at: input.due_at ?? null,
+            });
+            notes.push({
+              employeeId: emp.id,
+              reviewerUserId: p.participant_user_id,
+              role: p.role as ReviewRole,
+              title: `${p.role === "peer" ? "Peer" : "Skip-level"} review of ${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim(),
+            });
           }
         }
       }
