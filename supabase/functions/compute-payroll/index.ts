@@ -1486,7 +1486,7 @@ Deno.serve(async (req) => {
         monthly_deduction, repayment_method, repayment_percent,
         min_net_pay_floor, max_pct_of_net, paused_until, status,
         loan_type_id,
-        loan_types ( code, salary_rule_code )
+        loan_types ( code, salary_rule_code, requires_schedule, deduction_priority )
       `)
       .eq("organization_id", organization_id)
       .eq("status", "active")
@@ -1555,6 +1555,17 @@ Deno.serve(async (req) => {
       if (loan.paused_until && new Date(loan.paused_until) >= new Date(pay_period_end)) continue;
       if (!loansByEmployee[loan.employee_id]) loansByEmployee[loan.employee_id] = [];
       loansByEmployee[loan.employee_id].push(loan);
+    }
+    // Order each employee's loans by loan_type.deduction_priority (ascending;
+    // lower number = higher priority). Ties fall back to loan creation order
+    // (implicit — array is already in fetch order which is stable per PG).
+    // Phase C: policy-driven ordering replaces the previous fetch-order default.
+    for (const empId of Object.keys(loansByEmployee)) {
+      loansByEmployee[empId].sort((a: any, b: any) => {
+        const pa = Number(a.loan_types?.deduction_priority ?? 1000);
+        const pb = Number(b.loan_types?.deduction_priority ?? 1000);
+        return pa - pb;
+      });
     }
 
     // Strip skipped installments from the next-installment map so
@@ -2643,6 +2654,26 @@ Deno.serve(async (req) => {
           });
           continue;
         }
+
+        // Phase C: refuse to deduct when the loan_type requires a schedule but
+        // no loan_repayment_schedule row exists. This surfaces as a run issue
+        // so the payroll officer can generate the schedule and re-run, rather
+        // than silently under-recovering the balance.
+        if (
+          loan.loan_types?.requires_schedule === true &&
+          !nextInstallmentByLoan[loan.id] &&
+          loan.repayment_method === "fixed_installment"
+        ) {
+          warnings.push(`${emp.first_name} ${emp.last_name}: loan ${loan.loan_number} skipped — schedule required but none pending.`);
+          loanSkipIssues.push({
+            employee_id: emp.id,
+            code: "RUN_LOAN_SCHEDULE_MISSING",
+            message: `Loan ${loan.loan_number} skipped — loan type requires a repayment schedule and none is pending.`,
+            details: { loan_id: loan.id, loan_number: loan.loan_number, reason: "schedule_missing" },
+          });
+          continue;
+        }
+
 
         if (provisionalNet <= 0) {
           warnings.push(`${emp.first_name} ${emp.last_name}: loan ${loan.loan_number} skipped — no remaining net pay.`);
