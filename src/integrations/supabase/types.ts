@@ -30577,6 +30577,7 @@ export type Database = {
           sequence: number
           updated_at: string
           updated_by: string | null
+          version: number
         }
         Insert: {
           accounting_tag?: string | null
@@ -30599,6 +30600,7 @@ export type Database = {
           sequence?: number
           updated_at?: string
           updated_by?: string | null
+          version?: number
         }
         Update: {
           accounting_tag?: string | null
@@ -30621,6 +30623,7 @@ export type Database = {
           sequence?: number
           updated_at?: string
           updated_by?: string | null
+          version?: number
         }
         Relationships: [
           {
