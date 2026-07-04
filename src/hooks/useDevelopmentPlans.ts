@@ -284,11 +284,7 @@ export function useDevelopmentPlan(planId?: string) {
 
       // Notify manager when employee marks an item complete
       if (notify && plan && patch.status === "completed") {
-        const { data: emp } = await supabase
-          .from("v_employees_canonical")
-          .select("manager_id, first_name, last_name")
-          .eq("id", plan.employee_id)
-          .maybeSingle();
+        const emp = await getManagerFor(plan.employee_id);
         const item = items.find((i) => i.id === id);
         if (emp?.manager_id && item) {
           await notifyTalent({
@@ -296,7 +292,7 @@ export function useDevelopmentPlan(planId?: string) {
             employeeId: emp.manager_id,
             kind: "development.plan_updated",
             title: "Development action completed",
-            message: `${emp.first_name ?? ""} ${emp.last_name ?? ""} completed "${item.title}".`,
+            message: `${displayName(emp)} completed "${item.title}".`,
             link: `/hr/talent/development?employee=${plan.employee_id}`,
             entityType: "development_plan",
             entityId: plan.id,
