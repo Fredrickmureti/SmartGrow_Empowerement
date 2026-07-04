@@ -335,6 +335,32 @@ function CoverageChip({
   );
 }
 
+function SourceBadge({
+  source,
+  version,
+}: {
+  source: PayrollMappingSource;
+  version: string | null;
+}) {
+  const meta = SOURCE_META[source] ?? SOURCE_META.manual;
+  const toneCls =
+    meta.tone === "ok"
+      ? "text-emerald-600 border-emerald-600/30"
+      : meta.tone === "warn"
+        ? "text-amber-700 dark:text-amber-400 border-amber-500/30"
+        : meta.tone === "hint"
+          ? "text-blue-700 dark:text-blue-400 border-blue-500/30"
+          : meta.tone === "danger"
+            ? "text-destructive border-destructive/30"
+            : "text-muted-foreground border-border";
+  return (
+    <Badge variant="outline" className={toneCls} title={version ? `pack v${version}` : undefined}>
+      {meta.label}
+      {version ? <span className="ml-1 opacity-70">v{version}</span> : null}
+    </Badge>
+  );
+}
+
 function MappingRow({
   row,
   accounts,
