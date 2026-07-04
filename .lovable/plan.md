@@ -1,150 +1,156 @@
 
-# Architectural Investigation — Statutory GL Accounts & Localization Pack Ownership
+# Loan Types — Architectural Audit & Remediation Plan
 
-Read this as a written investigation, not a change list. No code moves until the architecture below is agreed. All findings are from tracing the current implementation end-to-end (migrations, edge functions, engine, readiness resolver).
+## 1. What a Loan Type actually is today
 
-## 1. What the ERP claims to be
+`public.loan_types` (45 columns) is meant to be the **organizational lending policy** consumed by six subsystems: Employee Self-Service (request wizard), Approvals, Finance/GL, Payroll compute, Payslips, and Reporting.
 
-Per ADR 0010, ADR 0036 and `docs/audit/2026-05-08-payroll-gl-readiness.md`:
+Consumers found in the codebase:
+- `src/pages/hr/payroll/LoanTypesSettings.tsx` — admin CRUD (Payroll → Configuration).
+- `src/components/loans/{LoanWizard,RequestLoanWizard}.tsx` + `useEmployeeLoans`, `useMyLoans` — request/creation.
+- `supabase/functions/post-loan-disbursement/index.ts` — disbursement JE.
+- `supabase/functions/post-loan-settlement/index.ts` — settlement / write-off JE.
+- `supabase/functions/compute-payroll/index.ts` — reads only `code` + `salary_rule_code` for payslip line naming.
 
-- Country legislation lives **only** inside a localization pack.
-- Engines dispatch off `computation_method` + validated `parameters`, never rule codes (`no-literal-rule-codes-in-engines.js`, `no_country_named_functions_test.sql`).
-- Chart-of-accounts extensions, statutory rules, remittance schedules, and return templates are all pack rows.
-- Install is atomic (`install_localization_pack_atomic`); uninstall is atomic; no other code path may seed `payroll_statutory_rules` or `localization_pack_*`.
+## 2. Verdict
 
-So the *stated* lifecycle is:
+**Not yet an enterprise policy engine.** The schema was designed for one, but ~55% of the columns are dead metadata, several safety fields are stored-but-not-enforced, and no field on `loan_types` actually drives an approval workflow or a payroll-readiness rule. The list page is a plain grid with no operational KPIs and no drill-through into loans / approvals / GL health.
 
-```text
-Organization created
-  → Pack selected + install_localization_pack_atomic
-      → CoA rows seeded from localization_pack_account_templates
-      → payroll_statutory_rules seeded from pack snapshot
-      → remittance + return templates seeded from pack
-      → default_account_settings auto-mapped via payroll_gl_readiness
-  → payroll_setup_status flips to ready
-  → Payroll runs; posts through payroll_apply_proposed_mappings only
-```
+## 3. Field-by-field consumption matrix (evidence)
 
-That is the correct enterprise pattern and mirrors Odoo (`l10n_ke` module), SAP (Country Version + localized CoA), Oracle (Legislative Data Group), and D365 (country regional feature packages): the core has no knowledge of PAYE / NITA / SHIF; each is a row inside an installable country package.
+Legend: ✅ enforced end-to-end · ⚠️ stored + partially used · ❌ dead metadata (stored, never read by any engine, JE poster, workflow, or UI beyond the form).
 
-## 2. What the code actually does — architectural leakage found
+| Field | Verdict | Evidence |
+|---|---|---|
+| `code`, `name`, `kind`, `description`, `is_active` | ✅ | Wizard filters `activeLoanTypes`; compute-payroll uses `code`; UI everywhere. |
+| `default_repayment_method` | ✅ | Wizards seed method; compute-payroll branches by loan's `repayment_method`. |
+| `default_installments`, `default_max_pct_of_net`, `default_min_net_pay_floor` | ⚠️ | Seeded into wizard as defaults only; not re-validated on server insert. |
+| `min/max_installments`, `min/max_principal` | ⚠️ | Validated client-side in `RequestLoanWizard`; **no DB CHECK / RPC guard** — trivially bypassed by any other client. |
+| `requires_interest` | ⚠️ | Only hides `interest_rate` dynamic field. Not enforced when method != flat. |
+| `requires_schedule` | ⚠️ | Some codepaths generate a schedule; **payroll deduction does NOT refuse loans lacking a schedule**. |
+| `requires_approval` | ❌ | Stored boolean. No `approval_requests` / `approval_workflows` row is opened on loan submission; wizards write `employee_loans` directly. |
+| `requires_dual_approval` | ❌ | Never read outside `types.ts`. |
+| `requires_collateral`, `requires_consent` | ❌ | Never read by any wizard / RPC. |
+| `allow_topup`, `allow_restructure` | ❌ | No top-up or restructure flow exists. |
+| `allow_skip`, `max_skips_per_loan`, `max_skips_per_calendar_year`, `min_gap_between_skips_days`, `interest_treatment_on_skip`, `schedule_adjustment_on_skip` | ⚠️ | `LoanSkipOverrides` page + compute-payroll comment reference these, but none of the *caps* (max skips, min gap) are enforced. Skip request UX doesn't surface them. |
+| `deduction_priority` | ❌ | Not consulted when ordering deductions in compute-payroll (statutory-first is hardcoded; loan order is by creation date). |
+| `max_exposure_pct_of_net` | ❌ | Distinct from `default_max_pct_of_net`; never referenced. Duplicate concept. |
+| `min/max_tenure_months` | ❌ | Never read; wizard uses installments only. |
+| `interest_method` | ❌ | Stored default 'flat'; wizards let the requester pick freely; engine ignores. |
+| `dual_control_writeoff` | ❌ | `post-loan-settlement` writes off without a second-approver check. |
+| `gl_receivable_account_id`, `gl_disbursement_clearing_account_id` | ✅ | Consumed by both JE posters; missing values block posting with a clear error. |
+| `interest_income_account_id` | ❌ | No JE posts interest income anywhere. |
+| `writeoff_account_id` | ❌ | `post-loan-settlement` resolves write-off account from `default_account_settings` (`loan_writeoff_expense` / `salary_expense`) and **ignores** the per-type field. |
+| `clearing_account_id` | ❌ | Redundant with `gl_disbursement_clearing_account_id`; unused. |
+| `salary_rule_code` | ✅ | Used by compute-payroll as payslip line key. |
+| `dynamic_field_schema` | ✅ | Rendered by LoanWizard step 2; values persisted on the loan. |
 
-The pack layer is correct. The leakage is in three separate places that write country-specific artifacts *outside* the pack pipeline.
-
-### Leak A — Core registry contains country-specific role keys
-
-`system_account_roles` is a **platform-wide** table (no `pack_id` column). It is meant to enumerate country-agnostic role slots (`salary_expense`, `net_salary_payable`, `payroll_clearing`, etc.).
-
-Country-specific role keys are being inserted into it directly by non-pack migrations:
-
-- `20260620164645` — inserts `nita_payable`.
-- `20260529203853` / `20260604172133` — insert `employer_nita_expense`. The 20260604 migration's own comment states the reason:
-  > *"Re-registered globally because the pack installer does not seed system_account_roles; the prior cleanup that removed this role broke statutory rule validation."*
-
-That comment is the smoking gun: the core registry is being used as a dumping ground because the pack lifecycle does not own role registration. This is exactly the leakage the ADRs forbid.
-
-### Leak B — Direct writes to tenants' `accounts` table, outside the pack
-
-`20260525204357` (payroll hardening Phase 2) runs a `DO $$ … FOR r IN businesses LOOP …` block that INSERTs Kenya-specific CoA rows (`'2170' Affordable Housing Levy Payable`, `'2175' NITA Payable`, `'6014' Employer NITA Contribution`, …) into every tenant's `public.accounts`, tagged `is_system=true`, "Auto-provisioned by payroll hardening Phase 2".
-
-The Kenya pack already declares these accounts in `localization_pack_account_templates` (`20260223091411`, codes `2034` / `6014`). So we now have:
-
-- Two competing codes for the same statutory obligation (`2034` from the pack, `2175` from the hardening migration) living side-by-side.
-- Provisioning that runs *unconditionally for every business*, regardless of which pack (if any) is installed. A South-African-only tenant still gets a `NITA Payable` account.
-
-This is the most visible symptom of the leak — it is the reason the user sees NITA accounts in a system that markets itself as country-agnostic.
-
-### Leak C — Engine/readiness knowledge of statutory identifiers
-
-The readiness resolver (`payroll_gl_readiness`) derives keys from `payroll_statutory_rules` (correct). But the AI route catalog and `payslipDrillDown.ts` still carry a regex listing `paye|nhif|shif|nssf|ahl|nita|kenya|…`. That is not a runtime leak (it's UX heuristics) but it *is* a signal that country vocabulary keeps re-entering core surfaces because the pack layer has no formal contract for surfacing "human labels for statutory artifacts".
-
-## 3. Ownership matrix — where each artifact should live
-
-| Artifact | Correct owner | Current owner | Verdict |
-|---|---|---|---|
-| Country CoA extension (NITA Payable, PAYE Payable, …) | Pack (`localization_pack_account_templates`) | Pack **and** core hardening migration (`accounts` direct insert) | Leaked |
-| Role-key registry entry (`nita_payable`) | Pack (`pack_account_roles`, joined to a *pack-scoped* registry) | Pack **and** `system_account_roles` (global) | Leaked |
-| `role_key → account_type / detail_type` policy | Pack | Core (`payroll_account_role_policy` with hard-coded `%_employer_expense`, `%_payable` patterns) | Acceptable — patterns are country-agnostic |
-| Statutory rule row | Pack (`payroll_statutory_rules` seeded via `install_localization_pack_atomic`) | Pack | Correct |
-| Remittance / return templates | Pack | Pack | Correct |
-| Auto-mapping into `default_account_settings` | `payroll_apply_proposed_mappings` | Same | Correct |
-| GL posting engine | Core, dispatches on `computation_method` | Core, correct | Correct |
-
-The rot is confined to CoA seeding and role-key registration.
-
-## 4. Correct event-driven lifecycle
+## 4. Business-lifecycle trace (what actually happens today)
 
 ```text
-[EVENT] OrganizationCreated
-      └── seeds only country-agnostic core CoA + core role registry
-[EVENT] LocalizationPackSelected(pack_id, version)
-[EVENT] LocalizationPackInstallStarted
-      ├── register pack-scoped role keys      (pack_account_roles → registry view)
-      ├── extend CoA from pack templates      (localization_pack_account_templates → accounts)
-      ├── seed statutory rules                (payroll_statutory_rules)
-      ├── seed remittance schedules           (localization_pack_remittance_schedules)
-      ├── seed return templates               (localization_pack_return_templates)
-      ├── seed tax templates                  (localization_pack_tax_templates)
-      └── auto-map default_account_settings   (payroll_apply_proposed_mappings)
-[EVENT] LocalizationPackInstallCompleted
-      └── refresh payroll_setup_status; publish PackInstalled event
-[EVENT] LocalizationPackUninstallStarted
-      ├── unmap default_account_settings owned by this pack
-      ├── deactivate statutory rules bound to this pack
-      ├── retire pack-provisioned CoA rows (soft-delete if referenced)
-      └── deregister pack-owned role keys
-[EVENT] LocalizationPackUninstallCompleted
+Employee → RequestLoanWizard.tsx
+        → insert employee_loans (status='pending')  ← no approval_requests row, no workflow
+        ↓
+HR/Payroll admin edits row directly (EmployeeLoans.tsx) to set status='approved'
+        ↓
+POST /post-loan-disbursement  (idempotent, JE = Dr Receivable / Cr Clearing)
+        ↓
+compute-payroll:
+   • loads active loans (join loan_types(code, salary_rule_code))
+   • deducts using loan.repayment_method (not loan_type.default_*)
+   • no re-validation against loan_type policy (min-floor, cap, priority)
+   • statutory ordering hardcoded; loan_types.deduction_priority ignored
+        ↓
+Payslip line labelled by salary_rule_code
+        ↓
+Outstanding balance decremented on loan row
+        ↓
+POST /post-loan-settlement (early payoff | write-off)
+   • write-off account = default_account_settings, NOT loan_type.writeoff_account_id
+   • no dual-control check even when dual_control_writeoff = true
 ```
 
-Two invariants derive from this:
+Modules that **should** appear in the chain but don't: `approval_requests` / `approval_workflows`, `payroll_readiness_findings` (no rule blocks a run when a loan_type is misconfigured), `notifications` (dispatched only after status flip, not on submission), `bank_transactions` (disbursement lands in clearing but no automated bank-payment handoff).
 
-- **I-OWN-1** Every country-specific row (CoA account, role key, statutory rule, remittance, return, token) must carry a `pack_id` FK, and must be created / retired *only* through the install / uninstall / upgrade RPCs.
-- **I-OWN-2** The core registry (`system_account_roles`) may contain **only** role keys that are meaningful in every country. Country-specific role keys live in a pack-scoped table (or a view that unions core + `pack_account_roles`).
+## 5. Structural weaknesses
 
-## 5. Benchmarks (principles, not copies)
+1. **Approval policy is fiction.** `requires_approval` / `requires_dual_approval` don't create workflow steps; any HR user with row access flips `status` and posts.
+2. **Client-only guardrails.** All principal/installment/tenure/floor limits live in the wizard. Any direct insert (bulk import, RPC, another UI) bypasses them.
+3. **Duplicate & orphan fields.** `clearing_account_id` vs `gl_disbursement_clearing_account_id`; `default_max_pct_of_net` vs `max_exposure_pct_of_net`; two skip-policy fields never enforced.
+4. **Write-off / interest GL leakage.** `interest_income_account_id`, `writeoff_account_id` on the type are ignored by JE posters — Finance can't rely on per-type accounting treatment.
+5. **Payroll does not consult the policy at runtime.** No min-net-pay-floor safety check, no deduction-priority ordering, no refusal on missing schedule.
+6. **No Payroll Readiness integration.** A loan_type with missing GL / no salary rule doesn't surface as a readiness finding — it only fails at posting time, mid-run.
+7. **Skip policy caps unenforced.** `LoanSkipOverrides` writes overrides without checking `max_skips_per_loan`, `max_skips_per_calendar_year`, `min_gap_between_skips_days`.
+8. **UX/ops surface is a bare list.** No counts of active loans, outstanding balances per type, GL health, pending approvals, or drill-through.
+9. **Localization gap.** No pack-published templates for statutory / country-standard loan programs; every tenant reinvents the same six categories.
+10. **Audit gap.** No `loan_type_lifecycle_events` / `commercial_audit_logs` writes when policy changes; `loan_lifecycle_events` exists for loans but not for their governing policy.
 
-- **Odoo** — `l10n_ke`, `l10n_ug`, … each package ships CoA templates and tax templates. Core `account` module knows nothing about NITA.
-- **SAP** — Country Version + Chart of Accounts variant; statutory GL accounts live in the country CoA, mapped to global operating CoA via account-determination tables.
-- **Oracle HCM / Fusion** — Legislative Data Group (LDG) owns statutory balances and account combinations; core Payroll dispatches by LDG.
-- **Dynamics 365 F&O** — Country/region feature packs; the "Localization framework" registers artifacts through a manifest and never mutates the core CoA directly.
+## 6. Remediation plan (phased, incremental, non-breaking)
 
-Shared principle: **a country package is a first-class installable unit whose lifecycle events are the only path by which country artifacts enter the tenant.** Our ADRs already state this; the migrations under investigation violate it.
+### Phase A — Schema hygiene (migration only)
+- Deprecate & drop (or coalesce via view): `clearing_account_id`, `max_exposure_pct_of_net` (keep single `default_max_pct_of_net`).
+- Add validation trigger `loan_types_policy_bounds_valid`: min ≤ max on installments/principal/tenure; `default_max_pct_of_net BETWEEN 0 AND 100`; `salary_rule_code` regex.
+- Add trigger writing `commercial_audit_logs` on every change to `loan_types`.
 
-## 6. Recommendations (order matters — do not skip)
+### Phase B — Server-side policy enforcement (RPC)
+- New SECURITY DEFINER RPC `request_employee_loan(_input jsonb)` that:
+  - Validates against loan_type policy (principal min/max, installments min/max, tenure, cap, `requires_collateral/consent` fields present).
+  - Inserts `employee_loans` **and** opens an `approval_requests` row wired to a workflow when `requires_approval = true`; adds a second step when `requires_dual_approval = true`.
+  - Emits `loan_lifecycle_events` + `notifications` via existing `hr_notify_loan_event`.
+- Wizards (`LoanWizard`, `RequestLoanWizard`) call the RPC instead of direct `insert`.
+- Add RLS/`BEFORE INSERT` guard on `employee_loans` that refuses direct inserts outside the RPC (`current_setting('app.request_via_rpc', true) = 'on'`).
 
-The plan below is a *sequence of investigations and structural changes*, each independently reviewable. No implementation happens until section 6.1 is signed off.
+### Phase C — Payroll compute & readiness integration
+- In `compute-payroll`, load the full loan_type row and:
+  - Refuse loan deduction if `requires_schedule` and none exists → emit `payroll_run_issues`.
+  - Order loan deductions by `deduction_priority` after statutory.
+  - Apply `default_min_net_pay_floor` as a hard clamp; short-recover the balance to the next period; emit issue.
+- Add three `payroll_readiness_rules`:
+  - `loan_type_gl_complete` (receivable + clearing set on every active type used by active loans).
+  - `loan_type_writeoff_account_present` (when any loan in the run is at write-off status).
+  - `loan_schedule_present` (all active loans of a `requires_schedule` type have `loan_repayment_schedule` rows).
 
-### 6.1 Freeze new leaks (documentation-only)
+### Phase D — Finance/JE completeness
+- `post-loan-disbursement`: unchanged (already good).
+- `post-loan-settlement`: use `loan_type.writeoff_account_id` first, then default mapping; refuse write-off if `dual_control_writeoff` and no second approver recorded.
+- New `post-loan-interest-accrual` invoked per period from compute-payroll when `requires_interest`; uses `interest_income_account_id`.
 
-- Add an ADR "0047 — Pack-owned statutory accounts and role registry" that ratifies I-OWN-1 / I-OWN-2 and supersedes the ad-hoc backfills.
-- Extend `no_country_named_functions_test.sql` with a companion test that rejects future migrations inserting country-flavoured `role_key` values into `system_account_roles` (deny-list on `%nita%|%paye%|%shif%|%ahl%|%nssf%|%nhif%|%kra%|…`).
-- Extend the eslint / SQL scan surface used by the audit to fail if a migration writes to `public.accounts` inside a `FOR business LOOP` without going through the install RPC.
+### Phase E — Skip policy enforcement
+- In `LoanSkipOverrides` submission RPC, enforce `allow_skip`, `max_skips_per_loan`, `max_skips_per_calendar_year`, `min_gap_between_skips_days`, `interest_treatment_on_skip`, `schedule_adjustment_on_skip`.
 
-### 6.2 Reclassify existing leaks as pack-owned
+### Phase F — LoanTypes UX overhaul (Payroll Officer landing)
+Replace the plain list with an operational cockpit. Top strip KPIs:
+- Active loan types · Types missing GL · Types with active loans · Total outstanding balance · Pending approvals · Runs at risk (readiness findings).
 
-- Introduce `pack_id` (nullable for legacy rows) on `system_account_roles` **or** move country role keys out to `pack_account_roles` and expose a `v_account_roles` union view for consumers. Preferred: the latter — keeps the core registry pure.
-- Rewrite `install_localization_pack_atomic` to register `pack_account_roles` rows into whichever store the resolver reads.
-- Migrate the two existing role keys (`nita_payable`, `employer_nita_expense`) from `system_account_roles` into the Kenya pack; drop them from the core registry after the migration.
+Per-row expansion / drill-through:
+- Employees on this type · outstanding balance · pending requests · GL health chip (receivable/clearing/writeoff/interest) · approval-policy chip · usage stats (last 90 days) · quick links: *View loans*, *Approval queue*, *GL mappings*, *Journal entries*, *Readiness findings*.
 
-### 6.3 Remove the direct-write CoA seeding
+Expose the fields that are currently hidden in the form: tenure bounds, deduction priority, dual control, collateral/consent, skip caps, interest_method, and the four GL accounts (receivable, clearing, interest income, write-off). Fields that Phase A drops are removed from the form.
 
-- Delete the auto-provisioning loops in `20260525204357` (and any successor) as a *forward* migration: remove rows that (a) were created with `description='Auto-provisioned by payroll hardening Phase 2'`, (b) have no journal activity, and (c) are duplicated by a pack template. Rows with activity are re-parented to the pack's canonical account via `default_account_settings` remapping — never silently deleted.
-- Rely exclusively on `install_localization_pack_atomic` + `payroll_gl_readiness` + `payroll_apply_proposed_mappings` for future provisioning.
+### Phase G — Localization pack support
+- Add `localization_pack_loan_templates` (pack-published policy templates) + install hook that seeds per-country defaults, overridable by tenants; existing `seed_default_loan_types` becomes the fallback when no pack ships them.
 
-### 6.4 Backfill missing pack coverage
+### Phase H — Audit, tests, safety net
+- pgTAP tests:
+  - `loan_types_policy_enforced_test.sql` — direct insert into `employee_loans` outside RPC is refused; RPC validates bounds.
+  - `loan_types_readiness_test.sql` — missing GL / missing schedule surface as findings.
+  - `loan_types_skip_caps_test.sql` — overrides beyond caps are refused.
+- Vitest for wizards asserting policy-chip rendering matches the loaded type.
 
-- Any statutory obligation currently only reachable via the hardening migration (verify by diffing the two account sets per pack) gets a pack template row + `pack_account_roles` entry, then the hardening rows are retired per 6.3.
+## 7. Technical details
 
-### 6.5 Regression fences
+Files/edits (grouped by phase — new files or heavy edits):
 
-- Architecture tests: fail CI if `accounts` contains a row whose `code` matches a pack template but whose `business_id` is not associated with an `installed_localization_packs` row for that pack.
-- Architecture tests: fail CI if `system_account_roles.role_key` matches the country deny-list.
-- Extend the audit doc under `docs/audit/` with the closure record.
+- Migrations: `supabase/migrations/*_loan_types_policy_engine.sql` (A, B, C, E, G).
+- New RPCs: `request_employee_loan`, `approve_employee_loan`, `settle_employee_loan_dual`, `enforce_loan_skip_policy`.
+- Edge functions: extend `post-loan-settlement`, new `post-loan-interest-accrual`.
+- Frontend: rewrite `src/pages/hr/payroll/LoanTypesSettings.tsx` into a cockpit + form; extend `src/hooks/useLoanTypes.ts` with aggregate queries (`useLoanTypeStats`); update `src/components/loans/{LoanWizard,RequestLoanWizard}.tsx` to call the new RPC and render the full policy chip set; add drill-through routes under `/hr/payroll/loan-types/$id/{loans,approvals,gl,journal,readiness}`.
+- Payroll: add loan-policy consultation in `supabase/functions/compute-payroll/index.ts` (deduction ordering + floor + schedule refusal + interest accrual hook).
+- Tests: pgTAP files under `supabase/tests/` and vitest under `src/test/hr/`.
 
-## 7. Open questions for you before implementation
+## 8. Out of scope for this plan
+- Rewriting the general `approval_workflows` engine (we'll wire loans to the existing one).
+- Bank export / payments handoff on disbursement (tracked separately in Payments module).
+- Country-specific statutory lending programs (Phase G scaffolds them; content ships with each pack).
 
-1. Do we treat the duplicated NITA codes (`2034` from pack vs `2175` from hardening) as *the same account* for migration purposes, or preserve both and only reroute mappings?
-2. Should the pack-scoped role registry replace `system_account_roles` entirely for country rows (my recommendation), or should we keep a shadow row in `system_account_roles` for backward compatibility?
-3. Are there tenants in production that have already posted journals against the `2175`-family accounts? That determines whether 6.3 can drop rows or must only re-map them.
-
-Answering these three unlocks the concrete migration + code plan in section 6. Until then, the deliverable of this investigation is the diagnosis above and the ownership matrix in §3.
+Approve to move into build mode, or tell me which phases to execute first and I'll re-issue a narrower plan.
