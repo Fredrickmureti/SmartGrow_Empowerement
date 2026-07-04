@@ -184,6 +184,7 @@ export function PayrollAccountMappingPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <PayrollPostingSimulator />
           {readiness.suggestedPairs.length > 0 && (
             <Button
               size="sm"
