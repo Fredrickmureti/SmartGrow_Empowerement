@@ -168,4 +168,31 @@ describe("phase 1 freeze on new Kenya-coded schema/data", () => {
       )}`
     ).toEqual([]);
   });
+
+  // ADR 0057 — no direct CoA writes into every tenant from a core migration.
+  // Country-specific accounts must be seeded by install_localization_pack_atomic
+  // from localization_pack_account_templates, never by a loop over businesses.
+  it("no new migration inserts into public.accounts inside a per-business loop", () => {
+    const offenders: string[] = [];
+    for (const m of listNewMigrations()) {
+      const sql = stripSqlComments(m.sql);
+      // Look for a FOR ... IN ... businesses ... LOOP that contains an
+      // INSERT INTO public.accounts. Conservative: require both markers in
+      // the same DO/FOR block.
+      const forBlocks = sql.match(/for\s+\w+\s+in[\s\S]*?end\s+loop\s*;/gi) ?? [];
+      for (const block of forBlocks) {
+        const iteratesBusinesses = /\bbusinesses\b/i.test(block);
+        const insertsAccounts = /insert\s+into\s+(public\.)?accounts\b/i.test(block);
+        if (iteratesBusinesses && insertsAccounts) {
+          offenders.push(`${m.name}: INSERT INTO public.accounts inside FOR ... businesses ... LOOP`);
+        }
+      }
+    }
+    expect(
+      offenders,
+      `Direct CoA writes into every tenant are forbidden (ADR 0057). Seed accounts via localization_pack_account_templates + install_localization_pack_atomic instead.\n${offenders.join(
+        "\n"
+      )}`
+    ).toEqual([]);
+  });
 });
