@@ -151,8 +151,11 @@ function PlatformShellBody({
       <WorkspaceSidebar app={app} nav={nav} />
 
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="w-72 p-0 flex flex-col">
-          <SidebarBody app={app} nav={nav} onNavigate={() => setMobileNavOpen(false)} defaultExpandAll />
+        <SheetContent side="left" className="w-80 p-0 flex flex-col">
+          <MobileAppSwitcher currentApp={app} onNavigate={() => setMobileNavOpen(false)} />
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <SidebarBody app={app} nav={nav} onNavigate={() => setMobileNavOpen(false)} defaultExpandAll />
+          </div>
         </SheetContent>
       </Sheet>
 
