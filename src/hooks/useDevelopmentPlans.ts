@@ -267,15 +267,19 @@ export function useDevelopmentPlan(planId?: string) {
 
   const updateItem = useMutation({
     mutationFn: async ({ id, patch, notify }: { id: string; patch: Partial<DevelopmentPlanItem>; notify?: boolean }) => {
-      const next: any = { ...patch };
-      if (patch.status === "completed" && !patch.completed_at) {
-        next.completed_at = new Date().toISOString();
-        next.progress_pct = 100;
+      // Phase 5: completions go through the RPC so competency assessments
+      // get uplifted and the transition is audit-logged. Non-completion
+      // patches keep the direct UPDATE path (title, description, dates).
+      if (patch.status === "completed") {
+        const { error: rpcErr } = await (supabase.rpc as any)("talent_devplan_item_complete", { _item_id: id });
+        if (rpcErr) throw rpcErr;
+      } else {
+        const next: any = { ...patch };
+        const { error } = await (supabase.from("development_plan_items") as any)
+          .update(next)
+          .eq("id", id);
+        if (error) throw error;
       }
-      const { error } = await (supabase.from("development_plan_items") as any)
-        .update(next)
-        .eq("id", id);
-      if (error) throw error;
 
       // Notify manager when employee marks an item complete
       if (notify && plan && patch.status === "completed") {
