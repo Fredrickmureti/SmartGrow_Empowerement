@@ -28,6 +28,7 @@ export interface WorkEntryType {
   accounting_tag: string | null;
   sequence: number;
   is_active: boolean;
+  version: number;
 }
 
 export interface WorkEntryTypeInput {
@@ -42,6 +43,8 @@ export interface WorkEntryTypeInput {
   accounting_tag?: string | null;
   sequence?: number;
   is_active?: boolean;
+  /** Version last read by the client — required for optimistic locking on update. */
+  version?: number;
 }
 
 export function useWorkEntryTypes() {
@@ -114,11 +117,26 @@ export function useWorkEntryTypes() {
         is_active: input.is_active ?? true,
       };
       if (input.id) {
-        const { error } = await supabase
+        if (input.version === undefined || input.version === null) {
+          throw new Error("Missing version for update — refresh and try again.");
+        }
+        // Optimistic locking: only update when the row's version matches
+        // what the client last read. A concurrent edit will change the
+        // version and this update will affect 0 rows.
+        const { data: updated, error } = await supabase
           .from("payroll_work_entry_types" as any)
           .update(payload)
-          .eq("id", input.id);
+          .eq("id", input.id)
+          .eq("version", input.version)
+          .select("id, version");
         if (error) throw error;
+        if (!updated || (updated as any[]).length === 0) {
+          const err: any = new Error(
+            "This work entry type was changed by someone else. Refresh to load the latest version and re-apply your edits."
+          );
+          err.code = "STALE_VERSION";
+          throw err;
+        }
       } else {
         const { error } = await supabase
           .from("payroll_work_entry_types" as any)
@@ -130,7 +148,10 @@ export function useWorkEntryTypes() {
       qc.invalidateQueries({ queryKey: ["payroll-work-entry-types"] });
       toast.success("Work entry type saved");
     },
-    onError: (e: any) => toast.error(normalizeError(e).message ?? "Save failed"),
+    onError: (e: any) => {
+      if (e?.code === "STALE_VERSION") toast.warning(e.message);
+      else toast.error(normalizeError(e).message ?? "Save failed");
+    },
   });
 
   const overrideFromPack = useMutation({
