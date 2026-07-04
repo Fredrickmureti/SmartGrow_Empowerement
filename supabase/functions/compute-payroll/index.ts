@@ -4232,8 +4232,32 @@ Deno.serve(async (req) => {
         }
         mappingIssueCount += violations.length;
       }
-    } catch (mapErr) {
-      console.warn("[compute-payroll] mapping short-circuit check failed (non-fatal):", mapErr);
+    } catch (mapErr: any) {
+      // Fail loud, not silent: if the mapping check itself errors we cannot
+      // assert the run is postable, so we record a blocker issue. The run
+      // stays gated until the check can pass (either the mappings are fixed
+      // or the transient error clears on a recompute) rather than sliding
+      // through to approval on an unverified GL routing.
+      console.error("[compute-payroll] mapping short-circuit check failed:", mapErr);
+      try {
+        await supabaseAdmin.from("payroll_run_issues").insert({
+          organization_id,
+          business_id: business_id || null,
+          payroll_run_id: payrollRun.id,
+          employee_id: null,
+          code: "GL_MAPPING_CHECK_FAILED",
+          severity: "blocker",
+          message:
+            "GL mapping validation could not be completed for this run. Recompute after confirming Payroll → GL Account Mapping is configured; the run cannot be approved until the check passes.",
+          details: { error: String(mapErr?.message ?? mapErr) },
+        });
+        mappingIssueCount += 1;
+      } catch (issueErr) {
+        console.error(
+          "[compute-payroll] failed to record GL_MAPPING_CHECK_FAILED issue:",
+          issueErr,
+        );
+      }
     }
 
     return new Response(JSON.stringify({
