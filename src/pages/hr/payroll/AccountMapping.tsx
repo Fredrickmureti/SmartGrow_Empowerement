@@ -414,6 +414,14 @@ function MappingRow({
           )}
         </TableCell>
         <TableCell className="align-top">
+          {mapped ? <SourceBadge source={mapped.source} version={mapped.origin_pack_version} /> : <span className="text-xs text-muted-foreground">—</span>}
+          {mapped?.overridden_at && (
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              overridden {formatDistanceToNow(new Date(mapped.overridden_at), { addSuffix: true })}
+            </div>
+          )}
+        </TableCell>
+        <TableCell className="align-top">
           {boundDead ? (
             <Badge variant="destructive" className="gap-1">
               <AlertTriangle className="h-3 w-3" />
