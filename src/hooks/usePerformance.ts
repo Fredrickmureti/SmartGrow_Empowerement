@@ -212,6 +212,17 @@ export function useTrainingEnrollments(employeeId?: string) {
         due_date: input.due_date ?? null,
       });
       if (error) throw error;
+      // Fire-and-forget notification to the assignee.
+      const { data: course } = await supabase.from("training_courses").select("name").eq("id", input.course_id).maybeSingle();
+      const title = (course as any)?.name ?? "a course";
+      await notifyTalent({
+        organizationId: currentOrg.id, kind: "training.assigned",
+        employeeId: input.employee_id,
+        title: "Training assigned",
+        message: `You've been enrolled in "${title}"${input.due_date ? ` · due ${input.due_date}` : ""}.`,
+        entityType: "training_course", entityId: input.course_id,
+        link: "/me/learning",
+      }).catch(() => {});
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["training-enrollments"] }); toast.success("Enrolled"); },
     onError: (e: any) => toast.error(normalizeError(e).message),
