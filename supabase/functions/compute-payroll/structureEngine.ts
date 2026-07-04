@@ -46,6 +46,8 @@ export interface WorkEntryType {
   counts_as_worked: boolean;
   multiplier_normal: number;
   multiplier_overtime: number;
+  /** Optional posting bucket, propagated onto payslip_lines.accounting_tag. */
+  accounting_tag?: string | null;
 }
 
 export interface WorkEntryRow {
