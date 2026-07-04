@@ -23999,7 +23999,6 @@ export type Database = {
       }
       one_on_ones: {
         Row: {
-          action_items: Json
           business_id: string | null
           cancelled_reason: string | null
           completed_at: string | null
@@ -24019,7 +24018,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          action_items?: Json
           business_id?: string | null
           cancelled_reason?: string | null
           completed_at?: string | null
@@ -24039,7 +24037,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          action_items?: Json
           business_id?: string | null
           cancelled_reason?: string | null
           completed_at?: string | null
@@ -53460,7 +53457,6 @@ export type Database = {
       }
       one_on_ones_visible: {
         Row: {
-          action_items: Json | null
           business_id: string | null
           cancelled_reason: string | null
           completed_at: string | null
@@ -53480,7 +53476,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          action_items?: Json | null
           business_id?: string | null
           cancelled_reason?: string | null
           completed_at?: string | null
@@ -53500,7 +53495,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          action_items?: Json | null
           business_id?: string | null
           cancelled_reason?: string | null
           completed_at?: string | null
