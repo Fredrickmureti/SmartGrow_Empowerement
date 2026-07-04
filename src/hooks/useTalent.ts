@@ -19,6 +19,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 import { notifyTalent } from "@/lib/talent/notifications";
+import { getManagerFor, displayName } from "@/lib/talent/employeeGraph";
 
 export type CyclePhase =
   | "planning"
@@ -420,18 +421,14 @@ export function useTalentGoal(goalId?: string) {
       if (insErr) throw insErr;
 
       // Notify manager (resolve via employees.manager_id → manager employee → user_id).
-      const { data: emp } = await supabase
-        .from("v_employees_canonical")
-        .select("manager_id, first_name, last_name")
-        .eq("id", goal.employee_id)
-        .maybeSingle();
+      const emp = await getManagerFor(goal.employee_id);
       if (emp?.manager_id) {
         await notifyTalent({
           organizationId: goal.organization_id,
           employeeId: emp.manager_id,
           kind: "goal.updated",
           title: "Goal check-in submitted",
-          message: `${emp.first_name ?? ""} ${emp.last_name ?? ""} updated "${goal.title}" to ${patch.progress_pct}%`,
+          message: `${displayName(emp)} updated "${goal.title}" to ${patch.progress_pct}%`,
           link: `/hr/talent/goals/${goal.id}`,
           entityType: "performance_goal",
           entityId: goal.id,
@@ -461,7 +458,7 @@ export function useTalentGoal(goalId?: string) {
             employeeId: emp.manager_id,
             kind: "goal.completed",
             title: "Goal completed",
-            message: `${emp.first_name ?? ""} ${emp.last_name ?? ""} completed "${goal.title}".`,
+            message: `${displayName(emp)} completed "${goal.title}".`,
             link: `/hr/talent/goals/${goal.id}`,
             entityType: "performance_goal",
             entityId: goal.id,
