@@ -264,11 +264,13 @@ export function useCalibrationAdjustments(opts: { cycleId?: string; sessionId?: 
   });
 
   const reject = useMutation({
-    mutationFn: async (adjustmentId: string) => {
+    mutationFn: async (params: string | { adjustmentId: string; reason?: string }) => {
       if (!user?.id) throw new Error("Not authenticated");
-      const { error } = await (supabase.from("calibration_adjustments") as any)
-        .update({ decision: "rejected", decided_by: user.id, decided_at: new Date().toISOString() })
-        .eq("id", adjustmentId);
+      const p = typeof params === "string" ? { adjustmentId: params } : params;
+      const { error } = await (supabase.rpc as any)("talent_calibration_reject_adjustment", {
+        p_adjustment_id: p.adjustmentId,
+        p_reason: p.reason ?? null,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
