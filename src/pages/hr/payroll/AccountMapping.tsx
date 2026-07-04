@@ -340,11 +340,13 @@ function MappingRow({
   accounts,
   mapped,
   readiness,
+  details,
 }: {
   row: PayrollGlReadinessRow;
   accounts: AccountOpt[];
   mapped: PayrollMappedAccount | undefined;
   readiness: ReturnType<typeof usePayrollGlReadiness>;
+  details: ReturnType<typeof usePayrollMappingDetails>;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
