@@ -22,6 +22,9 @@ interface Body {
   write_off?: boolean;
   entry_date?: string;
   notes?: string;
+  // Phase D: second approver id required when loan_type.dual_control_writeoff = true.
+  // Must be a distinct user from the caller with admin/manager privilege.
+  second_approver_id?: string;
 }
 
 Deno.serve(async (req) => {
@@ -55,7 +58,7 @@ Deno.serve(async (req) => {
       .select(`
         id, organization_id, business_id, branch_id, loan_number,
         outstanding_balance, status,
-        loan_types ( id, name, gl_receivable_account_id, gl_disbursement_clearing_account_id )
+        loan_types ( id, name, gl_receivable_account_id, gl_disbursement_clearing_account_id, writeoff_account_id, dual_control_writeoff )
       `)
       .eq("id", body.loan_id)
       .single();
@@ -69,23 +72,50 @@ Deno.serve(async (req) => {
     const amount = Number(body.settlement_amount ?? loan.outstanding_balance ?? 0);
     if (amount <= 0) return json({ error: "Nothing to settle (outstanding balance is 0)" }, 400);
 
+    // Phase D: dual-control enforcement for write-offs.
+    // When the loan_type opts into dual_control_writeoff, a second approver
+    // (distinct from the caller, and holding admin/manager role) must be
+    // supplied. This is the last-mile check before the JE hits the ledger.
+    if (body.write_off && lt?.dual_control_writeoff === true) {
+      const secondId = (body.second_approver_id || "").trim();
+      if (!secondId) {
+        return json({ error: "Write-off requires a second approver (dual control is enabled on this loan type)." }, 400);
+      }
+      if (secondId === who.user.id) {
+        return json({ error: "Second approver must be a different user from the initiator." }, 400);
+      }
+      const { data: adminRole } = await admin.rpc("has_role", { _user_id: secondId, _role: "admin" });
+      const { data: mgrRole } = adminRole
+        ? { data: true }
+        : await admin.rpc("has_role", { _user_id: secondId, _role: "manager" });
+      if (!adminRole && !mgrRole) {
+        return json({ error: "Second approver must hold admin or manager role." }, 403);
+      }
+    }
+
     let counterAccountId = lt.gl_disbursement_clearing_account_id as string | null;
     if (body.write_off) {
-      // Resolve a write-off / salary-expense account from default mappings.
-      const { data: mapping } = await admin
-        .from("default_account_settings")
-        .select("account_id")
-        .eq("organization_id", loan.organization_id)
-        .in("setting_key", ["loan_writeoff_expense", "salary_expense"])
-        .order("setting_key", { ascending: false }) // prefer loan_writeoff_expense
-        .limit(1)
-        .maybeSingle();
-      counterAccountId = mapping?.account_id ?? counterAccountId;
+      // Phase D: prefer the loan_type's own writeoff_account_id when set.
+      // Fall back to default_account_settings (loan_writeoff_expense →
+      // salary_expense) so existing tenants keep working unchanged.
+      if (lt?.writeoff_account_id) {
+        counterAccountId = lt.writeoff_account_id;
+      } else {
+        const { data: mapping } = await admin
+          .from("default_account_settings")
+          .select("account_id")
+          .eq("organization_id", loan.organization_id)
+          .in("setting_key", ["loan_writeoff_expense", "salary_expense"])
+          .order("setting_key", { ascending: false }) // prefer loan_writeoff_expense
+          .limit(1)
+          .maybeSingle();
+        counterAccountId = mapping?.account_id ?? counterAccountId;
+      }
     }
     if (!counterAccountId) {
       return json({
         error: body.write_off
-          ? "No write-off / salary-expense account mapped. Configure under Finance → Settings → Default Mappings."
+          ? "No write-off account resolvable. Set loan type write-off account, or map loan_writeoff_expense / salary_expense under Finance → Settings → Default Mappings."
           : "Loan type missing disbursement clearing account. Configure under Payroll → Setup → Loan Types.",
       }, 400);
     }
@@ -150,6 +180,25 @@ Deno.serve(async (req) => {
         notes: body.notes ?? null,
       })
       .eq("id", loan.id);
+
+    // Phase D: emit a lifecycle event capturing the dual-control decision
+    // (best-effort — never fails the settlement if the table is stripped).
+    try {
+      await admin.from("loan_lifecycle_events").insert({
+        organization_id: loan.organization_id,
+        loan_id: loan.id,
+        event_type: body.write_off ? "written_off" : "settled",
+        actor_user_id: who.user.id,
+        payload: {
+          amount,
+          journal_entry_id: je.id,
+          second_approver_id: body.write_off && lt?.dual_control_writeoff ? body.second_approver_id ?? null : null,
+          write_off_account_source: body.write_off
+            ? (lt?.writeoff_account_id ? "loan_type" : "default_mapping")
+            : null,
+        },
+      });
+    } catch (_) { /* non-fatal */ }
 
     return json({ journal_entry_id: je.id });
   } catch (e) {
