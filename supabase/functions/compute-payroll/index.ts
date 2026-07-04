@@ -4174,10 +4174,73 @@ Deno.serve(async (req) => {
       console.warn("[compute-payroll] payroll_processed SMS enqueue failed:", smsErr);
     }
 
+    // ─── Phase 4: compute-time GL mapping short-circuit ─────────────────
+    // Historically the mapping gate only fired at post-payroll-gl time.
+    // Enterprise payroll platforms surface mapping gaps at the moment the
+    // run is computed so approvers never authorise a run that cannot be
+    // posted. We call the same two RPCs the posting function uses and
+    // write blocker/error rows into `payroll_run_issues`; existing UI
+    // gates that check for open blocker issues will refuse to move the
+    // run past draft until they are resolved.
+    let mappingIssueCount = 0;
+    try {
+      const { data: reqRows } = await supabaseAdmin.rpc(
+        "payroll_required_gl_mappings_for_run",
+        { p_run_id: payrollRun.id },
+      );
+      const missing = ((reqRows || []) as any[]).filter((r) => !r.is_mapped);
+      if (missing.length > 0) {
+        const rows = missing.map((r: any) => ({
+          organization_id,
+          business_id: business_id || null,
+          payroll_run_id: payrollRun.id,
+          employee_id: null,
+          code: "GL_MAPPING_MISSING",
+          severity: "blocker",
+          message: `Missing GL mapping for '${r.label ?? r.setting_key}'. Bind it in Payroll → GL Account Mapping before this run can be posted.`,
+          details: {
+            setting_key: r.setting_key,
+            rule_code: r.rule_code ?? null,
+            kind: r.kind,
+            suggested_account_id: r.suggested_account_id ?? null,
+          },
+        }));
+        for (let i = 0; i < rows.length; i += 500) {
+          await supabaseAdmin.from("payroll_run_issues").insert(rows.slice(i, i + 500));
+        }
+        mappingIssueCount += missing.length;
+      }
+
+      const { data: roleRows } = await supabaseAdmin.rpc(
+        "payroll_validate_post_mappings",
+        { p_run_id: payrollRun.id },
+      );
+      const violations = (roleRows || []) as any[];
+      if (violations.length > 0) {
+        const rows = violations.map((v: any) => ({
+          organization_id,
+          business_id: business_id || null,
+          payroll_run_id: payrollRun.id,
+          employee_id: null,
+          code: "GL_MAPPING_ROLE_VIOLATION",
+          severity: "blocker",
+          message: v.violation ?? `GL mapping for '${v.setting_key}' violates accounting role rules.`,
+          details: v,
+        }));
+        for (let i = 0; i < rows.length; i += 500) {
+          await supabaseAdmin.from("payroll_run_issues").insert(rows.slice(i, i + 500));
+        }
+        mappingIssueCount += violations.length;
+      }
+    } catch (mapErr) {
+      console.warn("[compute-payroll] mapping short-circuit check failed (non-fatal):", mapErr);
+    }
+
     return new Response(JSON.stringify({
       payroll_run: payrollRun,
       employee_count: payslipsData.length,
       warnings,
+      mapping_issue_count: mappingIssueCount,
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
