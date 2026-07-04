@@ -1247,7 +1247,7 @@ Deno.serve(async (req) => {
     {
       const { data: wetRows } = await supabaseAdmin
         .from("payroll_work_entry_types")
-        .select("id, code, is_paid, counts_as_worked, multiplier_normal, multiplier_overtime")
+        .select("id, code, is_paid, counts_as_worked, multiplier_normal, multiplier_overtime, accounting_tag")
         .eq("organization_id", organization_id)
         .eq("is_active", true);
       for (const t of (wetRows || []) as any[]) {
@@ -1258,6 +1258,7 @@ Deno.serve(async (req) => {
           counts_as_worked: t.counts_as_worked,
           multiplier_normal: Number(t.multiplier_normal ?? 1),
           multiplier_overtime: Number(t.multiplier_overtime ?? 1.5),
+          accounting_tag: t.accounting_tag ?? null,
         });
       }
     }
