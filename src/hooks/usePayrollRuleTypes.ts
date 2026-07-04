@@ -1,16 +1,22 @@
 /**
  * usePayrollRuleTypes
  * ─────────────────────────────────────────────────────────────────────────
- * Shared React-Query hook + types for *tenant-defined* custom deduction
- * types (`payroll_rule_types`).
+ * Shared React-Query hook + types for tenant-defined **Rule Type
+ * Definitions** (`payroll_rule_types`).
  *
- * These are NOT statutory rules. Statutory rules are pack-driven and live in
- * `payroll_statutory_rules`. Custom deduction types are workspace-owned
- * shapes (loans, advances, SACCO contributions, gym fees) with their own
- * lifecycle and their own dedicated workspace
- * (`/hr/payroll/configuration/deduction-types`). They are co-located here
- * only because the statutory rule editor surfaces their codes in its
- * type-picker so existing rules round-trip cleanly.
+ * IMPORTANT — What this table is (and isn't):
+ *   - It is a *catalog of (label, parameter_schema, computation_method)
+ *     tuples* consumed exclusively by the Statutory Rules editor to
+ *     populate its type-picker and render parameter form fields.
+ *   - It is NOT a deduction. No consumer creates an employee deduction,
+ *     payslip line, or GL entry from these rows. Actual deduction
+ *     lifecycles live in `employee_loans`, `employee_advances`,
+ *     `employee_garnishments`, and `payroll_salary_rules`.
+ *
+ * Tenant-authored rows live alongside pack-seeded system rows (is_system
+ * = true) so historical `payroll_statutory_rules.rule_type` values keep
+ * resolving to a human label. The workspace surface is
+ * `/hr/payroll/configuration/rule-types`.
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +30,14 @@ export interface ParameterField {
   optional?: boolean;
 }
 
+export type RuleTypeComputationMethod =
+  | "flat_amount"
+  | "percentage_of_gross"
+  | "bracket_progressive"
+  | "tiered_brackets"
+  | "graduated_table"
+  | "per_employee_flat";
+
 export interface RuleType {
   id: string;
   organization_id: string;
@@ -31,6 +45,7 @@ export interface RuleType {
   label: string;
   description: string | null;
   parameter_schema: ParameterField[];
+  computation_method: RuleTypeComputationMethod;
   is_bracket: boolean;
   is_system: boolean;
   is_active: boolean;
@@ -43,7 +58,8 @@ export function useRuleTypes(orgId: string | undefined) {
     queryFn: async () => {
       if (!orgId) return [] as RuleType[];
       const { data, error } = await supabase
-        // SCOPE-EXEMPT: "payroll_rule_types" is workspace-wide (not in BUSINESS_SCOPED_TABLES)
+        // SCOPE-EXEMPT: `payroll_rule_types` is a workspace-level catalog
+        // (same shape as `leave_types`) — no business_id column.
         .from("payroll_rule_types" as any)
         .select("*")
         .eq("organization_id", orgId)
