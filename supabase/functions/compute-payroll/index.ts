@@ -2964,6 +2964,114 @@ Deno.serve(async (req) => {
         reimbursementsConsumed.push({ id: r.id, employee_id: emp.id });
       }
 
+      // ─── Turn D: custom deductions (Slice 2) ───
+      // Applied AFTER loans/advances/garnishments/reimbursements. Reads
+      // `deductionsDetail` totals-so-far to project current net and
+      // respects each assignment's `min_net_floor` and `cumulative_cap`.
+      const customDeductionLineMeta: Array<{
+        assignment_id: string;
+        type_id: string;
+        code: string;
+        label: string;
+        amount: number;
+        is_employer_contribution: boolean;
+        payslip_group: string;
+        sort_order: number;
+        gl_liability_account_id: string | null;
+        gl_expense_account_id: string | null;
+      }> = [];
+      const empCustom = customDeductionsByEmployee[emp.id] || [];
+      // Deterministic order: sort_order asc, then code
+      empCustom.sort((a, b) => {
+        const so = (a.deduction_type?.sort_order ?? 100) - (b.deduction_type?.sort_order ?? 100);
+        if (so !== 0) return so;
+        return String(a.deduction_type?.code || "").localeCompare(String(b.deduction_type?.code || ""));
+      });
+      const runningEmpDeductions = () =>
+        Object.values(deductionsDetail).reduce((s: number, v: any) => s + Number(v || 0), 0);
+      for (const a of empCustom) {
+        const t = a.deduction_type;
+        if (!t) continue;
+        // Reject pre_tax loudly: PAYE has already been computed above.
+        if (t.tax_treatment === "pre_tax") {
+          issuesToInsert.push({
+            severity: "warning",
+            employee_id: emp.id,
+            code: "CUSTOM_DEDUCTION_PRE_TAX_UNSUPPORTED",
+            message: `Custom deduction "${t.label}" (${t.code}) is pre_tax; engine currently applies pre_tax after PAYE. Switch to post_tax or wait for engine support.`,
+            details: { assignment_id: a.id, deduction_type_id: t.id },
+          });
+          continue;
+        }
+        // Compute per method
+        let raw = 0;
+        if (t.computation_method === "flat_amount") {
+          raw = Number(a.amount_override ?? (t.parameters as any)?.amount ?? 0);
+        } else if (t.computation_method === "percentage_of_gross") {
+          const rate = Number(a.rate_override ?? (t.parameters as any)?.rate ?? 0);
+          raw = grossPay * rate;
+        } else if (t.computation_method === "percentage_of_basic") {
+          const rate = Number(a.rate_override ?? (t.parameters as any)?.rate ?? 0);
+          raw = (Number(emp.basic_salary) || 0) * rate;
+        } else {
+          issuesToInsert.push({
+            severity: "warning",
+            employee_id: emp.id,
+            code: "CUSTOM_DEDUCTION_METHOD_UNSUPPORTED",
+            message: `Custom deduction "${t.label}" (${t.code}) uses unsupported method "${t.computation_method}".`,
+            details: { assignment_id: a.id },
+          });
+          continue;
+        }
+        let amt = Math.max(0, Math.round(raw * 100) / 100);
+        if (amt <= 0) continue;
+
+        // Cumulative cap
+        if (a.cumulative_cap != null) {
+          const remaining = Number(a.cumulative_cap) - Number(a.cumulative_recovered || 0);
+          if (remaining <= 0) continue;
+          amt = Math.min(amt, Math.round(remaining * 100) / 100);
+        }
+
+        // Min-net floor (only for employee deductions, not employer contributions)
+        if (!t.is_employer_contribution) {
+          const floor = a.min_net_floor != null ? Number(a.min_net_floor) : null;
+          if (floor != null) {
+            const projectedNet = grossPay - runningEmpDeductions() - amt;
+            if (projectedNet < floor) {
+              const reduceBy = floor - projectedNet;
+              amt = Math.max(0, Math.round((amt - reduceBy) * 100) / 100);
+              if (amt <= 0) continue;
+            }
+          }
+        }
+
+        const key = `custom_${t.code}_${a.id}`;
+        if (t.is_employer_contribution) {
+          contributionsDetail[key] = (contributionsDetail[key] || 0) + amt;
+        } else {
+          deductionsDetail[key] = (deductionsDetail[key] || 0) + amt;
+        }
+        customDeductionLineMeta.push({
+          assignment_id: a.id,
+          type_id: t.id,
+          code: t.code,
+          label: t.label,
+          amount: amt,
+          is_employer_contribution: !!t.is_employer_contribution,
+          payslip_group: t.payslip_group || "other_deductions",
+          sort_order: t.sort_order ?? 100,
+          gl_liability_account_id: t.gl_liability_account_id,
+          gl_expense_account_id: t.gl_expense_account_id,
+        });
+        customDeductionsApplied.push({
+          assignment_id: a.id,
+          employee_id: emp.id,
+          amount: amt,
+          type_id: t.id,
+        });
+      }
+
       const empTotalDeductions = Object.values(deductionsDetail).reduce((s, v) => s + v, 0);
 
       const empTotalEmployerContributions = Object.values(contributionsDetail).reduce((s, v) => s + v, 0);
