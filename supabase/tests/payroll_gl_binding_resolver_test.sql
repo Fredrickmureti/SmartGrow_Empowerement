@@ -5,8 +5,10 @@
 --   (2) The sync trigger keeps default_account_settings and the bindings
 --       table in lock-step (no divergence) for the open (effective_to IS NULL)
 --       row of every payroll-shaped mapping.
---   (3) resolve_default_account_binding honours the branch → business → org
---       specificity cascade for a synthetic scenario.
+--   (3) resolve_default_account_binding honours the org → legal-entity
+--       specificity cascade, and — because GL mapping is HQ-authoritative and
+--       branches never own accounts — a branch with no binding CASCADES to the
+--       shared company/entity default rather than resolving a branch account.
 BEGIN;
 
   -- (1) Structural objects exist.
