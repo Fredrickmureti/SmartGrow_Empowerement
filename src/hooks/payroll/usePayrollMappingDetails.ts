@@ -18,10 +18,19 @@
  * All queries are scoped by (org, business) and reuse the standard
  * Supabase client (RLS applies).
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { toast } from "sonner";
+import { normalizeError } from "@/services/resilience";
+
+export type PayrollMappingSource =
+  | "pack_default"
+  | "pack_upgrade"
+  | "tenant_override"
+  | "manual"
+  | "system_seed";
 
 export interface PayrollMappedAccount {
   setting_key: string;
@@ -33,6 +42,10 @@ export interface PayrollMappedAccount {
   is_active: boolean;
   is_header: boolean;
   updated_at: string;
+  source: PayrollMappingSource;
+  origin_pack_version: string | null;
+  overridden_at: string | null;
+  override_reason: string | null;
 }
 
 export interface PayrollMappingAuditEntry {
