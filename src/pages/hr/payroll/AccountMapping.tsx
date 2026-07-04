@@ -583,7 +583,7 @@ function MappingRow({
       </TableRow>
       {creating && (
         <TableRow>
-          <TableCell colSpan={6} className="bg-muted/30">
+          <TableCell colSpan={7} className="bg-muted/30">
             <div className="flex flex-wrap items-center gap-2 py-1">
               <span className="text-xs text-muted-foreground">
                 New {row.required_account_type} account for “{row.label}”:
