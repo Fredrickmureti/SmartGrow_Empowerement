@@ -1,116 +1,81 @@
 
-# Custom Deduction Types — Architectural Audit
+# Continuation Plan — Custom Deduction Types (post-handoff)
 
-## 1. What this subsystem actually is (traced, not assumed)
+## Verified status of previous agent's work
 
-Table: `public.payroll_rule_types`. Frontend: `CustomDeductionTypes.tsx`, `CustomDeductionTypeDialog.tsx`, `usePayrollRuleTypes.ts`. Route: `/hr/payroll/configuration/deduction-types`.
+Independently traced against the codebase — not taken on trust:
 
-**Cross-module trace of every consumer of `payroll_rule_types`:**
+**Slice 1 — DONE (verified).**
+- Migration `20260704151154` adds `payroll_rule_types.computation_method` (NOT NULL, CHECK-constrained to the 6 methods compute-payroll dispatches), drops the orphan `business_id`, tightens the DELETE policy, and rewrites the table comment to say "Rule Type Definitions… NOT a deduction engine".
+- pgTAP guard `supabase/tests/payroll_rule_types_catalog_invariants_test.sql` pins the new column, the CHECK, the absent `business_id`, no inbound FKs, and the single DELETE policy.
+- Frontend rename to *Rule Type Definitions*, dead `is_bracket`/`is_active`/soft-delete fixes, computation_method persistence — reflected in `CustomDeductionTypes.tsx`, `CustomDeductionTypeDialog.tsx`, `usePayrollRuleTypes.ts`, `PayrollRoutes.tsx`, `navs.ts`.
 
-| Consumer | What it reads | What it does with it |
-|---|---|---|
-| `PayrollStatutoryRules.tsx` | `code`, `label`, `parameter_schema` | Populates the rule-editor's "type" dropdown; renders parameter field hints in `RuleParameters` |
-| `CustomDeductionTypes.tsx` | Full row | CRUD screen |
-| `CustomDeductionTypeDialog.tsx` | Full row | Writes rows |
-| `compute-payroll` edge function | **Nothing** | Never queried. Verified. |
-| `payroll_salary_rules` / rule-graph engine | Nothing | No reference |
-| `payslip_lines` / `payslips` | Nothing | No reference |
-| `post-payroll-gl` / journal entries | Nothing | No reference |
-| `employee_loans`, `employee_advances`, `employee_garnishments` | Nothing | No FK, no lookup |
-| Any RPC, trigger, view | Nothing | No reference |
+**Slice 2 schema — DONE (verified).**
+Migration `20260704152623` creates `custom_deduction_types`, `employee_custom_deductions`, `employee_custom_deduction_events` with enums, RLS, GRANTs, version triggers, lifecycle-event trigger, reserved-code guardrail, realtime publication. `types.ts` regenerated.
 
-There is **no foreign key** anywhere in the schema pointing at `payroll_rule_types`. Its `code` is stuffed into `payroll_statutory_rules.rule_type` as free text — a soft, unenforced label. The comment on the table itself admits this: *"Dynamic rule type definitions for payroll statutory rules"*.
+**Slice 2 everything else — NOT DONE.** No hooks, no UI, no compute-payroll branch, no `post-payroll-gl` wiring, no `payroll_readiness_rules` entry, no pgTAP for the new tables. This is where the previous agent stopped.
 
-**Conclusion:** `payroll_rule_types` is a **form-schema catalog for the Statutory Rules editor**. It is neither a deduction type, nor a deduction, nor a driver of any payroll behaviour. Renaming it "Custom Deduction Types" and giving it its own top-level workspace was an information-architecture error introduced in Phase C of the Statutory Rules split.
+## What I'll build (remaining stages)
 
-## 2. Business-event lifecycle — the honest version
+### Stage A — Hooks (data layer, no UI yet)
+- `src/hooks/payroll/useCustomDeductionTypes.ts` — list/create/update/soft-delete, business-scoped, invalidates on realtime.
+- `src/hooks/payroll/useEmployeeCustomDeductions.ts` — per-employee list, assign, approve, suspend, resume, cancel; writes lifecycle events implicitly via the DB trigger.
+- `src/hooks/payroll/useCustomDeductionEvents.ts` — timeline reader.
 
-```text
-User opens /hr/payroll/configuration/deduction-types
-  → creates a "type" row (code, label, parameter_schema)
-    → row lands in payroll_rule_types
-      → NO business event fires
-        → NO downstream consumer reacts
-          → NEXT time someone opens the Statutory Rules editor,
-             the type dropdown has one more option and the
-             parameter form renders `amount` or `rate` fields
-END OF LIFECYCLE.
-```
+### Stage B — Catalog UI
+- Route: `/hr/payroll/configuration/custom-deductions` (new file under `PayrollRoutes.tsx`, nav entry under Configuration).
+- Page: list with kind/tax-treatment/GL-mapped badges, "unmapped GL" warning row, empty-state that links to Loans/Advances/Garnishments so users don't misuse it.
+- Dialog: code + label + description, `deduction_kind`, `tax_treatment`, `is_taxable`, `is_employer_contribution`, `computation_method`, dynamic parameters (`amount` / `rate` / `formula`), GL liability + expense pickers (accounts filtered by type), `payslip_group`, `sort_order`, `requires_approval`, `cumulative_cap` default, `min_net_floor` default, `is_active`.
 
-That is the entire causal chain. Nothing on an employee changes. No payslip line is created. No GL entry is posted. No approval is triggered. No audit event beyond the row's own `updated_at`.
+### Stage C — Assignment UI on the employee profile
+- New tab/section "Custom Deductions" on `/hr/employees/:id` under Payroll.
+- Table of assignments with status chip, effective window, running `cumulative_recovered` / `cumulative_cap` progress, override amount/rate.
+- Assign dialog (pick type → prefill from type → override → effective dates → approval gate). Status transitions via explicit actions (Approve, Activate, Suspend, Resume, Cancel) — never a raw dropdown, so the lifecycle event trigger records intent.
+- Lifecycle timeline drawer reading `employee_custom_deduction_events`.
 
-## 3. Field-by-field audit
+### Stage D — Compute-payroll wiring (the real integration)
+Edit `supabase/functions/compute-payroll/index.ts`:
+1. New Turn placed **after loans/advances, before garnishments** — matches the ordering the audit prescribed (voluntary post-tax deductions come after mandatory recovery, before court-ordered priority items).
+2. Pre-tax types (`tax_treatment='pre_tax'`) evaluated **before** PAYE so they lower taxable base. Post-tax after PAYE. This is the tax-treatment ordering invariant the pgTAP will pin.
+3. For each active assignment (`status IN ('approved','active')`, `effective_from <= period_end`, `effective_to IS NULL OR effective_to >= period_start`, not yet completed):
+   - Compute per `computation_method`: `flat_amount` → `parameters.amount` (or `amount_override`); `percentage_of_gross` → `gross * (rate_override ?? parameters.rate)`; `percentage_of_basic` → basic * rate; `formula` → deferred (raise `NOT_IMPLEMENTED` so it fails loud rather than silently returning 0).
+   - Apply `cumulative_cap`: cap this period's amount at `cap - cumulative_recovered`; if remaining ≤ 0, skip.
+   - Apply `min_net_floor`: if applying full amount would push net below floor, reduce (do NOT skip — partial recovery is standard for voluntary deductions; garnishments have their own carry-forward, this doesn't).
+   - Emit `payslip_lines` row with `source='custom_deduction'`, `source_id=assignment_id`, `category='deduction'` (or `employer_contribution` when `is_employer_contribution`), `payslip_group` copied from type, `sort_order` from type.
+   - `is_employer_contribution=true` → line does NOT reduce net; it books to expense + liability only (mirrors employer NSSF pattern already in the engine).
+4. After all lines written for the run, `UPDATE employee_custom_deductions SET cumulative_recovered = cumulative_recovered + <applied>` and, when the cap is now hit, `status='completed'` (the DB trigger writes the `completed` event; no manual event insert needed).
+5. Reversal path: `payroll_reverse_run_atomic` already reverses `payslip_lines` — extend it to decrement `cumulative_recovered` and, if the assignment was auto-completed by this run, flip status back to `active`. Idempotent via the existing reversal lock.
 
-| Field | Purpose claimed | Actual behaviour | Verdict |
-|---|---|---|---|
-| `code` | Machine name referenced by rules | Free-text tag copied into `payroll_statutory_rules.rule_type`; no FK, no uniqueness across pack + tenant, no migration path when renamed | Weakly wired |
-| `label` | Human name | Rendered in one dropdown, one list | OK |
-| `description` | Docs | Rendered on the card | OK |
-| `parameter_schema` | Drives compute | Drives only form rendering in `RuleParameters`. Compute engine reads `payroll_statutory_rules.parameters` + `computation_method` directly | Misleading |
-| `is_bracket` | Selects bracket editor | Dialog hard-codes `is_bracket:false` — user can never set it here | **Dead in this workspace** |
-| `is_system` | Guard against edits/delete | Enforced only client-side | Weakly enforced |
-| `is_active` | Soft-delete flag | Dialog hard-codes `true`; delete is hard-delete. No listing filter surfaces inactive types | **Dead** |
-| `sort_order` | Ordering | Applied in `useRuleTypes` | OK |
-| `business_id` | Scope | Never written by the dialog; `useRuleTypes` never filters by it. Column is orphaned | **Dead** |
-| **Missing** `computation_method` | — | Dialog forces user to pick `flat_amount` \| `percentage_of_gross`, then discards it and infers it back later by looking for the `rate` key. Fragile, lossy, unnecessary | **Bug** |
+### Stage E — GL posting
+Edit `supabase/functions/post-payroll-gl/index.ts`:
+- When aggregating `payslip_lines` where `source='custom_deduction'`, group by `source_id → deduction_type_id → (gl_liability_account_id, gl_expense_account_id)`.
+- Employee deduction: `DR salary_expense-equivalent` already booked as part of gross; `CR gl_liability_account_id` for the deduction amount. If `gl_liability_account_id` is NULL on any consumed type, refuse to post with `SETUP_REQUIRED / CUSTOM_DEDUCTION_GL_MISSING` and the list of type codes — matching the existing readiness-payload convention (ADR 0040).
+- Employer contribution: `DR gl_expense_account_id`, `CR gl_liability_account_id`.
 
-## 4. Enterprise concepts the workspace claims to cover — and doesn't
+### Stage F — Readiness rule
+Data-only insert into `payroll_readiness_rules`: rule_code `CUSTOM_DEDUCTION_GL_MAPPING`, scope `business`, severity `blocker`, evaluated via a SQL predicate that flags any `custom_deduction_types` row that is `is_active=true`, is referenced by ≥1 `employee_custom_deductions` in `('approved','active')` for the period, and has `gl_liability_account_id IS NULL` (or `gl_expense_account_id IS NULL` when `is_employer_contribution`). Because `payroll_readiness_summary` is the single engine (per ADR 0040), no code changes are required — the rule shows up in the badge, the pre-run panel, and `compute-payroll`'s 412 payload automatically.
 
-The subtitle enumerates *"loans, advances, SACCO, gym fees"*. Each of these already has a **first-class, correctly modelled** home:
+### Stage G — pgTAP guards
+`supabase/tests/custom_deductions_test.sql`:
+- reserved-code guardrail rejects `paye`, `loan`, `garnishment` (INSERT + UPDATE).
+- version trigger bumps on material change, holds steady on cosmetic change.
+- lifecycle trigger writes exactly one event per status transition.
+- cumulative-cap auto-complete: simulate cumulative_recovered reaching cap, verify status → `completed` and a `completed` event exists.
+- tax-treatment ordering: architecture-level assertion that a pre_tax custom deduction reduces `payslip_lines.category='statutory'` PAYE base within the same run (fixture-driven).
 
-| Concept | Real home | What it does that this workspace does not |
-|---|---|---|
-| Loans | `loan_types`, `employee_loans`, `loan_repayment_schedule`, `payroll_loan_recovery_policy` | Lifecycle (requested → approved → disbursed → recovering → recovered), amortisation, skip-overrides, GL wiring, compute-payroll consumption |
-| Advances | `employee_advances`, `advance_repayment_schedule` | Full lifecycle, min-net floor, recovery in compute-payroll |
-| Garnishments | `employee_garnishments`, `garnishment_kind_defaults`, `garnishment_carry_forward`, `garnishment_lifecycle_events` | Court-order metadata, priority ordering, carry-forward, audit |
-| Statutory (PAYE / SHIF / NSSF / housing levy) | `payroll_statutory_rules` + localization packs | Pack governance, effective dating, upgrade inbox, conflicts, provenance |
-| Salary rules (allowances, custom formulas) | `payroll_salary_rules` + `salary_structure_rule_sets` + structure engine | Ordered graph, expressions, snapshots, traces |
-| Benefits | `benefit_plans`, `employee_benefits`, `benefit_enrollment_windows` | Enrollment windows, employer/employee split |
+### Stage H — Architecture tests (TS)
+- `src/test/architecture/custom-deductions-engine-branch.test.ts` — fails if `compute-payroll` stops iterating `custom_deduction_types` OR emits a custom-deduction line without setting `source='custom_deduction'` and `source_id`.
+- `src/test/architecture/post-payroll-gl-custom-deductions.test.ts` — fails if `post-payroll-gl` posts a run containing `source='custom_deduction'` lines without validating the GL mapping first.
 
-The only thing *not* covered by any of the above is: **a truly ad-hoc, tenant-defined, recurring or one-time deduction that isn't a loan, advance, garnishment, statutory item, benefit, or salary-structure line** — e.g. "gym membership deducted at KES 1,500/month". Today the ERP has **no first-class home for that**. This workspace pretends to be that home but is not.
+## Explicitly out of scope
+- Bulk import/export (Slice 3 candidate — not requested).
+- Approval workflow integration (`approval_requests`) beyond `requires_approval`+status transition — deferred until the tenant asks; the schema already supports it.
+- Self-service employee visibility toggle — the field can be added later without a migration by extending `custom_deduction_types` in a follow-up.
+- Any change to loans/advances/garnishments/statutory (correctly modelled, per Slice 1 audit).
 
-## 5. Architectural risks
-
-1. **Naming lies.** The screen title, subtitle, nav label, permission (`manageStatutoryRules`), and route all say "deduction types". No deduction exists here. Payroll officers will assume creating a row here causes deductions.
-2. **`is_bracket=false` hard-coded.** Bracket-shaped rule types (PAYE brackets, tiered rates) can NOT be authored from this workspace even though the underlying table supports them — but the workspace calls itself the tenant-authoring surface for rule types. Users hit a silent ceiling.
-3. **`computation_method` round-trip.** Dialog stores a schema-shape and re-infers method via `keys.has("rate")`. Renaming a parameter key changes the inferred method. This is fragile.
-4. **`business_id` orphan.** Migration 20260421213742 added the column but nothing writes or filters by it, so tenant/business scoping is inconsistent with the rest of the payroll module.
-5. **`is_active` and soft-delete unused.** Delete is hard, breaking any historical rule that still references a deleted code.
-6. **No lifecycle for the actual gap** (ad-hoc recurring/one-time employee deductions): no assignment table, no effective dates, no approval, no suspension, no reversal, no compute-payroll integration, no payslip line contract, no GL mapping, no reporting classification, no year-end handling.
-
-## 6. Recommendation
-
-**Do not add features to the current `payroll_rule_types` workspace pretending it is a deduction engine. Fix the IA lie first, then decide whether to add a real "Custom Deductions" subsystem in a separate slice.**
-
-### Slice 1 — Truth in labelling (small, safe, no schema change to consumers)
-
-1. **Rename route + nav + page** from *Custom Deduction Types* to ***Rule Type Definitions*** (or *Statutory Rule Type Catalog*). New route: `/hr/payroll/configuration/rule-types`. Add a 301-style redirect from the old path. Update `navs.ts`, `PayrollRoutes.tsx`, page title, dialog copy, and the architecture guard test.
-2. **Rewrite the page copy** to say what it truly does: *"Defines the shape (label + parameter schema) that appears in the Statutory Rules editor for tenant-authored rule types. Does not create deductions. To manage employee deductions see Loans, Advances, Garnishments, or Salary Structures."*
-3. **Add outbound links** on the empty state and header to Loans, Advances, Garnishments, Salary Structures, Statutory Rules — so users who mis-navigated here find the right home.
-4. **Fix the `computation_method` round-trip:** persist the picked method on the type row (add `computation_method text` column, backfill from `methodForSchema`, drop the inference). Statutory rule editor should default `computation_method` from the picked type.
-5. **Un-hard-code `is_bracket`:** allow the dialog to author bracket-shaped types (matches the underlying table capability the workspace claims to expose).
-6. **Wire `is_active`:** the delete action becomes soft delete; the list filters out inactive by default; `useRuleTypes` already filters `is_active=true`, so historical rules keep resolving their type label.
-7. **Drop the orphan `business_id` column** OR start writing/filtering by it consistently. Given rule-type catalogs are workspace-level HR-policy artefacts (same reasoning as `leave_types` in `useLeaveTypes.ts`), drop the column and mark the table `SCOPE-EXEMPT` explicitly in `businessScopedTables.ts`.
-8. **Add pgTAP test** pinning: no FK to `payroll_rule_types` from anywhere except future explicit rule-type FKs; `payroll_statutory_rules.rule_type` values referenced in `payroll_rule_types` are the only tenant-defined values; deletes cascade-safely.
-
-### Slice 2 — (Deferred, only if the real gap is confirmed by a tenant) *Ad-hoc Custom Deductions*
-
-If — and only if — workspaces actually need a first-class ad-hoc deduction that is not a loan, advance, garnishment, statutory, or benefit, model it properly rather than bolting fields onto `payroll_rule_types`. Sketch (not built now):
-
-- `custom_deduction_types` — tenant catalog: code, label, `deduction_kind (recurring|one_time|voluntary|involuntary)`, `tax_treatment (pre_tax|post_tax)`, `is_taxable`, `is_employer_contribution`, `computation_method`, `parameters jsonb`, `gl_liability_account_id`, `gl_expense_account_id`, `payslip_group`, `sort_order`, `requires_approval`, `is_active`, `version`.
-- `employee_custom_deductions` — assignment: `type_id`, `employee_id`, `effective_from`, `effective_to`, `amount_or_rate_override`, `status (pending|approved|active|suspended|cancelled|completed)`, `cumulative_cap`, `min_net_floor`, `approver_id`, `approved_at`, `lifecycle events` table.
-- Consumers to wire: `compute-payroll` (new branch after loans/advances, before net), `payslip_lines` (new `source='custom_deduction'`), `post-payroll-gl` (respect the GL mapping), `payroll_readiness_rules` (mapping-completeness rule), reversal/correction pipeline, termination final-pay recovery, year-end reporting classification, employee self-service visibility flag.
-- Governance: this must NOT overlap with garnishments (court-ordered, priority-ordered) or loans (amortisation). A DB `CHECK` or trigger ensures a type declared as `deduction_kind='installment_loan'` is not allowed here — those belong to `loan_types`.
-
-Slice 2 is a separate audit and separate build. Do not start it as part of this cleanup.
-
-### Explicitly out of scope for this slice
-
-- Rewriting compute-payroll (nothing needs to change there).
-- Touching Statutory Rules governance (packs, upgrades, conflicts).
-- Touching loans / advances / garnishments (they are correctly modelled).
-- Any UI polish beyond copy/nav/links needed for truth-in-labelling.
-
-## 7. Deliverable of this slice
-
-A single, honest configuration screen named *Rule Type Definitions* that owns exactly the concept it manipulates, plus a fixed `computation_method` persistence, un-hard-coded `is_bracket`, real soft-delete, orphan-column cleanup, and a pgTAP guard. Total surface: ~200 lines of frontend edits, one migration, one test file.
+## Order of operations
+1. Stages A + B in parallel (hooks + catalog UI) — safe, no engine risk.
+2. Stage C (employee assignment UI).
+3. Stage D (compute-payroll) + Stage G unit-test the branch behind a feature-detect (rows present → branch active; no rows → no-op — zero risk to existing tenants).
+4. Stage E (GL posting) + Stage F (readiness rule) together so the readiness surface prevents an unmapped post.
+5. Stage H architecture tests last so they lock in what's just been built.
