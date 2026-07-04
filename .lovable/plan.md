@@ -63,9 +63,11 @@ Progress against the approved continuation plan.
 - **Phase 6** — Approval-workflow binding for merit/dev-plan-activation/
   calibration; `talent_settings` table for defaults; per-org default
   `competency_scales` seed.
-- **Phase 7** — Normalize `one_on_ones.action_items` JSONB → dedicated
-  table; extract `getManagerFor` to `src/lib/talent/employeeGraph.ts`
-  and delete four duplicates.
+- **Phase 7 (partial)** — Extracted `getManagerFor` + `displayName` to
+  `src/lib/talent/employeeGraph.ts`; refactored `useTalent.checkIn` and
+  `useDevelopmentPlans.updateItem` to use it (removes two duplicate
+  `v_employees_canonical` lookup blocks). Remaining Phase 7 work:
+  normalize `one_on_ones.action_items` JSONB → dedicated table.
 - **Phase 8 UI** — "Create requisition" CTA on ready-now successors — SHIPPED.
   Button appears on any successor row where `readiness = 'ready_now'`; seeds
   a draft `job_requisitions` row (title = plan role, headcount 1, provenance
