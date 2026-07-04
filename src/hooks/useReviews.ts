@@ -379,6 +379,7 @@ export function useReviews(opts: { cycleId?: string; employeeId?: string; review
               role: "manager",
               title: `Manager review of ${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim(),
             });
+          }
         }
 
         // Peer & skip-level reviewers come from review_participants (HR/manager pre-nominates them)
