@@ -250,6 +250,7 @@ export const TALENT_NAV: WorkspaceNav = {
         { to: "/hr/talent/learning/paths", label: "Learning paths", icon: ListChecks },
         { to: "/hr/talent/quizzes", label: "Quiz authoring", icon: ClipboardList },
         { to: "/hr/talent/merit", label: "Merit & compensation", icon: Banknote },
+        { to: "/hr/talent/settings", label: "Talent settings", icon: FileBox },
       ],
     },
   ],
