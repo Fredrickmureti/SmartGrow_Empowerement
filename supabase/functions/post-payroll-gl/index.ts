@@ -633,6 +633,58 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ─── Slice 2: custom deduction JE lines ───
+    // Per-type mapping is stored on custom_deduction_types (not
+    // default_account_settings). Refuse to post if any consumed type is
+    // unmapped — matches the ADR-0040 readiness-payload convention.
+    if (customDedMap.size > 0) {
+      const missingCd: Array<{ setting_key: string; label: string; kind: string }> = [];
+      for (const cd of customDedMap.values()) {
+        if (cd.employee_amount > 0 && !cd.gl_liability_account_id) {
+          missingCd.push({ setting_key: `custom_deduction:${cd.code}:liability`, label: `${cd.label} — liability account`, kind: "employee_payable" });
+        }
+        if (cd.employer_amount > 0 && (!cd.gl_expense_account_id || !cd.gl_liability_account_id)) {
+          if (!cd.gl_expense_account_id) missingCd.push({ setting_key: `custom_deduction:${cd.code}:expense`, label: `${cd.label} — expense account`, kind: "employer_expense" });
+          if (!cd.gl_liability_account_id) missingCd.push({ setting_key: `custom_deduction:${cd.code}:liability`, label: `${cd.label} — liability account`, kind: "employer_payable" });
+        }
+      }
+      if (missingCd.length > 0) {
+        return new Response(JSON.stringify({
+          error: "missing_mappings",
+          message: "Custom deduction types are missing GL mapping. Open Payroll → Configuration → Custom deductions to complete setup.",
+          missing: missingCd,
+          action: { label: "Open Custom deductions", to: "/hr/payroll/configuration/custom-deductions" },
+        }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      for (const cd of customDedMap.values()) {
+        if (cd.employee_amount > 0 && cd.gl_liability_account_id) {
+          lines.push({
+            account_id: cd.gl_liability_account_id,
+            debit: 0,
+            credit: cd.employee_amount,
+            description: `${runLabel} - ${cd.label}`,
+            contact_id: null,
+          });
+        }
+        if (cd.employer_amount > 0 && cd.gl_expense_account_id && cd.gl_liability_account_id) {
+          lines.push({
+            account_id: cd.gl_expense_account_id,
+            debit: cd.employer_amount,
+            credit: 0,
+            description: `${runLabel} - Employer ${cd.label}`,
+            contact_id: null,
+          });
+          lines.push({
+            account_id: cd.gl_liability_account_id,
+            debit: 0,
+            credit: cd.employer_amount,
+            description: `${runLabel} - Employer ${cd.label} Payable`,
+            contact_id: null,
+          });
+        }
+      }
+    }
+
     // CR: Net Salary Payable
     lines.push({
       account_id: netSalaryPayable,
