@@ -228,8 +228,17 @@ Deno.serve(async (req) => {
     }
 
 
-    // ─── Resolve accounts — EXPLICIT ONLY ───
-    const resolveAccount = (key: string): string | null => mappingsMap[key] || null;
+    // ─── Resolve accounts — effective-dated bindings (authoritative) ───
+    // `bindingMap` is populated below via `resolve_default_account_binding`,
+    // which honours the branch → business → org cascade AND the temporal
+    // window in effect at the run's pay-period end. A re-post of a historical
+    // run therefore resolves the account that was mapped *then*, not today's.
+    // The flat `default_account_settings` map is the migration-safety fallback
+    // used only when no binding row resolves. The sync trigger keeps the two
+    // in lock-step, so the fallback is inert in steady state.
+    const bindingMap: Record<string, string> = {};
+    const resolveAccount = (key: string): string | null =>
+      bindingMap[key] || mappingsMap[key] || null;
 
     // ─── Aggregate from payslip_lines (authoritative source) ───
     // We compute needed mapping keys from the actual lines THIS run produced,
@@ -355,6 +364,37 @@ Deno.serve(async (req) => {
       }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ─── Populate the effective-dated binding map (authoritative) ───
+    // Resolve every mapping key this run could reference through the temporal
+    // binding resolver, using the run's pay-period end as the `as_of` instant
+    // and the run's branch (when present) for the branch → business → org
+    // cascade. Keys that resolve here override the flat fallback in
+    // `resolveAccount`. The key universe is the union of the flat table keys
+    // and the required keys the run needs, so nothing is missed.
+    {
+      const asOf = payrollRun.pay_period_end
+        ? new Date(`${payrollRun.pay_period_end}T23:59:59Z`).toISOString()
+        : new Date().toISOString();
+      const branchId = (payrollRun as any).branch_id ?? null;
+      const keyUniverse = new Set<string>([
+        ...Object.keys(mappingsMap),
+        ...((requiredRows || []) as any[]).map((r) => r.setting_key as string),
+      ]);
+      for (const key of keyUniverse) {
+        const { data: acct, error: bindErr } = await supabaseAdmin.rpc(
+          "resolve_default_account_binding",
+          {
+            _setting_key: key,
+            _org_id: organization_id,
+            _business_id: business_id ?? null,
+            _branch_id: branchId,
+            _as_of: asOf,
+          },
+        );
+        if (!bindErr && acct) bindingMap[key] = acct as string;
+      }
     }
 
     const missingMappings = ((requiredRows || []) as any[])
