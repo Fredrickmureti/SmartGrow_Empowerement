@@ -67,6 +67,7 @@ export default function TalentApp() {
         <Route path="merit"              element={guarded("Merit & Compensation", <MeritPage />)} />
         <Route path="learning/paths"     element={guarded("Learning Paths", <LearningPathsPage />)} />
         <Route path="quizzes"            element={guarded("Quiz Authoring", <QuizAuthorPage />)} />
+        <Route path="settings"           element={guarded("Talent Settings", <TalentSettingsPage />)} />
         <Route path="*"                  element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PlatformShell>
