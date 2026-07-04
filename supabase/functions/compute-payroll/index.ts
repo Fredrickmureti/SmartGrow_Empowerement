@@ -1876,6 +1876,12 @@ Deno.serve(async (req) => {
     // structure-deduction/contrib block downstream and for
     // payroll_rule_traces persistence after payslips insert.
     const graphEarningsByEmployee: Record<string, Record<string, number>> = {};
+    // Phase C — per-employee earning-key → accounting_tag map. Populated
+    // from engine rule outputs (rule.accounting_tag) so post-payroll-gl
+    // can split the salary_expense DR into per-tag buckets. Absent tags
+    // fall through to the generic salary_expense mapping — full backward
+    // compatibility with runs that leave every rule untagged.
+    const graphEarningTagByEmployee: Record<string, Record<string, string | null>> = {};
     const graphDeductionsByEmployee: Record<string, Array<{ code: string; label: string; amount: number }>> = {};
     const graphEmployerByEmployee: Record<string, Array<{ code: string; label: string; amount: number }>> = {};
     const graphTracesByEmployee: Record<string, { structure_id: string; traces: StructureRuleTrace[] }> = {};
