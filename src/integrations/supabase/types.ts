@@ -28850,8 +28850,8 @@ export type Database = {
       }
       payroll_rule_types: {
         Row: {
-          business_id: string | null
           code: string
+          computation_method: string
           created_at: string
           description: string | null
           id: string
@@ -28865,8 +28865,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          business_id?: string | null
           code: string
+          computation_method?: string
           created_at?: string
           description?: string | null
           id?: string
@@ -28880,8 +28880,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          business_id?: string | null
           code?: string
+          computation_method?: string
           created_at?: string
           description?: string | null
           id?: string
@@ -28895,20 +28895,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "payroll_rule_types_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_rule_types_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
           {
             foreignKeyName: "payroll_rule_types_organization_id_fkey"
             columns: ["organization_id"]
