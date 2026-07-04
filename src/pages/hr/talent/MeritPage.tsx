@@ -230,7 +230,16 @@ export default function MeritPage() {
                       <Checkbox checked={r.selected} onCheckedChange={(v) => updateRow(i, { selected: !!v })} />
                     </TableCell>
                     <TableCell className="font-medium">{r.employee_name}</TableCell>
-                    <TableCell>{r.final_rating ?? "—"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <span>{r.final_rating ?? "—"}</span>
+                        {r.review_id ? (
+                          <Badge variant="outline" className="text-[10px] font-normal px-1.5 py-0">
+                            From review
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Input type="number" disabled={locked} className="w-28" value={r.current_salary}
                         onChange={(e) => updateRow(i, { current_salary: Number(e.target.value) })} />
