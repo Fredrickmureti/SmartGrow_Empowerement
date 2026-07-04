@@ -7002,6 +7002,7 @@ export type Database = {
           required_level: number | null
           self_comment: string | null
           self_level: number | null
+          source: string | null
           status: string
           updated_at: string
         }
@@ -7019,6 +7020,7 @@ export type Database = {
           required_level?: number | null
           self_comment?: string | null
           self_level?: number | null
+          source?: string | null
           status?: string
           updated_at?: string
         }
@@ -7036,6 +7038,7 @@ export type Database = {
           required_level?: number | null
           self_comment?: string | null
           self_level?: number | null
+          source?: string | null
           status?: string
           updated_at?: string
         }
@@ -57392,6 +57395,21 @@ export type Database = {
         }[]
       }
       _talent_guard_on: { Args: never; Returns: boolean }
+      _talent_notify: {
+        Args: {
+          _biz: string
+          _entity_id: string
+          _entity_type: string
+          _kind: string
+          _link: string
+          _message: string
+          _org: string
+          _priority?: number
+          _title: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
       _timesheet_can_approve: {
         Args: { _allow_self: boolean; _employee_id: string; _uid: string }
         Returns: boolean
@@ -66230,6 +66248,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      talent_devplan_item_complete: {
+        Args: { _item_id: string }
+        Returns: {
+          competency_id: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          enrollment_id: string | null
+          goal_id: string | null
+          id: string
+          item_type: string
+          organization_id: string
+          plan_id: string
+          progress_pct: number
+          sort_order: number
+          status: string
+          title: string
+          training_course_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "development_plan_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      talent_emit_due_notifications: { Args: never; Returns: number }
       talent_merit_apply: {
         Args: { _ids: string[] }
         Returns: {
