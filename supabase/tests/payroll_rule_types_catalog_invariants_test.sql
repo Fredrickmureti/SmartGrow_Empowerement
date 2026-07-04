@@ -35,7 +35,9 @@ BEGIN
 END $$;
 
 DO $$
-DECLARE v_check text;
+DECLARE
+  v_check text;
+  v_method text;
 BEGIN
   SELECT pg_get_constraintdef(c.oid) INTO v_check
   FROM pg_constraint c
@@ -45,14 +47,12 @@ BEGIN
   IF v_check IS NULL THEN
     RAISE EXCEPTION 'payroll_rule_types_computation_method_chk is missing';
   END IF;
-  FOR method IN
-    SELECT unnest(ARRAY[
-      'flat_amount','percentage_of_gross','bracket_progressive',
-      'tiered_brackets','graduated_table','per_employee_flat'
-    ])
-  LOOP
-    IF position(quote_literal(method) IN v_check) = 0 THEN
-      RAISE EXCEPTION 'CHECK % missing allowed method %', v_check, method;
+  FOREACH v_method IN ARRAY ARRAY[
+    'flat_amount','percentage_of_gross','bracket_progressive',
+    'tiered_brackets','graduated_table','per_employee_flat'
+  ] LOOP
+    IF position(quote_literal(v_method) IN v_check) = 0 THEN
+      RAISE EXCEPTION 'CHECK % missing allowed method %', v_check, v_method;
     END IF;
   END LOOP;
 END $$;
