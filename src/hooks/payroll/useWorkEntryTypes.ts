@@ -70,6 +70,30 @@ export function useWorkEntryTypes() {
     },
   });
 
+  // Operational intelligence per WET — rows/employees used in the last 90d,
+  // rules referencing worked_hours['CODE'], and leave types routing here.
+  const { data: impact = {} } = useQuery({
+    queryKey: ["payroll-wet-impact", currentOrg?.id, currentBusiness?.id],
+    enabled: !!currentOrg?.id,
+    queryFn: async (): Promise<Record<string, WorkEntryTypeImpact>> => {
+      const { data, error } = await supabase.rpc("wet_impact_metrics" as any, {
+        _org_id: currentOrg!.id,
+        _business_id: currentBusiness?.id ?? null,
+      });
+      if (error) throw error;
+      const map: Record<string, WorkEntryTypeImpact> = {};
+      for (const row of (data ?? []) as any[]) {
+        map[row.work_entry_type_id] = {
+          rowsLast90d: Number(row.rows_last_90d ?? 0),
+          employeesLast90d: Number(row.employees_last_90d ?? 0),
+          rulesReferencing: Number(row.rules_referencing ?? 0),
+          leaveTypesRouted: Number(row.leave_types_routed ?? 0),
+        };
+      }
+      return map;
+    },
+  });
+
   const upsert = useMutation({
     mutationFn: async (input: WorkEntryTypeInput & { id?: string }) => {
       if (!currentOrg?.id) throw new Error("No organization");
@@ -185,5 +209,12 @@ export function useWorkEntryTypes() {
     onError: (e: any) => toast.error(normalizeError(e).message ?? "Archive failed"),
   });
 
-  return { types, isLoading, upsert, overrideFromPack, archive };
+  return { types, impact, isLoading, upsert, overrideFromPack, archive };
+}
+
+export interface WorkEntryTypeImpact {
+  rowsLast90d: number;
+  employeesLast90d: number;
+  rulesReferencing: number;
+  leaveTypesRouted: number;
 }
