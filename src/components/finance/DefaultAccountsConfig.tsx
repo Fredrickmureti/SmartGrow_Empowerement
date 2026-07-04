@@ -770,6 +770,23 @@ export function DefaultAccountsConfig() {
           </Alert>
         )}
 
+        <Alert className="border-primary/30 bg-primary/5">
+          <Info className="h-4 w-4" />
+          <AlertDescription className="text-foreground">
+            Payroll-specific GL mappings (salary expense, PAYE payable, employer
+            contributions, net-salary clearing, statutory remittances) are
+            managed on the dedicated{" "}
+            <a
+              href="/hr/payroll/account-mapping"
+              className="font-medium underline underline-offset-2"
+            >
+              Payroll → Account Mapping
+            </a>{" "}
+            page, which enforces role/type guards, pack provenance, and posting
+            simulation.
+          </AlertDescription>
+        </Alert>
+
         <div className="space-y-6">
           {["core", "tax", "advanced", "payment_methods"].map(group => renderGroup(group))}
         </div>
