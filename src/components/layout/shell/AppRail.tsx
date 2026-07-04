@@ -2,12 +2,16 @@
  * AppRail — left rail listing installed apps.
  *
  * Collapsible: narrow icon-only mode (w-14) or expanded mode (w-52) that
- * shows app names next to their icons. Mirrors WorkspaceSidebar's collapse
- * pattern for feature-parity. State persisted in localStorage.
+ * shows app names next to their icons. Toggle sits at the top of the rail.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LayoutGrid, Home, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  LayoutGrid,
+  Home,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -19,7 +23,6 @@ import { useAppNavigation } from "@/hooks/useAppNavigation";
 import type { AppDefinition } from "@/lib/apps/types";
 
 interface AppRailProps {
-  /** The app currently rendered (for active-state). */
   currentApp: AppDefinition;
 }
 
@@ -64,11 +67,40 @@ export function AppRail({ currentApp }: AppRailProps) {
       <aside
         aria-label="Apps"
         className={cn(
-          "hidden md:flex h-screen sticky top-0 shrink-0 flex-col border-r border-border bg-sidebar py-2 z-40 transition-[width] duration-200",
+          "hidden md:flex h-screen sticky top-0 shrink-0 flex-col border-r border-border bg-sidebar z-40 transition-[width] duration-200",
           collapsed ? "w-14 items-center" : "w-52",
         )}
       >
-        <div className={cn("w-full", collapsed ? "px-0 flex justify-center" : "px-2")}>
+        {/* Header: toggle */}
+        <div
+          className={cn(
+            "flex h-12 items-center border-b border-border w-full shrink-0",
+            collapsed ? "justify-center px-0" : "justify-between px-2",
+          )}
+        >
+          {!collapsed && (
+            <span className="text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 pl-1">
+              Apps
+            </span>
+          )}
+          {maybeTooltip(
+            collapsed ? "Expand app rail" : "Collapse app rail",
+            <button
+              type="button"
+              onClick={() => setCollapsed((c) => !c)}
+              aria-label={collapsed ? "Expand app rail" : "Collapse app rail"}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </button>,
+          )}
+        </div>
+
+        <div className={cn("w-full pt-2", collapsed ? "px-0 flex justify-center" : "px-2")}>
           {maybeTooltip(
             "Home",
             <button
@@ -130,7 +162,7 @@ export function AppRail({ currentApp }: AppRailProps) {
           })}
         </nav>
 
-        <div className={cn("w-full", collapsed ? "px-0 flex justify-center" : "px-2")}>
+        <div className={cn("w-full pb-2", collapsed ? "px-0 flex justify-center" : "px-2")}>
           {maybeTooltip(
             "All apps",
             <button
@@ -146,27 +178,6 @@ export function AppRail({ currentApp }: AppRailProps) {
               {!collapsed && <span className="text-sm truncate">All apps</span>}
             </button>,
           )}
-        </div>
-
-        <div className={cn("mt-1 w-full", collapsed ? "px-0 flex justify-center" : "px-2")}>
-          <button
-            type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? "Expand app rail" : "Collapse app rail"}
-            className={cn(
-              "inline-flex items-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors",
-              collapsed ? "h-8 w-8 justify-center" : "h-8 w-full gap-2 px-2",
-            )}
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4 shrink-0" />
-            ) : (
-              <>
-                <ChevronLeft className="h-4 w-4 shrink-0" />
-                <span className="text-xs truncate">Collapse</span>
-              </>
-            )}
-          </button>
         </div>
       </aside>
     </TooltipProvider>
