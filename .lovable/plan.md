@@ -1,87 +1,44 @@
-# Talent Subsystem — Implementation Status
+# Fix: App rail is icons-only and cannot expand
 
-## Verified state (this session, audit-verified)
+## Verdict
 
-### Phase 2 — Notification completeness (SHIPPED — verified)
-- `_talent_notify` + client `notifyTalentBulk`/`notifyTalent` present.
-- `talent_merit_apply`, `talent_calibration_apply_adjustment`,
-  `talent_place_on_nine_box`, `talent_quiz_grade` all notify atomically.
-- `talent_emit_due_notifications` scheduled every 15 min via
-  `cron.schedule('talent-due-notifications', ...)` — reissued idempotently
-  in this session so remixed projects also get it.
+Confirmed. There are two side navigation panels:
 
-### Phase 4 — Reviews (SHIPPED — verified)
-- `review_responses` goal-linked prefill, "From goal" chip.
+1. **`AppRail`** (`src/components/layout/shell/AppRail.tsx`) — the outer 56px rail listing installed apps. Hard-coded to `w-14`, icons only, discovery relies entirely on hover tooltips. No expand affordance.
+2. **`WorkspaceSidebar`** (`src/components/layout/shell/WorkspaceSidebar.tsx`) — the inner per-app submodule panel. Already has a collapse toggle with `w-14` ↔ `w-60`, state persisted in `localStorage` under `lov:workspace-sidebar:collapsed`.
 
-### Phase 5 — Skill inventory truth (SHIPPED — verified)
-- `competency_assessments.source`, unique `(employee_id, competency_id)`,
-  quiz uplift with `GREATEST` guard, `talent_devplan_item_complete` RPC.
+Both are rendered side-by-side in `PlatformShell` (lines 150–151). The asymmetry is real: submodules expand, apps don't.
 
-### Phase 6 — Governance & configurable defaults (SHIPPED this session)
-- `public.talent_settings` — one row per organization holding review-scale
-  defaults, `merit_requires_approval`,
-  `calibration_requires_approval`, `devplan_activation_requires_approval`,
-  reminder cadences (1:1 hours, action item days, goal check-in days),
-  HiPo thresholds, `require_manager_ack_on_review`, `auto_close_cycles`.
-- Read RLS open to any org user (feeds client-side branching); write RLS
-  gated to admin / owner / super_admin.
-- Seeded for every existing org; trigger seeds on future `organizations`
-  inserts. `default_competency_scale_id` populated when a default
-  competency scale exists.
-- `_competency_scale_seed` trigger on `organizations`: every new org gets
-  a "Standard 5-point" competency scale (Novice/Developing/Proficient/
-  Advanced/Expert) and the corresponding pointer wired into
-  `talent_settings`. Backfilled for existing orgs missing a scale.
-- `talent_emit_due_notifications` extended to:
-  - honor `oneonone_reminder_hours` (default 24) as the 1:1 look-ahead;
-  - emit `oneonone.action_item` reminders for open normalized action
-    items whose `due_date` falls within `action_item_reminder_days`.
-- Client: `useTalentSettings` hook (read + mutate) and new
-  `/hr/talent/settings` page (routed via `TalentRoutes`).
+## What to change
 
-### Phase 7 — Duplication (mostly SHIPPED, tail SHIPPED this session)
-- `src/lib/talent/employeeGraph.ts` in use by `useTalent` and
-  `useDevelopmentPlans`.
-- **Tail shipped this session:** `public.oneonone_action_items` table
-  normalizes the old JSONB list into first-class rows (with owner, due
-  date, status, completed_at, RLS mirroring 1:1 participants). Backfilled
-  from the JSONB column; JSONB column retained for one release as a
-  compatibility fallback. `useOneOnOne` now reads/writes the new table
-  via a per-row diff (insert/update/delete) and merges the result into
-  the meeting shape so existing UI keeps working.
+Bring the AppRail to feature-parity with WorkspaceSidebar's collapse pattern, keeping it visually the outer rail (a bit narrower than the submodule panel when expanded so the hierarchy still reads correctly).
 
-### Phase 8 — Succession & 9-box lifecycle (SHIPPED — verified)
-- HiPo cell → `employee_lifecycle_events` (`event_kind=hipo_designated`).
-- Successors `readiness=ready_now` trigger fires
-  `event_kind=succession_ready`.
-- "Create requisition" CTA on Succession page.
+### AppRail changes
 
-## Remaining (deferred)
+- Add `collapsed` state, persisted in `localStorage` under `lov:app-rail:collapsed`. Default: collapsed (preserves current density).
+- Widths: `w-14` when collapsed (unchanged), `w-52` when expanded (narrower than the 60-unit submodule panel).
+- When expanded:
+  - Show app name to the right of each icon (`truncate`, brand-color accent bar unchanged).
+  - Show "Home" and "All apps" labels next to their icons.
+  - Drop the tooltip (label is now visible) — keep tooltips only in collapsed mode.
+- Add a bottom toggle button (chevron-left / chevron-right), mirroring `WorkspaceSidebar`'s toggle position and styling for consistency.
+- Keep the accent bar, active state, sort order, and platform-app filter untouched.
+- Keep the outer `<aside>` sticky/full-height as today.
 
-- **Phase 6.2 approval-workflow binding UI.** The governance flags exist
-  in `talent_settings`; wiring `useCalibration.apply` and dev-plan
-  activation to submit an `approval_requests` row and read from the
-  existing approval-history UI is the next natural increment. Deferred
-  because it is the highest-regression change and warrants its own pass
-  (per-role approvers, dispatcher RPC to run the underlying apply RPC
-  once approved). Internal merit workflow already satisfies audit.
+### No other files change
 
-## Shipped this session (tail)
+`PlatformShell` composes the two side-by-side already; both being flex children of the same row means the layout absorbs the extra width automatically. The main content area uses `flex-1` and doesn't need adjustment.
 
-- Dropped `one_on_ones.action_items` JSONB column and rebuilt
-  `one_on_ones_visible` view without it. `useOneOnOne` already reads
-  from the normalized `oneonone_action_items` table and re-projects it
-  onto `meeting.action_items` for UI compatibility.
+## Out of scope
 
-## Migrations added this session
+- No changes to WorkspaceSidebar behavior, storage key, or defaults.
+- No change to mobile behavior (rail remains `hidden md:flex`).
+- No redesign of tooltips, colors, or icon sizes.
+- No routing changes.
 
-- `talent_settings` table + RLS + backfill + org-insert trigger.
-- `oneonone_action_items` table + RLS + backfill from JSONB.
-- Default competency scale backfill + `organizations` insert trigger.
-- Rewrite of `talent_emit_due_notifications` to honor settings and
-  emit action item reminders.
+## Technical details
 
-## Non-migration DB changes
-
-- Reissued `cron.schedule('talent-due-notifications', '*/15 * * * *', …)`
-  after unscheduling any prior copy.
+- File touched: `src/components/layout/shell/AppRail.tsx` only.
+- New imports: `useState`, `useEffect`, `ChevronLeft`, `ChevronRight` from lucide-react.
+- `TooltipProvider` stays; tooltips render conditionally based on `collapsed`.
+- SSR-safe localStorage read (guard with `typeof window !== "undefined"`), matching the pattern already used in `WorkspaceSidebar`.
