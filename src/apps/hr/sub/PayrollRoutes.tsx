@@ -94,7 +94,9 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           <Route path="configuration/accounts" element={gate(<LazyRoute module="GL Account Mapping"><AccountMapping /></LazyRoute>, "managePayroll")} />
           <Route path="configuration/loan-types" element={gate(<LazyRoute module="Loan Types"><LoanTypesSettings /></LazyRoute>, "managePayroll")} />
           <Route path="configuration/work-entry-types" element={gate(<LazyRoute module="Work Entry Types"><WorkEntryTypes /></LazyRoute>, "managePayroll")} />
-          <Route path="configuration/deduction-types" element={gate(<LazyRoute module="Custom Deduction Types"><CustomDeductionTypes /></LazyRoute>, "manageStatutoryRules")} />
+          <Route path="configuration/rule-types" element={gate(<LazyRoute module="Rule Type Definitions"><CustomDeductionTypes /></LazyRoute>, "manageStatutoryRules")} />
+          {/* Legacy path — redirect to preserve any existing bookmarks/links. */}
+          <Route path="configuration/deduction-types" element={<Navigate to="/hr/payroll/configuration/rule-types" replace />} />
           <Route path="loans"                element={gate(<LazyRoute module="Employee Loans"><EmployeeLoans /></LazyRoute>, "manageEmployeeLoans")} />
           <Route path="statutory-rules"      element={gate(<LazyRoute module="Statutory Rules"><PayrollStatutoryRules /></LazyRoute>, "manageStatutoryRules")} />
           <Route path="garnishments"         element={gate(<LazyRoute module="Garnishments"><Garnishments /></LazyRoute>, "managePayroll")} />
