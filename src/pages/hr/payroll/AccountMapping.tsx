@@ -70,9 +70,21 @@ import {
   AlertTriangle,
   History,
   ChevronRight,
+  Undo2,
 } from "lucide-react";
 import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMappingFindingsPanel";
 import { formatDistanceToNow } from "date-fns";
+
+const SOURCE_META: Record<
+  PayrollMappingSource,
+  { label: string; tone: "ok" | "warn" | "hint" | "neutral" | "danger" }
+> = {
+  pack_default: { label: "Pack default", tone: "ok" },
+  pack_upgrade: { label: "Pack upgrade", tone: "hint" },
+  tenant_override: { label: "Override", tone: "warn" },
+  manual: { label: "Manual", tone: "neutral" },
+  system_seed: { label: "System", tone: "neutral" },
+};
 
 interface AccountOpt {
   id: string;
