@@ -59,18 +59,19 @@
 ## Remaining (deferred)
 
 - **Phase 6.2 approval-workflow binding UI.** The governance flags exist
-  in `talent_settings`; wiring `useMerit.apply`, `useCalibration.apply`,
-  and dev-plan activation to submit an `approval_requests` row and read
-  from the existing approval-history UI is the next natural increment.
-  Deferred because it is the highest-regression change and warrants its
-  own pass (mock, per-role approvers, dispatcher RPC to run the underlying
-  apply RPC once approved). The existing internal merit workflow
-  (propose → approve → apply) already satisfies audit for merit; only
-  calibration adjustments + dev-plan activation lack an explicit approval
-  step today.
-- **Drop of `one_on_ones.action_items` JSONB column.** Kept for one
-  release as a fallback; scheduled removal migration after consumers are
-  confirmed off the JSONB path.
+  in `talent_settings`; wiring `useCalibration.apply` and dev-plan
+  activation to submit an `approval_requests` row and read from the
+  existing approval-history UI is the next natural increment. Deferred
+  because it is the highest-regression change and warrants its own pass
+  (per-role approvers, dispatcher RPC to run the underlying apply RPC
+  once approved). Internal merit workflow already satisfies audit.
+
+## Shipped this session (tail)
+
+- Dropped `one_on_ones.action_items` JSONB column and rebuilt
+  `one_on_ones_visible` view without it. `useOneOnOne` already reads
+  from the normalized `oneonone_action_items` table and re-projects it
+  onto `meeting.action_items` for UI compatibility.
 
 ## Migrations added this session
 
