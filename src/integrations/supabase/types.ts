@@ -9859,6 +9859,93 @@ export type Database = {
         }
         Relationships: []
       }
+      default_account_setting_bindings: {
+        Row: {
+          account_id: string
+          branch_id: string | null
+          business_id: string | null
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          organization_id: string
+          origin_pack_id: string | null
+          origin_pack_version: string | null
+          overridden_by: string | null
+          override_reason: string | null
+          setting_key: string
+          source: string
+        }
+        Insert: {
+          account_id: string
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          organization_id: string
+          origin_pack_id?: string | null
+          origin_pack_version?: string | null
+          overridden_by?: string | null
+          override_reason?: string | null
+          setting_key: string
+          source?: string
+        }
+        Update: {
+          account_id?: string
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          organization_id?: string
+          origin_pack_id?: string | null
+          origin_pack_version?: string | null
+          overridden_by?: string | null
+          override_reason?: string | null
+          setting_key?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "default_account_setting_bindings_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "default_account_setting_bindings_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "default_account_setting_bindings_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "default_account_setting_bindings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "default_account_setting_bindings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       default_account_settings: {
         Row: {
           account_id: string
@@ -64795,6 +64882,16 @@ export type Database = {
             }
             Returns: string
           }
+      resolve_default_account_binding: {
+        Args: {
+          _as_of?: string
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+          _setting_key: string
+        }
+        Returns: string
+      }
       resolve_fefo_lots: {
         Args: {
           p_business_id: string
