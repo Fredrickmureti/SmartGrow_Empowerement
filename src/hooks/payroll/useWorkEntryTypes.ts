@@ -112,6 +112,22 @@ export function useWorkEntryTypes() {
   const overrideFromPack = useMutation({
     mutationFn: async (packDefault: WorkEntryType) => {
       if (!currentOrg?.id || !currentBusiness?.id) throw new Error("Select a company");
+      // Guard against the classic "override already exists" 409 by checking
+      // for an existing tenant row up-front. If one is present we surface a
+      // clear message instead of a unique-violation.
+      const { data: existing, error: findErr } = await supabase
+        .from("payroll_work_entry_types" as any)
+        .select("id")
+        .eq("organization_id", currentOrg.id)
+        .eq("business_id", currentBusiness.id)
+        .eq("code", packDefault.code)
+        .maybeSingle();
+      if (findErr) throw findErr;
+      if (existing) {
+        const err: any = new Error("An override for this code already exists — edit the tenant copy instead.");
+        err.code = "OVERRIDE_EXISTS";
+        throw err;
+      }
       const { error } = await supabase
         .from("payroll_work_entry_types" as any)
         .insert({
@@ -130,13 +146,28 @@ export function useWorkEntryTypes() {
           sequence: packDefault.sequence,
           is_active: packDefault.is_active,
         });
-      if (error) throw error;
+      if (error) {
+        // Postgres unique_violation — the pre-check race lost. Surface a
+        // clear message instead of the generic "conflict" toast.
+        if ((error as any).code === "23505") {
+          const err: any = new Error("An override for this code already exists — edit the tenant copy instead.");
+          err.code = "OVERRIDE_EXISTS";
+          throw err;
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["payroll-work-entry-types"] });
       toast.success("Override created — edit the tenant copy now");
     },
-    onError: (e: any) => toast.error(normalizeError(e).message ?? "Override failed"),
+    onError: (e: any) => {
+      if (e?.code === "OVERRIDE_EXISTS") {
+        toast.info(e.message);
+      } else {
+        toast.error(normalizeError(e).message ?? "Override failed");
+      }
+    },
   });
 
   const archive = useMutation({

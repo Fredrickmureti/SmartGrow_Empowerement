@@ -20551,6 +20551,7 @@ export type Database = {
           second_approval_threshold_days: number | null
           unit: string
           updated_at: string
+          work_entry_type_id: string | null
         }
         Insert: {
           accrual_anchor?: string
@@ -20583,6 +20584,7 @@ export type Database = {
           second_approval_threshold_days?: number | null
           unit?: string
           updated_at?: string
+          work_entry_type_id?: string | null
         }
         Update: {
           accrual_anchor?: string
@@ -20615,6 +20617,7 @@ export type Database = {
           second_approval_threshold_days?: number | null
           unit?: string
           updated_at?: string
+          work_entry_type_id?: string | null
         }
         Relationships: [
           {
@@ -20643,6 +20646,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_types_work_entry_type_id_fkey"
+            columns: ["work_entry_type_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_work_entry_types"
             referencedColumns: ["id"]
           },
         ]
@@ -63776,6 +63786,10 @@ export type Database = {
           included: boolean
           inclusion_reason: string
         }[]
+      }
+      payroll_resolve_wet: {
+        Args: { _business_id: string; _code: string; _org_id: string }
+        Returns: string
       }
       payroll_return_assert_transition: {
         Args: { p_from: string; p_to: string }
