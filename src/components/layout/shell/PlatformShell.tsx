@@ -190,4 +190,114 @@ function PlatformShellBody({
   );
 }
 
+function MobileAppSwitcher({
+  currentApp,
+  onNavigate,
+}: {
+  currentApp: AppDefinition;
+  onNavigate: () => void;
+}) {
+  const navigate = useNavigate();
+  const { availableApps, navigateToApp } = useAppNavigation();
+  const [expanded, setExpanded] = useState(false);
+
+  const apps = useMemo(
+    () =>
+      availableApps
+        .filter((a) => !a.isPlatform)
+        .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)),
+    [availableApps],
+  );
+
+  const CurrentIcon = currentApp.icon;
+
+  return (
+    <div className="border-b border-border bg-sidebar/50 shrink-0">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-sidebar-accent/50 transition-colors"
+        aria-expanded={expanded}
+      >
+        <span
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md shrink-0"
+          style={{ backgroundColor: `${currentApp.color}20`, color: currentApp.color }}
+        >
+          <CurrentIcon className="h-4 w-4" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Current app
+          </div>
+          <div className="text-sm font-semibold text-foreground truncate">
+            {currentApp.name}
+          </div>
+        </div>
+        <span className="text-xs text-muted-foreground shrink-0">
+          {expanded ? "Hide" : "Switch"}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="max-h-64 overflow-y-auto border-t border-border py-1">
+          <button
+            type="button"
+            onClick={() => {
+              navigate("/dashboard");
+              onNavigate();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-sidebar-accent/50"
+          >
+            <Home className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">Home</span>
+          </button>
+          {apps.map((a) => {
+            const Icon = a.icon;
+            const active = a.id === currentApp.id;
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => {
+                  if (!active) navigateToApp(a.id);
+                  onNavigate();
+                }}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-sidebar-accent/50 transition-colors",
+                  active ? "bg-sidebar-accent text-foreground font-medium" : "text-foreground",
+                )}
+              >
+                <Icon
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: active ? a.color : undefined }}
+                />
+                <span className="truncate flex-1 text-left">{a.name}</span>
+                {active && (
+                  <span
+                    className="h-1.5 w-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: a.color }}
+                  />
+                )}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => {
+              navigate("/apps");
+              onNavigate();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/50 border-t border-border mt-1"
+          >
+            <LayoutGrid className="h-4 w-4 shrink-0" />
+            <span className="truncate">All apps</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default PlatformShell;
+
