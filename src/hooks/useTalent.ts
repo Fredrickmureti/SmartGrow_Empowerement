@@ -19,6 +19,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 import { notifyTalent } from "@/lib/talent/notifications";
+import { getManagerFor, displayName } from "@/lib/talent/employeeGraph";
 
 export type CyclePhase =
   | "planning"
