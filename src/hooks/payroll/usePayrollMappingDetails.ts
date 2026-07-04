@@ -18,10 +18,19 @@
  * All queries are scoped by (org, business) and reuse the standard
  * Supabase client (RLS applies).
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { toast } from "sonner";
+import { normalizeError } from "@/services/resilience";
+
+export type PayrollMappingSource =
+  | "pack_default"
+  | "pack_upgrade"
+  | "tenant_override"
+  | "manual"
+  | "system_seed";
 
 export interface PayrollMappedAccount {
   setting_key: string;
@@ -33,6 +42,10 @@ export interface PayrollMappedAccount {
   is_active: boolean;
   is_header: boolean;
   updated_at: string;
+  source: PayrollMappingSource;
+  origin_pack_version: string | null;
+  overridden_at: string | null;
+  override_reason: string | null;
 }
 
 export interface PayrollMappingAuditEntry {
@@ -47,12 +60,15 @@ export interface PayrollMappingAuditEntry {
 export function usePayrollMappingDetails() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const qc = useQueryClient();
 
   const orgId = currentOrg?.id;
   const bizId = currentBusiness?.id;
 
+  const queryKey = ["payroll-mapping-details", orgId, bizId];
+
   const mappedQuery = useQuery({
-    queryKey: ["payroll-mapping-details", orgId, bizId],
+    queryKey,
     enabled: !!orgId && !!bizId,
     staleTime: 30_000,
     queryFn: async (): Promise<Record<string, PayrollMappedAccount>> => {
@@ -60,6 +76,7 @@ export function usePayrollMappingDetails() {
         .from("default_account_settings")
         .select(
           `setting_key, account_id, updated_at,
+           source, origin_pack_version, overridden_at, override_reason,
            accounts:account_id ( id, code, name, account_type, detail_type, is_active, is_header )`,
         )
         .eq("organization_id", orgId!)
@@ -79,15 +96,50 @@ export function usePayrollMappingDetails() {
           is_active: row.accounts.is_active ?? true,
           is_header: row.accounts.is_header ?? false,
           updated_at: row.updated_at,
+          source: (row.source ?? "manual") as PayrollMappingSource,
+          origin_pack_version: row.origin_pack_version ?? null,
+          overridden_at: row.overridden_at ?? null,
+          override_reason: row.override_reason ?? null,
         };
       }
       return out;
     },
   });
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey });
+    qc.invalidateQueries({ queryKey: ["payroll-gl-readiness", orgId, bizId] });
+    qc.invalidateQueries({ queryKey: ["payroll-mapping-history"] });
+  };
+
+  const revertToPackDefault = useMutation({
+    mutationFn: async (settingKey: string) => {
+      if (!orgId || !bizId) throw new Error("Select an organization and business first");
+      const { data, error } = await (supabase as any).rpc(
+        "revert_payroll_mapping_to_pack_default",
+        { _org_id: orgId, _business_id: bizId, _setting_key: settingKey },
+      );
+      if (error) throw error;
+      return data as { setting_key: string; account_id: string };
+    },
+    onSuccess: () => {
+      toast.success("Reverted to pack default");
+      invalidate();
+    },
+    onError: (e: any) => {
+      const msg = normalizeError(e).message || "Could not revert mapping";
+      if (msg.includes("no_pack_default_available")) {
+        toast.error("No pack default available for this key — pick an account manually.");
+      } else {
+        toast.error(msg);
+      }
+    },
+  });
+
   return {
     mappedByKey: mappedQuery.data ?? {},
     isLoading: mappedQuery.isLoading,
+    revertToPackDefault,
   };
 }
 

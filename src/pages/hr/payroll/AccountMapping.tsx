@@ -28,6 +28,7 @@ import {
   usePayrollMappingHistory,
   rankCandidateAccounts,
   type PayrollMappedAccount,
+  type PayrollMappingSource,
 } from "@/hooks/payroll/usePayrollMappingDetails";
 import {
   Card,
@@ -69,9 +70,21 @@ import {
   AlertTriangle,
   History,
   ChevronRight,
+  Undo2,
 } from "lucide-react";
 import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMappingFindingsPanel";
 import { formatDistanceToNow } from "date-fns";
+
+const SOURCE_META: Record<
+  PayrollMappingSource,
+  { label: string; tone: "ok" | "warn" | "hint" | "neutral" | "danger" }
+> = {
+  pack_default: { label: "Pack default", tone: "ok" },
+  pack_upgrade: { label: "Pack upgrade", tone: "hint" },
+  tenant_override: { label: "Override", tone: "warn" },
+  manual: { label: "Manual", tone: "neutral" },
+  system_seed: { label: "System", tone: "neutral" },
+};
 
 interface AccountOpt {
   id: string;
@@ -254,6 +267,7 @@ export function PayrollAccountMappingPage() {
                         <TableHead className="min-w-[220px]">Posting key</TableHead>
                         <TableHead>Required type</TableHead>
                         <TableHead className="min-w-[260px]">Bound account</TableHead>
+                        <TableHead>Source</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Last modified</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -267,6 +281,7 @@ export function PayrollAccountMappingPage() {
                           accounts={accounts}
                           mapped={details.mappedByKey[r.setting_key]}
                           readiness={readiness}
+                          details={details}
                         />
                       ))}
                     </TableBody>
@@ -320,16 +335,44 @@ function CoverageChip({
   );
 }
 
+function SourceBadge({
+  source,
+  version,
+}: {
+  source: PayrollMappingSource;
+  version: string | null;
+}) {
+  const meta = SOURCE_META[source] ?? SOURCE_META.manual;
+  const toneCls =
+    meta.tone === "ok"
+      ? "text-emerald-600 border-emerald-600/30"
+      : meta.tone === "warn"
+        ? "text-amber-700 dark:text-amber-400 border-amber-500/30"
+        : meta.tone === "hint"
+          ? "text-blue-700 dark:text-blue-400 border-blue-500/30"
+          : meta.tone === "danger"
+            ? "text-destructive border-destructive/30"
+            : "text-muted-foreground border-border";
+  return (
+    <Badge variant="outline" className={toneCls} title={version ? `pack v${version}` : undefined}>
+      {meta.label}
+      {version ? <span className="ml-1 opacity-70">v{version}</span> : null}
+    </Badge>
+  );
+}
+
 function MappingRow({
   row,
   accounts,
   mapped,
   readiness,
+  details,
 }: {
   row: PayrollGlReadinessRow;
   accounts: AccountOpt[];
   mapped: PayrollMappedAccount | undefined;
   readiness: ReturnType<typeof usePayrollGlReadiness>;
+  details: ReturnType<typeof usePayrollMappingDetails>;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -397,6 +440,14 @@ function MappingRow({
           )}
         </TableCell>
         <TableCell className="align-top">
+          {mapped ? <SourceBadge source={mapped.source} version={mapped.origin_pack_version} /> : <span className="text-xs text-muted-foreground">—</span>}
+          {mapped?.overridden_at && (
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              overridden {formatDistanceToNow(new Date(mapped.overridden_at), { addSuffix: true })}
+            </div>
+          )}
+        </TableCell>
+        <TableCell className="align-top">
           {boundDead ? (
             <Badge variant="destructive" className="gap-1">
               <AlertTriangle className="h-3 w-3" />
@@ -420,6 +471,20 @@ function MappingRow({
         </TableCell>
         <TableCell className="align-top text-right">
           <div className="flex flex-wrap items-center justify-end gap-1">
+            {mapped?.source === "tenant_override" && (
+              <Button
+                size="sm"
+                variant="outline"
+                title="Revert this mapping to the localization pack's suggested account"
+                disabled={details.revertToPackDefault.isPending}
+                onClick={() =>
+                  details.revertToPackDefault.mutate(row.setting_key)
+                }
+              >
+                <Undo2 className="mr-1 h-3.5 w-3.5" />
+                Revert
+              </Button>
+            )}
             {row.suggested_account_id && !isMapped && (
               <Button
                 size="sm"
@@ -518,7 +583,7 @@ function MappingRow({
       </TableRow>
       {creating && (
         <TableRow>
-          <TableCell colSpan={6} className="bg-muted/30">
+          <TableCell colSpan={7} className="bg-muted/30">
             <div className="flex flex-wrap items-center gap-2 py-1">
               <span className="text-xs text-muted-foreground">
                 New {row.required_account_type} account for “{row.label}”:
