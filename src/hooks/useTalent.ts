@@ -420,18 +420,14 @@ export function useTalentGoal(goalId?: string) {
       if (insErr) throw insErr;
 
       // Notify manager (resolve via employees.manager_id → manager employee → user_id).
-      const { data: emp } = await supabase
-        .from("v_employees_canonical")
-        .select("manager_id, first_name, last_name")
-        .eq("id", goal.employee_id)
-        .maybeSingle();
+      const emp = await getManagerFor(goal.employee_id);
       if (emp?.manager_id) {
         await notifyTalent({
           organizationId: goal.organization_id,
           employeeId: emp.manager_id,
           kind: "goal.updated",
           title: "Goal check-in submitted",
-          message: `${emp.first_name ?? ""} ${emp.last_name ?? ""} updated "${goal.title}" to ${patch.progress_pct}%`,
+          message: `${displayName(emp)} updated "${goal.title}" to ${patch.progress_pct}%`,
           link: `/hr/talent/goals/${goal.id}`,
           entityType: "performance_goal",
           entityId: goal.id,
