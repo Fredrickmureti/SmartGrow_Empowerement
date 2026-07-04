@@ -92,13 +92,14 @@ export default function WorkEntryTypes() {
       accounting_tag: t.accounting_tag,
       sequence: t.sequence,
       is_active: t.is_active,
+      version: t.version,
     });
     setOpen(true);
   }
 
   function handleSave() {
     upsert.mutate(
-      editing ? { ...form, id: editing.id } : form,
+      editing ? { ...form, id: editing.id, version: editing.version } : form,
       { onSuccess: () => setOpen(false) },
     );
   }
