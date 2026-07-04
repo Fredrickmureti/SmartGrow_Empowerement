@@ -33,6 +33,7 @@ const TalentAnalyticsPage = lazy(() => import("@/pages/hr/talent/TalentAnalytics
 const MeritPage = lazy(() => import("@/pages/hr/talent/MeritPage"));
 const LearningPathsPage = lazy(() => import("@/pages/hr/talent/LearningPathsPage"));
 const QuizAuthorPage = lazy(() => import("@/pages/hr/talent/QuizAuthorPage"));
+const TalentSettingsPage = lazy(() => import("@/pages/hr/talent/TalentSettingsPage"));
 
 const guarded = (mod: string, el: React.ReactNode) => (
   <PermissionProtectedRoute permission="manageEmployees" fallbackPath="/hr/dashboard">
