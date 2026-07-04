@@ -7,6 +7,7 @@ import { useBusinesses } from "./useBusinesses";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
+import { notifyTalent, notifyTalentBulk } from "@/lib/talent/notifications";
 
 export type CycleStatus = "draft" | "open" | "in_progress" | "closed";
 export type ReviewStatus = "not_started" | "in_progress" | "submitted" | "acknowledged";
