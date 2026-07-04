@@ -1,117 +1,86 @@
+# Talent Subsystem — Implementation Status
 
-# Talent Subsystem — Continuation Plan
+## Verified state (this session, audit-verified)
 
-## Audit verification (what I confirmed vs plan file)
+### Phase 2 — Notification completeness (SHIPPED — verified)
+- `_talent_notify` + client `notifyTalentBulk`/`notifyTalent` present.
+- `talent_merit_apply`, `talent_calibration_apply_adjustment`,
+  `talent_place_on_nine_box`, `talent_quiz_grade` all notify atomically.
+- `talent_emit_due_notifications` scheduled every 15 min via
+  `cron.schedule('talent-due-notifications', ...)` — reissued idempotently
+  in this session so remixed projects also get it.
 
-Independent inspection of the code and migrations, not agent notes:
+### Phase 4 — Reviews (SHIPPED — verified)
+- `review_responses` goal-linked prefill, "From goal" chip.
 
-- **Phase 2 (Notifications):** Real. `public._talent_notify` + bulk client helper exist; `talent_merit_apply`, `talent_calibration_apply_adjustment`, `talent_place_on_nine_box`, `talent_quiz_grade` all `PERFORM _talent_notify(...)` inside the same transaction as the write. `talent_emit_due_notifications()` exists and covers goal check-in due + 1:1 reminders. Cron entry claimed but lives outside migrations — I will re-issue it idempotently.
-- **Phase 5 (Skills truth):** Real. `competency_assessments.source`, unique `(employee_id, competency_id)`, `GREATEST`-guarded upsert from quiz, `talent_devplan_item_complete` RPC, `useDevelopmentPlans.updateItem` routing on `status='completed'` — all present.
-- **Phase 8 (Lifecycle events + requisition CTA):** Backend present (HiPo + succession-ready → `employee_lifecycle_events` with `payload.event_kind`). UI CTA claim verified in `SuccessionPage.tsx`.
-- **Phase 7 partial:** `src/lib/talent/employeeGraph.ts` exists and is used from `useTalent.checkIn` + `useDevelopmentPlans.updateItem`.
-- **Genuinely outstanding:** Phase 6 (approvals + `talent_settings` + competency scale seed) and Phase 7 tail (`one_on_ones.action_items` JSONB → dedicated table). No `talent_settings` table exists; no approval-workflow wiring around merit/dev-plan/calibration. `useContinuousPerformance` still reads/writes `one_on_ones.action_items` as raw JSONB.
+### Phase 5 — Skill inventory truth (SHIPPED — verified)
+- `competency_assessments.source`, unique `(employee_id, competency_id)`,
+  quiz uplift with `GREATEST` guard, `talent_devplan_item_complete` RPC.
 
-No shallow/regressed work was found in the shipped phases beyond what the file itself documents. Continuation below.
+### Phase 6 — Governance & configurable defaults (SHIPPED this session)
+- `public.talent_settings` — one row per organization holding review-scale
+  defaults, `merit_requires_approval`,
+  `calibration_requires_approval`, `devplan_activation_requires_approval`,
+  reminder cadences (1:1 hours, action item days, goal check-in days),
+  HiPo thresholds, `require_manager_ack_on_review`, `auto_close_cycles`.
+- Read RLS open to any org user (feeds client-side branching); write RLS
+  gated to admin / owner / super_admin.
+- Seeded for every existing org; trigger seeds on future `organizations`
+  inserts. `default_competency_scale_id` populated when a default
+  competency scale exists.
+- `_competency_scale_seed` trigger on `organizations`: every new org gets
+  a "Standard 5-point" competency scale (Novice/Developing/Proficient/
+  Advanced/Expert) and the corresponding pointer wired into
+  `talent_settings`. Backfilled for existing orgs missing a scale.
+- `talent_emit_due_notifications` extended to:
+  - honor `oneonone_reminder_hours` (default 24) as the 1:1 look-ahead;
+  - emit `oneonone.action_item` reminders for open normalized action
+    items whose `due_date` falls within `action_item_reminder_days`.
+- Client: `useTalentSettings` hook (read + mutate) and new
+  `/hr/talent/settings` page (routed via `TalentRoutes`).
 
-## Scope
+### Phase 7 — Duplication (mostly SHIPPED, tail SHIPPED this session)
+- `src/lib/talent/employeeGraph.ts` in use by `useTalent` and
+  `useDevelopmentPlans`.
+- **Tail shipped this session:** `public.oneonone_action_items` table
+  normalizes the old JSONB list into first-class rows (with owner, due
+  date, status, completed_at, RLS mirroring 1:1 participants). Backfilled
+  from the JSONB column; JSONB column retained for one release as a
+  compatibility fallback. `useOneOnOne` now reads/writes the new table
+  via a per-row diff (insert/update/delete) and merges the result into
+  the meeting shape so existing UI keeps working.
 
-Two focused work streams, both required for enterprise parity with Workday/SuccessFactors-style talent governance:
+### Phase 8 — Succession & 9-box lifecycle (SHIPPED — verified)
+- HiPo cell → `employee_lifecycle_events` (`event_kind=hipo_designated`).
+- Successors `readiness=ready_now` trigger fires
+  `event_kind=succession_ready`.
+- "Create requisition" CTA on Succession page.
 
-1. **Phase 6 — Talent governance & configurable defaults.**
-2. **Phase 7 tail — Normalize 1:1 action items into a first-class entity.**
+## Remaining (deferred)
 
-Everything else described in the audit prompt (cross-module lifecycle, notifications, competency uplift, HiPo/succession, merit → payroll) is already in place from previous phases; I will not re-do it.
+- **Phase 6.2 approval-workflow binding UI.** The governance flags exist
+  in `talent_settings`; wiring `useMerit.apply`, `useCalibration.apply`,
+  and dev-plan activation to submit an `approval_requests` row and read
+  from the existing approval-history UI is the next natural increment.
+  Deferred because it is the highest-regression change and warrants its
+  own pass (mock, per-role approvers, dispatcher RPC to run the underlying
+  apply RPC once approved). The existing internal merit workflow
+  (propose → approve → apply) already satisfies audit for merit; only
+  calibration adjustments + dev-plan activation lack an explicit approval
+  step today.
+- **Drop of `one_on_ones.action_items` JSONB column.** Kept for one
+  release as a fallback; scheduled removal migration after consumers are
+  confirmed off the JSONB path.
 
-## Phase 6 — Governance & settings
+## Migrations added this session
 
-### 6.1 `talent_settings` (per-org defaults)
+- `talent_settings` table + RLS + backfill + org-insert trigger.
+- `oneonone_action_items` table + RLS + backfill from JSONB.
+- Default competency scale backfill + `organizations` insert trigger.
+- Rewrite of `talent_emit_due_notifications` to honor settings and
+  emit action item reminders.
 
-New table `public.talent_settings` (one row per `organization_id`) holding tenant-level defaults that today are hardcoded in RPCs/hooks:
+## Non-migration DB changes
 
-- `default_review_scale_min / max`, `default_competency_scale_id`
-- `merit_requires_approval boolean`, `calibration_requires_approval boolean`, `devplan_activation_requires_approval boolean`
-- `goal_checkin_reminder_days int`, `oneonone_reminder_hours int` (feed `talent_emit_due_notifications`)
-- `hipo_potential_threshold int`, `hipo_performance_threshold int` (feed 9-box HiPo trigger)
-- `require_manager_ack_on_review boolean`, `auto_close_cycles boolean`
-- `updated_by`, `updated_at`
-
-Grants + RLS (org-scoped, HR-manager write, all-org read). `talent_emit_due_notifications`, `talent_place_on_nine_box`, and `talent_devplan_item_complete` read from this table with sane fallbacks so nothing regresses when a row is absent.
-
-Small settings UI on `TalentDashboard` (or new `TalentSettingsPage` under `/hr/talent/settings`) surfaced to HR admins only.
-
-### 6.2 Approval binding
-
-Use the existing `approval_workflows` / `approval_rules` / `approval_requests` tables (already in the schema). Bind three talent transitions:
-
-| Transition                              | Trigger                                    | Requester                     | Approvers                       |
-| --------------------------------------- | ------------------------------------------ | ----------------------------- | ------------------------------- |
-| Merit apply (per employee row)          | `useMerit.apply` when `merit_requires_approval` | Manager submitting            | Skip-level manager → HR         |
-| Development plan activation             | `useDevelopmentPlans.activate`             | Plan owner                    | Employee's manager → HR         |
-| Calibration adjustment apply            | `useCalibration.applyAdjustment`           | Calibration facilitator       | HR business partner             |
-
-Approach:
-
-- Two new server RPCs (SECURITY DEFINER) wrapping the existing "apply" RPCs: `talent_merit_request_approval(_ids uuid[])` and `talent_calibration_request_adjustment(_id uuid)`. Each writes an `approval_requests` row (`entity_type='talent_merit' | 'talent_calibration' | 'talent_devplan_activation'`, `entity_id`, `status='pending'`) and, when settings say approval is not required, calls the existing apply RPC directly (short-circuit).
-- A single `talent_approval_finalize(_request_id uuid)` RPC dispatches on `entity_type` and calls the underlying apply function once approval is granted. The existing generic approval-finalize path (if any) can call this via a dispatcher trigger; otherwise the hooks polling approvals call it explicitly.
-- Frontend: `useMerit`, `useDevelopmentPlans`, `useCalibration` gain a small branch that inspects `talent_settings` and either calls the direct apply RPC (as today) or the request-approval RPC and shows a "Pending approval" state on the row. Approval history renders through the existing approval-history component.
-
-### 6.3 Competency scale seed
-
-Insert a default `competency_scales` row per organization on org create (via a small `AFTER INSERT` trigger on `organizations`, using service-role safe search_path). Rating: 1 Novice → 2 Developing → 3 Proficient → 4 Advanced → 5 Expert. Idempotent; skips organizations that already have any scale. Backfill existing orgs in the same migration.
-
-### 6.4 Cron re-issue
-
-Re-run the `cron.schedule('talent-due-notifications', '*/15 * * * *', ...)` insert idempotently (unschedule-if-exists, then schedule) so remixed projects get it too.
-
-## Phase 7 tail — Normalize 1:1 action items
-
-New table `public.oneonone_action_items`:
-
-- `id uuid pk`
-- `one_on_one_id uuid fk → one_on_ones(id) on delete cascade`
-- `organization_id uuid` (denormalized for RLS/index)
-- `text text not null`
-- `owner` enum (`manager | employee`)
-- `due_date date null`
-- `status` enum (`open | done | cancelled`) default `open`
-- `completed_at`, `created_at`, `updated_at`, `created_by`
-
-Grants + RLS mirroring `one_on_ones`. Migration also backfills existing rows from the JSONB column, then keeps the JSONB column for one release as a compatibility fallback (drop scheduled in the follow-up).
-
-`useContinuousPerformance`:
-
-- Replace the `.update({ action_items })` mutation with per-row insert/update/delete against the new table.
-- Read path returns action items joined by `one_on_one_id` for the same UX contract (shape preserved: `{id, text, owner, due, done}` mapped from the new columns).
-- `talent_emit_due_notifications` still emits `oneonone.action_item` reminders, now reading from the normalized table (indexed on `status='open' AND due_date`).
-
-Downstream `oneonone.action_item` notifications and the /me task surface pick up the change automatically because they only see the mapped shape.
-
-## Technical details
-
-Migrations (each self-contained, `GRANT` blocks included before `ENABLE RLS`):
-
-1. `talent_settings` table + RLS + seed defaults + reader helpers.
-2. Approval-binding RPCs + `talent_approval_finalize` dispatcher, plus small changes to existing apply RPCs to accept a `_bypass_approval boolean default false` (called by the dispatcher).
-3. `oneonone_action_items` table + backfill + RLS + notifications-query update.
-4. `competency_scales` default seed + `AFTER INSERT` trigger on `organizations`.
-
-Frontend:
-
-- `useTalentSettings` hook (read + admin write).
-- New `TalentSettingsPage` (HR admin only) with sections for approvals, reminders, HiPo thresholds, review defaults.
-- `useMerit` / `useDevelopmentPlans` / `useCalibration` gain an `approvalPending` state and pending-badge in their list pages.
-- `useContinuousPerformance` action-item mutations point at the new table.
-
-Ordering (by risk):
-
-1. Phase 6.3 competency scale seed (pure data, no consumers).
-2. Phase 6.1 `talent_settings` (additive, everything falls back if missing).
-3. Phase 6.4 cron re-issue (idempotent).
-4. Phase 7 tail (dual-read window kept for one release).
-5. Phase 6.2 approvals (last, since it changes user-visible flow).
-
-## Non-goals
-
-- No rework of any shipped Phase 2/4/5/8 code.
-- No enum churn on `employee_lifecycle_event_type` — keep the `type='custom' + payload.event_kind` convention already in production.
-- No new UI for the audit report itself; the report above is the deliverable.
+- Reissued `cron.schedule('talent-due-notifications', '*/15 * * * *', …)`
+  after unscheduling any prior copy.
