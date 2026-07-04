@@ -457,7 +457,7 @@ export function useTalentGoal(goalId?: string) {
             employeeId: emp.manager_id,
             kind: "goal.completed",
             title: "Goal completed",
-            message: `${emp.first_name ?? ""} ${emp.last_name ?? ""} completed "${goal.title}".`,
+            message: `${displayName(emp)} completed "${goal.title}".`,
             link: `/hr/talent/goals/${goal.id}`,
             entityType: "performance_goal",
             entityId: goal.id,
