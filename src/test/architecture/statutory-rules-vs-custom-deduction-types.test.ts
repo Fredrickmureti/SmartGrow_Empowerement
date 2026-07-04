@@ -46,10 +46,17 @@ describe("statutory rules ↔ custom deduction types — IA separation", () => {
     expect(statutoryPage).not.toMatch(/<TabsContent value="types"/);
   });
 
-  it("Custom Deduction Types lives at its own route", () => {
-    expect(payrollRoutes).toMatch(/configuration\/deduction-types/);
+  it("Rule Type Definitions live at their own route (with legacy redirect)", () => {
+    // New IA (Slice 1 of the Custom Deduction Types audit): the workspace
+    // is renamed to Rule Type Definitions and lives at /rule-types. The
+    // legacy /deduction-types path must remain as a redirect so existing
+    // bookmarks / links keep working.
+    expect(payrollRoutes).toMatch(/configuration\/rule-types/);
+    expect(payrollRoutes).toMatch(/configuration\/deduction-types.*Navigate/s);
     expect(payrollRoutes).toMatch(/CustomDeductionTypes/);
-    expect(navs).toMatch(/configuration\/deduction-types/);
+    expect(navs).toMatch(/configuration\/rule-types/);
+    // The nav label must no longer misrepresent the surface as a deduction manager.
+    expect(navs).not.toMatch(/"Custom deduction types"/);
   });
 
   it("Custom Deduction Types page does NOT author statutory rules", () => {
