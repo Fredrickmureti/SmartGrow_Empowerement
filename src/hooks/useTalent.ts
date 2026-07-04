@@ -438,6 +438,37 @@ export function useTalentGoal(goalId?: string) {
           priority: 3,
         });
       }
+
+      // Phase 2: fire goal.completed when the check-in transitions the goal to done/100%
+      const isCompleted =
+        input.status === "done" || (patch.progress_pct >= 100 && (input.status ?? goal.status) !== "cancelled");
+      if (isCompleted) {
+        // Notify employee (self-service confirmation) and manager
+        await notifyTalent({
+          organizationId: goal.organization_id,
+          employeeId: goal.employee_id,
+          kind: "goal.completed",
+          title: "Goal completed",
+          message: `You completed "${goal.title}".`,
+          link: `/me/talent/goals/${goal.id}`,
+          entityType: "performance_goal",
+          entityId: goal.id,
+          priority: 2,
+        });
+        if (emp?.manager_id) {
+          await notifyTalent({
+            organizationId: goal.organization_id,
+            employeeId: emp.manager_id,
+            kind: "goal.completed",
+            title: "Goal completed",
+            message: `${emp.first_name ?? ""} ${emp.last_name ?? ""} completed "${goal.title}".`,
+            link: `/hr/talent/goals/${goal.id}`,
+            entityType: "performance_goal",
+            entityId: goal.id,
+            priority: 2,
+          });
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["talent-goal", goalId] });
