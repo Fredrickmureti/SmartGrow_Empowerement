@@ -7,8 +7,10 @@
  * so HR can manage curated groupings separately from formal succession.
  */
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSuccessionPlans, useTalentPools, type Criticality, type SuccessorReadiness, type PoolType, type ReadinessTag } from "@/hooks/useSuccession";
 import { useEmployees } from "@/hooks/useEmployees";
+import { useRequisitions } from "@/hooks/useRecruitment";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TalentFormShell } from "@/components/talent/_shared/TalentFormShell";
 import { WorkflowSheetSection, WorkflowSheetGrid, WorkflowField } from "@/components/workflow/WorkflowSheet";
-import { Crown, Shield, Trash2, UserPlus, Plus } from "lucide-react";
+import { Crown, Shield, Trash2, UserPlus, Plus, Briefcase } from "lucide-react";
 
 const READINESS_LABEL: Record<SuccessorReadiness, string> = {
   ready_now: "Ready now",
@@ -75,6 +77,8 @@ export default function SuccessionPage() {
 function SuccessionPlansTab() {
   const { plans, successors, benchStrength, createPlan, deletePlan, updatePlan, addSuccessor, removeSuccessor, updateSuccessor } = useSuccessionPlans();
   const { employees } = useEmployees();
+  const { createRequisition } = useRequisitions();
+  const navigate = useNavigate();
   const empById = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
   const benchByPlan = useMemo(() => new Map(benchStrength.map((b) => [b.plan_id, b])), [benchStrength]);
   const successorsByPlan = useMemo(() => {
@@ -153,9 +157,32 @@ function SuccessionPlansTab() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeSuccessor.mutate(s.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        {s.readiness === "ready_now" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={async () => {
+                              const name = e ? `${e.first_name} ${e.last_name}` : "successor";
+                              await createRequisition.mutateAsync({
+                                title: plan.role_title,
+                                headcount: 1,
+                                status: "draft",
+                                notes: `Auto-seeded from succession plan — ${name} flagged ready_now for ${plan.role_title}.`,
+                              } as any);
+                              navigate("/hr/recruitment");
+                            }}
+                            disabled={createRequisition.isPending}
+                            title="Create a draft requisition for this role"
+                          >
+                            <Briefcase className="h-3.5 w-3.5 mr-1" /> Create requisition
+                          </Button>
+                        ) : null}
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeSuccessor.mutate(s.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}

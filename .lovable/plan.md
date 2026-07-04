@@ -61,8 +61,10 @@ Progress against the approved continuation plan.
 - **Phase 7** — Normalize `one_on_ones.action_items` JSONB → dedicated
   table; extract `getManagerFor` to `src/lib/talent/employeeGraph.ts`
   and delete four duplicates.
-- **Phase 8 UI** — "Create requisition" CTA on ready-now successors
-  (backend lifecycle events already flowing).
+- **Phase 8 UI** — "Create requisition" CTA on ready-now successors — SHIPPED.
+  Button appears on any successor row where `readiness = 'ready_now'`; seeds
+  a draft `job_requisitions` row (title = plan role, headcount 1, provenance
+  note referencing the successor) and routes to `/hr/recruitment`.
 
 ### Shipped this pass
 - MeritPage "From review" provenance chip next to the rating column
