@@ -30,6 +30,7 @@ import { EmployeeHRSettings } from "@/components/employees/EmployeeHRSettings";
 import { EmployeeLeaveSummary } from "@/components/employees/EmployeeLeaveSummary";
 import { EmployeePayslipHistory } from "@/components/employees/EmployeePayslipHistory";
 import { EmployeePayrollInfo } from "@/components/employees/EmployeePayrollInfo";
+import { EmployeeCustomDeductionsSection } from "@/components/payroll/EmployeeCustomDeductionsSection";
 import { EmployeeDraftBanner } from "@/components/employees/EmployeeDraftBanner";
 import { EmployeeReadinessPanel } from "@/components/payroll/EmployeeReadinessPanel";
 import { EmployeeDocumentsTab } from "@/components/employees/EmployeeDocumentsTab";
@@ -239,6 +240,7 @@ export default function EmployeeProfilePage() {
             <div className="space-y-4">
               {canViewPayrollRuns && <EmployeeReadinessPanel employeeId={employee.id} />}
               {canViewEmpPayroll && <EmployeePayrollInfo employee={employee} />}
+              {canViewEmpPayroll && <EmployeeCustomDeductionsSection employeeId={employee.id} />}
               {canViewPayrollRuns && <EmployeePayslipHistory employeeId={employee.id} />}
             </div>
           )}

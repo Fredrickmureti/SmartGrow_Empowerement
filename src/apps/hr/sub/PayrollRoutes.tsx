@@ -29,6 +29,7 @@ const WorkEntryTypes = lazy(() => import("@/pages/hr/payroll/WorkEntryTypes"));
 const Garnishments = lazy(() => import("@/pages/hr/payroll/Garnishments"));
 const LoanSkipOverrides = lazy(() => import("@/pages/hr/payroll/LoanSkipOverrides"));
 const CustomDeductionTypes = lazy(() => import("@/pages/hr/payroll/CustomDeductionTypes"));
+const CustomDeductions = lazy(() => import("@/pages/hr/payroll/CustomDeductions"));
 
 interface PayrollAppProps {
   surface: "payroll" | "remittances";
@@ -95,6 +96,7 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           <Route path="configuration/loan-types" element={gate(<LazyRoute module="Loan Types"><LoanTypesSettings /></LazyRoute>, "managePayroll")} />
           <Route path="configuration/work-entry-types" element={gate(<LazyRoute module="Work Entry Types"><WorkEntryTypes /></LazyRoute>, "managePayroll")} />
           <Route path="configuration/rule-types" element={gate(<LazyRoute module="Rule Type Definitions"><CustomDeductionTypes /></LazyRoute>, "manageStatutoryRules")} />
+          <Route path="configuration/custom-deductions" element={gate(<LazyRoute module="Custom Deductions"><CustomDeductions /></LazyRoute>, "managePayroll")} />
           {/* Legacy path — redirect to preserve any existing bookmarks/links. */}
           <Route path="configuration/deduction-types" element={<Navigate to="/hr/payroll/configuration/rule-types" replace />} />
           <Route path="loans"                element={gate(<LazyRoute module="Employee Loans"><EmployeeLoans /></LazyRoute>, "manageEmployeeLoans")} />
