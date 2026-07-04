@@ -218,6 +218,8 @@ export function PayrollAccountMappingPage() {
         />
       </div>
 
+      <PayrollGlUpgradeDiffPanel />
+
       <PayrollMappingFindingsPanel />
 
       {readiness.isLoading ? (
