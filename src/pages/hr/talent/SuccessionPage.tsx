@@ -77,6 +77,8 @@ export default function SuccessionPage() {
 function SuccessionPlansTab() {
   const { plans, successors, benchStrength, createPlan, deletePlan, updatePlan, addSuccessor, removeSuccessor, updateSuccessor } = useSuccessionPlans();
   const { employees } = useEmployees();
+  const { createRequisition } = useRequisitions();
+  const navigate = useNavigate();
   const empById = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
   const benchByPlan = useMemo(() => new Map(benchStrength.map((b) => [b.plan_id, b])), [benchStrength]);
   const successorsByPlan = useMemo(() => {
