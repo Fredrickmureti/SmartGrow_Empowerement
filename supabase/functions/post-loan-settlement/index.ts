@@ -181,6 +181,25 @@ Deno.serve(async (req) => {
       })
       .eq("id", loan.id);
 
+    // Phase D: emit a lifecycle event capturing the dual-control decision
+    // (best-effort — never fails the settlement if the table is stripped).
+    try {
+      await admin.from("loan_lifecycle_events").insert({
+        organization_id: loan.organization_id,
+        loan_id: loan.id,
+        event_type: body.write_off ? "written_off" : "settled",
+        actor_user_id: who.user.id,
+        payload: {
+          amount,
+          journal_entry_id: je.id,
+          second_approver_id: body.write_off && lt?.dual_control_writeoff ? body.second_approver_id ?? null : null,
+          write_off_account_source: body.write_off
+            ? (lt?.writeoff_account_id ? "loan_type" : "default_mapping")
+            : null,
+        },
+      });
+    } catch (_) { /* non-fatal */ }
+
     return json({ journal_entry_id: je.id });
   } catch (e) {
     return json({ error: String((e as Error).message ?? e) }, 500);
