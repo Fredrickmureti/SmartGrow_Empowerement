@@ -51,7 +51,7 @@ const METHODS: { value: CustomDeductionComputationMethod; label: string }[] = [
 
 export function CustomDeductionDialog({ open, onOpenChange, editing }: Props) {
   const { create, update } = useCustomDeductionTypeMutations();
-  const { data: accounts = [] } = useAccounts();
+  const { accounts = [] } = useAccounts();
 
   const [form, setForm] = useState<CustomDeductionTypeInput>({
     code: "",
