@@ -39,7 +39,7 @@ const EMPTY: WorkEntryTypeInput = {
 };
 
 export default function WorkEntryTypes() {
-  const { types, isLoading, upsert, overrideFromPack, archive } = useWorkEntryTypes();
+  const { types, impact, isLoading, upsert, overrideFromPack, archive } = useWorkEntryTypes();
   const [editing, setEditing] = useState<WorkEntryType | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<WorkEntryTypeInput>(EMPTY);
@@ -54,6 +54,23 @@ export default function WorkEntryTypes() {
     }
     return Array.from(m.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [types]);
+
+  const kpis = useMemo(() => {
+    let total = 0, overridden = 0, unusedInPeriod = 0, referenced = 0;
+    for (const [, { pack, tenant }] of grouped) {
+      total++;
+      if (tenant) overridden++;
+      const effective = tenant ?? pack!;
+      const meta = impact[effective.id];
+      if (meta) {
+        if (meta.rowsLast90d === 0) unusedInPeriod++;
+        if (meta.rulesReferencing > 0) referenced++;
+      } else {
+        unusedInPeriod++;
+      }
+    }
+    return { total, overridden, unusedInPeriod, referenced };
+  }, [grouped, impact]);
 
   function openCreate() {
     setEditing(null);
@@ -92,12 +109,31 @@ export default function WorkEntryTypes() {
         <div>
           <h1 className="text-2xl font-semibold">Work Entry Types</h1>
           <p className="text-sm text-muted-foreground">
-            Categorise hours flowing into payroll. Pack defaults are read-only — clone to override per company.
+            Classify every unit of time before payroll runs — regular work, overtime, leave, holidays.
+            Pack defaults are shared across companies; use <span className="font-medium">Override</span> to
+            customise for this company.
           </p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" /> New type
         </Button>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total types", value: kpis.total },
+          { label: "Overridden", value: kpis.overridden },
+          { label: "Unused (90d)", value: kpis.unusedInPeriod },
+          { label: "In salary rules", value: kpis.referenced },
+        ].map((k) => (
+          <Card key={k.label}>
+            <CardContent className="py-4">
+              <div className="text-xs text-muted-foreground">{k.label}</div>
+              <div className="text-2xl font-semibold tabular-nums">{k.value}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card>
@@ -123,13 +159,14 @@ export default function WorkEntryTypes() {
                   <TableHead>Worked</TableHead>
                   <TableHead className="text-right">Multiplier (normal / OT)</TableHead>
                   <TableHead>Acct tag</TableHead>
+                  <TableHead className="text-right">Impact (90d)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {grouped.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                       No work entry types yet. Install a localization pack or create your own.
                     </TableCell>
                   </TableRow>
@@ -137,13 +174,14 @@ export default function WorkEntryTypes() {
                 {grouped.map(([code, { pack, tenant }]) => {
                   const effective = tenant ?? pack!;
                   const isPack = !tenant && !!pack;
+                  const meta = impact[effective.id];
                   return (
                     <TableRow key={code} className={!effective.is_active ? "opacity-50" : ""}>
                       <TableCell className="font-mono text-xs">{code}</TableCell>
                       <TableCell>{effective.name}</TableCell>
                       <TableCell>
                         {tenant ? (
-                          <Badge variant="default">Tenant</Badge>
+                          <Badge variant="default">Overridden</Badge>
                         ) : (
                           <Badge variant="secondary">Pack default</Badge>
                         )}
@@ -154,6 +192,22 @@ export default function WorkEntryTypes() {
                         {effective.multiplier_normal} / {effective.multiplier_overtime}
                       </TableCell>
                       <TableCell className="text-xs">{effective.accounting_tag ?? "—"}</TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">
+                        {meta ? (
+                          <div className="flex flex-col items-end leading-tight">
+                            <span>
+                              <span className="font-medium">{meta.rowsLast90d}</span> rows ·{" "}
+                              <span className="font-medium">{meta.employeesLast90d}</span> emp
+                            </span>
+                            <span className="text-muted-foreground">
+                              {meta.rulesReferencing} rule{meta.rulesReferencing === 1 ? "" : "s"}
+                              {meta.leaveTypesRouted > 0 && <> · {meta.leaveTypesRouted} leave</>}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right space-x-1">
                         {isPack ? (
                           <Button

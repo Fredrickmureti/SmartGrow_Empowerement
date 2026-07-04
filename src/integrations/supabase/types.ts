@@ -21863,6 +21863,78 @@ export type Database = {
           },
         ]
       }
+      localization_pack_work_entry_type_templates: {
+        Row: {
+          accounting_tag: string | null
+          code: string
+          color: string | null
+          counts_as_worked: boolean
+          created_at: string
+          description: string | null
+          id: string
+          is_paid: boolean
+          is_unpaid_leave: boolean
+          multiplier_normal: number
+          multiplier_overtime: number
+          name: string
+          pack_id: string
+          pack_version_id: string | null
+          sequence: number
+          updated_at: string
+        }
+        Insert: {
+          accounting_tag?: string | null
+          code: string
+          color?: string | null
+          counts_as_worked?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_paid?: boolean
+          is_unpaid_leave?: boolean
+          multiplier_normal?: number
+          multiplier_overtime?: number
+          name: string
+          pack_id: string
+          pack_version_id?: string | null
+          sequence?: number
+          updated_at?: string
+        }
+        Update: {
+          accounting_tag?: string | null
+          code?: string
+          color?: string | null
+          counts_as_worked?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_paid?: boolean
+          is_unpaid_leave?: boolean
+          multiplier_normal?: number
+          multiplier_overtime?: number
+          name?: string
+          pack_id?: string
+          pack_version_id?: string | null
+          sequence?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "localization_pack_work_entry_type_template_pack_version_id_fkey"
+            columns: ["pack_version_id"]
+            isOneToOne: false
+            referencedRelation: "pack_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "localization_pack_work_entry_type_templates_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "localization_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       localization_packs: {
         Row: {
           country_code: string
@@ -66586,6 +66658,17 @@ export type Database = {
           _user_id?: string
         }
         Returns: string
+      }
+      wet_impact_metrics: {
+        Args: { _business_id: string; _org_id: string }
+        Returns: {
+          code: string
+          employees_last_90d: number
+          leave_types_routed: number
+          rows_last_90d: number
+          rules_referencing: number
+          work_entry_type_id: string
+        }[]
       }
     }
     Enums: {

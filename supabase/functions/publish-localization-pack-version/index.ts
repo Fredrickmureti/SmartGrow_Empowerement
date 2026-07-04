@@ -41,6 +41,7 @@ const PACK_TABLES = [
   "localization_pack_certificate_templates",
   "localization_pack_return_templates",
   "localization_pack_remittance_schedules",
+  "localization_pack_work_entry_type_templates",
   "pack_token_registry",
 ] as const;
 
