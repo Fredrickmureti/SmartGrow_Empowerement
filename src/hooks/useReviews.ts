@@ -515,6 +515,60 @@ export function useReview(reviewId?: string) {
     },
     enabled: !!reviewId,
   });
+  // Goals linked to this review's employee + cycle. Used to render a
+  // "Goals" section in the review form pre-filled from goal.final_rating.
+  const { data: reviewGoals = [] } = useQuery({
+    queryKey: ["review-linked-goals", review?.employee_id, review?.cycle_id],
+    queryFn: async () => {
+      if (!review?.employee_id) return [];
+      let q = (supabase.from("performance_goals") as any)
+        .select("id,title,description,status,progress_pct,final_rating,weight,target_date")
+        .eq("employee_id", review.employee_id);
+      if (review.cycle_id) q = q.eq("cycle_id", review.cycle_id);
+      const { data, error } = await q.order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; title: string; description: string | null;
+        status: string; progress_pct: number;
+        final_rating: number | null; weight: number; target_date: string | null;
+      }>;
+    },
+    enabled: !!review?.employee_id,
+  });
+
+  const saveGoalResponse = useMutation({
+    mutationFn: async (input: { goal_id: string; rating?: number | null; comment?: string | null }) => {
+      if (!review || !currentOrg?.id) throw new Error("No review loaded");
+      const existing = responses.find((r) => r.goal_id === input.goal_id && !r.question_id);
+      if (existing) {
+        const { error } = await (supabase.from("review_responses") as any)
+          .update({ rating: input.rating ?? null, comment: input.comment ?? null })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase.from("review_responses") as any).insert({
+          organization_id: currentOrg.id,
+          review_id: review.id,
+          question_id: null,
+          goal_id: input.goal_id,
+          rating: input.rating ?? null,
+          comment: input.comment ?? null,
+        });
+        if (error) throw error;
+      }
+      if (review.status === "draft") {
+        await (supabase.from("performance_reviews") as any)
+          .update({ status: "in_progress" })
+          .eq("id", review.id);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["review-responses", reviewId] });
+      qc.invalidateQueries({ queryKey: ["performance-review", reviewId] });
+    },
+    onError: (e: any) => toast.error(normalizeError(e).message),
+  });
+
 
   const saveResponse = useMutation({
     mutationFn: async (input: { question_id: string; rating?: number | null; comment?: string | null; goal_id?: string | null }) => {
