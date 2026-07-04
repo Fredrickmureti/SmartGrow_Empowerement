@@ -381,11 +381,15 @@ Deno.serve(async (req) => {
 
     // ─── Populate the effective-dated binding map (authoritative) ───
     // Resolve every mapping key this run could reference through the temporal
-    // binding resolver, using the run's pay-period end as the `as_of` instant
-    // and the run's branch (when present) for the branch → business → org
-    // cascade. Keys that resolve here override the flat fallback in
-    // `resolveAccount`. The key universe is the union of the flat table keys
-    // and the required keys the run needs, so nothing is missed.
+    // binding resolver, using the run's pay-period end as the `as_of` instant.
+    // Keys that resolve here override the flat fallback in `resolveAccount`.
+    // The key universe is the union of the flat table keys and the required
+    // keys the run needs, so nothing is missed.
+    //
+    // The run's branch is passed for cascade completeness, but no branch-scoped
+    // account bindings are ever authored (mapping is HQ/entity-authoritative),
+    // so a branch always resolves to the shared company/entity default. Branch
+    // is a posting dimension on the JE line, not a distinct account.
     {
       const asOf = payrollRun.pay_period_end
         ? new Date(`${payrollRun.pay_period_end}T23:59:59Z`).toISOString()
