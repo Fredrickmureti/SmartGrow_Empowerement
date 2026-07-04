@@ -367,6 +367,28 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // ─── Custom deduction lines (Slice 2): aggregate per deduction_type ───
+      const details = (line.details && typeof line.details === "object") ? line.details as any : null;
+      if (details && details.source === "custom_deduction" && details.deduction_type_id) {
+        const tid = details.deduction_type_id as string;
+        const existing = customDedMap.get(tid);
+        if (existing) {
+          existing.employee_amount += empAmt;
+          existing.employer_amount += erAmt;
+        } else {
+          customDedMap.set(tid, {
+            deduction_type_id: tid,
+            code: (key || "").replace(/^custom_/, ""),
+            label: line.label || key,
+            employee_amount: empAmt,
+            employer_amount: erAmt,
+            gl_liability_account_id: details.gl_liability_account_id ?? null,
+            gl_expense_account_id: details.gl_expense_account_id ?? null,
+          });
+        }
+        continue;
+      }
+
       if (!key) continue;
       const isDed = DEDUCTION_CATEGORIES.has(cat) && empAmt > 0;
       const isEr = EMPLOYER_CATEGORIES.has(cat) && erAmt > 0;
