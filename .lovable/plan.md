@@ -1,156 +1,165 @@
+# Work Entry Types — Enterprise Payroll Architecture Review & Remediation
 
-# Loan Types — Architectural Audit & Remediation Plan
+## 1. Business-event framing
 
-## 1. What a Loan Type actually is today
+A Work Entry Type (WET) is not a lookup. It is the **classification of a unit of time** that lets payroll answer three questions before pay is calculated:
 
-`public.loan_types` (45 columns) is meant to be the **organizational lending policy** consumed by six subsystems: Employee Self-Service (request wizard), Approvals, Finance/GL, Payroll compute, Payslips, and Reporting.
+1. Did the employee earn money for this time? (`is_paid`)
+2. Does this time count toward hours-worked ceilings, overtime thresholds, accrual bases? (`counts_as_worked`)
+3. At what rate and against which GL bucket does it settle? (`multiplier_*`, `accounting_tag`)
 
-Consumers found in the codebase:
-- `src/pages/hr/payroll/LoanTypesSettings.tsx` — admin CRUD (Payroll → Configuration).
-- `src/components/loans/{LoanWizard,RequestLoanWizard}.tsx` + `useEmployeeLoans`, `useMyLoans` — request/creation.
-- `supabase/functions/post-loan-disbursement/index.ts` — disbursement JE.
-- `supabase/functions/post-loan-settlement/index.ts` — settlement / write-off JE.
-- `supabase/functions/compute-payroll/index.ts` — reads only `code` + `salary_rule_code` for payslip line naming.
-
-## 2. Verdict
-
-**Not yet an enterprise policy engine.** The schema was designed for one, but ~55% of the columns are dead metadata, several safety fields are stored-but-not-enforced, and no field on `loan_types` actually drives an approval workflow or a payroll-readiness rule. The list page is a plain grid with no operational KPIs and no drill-through into loans / approvals / GL health.
-
-## 3. Field-by-field consumption matrix (evidence)
-
-Legend: ✅ enforced end-to-end · ⚠️ stored + partially used · ❌ dead metadata (stored, never read by any engine, JE poster, workflow, or UI beyond the form).
-
-| Field | Verdict | Evidence |
-|---|---|---|
-| `code`, `name`, `kind`, `description`, `is_active` | ✅ | Wizard filters `activeLoanTypes`; compute-payroll uses `code`; UI everywhere. |
-| `default_repayment_method` | ✅ | Wizards seed method; compute-payroll branches by loan's `repayment_method`. |
-| `default_installments`, `default_max_pct_of_net`, `default_min_net_pay_floor` | ⚠️ | Seeded into wizard as defaults only; not re-validated on server insert. |
-| `min/max_installments`, `min/max_principal` | ⚠️ | Validated client-side in `RequestLoanWizard`; **no DB CHECK / RPC guard** — trivially bypassed by any other client. |
-| `requires_interest` | ⚠️ | Only hides `interest_rate` dynamic field. Not enforced when method != flat. |
-| `requires_schedule` | ⚠️ | Some codepaths generate a schedule; **payroll deduction does NOT refuse loans lacking a schedule**. |
-| `requires_approval` | ❌ | Stored boolean. No `approval_requests` / `approval_workflows` row is opened on loan submission; wizards write `employee_loans` directly. |
-| `requires_dual_approval` | ❌ | Never read outside `types.ts`. |
-| `requires_collateral`, `requires_consent` | ❌ | Never read by any wizard / RPC. |
-| `allow_topup`, `allow_restructure` | ❌ | No top-up or restructure flow exists. |
-| `allow_skip`, `max_skips_per_loan`, `max_skips_per_calendar_year`, `min_gap_between_skips_days`, `interest_treatment_on_skip`, `schedule_adjustment_on_skip` | ⚠️ | `LoanSkipOverrides` page + compute-payroll comment reference these, but none of the *caps* (max skips, min gap) are enforced. Skip request UX doesn't surface them. |
-| `deduction_priority` | ❌ | Not consulted when ordering deductions in compute-payroll (statutory-first is hardcoded; loan order is by creation date). |
-| `max_exposure_pct_of_net` | ❌ | Distinct from `default_max_pct_of_net`; never referenced. Duplicate concept. |
-| `min/max_tenure_months` | ❌ | Never read; wizard uses installments only. |
-| `interest_method` | ❌ | Stored default 'flat'; wizards let the requester pick freely; engine ignores. |
-| `dual_control_writeoff` | ❌ | `post-loan-settlement` writes off without a second-approver check. |
-| `gl_receivable_account_id`, `gl_disbursement_clearing_account_id` | ✅ | Consumed by both JE posters; missing values block posting with a clear error. |
-| `interest_income_account_id` | ❌ | No JE posts interest income anywhere. |
-| `writeoff_account_id` | ❌ | `post-loan-settlement` resolves write-off account from `default_account_settings` (`loan_writeoff_expense` / `salary_expense`) and **ignores** the per-type field. |
-| `clearing_account_id` | ❌ | Redundant with `gl_disbursement_clearing_account_id`; unused. |
-| `salary_rule_code` | ✅ | Used by compute-payroll as payslip line key. |
-| `dynamic_field_schema` | ✅ | Rendered by LoanWizard step 2; values persisted on the loan. |
-
-## 4. Business-lifecycle trace (what actually happens today)
+The canonical event chain the subsystem must serve:
 
 ```text
-Employee → RequestLoanWizard.tsx
-        → insert employee_loans (status='pending')  ← no approval_requests row, no workflow
-        ↓
-HR/Payroll admin edits row directly (EmployeeLoans.tsx) to set status='approved'
-        ↓
-POST /post-loan-disbursement  (idempotent, JE = Dr Receivable / Cr Clearing)
-        ↓
-compute-payroll:
-   • loads active loans (join loan_types(code, salary_rule_code))
-   • deducts using loan.repayment_method (not loan_type.default_*)
-   • no re-validation against loan_type policy (min-floor, cap, priority)
-   • statutory ordering hardcoded; loan_types.deduction_priority ignored
-        ↓
-Payslip line labelled by salary_rule_code
-        ↓
-Outstanding balance decremented on loan row
-        ↓
-POST /post-loan-settlement (early payoff | write-off)
-   • write-off account = default_account_settings, NOT loan_type.writeoff_account_id
-   • no dual-control check even when dual_control_writeoff = true
+Schedule ─┐
+Attendance ─┼─► Approved Time ─► Work Entries ──► Structure Engine ──► Payslip Lines ──► GL Posting ──► Reports
+Leave     ─┤                        ▲                    ▲                                    ▲
+Timesheet ─┤                        │                    │                                    │
+Overtime  ─┘                    (WET classifies)    (WET drives multiplier)          (WET drives accounting_tag)
 ```
 
-Modules that **should** appear in the chain but don't: `approval_requests` / `approval_workflows`, `payroll_readiness_findings` (no rule blocks a run when a loan_type is misconfigured), `notifications` (dispatched only after status flip, not on submission), `bank_transactions` (disbursement lands in clearing but no automated bank-payment handoff).
+Everything that follows is measured against this chain.
 
-## 5. Structural weaknesses
+## 2. Current architecture (as-built)
 
-1. **Approval policy is fiction.** `requires_approval` / `requires_dual_approval` don't create workflow steps; any HR user with row access flips `status` and posts.
-2. **Client-only guardrails.** All principal/installment/tenure/floor limits live in the wizard. Any direct insert (bulk import, RPC, another UI) bypasses them.
-3. **Duplicate & orphan fields.** `clearing_account_id` vs `gl_disbursement_clearing_account_id`; `default_max_pct_of_net` vs `max_exposure_pct_of_net`; two skip-policy fields never enforced.
-4. **Write-off / interest GL leakage.** `interest_income_account_id`, `writeoff_account_id` on the type are ignored by JE posters — Finance can't rely on per-type accounting treatment.
-5. **Payroll does not consult the policy at runtime.** No min-net-pay-floor safety check, no deduction-priority ordering, no refusal on missing schedule.
-6. **No Payroll Readiness integration.** A loan_type with missing GL / no salary rule doesn't surface as a readiness finding — it only fails at posting time, mid-run.
-7. **Skip policy caps unenforced.** `LoanSkipOverrides` writes overrides without checking `max_skips_per_loan`, `max_skips_per_calendar_year`, `min_gap_between_skips_days`.
-8. **UX/ops surface is a bare list.** No counts of active loans, outstanding balances per type, GL health, pending approvals, or drill-through.
-9. **Localization gap.** No pack-published templates for statutory / country-standard loan programs; every tenant reinvents the same six categories.
-10. **Audit gap.** No `loan_type_lifecycle_events` / `commercial_audit_logs` writes when policy changes; `loan_lifecycle_events` exists for loans but not for their governing policy.
+- **Table** `payroll_work_entry_types` (org-scoped, business-scoped or NULL for "pack default").
+- **Seeder** `ensure_canonical_work_entry_types(org)` inserts 6 hard-coded codes (`WORK`, `OT`, `LEAVE_PAID`, `LEAVE_UNPAID`, `HOLIDAY`, `WORKED_HOLIDAY`) with `business_id = NULL`. Called on every projector run.
+- **Projector** `payroll_work_entries_project(run_id)` looks up 5 of those 6 codes *by code only*, then inserts `payroll_work_entries` rows stamped with those ids.
+- **Engine** `compute-payroll/structureEngine.ts` loads all WETs into a `byId` map and folds hours via `hours × multiplier_normal + overtime_hours × multiplier_overtime` into `worked_hours['CODE']` for salary rule expressions.
+- **UI** `WorkEntryTypes.tsx` + hook `useWorkEntryTypes.ts` provide CRUD scoped by `(org, business_id)`. Rows where `business_id IS NULL` render as "Pack default" and expose an **Override** action.
 
-## 6. Remediation plan (phased, incremental, non-breaking)
+## 3. Architectural findings
 
-### Phase A — Schema hygiene (migration only)
-- Deprecate & drop (or coalesce via view): `clearing_account_id`, `max_exposure_pct_of_net` (keep single `default_max_pct_of_net`).
-- Add validation trigger `loan_types_policy_bounds_valid`: min ≤ max on installments/principal/tenure; `default_max_pct_of_net BETWEEN 0 AND 100`; `salary_rule_code` regex.
-- Add trigger writing `commercial_audit_logs` on every change to `loan_types`.
+### 3.1 Override 409 — root cause (P0)
 
-### Phase B — Server-side policy enforcement (RPC)
-- New SECURITY DEFINER RPC `request_employee_loan(_input jsonb)` that:
-  - Validates against loan_type policy (principal min/max, installments min/max, tenure, cap, `requires_collateral/consent` fields present).
-  - Inserts `employee_loans` **and** opens an `approval_requests` row wired to a workflow when `requires_approval = true`; adds a second step when `requires_dual_approval = true`.
-  - Emits `loan_lifecycle_events` + `notifications` via existing `hr_notify_loan_event`.
-- Wizards (`LoanWizard`, `RequestLoanWizard`) call the RPC instead of direct `insert`.
-- Add RLS/`BEFORE INSERT` guard on `employee_loans` that refuses direct inserts outside the RPC (`current_setting('app.request_via_rpc', true) = 'on'`).
+Two contradictory unique indexes exist on the table:
 
-### Phase C — Payroll compute & readiness integration
-- In `compute-payroll`, load the full loan_type row and:
-  - Refuse loan deduction if `requires_schedule` and none exists → emit `payroll_run_issues`.
-  - Order loan deductions by `deduction_priority` after statutory.
-  - Apply `default_min_net_pay_floor` as a hard clamp; short-recover the balance to the next period; emit issue.
-- Add three `payroll_readiness_rules`:
-  - `loan_type_gl_complete` (receivable + clearing set on every active type used by active loans).
-  - `loan_type_writeoff_account_present` (when any loan in the run is at write-off status).
-  - `loan_schedule_present` (all active loans of a `requires_schedule` type have `loan_repayment_schedule` rows).
+| Index | Definition | Intent |
+|---|---|---|
+| `uq_work_entry_types_business_code` | `(org, COALESCE(business_id, sentinel), code)` | Allow one pack row + one override per business |
+| `payroll_work_entry_types_org_code_uidx` | `(org, code)` | Added later; forbids any duplicate code per org |
 
-### Phase D — Finance/JE completeness
-- `post-loan-disbursement`: unchanged (already good).
-- `post-loan-settlement`: use `loan_type.writeoff_account_id` first, then default mapping; refuse write-off if `dual_control_writeoff` and no second approver recorded.
-- New `post-loan-interest-accrual` invoked per period from compute-payroll when `requires_interest`; uses `interest_income_account_id`.
+The second index makes overrides impossible: inserting a tenant copy of `WORK` violates `_org_code_uidx` → Postgres 23505 → PostgREST 409. The generic error normaliser then relabels it as *"Someone else updated this record while you were editing"* — the message is completely misleading; there is no optimistic locking in this subsystem at all.
 
-### Phase E — Skip policy enforcement
-- In `LoanSkipOverrides` submission RPC, enforce `allow_skip`, `max_skips_per_loan`, `max_skips_per_calendar_year`, `min_gap_between_skips_days`, `interest_treatment_on_skip`, `schedule_adjustment_on_skip`.
+### 3.2 Projector cannot see overrides (P0)
 
-### Phase F — LoanTypes UX overhaul (Payroll Officer landing)
-Replace the plain list with an operational cockpit. Top strip KPIs:
-- Active loan types · Types missing GL · Types with active loans · Total outstanding balance · Pending approvals · Runs at risk (readiness findings).
+`payroll_work_entries_project` resolves `v_id_work` with `WHERE code='WORK'` and no ORDER BY. Even if 3.1 is fixed and an override row exists, `LIMIT 1` semantics are undefined; the projector will randomly stamp either the pack default or the tenant row. Overrides can never reliably influence payroll behaviour.
 
-Per-row expansion / drill-through:
-- Employees on this type · outstanding balance · pending requests · GL health chip (receivable/clearing/writeoff/interest) · approval-policy chip · usage stats (last 90 days) · quick links: *View loans*, *Approval queue*, *GL mappings*, *Journal entries*, *Readiness findings*.
+### 3.3 "Pack default" is a lie (P1)
 
-Expose the fields that are currently hidden in the form: tenure bounds, deduction priority, dual control, collateral/consent, skip caps, interest_method, and the four GL accounts (receivable, clearing, interest income, write-off). Fields that Phase A drops are removed from the form.
+Despite the badge and copy, WET rows are *not* pack artefacts. There is no `localization_pack_work_entry_type_templates`, no `pack_versions` snapshot, no `pack_upgrade_proposals` fan-out (contrast with statutory rules, certificate templates, return templates, garnishment kinds — all of which do follow the ADR-0010 pack lifecycle). `localization_pack_id` on the row is always NULL. The system labels seeded org rows as "pack" purely because `business_id IS NULL`.
 
-### Phase G — Localization pack support
-- Add `localization_pack_loan_templates` (pack-published policy templates) + install hook that seeds per-country defaults, overridable by tenants; existing `seed_default_loan_types` becomes the fallback when no pack ships them.
+Consequence: adding a country or industry requires editing SQL, not shipping a pack. This contradicts ADR-0010 and ADR-0056.
 
-### Phase H — Audit, tests, safety net
-- pgTAP tests:
-  - `loan_types_policy_enforced_test.sql` — direct insert into `employee_loans` outside RPC is refused; RPC validates bounds.
-  - `loan_types_readiness_test.sql` — missing GL / missing schedule surface as findings.
-  - `loan_types_skip_caps_test.sql` — overrides beyond caps are refused.
-- Vitest for wizards asserting policy-chip rendering matches the loaded type.
+### 3.4 Dead / half-wired fields (P1)
 
-## 7. Technical details
+| Field | Consumer? | Verdict |
+|---|---|---|
+| `color` | none | dead |
+| `is_unpaid_leave` | not read in projector or engine | dead (`is_paid` alone drives everything) |
+| `accounting_tag` | collected by UI, ignored by engine and by `post-payroll-gl` | dead — GL posting is driven by `payroll_salary_rules.accounting_tag`, not the WET tag |
+| `sequence` | ORDER BY only | fine |
+| `is_pack_default` | column exists, but UI infers pack-ness from `business_id IS NULL` | duplicate signal |
+| `localization_pack_id` | always NULL | dead |
 
-Files/edits (grouped by phase — new files or heavy edits):
+### 3.5 Missing business events (P2)
 
-- Migrations: `supabase/migrations/*_loan_types_policy_engine.sql` (A, B, C, E, G).
-- New RPCs: `request_employee_loan`, `approve_employee_loan`, `settle_employee_loan_dual`, `enforce_loan_skip_policy`.
-- Edge functions: extend `post-loan-settlement`, new `post-loan-interest-accrual`.
-- Frontend: rewrite `src/pages/hr/payroll/LoanTypesSettings.tsx` into a cockpit + form; extend `src/hooks/useLoanTypes.ts` with aggregate queries (`useLoanTypeStats`); update `src/components/loans/{LoanWizard,RequestLoanWizard}.tsx` to call the new RPC and render the full policy chip set; add drill-through routes under `/hr/payroll/loan-types/$id/{loans,approvals,gl,journal,readiness}`.
-- Payroll: add loan-policy consultation in `supabase/functions/compute-payroll/index.ts` (deduction ordering + floor + schedule refusal + interest accrual hook).
-- Tests: pgTAP files under `supabase/tests/` and vitest under `src/test/hr/`.
+Only 6 codes exist. There is no representation for: night shift, weekend premium, standby, on-call, travel, training, jury duty, suspension, distinct sick vs bereavement leave, worked-rest-day. The `WORKED_HOLIDAY` type exists but is never stamped by the projector — attendance on a public holiday still lands as `WORK`. Similarly, overtime hours land as `overtime_hours` on the `WORK` row; no row is ever stamped `OT`. Two of the six seeded types are unreachable.
 
-## 8. Out of scope for this plan
-- Rewriting the general `approval_workflows` engine (we'll wire loans to the existing one).
-- Bank export / payments handoff on disbursement (tracked separately in Payments module).
-- Country-specific statutory lending programs (Phase G scaffolds them; content ships with each pack).
+### 3.6 Leave → WET mapping is hard-coded (P1)
 
-Approve to move into build mode, or tell me which phases to execute first and I'll re-issue a narrower plan.
+The projector maps leave to either `LEAVE_PAID` or `LEAVE_UNPAID` purely from `leave_types.is_paid`. A tenant that has "Annual leave", "Sick leave", "Maternity", "Compassionate" all as `is_paid=true` collapses them into one WET, losing accrual base distinctions, statutory reporting distinctions, and GL routing. There is no `leave_types.work_entry_type_id` FK.
+
+### 3.7 No optimistic locking (P2)
+
+The table has `updated_at` but no `version` column and no If-Match handling. The 409 the user sees is a masquerade — real concurrent edits would silently last-write-wins.
+
+### 3.8 RLS vs seeder contradiction (P2)
+
+Write policy requires `business_id IS NOT NULL`, but the seeder writes `business_id IS NULL` (works only because it is SECURITY DEFINER). The "pack" rows are therefore structurally unmanageable by the tenant — including the platform admin — from any normal write path.
+
+### 3.9 UX deficit (P1)
+
+Table columns: Code, Name, Source, Paid, Worked, Multipliers, Acct tag, Actions. A payroll officer cannot see:
+
+- how many attendance/leave/timesheet rows in the current period use this type
+- how many active employees are affected
+- which salary rule expressions reference `worked_hours['CODE']`
+- pack vs tenant *diff* when overridden
+- validation status (e.g. WET referenced by a rule but archived)
+
+## 4. Recommended enterprise model
+
+Adopt the Odoo/Workday pattern: WET is a **projection dimension** owned by a real localization pack, referenced by every upstream time source, and resolved by a single deterministic dispatcher.
+
+```text
+localization_pack_work_entry_type_templates  ── publish ──►  payroll_work_entry_types (business_id=NULL, pack_id set)
+                                                                     │
+                                                    override (clone) │
+                                                                     ▼
+                                                    payroll_work_entry_types (business_id set)
+                                                                     │
+                                                                     ▼
+        leave_types.work_entry_type_id ─┐          shifts.work_entry_type_id ─┐
+        overtime_requests               ─┼─►  WET resolver  ◄──────────────────┤
+        holiday classification          ─┘          attendance.work_entry_type_id ─┘
+                                                                     ▼
+                                                    payroll_work_entries (stamped)
+                                                                     ▼
+                                                    engine (multiplier, is_paid, counts_as_worked)
+                                                                     ▼
+                                                    payslip_lines (accounting_tag)
+                                                                     ▼
+                                                    post-payroll-gl (WET → GL bucket)
+```
+
+## 5. Implementation plan
+
+### Phase A — Unblock overrides (P0)
+
+1. Drop `payroll_work_entry_types_org_code_uidx`; keep only `uq_work_entry_types_business_code`.
+2. Add a helper `payroll_resolve_wet(org, business, code) RETURNS uuid` that returns the tenant row if present, else the pack row. Deterministic tie-break: `ORDER BY business_id NULLS LAST`.
+3. Rewrite the six `SELECT id INTO v_id_*` lookups in `payroll_work_entries_project` to call the resolver with `v_run.business_id`.
+4. Replace the misleading 409 error mapping: in `normalizeError`, distinguish 23505 (`unique_violation`) from stale-write and surface it as `"An override for this code already exists."`.
+5. In `useWorkEntryTypes.overrideFromPack`, guard with a pre-check for an existing tenant row and open the edit sheet instead when found.
+
+### Phase B — Make WET a real pack citizen (P1)
+
+6. New table `localization_pack_work_entry_type_templates` (pack_id, code, name, is_paid, is_unpaid_leave, counts_as_worked, multiplier_normal, multiplier_overtime, accounting_tag, sequence, description).
+7. Extend `publish-localization-pack-version` to snapshot WET templates into `pack_versions.snapshot` and fan out to `pack_upgrade_proposals`, matching ADR-0010.
+8. Replace `ensure_canonical_work_entry_types` with a pack-installer that copies templates from the installed pack to `payroll_work_entry_types (business_id=NULL, localization_pack_id=<pack>)`. Keep the six canonical codes as a seed inside a `core_global` pack so behaviour is unchanged out of the box.
+9. Tighten RLS: allow platform-admin writes on pack rows (`business_id IS NULL AND has_platform_admin(auth.uid())`), keep tenant writes as-is.
+
+### Phase C — Wire dead fields and missing dispatch (P1)
+
+10. Consume `accounting_tag` in `post-payroll-gl`: any `payslip_line` whose source is a WET (not a salary rule) posts against the account resolved from the WET tag. Add a mapping row per tag in `default_account_settings` (`wet:<TAG>`), guarded by ADR-0022's role trigger.
+11. Add `leave_types.work_entry_type_id` (nullable FK). Projector uses it when set; falls back to `LEAVE_PAID`/`LEAVE_UNPAID` for legacy rows. UI on Leave Types adds the picker.
+12. Stamp OT rows separately: in the attendance branch of the projector, split into two `payroll_work_entries` — one `WORK`, one `OT` — so the `OT` type is actually reachable and its multiplier applies.
+13. Detect `WORKED_HOLIDAY`: if attendance row's date matches `public_holidays`, stamp `WORKED_HOLIDAY` instead of `WORK`.
+14. Drop or repurpose `is_unpaid_leave`, `color`, `is_pack_default`. Either wire (`color` in reports, `is_unpaid_leave` as an accrual-base flag) or remove in a follow-up migration.
+
+### Phase D — Enterprise UX (P1)
+
+15. Replace the flat table with an operational grid whose columns are (per row): Code, Name, Source badge (Pack / Overridden / Custom, with pack version), Paid, Worked, Multipliers, GL bucket, **Usage this period** (rows in `payroll_work_entries`), **Employees affected**, **Rules referencing** (count of salary rules whose expression matches `worked_hours['CODE']`), Status.
+16. Row action tray: Override, Edit, Diff-vs-pack, Archive, "Show impact" (opens a drawer with rules + last-3-runs usage).
+17. Add a header KPI strip: Total types, Overridden, Unused this period, Referenced by active salary structures.
+18. Fix the misleading toast copy; on unique-violation, route the user to the existing override.
+
+### Phase E — Integrity and audit (P2)
+
+19. Add `version int NOT NULL DEFAULT 1` + BEFORE UPDATE trigger incrementing it, and enforce If-Match in the hook. Real optimistic locking, not a mis-mapped error.
+20. Cover with pgTAP: `payroll_work_entry_types_override_test.sql` (pack + override + resolver + projector picks override) and an architecture test guarding against re-introducing a global `(org, code)` unique index.
+
+## 6. Verification strategy
+
+- pgTAP: pack default + tenant override coexist; resolver returns override; projector stamps override id; unique-violation error surfaces the correct message.
+- Deno test on `compute-payroll`: overridden multiplier changes `worked_hours['WORK']` output for the affected business but not for a sibling business.
+- Vitest architecture guard: no `SELECT ... FROM payroll_work_entry_types WHERE code = ...` without `ORDER BY business_id NULLS LAST` (or without going through the resolver).
+- Playwright: click Override on a pack row → tenant copy appears in the same table; toast is a success; a second Override click routes to Edit instead of failing.
+- Manual: run a payroll with attendance across a public holiday and with an approved overtime request; assert three distinct WET rows (`WORK`, `OT`, `WORKED_HOLIDAY`) appear in `payroll_work_entries` and drive distinct payslip lines.
+
+## 7. Out of scope for this slice
+
+- Full re-modelling of leave (`sick`, `bereavement`, `maternity` as first-class WETs) — captured but deferred; Phase C step 11 makes it a one-row-per-leave-type config change afterwards.
+- New shift-premium types (night, weekend) — unblocked once Phase B ships the pack template table; content work only.
+- Cross-country pack marketplace — remains out of scope per ADR-0010.
