@@ -32,9 +32,12 @@ describe("payslip_lines provenance column contract", () => {
   });
 
   it("compute-payroll does not write a `details` key into payslip_lines rows", () => {
-    // The pushLine helper is the sole writer; guard against a stray
-    // `details:` field on the row literal.
-    expect(COMPUTE).not.toMatch(/lineRows\.push\(\{[\s\S]*?\bdetails\s*:/);
+    // The pushLine helper is the sole writer into payslip_lines. Its row
+    // literal is small (< 20 lines) — bound the match tightly so unrelated
+    // `details:` strings elsewhere in the 4700-line file don't false-match.
+    expect(COMPUTE).not.toMatch(
+      /lineRows\.push\(\{[^{}]{0,600}?\bdetails\s*:/,
+    );
   });
 
   it("post-payroll-gl reads provenance via `line.source`, not `line.details`", () => {
