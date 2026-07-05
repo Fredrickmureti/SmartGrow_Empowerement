@@ -516,6 +516,13 @@ export type Database = {
             foreignKeyName: "advance_repayment_schedule_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "advance_repayment_schedule_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -2328,6 +2335,13 @@ export type Database = {
             columns: ["locked_by_payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_locked_by_payroll_run_id_fkey"
+            columns: ["locked_by_payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -13040,6 +13054,13 @@ export type Database = {
             foreignKeyName: "employee_custom_deduction_events_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deduction_events_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -13617,6 +13638,13 @@ export type Database = {
             columns: ["final_pay_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_exit_clearance_final_pay_run_id_fkey"
+            columns: ["final_pay_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -16363,6 +16391,13 @@ export type Database = {
             columns: ["reimbursed_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_reimbursed_run_id_fkey"
+            columns: ["reimbursed_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -21312,6 +21347,13 @@ export type Database = {
             columns: ["payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_repayments_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -26656,6 +26698,13 @@ export type Database = {
             foreignKeyName: "payroll_bank_files_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_bank_files_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -26893,6 +26942,13 @@ export type Database = {
             foreignKeyName: "payroll_correction_adjustments_parent_run_id_fkey"
             columns: ["parent_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_correction_adjustments_parent_run_id_fkey"
+            columns: ["parent_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -26915,6 +26971,13 @@ export type Database = {
             columns: ["payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_correction_adjustments_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -27350,6 +27413,13 @@ export type Database = {
             foreignKeyName: "payroll_liabilities_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_liabilities_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -27417,6 +27487,13 @@ export type Database = {
             columns: ["payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_liability_sources_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -27827,6 +27904,13 @@ export type Database = {
             foreignKeyName: "payroll_payment_batches_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_payment_batches_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -27920,6 +28004,88 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "payroll_periods"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_period_close_waivers: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+          period_id: string
+          reason: string
+          run_id: string | null
+          scope: string
+          workflow: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          organization_id: string
+          period_id: string
+          reason: string
+          run_id?: string | null
+          scope?: string
+          workflow: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id?: string
+          period_id?: string
+          reason?: string
+          run_id?: string | null
+          scope?: string
+          workflow?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_period_close_waivers_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_period_close_waivers_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_period_close_waivers_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_period_close_waivers_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "v_hr_payroll_distribution_by_department"
+            referencedColumns: ["payroll_run_id"]
+          },
+          {
+            foreignKeyName: "payroll_period_close_waivers_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_batch_register"
+            referencedColumns: ["run_id"]
+          },
+          {
+            foreignKeyName: "payroll_period_close_waivers_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_cost_by_department"
+            referencedColumns: ["payroll_run_id"]
           },
         ]
       }
@@ -28049,6 +28215,13 @@ export type Database = {
             columns: ["payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_periods_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -28490,6 +28663,13 @@ export type Database = {
             foreignKeyName: "payroll_reclassification_audit_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_reclassification_audit_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -28864,6 +29044,13 @@ export type Database = {
             columns: ["payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_remittances_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -29358,6 +29545,13 @@ export type Database = {
             foreignKeyName: "payroll_rule_traces_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -29703,6 +29897,13 @@ export type Database = {
             foreignKeyName: "payroll_run_issues_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_run_issues_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -29915,6 +30116,13 @@ export type Database = {
             columns: ["payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_run_loan_skip_overrides_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -30287,6 +30495,13 @@ export type Database = {
             foreignKeyName: "payroll_runs_original_run_id_fkey"
             columns: ["original_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_original_run_id_fkey"
+            columns: ["original_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -30316,6 +30531,13 @@ export type Database = {
             columns: ["parent_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_parent_run_id_fkey"
+            columns: ["parent_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -31074,6 +31296,13 @@ export type Database = {
             foreignKeyName: "payroll_work_entries_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_work_entries_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -31682,6 +31911,13 @@ export type Database = {
             foreignKeyName: "payslips_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslips_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -31791,6 +32027,13 @@ export type Database = {
             columns: ["consumed_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_termination_payouts_consumed_run_id_fkey"
+            columns: ["consumed_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -43548,6 +43791,13 @@ export type Database = {
             foreignKeyName: "retro_pay_adjustments_applied_run_id_fkey"
             columns: ["applied_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retro_pay_adjustments_applied_run_id_fkey"
+            columns: ["applied_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -53802,6 +54052,13 @@ export type Database = {
             foreignKeyName: "payroll_run_issues_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_run_issues_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -53945,6 +54202,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payroll_runs_legacy_status_v: {
+        Row: {
+          bank_file_status: string | null
+          calculation_status: string | null
+          id: string | null
+          legacy_status: string | null
+          payment_status: string | null
+          payslip_issuance_status: string | null
+          posting_status: string | null
+        }
+        Insert: {
+          bank_file_status?: string | null
+          calculation_status?: string | null
+          id?: string | null
+          legacy_status?: never
+          payment_status?: string | null
+          payslip_issuance_status?: string | null
+          posting_status?: string | null
+        }
+        Update: {
+          bank_file_status?: string | null
+          calculation_status?: string | null
+          id?: string | null
+          legacy_status?: never
+          payment_status?: string | null
+          payslip_issuance_status?: string | null
+          posting_status?: string | null
+        }
+        Relationships: []
       }
       po_three_way_match: {
         Row: {
@@ -56396,6 +56683,13 @@ export type Database = {
             foreignKeyName: "payroll_runs_original_run_id_fkey"
             columns: ["original_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_original_run_id_fkey"
+            columns: ["original_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -56695,6 +56989,13 @@ export type Database = {
             foreignKeyName: "payroll_payment_batches_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_payment_batches_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
             referencedRelation: "v_hr_payroll_distribution_by_department"
             referencedColumns: ["payroll_run_id"]
           },
@@ -56841,6 +57142,13 @@ export type Database = {
             columns: ["payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_liabilities_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -57337,6 +57645,13 @@ export type Database = {
             columns: ["consumed_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_termination_payouts_consumed_run_id_fkey"
+            columns: ["consumed_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs_legacy_status_v"
             referencedColumns: ["id"]
           },
           {
@@ -64415,6 +64730,16 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      payroll_period_workflow_blockers: {
+        Args: { _period_id: string }
+        Returns: {
+          current_state: string
+          required_states: string[]
+          run_id: string
+          waived: boolean
+          workflow: string
+        }[]
       }
       payroll_periods_generate: {
         Args: { _from: string; _pay_schedule_id: string; _to: string }
