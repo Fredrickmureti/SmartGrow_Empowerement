@@ -44,6 +44,7 @@ import { normalizeError } from "@/services/resilience";
 import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMappingFindingsPanel";
 import { usePayrollMappingFindings } from "@/hooks/payroll/usePayrollMappingFindings";
 import { useReturnTemplates } from "@/hooks/payroll/useStatutoryReturns";
+import { PayrollPostingPreviewDialog } from "@/components/payroll/PayrollPostingPreviewDialog";
 
 /** Build an ExportConfig for the Payroll Register (gross-to-net per employee) */
 function getPayrollRegisterExportConfig(
