@@ -990,6 +990,6 @@ export function PayrollRunDetailsDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Dialog>
+    </Sheet>
   );
 }
