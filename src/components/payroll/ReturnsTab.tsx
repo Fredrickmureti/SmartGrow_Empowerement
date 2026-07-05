@@ -123,6 +123,7 @@ export function ReturnsTab() {
     periodStart: periodStartStr,
     periodEnd: periodEndStr,
   });
+  const accrualPayslipReadiness = !!eligibility?.required_statuses.includes("approved");
 
   const onGenerate = async () => {
     if (!activeTpl) return;
@@ -297,9 +298,15 @@ export function ReturnsTab() {
                       .
                     </p>
                   )}
-                  <p className="text-muted-foreground">
-                    Advance the payslips through the payment workflow (Payroll → Payment Batches) — accrual-basis templates only need approval, cash-basis remittances (NSSF, SHIF, HELB) need payment to complete.
-                  </p>
+                  {accrualPayslipReadiness ? (
+                    <p className="text-muted-foreground">
+                      The payroll run is approved, but its payslip lifecycle is still pending. Finalize payroll approval so the payslip is marked approved; payment is not required for this accrual-basis return.
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      Advance the payslips through the payment workflow (Payroll → Payment Batches). Cash-basis remittances require paid payslips.
+                    </p>
+                  )}
                 </>
               )}
             </div>
