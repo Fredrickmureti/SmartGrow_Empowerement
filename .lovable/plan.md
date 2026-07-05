@@ -1,90 +1,154 @@
 
-# Compliance Pipeline — Investigation & Fix Plan
+# Enterprise Payroll Lifecycle Redesign
 
-## 1. Architecture that already exists (verified in code)
+Reshape payroll from a single linear status machine into a set of **independent workflows** that share one immutable source of truth: an **Approved Payroll Run**. Model this after SAP HCM / Workday / Oracle HCM / D365 — where Payroll Results, Payment, Posting, Statutory Filing, and Period Close each have their own state, owners, and audit trail.
 
-The pack-driven compliance lifecycle is already in place; nothing here needs re-architecting:
+## Guiding principles
+
+1. **Approval = legal immutability boundary.** Once a run is Approved, its calculated results are frozen. Everything downstream reads from that frozen snapshot; nothing downstream can mutate it. Corrections happen via off-cycle / retro runs, never by editing an approved run.
+2. **Downstream processes are peers, not a chain.** Payment, GL Posting, Bank File, Statutory Returns, Statutory Remittance, and Period Close each have their own status machine and their own permissions. None of them blocks another except where accounting principle genuinely requires it.
+3. **The only hard downstream dependency is on Approval.** Not on payment, not on posting. Statutory Returns and GL Posting depend on Approval; Remittance depends on Return submission + Payment funds availability; Period Close depends on all workflows reaching a terminal state (or being explicitly waived).
+4. **Every workflow emits events; UI aggregates state.** No workflow reads another workflow's private status column to decide what it can do. They read the run's `approved_at` and their own state.
+5. **Errors are business messages, not HTTP codes.** Every refusal names the workflow, the missing precondition, and the recovery action.
+
+## Target workflow model
 
 ```text
-Payroll runs (approved + posted)
-  └─ payslips / payslip_lines            ← immutable, country-agnostic
-       └─ payroll_liabilities            ← generated on posting
-            ├─ Remittances               ← post-remittance-payment
-            ├─ Tax Certificates          ← generate-tax-certificate
-            │     • template resolved from v_org_active_localization_pack
-            │       → localization_pack_certificate_templates (pack or NULL fallback)
-            │     • tenant overrides via payroll_certificate_template_overrides
-            │     • YTD via RPC payroll_employee_ytd_rollup(year, employee)
-            │     • provenance snapshot + payroll_tax_certificate_events ledger
-            │     • download-tax-certificate → 60s signed URL
-            └─ Statutory Returns         ← generate-statutory-return
-                  • template from localization_pack_return_templates
-                  • tokens via _shared/renderTokens.ts
-                  • payroll_return_runs 8-state machine
-                  • record-return-filing / submit-statutory-return
+                    ┌──────────────────────────────┐
+                    │      PAYROLL RUN (facts)     │
+                    │  draft → calculated → APPROVED (locked)
+                    └──────────────┬───────────────┘
+                                   │ approved_at, locked_by
+       ┌───────────────┬───────────┼────────────┬──────────────┬───────────────┐
+       ▼               ▼           ▼            ▼              ▼               ▼
+   Payslip         GL Posting   Bank File   Employee       Statutory        Statutory
+   Issuance        (Journal)    Generation  Payment        Return           Remittance
+   not_issued →    not_posted → not_gen →   pending →      not_generated →  pending →
+   issued →        posted →     generated → partially_paid generated →      partially →
+   distributed     reversed     sent        → fully_paid   submitted →      fully_remitted
+                                                            accepted
+                                   ▼
+                         ┌────────────────────┐
+                         │  PAYROLL PERIOD    │  open → closing → CLOSED
+                         └────────────────────┘
 ```
 
-Dashboard: `RemittanceOperatorDashboard` → RPC `payroll_remittance_dashboard(p_organization_id, p_business_id)` (verified present, 2 uuid args).
+Each column above is an **independent lifecycle** with its own table/columns, its own RPCs, its own RLS/permission scope, and its own audit stream. The Batch (ADR-0045) remains the orchestration envelope but stops being a gate.
 
-Templates present in DB for the active pack `a1b2c3d4-…`: P9, P9A (certs) and P10, P10D, P10A, AHL_RET, NSSF_RET, SHIF_RET, NITA_RET, HELB_LR (returns). So the "P10 template missing" branch is not the failure.
+## What changes
 
-## 2. Root causes
+### 1. Data model — split status from workflow states
 
-### Failure 2 — `POST /generate-statutory-return` 404
-Direct probe of the deployed function returns `401 unauthenticated`, i.e. the function **is** deployed and reachable. A 404 from the browser is therefore not "function missing"; it is one of:
-- the request being sent before/around a redeploy window (transient), or
-- the client dispatching to a stale URL because a Supabase project reconnect happened this session (the connect step earlier in this thread rewrote `src/integrations/supabase/client.ts` and `types.ts`).
+- Keep `payroll_runs.status` for **calculation lifecycle only**: `draft | calculating | calculated | approved | cancelled | reversed`. Remove downstream meanings ("posted", "paid") from this column over time (backfill + view compat).
+- Add per-workflow state on `payroll_runs`:
+  - `posting_status` (`not_posted | posted | reversed`) + `posted_at/by`, `posting_je_id`
+  - `payment_status` (`pending | partially_paid | fully_paid | on_hold`) + derived from `payroll_payment_batches`
+  - `bank_file_status` (`not_generated | generated | sent | acknowledged`)
+  - `payslip_issuance_status` (`not_issued | issued | distributed`)
+- Statutory workflows live on their own tables (already exist: `payroll_return_runs`, `payroll_remittances`) — remove any join to `payslip.status='paid'`.
+- Add `payroll_runs.locked_at / locked_by / lock_reason` (H-PAY-9 already queued) — set on Approval; every mutation trigger checks this instead of status names.
 
-Fix: re-deploy `generate-statutory-return` from the current source and re-verify with an authenticated call from the app. If it still 404s, the client is calling the wrong project — reconcile `SUPABASE_URL` / project ref against the newly connected `AccrualFlowCorporation` project.
+### 2. Approval RPC becomes the "immutability seal"
 
-### Failure 1 — `POST /generate-tax-certificate` 500
-The function boots cleanly (edge logs show Boot/Shutdown only, no error frames captured for the failed request). Reading the handler, the only paths that produce a raw 500 without a structured body are:
-1. `permErr` from `user_has_module_permission` — but both 4-arg and 5-arg overloads exist, the 5-arg one matches the call, so this resolves.
-2. `empErr` from the employees select — the projection joins `departments!employees_department_id_fkey` and `job_positions`; if the FK label or a column (e.g. `national_id`, `tax_pin`, `branch_id`) is missing in this connected project's schema, PostgREST returns an error and we surface HTTP 500 with `failed to load employees: …`.
-3. `payroll_employee_ytd_rollup` throw — caught per-employee and pushed into `errors[]`, response is 200 with `errors`, so it does **not** produce a top-level 500.
-4. An unhandled throw from `getOrganizationBranding`, `renderTemplateBody`, `renderCertificateSections`, `generateReportPdf`, or `assertStatutoryPaper` — caught by the outer `try/catch`, which currently returns `500` with `{ error: err.message }` (structured but generic).
+- `payroll_run_approve(run_id)` (rename/repoint existing approve):
+  - Requires maker-checker (already enforced).
+  - Stamps `approved_at/by`, `locked_at/by`.
+  - Emits `payroll_run.approved` event → downstream workflows become eligible.
+  - After this point, the immutability guard trigger blocks every column on `payroll_runs`, `payslips`, `payslip_lines`, `payslip_inputs` except each workflow's own allow-list of columns via `stack_context` bypass.
 
-The 500 in the UI has no message body surfaced in either edge logs or the console excerpt, so step 1 is to capture the actual message. Investigation order:
-1. Redeploy the function, call with a real payload, read `event_message` from `supabase--edge_function_logs generate-tax-certificate`.
-2. Inspect the returned JSON body in the network panel — the handler already returns `{ error: "..." }` at 500. That string is the answer.
-3. Most likely candidates given this project's schema drift after re-connect:
-   - `employees` select failing on `tax_pin` / `national_id` / the `departments` FK label (schema mismatch between edge function and current DB).
-   - `getOrganizationBranding` failing because the `organizations`/`businesses` columns it reads differ.
+### 3. Statutory Returns — depend on Approval, not Payment
 
-### Failure 3 — `rpc(payroll_remittance_dashboard)` 400
-The RPC signature matches the call (2 uuid args). A PostgREST 400 with matching signature is almost always a runtime error inside the plpgsql body being surfaced as HTTP 400. Two likely offenders:
-- `payroll_liabilities` columns referenced (`authority_name`, `currency_code`, `outstanding_amount`, `status`, `due_date`) — if any is renamed/absent in this schema the function raises.
-- The "returns due in next 30 days" subquery reads from filing calendar v2 (`payroll_filing_calendar_projection` / view); if the projection is unpopulated or the referenced columns changed, the RPC errors.
+- `generate-statutory-return` edge fn:
+  - Precondition: at least one **approved** run in the period (`approved_at is not null`). Drop any check on payslip `status='paid'` or run `status='posted'`.
+  - Template `filters.payslip_status` remains supported but defaults to "all payslips of approved runs".
+  - Business error codes:
+    - `NO_APPROVED_PAYROLL_RUNS` → "Approve the payroll run for {period} before generating the return."
+    - `PERIOD_NOT_YET_APPROVED` when runs exist but none approved.
+- `useStatutoryReturns` + `ReturnsTab` already surface structured errors — extend the code list.
 
-Fix: run the RPC directly with the org/business ids and read the SQL error; adjust the RPC (via migration) to match current column names or add a null-guard for the missing filing-calendar row set.
+### 4. GL Posting — parallel to Payment, not sequential
 
-## 3. Investigation steps (before touching code)
+- `post-payroll-gl` precondition: run is `approved` and `posting_status='not_posted'`. Independent of payment state.
+- Reversal path (`reverse-payroll`) unchanged but records event on posting workflow, not on the run's core status.
 
-1. Confirm deployment state:
-   - `supabase--deploy_edge_functions generate-tax-certificate generate-statutory-return download-tax-certificate` to force fresh deploys against the newly connected project.
-   - Curl each with a real auth token via `supabase--curl_edge_functions` and capture bodies.
-2. Capture the actual 500 body for `generate-tax-certificate` (network tab + edge logs by `event_message`).
-3. Run `payroll_remittance_dashboard` directly with the tenant's `organization_id`/`business_id` in `supabase--read_query` (wrapped in `SELECT payroll_remittance_dashboard(...)`); read the SQL error.
-4. Diff the `employees`, `payroll_liabilities`, `payroll_filing_calendar_projection` schemas against what the code assumes (`information_schema.columns`).
+### 5. Employee Payment — its own object graph
 
-## 4. Fixes to apply (contingent on §3 findings)
+- Payment batches remain the writer; `payment_status` on the run is a **projection** from `payroll_payment_batches` (view/trigger). Never edited directly.
+- Partial payments legal: a run can be `fully_paid` for 90% of payslips and `pending` for the remaining 10% (e.g., failed bank record). Model `payslips.payment_status` per-employee and roll up.
 
-The fixes will be narrow and match the discovered cause. Expected shape:
+### 6. Bank File — independent artifact
 
-- **A. Statutory return 404:** redeploy `generate-statutory-return`; if still 404 in-app, verify the client is pointed at the connected project's Supabase URL. No code change unless the client is mis-targeted.
-- **B. Tax cert 500:** correct the offending select/projection inside `supabase/functions/generate-tax-certificate/index.ts` to match the actual columns in this DB (or add a migration that restores the expected columns/views if they were meant to exist). Preserve the pack-driven flow — no country branching, no bypass.
-- **C. Dashboard 400:** ship a migration replacing `payroll_remittance_dashboard` with a body that (i) references only columns present in this schema, (ii) tolerates an empty filing-calendar projection, (iii) preserves the return signature (`jsonb`) so the client shape is unchanged.
-- **D. Observability:** upgrade the outer catch in `generate-tax-certificate` and `generate-statutory-return` to log the stack + input keys to `payroll_diagnostics` before returning the 500, so the next incident is diagnosable from the DB without waiting on edge log polling.
+- Generation only needs Approval. Sending needs generated. Acknowledgement is a receipt from bank/edge fn. Nothing here touches `payroll_runs.status`.
 
-## 5. Verification
+### 7. Payroll Period Close
 
-- Curl both edge functions with a signed-in user, assert 200 and non-empty artifact for P9/P10 against a period with completed runs.
-- Assert `payroll_remittance_dashboard` returns a JSONB envelope with the five arrays (may be empty) and no error.
-- Confirm `payroll_tax_certificate_events` has a `generated` row and `payroll_return_runs` transitions to `generated` after the calls.
-- Re-run the architecture guard tests: `tax-certificate-lifecycle.test.ts`, `template-override-coalesce.test.ts`, `engine-resolver-only.test.ts`, `no-hardcoded-country-payroll.test.ts` — none must regress.
+- A period `close` RPC checks that each workflow is in a terminal or explicitly-waived state. Waivers are recorded (who/why) so audit is intact. Close writes `fiscal_periods` linkage + emits `payroll_period.closed`.
+- Batch lifecycle (ADR-0045) `close` becomes the per-batch equivalent, unchanged.
 
-## 6. Non-goals (explicitly out of scope)
+### 8. UI — Payroll Control Center becomes a workflow board
 
-- Rewriting the pack lifecycle (already covered by ADR-0010, 0036, 0056).
-- Adding country-specific branches to any generator.
-- Re-architecting the compliance dashboard beyond making its RPC succeed and its data correct.
+- Replace the current linear action bar with a **workflow strip** per run showing 6 chips: Calculation · Payslips · Posting · Payment · Returns · Remittance. Each chip:
+  - Own status color + last-actor tooltip.
+  - Own action menu, enabled purely on that workflow's preconditions.
+  - Clicking opens that workflow's drawer (not the run detail).
+- Overview shows a matrix: rows = periods, columns = workflows, cells = state. Mirrors Workday's Payroll Processing dashboard.
+- Remove any UI text that reads "Pay employees before generating returns" — replace with "Available after Approval".
+
+### 9. Permissions (RBAC per workflow)
+
+Introduce workflow-scoped permissions (build on existing `permission_groups`):
+- `payroll.calculate`, `payroll.approve`, `payroll.post_gl`, `payroll.pay`, `payroll.bank_file`, `payroll.returns.generate`, `payroll.returns.submit`, `payroll.remit`, `payroll.period.close`.
+Each downstream RPC checks its own permission; SoD framework (mem: sod-self-action) already covers approver ≠ maker.
+
+### 10. Events & audit
+
+- One event per workflow transition into `business_event_outbox` (`payroll_posting.posted`, `payroll_payment.completed`, `payroll_return.generated`, `payroll_return.submitted`, `payroll_remittance.settled`, `payroll_period.closed`).
+- `PayslipEventsTimeline` already exists; add sibling `PayrollRunLifecycleTimeline` reading these events.
+
+## Delivery phases
+
+1. **Phase 1 — Immutability seal (foundation).**
+   - Add `locked_at/by/lock_reason` + `posting_status` + `payment_status` + `bank_file_status` + `payslip_issuance_status` columns (nullable, backfilled).
+   - `payroll_run_approve` stamps lock; immutability guard uses lock, not status label.
+   - Views for backwards-compat mapping (`payroll_runs.status` legacy readers).
+
+2. **Phase 2 — Cut Returns & GL loose from Payment.**
+   - Rewrite preconditions on `generate-statutory-return` and `post-payroll-gl` to depend only on `approved_at`.
+   - New error codes + UI copy in `ReturnsTab` and `PayrollPostingPreviewDialog`.
+
+3. **Phase 3 — Payment projection + Bank File workflow.**
+   - `payroll_runs.payment_status` becomes a trigger-maintained projection off `payroll_payment_batches`.
+   - New `payroll_bank_files` table (id, run_id, format, generated_at/by, sent_at/by, ack_at, file_ref).
+
+4. **Phase 4 — Period Close + workflow permissions.**
+   - `payroll_period_close(period_id)` RPC + waiver table.
+   - Split existing `payroll.write` into the 9 workflow permissions; migrate group_rules.
+
+5. **Phase 5 — Control Center UI rebuild.**
+   - New workflow strip component + matrix overview.
+   - Per-workflow drawers replace monolithic run dialog.
+   - Lifecycle timeline for the run (mirrors payslip timeline).
+
+6. **Phase 6 — Retire legacy coupling.**
+   - Remove `payroll_runs.status` values that duplicated downstream state (`posted`, `paid`).
+   - Update ADR-0045 addendum; write new ADR "Payroll as parallel workflows".
+   - Deprecate compat views.
+
+## Technical details
+
+- Column additions ship as one migration per phase; each includes GRANTs + immutability-guard bypass allow-lists per workflow (matches ADR-0045 payment_batch bypass pattern).
+- All workflow RPCs `SECURITY INVOKER`, emit outbox events, idempotent on `(run_id, workflow, target_state)`.
+- Frontend hooks split: `usePayrollPostingWorkflow`, `usePayrollPaymentWorkflow`, `usePayrollBankFileWorkflow`, `usePayrollReturnsWorkflow`, `usePayrollRemittanceWorkflow`, `usePayrollPeriodClose`. Each returns `{ state, canAdvance, preconditions, actions }`.
+- Architecture test: forbid downstream workflow code from reading `payroll_runs.status` — force reads through `approved_at` + workflow's own column.
+- No country hardcoding — statutory workflow preconditions continue to derive from `payroll_statutory_rules` + localization packs (invariant from `docs/audit/2026-05-08-payroll-gl-readiness.md`).
+- Existing ADRs updated: 0022 (immutability keyed on lock, not status), 0036 (country-agnostic completion — clarify Approval is the completion boundary), 0045 (Batch orchestrates but does not gate downstream workflows).
+
+## Out of scope for this plan
+
+- Off-cycle/retro engine (already queued as M-PAY-6).
+- Multi-currency payroll runs.
+- Cross-legal-entity consolidation beyond the existing `v_payroll_period_consolidation` view.
+
+## First deliverable if approved
+
+Phase 1 + Phase 2 together — this unblocks the immediate user pain (Returns failing because payslips aren't marked paid) with the correct architectural fix, not a band-aid.
