@@ -26554,6 +26554,127 @@ export type Database = {
           },
         ]
       }
+      payroll_bank_files: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledgement_reference: string | null
+          business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          failure_reason: string | null
+          file_bytes: number | null
+          file_name: string | null
+          file_path: string | null
+          format: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          metadata: Json
+          organization_id: string
+          payment_batch_id: string | null
+          payroll_run_id: string
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          transmission_reference: string | null
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledgement_reference?: string | null
+          business_id: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          failure_reason?: string | null
+          file_bytes?: number | null
+          file_name?: string | null
+          file_path?: string | null
+          format: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          metadata?: Json
+          organization_id: string
+          payment_batch_id?: string | null
+          payroll_run_id: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          transmission_reference?: string | null
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledgement_reference?: string | null
+          business_id?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          failure_reason?: string | null
+          file_bytes?: number | null
+          file_name?: string | null
+          file_path?: string | null
+          format?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          payment_batch_id?: string | null
+          payroll_run_id?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          transmission_reference?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_bank_files_payment_batch_id_fkey"
+            columns: ["payment_batch_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_payment_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_bank_files_payment_batch_id_fkey"
+            columns: ["payment_batch_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_payment_reconciliation"
+            referencedColumns: ["batch_id"]
+          },
+          {
+            foreignKeyName: "payroll_bank_files_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_bank_files_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "v_hr_payroll_distribution_by_department"
+            referencedColumns: ["payroll_run_id"]
+          },
+          {
+            foreignKeyName: "payroll_bank_files_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_batch_register"
+            referencedColumns: ["run_id"]
+          },
+          {
+            foreignKeyName: "payroll_bank_files_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_cost_by_department"
+            referencedColumns: ["payroll_run_id"]
+          },
+        ]
+      }
       payroll_batch_readiness_snapshots: {
         Row: {
           batch_id: string
@@ -64378,6 +64499,14 @@ export type Database = {
           p_period_start?: string
         }
         Returns: Json
+      }
+      payroll_recompute_run_bank_file_status: {
+        Args: { _run_id: string }
+        Returns: undefined
+      }
+      payroll_recompute_run_payment_status: {
+        Args: { _run_id: string }
+        Returns: undefined
       }
       payroll_remittance_dashboard: {
         Args: { p_business_id: string; p_organization_id: string }
