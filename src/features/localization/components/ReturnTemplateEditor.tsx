@@ -117,6 +117,8 @@ const RESERVED_PLATFORM_TOKENS: PackTokenOption[] = [
   { value: "sum_employee_amount",      label: "Aggregate — sum_employee_amount", numeric: true, source: "system" },
   { value: "sum_employer_amount",      label: "Aggregate — sum_employer_amount", numeric: true, source: "system" },
   { value: "sum_taxable_amount",       label: "Aggregate — sum_taxable_amount",  numeric: true, source: "system" },
+  { value: "sum_total_amount",         label: "Aggregate — sum_total_amount",    numeric: true, source: "system" },
+  { value: "count_payslips",           label: "Aggregate — count_payslips",      numeric: true, source: "system" },
 ];
 
 const PAYSLIP_STATUSES = ["pending", "approved", "validated", "posted", "paid"] as const;
