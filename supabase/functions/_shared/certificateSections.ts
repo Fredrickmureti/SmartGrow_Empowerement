@@ -135,7 +135,7 @@ export function renderCertificateSections(
       }
       // Totals row
       const totalRow: Record<string, unknown> = { month: "Total" };
-      for (const c of cols) {
+      for (const c of colKeys) {
         totalRow[c] = tableRows.reduce((a, r) => a + (Number((r as any)[c]) || 0), 0);
       }
       tableRows.push(totalRow);
