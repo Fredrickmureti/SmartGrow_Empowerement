@@ -51,6 +51,25 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+/**
+ * Structured business-error envelope, mirrored on `generate-statutory-return`.
+ * The client uses `code` to render an actionable message + recovery hint
+ * instead of showing "500 Internal Server Error". Every predictable refusal
+ * from this edge function should go through here.
+ */
+function businessError(
+  status: number,
+  code: string,
+  message: string,
+  recovery: string,
+  context: Record<string, unknown> = {},
+) {
+  return jsonResponse(
+    { error: code, code, message, recovery, ...context },
+    status,
+  );
+}
+
 function fmtMoney(n: number, currency = "") {
   const s = (Number(n) || 0).toFixed(2);
   return currency ? `${currency} ${s}` : s;
