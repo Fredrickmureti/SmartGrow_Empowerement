@@ -122,6 +122,41 @@ export function adaptBracketBreakdown(line: PayslipLineLike): BreakdownView {
   if (typeof src.explanation === "string") out.explanation.push(src.explanation);
   else if (Array.isArray(src.explanation)) out.explanation.push(...src.explanation.map(String));
 
+  // Shape 5 — taxable-base composition (audit "How PAYE was computed"):
+  // renders as leading prose so the accountant sees
+  //   Taxable base = Gross 94,000 − NSSF 5,640 − SHIF 2,585 − AHL 1,410 = 84,365
+  // before the per-band rows.
+  if (
+    Array.isArray(src.taxable_base_components) &&
+    src.taxable_base_components.length > 0
+  ) {
+    const parts = src.taxable_base_components.map((c: any) => {
+      const amt = num(c.amount);
+      const sign = amt < 0 ? "−" : "+";
+      const abs = Math.abs(amt).toLocaleString(undefined, { maximumFractionDigits: 2 });
+      return `${sign} ${c.rule_name ?? c.rule_code ?? "component"} ${abs}`;
+    });
+    const total = num(src.taxable_base);
+    out.explanation.unshift(
+      `Taxable base ${parts.join(" ")} = ${total.toLocaleString(undefined, { maximumFractionDigits: 2 })}`.replace(/^Taxable base \+ /, "Taxable base = "),
+    );
+  }
+
+  // Shape 6 — relief lines (personal / insurance) rendered as employee
+  // subnote rows so they line up under the PAYE bracket rows.
+  if (num(src.personal_relief) > 0) {
+    out.employeeRows.push({
+      label: "Personal relief",
+      amount: -num(src.personal_relief),
+    });
+  }
+  if (num(src.insurance_relief) > 0) {
+    out.employeeRows.push({
+      label: "Insurance relief",
+      amount: -num(src.insurance_relief),
+    });
+  }
+
   return out;
 }
 
