@@ -172,9 +172,12 @@ Deno.serve(async (req) => {
 
     // Resolve employees
     // Wave 1.1: position/department resolved via FK joins (legacy text cols dropped)
+    // Statutory identifiers (tax_pin, nssf_number, …) live in
+    // employee_statutory_identifiers keyed by identifier_type — do NOT
+    // reference dropped columns like tax_pin on employees directly.
     let employeesQuery = admin
       .from("employees")
-      .select("id, first_name, last_name, employee_number, tax_pin, national_id:national_id, email, branch_id, business_id, organization_id, department:departments(name), job_position:job_positions(name)")
+      .select("id, first_name, last_name, employee_number, national_id, email, branch_id, business_id, organization_id, department:departments(name), job_position:job_positions(name)")
       .eq("organization_id", body.organization_id)
       .eq("business_id", body.business_id);
     if (employeeIds.length) {
@@ -185,6 +188,34 @@ Deno.serve(async (req) => {
     const { data: employees, error: empErr } = await employeesQuery;
     if (empErr) return jsonResponse({ error: `failed to load employees: ${empErr.message}` }, 500);
     if (!employees?.length) return jsonResponse({ error: "no employees match" }, 400);
+
+    // Pull statutory identifiers keyed by identifier_type for every employee
+    // in this batch. Country-agnostic: whatever the pack registered
+    // (KRA_PIN, NSSF_NUMBER, SHIF_NUMBER, NHIF_NUMBER, …) is spread onto
+    // the employee context so templates can address `employee.<type>`
+    // uniformly. `tax_pin` is kept as an alias for the KRA_PIN identifier
+    // to preserve the pre-existing payload shape consumed by templates.
+    const employeeIdList = employees.map((e: any) => e.id);
+    const { data: idRows } = await admin
+      .from("employee_statutory_identifiers")
+      .select("employee_id, identifier_type, identifier_value")
+      .in("employee_id", employeeIdList);
+    const idsByEmp = new Map<string, Record<string, string>>();
+    for (const r of (idRows ?? []) as any[]) {
+      const m = idsByEmp.get(r.employee_id) ?? {};
+      m[r.identifier_type] = r.identifier_value;
+      idsByEmp.set(r.employee_id, m);
+    }
+    for (const emp of employees as any[]) {
+      const ids = idsByEmp.get(emp.id) ?? {};
+      for (const [k, v] of Object.entries(ids)) {
+        if (k in emp) continue;
+        (emp as any)[k] = v ?? null;
+      }
+      if (!(emp as any).tax_pin) {
+        (emp as any).tax_pin = ids.KRA_PIN ?? ids.TAX_PIN ?? ids.TIN ?? null;
+      }
+    }
 
     const branding = await getOrganizationBranding(admin, body.organization_id, body.business_id);
     const orgCurrency = branding?.currencyCode ?? "";
