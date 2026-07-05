@@ -239,6 +239,43 @@ Deno.serve(async (req) => {
     const branding = await getOrganizationBranding(admin, body.organization_id, body.business_id);
     const orgCurrency = branding?.currencyCode ?? "";
 
+    // Enterprise rule (see .lovable/plan.md — Phase 2/5g):
+    // Tax certificates are downstream of Payroll APPROVAL, not Payment or
+    // GL Posting. Refuse the request up-front with a structured error if the
+    // fiscal year has no approved payroll runs for this org/business — this
+    // is what previously surfaced to users as an opaque "500 Internal Server
+    // Error" after the per-employee YTD rollup returned nothing.
+    // Payment status is NOT checked here (mirrors SAP HCM / Workday / Oracle
+    // HCM: year-end certificates are producible immediately after approval).
+    {
+      const fyStart = `${body.fiscal_year}-01-01`;
+      const fyEnd = `${body.fiscal_year}-12-31`;
+      const { count: approvedRunCount, error: runCntErr } = await admin
+        .from("payroll_runs")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", body.organization_id)
+        .eq("business_id", body.business_id)
+        .lte("pay_period_start", fyEnd)
+        .gte("pay_period_end", fyStart)
+        .not("approved_at", "is", null);
+      if (runCntErr) {
+        return jsonResponse({ error: `approval check failed: ${runCntErr.message}` }, 500);
+      }
+      if (!approvedRunCount || approvedRunCount === 0) {
+        return businessError(
+          400,
+          "NO_APPROVED_PAYROLL_RUNS",
+          `No approved payroll runs were found for fiscal year ${body.fiscal_year}. Tax certificates can only be issued from an approved (finalised) payroll.`,
+          "Approve at least one payroll run inside this fiscal year, then generate the certificate again. You do not need to pay employees or post to the GL first.",
+          {
+            template_code: body.template_code,
+            fiscal_year: body.fiscal_year,
+            requires: "payroll_runs.approved_at",
+          },
+        );
+      }
+    }
+
     const created: any[] = [];
     const errors: any[] = [];
     const skipped: any[] = [];
