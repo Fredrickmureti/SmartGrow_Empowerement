@@ -163,7 +163,7 @@ export function usePayrollRunGroups() {
       const { data, error } = await supabase
         .from("payroll_runs")
         .select(
-          "id, payroll_number, status, pay_period_start, pay_period_end, employee_count, total_gross, total_net, total_employer_contributions, group_id, business_id",
+          "id, payroll_number, status, pay_period_start, pay_period_end, employee_count, total_gross, total_net, total_employer_contributions, group_id, business_id, approved_at, posting_status, payment_status, bank_file_status, payslip_issuance_status",
         )
         .eq("organization_id", orgId!)
         .eq("business_id", businessId!)
