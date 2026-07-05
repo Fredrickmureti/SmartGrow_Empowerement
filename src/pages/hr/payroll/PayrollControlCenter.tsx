@@ -692,6 +692,8 @@ export default function PayrollControlCenter() {
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
+                                </div>
+                                <PayrollWorkflowStrip run={r} size="xs" className="pl-5" />
                               </div>
                             );
                           })}
