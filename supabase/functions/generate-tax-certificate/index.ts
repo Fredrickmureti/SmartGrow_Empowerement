@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
     // reference dropped columns like tax_pin on employees directly.
     let employeesQuery = admin
       .from("employees")
-      .select("id, first_name, last_name, employee_number, national_id, email, branch_id, business_id, organization_id, department:departments(name), job_position:job_positions(name)")
+      .select("id, first_name, last_name, employee_number, national_id, email, branch_id, business_id, organization_id, department:departments!employees_department_id_fkey(name), job_position:job_positions(name)")
       .eq("organization_id", body.organization_id)
       .eq("business_id", body.business_id);
     if (employeeIds.length) {
