@@ -1,105 +1,67 @@
-# Payroll Parallel-Workflows Redesign — final status (2026-07-05)
+# Return Template Eligibility Audit + UI Precondition Surfacing
 
-## Independent verification (this session)
+## Context
 
-The prior agent's plan was mostly directionally right but contained one
-material misdiagnosis and left several genuinely-required pieces undone.
+The `generate-statutory-return` 400 you're hitting is the intentional `NO_ELIGIBLE_PAYSLIPS` business error added in the parallel-workflow redesign. The workflow itself is wired correctly:
 
-### Verified correct in the prior work
-- **Phase 1** — workflow-state columns on `payroll_runs`
-  (`posting_status`, `payment_status`, `bank_file_status`,
-  `payslip_issuance_status`) with back-fill (`20260705195822`).
-- **Phase 2** — `generate-statutory-return`, `generate-tax-certificate`,
-  `post-payroll-gl` all gate on `approved_at IS NOT NULL`, pinned by
-  `parallel-workflows-preconditions.test.ts`.
-- **Phase 3** — payment-status projection triggers +
-  `payroll_bank_files` table (`20260705200306`).
-- **Phase 5a/c/d/e/f** — `usePayrollWorkflows` hook family, workflow
-  strip, matrix, drawer host, run lifecycle timeline, no
-  "must be paid" copy remaining. Mounted in `PayrollControlCenter.tsx`.
+- Payroll run for April 2026 is `approved_at IS NOT NULL` → passes gate 1.
+- Payslips exist but are not in `paid` status → fails the template's `filters.payslip_status = ["paid"]` gate.
 
-### Misdiagnosis corrected
-The prior plan asserted the tax-cert 500 was caused by
-`payroll_employee_ytd_rollup` being called with the wrong arity. That is
-**false**: the RPC's real signature in `20260510081521` is
-`(p_year integer, p_employee_id uuid)`, which is exactly what
-`generate-tax-certificate` passes. Applying that "fix" would have
-broken production. `payroll_remittance_dashboard` also works correctly
-at DB level when called with the client's argument shape.
+The pipeline is doing what an enterprise system should: refusing to emit a cash-basis remittance before cash has moved. The gap is that **(a)** we never audited whether each installed template's filter matches its legal basis, and **(b)** the UI at `/hr/remittances → Returns` does not show the precondition before the user clicks Generate, so the failure feels like a bug.
 
-The real user-visible errors are business-condition refusals surfacing
-as raw HTTP status codes. Fixed in this session (see below).
+## What to change
 
-## Delivered this session
+### 1. Template eligibility audit (data / config)
 
-1. **True root-cause fix for the 404/500 the user reported.**
-   - `generate-statutory-return`: raw `404 "template not found"` → structured
-     `businessError("TEMPLATE_NOT_INSTALLED", …)` with recovery action
-     pointing at Settings → Localization → Packs.
-   - `generate-tax-certificate`: same treatment. The prior code returned
-     bare 404s that the UI showed as opaque errors.
-   - Both edge functions redeployed.
-   - Regression test: `src/test/payroll/tax-certificate-rpc-signature.test.ts`
-     pins both the real RPC signature AND the businessError contract so
-     future audits can't re-open the same misdiagnosis.
+For each row in `localization_pack_return_templates` installed for this org, classify by legal basis and set `filters.payslip_status` accordingly:
 
-2. **Fixed build errors the prior agent left behind.**
-   - `PayrollRunLifecycleTimeline.tsx` was querying a non-existent
-     `aggregate_id` column on `business_event_outbox`; migrated to
-     `source_doc_id` which is the real column.
-   - `usePayrollWorkflows.ts` referenced `paid_at` / `paid_by` on
-     `payroll_runs` (don't exist) and `payroll_period_id` on
-     `payroll_remittances` (schema uses `payroll_run_id`). Rewrote to
-     `payment_date` and to resolve run ids first.
-   - `.replaceAll` calls in four components → `.replace(/_/g, …)` for
-     the project's TypeScript lib target.
+| Return type                                  | Correct filter                          |
+| -------------------------------------------- | --------------------------------------- |
+| PAYE / income tax (accrual, liability-based) | `["approved","validated","paid"]`       |
+| NSSF / NHIF / SHIF cash remittances          | `["paid"]`                              |
+| SDL / levy monthly returns (KE-style)        | `["approved","validated","paid"]`       |
+| Year-end certificates (P9, P10, W-2, etc.)   | `["paid"]` (calendar-year cash basis)   |
 
-3. **Phase 4b — parallel-workflow-aware period close.**
-   New migration (`payroll_period_close_waivers` table + partial unique
-   indexes + `payroll_period_workflow_blockers` RPC + extended
-   `payroll_period_close_atomic`). Period close now refuses to advance
-   while any of posting, payment, bank_file, or statutory returns is
-   outstanding, unless waived or explicitly forced. Emits
-   `payroll_period.close_blocked` and `payroll_period.closed` to the
-   `business_event_outbox`.
+Deliverable: one `insert` migration that updates the `filters` JSON on the templates for the currently installed pack, plus a `pack_audit_log` entry per change with the legal-basis rationale.
 
-4. **Phase 6a — legacy `payroll_runs.status` retirement.**
-   - Column comment marks `posted`/`paid` DEPRECATED.
-   - `payroll_runs_legacy_status_v` compatibility view.
-   - Architecture test `src/test/architecture/no-legacy-payroll-status-reads.test.ts`
-     ratchets the 11 known coupling sites and forbids new ones. New code
-     added to the allow-list requires a matching ADR-0058 update.
+### 2. Precondition preview in the UI
 
-5. **Phase 6c — ADR-0058 + cross-reference addenda.**
-   - `docs/adr/0058-payroll-parallel-workflows.md` — the definitive
-     "downstream workflows are peers of Approval" decision, with
-     enterprise inspiration citations (SAP HCM, SuccessFactors, Workday,
-     Oracle HCM, ADP, Odoo) and enforced invariants.
-   - `docs/adr/0058-addendum-cross-references.md` — addenda to
-     ADR-0022 (immutability on `locked_at`, not status label),
-     ADR-0036 (Approval is the certificate boundary),
-     ADR-0036-addendum (provenance from approved runs only),
-     ADR-0045 (batches orchestrate but do not gate).
+In `PayrollRemittanceReturns` (the panel at `/hr/remittances → Returns`), before enabling the "Generate" button per template row, call a lightweight `payroll_return_eligibility` view/RPC that returns:
 
-## Test status
+- `approved_runs_count`
+- `eligible_payslips_count` (respecting the template's `filters.payslip_status`)
+- `blocking_reason` enum (`no_approved_run` | `no_eligible_payslips` | `ready`)
 
-`bunx vitest run src/test/architecture/no-legacy-payroll-status-reads.test.ts src/test/payroll/tax-certificate-rpc-signature.test.ts src/test/payroll/parallel-workflows-preconditions.test.ts`
-→ **10 / 10 passing.**
+Render:
 
-## Deferred (with rationale)
+- `ready` → green "Generate" button.
+- `no_eligible_payslips` → amber "Awaiting payment" chip + tooltip listing how many payslips are stuck in which status, with a deep link to the payment batch screen.
+- `no_approved_run` → grey "Awaiting approval" chip + link to the run.
 
-- **Phase 4a — dotted-key workflow permissions.** Tenant RBAC in this
-  project is module-based (`permission_group_rules.module + can_write`),
-  not key-based. Splitting `payroll.write` into
-  `payroll.calculate`/`payroll.approve`/… requires a governance-wide
-  RBAC redesign that has non-payroll blast radius (invoicing, inventory,
-  etc.) and should be sequenced separately. Documented for a future ADR.
-- **Migrating the 11 allow-listed `payroll_runs.status` readers.** The
-  ratchet test forbids new couplings; the existing 11 sites can migrate
-  one-by-one to the workflow-state columns / compatibility view.
+This turns the 400 into a preflight state the user sees before clicking, matching how Workday's Tax Filing dashboard and SAP's PC00_M99_URMR surface readiness.
+
+### 3. Business-error contract on the frontend
+
+`useGenerateStatutoryReturn` currently toasts the raw message. Extend it to branch on `error_code`:
+
+- `NO_APPROVED_PAYROLL_RUNS` → toast + CTA "Open payroll run".
+- `NO_ELIGIBLE_PAYSLIPS` → toast + CTA "Open payment batches" (pre-filtered to the period).
+- `TEMPLATE_NOT_INSTALLED` → toast + CTA "Install localization pack".
+
+### 4. Architecture test
+
+Add `src/test/architecture/return-template-filter-legal-basis.test.ts` that fails if any seeded return template has an empty `filters.payslip_status` or a value inconsistent with its `legal_basis` column. This prevents regression when new packs are installed.
 
 ## Out of scope
 
-- Off-cycle/retro engine (M-PAY-6).
-- Multi-currency payroll runs.
-- Cross-legal-entity consolidation beyond `v_payroll_period_consolidation`.
+- Changing the edge function's gating logic — it is correct.
+- Auto-triggering payment from the Returns screen — payment remains an explicit peer workflow.
+- Retroactively marking April payslips as paid — that is a data action for the user, not something this plan does.
+
+## Verification
+
+1. Apply the template filter audit migration.
+2. Reload `/hr/remittances → Returns` for April 2026; PAYE row should now show `ready`, NSSF/NHIF rows should show `Awaiting payment` with counts.
+3. Click Generate on PAYE → 200 with a return artifact.
+4. Click Generate on NSSF → button is disabled; running the edge function directly still returns the structured 400 (contract preserved for API consumers).
+5. `bun vitest run src/test/architecture/return-template-filter-legal-basis.test.ts` passes.
