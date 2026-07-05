@@ -366,3 +366,22 @@ export const HR_REPORTS_NAV: WorkspaceNav = {
     },
   ],
 };
+
+export const DOCUMENT_COMPLIANCE_NAV: WorkspaceNav = {
+  groups: [
+    {
+      label: "Compliance",
+      items: [
+        { to: "/hr/document-compliance/expiring", label: "Expiring soon", icon: AlertCircle, end: true },
+        { to: "/hr/document-compliance/expired", label: "Expired", icon: Ban },
+        { to: "/hr/document-compliance/unverified", label: "Unverified", icon: Shield },
+      ],
+    },
+    {
+      label: "Records",
+      items: [
+        { to: "/hr/document-compliance/all", label: "All documents", icon: FileBox },
+      ],
+    },
+  ],
+};
