@@ -94,14 +94,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    console.log("[post-payroll-gl] step: entitlement");
     // ─── Subscription entitlement check ───
     const { checkAppEntitlement, entitlementDeniedResponse } = await import("../_shared/entitlementCheck.ts");
     const entResult = await checkAppEntitlement(supabaseAdmin, organization_id, "payroll", { requireInstalled: true });
     if (!entResult.allowed) return entitlementDeniedResponse(entResult, corsHeaders);
 
-    // ─── Permission check (delegated to DB single source of truth) ───
-    // GL posting requires BOTH payroll.write AND financials.write — payroll
-    // is being finalized AND a journal entry is being created.
+    console.log("[post-payroll-gl] step: permissions");
     const { requireModulePermission } = await import("../_shared/permissionCheck.ts");
     const deniedPayroll = await requireModulePermission(
       supabaseAdmin, userId, organization_id, "payroll", "write", corsHeaders,
@@ -112,7 +111,7 @@ Deno.serve(async (req) => {
     );
     if (deniedFin) return deniedFin;
 
-    // ─── Fetch payroll run ───
+    console.log("[post-payroll-gl] step: fetch run");
     const { data: payrollRun, error: prError } = await supabaseAdmin
       .from("payroll_runs")
       .select("*")
@@ -126,17 +125,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Preview-time warnings accumulator (dry_run only). On the write path
-    // these same conditions are hard failures below.
     const previewWarnings: Array<{ code: string; message: string; details?: unknown }> = [];
 
-    // ─── SoD: poster cannot be creator OR approver of this run ───
-    // Authoritative check lives in the DB helper user_can_post_payroll, which
-    // also re-validates payroll.post permission (defense in depth).
-    //
-    // SoD is a WRITE-PATH control — a preview must not depend on who could
-    // actually authorise the post, otherwise accountants cannot inspect a
-    // projected JE before approval routing has selected a poster.
+    console.log("[post-payroll-gl] step: sod (skipped for dry_run)", { dryRun });
     if (!dryRun) {
       const { data: canPost, error: sodErr } = await supabaseAdmin.rpc(
         "user_can_post_payroll",
@@ -158,6 +149,7 @@ Deno.serve(async (req) => {
         });
       }
     }
+
 
     // Defensive: caller-supplied business_id MUST match the payroll run.
     // Without this guard a malformed client could resolve mappings against
