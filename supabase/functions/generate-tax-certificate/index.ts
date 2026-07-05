@@ -313,6 +313,18 @@ Deno.serve(async (req) => {
         });
         if (rollErr) throw new Error(rollErr.message);
         const rows = (rollup ?? []) as RollupRow[];
+        // Per-employee guard: an employee with no YTD rollup rows for the
+        // fiscal year has no payslip lines in an approved run — skip with an
+        // actionable message rather than emitting an empty PDF or throwing.
+        if (!rows.length) {
+          skipped.push({
+            employee_id: emp.id,
+            employee_number: (emp as any).employee_number ?? null,
+            reason: "NO_YTD_DATA",
+            message: `No approved payslip lines exist for this employee in FY ${body.fiscal_year}.`,
+          });
+          continue;
+        }
 
         // Provenance snapshot (Step 2): captures the high-water mark of the
         // payroll surface that produced this certificate. payroll_mark_stale_certificates
