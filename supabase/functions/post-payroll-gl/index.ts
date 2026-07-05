@@ -763,6 +763,8 @@ Deno.serve(async (req) => {
     // write a lightweight, non-financial "payroll_posting_previewed" row
     // to audit_logs so previews are traceable in enterprise audits.
     if (dryRun) {
+      console.log(`[post-payroll-gl] dry_run branch reached, lines=${lines.length}`);
+
       const acctIds = Array.from(new Set(lines.map((l) => l.account_id).filter(Boolean)));
       const { data: acctRows } = await supabaseAdmin
         .from("accounts")
