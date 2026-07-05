@@ -474,18 +474,18 @@ export function PayrollPreviewDialog({
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
     {/* Override reason prompt — gates the override behind an audit reason. */}
-    <Dialog open={!!overrideTarget} onOpenChange={(o) => { if (!o) setOverrideTarget(null); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Override proration</DialogTitle>
-          <DialogDescription>
+    <Sheet open={!!overrideTarget} onOpenChange={(o) => { if (!o) setOverrideTarget(null); }}>
+      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+        <SheetHeader className="px-6 py-4 border-b">
+          <SheetTitle>Override proration</SheetTitle>
+          <SheetDescription>
             Force {overrideTarget?.name} to receive their full contract amount for this period instead of the auto-prorated amount. The reason is recorded on the payslip and the run audit log.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
           <Label htmlFor="override-reason">Reason</Label>
           <Textarea
             id="override-reason"
@@ -495,7 +495,7 @@ export function PayrollPreviewDialog({
             rows={3}
           />
         </div>
-        <div className="flex justify-end gap-2">
+        <div className="px-6 py-3 border-t flex justify-end gap-2">
           <Button variant="outline" onClick={() => setOverrideTarget(null)}>Cancel</Button>
           <Button
             disabled={!overrideReason.trim()}
@@ -510,8 +510,8 @@ export function PayrollPreviewDialog({
             Apply override
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
     </>
   );
 }
