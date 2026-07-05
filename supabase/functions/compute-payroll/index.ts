@@ -3581,6 +3581,18 @@ Deno.serve(async (req) => {
         total_deductions: empTotalDeductions,
         net_pay: storedNetPay,
         taxable_income: finalTaxableBase,
+        // Audit 2026-07-05 closeout — persist the base PAYE was computed
+        // against + the gross tax before reliefs so reports/tax certificates
+        // don't have to re-derive them from payslip_lines.source.
+        taxable_base: finalTaxableBase,
+        paye_before_relief: (() => {
+          const traces = ((emp as any).__bracket_traces_by_rule_name || {}) as Record<string, any>;
+          let sum = 0;
+          for (const t of Object.values(traces)) {
+            sum += Number((t as any)?.gross_tax || 0);
+          }
+          return sum > 0 ? Math.round(sum * 100) / 100 : null;
+        })(),
         status: "pending",
         deductions_detail: deductionsDetail,
         contributions_detail: contributionsDetail,
