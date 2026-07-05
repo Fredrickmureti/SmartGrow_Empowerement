@@ -48,6 +48,7 @@ import {
   type PayrollRunGroup,
 } from "@/hooks/payroll/usePayrollRunGroups";
 import { useSelfActionPolicy } from "@/hooks/governance/useSelfActionPolicy";
+import { PayrollWorkflowStrip } from "@/components/payroll/PayrollWorkflowStrip";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "outline",
