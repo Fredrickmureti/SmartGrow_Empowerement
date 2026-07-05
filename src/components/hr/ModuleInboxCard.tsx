@@ -137,11 +137,32 @@ function useRows(module: InboxModule): { title: string; total: number; isLoading
         emptyLabel: "Onboarding caught up",
       },
       {
-        to: "/hr/employees?tab=contracts",
+        to: "/hr/onboarding-issues",
+        icon: Hourglass,
+        label: "Stalled onboarding (>30d)",
+        count: emp.counts.stalledOnboarding,
+        emptyLabel: "No stalled onboarding",
+      },
+      {
+        to: "/hr/contracts/expiring",
         icon: FileSignature,
         label: "Contracts expiring (90d)",
         count: emp.counts.expiringContracts,
         emptyLabel: "No renewals due",
+      },
+      {
+        to: "/hr/contracts/active",
+        icon: ShieldCheck,
+        label: "Probation ending (30d)",
+        count: emp.counts.probationEnding,
+        emptyLabel: "No probations ending",
+      },
+      {
+        to: "/hr/employees?tab=documents",
+        icon: FileWarning,
+        label: "Documents expiring (90d)",
+        count: emp.counts.expiringDocuments,
+        emptyLabel: "Documents current",
       },
       {
         to: "/hr/employees?tab=exit",
