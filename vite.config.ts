@@ -14,9 +14,6 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [
-    // Provides TanStack Start's virtual client/server entries used by the
-    // Lovable preview dev shell (`#tanstack-start-entry`).
-    ...tanstackStart(),
     react(),
     mode === "development" ? (componentTagger() as unknown as PluginOption) : null,
     // Service worker is disabled for Electron packaged builds — `file://`
