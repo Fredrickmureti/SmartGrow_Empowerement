@@ -220,6 +220,17 @@ export function PayrollPostingSimulator() {
               </div>
             )}
 
+            {alreadyPosted && (
+              <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                <div className="font-medium">Already posted</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  This run is already linked to journal entry{" "}
+                  <span className="font-mono">{alreadyPosted.journal_entry_id.slice(0, 8)}</span>.
+                  Nothing to simulate.
+                </div>
+              </div>
+            )}
+
             {result && (
               <>
                 <div className="flex flex-wrap items-center gap-3 text-sm">
