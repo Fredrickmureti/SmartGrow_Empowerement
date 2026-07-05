@@ -43,6 +43,7 @@ const TalentApp = lazy(() => import("./sub/TalentRoutes"));
 const ContractsApp = lazy(() => import("./sub/ContractsRoutes"));
 const LifecycleApp = lazy(() => import("./sub/LifecycleRoutes"));
 const HrReportsApp = lazy(() => import("./sub/HrReportsRoutes"));
+const DocumentComplianceApp = lazy(() => import("./sub/DocumentComplianceRoutes"));
 
 function SubAppFallback({ module }: { module: string }) {
   return <RouteLoadingFallback module={module} />;
