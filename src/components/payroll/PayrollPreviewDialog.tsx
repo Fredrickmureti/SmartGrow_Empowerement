@@ -211,14 +211,14 @@ export function PayrollPreviewDialog({
 
   if (isLoading) {
     return (
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="w-[95vw] max-w-md">
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+          <div className="flex flex-col items-center justify-center py-12 gap-3 flex-1">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">Computing payroll preview...</p>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     );
   }
 
