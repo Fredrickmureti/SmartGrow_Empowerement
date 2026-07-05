@@ -146,7 +146,7 @@ export function PayrollPostingPreviewDialog({
   });
 
   return (
-    <Dialog
+    <Sheet
       open={open}
       onOpenChange={(v) => {
         setOpen(v);
@@ -159,22 +159,25 @@ export function PayrollPostingPreviewDialog({
         }
       }}
     >
-      <DialogTrigger asChild>
+      <SheetTrigger asChild>
         {trigger ?? (
           <Button size="sm" variant="outline">
             <PlayCircle className="h-4 w-4 mr-1.5" />
             Preview posting
           </Button>
         )}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl p-0 flex flex-col gap-0 max-h-[90vh]">
-        <DialogHeader className="px-6 py-4 border-b">
-          <DialogTitle>Payroll posting preview</DialogTitle>
-          <DialogDescription>
+      </SheetTrigger>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-3xl p-0 flex flex-col gap-0"
+      >
+        <SheetHeader className="px-6 py-4 border-b">
+          <SheetTitle>Payroll posting preview</SheetTitle>
+          <SheetDescription>
             Read-only projection of the journal entry this run would produce.
             Nothing is written to the general ledger.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {runSim.isPending && (
             <div className="py-6 text-sm text-muted-foreground">Generating preview…</div>
