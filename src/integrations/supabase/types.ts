@@ -31340,6 +31340,7 @@ export type Database = {
           organization_id: string
           pack_version_id: string | null
           paid_at: string | null
+          paye_before_relief: number | null
           payment_reference: string | null
           payroll_run_id: string
           payslip_number: string | null
@@ -31350,6 +31351,7 @@ export type Database = {
           rule_set_version: number | null
           status: string | null
           superseded_by_payslip_id: string | null
+          taxable_base: number | null
           taxable_income: number
           total_deductions: number | null
           unpaid_leave_days: number | null
@@ -31374,6 +31376,7 @@ export type Database = {
           organization_id: string
           pack_version_id?: string | null
           paid_at?: string | null
+          paye_before_relief?: number | null
           payment_reference?: string | null
           payroll_run_id: string
           payslip_number?: string | null
@@ -31384,6 +31387,7 @@ export type Database = {
           rule_set_version?: number | null
           status?: string | null
           superseded_by_payslip_id?: string | null
+          taxable_base?: number | null
           taxable_income?: number
           total_deductions?: number | null
           unpaid_leave_days?: number | null
@@ -31408,6 +31412,7 @@ export type Database = {
           organization_id?: string
           pack_version_id?: string | null
           paid_at?: string | null
+          paye_before_relief?: number | null
           payment_reference?: string | null
           payroll_run_id?: string
           payslip_number?: string | null
@@ -31418,6 +31423,7 @@ export type Database = {
           rule_set_version?: number | null
           status?: string | null
           superseded_by_payslip_id?: string | null
+          taxable_base?: number | null
           taxable_income?: number
           total_deductions?: number | null
           unpaid_leave_days?: number | null

@@ -193,8 +193,24 @@ interface CalcContext {
  * plus a `requires_input: [...]` entry on the localization-pack rule — no
  * country branches anywhere.
  */
+// Every token that a localization pack rule can reference in
+// `parameters.requires_input[]`, `pickBase(...)`, `parameters.reliefs[].base_code`,
+// or `parameters.reliefs[].condition` must be resolvable through this
+// registry. Keys are pure tokens — never a country literal. The values
+// are populated by the pre-fetch pass below (see aggregatePreTaxInputs).
+//
+// Adding a new statutory input is a one-line change here plus a
+// `requires_input: [...]` entry on the localization-pack rule.
 const EMPLOYEE_INPUT_REGISTRY: Record<string, (emp: any) => number> = {
   insurance_premium: (emp) => Number(emp?.insurance_premium ?? 0),
+  ahr_contribution: (emp) => Number(emp?.ahr_contribution ?? 0),
+  mortgage_interest: (emp) => Number(emp?.mortgage_interest ?? 0),
+  pension_contribution: (emp) => Number(emp?.pension_contribution ?? 0),
+  post_retirement_medical: (emp) => Number(emp?.post_retirement_medical ?? 0),
+  // Presence-only gate tokens. Coerced to 1/0 so the same map is uniformly
+  // numeric; relief `condition` checks read truthiness.
+  ahr_contribution_present: (emp) => (Number(emp?.ahr_contribution ?? 0) > 0 ? 1 : 0),
+  disability_certified: (emp) => (emp?.disability_certified ? 1 : 0),
 };
 
 function resolveInputs(emp: any): Record<string, number> {
