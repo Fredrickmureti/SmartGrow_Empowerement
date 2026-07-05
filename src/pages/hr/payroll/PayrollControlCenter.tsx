@@ -175,6 +175,10 @@ export default function PayrollControlCenter() {
 
   const [auditFor, setAuditFor] = useState<PayrollRunGroup | null>(null);
 
+  // Workflow matrix drawer (plan §Phase 5c/5d). Clicking a matrix cell opens
+  // the generic WorkflowDrawer scoped to the (runId, workflow) pair.
+  const [matrixSelection, setMatrixSelection] = useState<{ runId: string; col: WorkflowCol } | null>(null);
+
   const runsByGroup = useMemo(() => {
     const map = new Map<string, ChildRunSummary[]>();
     for (const r of childRuns) {
