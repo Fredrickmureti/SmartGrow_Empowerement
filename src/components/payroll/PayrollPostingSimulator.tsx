@@ -102,6 +102,7 @@ export function PayrollPostingSimulator() {
   const runSim = useMutation({
     mutationFn: async (runId: string) => {
       setErrorMsg(null);
+      setAlreadyPosted(null);
       const { data, error } = await supabase.functions.invoke("post-payroll-gl", {
         body: {
           payroll_run_id: runId,
@@ -110,23 +111,52 @@ export function PayrollPostingSimulator() {
           dry_run: true,
         },
       });
-      if (error) throw error;
-      // Edge function returns 400 for missing_mappings — surfaces via data
-      if ((data as any)?.error) throw new Error((data as any).message || (data as any).error);
-      return data as SimResult;
+      // Non-2xx: the edge function embeds JSON in error.context. Try to
+      // parse it so we can surface missing_mappings / role_violation
+      // details instead of a bare "Edge function returned a non-2xx…".
+      if (error) {
+        let parsed: any = null;
+        try {
+          const ctx: any = (error as any)?.context;
+          if (ctx && typeof ctx.json === "function") parsed = await ctx.json();
+        } catch { /* keep parsed = null */ }
+        const msg =
+          parsed?.message ||
+          parsed?.error ||
+          (error as any)?.message ||
+          "Simulation failed";
+        throw new Error(msg);
+      }
+      const d = data as any;
+      if (d?.error) throw new Error(d.message || d.error);
+      return d as SimResult | AlreadyPostedResult;
     },
     onSuccess: (r) => {
-      setResult(r);
-      if (!r.balanced) {
+      if ((r as AlreadyPostedResult).already_posted) {
+        setAlreadyPosted(r as AlreadyPostedResult);
+        setResult(null);
+        toast.info("This run has already been posted to the GL — no preview to generate.");
+        return;
+      }
+      const sim = r as SimResult;
+      // Defensive: an unexpected 200-OK shape without lines should not crash the UI.
+      if (!Array.isArray(sim.lines)) {
+        setErrorMsg("Unexpected response from posting engine (no lines returned).");
+        setResult(null);
+        return;
+      }
+      setResult(sim);
+      if (!sim.balanced) {
         toast.warning("Simulated JE is not balanced — investigate.");
       } else {
-        toast.success(`Preview generated for ${r.payroll_number}`);
+        toast.success(`Preview generated for ${sim.payroll_number}`);
       }
     },
     onError: (e: any) => {
       const msg = normalizeError(e).message || "Simulation failed";
       setErrorMsg(msg);
       setResult(null);
+      setAlreadyPosted(null);
     },
   });
 
@@ -140,6 +170,7 @@ export function PayrollPostingSimulator() {
         if (!v) {
           setResult(null);
           setErrorMsg(null);
+          setAlreadyPosted(null);
         }
       }}
     >
