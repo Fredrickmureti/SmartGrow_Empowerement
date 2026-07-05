@@ -68,6 +68,7 @@ export function PayrollPostingSimulator() {
   const { currentBusiness } = useBusinesses();
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<SimResult | null>(null);
+  const [alreadyPosted, setAlreadyPosted] = useState<AlreadyPostedResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const orgId = currentOrg?.id;
