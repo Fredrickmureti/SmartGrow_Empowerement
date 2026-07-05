@@ -490,7 +490,10 @@ Deno.serve(async (req) => {
 
     // 7) Render outputs
     const serial = makeSerial(template.code, body.period_end);
-    const basePath = `payroll/statutory-returns/${body.organization_id}/${body.period_end.slice(0, 4)}/${template.code}/${serial}`;
+    // NOTE: The `documents` bucket RLS enforces `user_has_org_access(foldername[1])`,
+    // so the organization_id MUST be the first path segment. Anything else fails
+    // the signed-URL check with a misleading 400 "Object not found".
+    const basePath = `${body.organization_id}/payroll/statutory-returns/${body.period_end.slice(0, 4)}/${template.code}/${serial}`;
     let csvPath: string | null = null;
     let pdfPath: string | null = null;
     let govFilePath: string | null = null;
