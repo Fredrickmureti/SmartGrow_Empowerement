@@ -124,10 +124,18 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Preview-time warnings accumulator (dry_run only). On the write path
+    // these same conditions are hard failures below.
+    const previewWarnings: Array<{ code: string; message: string; details?: unknown }> = [];
+
     // ─── SoD: poster cannot be creator OR approver of this run ───
     // Authoritative check lives in the DB helper user_can_post_payroll, which
     // also re-validates payroll.post permission (defense in depth).
-    {
+    //
+    // SoD is a WRITE-PATH control — a preview must not depend on who could
+    // actually authorise the post, otherwise accountants cannot inspect a
+    // projected JE before approval routing has selected a poster.
+    if (!dryRun) {
       const { data: canPost, error: sodErr } = await supabaseAdmin.rpc(
         "user_can_post_payroll",
         { _user_id: userId, _org_id: organization_id, _run_id: payroll_run_id },
@@ -160,7 +168,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ─── Idempotency: check if already posted ───
+    // ─── Existing-JE detection ───
+    // The write path uses this as an idempotency short-circuit (a replay of
+    // a completed post returns the existing JE id). The PREVIEW path must
+    // never short-circuit here — accountants need to see the projected JE
+    // even when a prior post has produced one (comparison, audit, reversal
+    // planning). Instead we surface `already_posted` inside the preview
+    // payload so the UI can render a read-only banner.
     const { data: existingJE } = await supabaseAdmin
       .from("journal_entries")
       .select("id")
@@ -170,13 +184,15 @@ Deno.serve(async (req) => {
       .neq("status", "voided")
       .maybeSingle();
 
-    if (existingJE) {
+    if (existingJE && !dryRun) {
       return new Response(JSON.stringify({ journal_entry_id: existingJE.id, already_posted: true }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // ─── Fiscal period lock check ───
+    // Hard fail on the write path; warning on the preview path so the
+    // accountant sees the period issue alongside the projected JE.
     const { data: lockedPeriods } = await supabaseAdmin
       .from("fiscal_periods")
       .select("id, name")
@@ -186,11 +202,19 @@ Deno.serve(async (req) => {
       .gte("end_date", payrollRun.pay_period_start);
 
     if (lockedPeriods && lockedPeriods.length > 0) {
-      return new Response(JSON.stringify({
-        error: `Cannot post to GL: fiscal period "${lockedPeriods[0].name}" is closed.`,
-      }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (dryRun) {
+        previewWarnings.push({
+          code: "period_closed",
+          message: `Fiscal period "${lockedPeriods[0].name}" is closed — this run cannot be posted until the period is reopened.`,
+          details: { period_id: lockedPeriods[0].id, period_name: lockedPeriods[0].name },
+        });
+      } else {
+        return new Response(JSON.stringify({
+          error: `Cannot post to GL: fiscal period "${lockedPeriods[0].name}" is closed.`,
+        }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // ─── Fetch payslips ───
