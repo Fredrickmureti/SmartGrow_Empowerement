@@ -20,13 +20,14 @@ import {
 
 function makeCtx(overrides: Partial<SourceContext["sums"]> = {}): SourceContext {
   return {
-    employee: { first_name: "Asha", last_name: "Mwangi", tax_id: "TID-001", stat_id_1: "SID-7" },
+    employee: { first_name: "Asha", last_name: "Mwangi", tax_id: "TID-001", stat_id_1: "SID-7", nssf_number: "NSSF-42" },
     sums: {
       employee: 12_500,
       employer: 4_320,
       taxable: 100_000,
       basic: 80_000,
       allowances: 20_000,
+      payslipCount: 3,
       byRule: {
         rule_a: { employee: 12_500, employer: 0 },
         rule_b: { employee: 4_320, employer: 4_320 },
@@ -46,6 +47,7 @@ describe("returnSourceResolver — system sources", () => {
   it("reads employee.<key>", () => {
     expect(readSource("employee.tax_id", ctx)).toBe("TID-001");
     expect(readSource("employee.stat_id_1", ctx)).toBe("SID-7");
+    expect(readSource("employee.statutory_id.nssf", ctx)).toBe("NSSF-42");
     expect(readSource("employee.full_name", ctx)).toBe("Asha Mwangi");
     expect(readSource("employee.missing", ctx)).toBe("");
   });
@@ -56,6 +58,8 @@ describe("returnSourceResolver — system sources", () => {
     expect(readSource("sum_taxable_amount", ctx)).toBe(100000);
     expect(readSource("sum_basic_pay", ctx)).toBe(80000);
     expect(readSource("sum_allowances", ctx)).toBe(20000);
+    expect(readSource("sum_total_amount", ctx)).toBe(16820);
+    expect(readSource("count_payslips", ctx)).toBe(3);
   });
 
   it("reads constants and unknown sources", () => {
@@ -112,12 +116,15 @@ describe("returnSourceResolver — discovery and recognition", () => {
     expect(isKnownSource("sum_rule.x.employer")).toBe(true);
     expect(isKnownSource("sum_taxable_minus_rules:a,b")).toBe(true);
     expect(isKnownSource("employee.de_steuer_id")).toBe(true);
+    expect(isKnownSource("employee.statutory_id.nssf")).toBe(true);
     expect(isKnownSource("not_a_real_source")).toBe(false);
   });
 
   it("isNumericSource recognises every numeric token shape", () => {
     expect(isNumericSource("sum_employee_amount")).toBe(true);
     expect(isNumericSource("sum_basic_pay")).toBe(true);
+    expect(isNumericSource("sum_total_amount")).toBe(true);
+    expect(isNumericSource("count_payslips")).toBe(true);
     expect(isNumericSource("sum_rule.rule_b.employer")).toBe(true);
     expect(isNumericSource("sum_taxable_minus_rules:rule_b")).toBe(true);
     expect(isNumericSource("employee.tax_id")).toBe(false);
