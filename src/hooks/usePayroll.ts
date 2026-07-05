@@ -12,6 +12,7 @@ import { assertHrScope } from "@/lib/hr/scopingAssertions";
 export interface PayrollRun {
   id: string;
   organization_id: string;
+  business_id?: string | null;
   payroll_number: string;
   pay_period_start: string;
   pay_period_end: string;
