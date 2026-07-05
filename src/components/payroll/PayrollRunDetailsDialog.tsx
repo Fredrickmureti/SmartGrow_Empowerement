@@ -443,7 +443,7 @@ export function PayrollRunDetailsDialog({
                     </Link>
                   </>
                 )}
-              </DialogDescription>
+              </SheetDescription>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {getStatusBadge(run.status)}
