@@ -1132,33 +1132,67 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ─── Wave 1.1: insurance_premium now lives on contract_compensation_components ───
-    // (legacy employees.insurance_premium column dropped). Aggregate per employee
-    // from the active contract so EMPLOYEE_INPUT_REGISTRY can keep its single-source
-    // accessor and statutory rules referencing `insurance_premium` remain unchanged.
+    // ─── Pre-tax statutory inputs sourced from contract components ───
+    // insurance_premium was the original single case (Wave 1.1); the audit
+    // 2026-07-05 closeout expanded this to every pre-tax token referenced by
+    // shipped packs (ahr_contribution, mortgage_interest, pension_contribution,
+    // post_retirement_medical). One query, then per-token aggregation, so
+    // adding future tokens is a data change — no engine patch. Country-agnostic:
+    // the engine never mentions KE/UG/TZ, only component_codes.
+    const PRETAX_COMPONENT_CODES = [
+      "insurance_premium",
+      "ahr_contribution",
+      "mortgage_interest",
+      "pension_contribution",
+      "post_retirement_medical",
+    ] as const;
     const activeContractIds = Object.values(contractByEmployee)
       .map((c: any) => c.id)
       .filter(Boolean);
-    const insurancePremiumByEmployee: Record<string, number> = {};
+    const preTaxByEmpAndCode: Record<string, Record<string, number>> = {};
     if (activeContractIds.length > 0) {
-      const { data: ipComponents } = await supabaseAdmin
+      const { data: ptComponents } = await supabaseAdmin
         .from("contract_compensation_components")
-        .select("contract_id, amount, effective_from, effective_to")
+        .select("contract_id, component_code, amount, effective_from, effective_to")
         .in("contract_id", activeContractIds)
-        .eq("component_code", "insurance_premium")
+        .in("component_code", PRETAX_COMPONENT_CODES as unknown as string[])
         .or(`effective_from.is.null,effective_from.lte.${pay_period_end}`)
         .or(`effective_to.is.null,effective_to.gte.${pay_period_start}`);
-      const sumByContract: Record<string, number> = {};
-      for (const c of (ipComponents || []) as any[]) {
-        sumByContract[c.contract_id] = (sumByContract[c.contract_id] || 0) + Number(c.amount || 0);
+      const sumByContractAndCode: Record<string, Record<string, number>> = {};
+      for (const c of (ptComponents || []) as any[]) {
+        const bucket = (sumByContractAndCode[c.contract_id] ||= {});
+        bucket[c.component_code] = (bucket[c.component_code] || 0) + Number(c.amount || 0);
       }
       for (const [empId, contract] of Object.entries(contractByEmployee)) {
-        const amt = sumByContract[(contract as any).id] || 0;
-        if (amt > 0) insurancePremiumByEmployee[empId] = amt;
+        const bucket = sumByContractAndCode[(contract as any).id] || {};
+        preTaxByEmpAndCode[empId] = bucket;
+      }
+    }
+    // Disability certification is stored in employee_statutory_identifiers
+    // (see ADR 0036 — pack-driven identifier registry). Presence of an
+    // active `disability_certified` row is the truthy gate for the KE
+    // pack's disability_exemption relief.
+    const disabilityCertifiedEmpIds = new Set<string>();
+    const empIds = (employees as any[]).map((e) => e.id).filter(Boolean);
+    if (empIds.length > 0) {
+      const { data: idRows } = await supabaseAdmin
+        .from("employee_statutory_identifiers")
+        .select("employee_id, identifier_type, is_active")
+        .in("employee_id", empIds)
+        .eq("identifier_type", "disability_certified")
+        .eq("is_active", true);
+      for (const r of (idRows || []) as any[]) {
+        if (r.employee_id) disabilityCertifiedEmpIds.add(r.employee_id);
       }
     }
     for (const emp of employees as any[]) {
-      (emp as any).insurance_premium = insurancePremiumByEmployee[emp.id] || 0;
+      const bucket = preTaxByEmpAndCode[emp.id] || {};
+      (emp as any).insurance_premium = bucket.insurance_premium || 0;
+      (emp as any).ahr_contribution = bucket.ahr_contribution || 0;
+      (emp as any).mortgage_interest = bucket.mortgage_interest || 0;
+      (emp as any).pension_contribution = bucket.pension_contribution || 0;
+      (emp as any).post_retirement_medical = bucket.post_retirement_medical || 0;
+      (emp as any).disability_certified = disabilityCertifiedEmpIds.has(emp.id);
     }
 
     // ─── Stage 7 engine gate: timesheet-driven contracts require approval ───
