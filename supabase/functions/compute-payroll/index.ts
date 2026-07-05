@@ -3212,6 +3212,9 @@ Deno.serve(async (req) => {
           || (r?.rule_name ? r.rule_name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/(^_+|_+$)/g, "") : "")
           || fallback;
 
+      const bracketTracesByRuleName: Record<string, BracketTrace> =
+        ((emp as any).__bracket_traces_by_rule_name || {}) as Record<string, BracketTrace>;
+
       for (const [ruleName, amt] of Object.entries(deductionsDetail)) {
         if (!amt) continue;
         if (ruleName.startsWith("garnishment_")) continue; // emitted separately below
@@ -3232,7 +3235,34 @@ Deno.serve(async (req) => {
             : ruleName.startsWith("benefit_")
               ? { kind: "benefit", code: ruleName, label: `Benefit — ${ruleName.replace(/^benefit_/, "")}` }
               : { kind: "payslip_input", code: ruleName, label: ruleName };
-        pushLine(code, cat, ruleName, Number(amt), 0, false, statRule?.rule_type || ruleName, null, statRule?.id ?? null, ref);
+        // Attach bracket / relief explainer for bracket_progressive lines
+        // (PAYE and any other income_tax rule). The PDF renderer reads
+        // `source.bracket_breakdown` via adaptBracketBreakdown; we also
+        // ship taxable_base_components + relief lines so accountants can
+        // see the full build-up. Non-tax lines keep source=null.
+        let lineSource: Record<string, unknown> | null = null;
+        const trace = bracketTracesByRuleName[ruleName];
+        if (trace) {
+          const bracketBreakdown = (trace.tiers || []).map((t) => ({
+            from: t.lower,
+            to: t.upper,
+            rate: t.rate_pct,
+            base: t.slab,
+            amount: t.tax,
+            side: "employee" as const,
+          }));
+          lineSource = {
+            bracket_breakdown: bracketBreakdown,
+            taxable_base: trace.income,
+            taxable_base_components: (trace as any).taxable_base_components ?? null,
+            gross_tax: trace.gross_tax,
+            personal_relief: trace.personal_relief,
+            insurance_relief: trace.insurance_relief,
+            final_tax: trace.final_tax,
+            legal_basis: (statRule?.parameters as any)?.legal_basis ?? null,
+          };
+        }
+        pushLine(code, cat, ruleName, Number(amt), 0, false, statRule?.rule_type || ruleName, lineSource, statRule?.id ?? null, ref);
       }
       // Turn C: garnishment lines (priority-ordered)
       for (const gl of garnishmentLineMeta) {
