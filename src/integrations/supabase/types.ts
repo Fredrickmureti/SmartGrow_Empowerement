@@ -57481,6 +57481,22 @@ export type Database = {
         }
         Returns: undefined
       }
+      _payroll_readiness_eval_rule_core: {
+        Args: {
+          p_business_id: string
+          p_org_id: string
+          p_period_end: string
+          p_period_start: string
+          p_rule: Database["public"]["Tables"]["payroll_readiness_rules"]["Row"]
+          p_subject_id: string
+        }
+        Returns: {
+          details: Json
+          missing_fields: string[]
+          reason: string
+          status: string
+        }[]
+      }
       _payroll_rule_needs: {
         Args: {
           p_rule: Database["public"]["Tables"]["payroll_statutory_rules"]["Row"]
