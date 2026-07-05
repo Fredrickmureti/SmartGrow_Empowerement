@@ -229,11 +229,11 @@ export function PayrollPreviewDialog({
   // PDF Preview mode
   if (showPdfPreview && pdfBlob) {
     return (
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="w-[95vw] max-w-5xl h-[95dvh] sm:h-[85vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent side="right" className="w-full sm:max-w-5xl p-0 gap-0 flex flex-col">
+          <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
             <div className="flex items-center justify-between">
-              <DialogTitle className="text-lg">Payroll Register Preview (PDF)</DialogTitle>
+              <SheetTitle className="text-lg">Payroll Register Preview (PDF)</SheetTitle>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => setShowPdfPreview(false)}>
                   Back to Data
@@ -246,7 +246,7 @@ export function PayrollPreviewDialog({
                 </Button>
               </div>
             </div>
-          </DialogHeader>
+          </SheetHeader>
           <div className="flex-1 overflow-hidden bg-muted/30 p-4">
             <SafePdfViewer
               pdfBlob={pdfBlob}
@@ -268,8 +268,8 @@ export function PayrollPreviewDialog({
               Confirm & Create Payroll
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     );
   }
 
