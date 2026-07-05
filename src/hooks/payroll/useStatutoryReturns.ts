@@ -278,6 +278,58 @@ export function useReturnRuns(params: { templateCode?: string; year?: number }) 
   });
 }
 
+async function readFunctionErrorPayload(error: unknown): Promise<any | null> {
+  const response = (error as any)?.context;
+  if (!response || typeof response !== "object") return null;
+
+  try {
+    const readable = typeof response.clone === "function" ? response.clone() : response;
+    const contentType = response.headers?.get?.("content-type") ?? "";
+    if (contentType.includes("application/json") && typeof readable.json === "function") {
+      return await readable.json();
+    }
+    if (typeof readable.text === "function") {
+      const text = await readable.text();
+      if (!text) return null;
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { message: text };
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function statutoryReturnGenerationError(error: unknown, payload: any) {
+  if (payload?.expected && payload?.message) {
+    return {
+      kind: "validation" as const,
+      title: "Return not ready",
+      message: String(payload.message),
+      action: payload.action ? String(payload.action) : "Review the payroll period and try again.",
+      retryable: false,
+      cause: error,
+    };
+  }
+
+  if (payload?.message) {
+    return {
+      kind: "unknown" as const,
+      title: "Return generation failed",
+      message: String(payload.message),
+      action: "Review the return setup and try again.",
+      retryable: true,
+      cause: error,
+    };
+  }
+
+  return error;
+}
+
 export function useGenerateStatutoryReturn() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -297,8 +349,11 @@ export function useGenerateStatutoryReturn() {
           ...input,
         },
       });
-      if (error) throw error;
-      if ((data as any)?.error && !(data as any)?.run) throw new Error((data as any).error);
+      if (error) {
+        const payload = await readFunctionErrorPayload(error);
+        throw statutoryReturnGenerationError(error, payload);
+      }
+      if ((data as any)?.error && !(data as any)?.run) throw statutoryReturnGenerationError(new Error((data as any).error), data);
       return data as { run: ReturnRun; reconciliation: any; totals: Record<string, number> };
     },
     onSuccess: () => {

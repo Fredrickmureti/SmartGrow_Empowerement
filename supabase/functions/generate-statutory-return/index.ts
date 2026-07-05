@@ -54,6 +54,26 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function businessError(
+  status: number,
+  code: string,
+  message: string,
+  action: string,
+  details: Record<string, unknown> = {},
+) {
+  return jsonResponse(
+    {
+      error: code,
+      code,
+      message,
+      action,
+      expected: true,
+      details,
+    },
+    status,
+  );
+}
+
 function makeSerial(code: string, periodEnd: string) {
   const stamp = Date.now().toString(36).toUpperCase();
   return `${code}-${periodEnd}-${stamp}`;
@@ -86,7 +106,12 @@ Deno.serve(async (req) => {
 
     const body = (await req.json()) as RequestBody;
     if (!body.organization_id || !body.business_id || !body.template_code || !body.period_start || !body.period_end) {
-      return jsonResponse({ error: "missing required fields" }, 400);
+      return businessError(
+        400,
+        "RETURN_REQUEST_INCOMPLETE",
+        "The return cannot be generated because the request is missing required organization, business, template, or period information.",
+        "Refresh the page and try again. If this continues, contact your system administrator.",
+      );
     }
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -149,13 +174,12 @@ Deno.serve(async (req) => {
         new Date(override.base_template_updated_at).getTime() !==
           new Date(packTemplate.updated_at).getTime()
       ) {
-        return jsonResponse(
-          {
-            error: "TEMPLATE_OUT_OF_DATE",
-            message: "Pack template has changed since this override was last saved. Re-acknowledge the override before regenerating.",
-            template_code: body.template_code,
-          },
+        return businessError(
           409,
+          "TEMPLATE_OUT_OF_DATE",
+          "This return template has changed since your override was last approved, so the return was not generated.",
+          "Review and re-acknowledge the template override, then generate the return again.",
+          { template_code: body.template_code },
         );
       }
       // Slice-C: coalesce operational override columns (channel/format/output/
@@ -181,9 +205,25 @@ Deno.serve(async (req) => {
 
     const filters = (template.body?.filters ?? {}) as { rule_codes?: string[]; payslip_status?: string[] };
     const ruleCodes: string[] = Array.isArray(filters.rule_codes) ? filters.rule_codes : [];
-    if (!ruleCodes.length) return jsonResponse({ error: "template.body.filters.rule_codes is required" }, 400);
+    if (!ruleCodes.length) {
+      return businessError(
+        400,
+        "RETURN_TEMPLATE_MISSING_RULES",
+        "This return template is not ready for generation because it does not define the statutory payroll rules to report.",
+        "Ask an administrator to update the return template rule mapping before generating this return.",
+        { template_code: body.template_code },
+      );
+    }
     const columns: ColumnSpec[] = Array.isArray(template.body?.columns) ? template.body.columns : [];
-    if (!columns.length) return jsonResponse({ error: "template.body.columns is required" }, 400);
+    if (!columns.length) {
+      return businessError(
+        400,
+        "RETURN_TEMPLATE_MISSING_COLUMNS",
+        "This return template is not ready for generation because it does not define any return columns.",
+        "Ask an administrator to complete the return template layout before generating this return.",
+        { template_code: body.template_code },
+      );
+    }
 
     // Country-agnostic: discover every extra rule_code the template
     // references via `sum_rule.<code>.*` or `sum_taxable_minus_rules:<codes>`
@@ -207,7 +247,18 @@ Deno.serve(async (req) => {
       .in("status", ["posted", "approved", "processed", "finalized", "finalised"]);
     const runIds = (runs ?? []).map((r: any) => r.id);
     if (!runIds.length) {
-      return jsonResponse({ error: "no finalised payroll runs in period" }, 400);
+      return businessError(
+        400,
+        "NO_FINALISED_PAYROLL_RUNS",
+        "No finalised payroll run was found for this return period, so the statutory return cannot be generated yet.",
+        "Post or approve the payroll run for the selected period, then generate the return again.",
+        {
+          template_code: body.template_code,
+          period_start: body.period_start,
+          period_end: body.period_end,
+          required_run_statuses: ["posted", "approved", "processed", "finalized", "finalised"],
+        },
+      );
     }
 
     let payslipQ = admin
@@ -223,7 +274,30 @@ Deno.serve(async (req) => {
     }
     const { data: payslips, error: payslipErr } = await payslipQ;
     if (payslipErr) return jsonResponse({ error: `payslips: ${payslipErr.message}` }, 500);
-    if (!payslips?.length) return jsonResponse({ error: "no payslips in period" }, 400);
+    if (!payslips?.length) {
+      const requiredStatuses = Array.isArray(filters.payslip_status) ? filters.payslip_status : [];
+      const statusText = requiredStatuses.length
+        ? requiredStatuses.map((s) => String(s).replace(/_/g, " ")).join(", ")
+        : "eligible";
+      return businessError(
+        400,
+        "NO_ELIGIBLE_PAYSLIPS",
+        requiredStatuses.length
+          ? `This return is configured to use ${statusText} payslips only, but none were found in the selected period.`
+          : "No eligible payslips were found in the selected period, so the statutory return cannot be generated yet.",
+        requiredStatuses.length
+          ? "Complete the payslip payment or approval workflow for this period, then generate the return again."
+          : "Confirm the payroll run includes payslips for this period, then generate the return again.",
+        {
+          template_code: body.template_code,
+          period_start: body.period_start,
+          period_end: body.period_end,
+          branch_id: body.branch_id ?? null,
+          required_payslip_statuses: requiredStatuses,
+          payroll_run_ids: runIds,
+        },
+      );
+    }
 
     const payslipIds = payslips.map((p: any) => p.id);
     const employeeIds = Array.from(new Set(payslips.map((p: any) => p.employee_id)));
