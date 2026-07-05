@@ -16,8 +16,11 @@ import {
   ClipboardCheck,
   Clock4,
   FileSignature,
+  FileWarning,
+  Hourglass,
   LogOut,
   ShieldAlert,
+  ShieldCheck,
   Timer,
   UserCog,
 } from "lucide-react";
