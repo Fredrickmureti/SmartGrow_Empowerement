@@ -118,6 +118,12 @@ export function ReturnsTab() {
   });
   const hasPayrollRuns = (runsInPeriodCount ?? 0) > 0;
 
+  const { data: eligibility, isLoading: loadingEligibility } = useReturnEligibility({
+    template: activeTpl,
+    periodStart: periodStartStr,
+    periodEnd: periodEndStr,
+  });
+
   const onGenerate = async () => {
     if (!activeTpl) return;
     const { start, end } = periodWindow(activeTpl.period, year, periodIdx);
