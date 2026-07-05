@@ -192,35 +192,35 @@ Deno.serve(async (req) => {
     const extraRuleCodes = extractExtraRuleCodes(columns.map((c) => c.source));
     const allRuleCodes = Array.from(new Set([...ruleCodes, ...extraRuleCodes]));
 
-    // 1) Pull payslips in the period (validated/paid by default)
-    const allowedStatuses = (filters.payslip_status?.length ? filters.payslip_status : ["validated", "paid"]);
-    // Country-agnostic projection: only header-level totals and
-    // identifiers come from `payslips`. The basic / allowances numbers
-    // that historically lived in `payslips.basic_salary` and
-    // `payslips.other_earnings` are derived below from `payslip_lines`
-    // grouped by `category` — the single source of truth.
+    // 1) Pull payslips in the period. Source of truth for "is this payslip
+    //    part of a finalised payroll" is the parent payroll_run.status.
+    //    When the run is `posted`, its payslips are authoritative regardless
+    //    of the payslip.status column (which may lag behind the run state).
+    //    Templates can still narrow via filters.payslip_status.
+    const { data: runs } = await admin
+      .from("payroll_runs")
+      .select("id, pay_period_start, pay_period_end, status")
+      .eq("organization_id", body.organization_id)
+      .eq("business_id", body.business_id)
+      .lte("pay_period_start", body.period_end)
+      .gte("pay_period_end", body.period_start)
+      .in("status", ["posted", "approved", "processed", "finalized", "finalised"]);
+    const runIds = (runs ?? []).map((r: any) => r.id);
+    if (!runIds.length) {
+      return jsonResponse({ error: "no finalised payroll runs in period" }, 400);
+    }
+
     let payslipQ = admin
       .from("payslips")
       .select("id, employee_id, taxable_income, gross_pay, branch_id, status, payroll_run_id")
       .eq("organization_id", body.organization_id)
       .eq("business_id", body.business_id)
-      .in("status", allowedStatuses);
+      .in("payroll_run_id", runIds);
 
     if (body.branch_id) payslipQ = payslipQ.eq("branch_id", body.branch_id);
-
-    // Restrict to payslips whose run period overlaps the requested period
-    const { data: runs } = await admin
-      .from("payroll_runs")
-      .select("id, pay_period_start, pay_period_end")
-      .eq("organization_id", body.organization_id)
-      .eq("business_id", body.business_id)
-      .lte("pay_period_start", body.period_end)
-      .gte("pay_period_end", body.period_start);
-    const runIds = (runs ?? []).map((r: any) => r.id);
-    if (!runIds.length) {
-      return jsonResponse({ error: "no payroll runs in period" }, 400);
+    if (filters.payslip_status?.length) {
+      payslipQ = payslipQ.in("status", filters.payslip_status);
     }
-    payslipQ = payslipQ.in("payroll_run_id", runIds);
     const { data: payslips, error: payslipErr } = await payslipQ;
     if (payslipErr) return jsonResponse({ error: `payslips: ${payslipErr.message}` }, 500);
     if (!payslips?.length) return jsonResponse({ error: "no payslips in period" }, 400);
