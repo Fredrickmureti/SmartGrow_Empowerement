@@ -511,7 +511,15 @@ Deno.serve(async (req) => {
       const upload = await admin.storage
         .from(STORAGE_BUCKET)
         .upload(path, new Blob([csv], { type: "text/csv" }), { contentType: "text/csv", upsert: true });
-      if (upload.error) return jsonResponse({ error: `csv upload: ${upload.error.message}` }, 500);
+      if (upload.error) {
+        return businessError(
+          500,
+          "RETURN_STORAGE_WRITE_FAILED",
+          "The return was calculated but the CSV artifact could not be saved.",
+          "Retry generation. If this repeats, ask an administrator to check document storage access for statutory returns.",
+          { template_code: body.template_code, period_start: body.period_start, period_end: body.period_end, detail: upload.error.message },
+        );
+      }
       csvPath = path;
     }
 
@@ -548,7 +556,15 @@ Deno.serve(async (req) => {
           contentType: "application/pdf",
           upsert: true,
         });
-      if (upload.error) return jsonResponse({ error: `pdf upload: ${upload.error.message}` }, 500);
+        if (upload.error) {
+          return businessError(
+            500,
+            "RETURN_STORAGE_WRITE_FAILED",
+            "The return was calculated but the PDF artifact could not be saved.",
+            "Retry generation. If this repeats, ask an administrator to check document storage access for statutory returns.",
+            { template_code: body.template_code, period_start: body.period_start, period_end: body.period_end, detail: upload.error.message },
+          );
+        }
       pdfPath = path;
     }
 
@@ -573,7 +589,15 @@ Deno.serve(async (req) => {
               contentType: out.contentType,
               upsert: true,
             });
-          if (upload.error) return jsonResponse({ error: `gov file upload: ${upload.error.message}` }, 500);
+          if (upload.error) {
+            return businessError(
+              500,
+              "RETURN_STORAGE_WRITE_FAILED",
+              "The return was calculated but the government filing artifact could not be saved.",
+              "Retry generation. If this repeats, ask an administrator to check document storage access for statutory returns.",
+              { template_code: body.template_code, period_start: body.period_start, period_end: body.period_end, detail: upload.error.message },
+            );
+          }
           govFilePath = path;
         }
       } catch (e: any) {
@@ -609,6 +633,16 @@ Deno.serve(async (req) => {
       if (!body.regenerate) {
         return jsonResponse({ run: existing, reconciliation, totals, reused: true });
       }
+      const existingStatus = String((existing as any).status ?? "");
+      if (["submitted_awaiting_ack"].includes(existingStatus)) {
+        return businessError(
+          409,
+          "RETURN_STATE_NOT_REGENERABLE",
+          "This return has already been submitted to the authority and cannot be superseded while it is awaiting acknowledgement.",
+          "Record the authority acknowledgement or rejection first, then regenerate only if the filing outcome allows supersession.",
+          { run_id: (existing as any).id, status: existingStatus, template_code: body.template_code },
+        );
+      }
       priorRunId = (existing as any).id;
       const { error: supErr } = await admin.rpc("payroll_return_transition", {
         _run_id: priorRunId,
@@ -616,7 +650,15 @@ Deno.serve(async (req) => {
         _reason: "regenerated",
         _payload: { reason: "regenerate" },
       });
-      if (supErr) return jsonResponse({ error: `supersede: ${supErr.message}` }, 500);
+      if (supErr) {
+        return businessError(
+          409,
+          "RETURN_SUPERSEDE_FAILED",
+          "The existing return could not be superseded, so a replacement was not created.",
+          "Review the return's current filing state and regenerate only from a state that allows supersession.",
+          { run_id: priorRunId, status: existingStatus, detail: supErr.message },
+        );
+      }
     }
 
     // Slice D — derive reconciliation_status from the reconciliation block.
@@ -692,7 +734,15 @@ Deno.serve(async (req) => {
       })
       .select("id, serial_number, csv_path, pdf_path, gov_file_path, period_start, period_end, template_code, status, payload, reconciliation_status")
       .single();
-    if (insErr) return jsonResponse({ error: `insert: ${insErr.message}` }, 500);
+    if (insErr) {
+      return businessError(
+        500,
+        "RETURN_INSERT_FAILED",
+        "The return artifacts were created but the return run record could not be saved.",
+        "Retry generation. If this repeats, ask an administrator to review statutory return run constraints and audit logs.",
+        { template_code: body.template_code, period_start: body.period_start, period_end: body.period_end, detail: insErr.message },
+      );
+    }
 
     // Record the birth of the run in the transition audit so the outbox
     // fires `return.state_changed` for the new row too.
