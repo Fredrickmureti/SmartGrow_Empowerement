@@ -351,10 +351,9 @@ export function computeBracketProgressive(
       const cap = Number(r.cap ?? 0) || Infinity;
       insuranceRelief += Math.min(baseAmt * rate, cap);
     }
-    // `deduction_cap` and `exemption` are handled upstream (Pass A / taxable
-    // income adjustments). The engine currently caps by declaring them via
-    // `parameters.taxable_income_adjustments[]`; leaving the branch open
-    // here so the resolver can be extended without another patch.
+    // `deduction_cap` and `exemption` are applied upstream in Pass A
+    // (see compute-payroll main loop, "Employee-input pre-tax deductions"
+    // and "Exemption reliefs" blocks). Skipped here by design.
   }
 
   const grossTax = tax;
