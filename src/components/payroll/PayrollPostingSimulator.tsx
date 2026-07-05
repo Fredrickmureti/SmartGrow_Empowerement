@@ -294,7 +294,9 @@ export function PayrollPostingSimulator() {
               </>
             )}
           </div>
+        )}
         </div>
+
 
         <SheetFooter className="px-6 py-3 border-t flex-shrink-0 flex-row items-center gap-2">
           <p className="text-xs text-muted-foreground mr-auto">
