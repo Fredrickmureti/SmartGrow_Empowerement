@@ -287,17 +287,59 @@ export function computeBracketProgressive(
     if (income <= upper) break;
   }
 
-  // Reliefs declared INSIDE the same rule (PAYE row carries personal_relief
-  // and insurance_relief_rate/max — that is how localization packs ship them).
-  // Per-rule inputs come from `ctx.inputs[...]` via the engine's input
-  // registry — no country-specific field on CalcContext itself.
-  const personalRelief = Number(p.personal_relief ?? 0);
-  const irRate = p.insurance_relief_rate != null ? pct(p.insurance_relief_rate) : 0;
-  const irCap = Number(p.insurance_relief_max ?? p.insurance_relief_cap ?? 0);
+  // Reliefs. Two encodings, both supported so the pack is the single
+  // source of truth (audit 2026-07-05, plan §R2):
+  //   (A) Scalars on the tax rule — `personal_relief`, `insurance_relief_rate`,
+  //       `insurance_relief_max` — legacy shape, still honoured.
+  //   (B) Declarative `parameters.reliefs[]` — each entry carries
+  //       `kind` in {flat, rate_of_base, deduction_cap, exemption} plus
+  //       amount/rate/cap/base_code/condition. deduction_cap and exemption
+  //       are applied upstream (Pass A / pre-tax); here we only honour the
+  //       kinds that reduce the tax bill directly: flat and rate_of_base.
+  //   The union prevents double-counting: if a scalar AND a matching
+  //   reliefs[] entry both exist, the scalar wins (idempotent w/ legacy).
+  const scalarPersonalRelief = Number(p.personal_relief ?? 0);
+  const scalarIrRate = p.insurance_relief_rate != null ? pct(p.insurance_relief_rate) : 0;
+  const scalarIrCap = Number(p.insurance_relief_max ?? p.insurance_relief_cap ?? 0);
   const insurancePremium = Number(ctx.inputs?.insurance_premium ?? 0);
-  const insuranceRelief = insurancePremium > 0 && irRate > 0
-    ? Math.min(insurancePremium * irRate, irCap || Infinity)
+
+  let personalRelief = scalarPersonalRelief;
+  let insuranceRelief = scalarPersonalRelief > 0 || scalarIrRate > 0
+    ? (insurancePremium > 0 && scalarIrRate > 0
+        ? Math.min(insurancePremium * scalarIrRate, scalarIrCap || Infinity)
+        : 0)
     : 0;
+
+  const reliefsArr: Array<any> = Array.isArray(p.reliefs) ? p.reliefs : [];
+  for (const r of reliefsArr) {
+    if (!r || typeof r !== "object") continue;
+    const kind = String(r.kind ?? "").toLowerCase();
+    const code = String(r.code ?? "").toLowerCase();
+    // Optional gating: `condition` is a token key in ctx.inputs. If declared
+    // and falsy, the relief is skipped. Keeps things declarative — no
+    // literal rule_code branches.
+    if (r.condition) {
+      const gate = ctx.inputs?.[String(r.condition)];
+      if (!gate) continue;
+    }
+    if (kind === "flat") {
+      // Scalar personal_relief already covers this — avoid double-count.
+      if (code === "personal_relief" && scalarPersonalRelief > 0) continue;
+      personalRelief += Number(r.amount ?? 0);
+    } else if (kind === "rate_of_base") {
+      if (code === "insurance_relief" && scalarIrRate > 0) continue;
+      const baseCode = String(r.base_code ?? "").toLowerCase();
+      const baseAmt = Number(ctx.inputs?.[baseCode] ?? 0);
+      if (baseAmt <= 0) continue;
+      const rate = pct(r.rate != null ? (Number(r.rate) > 1 ? r.rate : Number(r.rate) * 100) : 0);
+      const cap = Number(r.cap ?? 0) || Infinity;
+      insuranceRelief += Math.min(baseAmt * rate, cap);
+    }
+    // `deduction_cap` and `exemption` are handled upstream (Pass A / taxable
+    // income adjustments). The engine currently caps by declaring them via
+    // `parameters.taxable_income_adjustments[]`; leaving the branch open
+    // here so the resolver can be extended without another patch.
+  }
 
   const grossTax = tax;
   tax = tax - personalRelief - insuranceRelief;
@@ -2636,6 +2678,13 @@ Deno.serve(async (req) => {
         if (empBracketTraces.length > 0) {
           bracketTraceSink.push({ employee_id: emp.id, traces: empBracketTraces });
         }
+        // Expose the traces to the payslip_lines emitter so the PDF /
+        // explainer popover can render "How PAYE was computed" from
+        // `source.bracket_breakdown`. Key by rule_name because
+        // deductionsDetail is keyed by rule_name.
+        (emp as any).__bracket_traces_by_rule_name = Object.fromEntries(
+          empBracketTraces.map((t) => [t.rule_name, t]),
+        );
       }
 
 
@@ -3205,6 +3254,9 @@ Deno.serve(async (req) => {
           || (r?.rule_name ? r.rule_name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/(^_+|_+$)/g, "") : "")
           || fallback;
 
+      const bracketTracesByRuleName: Record<string, BracketTrace> =
+        ((emp as any).__bracket_traces_by_rule_name || {}) as Record<string, BracketTrace>;
+
       for (const [ruleName, amt] of Object.entries(deductionsDetail)) {
         if (!amt) continue;
         if (ruleName.startsWith("garnishment_")) continue; // emitted separately below
@@ -3225,7 +3277,34 @@ Deno.serve(async (req) => {
             : ruleName.startsWith("benefit_")
               ? { kind: "benefit", code: ruleName, label: `Benefit — ${ruleName.replace(/^benefit_/, "")}` }
               : { kind: "payslip_input", code: ruleName, label: ruleName };
-        pushLine(code, cat, ruleName, Number(amt), 0, false, statRule?.rule_type || ruleName, null, statRule?.id ?? null, ref);
+        // Attach bracket / relief explainer for bracket_progressive lines
+        // (PAYE and any other income_tax rule). The PDF renderer reads
+        // `source.bracket_breakdown` via adaptBracketBreakdown; we also
+        // ship taxable_base_components + relief lines so accountants can
+        // see the full build-up. Non-tax lines keep source=null.
+        let lineSource: Record<string, unknown> | null = null;
+        const trace = bracketTracesByRuleName[ruleName];
+        if (trace) {
+          const bracketBreakdown = (trace.tiers || []).map((t) => ({
+            from: t.lower,
+            to: t.upper,
+            rate: t.rate_pct,
+            base: t.slab,
+            amount: t.tax,
+            side: "employee" as const,
+          }));
+          lineSource = {
+            bracket_breakdown: bracketBreakdown,
+            taxable_base: trace.income,
+            taxable_base_components: (trace as any).taxable_base_components ?? null,
+            gross_tax: trace.gross_tax,
+            personal_relief: trace.personal_relief,
+            insurance_relief: trace.insurance_relief,
+            final_tax: trace.final_tax,
+            legal_basis: (statRule?.parameters as any)?.legal_basis ?? null,
+          };
+        }
+        pushLine(code, cat, ruleName, Number(amt), 0, false, statRule?.rule_type || ruleName, lineSource, statRule?.id ?? null, ref);
       }
       // Turn C: garnishment lines (priority-ordered)
       for (const gl of garnishmentLineMeta) {

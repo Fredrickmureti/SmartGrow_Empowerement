@@ -419,6 +419,11 @@ serve(async (req) => {
           employer_amount: d.employer_amount,
           source: d.source,
         });
+        // Taxable-base build-up / legal basis lines first, so they read as
+        // a preamble to the bracket rows.
+        for (const line of v.explanation) {
+          rows.push({ description: `   ${line}`, amount: "", _isSubnote: true });
+        }
         for (const r of v.employeeRows) {
           rows.push({ description: formatBreakdownRowForPdf(r, currency), amount: "", _isSubnote: true });
         }
