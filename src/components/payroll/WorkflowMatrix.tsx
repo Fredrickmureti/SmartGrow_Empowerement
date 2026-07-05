@@ -26,7 +26,7 @@ const toneClass: Record<Tone, string> = {
 function cell(state: string | null, mapping: Record<string, Tone>): { text: string; tone: Tone } {
   const s = state ?? "—";
   const tone = mapping[s] ?? "muted";
-  return { text: s.replaceAll("_", " "), tone };
+  return { text: s.replace(/_/g, " "), tone };
 }
 
 const CALC: Record<string, Tone> = { approved: "success", posted: "success", paid: "success", closed: "success", review: "info", cancelled: "danger", reversed: "danger" };

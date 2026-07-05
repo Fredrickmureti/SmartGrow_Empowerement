@@ -155,7 +155,19 @@ Deno.serve(async (req) => {
         .maybeSingle();
       packTemplate = r.data;
     }
-    if (!packTemplate) return jsonResponse({ error: `template not found: ${body.template_code}` }, 404);
+    if (!packTemplate) {
+      return businessError(
+        404,
+        "TEMPLATE_NOT_INSTALLED",
+        `No statutory return template "${body.template_code}" is available for this business. Install the localization pack that ships this template, or add a tenant override, before generating the return.`,
+        "Open Settings → Localization → Packs, install the country pack that provides this return (or create an override in Payroll → Compliance → Return templates), then retry generation.",
+        {
+          template_code: body.template_code,
+          pack_id: orgSetting?.pack_id ?? null,
+          requires: "localization_pack_return_templates",
+        },
+      );
+    }
 
     // Tenant override coalesce: override wins; staleness blocks generation.
     const { data: override } = await admin

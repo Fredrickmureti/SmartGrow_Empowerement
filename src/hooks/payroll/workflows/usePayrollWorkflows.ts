@@ -27,8 +27,7 @@ interface RunRow {
   approved_by: string | null;
   posted_at: string | null;
   posted_by: string | null;
-  paid_at: string | null;
-  paid_by: string | null;
+  payment_date: string | null;
   posting_status: string | null;
   payment_status: string | null;
   bank_file_status: string | null;
@@ -43,12 +42,12 @@ function useRun(runId: string | null | undefined) {
       const { data, error } = await supabase
         .from("payroll_runs")
         .select(
-          "id,status,approved_at,approved_by,posted_at,posted_by,paid_at,paid_by,posting_status,payment_status,bank_file_status,payslip_issuance_status",
+          "id,status,approved_at,approved_by,posted_at,posted_by,payment_date,posting_status,payment_status,bank_file_status,payslip_issuance_status",
         )
         .eq("id", runId!)
         .maybeSingle();
       if (error) throw error;
-      return data as RunRow | null;
+      return data as unknown as RunRow | null;
     },
   });
 }
@@ -85,7 +84,7 @@ export function usePayrollPaymentWorkflow(runId: string | null | undefined): Wor
     state,
     canAdvance: preconditions.every((p) => p.satisfied),
     preconditions,
-    lastActor: { userId: data?.paid_by ?? null, at: data?.paid_at ?? null },
+    lastActor: { userId: null, at: data?.payment_date ?? null },
     loading: isLoading,
     error,
   };
@@ -137,12 +136,21 @@ export function usePayrollRemittanceWorkflow(periodId: string | null | undefined
     queryKey: ["payroll", "workflow", "remittance", periodId],
     enabled: !!periodId,
     queryFn: async () => {
+      // Remittances hang off runs, not periods, so resolve run ids in the
+      // period first and then fetch remittances for those runs.
+      const { data: runs, error: runsErr } = await supabase
+        .from("payroll_runs")
+        .select("id")
+        .eq("period_id", periodId!);
+      if (runsErr) throw runsErr;
+      const runIds = (runs ?? []).map((r: any) => r.id);
+      if (!runIds.length) return [] as Array<{ status: string }>;
       const { data, error } = await supabase
         .from("payroll_remittances")
-        .select("id,status,submitted_at,submitted_by")
-        .eq("payroll_period_id", periodId!);
+        .select("id,status,paid_at,paid_by")
+        .in("payroll_run_id", runIds);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as unknown as Array<{ status: string }>;
     },
   });
   const rows = data ?? [];

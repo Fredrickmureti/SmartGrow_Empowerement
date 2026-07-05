@@ -50,7 +50,7 @@ function payslipsChip(run: ChildRunSummary): Chip {
   const s = run.payslip_issuance_status ?? (run.approved_at ? "issued" : "not_issued");
   const tone: Tone = s === "distributed" ? "success" : s === "issued" ? "info" : "muted";
   return {
-    key: "payslips", label: "Payslips", state: s.replaceAll("_", " "), tone,
+    key: "payslips", label: "Payslips", state: s.replace(/_/g, " "), tone,
     hint: "Payslip issuance & distribution to employees. Unlocks after Approval — independent of GL Posting and Payment.",
   };
 }
@@ -59,7 +59,7 @@ function postingChip(run: ChildRunSummary): Chip {
   const s = run.posting_status ?? "not_posted";
   const tone: Tone = s === "posted" ? "success" : s === "reversed" ? "warning" : "muted";
   return {
-    key: "posting", label: "GL Posting", state: s.replaceAll("_", " "), tone,
+    key: "posting", label: "GL Posting", state: s.replace(/_/g, " "), tone,
     hint: "Post the payroll journal entry to the General Ledger. Requires Approval only — parallel to Payment.",
   };
 }
@@ -71,7 +71,7 @@ function paymentChip(run: ChildRunSummary): Chip {
     s === "partially_paid" ? "info" :
     s === "on_hold" ? "warning" : "muted";
   return {
-    key: "payment", label: "Payment", state: s.replaceAll("_", " "), tone,
+    key: "payment", label: "Payment", state: s.replace(/_/g, " "), tone,
     hint: "Employee disbursement. Projected from payroll_payment_batches — never edited directly. Independent of GL Posting.",
   };
 }
@@ -82,7 +82,7 @@ function bankFileChip(run: ChildRunSummary): Chip {
     s === "acknowledged" ? "success" : s === "sent" ? "info" :
     s === "generated" ? "warning" : "muted";
   return {
-    key: "bank", label: "Bank File", state: s.replaceAll("_", " "), tone,
+    key: "bank", label: "Bank File", state: s.replace(/_/g, " "), tone,
     hint: "Bank export artifact (NACHA, SEPA, KBA, EFT…). Generate → Send → Acknowledged. Requires Approval only.",
   };
 }

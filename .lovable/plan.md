@@ -1,112 +1,74 @@
 
-# Payroll Parallel-Workflows Redesign — status
+## Independent status assessment
 
-## What I verified is already done
+I re-verified the previous agent's claims against the actual codebase — most match, but the diagnosis of the user-visible failures is **wrong**, and phases 4b, 6a/b/c are genuinely not done.
 
-Independent inspection of the codebase (not agent claims):
+### Verified done (kept as-is)
+- **Phase 1** — workflow-state columns (`posting_status`, `payment_status`, `bank_file_status`, `payslip_issuance_status`) with CHECK domains + back-fill are in `20260705195822_*.sql`.
+- **Phase 2** — `generate-statutory-return`, `generate-tax-certificate`, `post-payroll-gl` all gate on `payroll_runs.approved_at IS NOT NULL` (pinned by `parallel-workflows-preconditions.test.ts`).
+- **Phase 3** — payment-projection trigger + `payroll_bank_files` table shipped in `20260705200306_*.sql`.
+- **Phase 5a/c/d/e** — `usePayrollWorkflows` hook family, `WorkflowMatrix`, `WorkflowDrawer`, `WorkflowMatrixDrawerHost`, `PayrollRunLifecycleTimeline`, `PayrollWorkflowStrip` all exist and are mounted in `PayrollControlCenter.tsx`.
+- **Phase 5f** — no "must be paid before returns" copy remains.
 
-- **Phase 1 — Immutability + workflow-state columns.** `20260705195822_*.sql` adds `posting_status`, `payment_status`, `bank_file_status`, `payslip_issuance_status` with CHECK domains, indexes, and legacy-status back-fill. ✓
-- **Phase 2 — Returns/GL cut loose from Payment.** `generate-statutory-return/index.ts` now gates on `payroll_runs.approved_at IS NOT NULL` and emits `NO_APPROVED_PAYROLL_RUNS` with `requires: "payroll_runs.approved_at"`. `post-payroll-gl/index.ts` gates on `approved_at`, not on `status='paid'`. ✓
-- **Phase 3 — Payment projection + Bank File table.** `20260705200306_*.sql` ships `payroll_recompute_run_payment_status(uuid)`, two triggers on `payroll_payment_batch_items` / `payroll_payment_batches`, a back-fill DO-block, and the `payroll_bank_files` table with RLS + roll-up trigger to `payroll_runs.bank_file_status`. ✓
-- **Tax certificate 500 root cause.** `generate-tax-certificate` still calls `payroll_employee_ytd_rollup(p_year, p_employee_id)` — but only two params; the RPC signature has `(p_organization_id, p_business_id, p_year, p_employee_id)` in reality (verify + fix as part of Phase 5 wiring). Also the dashboard `payroll_remittance_dashboard(uuid, uuid)` was re-created in `20260705192321_*.sql` — need to verify signature matches the client call (400 was likely arg-mismatch).
-- **`payroll_period_close_atomic`** already exists (pre-plan, from `20260703211836` / …213007), and is used by `usePayrollPeriods`. It needs an **audit** against the new workflow-state columns (must require each workflow to be in a terminal or explicitly-waived state, not just `payroll_runs.status`).
-- Workflow-scoped hooks (`usePayrollPostingWorkflow`, …), workflow strip UI, matrix overview, per-workflow drawers, lifecycle timeline for a run, and the ADR for parallel workflows are **not present**.
+### Verified incorrect in the previous plan
+- The previous agent claimed the tax-cert 500 was caused by `payroll_employee_ytd_rollup` being called with only `(p_year, p_employee_id)` instead of a 4-arg signature. **False.** The RPC's real signature in `20260510081521_*.sql` is `(p_year integer, p_employee_id uuid)` — exactly what the edge function passes. That "fix" would break the call.
+- The plan also assumed `payroll_remittance_dashboard` 400 is a signature mismatch. The client passes `{ p_organization_id, p_business_id }` and the RPC exists — need to actually reproduce and read the DB error, not patch blindly.
 
-## Remaining work
+### Genuinely not done
+- **Phase 4b** — period-close waivers table + terminal-state enforcement in `payroll_period_close_atomic`.
+- **Phase 6a** — deprecate legacy `payroll_runs.status` values, add compatibility view + architecture guard.
+- **Phase 6c** — ADR-0058 + addenda to 0022, 0036, 0045.
+- **True root-cause investigation of the three user-reported errors.** No one has actually reproduced them; the previous agent skipped straight to a wrong hypothesis.
+- **Phase 4a** (workflow-scoped permission keys) — correctly deferred: current RBAC is module-based, splitting requires a governance-wide redesign out of scope for this slice.
 
-### Phase 4 — Workflow permissions + period-close alignment (BLOCKED, needs decision)
+---
 
-**Discovery on continue-pass:** the tenant permission model is module-based
-(`permission_group_rules(module, can_read, can_write, can_delete)`), not
-key-based. There is no `payroll.write` string literal in the codebase to
-split — the mentions live only in test file names and comments. Phase 4a
-as written would require a redesign of `permission_group_rules` to carry
-dotted-key rules alongside the module flags, or a new
-`permission_group_dotted_rules` sidecar. That's a governance change bigger
-than the payroll workflow slice and should be decided separately.
+## Plan
 
-**Recommendation:** land Phase 4b (period-close waivers + terminal-state
-enforcement) using the existing module flag `payroll.can_write`; defer
-dotted-key split until governance decides on the wider RBAC model.
+### Step 1 — Reproduce and diagnose the three real errors (no speculative fixes)
 
-- **4a. Split `payroll.write`** into workflow-scoped permission keys: `payroll.calculate`, `payroll.approve`, `payroll.post_gl`, `payroll.pay`, `payroll.bank_file`, `payroll.returns.generate`, `payroll.returns.submit`, `payroll.remit`, `payroll.period.close`. Migration:
-  - Insert the new keys into the permission catalog.
-  - Backfill: every `permission_group_rules` row granting `payroll.write` grants all 9 new keys (idempotent, keyed on `(group_id, permission_key)`).
-  - Keep `payroll.write` as a legacy super-alias resolved in the RBAC helper for one release; mark deprecated in a comment.
-  - Update each RPC / edge-fn permission check to require its specific key, falling back to `payroll.write` while legacy alias exists.
-- **4b. Period close** — extend `payroll_period_close_atomic` (or add a wrapper `payroll_period_close(period_id, opts)`) to require, for every run in the period:
-  - `approved_at IS NOT NULL`
-  - `posting_status IN ('posted','reversed')` OR waiver row
-  - `payment_status IN ('fully_paid','on_hold')` OR waiver row
-  - `bank_file_status IN ('sent','acknowledged','not_generated_waived')` OR waiver row
-  - all statutory returns for the period are `submitted`/`accepted` or waived
-  - Waivers written to a small `payroll_period_close_waivers(period_id, workflow, reason, created_by, created_at)` table (RLS scoped to org/business, insert-only from RPC).
-  - Emit `payroll_period.closed` on `business_event_outbox`.
+Drive the live app via Playwright as an authenticated user, navigate through Compliance → Tax Certificates and Remittances → Returns, capture:
+- exact edge-function response bodies (the 500 and 404),
+- exact PostgREST payload for the `payroll_remittance_dashboard` 400,
+- Supabase edge-function logs for both functions.
 
-### Phase 5 — Control Center rebuild (workflow board)
+Likely causes (to be confirmed, not assumed):
+- **404 on `generate-statutory-return`** — the function exists in the repo but may not be deployed to this project; verify via `supabase--curl_edge_functions` and redeploy if missing.
+- **500 on `generate-tax-certificate`** — most probable real causes: (a) no `localization_pack_certificate_templates` installed for the org's active pack, (b) no approved runs for the FY (business error surfacing as 500 due to unhandled throw), (c) storage bucket write failure. Fix the actual cause and convert any business precondition failures to structured 4xx `businessError` responses (matching the pattern already used for `NO_APPROVED_PAYROLL_RUNS`).
+- **400 on `payroll_remittance_dashboard`** — read the Postgres error text; most likely a nullable arg or a return-shape mismatch after a recent migration. Fix at the RPC or the caller, add a signature regression test.
 
-- **5a. Workflow hooks.** New `src/hooks/payroll/workflows/`:
-  - `usePayrollPostingWorkflow(runId)`
-  - `usePayrollPaymentWorkflow(runId)`
-  - `usePayrollBankFileWorkflow(runId)`
-  - `usePayrollReturnsWorkflow(runId | periodId)`
-  - `usePayrollRemittanceWorkflow(periodId)`
-  - `usePayrollPeriodCloseWorkflow(periodId)`
-  - Each returns `{ state, canAdvance, preconditions: Array<{code, message, satisfied}>, actions, lastActor }`.
-- **5b. Workflow strip.** New `WorkflowStrip` component: 6 chips (Calculation · Payslips · Posting · Payment · Bank File · Returns · Remittance) with color-coded status, last-actor tooltip, and click-to-open drawer. Replaces the current linear action bar in `PayrollControlCenter.tsx`.
-- **5c. Matrix overview.** New `WorkflowMatrix` (rows = periods for current business, columns = workflows, cells = state chip). Added as the top section of `PayrollControlCenter`.
-- **5d. Per-workflow drawers.** Six focused drawers replace the monolithic run detail dialog; each drawer surfaces only that workflow's preconditions, actions, and audit list. Old monolithic content stays reachable through a "Full run detail" link for one release.
-- **5e. Lifecycle timeline.** New `PayrollRunLifecycleTimeline` (sibling to `PayslipEventsTimeline`) reading `business_event_outbox` filtered to `payroll_posting.*`, `payroll_payment.*`, `payroll_return.*`, `payroll_remittance.*`, `payroll_period.*` for the run's period. Rendered inside the drawer sidebar.
-- **5f. Copy sweep.** Remove any UI text that reads "Pay employees before generating returns / certificates" — replace with "Available after Approval". Grep targets: `src/pages/hr/payroll/**`, `src/components/payroll/**`, `useStatutoryReturns`.
-- **5g. Tax certificate + remittance dashboard bug fixes** rolled into this phase because they are the user's original report:
-  - Verify the actual signature of `payroll_employee_ytd_rollup` against `generate-tax-certificate`; fix the call to include `p_organization_id` + `p_business_id` (root cause of 500).
-  - Verify `payroll_remittance_dashboard(uuid, uuid)` signature vs client hook and align (root cause of 400).
-  - Add regression tests: `src/test/payroll/tax-certificate-rpc-signature.test.ts` and `src/test/payroll/remittance-dashboard-signature.test.ts`.
+Deliverable: a short diagnosis note appended to `.lovable/plan.md`, then the minimum surgical fix for each, each with a regression test.
 
-### Phase 6 — Retire legacy coupling + governance (pending)
+### Step 2 — Phase 4b: period close hardening
 
-Not started. Depends on Phase 4b landing so ADR-0058 can cite the closed
-shape.
+Migration:
+- `payroll_period_close_waivers(period_id, workflow, reason, created_by, created_at)` with the mandatory 4-step pattern (CREATE → GRANT → ENABLE RLS → POLICY scoped to org/business).
+- Extend `payroll_period_close_atomic` to require, for every run in the period: `approved_at IS NOT NULL`, `posting_status IN ('posted','reversed')` or waiver, `payment_status IN ('fully_paid','on_hold')` or waiver, `bank_file_status IN ('sent','acknowledged','not_generated_waived')` or waiver, and all statutory returns `submitted`/`accepted` or waived.
+- Emit `payroll_period.closed` to `business_event_outbox`.
+- Keeps the existing module-based `payroll.can_write` permission — no RBAC redesign.
 
-## Delivered this session
+### Step 3 — Phase 6a: retire coupled reads of `payroll_runs.status`
 
-- Phase 5a — `src/hooks/payroll/workflows/usePayrollWorkflows.ts` with all
-  six hooks + shared `WorkflowSnapshot`/`WorkflowPrecondition` types.
-- Phase 5c — `WorkflowMatrix` mounted in `PayrollControlCenter` under the
-  period-consolidation strip, one row per run in the visible period.
-- Phase 5d — Generic `WorkflowDrawer` + `WorkflowMatrixDrawerHost` opening
-  from matrix cell clicks; renders preconditions, last actor, lifecycle.
-- Phase 5e — `PayrollRunLifecycleTimeline` reading `business_event_outbox`
-  filtered to the six workflow event prefixes.
-- Phase 5f — verified no legacy "must be paid before…" copy remains.
+- Migration: column comment marking `posted`/`paid` deprecated; add `payroll_runs_legacy_status_v` view derived from the new workflow columns.
+- Grep-audit remaining internal readers, migrate them to the workflow columns.
+- Architecture test in `src/test/architecture/` forbidding new code from reading `payroll_runs.status` for anything outside `draft|calculating|calculated|approved|cancelled|reversed`.
 
-- **6a. Deprecate legacy `payroll_runs.status` values.** Migration that:
-  - Adds a comment on the column marking `posted`/`paid` as deprecated.
-  - Introduces a `payroll_runs_legacy_status_v` compatibility view derived from the new columns.
-  - Migrates last two internal readers (grep-audited) to the new columns.
-  - Adds an architecture test forbidding new code from reading `payroll_runs.status` for anything other than `draft|calculating|calculated|approved|cancelled|reversed` (regex guard in `src/test/architecture/`).
-- **6b. Retire `payroll.write` alias** once all callers use the new keys (guarded by an eslint rule in `eslint-rules/no-payroll-write-permission.js`).
-- **6c. ADR + addenda.**
-  - New ADR: `docs/adr/0058-payroll-parallel-workflows.md` — "Payroll downstream processes are peers of Approval, not a chain."
-  - Addendum to ADR-0022: immutability keyed on `locked_at`, not status label.
-  - Addendum to ADR-0036: Approval, not "paid", is the completion boundary for certificates and returns.
-  - Addendum to ADR-0045: Batch orchestrates but does not gate downstream workflows.
+### Step 4 — Phase 6c: governance docs
 
-## Technical details
+- `docs/adr/0058-payroll-parallel-workflows.md` — "Downstream payroll processes are peers of Approval, not a chain."
+- Addenda to ADR-0022 (immutability keyed on `locked_at`), ADR-0036 (Approval is the certificate/return boundary), ADR-0045 (batch orchestrates, does not gate).
 
-- Migrations: one per phase-slice (4a permissions, 4b close, 5g signature fixes, 6a legacy retire, 6b alias retire). Every new table follows the mandatory 4-step pattern (CREATE → GRANT → ENABLE RLS → POLICY).
-- All new RPCs `SECURITY DEFINER SET search_path = public`, emit `business_event_outbox` rows, idempotent on `(run_id | period_id, workflow, target_state)`.
-- Immutability guard bypass: extend the ADR-0045 `stack_context` allow-list to name each workflow explicitly (`workflow=posting` may write only `posting_*` columns, etc.).
-- Frontend hooks live under `src/hooks/payroll/workflows/`; shared `WorkflowPreconditionList` component. Query keys namespaced `["payroll","workflow",<name>,runId|periodId]`.
-- No country hardcoding — statutory preconditions continue to derive from `payroll_statutory_rules` + localization packs.
-- Tests: architecture guard forbidding reads of `payroll_runs.status` outside allowed literal set; RPC-signature regression tests for tax-cert + remittance dashboard; unit tests for the six workflow hooks; a Playwright smoke that opens Control Center, sees the workflow strip, and opens each drawer.
+### Step 5 — Integration verification
 
-## Out of scope
+- End-to-end Playwright pass: fresh org → contract → payroll → approve → open Control Center → confirm workflow strip + matrix render → open each drawer → generate tax certificate → generate statutory return → run remittance dashboard. Capture screenshots as evidence.
+- Run the full `src/test/payroll/**` suite and the architecture guards.
 
-- Off-cycle/retro engine (M-PAY-6).
-- Multi-currency payroll runs.
-- Cross-legal-entity consolidation beyond `v_payroll_period_consolidation`.
+### Explicitly out of scope (unchanged from prior plan)
+- Phase 4a workflow-scoped permission keys — requires governance-wide RBAC redesign.
+- Off-cycle/retro engine, multi-currency payroll, cross-legal-entity consolidation.
+
+---
 
 ## First deliverable if approved
 
-Phase 5g (fix the user-visible 500 / 400 / 404 with the correct architectural preconditions verified in Phases 1–3) + Phase 5a-b (workflow hooks + workflow strip) — this restores Tax Certificates and Returns end-to-end and gives the UI its enterprise-grade shape. Phases 4, 5c-f, and 6 follow in subsequent turns without regressions.
+Step 1 (real root-cause diagnosis + surgical fixes for the 500/404/400 with regression tests) — this is what the user actually reported. Steps 2–5 follow in the same session without regressions.

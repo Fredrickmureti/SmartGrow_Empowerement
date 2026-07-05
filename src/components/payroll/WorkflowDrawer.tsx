@@ -34,7 +34,7 @@ export function WorkflowDrawer({ open, onOpenChange, title, description, snapsho
           <SheetTitle className="flex items-center gap-2">
             {title}
             <Badge variant="outline" className="ml-auto capitalize">
-              {snapshot.loading ? "…" : snapshot.state.replaceAll("_", " ")}
+              {snapshot.loading ? "…" : snapshot.state.replace(/_/g, " ")}
             </Badge>
           </SheetTitle>
           {description && <SheetDescription>{description}</SheetDescription>}

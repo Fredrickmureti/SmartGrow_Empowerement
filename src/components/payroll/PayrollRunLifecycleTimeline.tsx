@@ -23,7 +23,7 @@ interface EventRow {
   id: string;
   event_type: string;
   created_at: string;
-  aggregate_id: string | null;
+  source_doc_id: string | null;
   payload: Record<string, unknown> | null;
 }
 
@@ -56,13 +56,13 @@ export function PayrollRunLifecycleTimeline({ runId }: { runId: string | null | 
       const or = EVENT_PREFIXES.map((p) => `event_type.like.${p}%`).join(",");
       const { data, error } = await supabase
         .from("business_event_outbox")
-        .select("id,event_type,created_at,aggregate_id,payload")
-        .eq("aggregate_id", runId!)
+        .select("id,event_type,created_at,source_doc_id,payload")
+        .eq("source_doc_id", runId!)
         .or(or)
         .order("created_at", { ascending: true })
         .limit(200);
       if (error) throw error;
-      return (data ?? []) as EventRow[];
+      return (data ?? []) as unknown as EventRow[];
     },
   });
 
