@@ -1111,9 +1111,10 @@ Deno.serve(async (req) => {
     });
 
   } catch (error: any) {
-    console.error("Post payroll GL error:", error);
-    return new Response(JSON.stringify({ error: error.message || "Internal server error" }), {
+    console.error("Post payroll GL error:", error?.message, error?.stack);
+    return new Response(JSON.stringify({ error: error?.message || "Internal server error", stack: error?.stack }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
 });
