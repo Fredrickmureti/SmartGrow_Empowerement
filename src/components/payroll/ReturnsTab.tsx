@@ -7,7 +7,7 @@ import { normalizeError } from "@/services/resilience";
  * `localization_pack_return_templates.body`. New countries enter via a
  * pack INSERT only — no code changes here.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -477,6 +477,24 @@ interface AckPayload {
   ack: { receipt_number?: string; receipt_date?: string; authority_status?: string; notes?: string };
 }
 
+// Mirrors payroll_return_assert_transition() server-side state machine.
+const ALLOWED_NEXT: Record<string, AckPayload["outcome"][]> = {
+  draft: [],
+  generated: ["submitted_awaiting_ack", "filed"],
+  pending_approval: ["submitted_awaiting_ack", "filed"],
+  submitted_awaiting_ack: ["acknowledged", "rejected", "filed"],
+  acknowledged: ["filed"],
+  rejected: ["submitted_awaiting_ack"],
+  filed: [],
+};
+
+const OUTCOME_LABEL: Record<AckPayload["outcome"], string> = {
+  submitted_awaiting_ack: "Submitted — awaiting acknowledgement",
+  acknowledged: "Acknowledged by authority",
+  filed: "Filed (acknowledged + on record)",
+  rejected: "Rejected by authority",
+};
+
 function AcknowledgementDialog({
   run, onClose, onSubmit, isPending,
 }: {
@@ -485,11 +503,19 @@ function AcknowledgementDialog({
   onSubmit: (payload: AckPayload) => Promise<void>;
   isPending: boolean;
 }) {
-  const [outcome, setOutcome] = useState<AckPayload["outcome"]>("acknowledged");
+  const allowed = run ? (ALLOWED_NEXT[run.status] ?? []) : [];
+  const [outcome, setOutcome] = useState<AckPayload["outcome"]>(allowed[0] ?? "submitted_awaiting_ack");
   const [receiptNumber, setReceiptNumber] = useState("");
   const [receiptDate, setReceiptDate] = useState("");
   const [authorityStatus, setAuthorityStatus] = useState("");
   const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (run && !allowed.includes(outcome)) {
+      setOutcome(allowed[0] ?? "submitted_awaiting_ack");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run?.id, run?.status]);
 
   if (!run) return null;
   const submit = () =>
@@ -505,17 +531,23 @@ function AcknowledgementDialog({
       },
     });
 
+  const noneAllowed = allowed.length === 0;
+
   return (
     <WorkflowSheet
       open
       onOpenChange={(o) => !o && onClose()}
       size="lg"
       title="Record authority acknowledgement"
-      description="Structured capture — no JSON. The authority reference and receipt are stored on the return run for audit and reconciliation."
+      description={
+        noneAllowed
+          ? `This return is in terminal status "${run.status}" and cannot be transitioned further.`
+          : `Current status: ${run.status}. Only transitions valid from this state are shown — e.g. an authority acknowledgement can only be recorded after the return has been submitted.`
+      }
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={isPending}>Cancel</Button>
-          <Button onClick={submit} disabled={isPending}>
+          <Button onClick={submit} disabled={isPending || noneAllowed}>
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Record
           </Button>
@@ -524,17 +556,17 @@ function AcknowledgementDialog({
     >
       <WorkflowSheetSection number={1} title="Outcome">
         <WorkflowField label="Outcome" required>
-          <Select value={outcome} onValueChange={(v) => setOutcome(v as AckPayload["outcome"])}>
+          <Select value={outcome} onValueChange={(v) => setOutcome(v as AckPayload["outcome"])} disabled={noneAllowed}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="submitted_awaiting_ack">Submitted — awaiting acknowledgement</SelectItem>
-              <SelectItem value="acknowledged">Acknowledged by authority</SelectItem>
-              <SelectItem value="filed">Filed (acknowledged + on record)</SelectItem>
-              <SelectItem value="rejected">Rejected by authority</SelectItem>
+              {allowed.map((o) => (
+                <SelectItem key={o} value={o}>{OUTCOME_LABEL[o]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </WorkflowField>
       </WorkflowSheetSection>
+
 
       <WorkflowSheetSection number={2} title="Receipt">
         <WorkflowField label="Authority receipt / reference number">
