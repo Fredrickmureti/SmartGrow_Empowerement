@@ -294,9 +294,9 @@ export function PayrollPostingSimulator() {
               </>
             )}
           </div>
-        )}
+        </div>
 
-        <DialogFooter>
+        <SheetFooter className="px-6 py-3 border-t flex-shrink-0 flex-row items-center gap-2">
           <p className="text-xs text-muted-foreground mr-auto">
             Read-only preview — no journal entry is written and the run status is
             not changed.
@@ -304,8 +304,8 @@ export function PayrollPostingSimulator() {
           <Button variant="outline" onClick={() => setOpen(false)}>
             Close
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
