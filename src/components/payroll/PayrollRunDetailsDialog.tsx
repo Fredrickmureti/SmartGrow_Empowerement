@@ -619,7 +619,7 @@ export function PayrollRunDetailsDialog({
               </Button>
             )}
           </div>
-        </DialogHeader>
+        </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-0 min-w-0 flex-1 min-h-0 flex flex-col">
           <TabsList className="w-full sm:w-auto mx-6 mt-3 self-start flex-shrink-0">
