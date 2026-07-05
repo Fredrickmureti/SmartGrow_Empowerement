@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
 
     const { data: payslipLines, error: linesError } = await supabaseAdmin
       .from("payslip_lines")
-      .select("rule_code, label, category, employee_amount, employer_amount, details, accounting_tag")
+      .select("rule_code, label, category, employee_amount, employer_amount, source, accounting_tag")
       .eq("payroll_run_id", payroll_run_id);
 
     if (linesError) {
