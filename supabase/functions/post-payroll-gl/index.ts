@@ -757,7 +757,9 @@ Deno.serve(async (req) => {
     // When dry_run=true we return the projected JE payload enriched with
     // account code/name/type so the accountant can inspect it before
     // authorising the real post. No writes to the ledger, no payroll_runs
-    // status change, no liabilities, no audit log.
+    // status change, no liabilities, no financial audit_log — but we DO
+    // write a lightweight, non-financial "payroll_posting_previewed" row
+    // to audit_logs so previews are traceable in enterprise audits.
     if (dryRun) {
       const acctIds = Array.from(new Set(lines.map((l) => l.account_id).filter(Boolean)));
       const { data: acctRows } = await supabaseAdmin
@@ -778,21 +780,70 @@ Deno.serve(async (req) => {
       });
       const dryTotalDebits = enriched.reduce((s, l) => s + Number(l.debit || 0), 0);
       const dryTotalCredits = enriched.reduce((s, l) => s + Number(l.credit || 0), 0);
+      const dryBalanced = Math.abs(dryTotalDebits - dryTotalCredits) < 0.01;
+
+      // Fire-and-forget preview audit row. Never blocks the response.
+      try {
+        await supabaseAdmin.from("audit_logs").insert({
+          organization_id,
+          business_id: business_id || null,
+          user_id: userId,
+          action: "payroll_posting_previewed",
+          entity_type: "payroll_run",
+          entity_id: payroll_run_id,
+          entity_name: payrollRun.payroll_number,
+          new_values: {
+            line_count: enriched.length,
+            total_debits: dryTotalDebits,
+            total_credits: dryTotalCredits,
+            balanced: dryBalanced,
+            warnings: previewWarnings.map((w) => w.code),
+            already_posted: !!existingJE,
+          },
+          changes_summary: `Previewed payroll GL posting for ${payrollRun.payroll_number} (read-only, no ledger change)`,
+        });
+      } catch (auditErr) {
+        console.warn("payroll_posting_previewed audit insert failed:", auditErr);
+      }
+
       return new Response(JSON.stringify({
         dry_run: true,
         payroll_run_id,
         payroll_number: payrollRun.payroll_number,
         pay_period_end: payrollRun.pay_period_end,
+        run_status: payrollRun.status,
         employee_count: payslips.length,
         lines: enriched,
         total_debits: dryTotalDebits,
         total_credits: dryTotalCredits,
-        balanced: Math.abs(dryTotalDebits - dryTotalCredits) < 0.01,
+        balanced: dryBalanced,
+        warnings: previewWarnings,
+        already_posted: !!existingJE,
+        existing_journal_entry_id: existingJE?.id ?? null,
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // ─── Write-path precondition: run status MUST be 'approved' ───
+    // Posting is a state-machine transition (approved → posted). All other
+    // states — draft, computed, posted, paid, remitted, closed, reversed —
+    // are invalid entry points and must be rejected explicitly so no code
+    // path can jump states. `user_can_post_payroll` also asserts approval
+    // as part of the SoD check, but the explicit state gate here makes the
+    // invariant impossible to bypass by a future refactor of that helper.
+    if (payrollRun.status !== "approved") {
+      return new Response(JSON.stringify({
+        error: "invalid_state",
+        message: `Payroll run is in status "${payrollRun.status}" — only runs in status "approved" can be posted to the GL.`,
+        current_status: payrollRun.status,
+        required_status: "approved",
+      }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
 
     // ─── Get journal entry number ───
