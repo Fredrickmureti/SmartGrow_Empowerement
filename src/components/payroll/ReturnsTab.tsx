@@ -151,7 +151,12 @@ export function ReturnsTab() {
             : "Reconciles with payroll liabilities.",
       });
     } catch (err: any) {
-      toast({ title: "Failed to generate return", description: normalizeError(err).message, variant: "destructive" });
+      const normalized = normalizeError(err);
+      toast({
+        title: normalized.title,
+        description: `${normalized.message} ${normalized.action}`,
+        variant: "destructive",
+      });
     }
   };
 
