@@ -924,7 +924,7 @@ export function PayrollRunDetailsDialog({
         </ScrollArea>
           </TabsContent>
         </Tabs>
-      </DialogContent>
+      </SheetContent>
       {showBulkEmail && (
         <SendDocumentDialog
           open={showBulkEmail}
