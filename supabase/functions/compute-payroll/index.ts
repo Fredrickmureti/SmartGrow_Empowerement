@@ -193,8 +193,24 @@ interface CalcContext {
  * plus a `requires_input: [...]` entry on the localization-pack rule — no
  * country branches anywhere.
  */
+// Every token that a localization pack rule can reference in
+// `parameters.requires_input[]`, `pickBase(...)`, `parameters.reliefs[].base_code`,
+// or `parameters.reliefs[].condition` must be resolvable through this
+// registry. Keys are pure tokens — never a country literal. The values
+// are populated by the pre-fetch pass below (see aggregatePreTaxInputs).
+//
+// Adding a new statutory input is a one-line change here plus a
+// `requires_input: [...]` entry on the localization-pack rule.
 const EMPLOYEE_INPUT_REGISTRY: Record<string, (emp: any) => number> = {
   insurance_premium: (emp) => Number(emp?.insurance_premium ?? 0),
+  ahr_contribution: (emp) => Number(emp?.ahr_contribution ?? 0),
+  mortgage_interest: (emp) => Number(emp?.mortgage_interest ?? 0),
+  pension_contribution: (emp) => Number(emp?.pension_contribution ?? 0),
+  post_retirement_medical: (emp) => Number(emp?.post_retirement_medical ?? 0),
+  // Presence-only gate tokens. Coerced to 1/0 so the same map is uniformly
+  // numeric; relief `condition` checks read truthiness.
+  ahr_contribution_present: (emp) => (Number(emp?.ahr_contribution ?? 0) > 0 ? 1 : 0),
+  disability_certified: (emp) => (emp?.disability_certified ? 1 : 0),
 };
 
 function resolveInputs(emp: any): Record<string, number> {
@@ -335,10 +351,9 @@ export function computeBracketProgressive(
       const cap = Number(r.cap ?? 0) || Infinity;
       insuranceRelief += Math.min(baseAmt * rate, cap);
     }
-    // `deduction_cap` and `exemption` are handled upstream (Pass A / taxable
-    // income adjustments). The engine currently caps by declaring them via
-    // `parameters.taxable_income_adjustments[]`; leaving the branch open
-    // here so the resolver can be extended without another patch.
+    // `deduction_cap` and `exemption` are applied upstream in Pass A
+    // (see compute-payroll main loop, "Employee-input pre-tax deductions"
+    // and "Exemption reliefs" blocks). Skipped here by design.
   }
 
   const grossTax = tax;
@@ -1116,33 +1131,67 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ─── Wave 1.1: insurance_premium now lives on contract_compensation_components ───
-    // (legacy employees.insurance_premium column dropped). Aggregate per employee
-    // from the active contract so EMPLOYEE_INPUT_REGISTRY can keep its single-source
-    // accessor and statutory rules referencing `insurance_premium` remain unchanged.
+    // ─── Pre-tax statutory inputs sourced from contract components ───
+    // insurance_premium was the original single case (Wave 1.1); the audit
+    // 2026-07-05 closeout expanded this to every pre-tax token referenced by
+    // shipped packs (ahr_contribution, mortgage_interest, pension_contribution,
+    // post_retirement_medical). One query, then per-token aggregation, so
+    // adding future tokens is a data change — no engine patch. Country-agnostic:
+    // the engine never mentions KE/UG/TZ, only component_codes.
+    const PRETAX_COMPONENT_CODES = [
+      "insurance_premium",
+      "ahr_contribution",
+      "mortgage_interest",
+      "pension_contribution",
+      "post_retirement_medical",
+    ] as const;
     const activeContractIds = Object.values(contractByEmployee)
       .map((c: any) => c.id)
       .filter(Boolean);
-    const insurancePremiumByEmployee: Record<string, number> = {};
+    const preTaxByEmpAndCode: Record<string, Record<string, number>> = {};
     if (activeContractIds.length > 0) {
-      const { data: ipComponents } = await supabaseAdmin
+      const { data: ptComponents } = await supabaseAdmin
         .from("contract_compensation_components")
-        .select("contract_id, amount, effective_from, effective_to")
+        .select("contract_id, component_code, amount, effective_from, effective_to")
         .in("contract_id", activeContractIds)
-        .eq("component_code", "insurance_premium")
+        .in("component_code", PRETAX_COMPONENT_CODES as unknown as string[])
         .or(`effective_from.is.null,effective_from.lte.${pay_period_end}`)
         .or(`effective_to.is.null,effective_to.gte.${pay_period_start}`);
-      const sumByContract: Record<string, number> = {};
-      for (const c of (ipComponents || []) as any[]) {
-        sumByContract[c.contract_id] = (sumByContract[c.contract_id] || 0) + Number(c.amount || 0);
+      const sumByContractAndCode: Record<string, Record<string, number>> = {};
+      for (const c of (ptComponents || []) as any[]) {
+        const bucket = (sumByContractAndCode[c.contract_id] ||= {});
+        bucket[c.component_code] = (bucket[c.component_code] || 0) + Number(c.amount || 0);
       }
       for (const [empId, contract] of Object.entries(contractByEmployee)) {
-        const amt = sumByContract[(contract as any).id] || 0;
-        if (amt > 0) insurancePremiumByEmployee[empId] = amt;
+        const bucket = sumByContractAndCode[(contract as any).id] || {};
+        preTaxByEmpAndCode[empId] = bucket;
+      }
+    }
+    // Disability certification is stored in employee_statutory_identifiers
+    // (see ADR 0036 — pack-driven identifier registry). Presence of an
+    // active `disability_certified` row is the truthy gate for the KE
+    // pack's disability_exemption relief.
+    const disabilityCertifiedEmpIds = new Set<string>();
+    const empIds = (employees as any[]).map((e) => e.id).filter(Boolean);
+    if (empIds.length > 0) {
+      const { data: idRows } = await supabaseAdmin
+        .from("employee_statutory_identifiers")
+        .select("employee_id, identifier_type, is_active")
+        .in("employee_id", empIds)
+        .eq("identifier_type", "disability_certified")
+        .eq("is_active", true);
+      for (const r of (idRows || []) as any[]) {
+        if (r.employee_id) disabilityCertifiedEmpIds.add(r.employee_id);
       }
     }
     for (const emp of employees as any[]) {
-      (emp as any).insurance_premium = insurancePremiumByEmployee[emp.id] || 0;
+      const bucket = preTaxByEmpAndCode[emp.id] || {};
+      (emp as any).insurance_premium = bucket.insurance_premium || 0;
+      (emp as any).ahr_contribution = bucket.ahr_contribution || 0;
+      (emp as any).mortgage_interest = bucket.mortgage_interest || 0;
+      (emp as any).pension_contribution = bucket.pension_contribution || 0;
+      (emp as any).post_retirement_medical = bucket.post_retirement_medical || 0;
+      (emp as any).disability_certified = disabilityCertifiedEmpIds.has(emp.id);
     }
 
     // ─── Stage 7 engine gate: timesheet-driven contracts require approval ───
@@ -2591,6 +2640,69 @@ Deno.serve(async (req) => {
           }
         }
 
+        // ─── Employee-input pre-tax deductions (audit 2026-07-05 closeout) ───
+        // `pre_tax_deductions[]` may reference codes that are NOT sibling
+        // statutory rules but employee compensation components (KE pack:
+        // pension_contribution, mortgage_interest, post_retirement_medical).
+        // These arrive through EMPLOYEE_INPUT_REGISTRY / ctx.inputs and are
+        // capped by any matching `reliefs[]` entry of kind='deduction_cap'.
+        // Country-agnostic: the engine reads codes, never country strings.
+        const deductionCapByCode = new Map<string, number>();
+        for (const it of incomeTaxRules) {
+          const reliefsArr = (it.parameters as any)?.reliefs;
+          if (!Array.isArray(reliefsArr)) continue;
+          for (const r of reliefsArr) {
+            if (r && String(r.kind ?? "").toLowerCase() === "deduction_cap") {
+              const bc = String(r.base_code ?? "").toLowerCase();
+              const cap = Number(r.cap ?? 0);
+              if (bc && cap > 0) deductionCapByCode.set(bc, cap);
+            }
+          }
+        }
+        const siblingRuleCodes = new Set(
+          empRules.map((r) => (r.rule_code || "").toLowerCase()).filter(Boolean),
+        );
+        for (const code of preTaxCodes) {
+          // Already handled as a sibling statutory rule.
+          if (siblingRuleCodes.has(code)) continue;
+          const raw = Number(ctx.inputs?.[code] ?? 0);
+          if (raw <= 0) continue;
+          const cap = deductionCapByCode.get(code);
+          const applied = cap != null ? Math.min(raw, cap) : raw;
+          if (applied <= 0) continue;
+          statutoryDeductible += applied;
+          taxableBaseComponents.push({
+            rule_code: code,
+            rule_name: cap != null && raw > cap ? `${code} (capped at ${cap})` : code,
+            amount: applied,
+          });
+        }
+
+        // ─── Exemption reliefs (kind='exemption') ───
+        // Reduce the taxable base by a flat amount when the declared
+        // condition is truthy (e.g. KE disability_exemption gated on
+        // disability_certified). Applied here in Pass A so the taxable
+        // base reflects the exemption before bracket computation.
+        for (const it of incomeTaxRules) {
+          const reliefsArr = (it.parameters as any)?.reliefs;
+          if (!Array.isArray(reliefsArr)) continue;
+          for (const r of reliefsArr) {
+            if (!r || String(r.kind ?? "").toLowerCase() !== "exemption") continue;
+            if (r.condition) {
+              const gate = ctx.inputs?.[String(r.condition)];
+              if (!gate) continue;
+            }
+            const amt = Number(r.amount ?? 0);
+            if (amt <= 0) continue;
+            statutoryDeductible += amt;
+            taxableBaseComponents.push({
+              rule_code: String(r.code ?? "exemption"),
+              rule_name: String(r.code ?? "exemption"),
+              amount: amt,
+            });
+          }
+        }
+
         // Reduce the taxable base by the accumulated deductibles, clamped ≥ 0.
         if (statutoryDeductible > 0) {
           ctx.taxableIncome = Math.max(0, taxableIncome - statutoryDeductible);
@@ -3469,6 +3581,18 @@ Deno.serve(async (req) => {
         total_deductions: empTotalDeductions,
         net_pay: storedNetPay,
         taxable_income: finalTaxableBase,
+        // Audit 2026-07-05 closeout — persist the base PAYE was computed
+        // against + the gross tax before reliefs so reports/tax certificates
+        // don't have to re-derive them from payslip_lines.source.
+        taxable_base: finalTaxableBase,
+        paye_before_relief: (() => {
+          const traces = ((emp as any).__bracket_traces_by_rule_name || {}) as Record<string, any>;
+          let sum = 0;
+          for (const t of Object.values(traces)) {
+            sum += Number((t as any)?.gross_tax || 0);
+          }
+          return sum > 0 ? Math.round(sum * 100) / 100 : null;
+        })(),
         status: "pending",
         deductions_detail: deductionsDetail,
         contributions_detail: contributionsDetail,
