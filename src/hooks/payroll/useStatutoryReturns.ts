@@ -82,6 +82,15 @@ export interface ReturnRun {
   reconciliation_override_reason: string | null;
 }
 
+const STATUTORY_RETURN_OLD_PATH_RE = /^payroll\/statutory-returns\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
+
+export function normalizeReturnArtifactPath(path: string) {
+  const trimmed = path.trim();
+  const oldPathMatch = trimmed.match(STATUTORY_RETURN_OLD_PATH_RE);
+  if (!oldPathMatch) return trimmed;
+  return `${oldPathMatch[1]}/payroll/statutory-returns/${oldPathMatch[2]}`;
+}
+
 export interface ReturnDiagnostic {
   id: string;
   run_id: string;
@@ -273,7 +282,12 @@ export function useReturnRuns(params: { templateCode?: string; year?: number }) 
       }
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as ReturnRun[];
+      return ((data ?? []) as ReturnRun[]).map((run) => ({
+        ...run,
+        csv_path: run.csv_path ? normalizeReturnArtifactPath(run.csv_path) : run.csv_path,
+        pdf_path: run.pdf_path ? normalizeReturnArtifactPath(run.pdf_path) : run.pdf_path,
+        gov_file_path: run.gov_file_path ? normalizeReturnArtifactPath(run.gov_file_path) : run.gov_file_path,
+      }));
     },
   });
 }
@@ -443,7 +457,8 @@ export function useFilingCalendar() {
 }
 
 export async function downloadReturnArtifact(path: string) {
-  const { data, error } = await supabase.storage.from("documents").createSignedUrl(path, 60);
+  const normalizedPath = normalizeReturnArtifactPath(path);
+  const { data, error } = await supabase.storage.from("documents").createSignedUrl(normalizedPath, 60);
   if (error) throw error;
   window.open(data.signedUrl, "_blank");
 }
