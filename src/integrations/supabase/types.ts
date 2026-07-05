@@ -31199,6 +31199,7 @@ export type Database = {
         Row: {
           accounting_tag: string | null
           business_id: string
+          calc_basis: Json | null
           category: Database["public"]["Enums"]["payslip_line_category"]
           created_at: string
           employee_amount: number
@@ -31215,12 +31216,14 @@ export type Database = {
           rule_version_id: string | null
           sequence: number
           source: Json | null
+          statutory_reference: string | null
           statutory_rule_id: string | null
           taxable: boolean
         }
         Insert: {
           accounting_tag?: string | null
           business_id: string
+          calc_basis?: Json | null
           category: Database["public"]["Enums"]["payslip_line_category"]
           created_at?: string
           employee_amount?: number
@@ -31237,12 +31240,14 @@ export type Database = {
           rule_version_id?: string | null
           sequence?: number
           source?: Json | null
+          statutory_reference?: string | null
           statutory_rule_id?: string | null
           taxable?: boolean
         }
         Update: {
           accounting_tag?: string | null
           business_id?: string
+          calc_basis?: Json | null
           category?: Database["public"]["Enums"]["payslip_line_category"]
           created_at?: string
           employee_amount?: number
@@ -31259,6 +31264,7 @@ export type Database = {
           rule_version_id?: string | null
           sequence?: number
           source?: Json | null
+          statutory_reference?: string | null
           statutory_rule_id?: string | null
           taxable?: boolean
         }
@@ -31319,6 +31325,7 @@ export type Database = {
           allow_negative_net: boolean
           branch_id: string | null
           business_id: string
+          compute_breakdown: Json | null
           contributions_detail: Json | null
           corrects_payslip_id: string | null
           created_at: string
@@ -31352,6 +31359,7 @@ export type Database = {
           allow_negative_net?: boolean
           branch_id?: string | null
           business_id: string
+          compute_breakdown?: Json | null
           contributions_detail?: Json | null
           corrects_payslip_id?: string | null
           created_at?: string
@@ -31385,6 +31393,7 @@ export type Database = {
           allow_negative_net?: boolean
           branch_id?: string | null
           business_id?: string
+          compute_breakdown?: Json | null
           contributions_detail?: Json | null
           corrects_payslip_id?: string | null
           created_at?: string
@@ -62228,10 +62237,6 @@ export type Database = {
         }
         Returns: Json
       }
-      insert_payroll_run_atomic: {
-        Args: { p_payroll_run: Json; p_payslips: Json }
-        Returns: Json
-      }
       install_app: {
         Args: { p_app_id: string; p_org_id: string }
         Returns: {
@@ -67651,6 +67656,11 @@ export type Database = {
         | "benefit"
         | "loan_repayment"
         | "net"
+        | "subtotal"
+        | "pre_tax_deduction"
+        | "tax"
+        | "relief"
+        | "post_tax_deduction"
       performance_cycle_status: "draft" | "open" | "in_progress" | "closed"
       performance_review_status:
         | "not_started"
@@ -68264,6 +68274,11 @@ export const Constants = {
         "benefit",
         "loan_repayment",
         "net",
+        "subtotal",
+        "pre_tax_deduction",
+        "tax",
+        "relief",
+        "post_tax_deduction",
       ],
       performance_cycle_status: ["draft", "open", "in_progress", "closed"],
       performance_review_status: [
