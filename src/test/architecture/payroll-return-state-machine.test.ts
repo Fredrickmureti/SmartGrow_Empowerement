@@ -54,6 +54,11 @@ describe("payroll return state machine migration", () => {
     expect(allSql).toMatch(/WHEN\s+'filed'\s+THEN[^\n]*'rejected'/i);
   });
 
+  it("keeps regeneration aligned with the current transition assertion matrix", () => {
+    expect(allSql).toMatch(/payroll_return_assert_transition\(v_prev,\s*_to_status\)/i);
+    expect(allSql).toMatch(/\('generated','superseded'\)/i);
+  });
+
   it("creates the pack_return_run_audit table with RLS + service-role write policy", () => {
     expect(allSql).toMatch(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+public\.pack_return_run_audit/i);
     expect(allSql).toMatch(/ALTER\s+TABLE\s+public\.pack_return_run_audit\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i);
