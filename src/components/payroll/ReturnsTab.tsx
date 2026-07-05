@@ -380,14 +380,36 @@ export function ReturnsTab() {
                             <Button
                               size="sm" variant="outline"
                               disabled={!r.csv_path}
-                              onClick={() => r.csv_path && downloadReturnArtifact(r.csv_path)}
+                              onClick={async () => {
+                                if (!r.csv_path) return;
+                                try {
+                                  await downloadReturnArtifact(r.csv_path);
+                                } catch (err: any) {
+                                  toast({
+                                    title: "CSV download failed",
+                                    description: normalizeError(err).message,
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
                             >
                               <Download className="h-3.5 w-3.5 mr-1" /> CSV
                             </Button>
                             <Button
                               size="sm" variant="outline"
                               disabled={!r.pdf_path}
-                              onClick={() => r.pdf_path && downloadReturnArtifact(r.pdf_path)}
+                              onClick={async () => {
+                                if (!r.pdf_path) return;
+                                try {
+                                  await downloadReturnArtifact(r.pdf_path);
+                                } catch (err: any) {
+                                  toast({
+                                    title: "PDF download failed",
+                                    description: normalizeError(err).message,
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
                             >
                               <FileText className="h-3.5 w-3.5 mr-1" /> PDF
                             </Button>
