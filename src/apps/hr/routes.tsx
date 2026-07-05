@@ -43,6 +43,7 @@ const TalentApp = lazy(() => import("./sub/TalentRoutes"));
 const ContractsApp = lazy(() => import("./sub/ContractsRoutes"));
 const LifecycleApp = lazy(() => import("./sub/LifecycleRoutes"));
 const HrReportsApp = lazy(() => import("./sub/HrReportsRoutes"));
+const DocumentComplianceApp = lazy(() => import("./sub/DocumentComplianceRoutes"));
 
 function SubAppFallback({ module }: { module: string }) {
   return <RouteLoadingFallback module={module} />;
@@ -82,6 +83,15 @@ export function HRApp() {
             </AppInstalledGate>
           }
         />
+        <Route
+          path="document-compliance/*"
+          element={
+            <AppInstalledGate appId="employees">
+              <DocumentComplianceApp />
+            </AppInstalledGate>
+          }
+        />
+
 
         {/*
          * Wave-1 redirects: legacy /hr/* URLs → their new workspace owners.

@@ -158,7 +158,7 @@ function useRows(module: InboxModule): { title: string; total: number; isLoading
         emptyLabel: "No probations ending",
       },
       {
-        to: "/hr/employees?tab=documents",
+        to: "/hr/document-compliance/expiring",
         icon: FileWarning,
         label: "Documents expiring (90d)",
         count: emp.counts.expiringDocuments,
