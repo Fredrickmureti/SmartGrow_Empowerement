@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -211,14 +211,14 @@ export function PayrollPreviewDialog({
 
   if (isLoading) {
     return (
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="w-[95vw] max-w-md">
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+          <div className="flex flex-col items-center justify-center py-12 gap-3 flex-1">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">Computing payroll preview...</p>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     );
   }
 
@@ -229,11 +229,11 @@ export function PayrollPreviewDialog({
   // PDF Preview mode
   if (showPdfPreview && pdfBlob) {
     return (
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="w-[95vw] max-w-5xl h-[95dvh] sm:h-[85vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent side="right" className="w-full sm:max-w-5xl p-0 gap-0 flex flex-col">
+          <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
             <div className="flex items-center justify-between">
-              <DialogTitle className="text-lg">Payroll Register Preview (PDF)</DialogTitle>
+              <SheetTitle className="text-lg">Payroll Register Preview (PDF)</SheetTitle>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => setShowPdfPreview(false)}>
                   Back to Data
@@ -246,7 +246,7 @@ export function PayrollPreviewDialog({
                 </Button>
               </div>
             </div>
-          </DialogHeader>
+          </SheetHeader>
           <div className="flex-1 overflow-hidden bg-muted/30 p-4">
             <SafePdfViewer
               pdfBlob={pdfBlob}
@@ -268,24 +268,24 @@ export function PayrollPreviewDialog({
               Confirm & Create Payroll
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     );
   }
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex flex-col p-0 gap-0 w-[95vw] max-w-4xl h-[95dvh] sm:h-[90vh] overflow-hidden">
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent side="right" className="flex flex-col p-0 gap-0 w-full sm:max-w-4xl overflow-hidden">
+        <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
+          <SheetTitle className="flex items-center gap-2">
             <Eye className="h-5 w-5" />
             Payroll Preview (Dry Run)
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             Review the computed payroll before creating. No data has been saved yet.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <ScrollArea className="flex-1 min-h-0">
           <div className="space-y-4 px-6 py-4">
@@ -474,18 +474,18 @@ export function PayrollPreviewDialog({
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
     {/* Override reason prompt — gates the override behind an audit reason. */}
-    <Dialog open={!!overrideTarget} onOpenChange={(o) => { if (!o) setOverrideTarget(null); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Override proration</DialogTitle>
-          <DialogDescription>
+    <Sheet open={!!overrideTarget} onOpenChange={(o) => { if (!o) setOverrideTarget(null); }}>
+      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+        <SheetHeader className="px-6 py-4 border-b">
+          <SheetTitle>Override proration</SheetTitle>
+          <SheetDescription>
             Force {overrideTarget?.name} to receive their full contract amount for this period instead of the auto-prorated amount. The reason is recorded on the payslip and the run audit log.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
           <Label htmlFor="override-reason">Reason</Label>
           <Textarea
             id="override-reason"
@@ -495,7 +495,7 @@ export function PayrollPreviewDialog({
             rows={3}
           />
         </div>
-        <div className="flex justify-end gap-2">
+        <div className="px-6 py-3 border-t flex justify-end gap-2">
           <Button variant="outline" onClick={() => setOverrideTarget(null)}>Cancel</Button>
           <Button
             disabled={!overrideReason.trim()}
@@ -510,8 +510,8 @@ export function PayrollPreviewDialog({
             Apply override
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
     </>
   );
 }

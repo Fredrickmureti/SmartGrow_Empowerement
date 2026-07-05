@@ -17,13 +17,14 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -163,7 +164,7 @@ export function PayrollPostingSimulator() {
   const latestRun = latestRunQuery.data;
 
   return (
-    <Dialog
+    <Sheet
       open={open}
       onOpenChange={(v) => {
         setOpen(v);
@@ -174,16 +175,20 @@ export function PayrollPostingSimulator() {
         }
       }}
     >
-      <DialogTrigger asChild>
+      <SheetTrigger asChild>
         <Button size="sm" variant="outline">
           <PlayCircle className="h-4 w-4 mr-1.5" />
           Simulate posting
         </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Payroll posting simulation</DialogTitle>
-        </DialogHeader>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-full sm:max-w-3xl p-0 flex flex-col gap-0">
+        <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
+          <SheetTitle>Payroll posting simulation</SheetTitle>
+          <SheetDescription>
+            Preview the journal entry the engine would produce — nothing is written.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto px-6 py-4">
 
         {latestRunQuery.isLoading ? (
           <div className="py-6 text-sm text-muted-foreground">Loading latest run…</div>
@@ -290,8 +295,10 @@ export function PayrollPostingSimulator() {
             )}
           </div>
         )}
+        </div>
 
-        <DialogFooter>
+
+        <SheetFooter className="px-6 py-3 border-t flex-shrink-0 flex-row items-center gap-2">
           <p className="text-xs text-muted-foreground mr-auto">
             Read-only preview — no journal entry is written and the run status is
             not changed.
@@ -299,8 +306,8 @@ export function PayrollPostingSimulator() {
           <Button variant="outline" onClick={() => setOpen(false)}>
             Close
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

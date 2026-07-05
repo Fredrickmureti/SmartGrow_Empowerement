@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -423,13 +423,13 @@ export function PayrollRunDetailsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col p-0 gap-0 w-[95vw] max-w-4xl h-[95dvh] sm:h-[90vh] overflow-hidden">
-        <DialogHeader className="flex-shrink-0 px-6 py-4 border-b max-h-[55dvh] sm:max-h-[50vh] overflow-y-auto">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex flex-col p-0 gap-0 w-full sm:max-w-4xl overflow-hidden">
+        <SheetHeader className="flex-shrink-0 px-6 py-4 border-b max-h-[55dvh] sm:max-h-[50vh] overflow-y-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 pr-8">
             <div className="min-w-0">
-              <DialogTitle className="text-lg sm:text-xl truncate">{run.payroll_number}</DialogTitle>
-              <DialogDescription className="break-words">
+              <SheetTitle className="text-lg sm:text-xl truncate">{run.payroll_number}</SheetTitle>
+              <SheetDescription className="break-words">
                 {periodLabel} • {run.employee_count} employees
                 {run.run_type === "correction" && run.original_run_id && (
                   <>
@@ -443,7 +443,7 @@ export function PayrollRunDetailsDialog({
                     </Link>
                   </>
                 )}
-              </DialogDescription>
+              </SheetDescription>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {getStatusBadge(run.status)}
@@ -619,7 +619,7 @@ export function PayrollRunDetailsDialog({
               </Button>
             )}
           </div>
-        </DialogHeader>
+        </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-0 min-w-0 flex-1 min-h-0 flex flex-col">
           <TabsList className="w-full sm:w-auto mx-6 mt-3 self-start flex-shrink-0">
@@ -924,7 +924,7 @@ export function PayrollRunDetailsDialog({
         </ScrollArea>
           </TabsContent>
         </Tabs>
-      </DialogContent>
+      </SheetContent>
       {showBulkEmail && (
         <SendDocumentDialog
           open={showBulkEmail}
@@ -990,6 +990,6 @@ export function PayrollRunDetailsDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Dialog>
+    </Sheet>
   );
 }
