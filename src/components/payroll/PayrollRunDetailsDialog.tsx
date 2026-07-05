@@ -423,13 +423,13 @@ export function PayrollRunDetailsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col p-0 gap-0 w-[95vw] max-w-4xl h-[95dvh] sm:h-[90vh] overflow-hidden">
-        <DialogHeader className="flex-shrink-0 px-6 py-4 border-b max-h-[55dvh] sm:max-h-[50vh] overflow-y-auto">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex flex-col p-0 gap-0 w-full sm:max-w-4xl overflow-hidden">
+        <SheetHeader className="flex-shrink-0 px-6 py-4 border-b max-h-[55dvh] sm:max-h-[50vh] overflow-y-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 pr-8">
             <div className="min-w-0">
-              <DialogTitle className="text-lg sm:text-xl truncate">{run.payroll_number}</DialogTitle>
-              <DialogDescription className="break-words">
+              <SheetTitle className="text-lg sm:text-xl truncate">{run.payroll_number}</SheetTitle>
+              <SheetDescription className="break-words">
                 {periodLabel} • {run.employee_count} employees
                 {run.run_type === "correction" && run.original_run_id && (
                   <>
