@@ -1,15 +1,17 @@
 -- Payroll audit 2026-07-05 closeout — pack deductibility contract integrity.
 --
 -- Enforces that every rule_code referenced by an income_tax rule's
--- `parameters.pre_tax_deductions[]` array either:
---   (a) exists as an active sibling statutory rule in the same org that
---       carries `parameters.reduces_taxable_income = true`, OR
---   (b) is an employee-input token registered in the engine's
---       EMPLOYEE_INPUT_REGISTRY (pension_contribution, mortgage_interest,
---       post_retirement_medical, insurance_premium, ahr_contribution).
+-- `parameters.pre_tax_deductions[]` array is resolvable by the engine
+-- via one of two equivalent paths:
+--   (a) it exists as an active sibling statutory rule in the same
+--       org+country (the engine's Pass A picks these up through the
+--       union of `reduces_taxable_income=true` and pre_tax_deductions),
+--   (b) it is an employee-input token registered in the engine's
+--       EMPLOYEE_INPUT_REGISTRY (insurance_premium, ahr_contribution,
+--       mortgage_interest, pension_contribution, post_retirement_medical).
 --
--- Any other case means the pack references a code that the engine cannot
--- resolve, i.e. a silent no-op that under-taxes or over-taxes the employee.
+-- Any other case means the pack references a code that the engine
+-- cannot resolve — a silent no-op that under- or over-taxes employees.
 BEGIN;
 
 -- Load the pgTAP extension if available; fall back to plain asserts otherwise.
