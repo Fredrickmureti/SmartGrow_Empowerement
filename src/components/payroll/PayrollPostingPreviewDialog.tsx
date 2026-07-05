@@ -286,7 +286,7 @@ export function PayrollPostingPreviewDialog({
           )}
         </div>
 
-        <DialogFooter className="px-6 py-3 border-t flex-row items-center gap-2">
+        <SheetFooter className="px-6 py-3 border-t flex-row items-center gap-2">
           <p className="text-xs text-muted-foreground mr-auto">
             Read-only preview — no journal entry is written and the run status is
             not changed.
@@ -302,9 +302,9 @@ export function PayrollPostingPreviewDialog({
           <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
             Close
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
