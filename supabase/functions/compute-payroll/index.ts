@@ -2498,8 +2498,31 @@ Deno.serve(async (req) => {
         };
         const empBracketTraces: BracketTrace[] = [];
 
+        // Deductibility is expressed in TWO equivalent forms across packs
+        // (see ADR-0010 / payroll audit 2026-07-05):
+        //   (a) `parameters.reduces_taxable_income = true` on each sibling
+        //       statutory rule (imperative form), OR
+        //   (b) `parameters.pre_tax_deductions = [<rule_code>, ...]` on the
+        //       income_tax rule (declarative form — how the shipped KE
+        //       pack encodes NSSF/SHIF/AHL pre-tax).
+        // The engine must honour BOTH so the pack is the single source of
+        // truth. This keeps ADR-0036 country-agnostic — dispatch is still
+        // off `parameters`, never off literal rule_codes.
+        const incomeTaxRules = empRules.filter((r) => r.rule_type === "income_tax");
+        const preTaxCodes = new Set<string>();
+        for (const it of incomeTaxRules) {
+          const arr = (it.parameters as any)?.pre_tax_deductions;
+          if (Array.isArray(arr)) {
+            for (const c of arr) {
+              if (typeof c === "string" && c.length > 0) {
+                preTaxCodes.add(c.toLowerCase());
+              }
+            }
+          }
+        }
         const isDeductible = (r: PayrollRule) =>
-          (r.parameters as any)?.reduces_taxable_income === true;
+          (r.parameters as any)?.reduces_taxable_income === true ||
+          preTaxCodes.has((r.rule_code || "").toLowerCase());
         const passA = empRules.filter(isDeductible);
         const passB = empRules.filter((r) => !isDeductible(r));
 

@@ -1,182 +1,196 @@
 
-## Investigation Report — Employee Lifecycle & Contract Architecture
+# Enterprise Payroll Audit — PAYE Computation & Payslip Explainability
 
-### 1. What actually happened (execution path)
+## 1. Executive finding
 
-```
-UI → useEmployeeContracts.create → INSERT public.employee_contracts
-  └─ AFTER INSERT tg_employee_contracts_lifecycle
-        → emit_employee_lifecycle_event(..., 'contract_created')
-          → INSERT public.employee_lifecycle_events
-             ├─ AFTER INSERT tg_hr_event_apply_garnishment      (ok)
-             └─ AFTER INSERT tg_hr_event_propose_loan_skip      ◀── 400 here
-```
+The PAYE of **KES 20,582.80** on the payslip is arithmetically consistent with the engine, but the engine is **taxing the wrong base**. It taxes on **gross (94,000)** instead of **gross − allowable statutory deductions (84,365)**. The over-charge is ~KES 2,890/month per employee.
 
-The 400 surfaces on `POST /rest/v1/employee_contracts`, but the failure is
-two hops downstream in a trigger on `employee_lifecycle_events`.
+Reproduction against the shipped Kenya pack:
 
-### 2. Root cause — the enum is right, the trigger is wrong
+```text
+Gross                       94,000.00
+Bands on 94,000 (WRONG):
+  0–24,000       @10%        2,400.00
+  24,001–32,333  @25%        2,083.25
+  32,334–94,000  @30%       18,500.10
+  Sub-total                 22,983.35
+  − Personal relief          2,400.00
+  = PAYE                    20,583.35  ← matches payslip (rounding 20,582.80)
 
-Canonical enum `public.employee_lifecycle_event_type` (migration
-`20260628092841…`) defines the full lifecycle vocabulary:
-
-```
-candidate_created, application_submitted, offer_extended, offer_accepted,
-offer_declined, hired, onboarding_started, onboarding_completed,
-probation_started, probation_ended, probation_extended,
-contract_created, contract_activated, contract_renewed, contract_amended,
-contract_expired, salary_revised, position_changed,
-department_transferred, location_transferred, manager_changed,
-promoted, demoted, suspended, reinstated,
-leave_of_absence_started, leave_of_absence_ended,
-termination_initiated, terminated, offboarding_started,
-offboarding_completed, final_settlement_paid,
-archived, unarchived, custom
+Correct (Finance Act 2023 + TLAA 2024):
+  Taxable = 94,000 − NSSF 5,640 − SHIF 2,585 − AHL 1,410 = 84,365
+  Bands on 84,365           20,092.85
+  − Personal relief          2,400.00
+  = PAYE                    17,692.85
+Discrepancy                  ~2,890.50
 ```
 
-The trigger function `public.tg_hr_event_propose_loan_skip` (last
-rewritten in `20260705105345…`) references **two phantom values** that
-were never members of this enum:
+This is **not a formula bug**. It is an **architectural contract mismatch** between what the localization pack declares and what the engine consumes.
 
-```sql
--- line 22
-IF NEW.event_type IN ('reinstated','leave_of_absence_ended','returned_from_leave') THEN
--- line 44
-IF NEW.event_type NOT IN ('leave_of_absence_started','suspended','unpaid_leave_started') THEN
+## 2. Root cause — two competing conventions for "deductibility"
+
+The Kenya PAYE rule (`payroll_statutory_rules.rule_code='paye'`) declares deductibility **declaratively, on the PAYE rule itself**:
+
+```json
+"parameters": {
+  "pre_tax_deductions": ["nssf","shif","housing_levy","pension_contribution","mortgage_interest","post_retirement_medical"],
+  "personal_relief": 2400,
+  "insurance_relief_rate": 15,
+  "insurance_relief_max": 5000,
+  "reliefs": [
+    {"code":"personal_relief","kind":"flat","amount":2400},
+    {"code":"insurance_relief","kind":"rate_of_base","base_code":"insurance_premium","rate":0.15,"cap":5000},
+    {"code":"ahr_relief","kind":"rate_of_base","base_code":"ahr_contribution","rate":0.15,"cap":9000},
+    {"code":"mortgage_interest_cap","kind":"deduction_cap","base_code":"mortgage_interest","cap":30000},
+    {"code":"disability_exemption","kind":"exemption","amount":150000}
+  ],
+  "employer_must_apply_reliefs": true
+}
 ```
 
-Postgres coerces every string literal in an `IN (…)` against an enum
-column to that enum type at plan time. `'returned_from_leave'` and
-`'unpaid_leave_started'` fail that coercion, so **every** insert into
-`employee_lifecycle_events` fails — regardless of the actual event
-being emitted. The reported "contract_created" insert never even
-reaches the enum check; it dies on planning of the IF condition.
+The engine (`supabase/functions/compute-payroll/index.ts`, lines ~2482–2533) reads deductibility **imperatively, on each sibling rule**:
 
-Blast radius: every HR lifecycle emission (contract create/activate/
-renew/amend/expire, hire, termination, leave start/end, reinstate,
-onboarding, salary revision, position/department/location/manager
-change). Payroll, garnishment, and loan-skip automations that hang off
-these events are silently dead too.
-
-The two phantom identifiers are lifecycle concepts the loan-skip
-policy needs to react to, but the canonical vocabulary already
-expresses them:
-
-| Phantom used in trigger | Canonical enum member |
-|---|---|
-| `returned_from_leave`  | `leave_of_absence_ended` (already listed alongside it — dead code) |
-| `unpaid_leave_started` | Not modelled distinctly; today collapsed into `leave_of_absence_started` + payload flag |
-
-### 3. Lifecycle architecture, as it actually exists
-
-- **Definition**: one enum (`employee_lifecycle_event_type`) — good, single source of truth.
-- **Storage**: one table (`employee_lifecycle_events`, columns per Ch. 03 manual) — good.
-- **Emit API**: one `SECURITY DEFINER` function
-  `public.emit_employee_lifecycle_event(...)` — good.
-- **Producers** (traced through migrations):
-  - `tg_employee_contracts_lifecycle` (contract create/activate/renew/amend/expire)
-  - `tg_employee_onboarding_lifecycle`
-  - `tg_employees_lifecycle` (hire/terminate/rehire/archive)
-  - Position/department/location change triggers on `employee_position_history`
-  - Leave approval path (`20260628115322…`, `…115628…`, `…171052…`)
-  - Migration-inserted historical events (backfill)
-- **Consumers**:
-  - Payroll — loan skip proposals (`tg_hr_event_propose_loan_skip`)
-  - Garnishments — `tg_hr_event_apply_garnishment`
-  - UI — `useLifecycleEvents`, `LifecyclePipelinePage`, `LifecycleTimelinePage`
-  - Reporting/audit — read-only via the same table
-- **Architectural drift found**: the loan-skip consumer trigger was
-  written against a **different, older lifecycle vocabulary** than the
-  one the producers and enum agree on. This is drift in the *consumer*,
-  not evidence of two competing engines.
-
-### 4. Is the contract subsystem behind Payroll?
-
-Partially, but not in the way suspected. The lifecycle spine is in
-place and every major HR business event does emit through the single
-engine. The gaps that remain (documented in `mem/features/employee-module-followup.md`
-and `docs/manuals/hr-payroll/03-org-structure.md`) are:
-
-- No DB UNIQUE guard for "one running contract per employee" — enforced only in UI.
-- `contract_compensation_components` not yet consumed by payroll (falls back to top-level `wage`).
-- Merit-cycle → `employee_compensation_history` wiring is UNVERIFIED.
-- No approval workflow wired on compensation changes.
-
-These are real, but **out of scope for this fix** — none of them cause
-the current 400. Recording them in the follow-up memory is enough.
-
-### 5. Fix — surgical, aligns consumer with canonical vocabulary
-
-Rewrite `public.tg_hr_event_propose_loan_skip` so it references only
-values that exist in `employee_lifecycle_event_type`:
-
-```sql
--- cancel branch
-IF NEW.event_type IN ('reinstated','leave_of_absence_ended') THEN ...
-
--- propose branch
-IF NEW.event_type NOT IN ('leave_of_absence_started','suspended') THEN
-  RETURN NEW;
-END IF;
-
-v_category := CASE NEW.event_type
-  WHEN 'leave_of_absence_started' THEN 'leave_of_absence'
-  WHEN 'suspended' THEN 'suspension'
-  ELSE 'leave_of_absence' END;
+```ts
+const isDeductible = (r) => r.parameters?.reduces_taxable_income === true;
 ```
 
-No unpaid-leave-specific branch is lost — the current enum doesn't
-distinguish unpaid vs paid leave at the lifecycle layer; that
-distinction lives in `leave_requests` / payslip inputs. If the
-business genuinely needs `unpaid_leave_started` / `returned_from_leave`
-as first-class lifecycle events, that is a **separate, deliberate
-vocabulary extension** requiring: enum additions, producer wiring in
-the leave-approval trigger, docs, and UI pipeline pages — not a
-back-door reference from a consumer trigger.
+The NSSF, SHIF, and AHL rows in `payroll_statutory_rules` **do not carry `reduces_taxable_income: true`**. Therefore Pass A is empty, `statutoryDeductible = 0`, and `ctx.taxableIncome` stays at gross. Only `personal_relief` and `insurance_relief_rate/max` (which are readable off the PAYE row and therefore work) are applied.
 
-### 6. Regression guard added in the same migration
+**The pack and the engine encode the same fact in two different places, and neither side reads the other.** The pack's `pre_tax_deductions` array and full `reliefs[]` array are effectively dead data.
 
-A pgTAP-style guard mirroring the existing
-`employee_contracts_no_stale_field_refs_test.sql` pattern:
+## 3. Where the architecture is (and isn't) sound
 
-**`supabase/tests/hr_lifecycle_event_no_phantom_enum_refs_test.sql`** —
-fails CI if any `public` function references a string literal in an
-`IN (…)` / `= '…'` / `CASE WHEN … =` comparison against an
-`employee_lifecycle_event_type`-typed column when that literal is not
-a member of the enum. Prevents this exact drift class from recurring.
+**Sound**
+- `payroll_statutory_rules` is genuinely the source of truth; there is no shadow tax table (`calculate_kenya_paye` is retired and blocked by `supabase/tests/no_country_named_functions_test.sql`).
+- The engine dispatches off `computation_method` (`bracket_progressive`, `tiered_brackets`, `percentage_of_gross`, `flat_amount`) with an ESLint guard (`eslint-rules/no-literal-rule-codes-in-engines.js`) — no `if(code==='PAYE')` branches.
+- Pack schema validation (`pack_rule_type_schemas` + `trg_assert_pack_payload_valid`) exists (ADR 0010).
+- Bracket-progressive traces (`payroll_rule_traces` + `taxable_base_components` annotation at lines 2598–2611) are already emitted per employee, ready to power an explainer.
+- Provenance (`payslip_lines.source.input_ref`, ADR 0046) already ties payslip lines to originating business records.
 
-### 7. What we are NOT changing
+**Broken / drifting**
+- The pack expresses fiscal semantics (`pre_tax_deductions`, `reliefs[]`) that the engine ignores.
+- Reliefs are a strict subset: only `personal_relief` (flat) and `insurance_relief` (rate_of_base) are honoured. `ahr_relief`, `mortgage_interest_cap`, `disability_exemption` are silently dropped.
+- The payslip PDF (`generate-payslip-pdf/index.ts`) prints totals from `payslip_lines` but does **not** render the PAYE bracket trace, taxable-base composition, or relief breakdown that the engine already computed and persisted. Explainability data exists; the document layer discards it.
+- `employer_must_apply_reliefs: true` is metadata the engine has no handler for.
 
-- No enum additions. The enum is the canonical vocabulary; adding
-  `returned_from_leave` / `unpaid_leave_started` just to satisfy a
-  broken consumer would entrench the drift.
-- No producer changes. Every producer already uses canonical values.
-- No frontend edits. `EmployeeContractsTab.handleCreate` is correct.
-- No changes to `emit_employee_lifecycle_event`, `tg_employee_contracts_lifecycle`, or `tg_hr_event_apply_garnishment`.
-- No changes to `BackgroundSyncManager` — the observed `401` on
-  `HEAD /rest/v1/` is expected reachability-probe behaviour.
+## 4. Pipeline as-built (business events)
 
-### 8. Deliverable (single migration)
+```text
+Contract / SalaryStructure
+        │
+        ▼
+Salary components  ──► Gross pay
+        │
+        ▼
+[Pass A]  rules where parameters.reduces_taxable_income=true
+        │   ⚠ pack encodes this in PAYE.parameters.pre_tax_deductions instead → Pass A is empty
+        ▼
+Taxable base = Gross − Σ(Pass-A employee amounts) − housing_exempt
+        │
+        ▼
+[Pass B]  income_tax rule (bracket_progressive on ctx.taxableIncome)
+        │  ── applies personal_relief (scalar)
+        │  ── applies insurance_relief (rate/cap)
+        │  ⚠ other reliefs in parameters.reliefs[] are ignored
+        ▼
+PAYE  ──► payslip_lines(kind='deduction', input_ref=…)
+        │  bracket trace persisted to payroll_rule_traces
+        ▼
+Payslip PDF prints total only; trace never rendered
+        │
+        ▼
+GL post ──► Remittances ──► Tax certificates
+```
 
-1. `CREATE OR REPLACE FUNCTION public.tg_hr_event_propose_loan_skip` with the phantom-value references removed.
-2. New guard test `supabase/tests/hr_lifecycle_event_no_phantom_enum_refs_test.sql`.
+## 5. Payslip information-architecture gap
 
-### 9. Recommended follow-ups (separate work, not this PR)
+Current payslip surfaces: gross, PAYE, statutory deductions, employer contributions, net. Enterprise-grade layers that exist in data but not on the document:
 
-- Decide whether `unpaid_leave_started` / `returned_from_leave` should
-  become first-class enum members. If yes: extend enum + wire producers
-  in the leave-approval trigger + add UI pipeline pages.
-- Add the DB-level "single running contract per employee" partial
-  unique index.
-- Verify `contract_compensation_components` payroll consumption.
-- Wire merit-cycle approvals into `employee_compensation_history` with
-  the existing `submitted_at/approved_at` governance columns.
+| Layer | Data source (already present) | Rendered? |
+|---|---|---|
+| Basic + allowance breakdown | `payslip_lines` category=earning | Partial |
+| Pre-tax deductions block | `payslip_lines` where source rule is deductible | No |
+| Taxable pay | `payslips.finalTaxableBase` (persisted at 2480) | No |
+| PAYE bracket breakdown | `payroll_rule_traces.brackets[]` | No |
+| Taxable-base composition | `taxable_base_components` on trace | No |
+| Reliefs applied (line items) | `bracket_trace.personal_relief`, `insurance_relief` | No |
+| Employer cost total | `contributionsDetail` | No |
+| Legal basis / rule reference | `rule.parameters.legal_basis` | No |
+| YTD roll-forward | `payroll_employee_ytd_rollup` RPC | No |
 
-### 10. Risk assessment
+## 6. Redesign — remediation plan
 
-Very low. The function only removes references to values that Postgres
-cannot resolve today — no live code path can dispatch on them because
-producers cannot emit them. Removing the dead references restores
-every HR lifecycle emission and every downstream consumer (payroll
-loan-skip, garnishments, timeline, reporting) with zero behavioural
-change for currently-in-use event types.
+### R1. Make the pack the single source of truth for deductibility (engine change, no pack edit)
+
+Extend the Pass-A predicate in `compute-payroll/index.ts` to honour **both** encodings:
+
+```ts
+// Build the deductibility set from the income_tax rule's declarative list.
+const paye = empRules.find(r => r.rule_type === 'income_tax');
+const preTaxCodes = new Set<string>(
+  ((paye?.parameters as any)?.pre_tax_deductions ?? []) as string[]
+);
+const isDeductible = (r: PayrollRule) =>
+  (r.parameters as any)?.reduces_taxable_income === true
+  || preTaxCodes.has(r.rule_code);
+```
+
+This keeps ADR 0036 country-agnostic (dispatch stays off `parameters`, not literals) and lets every existing pack — Kenya included — work without a data migration. A follow-up housekeeping migration should normalise: either back-fill `reduces_taxable_income=true` onto NSSF/SHIF/AHL, or drop `pre_tax_deductions` from the PAYE row. Pick **one** and enforce it in the schema (`pack_rule_type_schemas`) so future packs cannot re-drift.
+
+### R2. Promote reliefs to a first-class engine construct
+
+Replace the hard-coded `personal_relief` / `insurance_relief_*` scalar reads inside `bracket_progressive` with a generic reliefs pipeline driven by `parameters.reliefs[]`:
+
+```text
+computeReliefs(reliefs[], ctx) →
+  for each relief:
+    kind='flat'          → subtract amount
+    kind='rate_of_base'  → min(base * rate, cap)
+    kind='deduction_cap' → cap the corresponding pre-tax deduction upstream
+    kind='exemption'     → subtract amount from taxable base (Pass A)
+  returns { total_relief, per_relief_lines[] }
+```
+
+Each applied relief becomes its own `payslip_lines` row with `input_ref = { kind: 'statutory_rule', rule_code, relief_code }`. The scalar path stays as a fallback for packs that haven't migrated yet.
+
+### R3. Persist and expose the taxable-base and PAYE explainer
+
+The engine already computes `finalTaxableBase` and annotates `taxable_base_components` on the bracket trace. Two additions:
+
+1. Persist `taxable_base` and `paye_before_relief` on `payslips` (new columns; migration required).
+2. `generate-payslip-pdf` gains an "How PAYE was computed" section that renders:
+   - taxable-base build-up (Gross − NSSF − SHIF − AHL − housing_exempt − pension …)
+   - each bracket row (band, rate, taxable-in-band, tax-in-band)
+   - each relief line
+   - final PAYE, with the legal basis footnote from `rule.parameters.legal_basis`
+
+This data already lives in `payroll_rule_traces`; the PDF just has to join and render it. No engine changes needed for this bullet.
+
+### R4. Country-agnostic architecture tests
+
+Add:
+
+- pgTAP test: every `income_tax` rule with a non-empty `pre_tax_deductions[]` must reference `rule_code`s that exist as active statutory rules for the same org.
+- Vitest arch test: `generate-payslip-pdf` imports `payroll_rule_traces` (fails the build if the explainer section is deleted).
+- Schema test: `pack_rule_type_schemas` for `income_tax` must require **either** `pre_tax_deductions[]` on the tax rule **or** `reduces_taxable_income=true` on siblings — never both, never neither.
+
+### R5. Downstream verification (out of the payroll module)
+
+- **GL**: `post-payroll-gl` reads per-line amounts; if PAYE drops from 20,582 → 17,692, the credit to `paye_payable` and the debit to `salary_expense` net move in lockstep — no mapping change needed. Confirm by running readiness (`payroll_gl_readiness`) before and after remediation.
+- **Remittances / P10**: `generate-statutory-return` reconciles against `payroll_liabilities.original_amount`. Because liabilities are derived from payslip totals, the corrected figure flows through automatically.
+- **Tax certificate (P9A)**: `generate-tax-certificate` uses `payroll_employee_ytd_rollup`. YTD reflects the corrected monthly PAYE from that point forward. Historical over-charged months are **not** silently rewritten — they must be handled via ADR 0045's correction-delta engine so the audit trail is preserved.
+
+## 7. Deliverables for the implementation slice
+
+1. Engine patch (§R1) with a unit test that reproduces the 84,365 taxable base and 17,692.85 PAYE against the shipped KE pack — no pack edit required.
+2. Reliefs pipeline (§R2) + tests covering `ahr_relief`, `mortgage_interest_cap`, `disability_exemption`.
+3. Payslip PDF explainer section (§R3) + migration for `taxable_base`, `paye_before_relief` on `payslips`.
+4. Architecture tests (§R4).
+5. Correction run (ADR 0045) to remediate any already-committed KE payslips computed on the wrong base, so remittances and P9A stay consistent.
+6. Housekeeping migration to collapse the two deductibility conventions into one, plus a `pack_rule_type_schemas` guard so this drift cannot recur.
+
+## 8. What is explicitly out of scope for this slice
+
+- Redesigning the pack editor UI. The pack schema is already correct; the engine has to catch up.
+- Introducing new country packs. The remediation is generic; new packs benefit automatically once §R1/§R2 land.
+- Employee-portal payslip UI beyond what the PDF already exposes — the drill-down resolver (ADR 0046) is already wired for the bracket rows once they render.
