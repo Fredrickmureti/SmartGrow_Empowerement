@@ -136,12 +136,21 @@ export function usePayrollRemittanceWorkflow(periodId: string | null | undefined
     queryKey: ["payroll", "workflow", "remittance", periodId],
     enabled: !!periodId,
     queryFn: async () => {
+      // Remittances hang off runs, not periods, so resolve run ids in the
+      // period first and then fetch remittances for those runs.
+      const { data: runs, error: runsErr } = await supabase
+        .from("payroll_runs")
+        .select("id")
+        .eq("period_id", periodId!);
+      if (runsErr) throw runsErr;
+      const runIds = (runs ?? []).map((r: any) => r.id);
+      if (!runIds.length) return [] as Array<{ status: string }>;
       const { data, error } = await supabase
         .from("payroll_remittances")
-        .select("id,status,submitted_at,submitted_by")
-        .eq("payroll_period_id", periodId!);
+        .select("id,status,paid_at,paid_by")
+        .in("payroll_run_id", runIds);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as unknown as Array<{ status: string }>;
     },
   });
   const rows = data ?? [];
