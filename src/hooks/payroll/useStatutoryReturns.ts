@@ -563,3 +563,110 @@ export function usePayrollRunsInPeriod(args: { periodStart?: string; periodEnd?:
     },
   });
 }
+
+/**
+ * Return-generation eligibility preflight — mirrors the two gates the
+ * `generate-statutory-return` edge function applies:
+ *   1. at least one payroll_run in the period with approved_at IS NOT NULL
+ *   2. at least one payslip on those runs whose status matches the template's
+ *      body.filters.payslip_status (empty filter ⇒ any status counts)
+ *
+ * Surfacing this in the UI converts the edge function's structured 400
+ * (NO_APPROVED_PAYROLL_RUNS / NO_ELIGIBLE_PAYSLIPS) into a pre-click
+ * readiness state — mirroring how Workday's Tax Filing dashboard and
+ * SAP's PC00_M99_URMR report show remittance readiness before submission.
+ */
+export type ReturnEligibility = {
+  ready: boolean;
+  blocking_reason: "ready" | "no_approved_run" | "no_eligible_payslips";
+  approved_runs_count: number;
+  eligible_payslips_count: number;
+  total_payslips_count: number;
+  required_statuses: string[];
+  status_breakdown: Record<string, number>;
+};
+
+export function useReturnEligibility(args: {
+  template?: ReturnTemplate | null;
+  periodStart?: string;
+  periodEnd?: string;
+  branchId?: string | null;
+}) {
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const orgId = currentOrg?.id;
+  const businessId = currentBusiness?.id;
+  const { template, periodStart, periodEnd, branchId } = args;
+
+  const requiredStatuses: string[] = Array.isArray(template?.body?.filters?.payslip_status)
+    ? (template!.body.filters.payslip_status as any[]).map((s) => String(s))
+    : [];
+
+  return useQuery<ReturnEligibility>({
+    queryKey: [
+      "payroll",
+      "return-eligibility",
+      orgId,
+      businessId,
+      template?.code,
+      periodStart,
+      periodEnd,
+      branchId ?? null,
+      requiredStatuses.join(","),
+    ],
+    enabled: !!orgId && !!businessId && !!template && !!periodStart && !!periodEnd,
+    queryFn: async () => {
+      const { data: runs, error: runsErr } = await (supabase as any)
+        .from("payroll_runs")
+        .select("id")
+        .eq("organization_id", orgId!)
+        .eq("business_id", businessId!)
+        .lte("pay_period_start", periodEnd!)
+        .gte("pay_period_end", periodStart!)
+        .not("approved_at", "is", null);
+      if (runsErr) throw runsErr;
+      const runIds: string[] = (runs ?? []).map((r: any) => r.id);
+      if (runIds.length === 0) {
+        return {
+          ready: false,
+          blocking_reason: "no_approved_run",
+          approved_runs_count: 0,
+          eligible_payslips_count: 0,
+          total_payslips_count: 0,
+          required_statuses: requiredStatuses,
+          status_breakdown: {},
+        };
+      }
+
+      let q = (supabase as any)
+        .from("payslips")
+        .select("status")
+        .eq("organization_id", orgId!)
+        .eq("business_id", businessId!)
+        .in("payroll_run_id", runIds);
+      if (branchId) q = q.eq("branch_id", branchId);
+      const { data: slips, error: slipsErr } = await q;
+      if (slipsErr) throw slipsErr;
+
+      const breakdown: Record<string, number> = {};
+      for (const s of slips ?? []) {
+        const key = String((s as any).status ?? "unknown");
+        breakdown[key] = (breakdown[key] ?? 0) + 1;
+      }
+      const total = (slips ?? []).length;
+      const eligible = requiredStatuses.length
+        ? requiredStatuses.reduce((n, st) => n + (breakdown[st] ?? 0), 0)
+        : total;
+
+      return {
+        ready: eligible > 0,
+        blocking_reason: eligible > 0 ? "ready" : "no_eligible_payslips",
+        approved_runs_count: runIds.length,
+        eligible_payslips_count: eligible,
+        total_payslips_count: total,
+        required_statuses: requiredStatuses,
+        status_breakdown: breakdown,
+      };
+    },
+  });
+}

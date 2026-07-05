@@ -30,6 +30,7 @@ import {
   useRecordReturnAcknowledgement,
   useHasInstalledLocalizationPack,
   usePayrollRunsInPeriod,
+  useReturnEligibility,
   downloadReturnArtifact,
   type ReturnRun,
 } from "@/hooks/payroll/useStatutoryReturns";
@@ -116,6 +117,12 @@ export function ReturnsTab() {
     periodEnd: periodEndStr,
   });
   const hasPayrollRuns = (runsInPeriodCount ?? 0) > 0;
+
+  const { data: eligibility, isLoading: loadingEligibility } = useReturnEligibility({
+    template: activeTpl,
+    periodStart: periodStartStr,
+    periodEnd: periodEndStr,
+  });
 
   const onGenerate = async () => {
     if (!activeTpl) return;
@@ -232,7 +239,14 @@ export function ReturnsTab() {
               {canWrite ? (
                 <Button
                   onClick={onGenerate}
-                  disabled={generate.isPending || !activeTpl || loadingRunsInPeriod || !hasPayrollRuns}
+                  disabled={
+                    generate.isPending ||
+                    !activeTpl ||
+                    loadingRunsInPeriod ||
+                    loadingEligibility ||
+                    !hasPayrollRuns ||
+                    (eligibility && !eligibility.ready)
+                  }
                   className="w-full"
                 >
                   {generate.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -247,6 +261,56 @@ export function ReturnsTab() {
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-3 flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5" />
               No payroll runs exist for the selected period. Run payroll first — there's nothing to aggregate.
+            </p>
+          )}
+          {activeTpl && hasPayrollRuns && eligibility && !eligibility.ready && canWrite && (
+            <div className="text-xs mt-3 rounded-md border border-amber-300/60 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-950/30 p-3 space-y-1">
+              <div className="flex items-center gap-1 font-medium text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {eligibility.blocking_reason === "no_approved_run"
+                  ? "Awaiting payroll approval"
+                  : "Awaiting payslip readiness"}
+              </div>
+              {eligibility.blocking_reason === "no_approved_run" ? (
+                <p className="text-muted-foreground">
+                  No approved payroll run intersects this period. Approve the run in Payroll → Control Center, then return here — payment and GL posting are not required first.
+                </p>
+              ) : (
+                <>
+                  <p className="text-muted-foreground">
+                    This template files from payslips in status{" "}
+                    <span className="font-mono">
+                      {eligibility.required_statuses.length
+                        ? eligibility.required_statuses.join(" | ")
+                        : "any"}
+                    </span>
+                    . None of the {eligibility.total_payslips_count} payslip
+                    {eligibility.total_payslips_count === 1 ? "" : "s"} on the approved run
+                    {eligibility.approved_runs_count === 1 ? "" : "s"} match.
+                  </p>
+                  {Object.keys(eligibility.status_breakdown).length > 0 && (
+                    <p className="text-muted-foreground">
+                      Current breakdown:{" "}
+                      {Object.entries(eligibility.status_breakdown)
+                        .map(([s, n]) => `${n} ${s.replace(/_/g, " ")}`)
+                        .join(", ")}
+                      .
+                    </p>
+                  )}
+                  <p className="text-muted-foreground">
+                    Advance the payslips through the payment workflow (Payroll → Payment Batches) — accrual-basis templates only need approval, cash-basis remittances (NSSF, SHIF, HELB) need payment to complete.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+          {activeTpl && hasPayrollRuns && eligibility?.ready && canWrite && (
+            <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-3 flex items-center gap-1">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Ready — {eligibility.eligible_payslips_count} eligible payslip
+              {eligibility.eligible_payslips_count === 1 ? "" : "s"} across{" "}
+              {eligibility.approved_runs_count} approved run
+              {eligibility.approved_runs_count === 1 ? "" : "s"}.
             </p>
           )}
           {activeTpl?.description && (
