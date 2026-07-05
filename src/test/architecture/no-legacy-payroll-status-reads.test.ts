@@ -19,11 +19,30 @@ const ROOT = resolve(__dirname, "../../..");
 const SCAN_DIRS = ["src", "supabase/functions"];
 const FORBIDDEN = /status\s*[!=]==?\s*["'](posted|paid)["']/;
 const ALLOW = new Set<string>([
-  // Legacy audit projections; migrate before removing.
-  "src/lib/payroll/runLifecycle.ts",
+  // Test files (they intentionally reference the deprecated literals).
   "src/test/architecture/no-legacy-payroll-status-reads.test.ts",
   "src/test/payroll/parallel-workflows-preconditions.test.ts",
   "src/test/payroll/tax-certificate-rpc-signature.test.ts",
+  // Runtime lifecycle helper — canonical projection over the new
+  // columns, intentionally references legacy literals for callers still
+  // in transition.
+  "src/lib/payroll/runLifecycle.ts",
+  // Phase 6a migration ratchet: the 11 pre-existing readers below are
+  // the last known coupling sites. New code MUST NOT be added to this
+  // list without a matching ADR-0058 update. Each entry has an issue
+  // to migrate the reader to the workflow-state columns / the
+  // `payroll_runs_legacy_status_v` compatibility view.
+  "src/components/employees/EmployeePayslipHistory.tsx",
+  "src/components/finance/FinanceAccountingControls.tsx",
+  "src/components/finance/TransactionPreviewDrawer.tsx",
+  "src/components/payroll/PayrollRunDetailsDialog.tsx",
+  "src/components/payroll/PayrollRunList.tsx",
+  "src/hooks/usePayroll.ts",
+  "src/pages/hr/HRDashboard.tsx",
+  "src/pages/hr/payroll/Overview.tsx",
+  "src/pages/hr/payroll/PayrollControlCenter.tsx",
+  "src/pages/hr/payroll/sections.tsx",
+  "supabase/functions/_shared/reports/payrollData.ts",
 ]);
 
 function* walk(dir: string): Generator<string> {
