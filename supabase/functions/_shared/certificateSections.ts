@@ -114,9 +114,12 @@ export function renderCertificateSections(
         if (!bucket) continue;
         bucket[row.rule_code] = (bucket[row.rule_code] ?? 0) + Number(row.employee_amount || 0);
       }
+      const colKeys: string[] = cols.map((c: any) =>
+        typeof c === "string" ? c : String(c?.key ?? c?.code ?? c?.rule_code ?? "")
+      ).filter(Boolean);
       const tableColumns: ReportPdfPayload["columns"] = [
         { key: "month", header: "Month", align: "left" },
-        ...cols.map((c) => ({
+        ...colKeys.map((c) => ({
           key: c,
           header: humanize(c),
           align: "right" as const,
@@ -127,12 +130,12 @@ export function renderCertificateSections(
       for (let m = 1; m <= 12; m++) {
         const bucket = pivot.get(m) ?? {};
         const r: Record<string, unknown> = { month: MONTH_LABELS[m - 1] };
-        for (const c of cols) r[c] = Number(bucket[c] ?? 0);
+        for (const c of colKeys) r[c] = Number(bucket[c] ?? 0);
         tableRows.push(r);
       }
       // Totals row
       const totalRow: Record<string, unknown> = { month: "Total" };
-      for (const c of cols) {
+      for (const c of colKeys) {
         totalRow[c] = tableRows.reduce((a, r) => a + (Number((r as any)[c]) || 0), 0);
       }
       tableRows.push(totalRow);
@@ -159,8 +162,13 @@ export function renderCertificateSections(
   return out;
 }
 
-function humanize(key: string): string {
-  return key
+function humanize(key: unknown): string {
+  const s = typeof key === "string"
+    ? key
+    : (key && typeof key === "object" && "key" in (key as any))
+      ? String((key as any).key ?? "")
+      : String(key ?? "");
+  return s
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
