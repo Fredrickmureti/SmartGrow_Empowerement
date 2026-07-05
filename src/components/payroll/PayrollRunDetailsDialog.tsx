@@ -44,6 +44,7 @@ import { normalizeError } from "@/services/resilience";
 import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMappingFindingsPanel";
 import { usePayrollMappingFindings } from "@/hooks/payroll/usePayrollMappingFindings";
 import { useReturnTemplates } from "@/hooks/payroll/useStatutoryReturns";
+import { PayrollPostingPreviewDialog } from "@/components/payroll/PayrollPostingPreviewDialog";
 
 /** Build an ExportConfig for the Payroll Register (gross-to-net per employee) */
 function getPayrollRegisterExportConfig(
@@ -570,22 +571,33 @@ export function PayrollRunDetailsDialog({
             )}
 
             {canPostGL && !hasJournalEntry && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button size="sm" variant="outline" onClick={handlePostToGL} disabled={isPostingGL || hasBlockerIssues || hasCriticalMappingIssue}>
-                      {isPostingGL ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <BookOpen className="h-3 w-3 mr-1" />}
-                      Post to GL
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {hasBlockerIssues && (
-                  <TooltipContent>Resolve {blockerCount} blocker issue{blockerCount === 1 ? "" : "s"} before posting to the general ledger.</TooltipContent>
-                )}
-                {!hasBlockerIssues && hasCriticalMappingIssue && (
-                  <TooltipContent>Resolve {criticalMappingFindings.length} critical GL mapping issue{criticalMappingFindings.length === 1 ? "" : "s"} before posting.</TooltipContent>
-                )}
-              </Tooltip>
+              <>
+                {/* Preview posting — run-scoped, read-only projection. Never
+                    mutates ledger state. Enabled from `computed` and
+                    `approved` alongside real post so accountants can
+                    validate the JE before authorising. */}
+                <PayrollPostingPreviewDialog
+                  runId={run.id}
+                  organizationId={run.organization_id}
+                  businessId={run.business_id ?? null}
+                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button size="sm" variant="outline" onClick={handlePostToGL} disabled={isPostingGL || hasBlockerIssues || hasCriticalMappingIssue}>
+                        {isPostingGL ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <BookOpen className="h-3 w-3 mr-1" />}
+                        Post to GL
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {hasBlockerIssues && (
+                    <TooltipContent>Resolve {blockerCount} blocker issue{blockerCount === 1 ? "" : "s"} before posting to the general ledger.</TooltipContent>
+                  )}
+                  {!hasBlockerIssues && hasCriticalMappingIssue && (
+                    <TooltipContent>Resolve {criticalMappingFindings.length} critical GL mapping issue{criticalMappingFindings.length === 1 ? "" : "s"} before posting.</TooltipContent>
+                  )}
+                </Tooltip>
+              </>
             )}
             </TooltipProvider>
 
