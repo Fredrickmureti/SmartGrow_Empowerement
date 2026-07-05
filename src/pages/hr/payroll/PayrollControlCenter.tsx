@@ -48,6 +48,7 @@ import {
   type PayrollRunGroup,
 } from "@/hooks/payroll/usePayrollRunGroups";
 import { useSelfActionPolicy } from "@/hooks/governance/useSelfActionPolicy";
+import { PayrollWorkflowStrip } from "@/components/payroll/PayrollWorkflowStrip";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "outline",
@@ -561,7 +562,8 @@ export default function PayrollControlCenter() {
                 </p>
                 <div className="border rounded-md divide-y max-h-48 overflow-y-auto">
                   {ungroupedInPeriod.slice(0, 50).map((r) => (
-                    <div key={r.id} className="flex items-center justify-between gap-2 p-2 text-sm">
+                    <div key={r.id} className="p-2 text-sm space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
                       <Link to={`/hr/payroll/runs/${r.id}`} className="flex-1 min-w-0 flex items-center gap-2 hover:underline">
                         <ChevronRight className="h-3 w-3" />
                         <span className="font-medium">{r.payroll_number}</span>
@@ -571,6 +573,8 @@ export default function PayrollControlCenter() {
                         </span>
                       </Link>
                       <span className="text-xs font-mono">{formatCurrency(r.total_net)}</span>
+                      </div>
+                      <PayrollWorkflowStrip run={r} size="xs" className="pl-5" />
                     </div>
                   ))}
                 </div>
@@ -647,7 +651,8 @@ export default function PayrollControlCenter() {
                             const warns = iss?.warning_count ?? 0;
                             const showPaymentCTA = g.status === "posted" && canPayPayroll && !linkedPayment;
                             return (
-                              <div key={r.id} className="flex items-center justify-between gap-2 p-2 text-sm">
+                              <div key={r.id} className="p-2 text-sm space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
                                 <Link to={`/hr/payroll/runs/${r.id}`} className="flex-1 min-w-0 flex items-center gap-2 hover:underline">
                                   <ChevronRight className="h-3 w-3" />
                                   <span className="font-medium">{r.payroll_number}</span>
@@ -690,6 +695,8 @@ export default function PayrollControlCenter() {
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
+                                </div>
+                                <PayrollWorkflowStrip run={r} size="xs" className="pl-5" />
                               </div>
                             );
                           })}

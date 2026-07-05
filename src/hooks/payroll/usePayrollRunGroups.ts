@@ -80,6 +80,16 @@ export interface ChildRunSummary {
   total_employer_contributions: number;
   group_id: string | null;
   business_id: string | null;
+  // Parallel-workflow state columns (plan §Phase 1). These are the
+  // independent lifecycles derived from Approval — Posting / Payment /
+  // Bank File / Payslip Issuance. They are NEVER a chain: each advances
+  // on its own preconditions, and the classic `status` column is the
+  // Calculation lifecycle only.
+  approved_at: string | null;
+  posting_status: string | null;
+  payment_status: string | null;
+  bank_file_status: string | null;
+  payslip_issuance_status: string | null;
 }
 
 export interface PeriodConsolidation {
@@ -153,7 +163,7 @@ export function usePayrollRunGroups() {
       const { data, error } = await supabase
         .from("payroll_runs")
         .select(
-          "id, payroll_number, status, pay_period_start, pay_period_end, employee_count, total_gross, total_net, total_employer_contributions, group_id, business_id",
+          "id, payroll_number, status, pay_period_start, pay_period_end, employee_count, total_gross, total_net, total_employer_contributions, group_id, business_id, approved_at, posting_status, payment_status, bank_file_status, payslip_issuance_status",
         )
         .eq("organization_id", orgId!)
         .eq("business_id", businessId!)
