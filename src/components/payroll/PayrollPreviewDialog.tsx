@@ -275,17 +275,17 @@ export function PayrollPreviewDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex flex-col p-0 gap-0 w-[95vw] max-w-4xl h-[95dvh] sm:h-[90vh] overflow-hidden">
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent side="right" className="flex flex-col p-0 gap-0 w-full sm:max-w-4xl overflow-hidden">
+        <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
+          <SheetTitle className="flex items-center gap-2">
             <Eye className="h-5 w-5" />
             Payroll Preview (Dry Run)
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             Review the computed payroll before creating. No data has been saved yet.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <ScrollArea className="flex-1 min-h-0">
           <div className="space-y-4 px-6 py-4">
