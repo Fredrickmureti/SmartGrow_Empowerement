@@ -7,7 +7,7 @@ import { normalizeError } from "@/services/resilience";
  * `localization_pack_return_templates.body`. New countries enter via a
  * pack INSERT only — no code changes here.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
