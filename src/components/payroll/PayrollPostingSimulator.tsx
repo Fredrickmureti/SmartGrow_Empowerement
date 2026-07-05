@@ -58,6 +58,11 @@ interface SimResult {
   balanced: boolean;
 }
 
+interface AlreadyPostedResult {
+  already_posted: true;
+  journal_entry_id: string;
+}
+
 export function PayrollPostingSimulator() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
