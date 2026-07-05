@@ -1,89 +1,182 @@
-## Investigation Report — Employee Contract Creation Failure
 
-### 1. Complete execution path
+## Investigation Report — Employee Lifecycle & Contract Architecture
 
-```
-EmployeeContractsTab.handleCreate
-  → useEmployeeContracts hook
-  → supabase.from('employee_contracts').insert(...)
-  → PostgREST → INSERT public.employee_contracts
-     ├─ BEFORE INSERT: assert_app_installed_for_write, enforce_org_write_lock,
-     │                 enforce_contract_compensation_mode_shape,
-     │                 validate_employee_contract_dates                  ── all OK
-     └─ AFTER INSERT: tg_employee_contracts_lifecycle
-           → emit_employee_lifecycle_event(...)
-             → INSERT public.employee_lifecycle_events(...)
-                └─ AFTER INSERT: tg_hr_event_propose_loan_skip   ◀── FAILS HERE
-                        v_actor uuid := COALESCE(auth.uid(), NEW.created_by);
-                        ERROR: record "new" has no field "created_by"
-```
-
-The 400 surfaces on `POST /rest/v1/employee_contracts` because the entire chain runs in a single transaction; the failing trigger is two hops downstream.
-
-### 2. Precise root cause — schema drift
-
-`public.employee_lifecycle_events` uses `actor_user_id` (never had `created_by`). Its columns:
+### 1. What actually happened (execution path)
 
 ```
-id, organization_id, business_id, employee_id, event_type,
-occurred_at, effective_date, actor_user_id, actor_label,
-source_table, source_id, summary, payload, created_at
+UI → useEmployeeContracts.create → INSERT public.employee_contracts
+  └─ AFTER INSERT tg_employee_contracts_lifecycle
+        → emit_employee_lifecycle_event(..., 'contract_created')
+          → INSERT public.employee_lifecycle_events
+             ├─ AFTER INSERT tg_hr_event_apply_garnishment      (ok)
+             └─ AFTER INSERT tg_hr_event_propose_loan_skip      ◀── 400 here
 ```
 
-The trigger function `public.tg_hr_event_propose_loan_skip` was written against a different (older / assumed) shape and references `NEW.created_by` at the top of its `DECLARE` block:
+The 400 surfaces on `POST /rest/v1/employee_contracts`, but the failure is
+two hops downstream in a trigger on `employee_lifecycle_events`.
+
+### 2. Root cause — the enum is right, the trigger is wrong
+
+Canonical enum `public.employee_lifecycle_event_type` (migration
+`20260628092841…`) defines the full lifecycle vocabulary:
+
+```
+candidate_created, application_submitted, offer_extended, offer_accepted,
+offer_declined, hired, onboarding_started, onboarding_completed,
+probation_started, probation_ended, probation_extended,
+contract_created, contract_activated, contract_renewed, contract_amended,
+contract_expired, salary_revised, position_changed,
+department_transferred, location_transferred, manager_changed,
+promoted, demoted, suspended, reinstated,
+leave_of_absence_started, leave_of_absence_ended,
+termination_initiated, terminated, offboarding_started,
+offboarding_completed, final_settlement_paid,
+archived, unarchived, custom
+```
+
+The trigger function `public.tg_hr_event_propose_loan_skip` (last
+rewritten in `20260705105345…`) references **two phantom values** that
+were never members of this enum:
 
 ```sql
-v_actor uuid := COALESCE(auth.uid(), NEW.created_by);
+-- line 22
+IF NEW.event_type IN ('reinstated','leave_of_absence_ended','returned_from_leave') THEN
+-- line 44
+IF NEW.event_type NOT IN ('leave_of_absence_started','suspended','unpaid_leave_started') THEN
 ```
 
-Because this assignment runs on every invocation — before the `event_type` filter — every INSERT into `employee_lifecycle_events` fails, which cascades into every HR write that emits a lifecycle event (hire, contract create, contract activate/expire, termination, reinstate, leave start/end).
+Postgres coerces every string literal in an `IN (…)` against an enum
+column to that enum type at plan time. `'returned_from_leave'` and
+`'unpaid_leave_started'` fail that coercion, so **every** insert into
+`employee_lifecycle_events` fails — regardless of the actual event
+being emitted. The reported "contract_created" insert never even
+reaches the enum check; it dies on planning of the IF condition.
 
-Companion trigger `tg_hr_event_apply_garnishment` on the same table is clean (uses `NEW.actor_user_id` implicitly via other columns, no `created_by` reference).
+Blast radius: every HR lifecycle emission (contract create/activate/
+renew/amend/expire, hire, termination, leave start/end, reinstate,
+onboarding, salary revision, position/department/location/manager
+change). Payroll, garnishment, and loan-skip automations that hang off
+these events are silently dead too.
 
-No other function in `pg_proc` references `employee_lifecycle_events.created_by` (verified). The drift is localized to this one function, but its blast radius is the entire HR lifecycle-event surface.
+The two phantom identifiers are lifecycle concepts the loan-skip
+policy needs to react to, but the canonical vocabulary already
+expresses them:
 
-### 3. Are contract insert failure and the BackgroundSync 401 related?
+| Phantom used in trigger | Canonical enum member |
+|---|---|
+| `returned_from_leave`  | `leave_of_absence_ended` (already listed alongside it — dead code) |
+| `unpaid_leave_started` | Not modelled distinctly; today collapsed into `leave_of_absence_started` + payload flag |
 
-No. `BackgroundSyncManager` issues an anonymous `HEAD /rest/v1/` as a PostgREST reachability probe; PostgREST answers `401` for unauthenticated HEAD on the root, which the manager treats as "reachable". Independent of contract creation. Do not touch as part of this fix.
+### 3. Lifecycle architecture, as it actually exists
 
-### 4. Fix — surgical, matches existing schema
+- **Definition**: one enum (`employee_lifecycle_event_type`) — good, single source of truth.
+- **Storage**: one table (`employee_lifecycle_events`, columns per Ch. 03 manual) — good.
+- **Emit API**: one `SECURITY DEFINER` function
+  `public.emit_employee_lifecycle_event(...)` — good.
+- **Producers** (traced through migrations):
+  - `tg_employee_contracts_lifecycle` (contract create/activate/renew/amend/expire)
+  - `tg_employee_onboarding_lifecycle`
+  - `tg_employees_lifecycle` (hire/terminate/rehire/archive)
+  - Position/department/location change triggers on `employee_position_history`
+  - Leave approval path (`20260628115322…`, `…115628…`, `…171052…`)
+  - Migration-inserted historical events (backfill)
+- **Consumers**:
+  - Payroll — loan skip proposals (`tg_hr_event_propose_loan_skip`)
+  - Garnishments — `tg_hr_event_apply_garnishment`
+  - UI — `useLifecycleEvents`, `LifecyclePipelinePage`, `LifecycleTimelinePage`
+  - Reporting/audit — read-only via the same table
+- **Architectural drift found**: the loan-skip consumer trigger was
+  written against a **different, older lifecycle vocabulary** than the
+  one the producers and enum agree on. This is drift in the *consumer*,
+  not evidence of two competing engines.
 
-Rewrite `public.tg_hr_event_propose_loan_skip` so the actor is derived from the columns that actually exist on `employee_lifecycle_events`:
+### 4. Is the contract subsystem behind Payroll?
+
+Partially, but not in the way suspected. The lifecycle spine is in
+place and every major HR business event does emit through the single
+engine. The gaps that remain (documented in `mem/features/employee-module-followup.md`
+and `docs/manuals/hr-payroll/03-org-structure.md`) are:
+
+- No DB UNIQUE guard for "one running contract per employee" — enforced only in UI.
+- `contract_compensation_components` not yet consumed by payroll (falls back to top-level `wage`).
+- Merit-cycle → `employee_compensation_history` wiring is UNVERIFIED.
+- No approval workflow wired on compensation changes.
+
+These are real, but **out of scope for this fix** — none of them cause
+the current 400. Recording them in the follow-up memory is enough.
+
+### 5. Fix — surgical, aligns consumer with canonical vocabulary
+
+Rewrite `public.tg_hr_event_propose_loan_skip` so it references only
+values that exist in `employee_lifecycle_event_type`:
 
 ```sql
-v_actor uuid := COALESCE(auth.uid(), NEW.actor_user_id);
+-- cancel branch
+IF NEW.event_type IN ('reinstated','leave_of_absence_ended') THEN ...
+
+-- propose branch
+IF NEW.event_type NOT IN ('leave_of_absence_started','suspended') THEN
+  RETURN NEW;
+END IF;
+
+v_category := CASE NEW.event_type
+  WHEN 'leave_of_absence_started' THEN 'leave_of_absence'
+  WHEN 'suspended' THEN 'suspension'
+  ELSE 'leave_of_absence' END;
 ```
 
-No other lines change. `SECURITY DEFINER`, `search_path`, arguments, and behavior are preserved.
+No unpaid-leave-specific branch is lost — the current enum doesn't
+distinguish unpaid vs paid leave at the lifecycle layer; that
+distinction lives in `leave_requests` / payslip inputs. If the
+business genuinely needs `unpaid_leave_started` / `returned_from_leave`
+as first-class lifecycle events, that is a **separate, deliberate
+vocabulary extension** requiring: enum additions, producer wiring in
+the leave-approval trigger, docs, and UI pipeline pages — not a
+back-door reference from a consumer trigger.
 
-### 5. Regression guards added in the same migration
+### 6. Regression guard added in the same migration
 
-To prevent this exact class of drift from returning:
+A pgTAP-style guard mirroring the existing
+`employee_contracts_no_stale_field_refs_test.sql` pattern:
 
-1. **pgTAP-style guard** `supabase/tests/hr_lifecycle_event_no_stale_created_by_test.sql` that fails CI if any `public` function references `employee_lifecycle_events` columns that don't exist on that table (mirrors the existing `employee_contracts_no_stale_field_refs_test.sql` pattern).
-2. **Smoke test** that inserts an `employee_lifecycle_events` row of every event type covered by the two AFTER-INSERT triggers and rolls back, catching future drift immediately.
+**`supabase/tests/hr_lifecycle_event_no_phantom_enum_refs_test.sql`** —
+fails CI if any `public` function references a string literal in an
+`IN (…)` / `= '…'` / `CASE WHEN … =` comparison against an
+`employee_lifecycle_event_type`-typed column when that literal is not
+a member of the enum. Prevents this exact drift class from recurring.
 
-### 6. What we are NOT changing
+### 7. What we are NOT changing
 
-- No frontend edits — `EmployeeContractsTab.handleCreate` is correct.
-- No changes to `tg_employee_contracts_lifecycle`, `emit_employee_lifecycle_event`, or `employee_contracts` itself.
-- No changes to `BackgroundSyncManager` — that 401 is expected probe behavior.
-- No renaming of `actor_user_id` to `created_by`; the current name is semantically correct for a lifecycle-event actor and matches every other reader.
+- No enum additions. The enum is the canonical vocabulary; adding
+  `returned_from_leave` / `unpaid_leave_started` just to satisfy a
+  broken consumer would entrench the drift.
+- No producer changes. Every producer already uses canonical values.
+- No frontend edits. `EmployeeContractsTab.handleCreate` is correct.
+- No changes to `emit_employee_lifecycle_event`, `tg_employee_contracts_lifecycle`, or `tg_hr_event_apply_garnishment`.
+- No changes to `BackgroundSyncManager` — the observed `401` on
+  `HEAD /rest/v1/` is expected reachability-probe behaviour.
 
-### 7. Regression risk
+### 8. Deliverable (single migration)
 
-Very low. The function only assigns `v_actor` differently; downstream writes to `payroll_run_loan_skip_overrides` and `loan_skip_override_events` still receive the same actor identity (auth.uid() when present, otherwise the row's recorded actor). All other event types short-circuit unchanged.
+1. `CREATE OR REPLACE FUNCTION public.tg_hr_event_propose_loan_skip` with the phantom-value references removed.
+2. New guard test `supabase/tests/hr_lifecycle_event_no_phantom_enum_refs_test.sql`.
 
-### 8. Why this is the correct enterprise fix
+### 9. Recommended follow-ups (separate work, not this PR)
 
-- Aligns the trigger with the canonical column (`actor_user_id`) that every other consumer, view, and reader already uses — no new alias, no new column, no compatibility shim.
-- Unblocks all HR lifecycle emissions, not just contract creation, restoring the audit/payroll/garnishment/loan-skip chain end-to-end.
-- Adds a drift guard so the audit's "no stale field refs" invariant now covers `employee_lifecycle_events` the same way it already covers `employee_contracts`.
+- Decide whether `unpaid_leave_started` / `returned_from_leave` should
+  become first-class enum members. If yes: extend enum + wire producers
+  in the leave-approval trigger + add UI pipeline pages.
+- Add the DB-level "single running contract per employee" partial
+  unique index.
+- Verify `contract_compensation_components` payroll consumption.
+- Wire merit-cycle approvals into `employee_compensation_history` with
+  the existing `submitted_at/approved_at` governance columns.
 
-### Deliverable
+### 10. Risk assessment
 
-One migration containing:
-1. `CREATE OR REPLACE FUNCTION public.tg_hr_event_propose_loan_skip` with `NEW.actor_user_id`.
-2. New pgTAP guard test file.
-
-No frontend, no types, no RLS, no other schema changes.
+Very low. The function only removes references to values that Postgres
+cannot resolve today — no live code path can dispatch on them because
+producers cannot emit them. Removing the dead references restores
+every HR lifecycle emission and every downstream consumer (payroll
+loan-skip, garnishments, timeline, reporting) with zero behavioural
+change for currently-in-use event types.
