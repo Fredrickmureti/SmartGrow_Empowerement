@@ -30,6 +30,7 @@ import {
   useRecordReturnAcknowledgement,
   useHasInstalledLocalizationPack,
   usePayrollRunsInPeriod,
+  useReturnEligibility,
   downloadReturnArtifact,
   type ReturnRun,
 } from "@/hooks/payroll/useStatutoryReturns";
