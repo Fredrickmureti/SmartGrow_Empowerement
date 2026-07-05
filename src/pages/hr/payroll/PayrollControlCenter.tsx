@@ -49,6 +49,8 @@ import {
 } from "@/hooks/payroll/usePayrollRunGroups";
 import { useSelfActionPolicy } from "@/hooks/governance/useSelfActionPolicy";
 import { PayrollWorkflowStrip } from "@/components/payroll/PayrollWorkflowStrip";
+import { WorkflowMatrix, type WorkflowCol } from "@/components/payroll/WorkflowMatrix";
+import { WorkflowMatrixDrawerHost } from "@/components/payroll/WorkflowMatrixDrawerHost";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "outline",
@@ -172,6 +174,10 @@ export default function PayrollControlCenter() {
   const [approveOverride, setApproveOverride] = useState("");
 
   const [auditFor, setAuditFor] = useState<PayrollRunGroup | null>(null);
+
+  // Workflow matrix drawer (plan §Phase 5c/5d). Clicking a matrix cell opens
+  // the generic WorkflowDrawer scoped to the (runId, workflow) pair.
+  const [matrixSelection, setMatrixSelection] = useState<{ runId: string; col: WorkflowCol } | null>(null);
 
   const runsByGroup = useMemo(() => {
     const map = new Map<string, ChildRunSummary[]>();
@@ -545,6 +551,22 @@ export default function PayrollControlCenter() {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Workflow matrix (plan §Phase 5c). Rows = runs in this period. */}
+          {(showAllPeriods ? childRuns : childRuns.filter((r) => {
+            const s = format(periodStart, "yyyy-MM-dd");
+            const e = format(periodEnd, "yyyy-MM-dd");
+            return r.pay_period_start <= e && r.pay_period_end >= s;
+          })).length > 0 && (
+            <WorkflowMatrix
+              runs={showAllPeriods ? childRuns : childRuns.filter((r) => {
+                const s = format(periodStart, "yyyy-MM-dd");
+                const e = format(periodEnd, "yyyy-MM-dd");
+                return r.pay_period_start <= e && r.pay_period_end >= s;
+              })}
+              onCellClick={(runId, col) => setMatrixSelection({ runId, col })}
+            />
           )}
 
           {/* Ungrouped runs in this period (Phase 5.1). */}
@@ -1016,6 +1038,13 @@ export default function PayrollControlCenter() {
           sourceBatchNumber={paymentBatchFor.sourceBatchNumber}
         />
       )}
+
+      {/* Per-workflow drawer host (plan §Phase 5d). */}
+      <WorkflowMatrixDrawerHost
+        runId={matrixSelection?.runId ?? null}
+        col={matrixSelection?.col ?? null}
+        onClose={() => setMatrixSelection(null)}
+      />
     </div>
   );
 }
