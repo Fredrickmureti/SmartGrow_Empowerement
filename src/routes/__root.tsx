@@ -14,6 +14,13 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+// The TanStack Start plugin owns the SSR/client entry (see src/router.tsx),
+// so `src/main.tsx` never executes in this runtime. Import the global
+// stylesheet here so Vite registers it as a CSS asset of the __root route
+// and the Start plugin emits the `<link rel="stylesheet">` — otherwise the
+// entire app renders unstyled.
+import "../index.css";
+
 interface RouterContext {
   queryClient: QueryClient;
 }
