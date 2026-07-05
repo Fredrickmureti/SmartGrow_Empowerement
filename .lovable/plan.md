@@ -1,5 +1,5 @@
 
-# Continue Payroll Parallel-Workflows Redesign (Phases 4–6)
+# Payroll Parallel-Workflows Redesign — status
 
 ## What I verified is already done
 
@@ -14,7 +14,20 @@ Independent inspection of the codebase (not agent claims):
 
 ## Remaining work
 
-### Phase 4 — Workflow permissions + period-close alignment
+### Phase 4 — Workflow permissions + period-close alignment (BLOCKED, needs decision)
+
+**Discovery on continue-pass:** the tenant permission model is module-based
+(`permission_group_rules(module, can_read, can_write, can_delete)`), not
+key-based. There is no `payroll.write` string literal in the codebase to
+split — the mentions live only in test file names and comments. Phase 4a
+as written would require a redesign of `permission_group_rules` to carry
+dotted-key rules alongside the module flags, or a new
+`permission_group_dotted_rules` sidecar. That's a governance change bigger
+than the payroll workflow slice and should be decided separately.
+
+**Recommendation:** land Phase 4b (period-close waivers + terminal-state
+enforcement) using the existing module flag `payroll.can_write`; defer
+dotted-key split until governance decides on the wider RBAC model.
 
 - **4a. Split `payroll.write`** into workflow-scoped permission keys: `payroll.calculate`, `payroll.approve`, `payroll.post_gl`, `payroll.pay`, `payroll.bank_file`, `payroll.returns.generate`, `payroll.returns.submit`, `payroll.remit`, `payroll.period.close`. Migration:
   - Insert the new keys into the permission catalog.
@@ -50,7 +63,22 @@ Independent inspection of the codebase (not agent claims):
   - Verify `payroll_remittance_dashboard(uuid, uuid)` signature vs client hook and align (root cause of 400).
   - Add regression tests: `src/test/payroll/tax-certificate-rpc-signature.test.ts` and `src/test/payroll/remittance-dashboard-signature.test.ts`.
 
-### Phase 6 — Retire legacy coupling + governance
+### Phase 6 — Retire legacy coupling + governance (pending)
+
+Not started. Depends on Phase 4b landing so ADR-0058 can cite the closed
+shape.
+
+## Delivered this session
+
+- Phase 5a — `src/hooks/payroll/workflows/usePayrollWorkflows.ts` with all
+  six hooks + shared `WorkflowSnapshot`/`WorkflowPrecondition` types.
+- Phase 5c — `WorkflowMatrix` mounted in `PayrollControlCenter` under the
+  period-consolidation strip, one row per run in the visible period.
+- Phase 5d — Generic `WorkflowDrawer` + `WorkflowMatrixDrawerHost` opening
+  from matrix cell clicks; renders preconditions, last actor, lifecycle.
+- Phase 5e — `PayrollRunLifecycleTimeline` reading `business_event_outbox`
+  filtered to the six workflow event prefixes.
+- Phase 5f — verified no legacy "must be paid before…" copy remains.
 
 - **6a. Deprecate legacy `payroll_runs.status` values.** Migration that:
   - Adds a comment on the column marking `posted`/`paid` as deprecated.
