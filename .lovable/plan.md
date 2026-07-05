@@ -1,63 +1,89 @@
+## Investigation Report — Employee Contract Creation Failure
 
-# Continuation plan — HR Employee subsystem audit
+### 1. Complete execution path
 
-## Verification of prior work
+```
+EmployeeContractsTab.handleCreate
+  → useEmployeeContracts hook
+  → supabase.from('employee_contracts').insert(...)
+  → PostgREST → INSERT public.employee_contracts
+     ├─ BEFORE INSERT: assert_app_installed_for_write, enforce_org_write_lock,
+     │                 enforce_contract_compensation_mode_shape,
+     │                 validate_employee_contract_dates                  ── all OK
+     └─ AFTER INSERT: tg_employee_contracts_lifecycle
+           → emit_employee_lifecycle_event(...)
+             → INSERT public.employee_lifecycle_events(...)
+                └─ AFTER INSERT: tg_hr_event_propose_loan_skip   ◀── FAILS HERE
+                        v_actor uuid := COALESCE(auth.uid(), NEW.created_by);
+                        ERROR: record "new" has no field "created_by"
+```
 
-I re-audited the codebase against the previous agent's claims and the original plan (`.lovable/plan.md`).
+The 400 surfaces on `POST /rest/v1/employee_contracts` because the entire chain runs in a single transaction; the failing trigger is two hops downstream.
 
-**Verified as genuinely shipped (Wave A step 1 — Lifecycle):**
-- `src/hooks/hr/useLifecycleEvents.ts` (178 LOC) — real query over `employee_lifecycle_events` joined to `v_employees_canonical`, scoped through `useHrScope`. Not a stub.
-- `src/pages/hr/lifecycle/LifecycleOverviewPage.tsx` (151 LOC) — 30-day cross-pipeline overview with per-family counts.
-- `src/pages/hr/lifecycle/LifecyclePipelinePage.tsx` (150 LOC) — reusable queue grouping events by employee, showing latest state per person.
-- `src/pages/hr/lifecycle/LifecycleTimelinePage.tsx` (168 LOC) — filterable cross-employee event log.
-- `src/apps/hr/sub/LifecycleRoutes.tsx` — six pipelines (Onboarding / Probation / Transfers / Renewals / Offboarding / Archive) + Timeline are wired to real screens; only the index and family stubs (`WorkspaceComingSoon`) are gone.
+### 2. Precise root cause — schema drift
 
-Lifecycle no longer contains stubs. Step 1 is complete.
+`public.employee_lifecycle_events` uses `actor_user_id` (never had `created_by`). Its columns:
 
-**Verified as still stubs (all of Contracts except overview):**
-- `src/apps/hr/sub/ContractsRoutes.tsx` renders `WorkspaceComingSoon` for `all`, `drafts`, `pending`, `active`, `expiring`, `renewals`, `amendments`, `templates`, `audit`. Only `ContractsOverview.tsx` (324 LOC) is real.
+```
+id, organization_id, business_id, employee_id, event_type,
+occurred_at, effective_date, actor_user_id, actor_label,
+source_table, source_id, summary, payload, created_at
+```
 
-The original architectural verdict in `.lovable/plan.md` still holds: schema, RPCs (`renew_contract`, `amend_contract`), `contract_amendments`, `employee_contracts`, `contract_compensation_components`, `employee_compensation_history` are all in place. The Contracts UI is the missing operator surface.
+The trigger function `public.tg_hr_event_propose_loan_skip` was written against a different (older / assumed) shape and references `NEW.created_by` at the top of its `DECLARE` block:
 
-Waves B–H (Positions as funded roles, HR inbox expansion, Compensation cycle, Event-outbox choreography, Doc compliance loop, Recruitment→Employees, Exec analytics, Maintenance depth) remain untouched. That is correct sequencing — Wave A ships the highest-ROI operator surfaces first with no schema movement.
+```sql
+v_actor uuid := COALESCE(auth.uid(), NEW.created_by);
+```
 
-## Next slice — Wave A step 2: Contracts real screens
+Because this assignment runs on every invocation — before the `event_type` filter — every INSERT into `employee_lifecycle_events` fails, which cascades into every HR write that emits a lifecycle event (hire, contract create, contract activate/expire, termination, reinstate, leave start/end).
 
-Replace `ContractsRoutes.tsx` stubs with operational workspaces over the existing `employee_contracts` + `contract_amendments` schema. No migrations, no schema changes, no RPC changes.
+Companion trigger `tg_hr_event_apply_garnishment` on the same table is clean (uses `NEW.actor_user_id` implicitly via other columns, no `created_by` reference).
 
-### Deliverables
+No other function in `pg_proc` references `employee_lifecycle_events.created_by` (verified). The drift is localized to this one function, but its blast radius is the entire HR lifecycle-event surface.
 
-1. `src/hooks/hr/useContracts.ts` — org/business-scoped query over `employee_contracts` joined to `v_employees_canonical`, with derived state (`draft` / `pending_approval` / `active` / `expiring_30` / `expiring_60` / `expiring_90` / `expired` / `terminated`) computed from `status`, `start_date`, `end_date`. Includes `contract_amendments` count per contract.
-2. `src/hooks/hr/useContractAmendments.ts` — filterable read for the audit surface (by contract, employee, actor, date range) and thin wrappers over the existing `renew_contract` / `amend_contract` RPCs (write path).
-3. `src/pages/hr/contracts/` new pages, each a real operator queue with KPI header, filters, and per-row drill-into-profile:
-   - `ContractsAllPage.tsx` — every contract, faceted by state + type + department.
-   - `ContractsDraftsPage.tsx` — status = draft, action: "send for approval".
-   - `ContractsPendingPage.tsx` — status = pending_approval, action: "approve / return".
-   - `ContractsActivePage.tsx` — status = active AND not expiring.
-   - `ContractsExpiringPage.tsx` — 30/60/90 buckets; primary action: "renew" (opens existing amend/renew dialog).
-   - `ContractsRenewalsPage.tsx` — amendments where `amendment_type = 'renewal'`, grouped by contract.
-   - `ContractsAmendmentsPage.tsx` — all `contract_amendments`, timeline view.
-   - `ContractsTemplatesPage.tsx` — reuses the existing contract-template surface if one already exists; otherwise a proper "not configured" empty state pointing at HR Policies (no fake CRUD).
-   - `ContractsAuditPage.tsx` — full amendment timeline filterable by contract / employee / actor.
-4. Wire all of the above into `ContractsRoutes.tsx`, delete every `ContractsStub` / `WorkspaceComingSoon` reference.
-5. Update `ContractsOverview.tsx` KPI cards to link into the new queues (right now they navigate to stubs).
+### 3. Are contract insert failure and the BackgroundSync 401 related?
 
-### Guardrails
+No. `BackgroundSyncManager` issues an anonymous `HEAD /rest/v1/` as a PostgREST reachability probe; PostgREST answers `401` for unauthenticated HEAD on the root, which the manager treats as "reachable". Independent of contract creation. Do not touch as part of this fix.
 
-- Reads go through the canonical view, never `employees` directly (ESLint arch guard already enforces).
-- All writes reuse existing RPCs (`renew_contract`, `amend_contract`) — no new SQL.
-- Scope via `useHrScope` so branch-restricted users see their assignments only; admins see the whole business (ADR-0039).
-- No changes to `.lovable/plan.md` — it remains the source of truth for the full audit; this plan is only the next slice.
+### 4. Fix — surgical, matches existing schema
 
-### Out of scope (still deferred, per waves B–H)
+Rewrite `public.tg_hr_event_propose_loan_skip` so the actor is derived from the columns that actually exist on `employee_lifecycle_events`:
 
-Positions-as-funded-roles, HR cross-module inbox expansion, document compliance loop, compensation cycle UI, `business_event_outbox` HR emitters, recruitment→employees hand-off, executive analytics, maintenance depth checks. Each is its own follow-up slice after Wave A finishes with step 3 (Directory saved operational views) and step 4 (HR inbox expansion).
+```sql
+v_actor uuid := COALESCE(auth.uid(), NEW.actor_user_id);
+```
 
-## Technical details
+No other lines change. `SECURITY DEFINER`, `search_path`, arguments, and behavior are preserved.
 
-- New files only under `src/pages/hr/contracts/` and `src/hooks/hr/`; `ContractsRoutes.tsx` edited in place.
-- Expiry buckets computed with `date-fns` `differenceInDays(end_date, today)` and materialised into the query result so filters + counts share one source.
-- Amendment writes trigger `queryClient.invalidateQueries(['contracts', ...])` and the lifecycle query key so the Lifecycle Renewals pipeline reflects the change without a reload.
-- Each page uses the existing `PageHeader` / `PageBody` from `@/design-system` for visual consistency with the Lifecycle screens shipped in step 1.
+### 5. Regression guards added in the same migration
 
-Approve to proceed with Wave A step 2 (Contracts real screens).
+To prevent this exact class of drift from returning:
+
+1. **pgTAP-style guard** `supabase/tests/hr_lifecycle_event_no_stale_created_by_test.sql` that fails CI if any `public` function references `employee_lifecycle_events` columns that don't exist on that table (mirrors the existing `employee_contracts_no_stale_field_refs_test.sql` pattern).
+2. **Smoke test** that inserts an `employee_lifecycle_events` row of every event type covered by the two AFTER-INSERT triggers and rolls back, catching future drift immediately.
+
+### 6. What we are NOT changing
+
+- No frontend edits — `EmployeeContractsTab.handleCreate` is correct.
+- No changes to `tg_employee_contracts_lifecycle`, `emit_employee_lifecycle_event`, or `employee_contracts` itself.
+- No changes to `BackgroundSyncManager` — that 401 is expected probe behavior.
+- No renaming of `actor_user_id` to `created_by`; the current name is semantically correct for a lifecycle-event actor and matches every other reader.
+
+### 7. Regression risk
+
+Very low. The function only assigns `v_actor` differently; downstream writes to `payroll_run_loan_skip_overrides` and `loan_skip_override_events` still receive the same actor identity (auth.uid() when present, otherwise the row's recorded actor). All other event types short-circuit unchanged.
+
+### 8. Why this is the correct enterprise fix
+
+- Aligns the trigger with the canonical column (`actor_user_id`) that every other consumer, view, and reader already uses — no new alias, no new column, no compatibility shim.
+- Unblocks all HR lifecycle emissions, not just contract creation, restoring the audit/payroll/garnishment/loan-skip chain end-to-end.
+- Adds a drift guard so the audit's "no stale field refs" invariant now covers `employee_lifecycle_events` the same way it already covers `employee_contracts`.
+
+### Deliverable
+
+One migration containing:
+1. `CREATE OR REPLACE FUNCTION public.tg_hr_event_propose_loan_skip` with `NEW.actor_user_id`.
+2. New pgTAP guard test file.
+
+No frontend, no types, no RLS, no other schema changes.
