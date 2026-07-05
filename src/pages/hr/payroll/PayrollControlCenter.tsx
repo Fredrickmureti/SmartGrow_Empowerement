@@ -553,6 +553,22 @@ export default function PayrollControlCenter() {
             </Card>
           )}
 
+          {/* Workflow matrix (plan §Phase 5c). Rows = runs in this period. */}
+          {(showAllPeriods ? childRuns : childRuns.filter((r) => {
+            const s = format(periodStart, "yyyy-MM-dd");
+            const e = format(periodEnd, "yyyy-MM-dd");
+            return r.pay_period_start <= e && r.pay_period_end >= s;
+          })).length > 0 && (
+            <WorkflowMatrix
+              runs={showAllPeriods ? childRuns : childRuns.filter((r) => {
+                const s = format(periodStart, "yyyy-MM-dd");
+                const e = format(periodEnd, "yyyy-MM-dd");
+                return r.pay_period_start <= e && r.pay_period_end >= s;
+              })}
+              onCellClick={(runId, col) => setMatrixSelection({ runId, col })}
+            />
+          )}
+
           {/* Ungrouped runs in this period (Phase 5.1). */}
           {ungroupedInPeriod.length > 0 && (
             <Card className="border-amber-500/40">
@@ -1022,6 +1038,13 @@ export default function PayrollControlCenter() {
           sourceBatchNumber={paymentBatchFor.sourceBatchNumber}
         />
       )}
+
+      {/* Per-workflow drawer host (plan §Phase 5d). */}
+      <WorkflowMatrixDrawerHost
+        runId={matrixSelection?.runId ?? null}
+        col={matrixSelection?.col ?? null}
+        onClose={() => setMatrixSelection(null)}
+      />
     </div>
   );
 }
