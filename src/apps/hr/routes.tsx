@@ -83,6 +83,15 @@ export function HRApp() {
             </AppInstalledGate>
           }
         />
+        <Route
+          path="document-compliance/*"
+          element={
+            <AppInstalledGate appId="employees">
+              <DocumentComplianceApp />
+            </AppInstalledGate>
+          }
+        />
+
 
         {/*
          * Wave-1 redirects: legacy /hr/* URLs → their new workspace owners.
