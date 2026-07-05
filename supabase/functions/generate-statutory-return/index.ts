@@ -232,31 +232,32 @@ Deno.serve(async (req) => {
     const extraRuleCodes = extractExtraRuleCodes(columns.map((c) => c.source));
     const allRuleCodes = Array.from(new Set([...ruleCodes, ...extraRuleCodes]));
 
-    // 1) Pull payslips in the period. Source of truth for "is this payslip
-    //    part of a finalised payroll" is the parent payroll_run.status.
-    //    When the run is `posted`, its payslips are authoritative regardless
-    //    of the payslip.status column (which may lag behind the run state).
-    //    Templates can still narrow via filters.payslip_status.
+    // 1) Pull payslips in the period. Enterprise rule (see plan/redesign):
+    //    Statutory returns depend ONLY on Payroll Approval — the legal point
+    //    at which the run becomes immutable. Payment, GL posting, and bank
+    //    file generation are peer workflows and MUST NOT gate returns.
+    //    Source of truth: `payroll_runs.approved_at IS NOT NULL`.
+    //    Templates can still narrow the payslip set via filters.payslip_status.
     const { data: runs } = await admin
       .from("payroll_runs")
-      .select("id, pay_period_start, pay_period_end, status")
+      .select("id, pay_period_start, pay_period_end, status, approved_at")
       .eq("organization_id", body.organization_id)
       .eq("business_id", body.business_id)
       .lte("pay_period_start", body.period_end)
       .gte("pay_period_end", body.period_start)
-      .in("status", ["posted", "approved", "processed", "finalized", "finalised"]);
+      .not("approved_at", "is", null);
     const runIds = (runs ?? []).map((r: any) => r.id);
     if (!runIds.length) {
       return businessError(
         400,
-        "NO_FINALISED_PAYROLL_RUNS",
-        "No finalised payroll run was found for this return period, so the statutory return cannot be generated yet.",
-        "Post or approve the payroll run for the selected period, then generate the return again.",
+        "NO_APPROVED_PAYROLL_RUNS",
+        "No approved payroll run was found for this return period. Statutory returns can only be generated from an approved (finalised) payroll.",
+        "Approve the payroll run for the selected period, then generate the return again. You do not need to pay employees or post to the GL first.",
         {
           template_code: body.template_code,
           period_start: body.period_start,
           period_end: body.period_end,
-          required_run_statuses: ["posted", "approved", "processed", "finalized", "finalised"],
+          requires: "payroll_runs.approved_at",
         },
       );
     }

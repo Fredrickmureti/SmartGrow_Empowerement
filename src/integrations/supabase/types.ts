@@ -29887,6 +29887,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          bank_file_status: string
           branch_id: string | null
           business_id: string
           contributions_summary: Json | null
@@ -29914,10 +29915,14 @@ export type Database = {
           pay_period_start: string
           pay_schedule_id: string | null
           payment_date: string | null
+          payment_status: string
           payroll_number: string
+          payslip_issuance_status: string
           period_id: string | null
           posted_at: string | null
           posted_by: string | null
+          posting_journal_entry_id: string | null
+          posting_status: string
           reclassification_journal_entry_id: string | null
           reversal_reason: string | null
           reversed_at: string | null
@@ -29937,6 +29942,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          bank_file_status?: string
           branch_id?: string | null
           business_id: string
           contributions_summary?: Json | null
@@ -29964,10 +29970,14 @@ export type Database = {
           pay_period_start: string
           pay_schedule_id?: string | null
           payment_date?: string | null
+          payment_status?: string
           payroll_number: string
+          payslip_issuance_status?: string
           period_id?: string | null
           posted_at?: string | null
           posted_by?: string | null
+          posting_journal_entry_id?: string | null
+          posting_status?: string
           reclassification_journal_entry_id?: string | null
           reversal_reason?: string | null
           reversed_at?: string | null
@@ -29987,6 +29997,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          bank_file_status?: string
           branch_id?: string | null
           business_id?: string
           contributions_summary?: Json | null
@@ -30014,10 +30025,14 @@ export type Database = {
           pay_period_start?: string
           pay_schedule_id?: string | null
           payment_date?: string | null
+          payment_status?: string
           payroll_number?: string
+          payslip_issuance_status?: string
           period_id?: string | null
           posted_at?: string | null
           posted_by?: string | null
+          posting_journal_entry_id?: string | null
+          posting_status?: string
           reclassification_journal_entry_id?: string | null
           reversal_reason?: string | null
           reversed_at?: string | null
@@ -58329,6 +58344,7 @@ export type Database = {
         Returns: {
           approved_at: string | null
           approved_by: string | null
+          bank_file_status: string
           branch_id: string | null
           business_id: string
           contributions_summary: Json | null
@@ -58356,10 +58372,14 @@ export type Database = {
           pay_period_start: string
           pay_schedule_id: string | null
           payment_date: string | null
+          payment_status: string
           payroll_number: string
+          payslip_issuance_status: string
           period_id: string | null
           posted_at: string | null
           posted_by: string | null
+          posting_journal_entry_id: string | null
+          posting_status: string
           reclassification_journal_entry_id: string | null
           reversal_reason: string | null
           reversed_at: string | null
@@ -63062,6 +63082,7 @@ export type Database = {
         Returns: {
           approved_at: string | null
           approved_by: string | null
+          bank_file_status: string
           branch_id: string | null
           business_id: string
           contributions_summary: Json | null
@@ -63089,10 +63110,14 @@ export type Database = {
           pay_period_start: string
           pay_schedule_id: string | null
           payment_date: string | null
+          payment_status: string
           payroll_number: string
+          payslip_issuance_status: string
           period_id: string | null
           posted_at: string | null
           posted_by: string | null
+          posting_journal_entry_id: string | null
+          posting_status: string
           reclassification_journal_entry_id: string | null
           reversal_reason: string | null
           reversed_at: string | null

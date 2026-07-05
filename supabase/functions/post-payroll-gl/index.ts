@@ -826,19 +826,37 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ─── Write-path precondition: run status MUST be 'approved' ───
-    // Posting is a state-machine transition (approved → posted). All other
-    // states — draft, computed, posted, paid, remitted, closed, reversed —
-    // are invalid entry points and must be rejected explicitly so no code
-    // path can jump states. `user_can_post_payroll` also asserts approval
-    // as part of the SoD check, but the explicit state gate here makes the
-    // invariant impossible to bypass by a future refactor of that helper.
-    if (payrollRun.status !== "approved") {
+    // ─── Write-path precondition: run must be APPROVED and not already posted ───
+    // Enterprise rule (see plan/redesign): GL Posting is a peer workflow to
+    // Payment, Bank File, and Statutory Returns. Its only hard dependency is
+    // Payroll Approval (`approved_at IS NOT NULL`) — the legal immutability
+    // seal. Duplicate posting is prevented by the independent posting_status
+    // column, NOT by the run's overall `status` label.
+    if (!payrollRun.approved_at) {
       return new Response(JSON.stringify({
-        error: "invalid_state",
-        message: `Payroll run is in status "${payrollRun.status}" — only runs in status "approved" can be posted to the GL.`,
+        error: "not_approved",
+        message: "This payroll run has not been approved yet. Approve the run before posting it to the general ledger.",
         current_status: payrollRun.status,
-        required_status: "approved",
+        requires: "payroll_runs.approved_at",
+      }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const currentPostingStatus = (payrollRun as any).posting_status ?? "not_posted";
+    if (currentPostingStatus === "posted") {
+      return new Response(JSON.stringify({
+        error: "already_posted",
+        message: "This payroll run has already been posted to the general ledger.",
+        posting_status: currentPostingStatus,
+      }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (currentPostingStatus === "reversed") {
+      return new Response(JSON.stringify({
+        error: "posting_reversed",
+        message: "This payroll run's GL posting was reversed. Use a correction or reversal run to re-post.",
+        posting_status: currentPostingStatus,
       }), {
         status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -875,11 +893,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ─── Update payroll run status to "posted" + stamp posted_by/posted_at ───
+    // ─── Advance the GL Posting workflow independently of the run's overall status ───
+    // `posting_status` is the new source of truth for "has this run been
+    // posted to GL?" — decoupled from Payment, Bank File, and Returns.
+    // We keep writing legacy `status='posted'` for backwards compatibility
+    // until Phase 6 retires the coupling.
     await supabaseAdmin
       .from("payroll_runs")
       .update({
         status: "posted",
+        posting_status: "posted",
+        posting_journal_entry_id: jeId,
         posted_by: userId,
         posted_at: new Date().toISOString(),
       } as any)
