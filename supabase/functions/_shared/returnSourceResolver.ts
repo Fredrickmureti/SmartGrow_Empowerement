@@ -34,12 +34,13 @@ export interface SourceContext {
     taxable: number;             // sum of payslips.taxable_income (fallback gross_pay)
     basic: number;               // sum of payslips.basic_salary
     allowances: number;          // sum of payslips.other_earnings
+    payslipCount?: number;       // number of eligible payslips represented in this context
     byRule: Record<string, RuleSum>; // sum per rule_code referenced by the template
   };
 }
 
 /** Patterns the resolver understands beyond the static system sources. */
-const EMPLOYEE_DYNAMIC = /^employee\.[a-z_][a-z0-9_]*$/;
+const EMPLOYEE_DYNAMIC = /^employee\.[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*$/;
 const SUM_RULE = /^sum_rule\.([a-z0-9_]+)\.(employee|employer)$/;
 const SUM_TAXABLE_MINUS_RULES = /^sum_taxable_minus_rules:([a-z0-9_,]+)$/;
 
@@ -56,6 +57,8 @@ export const STATIC_SYSTEM_SOURCES = [
   "sum_taxable_amount",
   "sum_basic_pay",
   "sum_allowances",
+  "sum_total_amount",
+  "count_payslips",
   "row_count",
   "constant",
 ] as const;
@@ -63,7 +66,7 @@ export const STATIC_SYSTEM_SOURCES = [
 /** Numeric sources (for total-row validation). */
 export const NUMERIC_SOURCE_PREDICATES: Array<(s: string) => boolean> = [
   (s) => s === "sum_employee_amount" || s === "sum_employer_amount" || s === "sum_taxable_amount",
-  (s) => s === "sum_basic_pay" || s === "sum_allowances",
+  (s) => s === "sum_basic_pay" || s === "sum_allowances" || s === "sum_total_amount" || s === "count_payslips",
   (s) => SUM_RULE.test(s),
   (s) => SUM_TAXABLE_MINUS_RULES.test(s),
 ];
@@ -137,6 +140,15 @@ export function readSource(source: string, ctx: SourceContext): unknown {
       const l = (ctx.employee as any).last_name ?? "";
       return `${f} ${l}`.trim();
     }
+    if (key.startsWith("statutory_id.")) {
+      const identifier = key.slice("statutory_id.".length);
+      return (
+        (ctx.employee as any)[identifier] ??
+        (ctx.employee as any)[`${identifier}_number`] ??
+        (ctx.employee as any)[`${identifier}_id`] ??
+        ""
+      );
+    }
     return (ctx.employee as any)[key] ?? "";
   }
 
@@ -146,6 +158,8 @@ export function readSource(source: string, ctx: SourceContext): unknown {
     case "sum_taxable_amount":  return round2(ctx.sums.taxable);
     case "sum_basic_pay":       return round2(ctx.sums.basic);
     case "sum_allowances":      return round2(ctx.sums.allowances);
+    case "sum_total_amount":    return round2(ctx.sums.employee + ctx.sums.employer);
+    case "count_payslips":      return ctx.sums.payslipCount ?? 0;
   }
 
   const m1 = SUM_RULE.exec(source);
