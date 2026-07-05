@@ -84,7 +84,7 @@ export function usePayrollPaymentWorkflow(runId: string | null | undefined): Wor
     state,
     canAdvance: preconditions.every((p) => p.satisfied),
     preconditions,
-    lastActor: { userId: data?.paid_by ?? null, at: data?.paid_at ?? null },
+    lastActor: { userId: null, at: data?.payment_date ?? null },
     loading: isLoading,
     error,
   };
