@@ -159,8 +159,13 @@ export function renderCertificateSections(
   return out;
 }
 
-function humanize(key: string): string {
-  return key
+function humanize(key: unknown): string {
+  const s = typeof key === "string"
+    ? key
+    : (key && typeof key === "object" && "key" in (key as any))
+      ? String((key as any).key ?? "")
+      : String(key ?? "");
+  return s
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
