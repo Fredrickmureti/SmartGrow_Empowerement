@@ -50,10 +50,11 @@ const RUN_DIALOG = readFileSync(
 );
 
 const dryRunReturnIdx = (() => {
-  // Locate the `if (dryRun) { ... return new Response ... }` block's
-  // closing return. We look for the FIRST `dry_run: true,` in a payload
-  // (i.e., inside a returned object), then advance to the next `}`.
-  const marker = "dry_run: true,";
+  // Locate the closing `});` of the preview `return new Response(...)`.
+  // We anchor on a field that only exists inside that return payload —
+  // `run_status: payrollRun.status,` — to avoid matching the doc-comment
+  // `dry_run: true` at the top of the file.
+  const marker = "run_status: payrollRun.status";
   const i = EDGE.indexOf(marker);
   if (i < 0) throw new Error("preview return payload not found");
   const close = EDGE.indexOf("});", i);
