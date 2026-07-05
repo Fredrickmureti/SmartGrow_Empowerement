@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -15,9 +14,6 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [
-    // Provides TanStack Start's virtual client/server entries used by the
-    // Lovable preview dev shell (`#tanstack-start-entry`).
-    ...tanstackStart(),
     react(),
     mode === "development" ? (componentTagger() as unknown as PluginOption) : null,
     // Service worker is disabled for Electron packaged builds — `file://`
