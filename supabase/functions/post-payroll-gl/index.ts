@@ -367,8 +367,8 @@ Deno.serve(async (req) => {
       // ─── Garnishment lines: aggregate per garnishment order ───
       if (cat === "garnishment" && empAmt > 0) {
         const gid: string | null =
-          (line.details && typeof line.details === "object"
-            ? (line.details as any).garnishment_id
+          (line.source && typeof line.source === "object"
+            ? (line.source as any).garnishment_id
             : null) ?? null;
         if (!gid) continue;
         const existing = garnishmentMap.get(gid);
@@ -386,7 +386,7 @@ Deno.serve(async (req) => {
       }
 
       // ─── Custom deduction lines (Slice 2): aggregate per deduction_type ───
-      const details = (line.details && typeof line.details === "object") ? line.details as any : null;
+      const details = (line.source && typeof line.source === "object") ? line.source as any : null;
       if (details && details.source === "custom_deduction" && details.deduction_type_id) {
         const tid = details.deduction_type_id as string;
         const existing = customDedMap.get(tid);
