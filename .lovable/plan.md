@@ -1,138 +1,105 @@
+# Payroll Posting Architecture Audit — Findings & Remediation
 
-# Enterprise Payslip Audit — Verdict & Redesign Plan
+## 1. Business event under investigation
 
-## Overall verdict
+**"Post payroll to GL"** is a single, indivisible accounting event that, on execution, MUST:
 
-**Structurally sound, presentationally sub-enterprise.** The pipeline is honest — a single `payslip_lines` table drives both the on-screen dialog (`PayslipDetailDialog`) and the PDF (`generate-payslip-pdf`) through one shared `payslipClassifier`, one shared `payslipHeader` RPC, one shared `breakdownAdaptor`, and one shared `PayslipLineExplainer`. Provenance (`input_ref`), correction lineage (`PayslipCorrectionBanner`), lifecycle journal (`PayslipEventsTimeline`), YTD block, and rule-version chips all exist. That is *ahead* of Sage and roughly at parity with Odoo Enterprise on data completeness.
+1. Create exactly one balanced `journal_entries` row (`source_type='payroll'`, `source_id=run.id`) with its balanced `journal_entry_lines` (Salary DR, statutory payables CR, employer expenses DR, employer payables CR, net-pay clearing CR).
+2. Insert `payroll_liabilities` rows (idempotent per `(payroll_run_id, rule_code)`) that feed remittances and payment batches.
+3. Transition `payroll_runs.status` `approved → posted` and stamp `posted_by / posted_at`.
+4. Write an `audit_logs` entry (`action='payroll_posted'`).
+5. Become the ONLY event that can create these artefacts. It is idempotent by `(source_type,'payroll', source_id=run.id)`.
 
-Where it falls short of SAP HCM / Workday / ADP / Ceridian is **information architecture, visual hierarchy, and progressive disclosure of calculations**. The PDF is a single flat two-column report with breakdown rows inlined as sub-notes underneath every deduction; the on-screen admin view is a raw 5-column table with a code column, a category badge, and no summary story. Neither surface tells the "gross → statutory → tax → voluntary → net" narrative the way enterprise payslips do, and the calculation explainer competes with — rather than layers under — the pay data.
+**"Simulate posting"** is a read-only projection of that same event: it answers *"what JE would this run produce right now?"* and MUST NOT touch `journal_entries`, `payroll_runs.status`, `payroll_liabilities`, `payroll_liability_sources`, `payment_requests`, `audit_logs`, or any lock/period record. In enterprise ERPs (SAP HCM, Workday, Oracle Fusion, D365 F&O, Odoo, Sage, ADP) simulation is bound to a **specific run in its approval stage**, not to a configuration screen.
 
-The engineering root cause is a single one: **the payslip renderer treats `payslip_lines` as a flat list keyed only by `category`**. There is no *section-band* concept between "line bucket" and "document". Everything downstream — visual hierarchy, ordering, subtotals, explainer placement — inherits that flatness.
+## 2. What the current implementation actually does
 
----
+Traced end-to-end through `supabase/functions/post-payroll-gl/index.ts`, `src/hooks/usePayrollGL.ts`, `src/components/payroll/PayrollPostingSimulator.tsx`, `src/pages/hr/payroll/AccountMapping.tsx`, `src/components/payroll/PayrollRunDetailsDialog.tsx`.
 
-## Dimension-by-dimension assessment
+### 2a. Simulation entrypoint
+`PayrollPostingSimulator` invokes `post-payroll-gl` with `dry_run: true`, picking the **latest draft/computed run for the org** — the accountant does not select the run; the UI does. This is architecturally wrong: simulation is a run-scoped operation.
 
-### 1. Information architecture — **B-**
-- Correct top-level sections (Employer, Employee, Earnings, Deductions, Employer Contributions, Net Pay, YTD).
-- **Missing intermediate bands** inside Deductions. Mature systems split deductions into three ordered bands:
-  1. **Statutory contributions** (NSSF, SHIF, AHL) — legally mandated, pre-tax.
-  2. **Income tax** (PAYE, net of reliefs) — the biggest single line for most employees, deserves its own band with the taxable-base build-up visible.
-  3. **Post-tax deductions** (loans, garnishments, custom voluntary).
-   Today all three collapse into one `DEDUCTIONS` list ordered only by `sequence`.
-- **No "Taxable pay" pivot line.** The single most-audited number on a payslip in every jurisdiction is the taxable base PAYE was computed on. It now lives *inside* the PAYE explainer's `explanation[]` prose. It should be a first-class row between the statutory band and the tax band, matching `payslips.taxable_base` (the column that was just persisted).
-- **Employer contributions correctly placed after net pay** (Odoo / Workday convention). Good.
-- **YTD is a compact 3-line summary.** Correct call — per-rule YTD belongs on the tax certificate, not the monthly payslip.
+### 2b. Shared code path (root cause of the reported symptom)
+Both `dry_run=true` and real posting execute the **same prelude** in `post-payroll-gl/index.ts`:
+- Auth, entitlement, permissions (lines 57–111).
+- SoD gate `user_can_post_payroll` (lines 130–150) — this helper requires `status='approved'`, so simulating a `draft`/`computed` run raises `PERMISSION_DENIED` in the SoD branch even though nothing is being posted. Simulation is currently gated by a control designed for the writing step.
+- **Idempotency short-circuit at lines 163–177**: if any `journal_entries` row exists with `source_type='payroll'` and `source_id=run.id` and `status<>'voided'`, the function returns `{ already_posted: true, journal_entry_id }` **regardless of `dry_run`**. Because the simulator and the real post button both hit this branch:
+  - If a prior test/attempt left a JE for that run, `Simulate Posting` returns `already_posted:true` and the toast reads *"This run has already been posted to the GL — no preview to generate."*
+  - Immediately afterwards `Post Payroll` returns the same body and the toast reads *"Already Posted"*.
+  - The run stays `draft` because no code ever moved it out of draft — but the user perceives the two toasts as *simulation posted my payroll*.
+- Fiscal period lock check (lines 179–194).
+- Resolver + binding + role validation (lines 411–500). No writes.
+- JE line build (lines 500–730). No writes.
+- **`dry_run` early return at lines 737–771** — this branch itself is side-effect-free.
+- Actual writes (lines 774–1010): `post_journal_entry_atomic`, `payroll_runs.update({status:'posted'})`, `payroll_liabilities.upsert`, `payroll_liability_sources.insert`, `audit_logs.insert`.
 
-### 2. Visual hierarchy — **C+**
-- PDF: `_isHeader / _isSubtotal / _isGrandTotal / _isSubnote` flags exist but resolve to weight/underline only — no whitespace bands, no right-column alignment for subnotes, no section rules. A payroll officer scanning 200 payslips cannot land the eye quickly.
-- Dialog (admin): a raw shadcn `<Table>` with `Code | Label | Category | Employee | Employer`. The `Code` and `Category` columns are engineer-facing and add noise; enterprise admin views (Workday "Pay Result" drill) lead with the human label and hide the code behind an "i".
-- Net Pay is emphasised (`_isGrandTotal`, primary color card) — that part is correct.
-- Gross / Deductions / Net summary cards on the dialog are good; the PDF has no equivalent hero band.
+### 2c. Verdict on the reported bug
+Simulation is **not** currently writing a JE. But the **shared idempotency check runs before the `dry_run` branch**, so it emits an `already_posted` signal for simulate and post identically. Combined with the mis-placed "latest run" auto-selection, this creates the exact perceived sequence *simulate → completed → post → already posted*. In enterprise terms this is a **workflow-integrity defect**: simulation and posting share a state check that only the writing step is allowed to reach.
 
-### 3. Calculation explainability — **B**
-- Per-line explainer popover with bracket breakdowns, rule-version chip, source drill-down link — this is genuinely enterprise-grade on screen and *ahead* of Odoo.
-- PDF explainer is **too aggressive**: it inlines every `employeeRow` of every deduction as sub-notes under the line, producing a wall of `From … to … × 10% = …` rows that break the payslip's readability. Enterprise PDFs (ADP, Ceridian) put this in an optional appendix or hide it behind a "detailed statement" variant. `payroll_settings.pdf_show_explainer` exists as a global boolean but there is no *per-document* mode (summary vs. detailed).
-- Taxable-base build-up narrative (statutory deductibles → exemptions → reliefs) is compressed into `explanation[]` prose rather than rendered as an itemised sub-table.
+### 2d. Additional architectural weaknesses uncovered
+1. **SoD gate applied to simulation** blocks previews before approval — the opposite of what an accountant needs (they want the preview to validate mappings *while still in draft*).
+2. **`Simulate Posting` lives in `Configuration → GL Account Mapping`**, not on a run. It cannot preview per-run since it always picks the latest draft/computed row.
+3. **No explicit `posted` state gate** — `post-payroll-gl` will write for a run in any status other than `posted` (there is no `status='approved'` precondition inside the function; only `user_can_post_payroll` enforces it, and that is a role check not a state assertion).
+4. **No `posting_preview` domain event or artefact**. Enterprise systems record who previewed what and when; ours emits nothing.
+5. **No proof that simulation is side-effect-free** in tests. `payroll-completion-guards.test.ts` locks balanced-JE and idempotency, but nothing asserts "dry_run performs zero writes".
+6. **`already_posted` conflates two very different states** — *"a JE exists"* vs *"this posting attempt is a no-op replay"*. The UI can't tell them apart.
 
-### 4. Cognitive load — **C**
-- First-time employee reading the PDF: has to scroll past 15+ sub-note rows to find Net Pay if PAYE has 3 brackets. Reliefs prose is dense.
-- Payroll officer: has to mentally re-group Deductions into statutory / tax / voluntary bands.
-- Auditor: has all the data but must open the popover on every line; there is no single "reconciliation view" that lays out taxable_base → paye_before_relief → reliefs → paye alongside the persisted columns.
+## 3. Target architecture (aligned with SAP HCM / Workday / Oracle HCM / D365 / Odoo)
 
-### 5. Accountant usability — **B-**
-- Admin dialog has the right raw material (all lines, all columns). Missing: totals per band, per-line running subtotal, tie-out row showing `gross − Σ deductions = net`.
-
-### 6. Employee usability — **C+**
-- Portal mode correctly hides employer contributions and drops the audit journal. Correct enterprise convention.
-- Missing on the portal: a plain-English "How your pay was calculated this month" narrative (Workday "Pay Explained"), and a comparison chip vs. last period.
-
-### 7. Auditor usability — **B**
-- Provenance (`input_ref`), rule versions, and correction lineage all present. Strong.
-- Missing: PAYE reconciliation panel using the new `taxable_base` / `paye_before_relief` columns, and an explicit rule-trace link (data is in `payroll_rule_traces` but not surfaced).
-
-### 8. Regulatory / compliance — **A-**
-- A4 paper pin enforced (`assertStatutoryPaper`).
-- Immutability triggers scanned for country tokens.
-- Country-agnostic statutory ID rendering via `payslip_header` RPC + `pack_requirements` labels.
-- Employer statutory IDs default OFF (Odoo-aligned) with a tenant toggle. Correct.
-- Gap: no localisation-pack-driven "mandatory payslip fields" checklist enforced at render time (KE Employment Act §20 requires overtime hours, leave days taken, etc.); today it depends on the pack shipping the right lines.
-
-### 9. Architectural weaknesses uncovered while tracing the pipeline
-1. **Section band is not a first-class concept.** `payslip_lines.category` is a bucket, not a display band. There is no `display_section` (or derived equivalent) that groups statutory-vs-tax-vs-voluntary within Deductions. The renderer has to re-derive it from `category` + `rule_code` heuristics.
-2. **`taxable_base` and `paye_before_relief` are persisted but not rendered anywhere.** The columns were added last turn; the PDF and dialog still read the taxable base out of `explanation[]` prose.
-3. **PDF renderer builds rows imperatively.** `rows.push({...})` for 400 lines with sentinel flags is untestable and prevents a proper "summary vs. detailed" variant.
-4. **`Code` and `Category` columns leak engine vocabulary into the admin UI.** Enterprise admin views separate the *human* payslip from a *technical* rule-trace tab.
-5. **Reliefs are prose, not structured rows.** `explanation[]` is a `string[]`. A reliefs table (`Personal relief | −2,400`, `Insurance relief | −250`, `AHR relief | −833`) belongs in the same structured shape as bracket rows.
-6. **No "pay comparison" surface.** Every enterprise portal shows Δ vs prior period. The data is one query away (`payslips` filtered by employee_id ordered by pay_period_end).
-
----
-
-## Recommendations (in priority order, minimal surface area)
-
-### R1 — Introduce a `display_section` derivation (no schema change)
-Add a pure helper `payslipSection(line): "earning" | "statutory_deduction" | "income_tax" | "post_tax_deduction" | "employer_contribution" | "info"` in `_shared/payslipSection.ts` (mirrored in `src/lib/payroll/`). Derive from `category` + `rule_type` (`bracket_progressive` → income_tax; `statutory_employee` → statutory_deduction; everything else with employee_amount>0 → post_tax_deduction). This is the single change that unlocks R2–R4 in both surfaces without touching the engine.
-
-### R2 — Restructure the Deductions band in both PDF and dialog
-Render as three sub-bands with a subtotal each:
 ```text
-STATUTORY CONTRIBUTIONS       -Σ
-   NSSF Tier I                -360.00
-   SHIF                       -1,375.00
-   AHL                        -687.50
-TAXABLE PAY                   =X          ← from payslips.taxable_base
-INCOME TAX                    -Σ
-   PAYE (before reliefs)      -Y          ← from payslips.paye_before_relief
-   Personal relief            +2,400.00
-   Insurance relief           +250.00
-   PAYE payable               -Z
-POST-TAX DEDUCTIONS           -Σ
-   Loan repayment             -...
-   Voluntary pension          -...
-TOTAL DEDUCTIONS              =ΣΣΣ
+ draft ─► computed ─► approved ─────► posted ─► paid ─► remitted ─► closed
+                       │                ▲
+                       └── preview ─────┘   (read-only, run-scoped, any pre-post state)
 ```
-Uses the two columns just persisted; no engine change.
 
-### R3 — Split explainer into two variants
-- **PDF summary mode (new default):** show the deduction line only. No inline brackets.
-- **PDF detailed mode (existing `pdf_show_explainer=true`):** move brackets + reliefs into a **"Calculation appendix"** at the end of the PDF, one panel per non-trivial deduction, cross-referenced by a small `[A1]` marker on the deduction line. Matches ADP / Ceridian detailed statements.
-- **Dialog:** keep the popover as-is (it's the best-in-class surface).
+Rules:
+- **Preview** is a pure function of `(run, mappings, pack, period)` → returns projected lines + validation issues. No writes. Callable from `computed` or `approved` states. Never from `posted`.
+- **Post** is the sole writer. Requires `status='approved'`, all mappings valid, period open, poster ≠ creator/approver, no existing non-voided JE. Atomic RPC.
+- **Idempotency** for post is: replay of the identical post request returns the existing JE (`replayed:true`), *never* surfaced to the preview path.
+- **Preview surface** is attached to the run (row action + run details dialog), not to the mapping configuration page. The mapping page keeps only *"Validate mappings"* (no JE projection).
 
-### R4 — Clean up the admin dialog table
-- Drop the `Code` column into the popover header (already shown there).
-- Drop the `Category` column; replaced by section grouping from R1.
-- Add per-section subtotal rows and a tie-out footer `Gross − Deductions = Net`.
-- Keep the 3-card Gross/Deductions/Net hero (it's the one thing the PDF should also gain).
+## 4. Implementation plan
 
-### R5 — Render reliefs as structured rows, not prose
-Extend the PAYE explainer's `source` jsonb to include `reliefs: [{code, label, amount}]` (engine already computes these; just persist them into `source`). Adaptor emits them as a proper sub-table. Deprecate the string-only `explanation[]` for reliefs (keep it for legal-basis footnotes only).
+### 4a. Server — split preview from post (`supabase/functions/post-payroll-gl/index.ts`)
+1. Move the idempotency check (lines 163–177) **below the `dry_run` branch**. Preview must never short-circuit on JE existence; it must instead include an `already_posted` boolean *inside the preview payload* so the UI can render a read-only badge without conflating states.
+2. Skip the `user_can_post_payroll` SoD gate when `dry_run=true`. Replace with a lighter `payroll.read` + `financials.read` permission check for preview. SoD only applies to writers.
+3. Skip the fiscal-period `closed` hard-fail on `dry_run`; instead include `{warnings:[{code:'period_closed', ...}]}` in the preview response so the accountant sees the issue.
+4. On the write path, add an explicit precondition `payrollRun.status === 'approved'` and return `409 { error:'invalid_state', current_status }` otherwise. This makes "posted" reachable only from "approved".
+5. Wrap all writes (JE atomic RPC, `payroll_runs.update`, `payroll_liabilities.upsert`, `payroll_liability_sources.insert`, `audit_logs.insert`) behind a single `if (!dryRun)` guard block for defensive symmetry, and add an assertion at the top of that block that `dryRun === false`.
+6. Emit a `posting_previewed` `audit_logs` row (non-financial, `action='payroll_posting_previewed'`) on every dry-run — for auditability, without touching accounting state.
 
-### R6 — Auditor reconciliation panel (admin dialog, collapsed by default)
-New collapsible section: **"PAYE reconciliation"** reading `payslips.taxable_base`, `payslips.paye_before_relief`, and joining `payroll_rule_traces` for the PAYE rule. Renders the exact ladder:
-`Gross taxable → − statutory deductibles → − exemptions → = taxable_base → × brackets → paye_before_relief → − reliefs → = PAYE`.
-Read-only; zero engine impact.
+### 4b. Client — relocate & rescope the simulator
+1. Remove `<PayrollPostingSimulator />` from `src/pages/hr/payroll/AccountMapping.tsx` (line 187).
+2. Rebuild it as `PayrollPostingPreviewDialog(runId)` and mount it:
+   - As a row action on the Payroll Runs list for `computed`/`approved` rows ("Preview posting").
+   - Inside `PayrollRunDetailsDialog.tsx` beside the existing "Post to GL" button.
+3. Preview dialog shows: projected DR/CR lines with account code/name/type, balance status, missing mappings (deep-link to mapping page), period warnings, and — when `already_posted:true` — a read-only banner linking to the existing JE (no toast confusion).
+4. On the mapping page, replace the removed button with a `Validate mappings` action that calls `payroll_validate_post_mappings` only (no JE projection, no run selection).
+5. Update `usePayrollGL.postPayrollToGL` so `already_posted` is treated as an idempotent replay outcome (info, not error), and refetch run status.
 
-### R7 — Portal: "How your pay was calculated" narrative + prior-period delta
-One paragraph auto-generated from the section subtotals, plus a `Δ vs {previous_period}` chip on the Net Pay card. Data comes from a single extra query. This is the change with the highest employee-trust ROI.
+### 4c. State-machine hardening (DB)
+1. New migration: add a `BEFORE UPDATE` trigger on `payroll_runs` that rejects `status` transitions outside `{draft→computed, computed→approved, approved→posted, posted→paid, paid→remitted, remitted→closed}` plus explicit reversal transitions. Prevents any code path from silently jumping states.
+2. Add a partial unique index `journal_entries (source_type, source_id) WHERE source_type='payroll' AND status<>'voided'` if not already present, to make the "one JE per run" invariant a DB-level guarantee, not an application check.
 
-### R8 — Structured PDF builder (refactor, not a redesign)
-Replace the `rows.push({...})` sequence with a small `PayslipDoc` object composed of `sections[]`, each with `title / lines[] / subtotal / notes[]`. Feeds the same `generateReportPdf` primitive. Prerequisite for R3 (summary vs. detailed) being testable.
+### 4d. Tests (architecture + integration)
+Add under `src/test/architecture/`:
+1. `post-payroll-gl-dry-run-is-readonly.test.ts` — greps the edge function to lock: every mutation (`.insert(`, `.update(`, `.upsert(`, `.delete(`, and the `post_journal_entry_atomic` RPC) is inside a `if (!dryRun)` block; `dry_run` branch returns before the write region.
+2. `post-payroll-gl-idempotency-not-in-dry-run.test.ts` — asserts the JE-existence short-circuit is reached only on the write path; dry-run must include `already_posted` in the payload instead of returning it early.
+3. `payroll-preview-not-on-mapping-page.test.ts` — asserts `AccountMapping.tsx` does not import `PayrollPostingSimulator`.
+4. `payroll-post-requires-approved-status.test.ts` — asserts the edge function contains the `status === 'approved'` precondition.
+5. Extend `payroll-completion-guards.test.ts` with a "SoD gate skipped on dry_run" assertion.
 
-### R9 — Localization-pack "mandatory payslip fields" gate
-Extend `pack_requirements` with a `payslip_field` kind (e.g. `overtime_hours`, `leave_days_taken`). `generate-payslip-pdf` fails soft with a `header.notes` warning if a required field is absent. Keeps compliance enforcement in the pack, not the renderer.
+### 4e. Docs
+Add `docs/adr/00XX-payroll-posting-simulation-boundary.md` documenting: business event vs preview, side-effect boundary, state machine, benchmark to SAP/Workday/Oracle/Odoo.
 
-### What NOT to do
-- Do **not** add per-rule YTD to the monthly payslip. Current compact YTD is correct.
-- Do **not** move employer contributions above net pay. Current placement matches Odoo/Workday.
-- Do **not** localise any of the above in the renderer — every new label/threshold flows through the pack.
-- Do **not** touch the engine. Every recommendation is a renderer / adaptor / read-side change.
+## 5. Out of scope
+- Changing the JE line composition, statutory rulebook resolution, or pack semantics.
+- Payment batch / remittance workflow (already correct downstream of `posted`).
+- UI restyle beyond moving the button and the new preview dialog copy.
 
----
-
-## Suggested execution order (if approved)
-1. R1 (section derivation) + R4 (dialog cleanup) — one PR, no schema, immediate visual win.
-2. R2 (banded deductions) + R5 (structured reliefs in `source`) — one PR, uses columns already persisted.
-3. R8 (structured PDF builder) then R3 (summary vs. appendix PDF) — one PR, largest change, gated behind the existing `pdf_show_explainer` setting.
-4. R6 (auditor reconciliation panel) — one PR, admin-only.
-5. R7 (portal narrative + delta) — one PR, portal-only.
-6. R9 (pack mandatory fields) — separate ADR + pack schema bump.
+## 6. Deliverable order
+1. Migration (state-machine trigger + unique index).
+2. Edge function refactor (split dry_run before idempotency/SoD/period gates; add posted-only precondition; audit log for preview).
+3. Client: remove button from mapping page; add run-scoped preview dialog; wire into runs list + details dialog; add `Validate mappings` action.
+4. Architecture tests.
+5. ADR.
