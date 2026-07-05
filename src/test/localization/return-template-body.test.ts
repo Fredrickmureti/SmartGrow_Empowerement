@@ -16,7 +16,7 @@ import { __test } from "../../features/localization/components/ReturnTemplateEdi
 describe("return-template body — schema validation", () => {
   it("accepts a realistic return body (country-agnostic, generic rule code)", () => {
     const body = {
-      filters: { rule_codes: ["rule_a"], payslip_status: ["validated", "paid"] },
+      filters: { rule_codes: ["rule_a"], payslip_status: ["approved", "validated", "paid"] },
       columns: [
         { key: "tid", source: "employee.tax_id", label: "Tax ID", format: "text" },
         { key: "name", source: "employee.full_name", label: "Employee", format: "text" },
@@ -107,6 +107,8 @@ describe("return-template body — schema validation", () => {
     expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("sum_employee_amount");
     expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("sum_employer_amount");
     expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("sum_taxable_amount");
+    expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("sum_total_amount");
+    expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("count_payslips");
     // No country-specific identifier names baked in (denylist guard).
     expect((KNOWN_SYSTEM_COLUMN_SOURCES as readonly string[])).not.toContain("employee.nssf_number");
     expect((KNOWN_SYSTEM_COLUMN_SOURCES as readonly string[])).not.toContain("employee.shif_number");
@@ -116,6 +118,7 @@ describe("return-template body — schema validation", () => {
     expect(isKnownColumnSource("employee.tax_id")).toBe(true);
     expect(isKnownColumnSource("employee.stat_id_1")).toBe(true);
     expect(isKnownColumnSource("employee.de_steuer_id")).toBe(true);
+    expect(isKnownColumnSource("employee.statutory_id.nssf")).toBe(true);
     expect(isKnownColumnSource("not_an_employee_source")).toBe(false);
   });
 });

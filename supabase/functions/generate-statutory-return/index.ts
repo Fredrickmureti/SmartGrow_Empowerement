@@ -299,7 +299,7 @@ Deno.serve(async (req) => {
           ? `This return is configured to use ${statusText} payslips only, but none were found in the selected period.`
           : "No eligible payslips were found in the selected period, so the statutory return cannot be generated yet.",
         requiredStatuses.length
-          ? "Complete the payslip payment or approval workflow for this period, then generate the return again."
+          ? "Finalize payroll approval for this period so approved payroll results are available, then generate the return again."
           : "Confirm the payroll run includes payslips for this period, then generate the return again.",
         {
           template_code: body.template_code,
@@ -372,7 +372,7 @@ Deno.serve(async (req) => {
     //    template, and basic/allowances from the payslip itself.
     const ruleCodeSet = new Set(ruleCodes);
     const emptySums = (): SourceContext["sums"] => ({
-      employee: 0, employer: 0, taxable: 0, basic: 0, allowances: 0, byRule: {},
+      employee: 0, employer: 0, taxable: 0, basic: 0, allowances: 0, payslipCount: 0, byRule: {},
     });
     const sumsByEmp = new Map<string, SourceContext["sums"]>();
     for (const eid of employeeIds) sumsByEmp.set(eid, emptySums());
@@ -404,6 +404,7 @@ Deno.serve(async (req) => {
       const s = sumsByEmp.get(ps.employee_id);
       if (!s) continue;
       s.taxable += Number(ps.taxable_income ?? ps.gross_pay) || 0;
+      s.payslipCount = (s.payslipCount ?? 0) + 1;
     }
 
 
@@ -427,6 +428,7 @@ Deno.serve(async (req) => {
         a.taxable += s.taxable;
         a.basic += s.basic;
         a.allowances += s.allowances;
+        a.payslipCount = (a.payslipCount ?? 0) + (s.payslipCount ?? 0);
         for (const [code, r] of Object.entries(s.byRule)) {
           const cur = a.byRule[code] ?? { employee: 0, employer: 0 };
           cur.employee += r.employee;

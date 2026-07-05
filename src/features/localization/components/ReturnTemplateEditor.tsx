@@ -119,12 +119,12 @@ const RESERVED_PLATFORM_TOKENS: PackTokenOption[] = [
   { value: "sum_taxable_amount",       label: "Aggregate — sum_taxable_amount",  numeric: true, source: "system" },
 ];
 
-const PAYSLIP_STATUSES = ["draft", "validated", "paid", "posted"] as const;
+const PAYSLIP_STATUSES = ["pending", "approved", "validated", "posted", "paid"] as const;
 const FORMATS = ["text", "number", "currency", "date"] as const;
 
 function defaultBody(): ReturnBody {
   return {
-    filters: { rule_codes: [] },
+    filters: { rule_codes: [], payslip_status: ["approved", "validated", "paid"] },
     columns: [
       { key: "employee_pin", source: "employee.tax_pin", label: "PIN", format: "text" },
       { key: "employee_name", source: "employee.full_name", label: "Employee", format: "text" },
@@ -397,7 +397,7 @@ export function ReturnTemplateEditor({
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">Payslip statuses</h3>
           <p className="text-xs text-muted-foreground">
-            Which payslip statuses are eligible. Default: validated and paid.
+            Which finalized payslip statuses are eligible. Default: approved, validated, and paid; payment is a separate remittance settlement workflow.
           </p>
           <div className="flex flex-wrap gap-3">
             {PAYSLIP_STATUSES.map((s) => (

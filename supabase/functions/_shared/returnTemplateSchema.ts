@@ -43,6 +43,8 @@ export const KNOWN_SYSTEM_COLUMN_SOURCES = [
   "sum_taxable_amount",
   "sum_basic_pay",
   "sum_allowances",
+  "sum_total_amount",
+  "count_payslips",
 ] as const;
 
 /**
@@ -63,9 +65,11 @@ export const NUMERIC_SOURCES = new Set([
   "sum_taxable_amount",
   "sum_basic_pay",
   "sum_allowances",
+  "sum_total_amount",
+  "count_payslips",
 ]);
 
-export const PAYSLIP_STATUS_VALUES = ["draft", "validated", "paid", "posted"] as const;
+export const PAYSLIP_STATUS_VALUES = ["draft", "pending", "approved", "validated", "paid", "posted"] as const;
 
 export const GROUP_BY_VALUES = ["employee_id", "aggregate"] as const;
 

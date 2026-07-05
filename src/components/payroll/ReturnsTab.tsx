@@ -298,15 +298,11 @@ export function ReturnsTab() {
                       .
                     </p>
                   )}
-                  {accrualPayslipReadiness ? (
-                    <p className="text-muted-foreground">
-                      The payroll run is approved, but its payslip lifecycle is still pending. Finalize payroll approval so the payslip is marked approved; payment is not required for this accrual-basis return.
-                    </p>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      Advance the payslips through the payment workflow (Payroll → Payment Batches). Cash-basis remittances require paid payslips.
-                    </p>
-                  )}
+                  <p className="text-muted-foreground">
+                    {accrualPayslipReadiness
+                      ? "The payroll run is approved, but the template is not seeing an approval-final payslip status. Finalize payroll approval; employee payment is not required to generate statutory return documents."
+                      : "This template is still configured to exclude approved payslips. Update the localization return template so statutory documents file from approved payroll results; payment belongs to remittance settlement."}
+                  </p>
                 </>
               )}
             </div>
