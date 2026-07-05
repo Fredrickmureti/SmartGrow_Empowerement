@@ -1,67 +1,50 @@
-# Return Template Eligibility Audit + UI Precondition Surfacing
+Findings from the current tenant data:
 
-## Context
+- April 2026 payroll run exists and is approved + GL posted:
+  - `payroll_runs.status = posted`
+  - `approved_at` is present
+  - `posted_at` is present
+  - `posting_status = posted`
+- The selected P10 template is correctly configured as accrual-basis for readiness:
+  - effective `payslip_status` filter is `approved | validated | paid`
+- The actual blocking row is the payslip:
+  - one April payslip exists
+  - `payslips.status = pending`
+  - therefore it fails both the UI preflight and the edge function gate
 
-The `generate-statutory-return` 400 you're hitting is the intentional `NO_ELIGIBLE_PAYSLIPS` business error added in the parallel-workflow redesign. The workflow itself is wired correctly:
+Answer to your core question:
 
-- Payroll run for April 2026 is `approved_at IS NOT NULL` → passes gate 1.
-- Payslips exist but are not in `paid` status → fails the template's `filters.payslip_status = ["paid"]` gate.
+Yes — for P10, an approved payroll run should be enough to generate the return document. The user should not have to pay employees or remittance liabilities first. The current failure is not because P10 still requires payment; it is because payroll approval updated `payroll_runs`, but did not promote the computed payslip from `pending` to an approval-final status.
 
-The pipeline is doing what an enterprise system should: refusing to emit a cash-basis remittance before cash has moved. The gap is that **(a)** we never audited whether each installed template's filter matches its legal basis, and **(b)** the UI at `/hr/remittances → Returns` does not show the precondition before the user clicks Generate, so the failure feels like a bug.
+This is a lifecycle consistency bug between run approval and payslip approval, not a return-generation bug.
 
-## What to change
+Plan:
 
-### 1. Template eligibility audit (data / config)
+1. Fix payroll approval lifecycle at the source
+   - Update the `approve_payroll_run` database function so that when a payroll run is approved, every payslip on that run in `pending`/draft-like status is atomically promoted to `approved`.
+   - Keep payroll approval as the legal immutability event for accrual-basis statutory returns.
+   - Do not mark payslips `paid`; payment remains a separate cash workflow.
 
-For each row in `localization_pack_return_templates` installed for this org, classify by legal basis and set `filters.payslip_status` accordingly:
+2. Repair the current tenant's April 2026 approved run safely
+   - Backfill payslips for already-approved payroll runs where:
+     - run has `approved_at IS NOT NULL`
+     - payslip is still `pending`
+   - Promote those payslips to `approved`, not `paid`.
+   - This specifically makes April 2026 P10 eligible without pretending cash payment happened.
 
-| Return type                                  | Correct filter                          |
-| -------------------------------------------- | --------------------------------------- |
-| PAYE / income tax (accrual, liability-based) | `["approved","validated","paid"]`       |
-| NSSF / NHIF / SHIF cash remittances          | `["paid"]`                              |
-| SDL / levy monthly returns (KE-style)        | `["approved","validated","paid"]`       |
-| Year-end certificates (P9, P10, W-2, etc.)   | `["paid"]` (calendar-year cash basis)   |
+3. Correct readiness language
+   - Change the UI warning copy so accrual-basis templates do not tell users to go to Payment Batches when the required statuses include `approved`.
+   - For P10/P10A/P10D it should say the run is approved but the payslip lifecycle is inconsistent and needs approval finalization.
+   - Keep payment wording only for cash-basis templates whose required status is only `paid`.
 
-Deliverable: one `insert` migration that updates the `filters` JSON on the templates for the currently installed pack, plus a `pack_audit_log` entry per change with the legal-basis rationale.
+4. Add regression coverage
+   - Add an architecture/unit test proving P10 readiness accepts approved payslips.
+   - Add a database/RPC signature expectation test or SQL fixture check documenting that payroll approval must promote pending payslips to approved.
 
-### 2. Precondition preview in the UI
-
-In `PayrollRemittanceReturns` (the panel at `/hr/remittances → Returns`), before enabling the "Generate" button per template row, call a lightweight `payroll_return_eligibility` view/RPC that returns:
-
-- `approved_runs_count`
-- `eligible_payslips_count` (respecting the template's `filters.payslip_status`)
-- `blocking_reason` enum (`no_approved_run` | `no_eligible_payslips` | `ready`)
-
-Render:
-
-- `ready` → green "Generate" button.
-- `no_eligible_payslips` → amber "Awaiting payment" chip + tooltip listing how many payslips are stuck in which status, with a deep link to the payment batch screen.
-- `no_approved_run` → grey "Awaiting approval" chip + link to the run.
-
-This turns the 400 into a preflight state the user sees before clicking, matching how Workday's Tax Filing dashboard and SAP's PC00_M99_URMR surface readiness.
-
-### 3. Business-error contract on the frontend
-
-`useGenerateStatutoryReturn` currently toasts the raw message. Extend it to branch on `error_code`:
-
-- `NO_APPROVED_PAYROLL_RUNS` → toast + CTA "Open payroll run".
-- `NO_ELIGIBLE_PAYSLIPS` → toast + CTA "Open payment batches" (pre-filtered to the period).
-- `TEMPLATE_NOT_INSTALLED` → toast + CTA "Install localization pack".
-
-### 4. Architecture test
-
-Add `src/test/architecture/return-template-filter-legal-basis.test.ts` that fails if any seeded return template has an empty `filters.payslip_status` or a value inconsistent with its `legal_basis` column. This prevents regression when new packs are installed.
-
-## Out of scope
-
-- Changing the edge function's gating logic — it is correct.
-- Auto-triggering payment from the Returns screen — payment remains an explicit peer workflow.
-- Retroactively marking April payslips as paid — that is a data action for the user, not something this plan does.
-
-## Verification
-
-1. Apply the template filter audit migration.
-2. Reload `/hr/remittances → Returns` for April 2026; PAYE row should now show `ready`, NSSF/NHIF rows should show `Awaiting payment` with counts.
-3. Click Generate on PAYE → 200 with a return artifact.
-4. Click Generate on NSSF → button is disabled; running the edge function directly still returns the structured 400 (contract preserved for API consumers).
-5. `bun vitest run src/test/architecture/return-template-filter-legal-basis.test.ts` passes.
+5. Validate against the real April 2026 path
+   - Re-query the tenant after the change:
+     - April run remains posted/approved.
+     - April payslip becomes `approved`.
+     - P10 effective filter remains `approved | validated | paid`.
+   - Verify the Generate button should be enabled for April 2026 P10.
+   - The edge function should no longer return `NO_ELIGIBLE_PAYSLIPS` for this P10 case.
