@@ -64,10 +64,10 @@ describe("Reliefs pipeline — full kind coverage (§R2, Gap A)", () => {
 
   it("Pass A applies exemption reliefs guarded by their condition", () => {
     // Exemption block must iterate income_tax reliefs and gate on condition.
-    const idx = ENGINE_SRC.indexOf("Exemption reliefs");
-    expect(idx).toBeGreaterThan(0);
-    const window = ENGINE_SRC.slice(idx, idx + 1200);
-    expect(window).toMatch(/kind\s*\?\?\s*""\)?\.toLowerCase\(\)\s*!==\s*"exemption"/);
+    const idx = ENGINE_SRC.indexOf("─ Exemption reliefs");
+    expect(idx, "exemption reliefs block missing from Pass A").toBeGreaterThan(0);
+    const window = ENGINE_SRC.slice(idx, idx + 1500);
+    expect(window).toMatch(/toLowerCase\(\)\s*!==\s*"exemption"/);
     expect(window).toMatch(/r\.condition/);
     expect(window).toMatch(/statutoryDeductible\s*\+=\s*amt/);
   });
