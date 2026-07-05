@@ -433,17 +433,21 @@ Deno.serve(async (req) => {
     // payroll_required_gl_mappings_for_run is shared with the AI assistant,
     // validate_payroll_run_mappings, and the missing-mappings dialog. Posting
     // and preflight can never disagree because they call the same function.
+    console.log("[post-payroll-gl] step: required mappings rpc");
     const { data: requiredRows, error: resolverError } = await supabaseAdmin.rpc(
       "payroll_required_gl_mappings_for_run",
       { p_run_id: payroll_run_id },
     );
     if (resolverError) {
+      console.error("[post-payroll-gl] resolver error:", resolverError);
       return new Response(JSON.stringify({
         error: `Could not resolve required GL mappings: ${resolverError.message}`,
       }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    console.log("[post-payroll-gl] required rows:", (requiredRows || []).length);
+
 
     // ─── Populate the effective-dated binding map (authoritative) ───
     // Resolve every mapping key this run could reference through the temporal
