@@ -80,6 +80,16 @@ export interface ChildRunSummary {
   total_employer_contributions: number;
   group_id: string | null;
   business_id: string | null;
+  // Parallel-workflow state columns (plan §Phase 1). These are the
+  // independent lifecycles derived from Approval — Posting / Payment /
+  // Bank File / Payslip Issuance. They are NEVER a chain: each advances
+  // on its own preconditions, and the classic `status` column is the
+  // Calculation lifecycle only.
+  approved_at: string | null;
+  posting_status: string | null;
+  payment_status: string | null;
+  bank_file_status: string | null;
+  payslip_issuance_status: string | null;
 }
 
 export interface PeriodConsolidation {
