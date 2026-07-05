@@ -2636,6 +2636,13 @@ Deno.serve(async (req) => {
         if (empBracketTraces.length > 0) {
           bracketTraceSink.push({ employee_id: emp.id, traces: empBracketTraces });
         }
+        // Expose the traces to the payslip_lines emitter so the PDF /
+        // explainer popover can render "How PAYE was computed" from
+        // `source.bracket_breakdown`. Key by rule_name because
+        // deductionsDetail is keyed by rule_name.
+        (emp as any).__bracket_traces_by_rule_name = Object.fromEntries(
+          empBracketTraces.map((t) => [t.rule_name, t]),
+        );
       }
 
 
