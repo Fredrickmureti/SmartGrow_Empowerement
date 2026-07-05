@@ -54,7 +54,6 @@ resolved AS (
         AND s.organization_id IS NOT DISTINCT FROM d.organization_id
         AND s.country_code = d.country_code
         AND lower(s.rule_code) = d.pre_tax_code
-        AND COALESCE((s.parameters->>'reduces_taxable_income')::boolean, false) = true
     ) AS matches_sibling,
     EXISTS (
       SELECT 1 FROM engine_input_tokens t WHERE t.code = d.pre_tax_code
