@@ -648,7 +648,8 @@ export default function PayrollControlCenter() {
                             const warns = iss?.warning_count ?? 0;
                             const showPaymentCTA = g.status === "posted" && canPayPayroll && !linkedPayment;
                             return (
-                              <div key={r.id} className="flex items-center justify-between gap-2 p-2 text-sm">
+                              <div key={r.id} className="p-2 text-sm space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
                                 <Link to={`/hr/payroll/runs/${r.id}`} className="flex-1 min-w-0 flex items-center gap-2 hover:underline">
                                   <ChevronRight className="h-3 w-3" />
                                   <span className="font-medium">{r.payroll_number}</span>
