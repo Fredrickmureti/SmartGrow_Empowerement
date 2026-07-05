@@ -74,8 +74,12 @@ import {
 } from "lucide-react";
 import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMappingFindingsPanel";
 import { PayrollGlUpgradeDiffPanel } from "@/components/payroll/PayrollGlUpgradeDiffPanel";
-import { PayrollPostingSimulator } from "@/components/payroll/PayrollPostingSimulator";
+// PayrollPostingSimulator was intentionally REMOVED from this page.
+// Posting simulation is a run-scoped operation (see ADR: Payroll Posting
+// Simulation Boundary) — it lives on the payroll run, not on the mapping
+// configuration screen. This page keeps only mapping-validation actions.
 import { formatDistanceToNow } from "date-fns";
+
 
 const SOURCE_META: Record<
   PayrollMappingSource,
