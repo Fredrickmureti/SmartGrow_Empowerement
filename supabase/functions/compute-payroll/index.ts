@@ -2641,6 +2641,69 @@ Deno.serve(async (req) => {
           }
         }
 
+        // ─── Employee-input pre-tax deductions (audit 2026-07-05 closeout) ───
+        // `pre_tax_deductions[]` may reference codes that are NOT sibling
+        // statutory rules but employee compensation components (KE pack:
+        // pension_contribution, mortgage_interest, post_retirement_medical).
+        // These arrive through EMPLOYEE_INPUT_REGISTRY / ctx.inputs and are
+        // capped by any matching `reliefs[]` entry of kind='deduction_cap'.
+        // Country-agnostic: the engine reads codes, never country strings.
+        const deductionCapByCode = new Map<string, number>();
+        for (const it of incomeTaxRules) {
+          const reliefsArr = (it.parameters as any)?.reliefs;
+          if (!Array.isArray(reliefsArr)) continue;
+          for (const r of reliefsArr) {
+            if (r && String(r.kind ?? "").toLowerCase() === "deduction_cap") {
+              const bc = String(r.base_code ?? "").toLowerCase();
+              const cap = Number(r.cap ?? 0);
+              if (bc && cap > 0) deductionCapByCode.set(bc, cap);
+            }
+          }
+        }
+        const siblingRuleCodes = new Set(
+          empRules.map((r) => (r.rule_code || "").toLowerCase()).filter(Boolean),
+        );
+        for (const code of preTaxCodes) {
+          // Already handled as a sibling statutory rule.
+          if (siblingRuleCodes.has(code)) continue;
+          const raw = Number(ctx.inputs?.[code] ?? 0);
+          if (raw <= 0) continue;
+          const cap = deductionCapByCode.get(code);
+          const applied = cap != null ? Math.min(raw, cap) : raw;
+          if (applied <= 0) continue;
+          statutoryDeductible += applied;
+          taxableBaseComponents.push({
+            rule_code: code,
+            rule_name: cap != null && raw > cap ? `${code} (capped at ${cap})` : code,
+            amount: applied,
+          });
+        }
+
+        // ─── Exemption reliefs (kind='exemption') ───
+        // Reduce the taxable base by a flat amount when the declared
+        // condition is truthy (e.g. KE disability_exemption gated on
+        // disability_certified). Applied here in Pass A so the taxable
+        // base reflects the exemption before bracket computation.
+        for (const it of incomeTaxRules) {
+          const reliefsArr = (it.parameters as any)?.reliefs;
+          if (!Array.isArray(reliefsArr)) continue;
+          for (const r of reliefsArr) {
+            if (!r || String(r.kind ?? "").toLowerCase() !== "exemption") continue;
+            if (r.condition) {
+              const gate = ctx.inputs?.[String(r.condition)];
+              if (!gate) continue;
+            }
+            const amt = Number(r.amount ?? 0);
+            if (amt <= 0) continue;
+            statutoryDeductible += amt;
+            taxableBaseComponents.push({
+              rule_code: String(r.code ?? "exemption"),
+              rule_name: String(r.code ?? "exemption"),
+              amount: amt,
+            });
+          }
+        }
+
         // Reduce the taxable base by the accumulated deductibles, clamped ≥ 0.
         if (statutoryDeductible > 0) {
           ctx.taxableIncome = Math.max(0, taxableIncome - statutoryDeductible);
