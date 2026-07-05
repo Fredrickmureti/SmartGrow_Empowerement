@@ -98,7 +98,6 @@ BEGIN
         AND s.organization_id IS NOT DISTINCT FROM it.organization_id
         AND s.country_code = it.country_code
         AND lower(s.rule_code) = lower(x.code)
-        AND COALESCE((s.parameters->>'reduces_taxable_income')::boolean, false) = true
     );
   IF n > 0 THEN
     RAISE EXCEPTION
