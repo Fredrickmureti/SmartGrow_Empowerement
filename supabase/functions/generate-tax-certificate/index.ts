@@ -14,9 +14,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
+import { renderCertificatePdf } from "../_shared/pdf/certificateRenderer.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody, toSummaryRows } from "../_shared/renderTemplateBody.ts";
-import { renderCertificateSections, type MonthlyRow } from "../_shared/certificateSections.ts";
+import { type MonthlyRow } from "../_shared/certificateSections.ts";
 import { resolveCertificateYtd } from "../_shared/certificateSourceResolver.ts";
 
 const corsHeaders = {
