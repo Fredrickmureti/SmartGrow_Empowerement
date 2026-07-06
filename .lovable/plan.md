@@ -9,8 +9,8 @@ I re-read the brief, `.lovable/plan.md`, and the tree. The previous agent's last
 | A2 golden test | ✅ shipped | ✅ `certificateRenderer_golden_test.ts` present |
 | A3 completeness per doc class | in-flight | ✅ **already shipped** — `_shared/certificateCompleteness.ts` + browser mirror wired into editor and `lint-localization-pack` |
 | D1 pack version + proposals | ✅ shipped | ✅ verified in migrations |
-| **B1 WYSIWYG preview** | ✅ shipped (last msg) | ❌ **not implemented** — editor is still forms-only |
-| **B2 token/column pickers** | pending | ❌ still `Textarea`s for column keys / footnote / tokens (`TokenAwareTextarea` exists but is not wired as an enum picker) |
+| **B1 WYSIWYG preview** | ✅ shipped | ✅ verified — isomorphic browser renderer + debounced preview pane |
+| **B2 token/column pickers** | ✅ shipped | ✅ column keys as chip picker; footnote body + footer note now use `TokenAwareTextarea`; canonical statutory snippet library seeded (KE P9 / P10 / cert-of-service) |
 | **B3 visual QA gate** | pending | ⚠️ only completeness check landed; no fixture render, no byte floor, no overflow detection |
 | **C1 `return_template_v2` + returnRenderer** | pending | ❌ absent |
 | **C2 migrate `generate-statutory-return`** | pending | ❌ still uses `generateReportPdf` |
