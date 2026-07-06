@@ -12,11 +12,16 @@ import { ShieldAlert, ShieldCheck, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { usePackHealth } from "../hooks/usePack";
+import { usePackHealth, useCertificateTemplateHealth } from "../hooks/usePack";
 import { validatePayload } from "../hooks";
 
 export function PackHealthPanel({ packId }: { packId?: string | null }) {
   const { data: rows, isLoading, refetch } = usePackHealth(packId);
+  const certHealth = useCertificateTemplateHealth(packId);
+  const legacyCerts = certHealth.data?.legacy ?? [];
+  const missingMetaCerts = certHealth.data?.missingMetadata ?? [];
+  const totalWarnings =
+    (rows?.length ?? 0) + legacyCerts.length + missingMetaCerts.length;
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const validateOne = async (row: any) => {
@@ -47,15 +52,17 @@ export function PackHealthPanel({ packId }: { packId?: string | null }) {
         <CardTitle className="text-base flex items-center gap-2">
           <ShieldAlert className="h-4 w-4" />
           Pack health
-          {rows && rows.length > 0 && <Badge variant="destructive">{rows.length}</Badge>}
+          {totalWarnings > 0 && (
+            <Badge variant="destructive">{totalWarnings}</Badge>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         {isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
-        {!isLoading && (!rows || rows.length === 0) && (
+        {!isLoading && totalWarnings === 0 && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ShieldCheck className="h-4 w-4 text-green-600" />
-            All rules validated against the current schema registry.
+            All rules and certificate templates pass the current schema registry.
           </div>
         )}
         {(rows ?? []).map((r) => (
@@ -72,6 +79,57 @@ export function PackHealthPanel({ packId }: { packId?: string | null }) {
             </Button>
           </div>
         ))}
+
+        {legacyCerts.length > 0 && (
+          <div className="border rounded-md p-2 space-y-1">
+            <div className="text-xs font-semibold flex items-center gap-2">
+              <ShieldAlert className="h-3 w-3 text-destructive" />
+              Legacy certificate templates ({legacyCerts.length})
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Re-save these templates in the certificate editor to adopt the
+              v2 sections schema (ADR 0060). Publish will refuse them until
+              they are migrated.
+            </div>
+            <ul className="text-xs list-disc pl-5">
+              {legacyCerts.map((c) => (
+                <li key={c.id}>
+                  <span className="font-mono">{c.code}</span>
+                  {c.display_name ? ` — ${c.display_name}` : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {missingMetaCerts.length > 0 && (
+          <div className="border rounded-md p-2 space-y-1">
+            <div className="text-xs font-semibold flex items-center gap-2">
+              <ShieldAlert className="h-3 w-3 text-destructive" />
+              Certificates missing legal metadata ({missingMetaCerts.length})
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Each certificate must carry statutory authority, legal
+              reference, and effective date. Publish will fail otherwise.
+            </div>
+            <ul className="text-xs list-disc pl-5">
+              {missingMetaCerts.map((c) => {
+                const missing = [
+                  !c.authority_id && "authority",
+                  !c.legal_reference && "legal reference",
+                  !c.effective_date && "effective date",
+                ].filter(Boolean).join(", ");
+                return (
+                  <li key={c.id}>
+                    <span className="font-mono">{c.code}</span>
+                    {c.display_name ? ` — ${c.display_name}` : null}
+                    <span className="text-muted-foreground"> · missing {missing}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
