@@ -449,108 +449,114 @@ Deno.serve(async (req) => {
         // guarantees a `totals` section is always present, so
         // sections.totalsRows will not be empty.
 
-        // Sections renderer (Wave 7 / P1.1): if the resolved template carries
-        // `body.sections[]`, project them into PDF primitives. This is what
-        // makes KE P9 produce its 12-row monthly grid instead of falling back
-        // to the generic YTD rule table.
+        // ADR-0060 Wave 8 — Dedicated certificate renderer.
+        // The template's `body.sections[]` (already validated by the
+        // `certificate_template_v2` schema trigger) is rendered by
+        // `renderCertificatePdf`, which draws each section as its own
+        // visual band (identity, period, monthly grid, totals, relief,
+        // footnote, signature). We no longer flatten sections into the
+        // generic report PDF — that path collapsed identity + signature
+        // bands into a tiny bottom summary strip and produced the
+        // "shallow document" tenants complained about.
         const sectionsSpec = (template.body && Array.isArray((template.body as any).sections))
-          ? (template.body as any).sections
-          : null;
-        let monthlyRows: MonthlyRow[] = [];
-        if (sectionsSpec) {
-          const allRuleCodes = sectionsSpec
-            .filter((s: any) => s?.type === "monthly_breakdown" && Array.isArray(s.rule_codes))
-            .flatMap((s: any) => s.rule_codes as string[]);
-          if (allRuleCodes.length) {
-            const { data: monthly } = await admin.rpc("payroll_employee_monthly_breakdown", {
-              p_year: body.fiscal_year,
-              p_employee_id: emp.id,
-              p_rule_codes: Array.from(new Set(allRuleCodes)),
-            });
-            monthlyRows = (monthly ?? []) as MonthlyRow[];
-          }
-        }
-        const sections = renderCertificateSections(sectionsSpec, {
-          employer: {
-            name: branding?.name ?? "",
-            tax_pin: (branding as any)?.tax_pin ?? (branding as any)?.taxPin ?? "",
-            address: (branding as any)?.address ?? "",
-            tax_office: (branding as any)?.tax_office ?? "",
-          },
-          employee: payload.employee as any,
-          ytdRows: rows.map((r) => ({
-            rule_code: r.rule_code,
-            category: r.category,
-            employee_amount: Number(r.employee_amount) || 0,
-            employer_amount: Number(r.employer_amount) || 0,
-            taxable_amount: Number(r.taxable_amount) || 0,
-          })),
-          monthly: monthlyRows,
-          totals,
-          currency: orgCurrency,
-          fiscalYear: body.fiscal_year,
-          periodLabel: `1 Jan ${body.fiscal_year} — 31 Dec ${body.fiscal_year}`,
-        });
+          ? (template.body as any).sections as any[]
+          : [];
 
-        // Render PDF — prefer monthly grid when a section declares one,
-        // else the explicit YTD table, else the legacy YTD rule table.
-        const useMonthly = !!sections.monthlyTable;
-        const useYtd = !useMonthly && !!sections.ytdTable;
-        const legalFooter = [
-          template.legal_reference,
-          template.regulation_citation,
-        ].filter(Boolean).join(" · ");
-        const combinedFooter = [
-          rendered.footerNote,
-          ...sections.footnotes,
-          legalFooter,
-          `Tax Certificate • ${template.code} • FY ${body.fiscal_year}`,
-        ].filter(Boolean).join("\n");
-        const pdfPayload: ReportPdfPayload = {
-          title: template.display_name,
-          subtitle: `Fiscal Year ${body.fiscal_year} — ${payload.employee.full_name}`,
-          companyName: branding?.name ?? "",
-          organization: branding ?? undefined,
-          currency: orgCurrency,
-          columns: useMonthly
-            ? sections.monthlyTable!.columns
-            : useYtd
-              ? sections.ytdTable!.columns
-              : [
-                  { key: "rule_code", header: "Rule", align: "left" },
-                  { key: "category", header: "Category", align: "left" },
-                  { key: "employee_amount", header: "Employee", align: "right", format: "money" },
-                  { key: "employer_amount", header: "Employer", align: "right", format: "money" },
-                  { key: "taxable_amount", header: "Taxable", align: "right", format: "money" },
-                ],
-          rows: useMonthly
-            ? sections.monthlyTable!.rows
-            : useYtd
-              ? sections.ytdTable!.rows
-              : rows.map((r) => ({
-                  rule_code: r.rule_code,
-                  category: r.category ?? "",
-                  employee_amount: Number(r.employee_amount) || 0,
-                  employer_amount: Number(r.employer_amount) || 0,
-                  taxable_amount: Number(r.taxable_amount) || 0,
-                })),
-          summaryRows: [
-            ...toSummaryRows(rendered.beforeTable),
-            ...sections.employerRows,
-            ...sections.headerRows,
-            ...sections.periodRows,
-            ...sections.reliefRows,
-            ...sections.totalsRows,
-            ...sections.signatureRows,
-            ...toSummaryRows(rendered.afterTable),
-          ],
-          footerNote: combinedFooter,
-        };
+        // Pull monthly rows once for every rule_code referenced by any
+        // monthly_breakdown section.
+        let monthlyRows: MonthlyRow[] = [];
+        const allMonthlyRuleCodes = sectionsSpec
+          .filter((s: any) => s?.type === "monthly_breakdown")
+          .flatMap((s: any) => {
+            // Support both `rule_codes:[…]` and `columns:[{key}]` authoring shapes.
+            const fromCodes = Array.isArray(s.rule_codes) ? s.rule_codes as string[] : [];
+            const fromCols = Array.isArray(s.columns)
+              ? (s.columns as any[])
+                  .map((c) => typeof c === "string" ? c : String(c?.key ?? c?.rule_code ?? ""))
+                  .filter(Boolean)
+              : [];
+            return [...fromCodes, ...fromCols];
+          });
+        if (allMonthlyRuleCodes.length) {
+          const { data: monthly } = await admin.rpc("payroll_employee_monthly_breakdown", {
+            p_year: body.fiscal_year,
+            p_employee_id: emp.id,
+            p_rule_codes: Array.from(new Set(allMonthlyRuleCodes)),
+          });
+          monthlyRows = (monthly ?? []) as MonthlyRow[];
+        }
+
+        // Record any unresolved footer-note tokens as diagnostics but
+        // never surface them into the rendered PDF (the dedicated
+        // renderer owns footnote layout).
+        if (rendered.misses.length > 0) {
+          // already logged above via TOKEN_UNRESOLVED insert
+        }
+
         // STATUTORY PAPER PIN — annual employee tax certificates (P9 in
         // Kenya, equivalent forms elsewhere) are filed and audited at A4.
         // Tenant print policies cannot override.
         assertStatutoryPaper("a4");
-        const pdfBytes = await generateReportPdf(pdfPayload);
+
+        // Fetch statutory authority name (if any) for masthead legal citation.
+        let authorityName: string | null = null;
+        if ((packTemplate as any).authority_id) {
+          const { data: auth } = await admin
+            .from("statutory_authorities")
+            .select("display_name")
+            .eq("id", (packTemplate as any).authority_id)
+            .maybeSingle();
+          authorityName = (auth as any)?.display_name ?? null;
+        }
+
+        const serial = makeSerial(body.organization_id, emp.id, body.fiscal_year, template.code);
+        const pdfBytes = await renderCertificatePdf(
+          {
+            code: template.code,
+            display_name: template.display_name,
+            legal_reference: (packTemplate as any).legal_reference ?? null,
+            regulation_citation: (packTemplate as any).regulation_citation ?? null,
+            effective_date: (packTemplate as any).effective_date ?? null,
+            authority_name: authorityName,
+            body: template.body as any,
+          },
+          {
+            employee: {
+              id: emp.id,
+              full_name: payload.employee.full_name,
+              employee_number: payload.employee.employee_number,
+              tax_pin: payload.employee.tax_pin,
+              national_id: payload.employee.national_id,
+              position: payload.employee.position,
+              department: payload.employee.department,
+              hire_date: (emp as any).hire_date ?? null,
+              exit_date: (emp as any).termination_date ?? null,
+            },
+            employer: {
+              name: branding?.name ?? "",
+              tax_pin: (branding as any)?.tax_pin ?? "",
+              address: (branding as any)?.address ?? "",
+              tax_office: (branding as any)?.tax_office ?? "",
+              phone: (branding as any)?.phone ?? "",
+              email: (branding as any)?.email ?? "",
+            },
+            fiscal_year: body.fiscal_year,
+            period_label: `1 Jan ${body.fiscal_year} - 31 Dec ${body.fiscal_year}`,
+            currency: orgCurrency,
+            monthly: monthlyRows,
+            ytdRows: rows.map((r) => ({
+              rule_code: r.rule_code,
+              category: r.category,
+              employee_amount: Number(r.employee_amount) || 0,
+              employer_amount: Number(r.employer_amount) || 0,
+              taxable_amount: Number(r.taxable_amount) || 0,
+            })),
+            totals,
+            serial_number: serial,
+            generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+          },
+          { branding: branding ?? null },
+        );
 
         const serial = makeSerial(body.organization_id, emp.id, body.fiscal_year, template.code);
         const path = `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${serial}.pdf`;
