@@ -32,6 +32,8 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { extractTokens } from "../_shared/validateAgainstSchema.ts";
 import { checkCertificateCompleteness } from "../_shared/certificateCompleteness.ts";
+import { renderCertificatePdf } from "../_shared/pdf/certificateRenderer.ts";
+import { buildLintFixture, byteFloorFor } from "../_shared/certificateLintFixture.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -279,6 +281,45 @@ Deno.serve(async (req) => {
     }
     for (const t of bankExportTpls ?? []) {
       for (const e of validateBankExportStructure(t)) errors.push(e);
+    }
+
+    // 9. Visual QA gate — render each certificate through the same
+    //    renderer the runtime uses, against a synthetic fixture. Reject
+    //    on render failure or a byte floor breach (proxy for a template
+    //    whose sections collapse to a near-empty PDF at runtime).
+    for (const t of certTpls ?? []) {
+      const code = t.code ?? t.rule_code ?? "(unknown)";
+      const label = `certificate template "${code}"`;
+      try {
+        const ruleCodes = Array.isArray(t?.body?.sections)
+          ? Array.from(
+              new Set(
+                t.body.sections.flatMap((s: any) =>
+                  Array.isArray(s?.rule_codes) ? s.rule_codes : [],
+                ),
+              ),
+            )
+          : [];
+        const payload = buildLintFixture(ruleCodes.length ? ruleCodes : [t.rule_code].filter(Boolean));
+        const template = {
+          code,
+          display_name: code,
+          legal_reference: t.legal_reference ?? null,
+          regulation_citation: t.regulation_citation ?? null,
+          effective_date: t.effective_date ?? null,
+          authority_name: null,
+          body: t.body ?? { sections: [] },
+        };
+        const bytes = await renderCertificatePdf(template as any, payload as any, {});
+        const floor = byteFloorFor(String(code));
+        if (bytes.byteLength < floor) {
+          errors.push(
+            `${label}: rendered PDF (${bytes.byteLength} bytes) is below the ${floor} byte floor — sections are likely rendering empty.`,
+          );
+        }
+      } catch (e) {
+        errors.push(`${label}: renderer threw during visual-QA — ${(e as any)?.message ?? e}`);
+      }
     }
 
     return ok({ errors, warnings, summary: {

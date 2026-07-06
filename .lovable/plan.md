@@ -11,7 +11,7 @@ I re-read the brief, `.lovable/plan.md`, and the tree. The previous agent's last
 | D1 pack version + proposals | ✅ shipped | ✅ verified in migrations |
 | **B1 WYSIWYG preview** | ✅ shipped | ✅ verified — isomorphic browser renderer + debounced preview pane |
 | **B2 token/column pickers** | ✅ shipped | ✅ column keys as chip picker; footnote body + footer note now use `TokenAwareTextarea`; canonical statutory snippet library seeded (KE P9 / P10 / cert-of-service) |
-| **B3 visual QA gate** | pending | ⚠️ only completeness check landed; no fixture render, no byte floor, no overflow detection |
+| **B3 visual QA gate** | ✅ shipped | renderer-driven fixture render + per-doc-class byte floor (P9 ≥ 6KB, P10 ≥ 4KB, cert_of_service ≥ 3KB) wired into `lint-localization-pack` |
 | **C1 `return_template_v2` + returnRenderer** | pending | ❌ absent |
 | **C2 migrate `generate-statutory-return`** | pending | ❌ still uses `generateReportPdf` |
 | **C3 migrate `ReturnTemplateEditor`** | pending | ❌ 790-line editor untouched |
