@@ -396,7 +396,7 @@ function drawMonthlyBreakdown(ctx: DrawCtx, spec: CertificateSectionSpec): void 
     const label = safe(c.header).toUpperCase();
     const lw = ctx.fontBold.widthOfTextAtSize(label, SIZE.tableHeader);
     const maxLw = cellW - 6;
-    let sizeLbl = SIZE.tableHeader;
+    let sizeLbl: number = SIZE.tableHeader;
     if (lw > maxLw) sizeLbl = Math.max(6, SIZE.tableHeader * (maxLw / lw));
     const finalW = ctx.fontBold.widthOfTextAtSize(label, sizeLbl);
     ctx.page.drawText(label, {
