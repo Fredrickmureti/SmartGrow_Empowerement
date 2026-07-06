@@ -77,8 +77,11 @@ Same section-based UI as `CertificateTemplateEditor` (B1 + B2 preview and picker
 
 ### Phase D — ship via the upgrade flow (not a data patch)
 
-**D1. Convert the KE P9 body change into a `pack_upgrade_proposal`.**
-Publish a new KE pack version through `publish-localization-pack-version` (now gated by A3 + B3) rather than mutating seed rows. Tenants receive it via the existing `propose-localization-upgrades` / `apply-localization-pack-upgrade` path.
+**D1. Convert the KE P9 body change into a `pack_upgrade_proposal`. ✅ SHIPPED.**
+- Published KE pack version **2026.5.0** with a detailed changelog describing the P9 section-based rewrite (data-only insert, idempotent, non-breaking, no tenant data migration required).
+- Backfilled `pack_version_id` on `P9`, `P9A`, and `CERT_OF_SERVICE` template rows so audit provenance points at the version that introduced the v2 body.
+- Fanned out `pack_upgrade_proposals` (status `pending`) to every installed KE tenant whose active pack version is not `2026.5.0`. The one installed tenant now sees a pending `2026.3.0 → 2026.5.0` proposal in the Upgrades screen.
+- Added architecture test `certificate-body-change-requires-pack-version-bump.test.ts` — any future migration that writes to a certificate template `body` must also `INSERT INTO public.pack_versions ... 'published'` in the same migration, or explicitly grandfather itself. Blocks silent seed mutations going forward.
 
 **D2. Golden fixture set per country pack.**
 `localization_packs/<country>/fixtures/` — one synthetic employer + employees + a posted fiscal year, used by A2, B1, and B3. Cheap CI insurance that a new pack version renders the same shape as the previous one.
