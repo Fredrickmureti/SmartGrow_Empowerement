@@ -558,7 +558,6 @@ Deno.serve(async (req) => {
           { branding: branding ?? null },
         );
 
-        const serial = makeSerial(body.organization_id, emp.id, body.fiscal_year, template.code);
         const path = `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${serial}.pdf`;
 
         const upload = await admin.storage
