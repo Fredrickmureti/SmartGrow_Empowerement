@@ -12,16 +12,25 @@ import { ShieldAlert, ShieldCheck, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { usePackHealth, useCertificateTemplateHealth } from "../hooks/usePack";
+import {
+  usePackHealth,
+  useCertificateTemplateHealth,
+  useCertificateRenderFallbackHealth,
+} from "../hooks/usePack";
 import { validatePayload } from "../hooks";
 
 export function PackHealthPanel({ packId }: { packId?: string | null }) {
   const { data: rows, isLoading, refetch } = usePackHealth(packId);
   const certHealth = useCertificateTemplateHealth(packId);
+  const fallbackHealth = useCertificateRenderFallbackHealth(packId);
   const legacyCerts = certHealth.data?.legacy ?? [];
   const missingMetaCerts = certHealth.data?.missingMetadata ?? [];
+  const renderRefusals = fallbackHealth.data?.byTemplate ?? [];
   const totalWarnings =
-    (rows?.length ?? 0) + legacyCerts.length + missingMetaCerts.length;
+    (rows?.length ?? 0) +
+    legacyCerts.length +
+    missingMetaCerts.length +
+    (fallbackHealth.data?.totalRefusals ? 1 : 0);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const validateOne = async (row: any) => {
