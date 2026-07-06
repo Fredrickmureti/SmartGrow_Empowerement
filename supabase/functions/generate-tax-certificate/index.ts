@@ -422,11 +422,13 @@ Deno.serve(async (req) => {
           } catch { /* never break rendering on diagnostics */ }
         }
 
-        const baseSummary: Array<{ label: string; value: string }> = [
-          { label: "Total employee deductions", value: fmtMoney(totals.employee, orgCurrency) },
-          { label: "Total employer contributions", value: fmtMoney(totals.employer, orgCurrency) },
-          { label: "Total taxable income", value: fmtMoney(totals.taxable, orgCurrency) },
-        ];
+        // ADR 0060 v2026.4.0 — the legacy baseSummary triad
+        // (deductions / employer contributions / taxable income) was a
+        // payslip concept masquerading as a statutory footer. Totals
+        // now come exclusively from the template's `totals` section
+        // via renderCertificateSections. The structural refusal above
+        // guarantees a `totals` section is always present, so
+        // sections.totalsRows will not be empty.
 
         // Sections renderer (Wave 7 / P1.1): if the resolved template carries
         // `body.sections[]`, project them into PDF primitives. This is what
@@ -519,7 +521,7 @@ Deno.serve(async (req) => {
             ...sections.headerRows,
             ...sections.periodRows,
             ...sections.reliefRows,
-            ...(sections.totalsRows.length ? sections.totalsRows : baseSummary),
+            ...sections.totalsRows,
             ...sections.signatureRows,
             ...toSummaryRows(rendered.afterTable),
           ],
