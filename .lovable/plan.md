@@ -12,8 +12,8 @@ I re-read the brief, `.lovable/plan.md`, and the tree. The previous agent's last
 | **B1 WYSIWYG preview** | ✅ shipped | ✅ verified — isomorphic browser renderer + debounced preview pane |
 | **B2 token/column pickers** | ✅ shipped | ✅ column keys as chip picker; footnote body + footer note now use `TokenAwareTextarea`; canonical statutory snippet library seeded (KE P9 / P10 / cert-of-service) |
 | **B3 visual QA gate** | ✅ shipped | renderer-driven fixture render + per-doc-class byte floor (P9 ≥ 6KB, P10 ≥ 4KB, cert_of_service ≥ 3KB) wired into `lint-localization-pack` |
-| **C1 `return_template_v2` + returnRenderer** | pending | ❌ absent |
-| **C2 migrate `generate-statutory-return`** | pending | ❌ still uses `generateReportPdf` |
+| **C1 `return_template_v2` + returnRenderer** | ✅ shipped | `_shared/pdf/returnRenderer.ts` with section vocabulary (employer_header, period_band, employee_line_grid, employer_totals, reconciliation_block, signature_block, statutory_footnote, remittance_summary) |
+| **C2 migrate `generate-statutory-return`** | ✅ shipped | branches on `isReturnTemplateV2(template)` — legacy `generateReportPdf` path preserved for older packs |
 | **C3 migrate `ReturnTemplateEditor`** | pending | ❌ 790-line editor untouched |
 | **D2 country fixture set** | pending | ❌ no `fixtures/` directory |
 
