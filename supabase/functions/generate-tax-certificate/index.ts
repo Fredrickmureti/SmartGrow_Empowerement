@@ -448,6 +448,12 @@ Deno.serve(async (req) => {
           }
         }
         const sections = renderCertificateSections(sectionsSpec, {
+          employer: {
+            name: branding?.name ?? "",
+            tax_pin: (branding as any)?.tax_pin ?? (branding as any)?.taxPin ?? "",
+            address: (branding as any)?.address ?? "",
+            tax_office: (branding as any)?.tax_office ?? "",
+          },
           employee: payload.employee as any,
           ytdRows: rows.map((r) => ({
             rule_code: r.rule_code,
@@ -460,40 +466,62 @@ Deno.serve(async (req) => {
           totals,
           currency: orgCurrency,
           fiscalYear: body.fiscal_year,
+          periodLabel: `1 Jan ${body.fiscal_year} — 31 Dec ${body.fiscal_year}`,
         });
 
         // Render PDF — prefer monthly grid when a section declares one,
-        // otherwise fall back to the YTD rule table.
+        // else the explicit YTD table, else the legacy YTD rule table.
         const useMonthly = !!sections.monthlyTable;
+        const useYtd = !useMonthly && !!sections.ytdTable;
+        const legalFooter = [
+          template.legal_reference,
+          template.regulation_citation,
+        ].filter(Boolean).join(" · ");
+        const combinedFooter = [
+          rendered.footerNote,
+          ...sections.footnotes,
+          legalFooter,
+          `Tax Certificate • ${template.code} • FY ${body.fiscal_year}`,
+        ].filter(Boolean).join("\n");
         const pdfPayload: ReportPdfPayload = {
           title: template.display_name,
           subtitle: `Fiscal Year ${body.fiscal_year} — ${payload.employee.full_name}`,
           companyName: branding?.name ?? "",
           organization: branding ?? undefined,
           currency: orgCurrency,
-          columns: useMonthly ? sections.monthlyTable!.columns : [
-            { key: "rule_code", header: "Rule", align: "left" },
-            { key: "category", header: "Category", align: "left" },
-            { key: "employee_amount", header: "Employee", align: "right", format: "money" },
-            { key: "employer_amount", header: "Employer", align: "right", format: "money" },
-            { key: "taxable_amount", header: "Taxable", align: "right", format: "money" },
-          ],
-          rows: useMonthly ? sections.monthlyTable!.rows : rows.map((r) => ({
-            rule_code: r.rule_code,
-            category: r.category ?? "",
-            employee_amount: Number(r.employee_amount) || 0,
-            employer_amount: Number(r.employer_amount) || 0,
-            taxable_amount: Number(r.taxable_amount) || 0,
-          })),
+          columns: useMonthly
+            ? sections.monthlyTable!.columns
+            : useYtd
+              ? sections.ytdTable!.columns
+              : [
+                  { key: "rule_code", header: "Rule", align: "left" },
+                  { key: "category", header: "Category", align: "left" },
+                  { key: "employee_amount", header: "Employee", align: "right", format: "money" },
+                  { key: "employer_amount", header: "Employer", align: "right", format: "money" },
+                  { key: "taxable_amount", header: "Taxable", align: "right", format: "money" },
+                ],
+          rows: useMonthly
+            ? sections.monthlyTable!.rows
+            : useYtd
+              ? sections.ytdTable!.rows
+              : rows.map((r) => ({
+                  rule_code: r.rule_code,
+                  category: r.category ?? "",
+                  employee_amount: Number(r.employee_amount) || 0,
+                  employer_amount: Number(r.employer_amount) || 0,
+                  taxable_amount: Number(r.taxable_amount) || 0,
+                })),
           summaryRows: [
             ...toSummaryRows(rendered.beforeTable),
+            ...sections.employerRows,
             ...sections.headerRows,
+            ...sections.periodRows,
+            ...sections.reliefRows,
             ...(sections.totalsRows.length ? sections.totalsRows : baseSummary),
+            ...sections.signatureRows,
             ...toSummaryRows(rendered.afterTable),
           ],
-          footerNote:
-            rendered.footerNote ??
-            `Tax Certificate • ${template.code} • FY ${body.fiscal_year}`,
+          footerNote: combinedFooter,
         };
         // STATUTORY PAPER PIN — annual employee tax certificates (P9 in
         // Kenya, equivalent forms elsewhere) are filed and audited at A4.

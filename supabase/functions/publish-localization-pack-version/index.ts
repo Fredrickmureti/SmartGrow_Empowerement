@@ -45,6 +45,14 @@ const PACK_TABLES = [
   "pack_token_registry",
 ] as const;
 
+// Rule-type schemas are not pack-scoped, but a pack version must
+// snapshot the schemas that were live at publish time so tenants can
+// reproduce the exact validation rules that graded the pack's contents
+// (ADR 0060). Cached under a synthetic `_schemas` key in the snapshot.
+const SNAPSHOT_GLOBAL_TABLES = [
+  "pack_rule_type_schemas",
+] as const;
+
 /** Naive deep diff producing JSON-pointer-ish paths. */
 function diff(a: any, b: any, path = ""): Record<string, { from: any; to: any }> {
   const out: Record<string, { from: any; to: any }> = {};
@@ -68,15 +76,23 @@ async function snapshotPack(sb: any, packId: string) {
     if (error) throw new Error(`${t}: ${error.message}`);
     snap[t] = data ?? [];
   }
+  // Global tables (rule-type schemas) — snapshot at publish time so a
+  // pack version carries the exact validation rules that graded it.
+  for (const t of SNAPSHOT_GLOBAL_TABLES) {
+    const { data, error } = await sb.from(t).select("*");
+    if (error) throw new Error(`${t}: ${error.message}`);
+    snap[t] = data ?? [];
+  }
   const { data: pack } = await sb.from("localization_packs").select("*").eq("id", packId).single();
   snap["_pack"] = [pack];
   return snap;
 }
 
 /**
- * Server-side lint gate. Validates every pack payroll template against
- * its registered JSON Schema. Returns the list of human-readable errors,
- * empty means clean.
+ * Server-side lint gate. Validates every pack payroll template AND
+ * every certificate template against their registered JSON Schemas,
+ * plus certificate legal-metadata completeness (ADR 0060). Empty means
+ * clean.
  */
 async function lintPack(sb: any, packId: string): Promise<string[]> {
   const errors: string[] = [];
@@ -107,6 +123,29 @@ async function lintPack(sb: any, packId: string): Promise<string[]> {
     }
     const e = validateAgainstSchema(r.parameters, schema.json_schema);
     for (const m of e) errors.push(`${r.rule_name}: ${m}`);
+  }
+
+  // ADR 0060 — certificate templates must carry legal metadata and
+  // pass the certificate_template_v2 schema. Legacy pre-v2 bodies
+  // (legacy_unvalidated=true) MUST be migrated before publish.
+  const { data: certs } = await sb
+    .from("localization_pack_certificate_templates")
+    .select("code, display_name, body, authority_id, legal_reference, effective_date, legacy_unvalidated")
+    .eq("pack_id", packId);
+  const certSchema = schemaByKey.get("certificate_template::v2");
+  for (const c of certs ?? []) {
+    const label = c.display_name || c.code;
+    if (!c.authority_id) errors.push(`${label}: missing statutory authority`);
+    if (!c.legal_reference) errors.push(`${label}: missing legal reference`);
+    if (!c.effective_date) errors.push(`${label}: missing effective date`);
+    if (c.legacy_unvalidated) {
+      errors.push(`${label}: legacy pre-v2 body — re-save in the editor to adopt certificate_template_v2 sections`);
+      continue;
+    }
+    if (certSchema) {
+      const e = validateAgainstSchema(c.body, certSchema.json_schema);
+      for (const m of e) errors.push(`${label}: ${m}`);
+    }
   }
 
   return errors;

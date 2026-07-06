@@ -472,6 +472,8 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
           "effective_date", "sunset_date", "submission_channel",
           "submission_format", "digital_signature_spec",
           "acknowledgement_spec", "api_endpoint_spec", "approval_required",
+          // Certificate-specific first-class metadata (ADR 0060).
+          "revision_notes", "issued_to",
         ]) {
           if (k in input.metadata) patch[k] = (input.metadata as any)[k];
         }
@@ -628,10 +630,33 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
             mode={mode}
             packId={packId}
             templateCode={editing.code}
-            initial={{ template_code: editing.code, body: editing.body, layout: editing.layout, notes: null }}
+            initial={{
+              template_code: editing.code,
+              body: editing.body,
+              layout: editing.layout,
+              notes: null,
+              // ADR 0060: surface first-class certificate metadata to
+              // publisher editor in admin mode. Tenant overrides don't
+              // touch legal metadata (immutable, mirrors returns).
+              metadata: mode === "admin" ? {
+                authority_id: editing.authority_id ?? null,
+                legal_reference: editing.legal_reference ?? null,
+                regulation_citation: editing.regulation_citation ?? null,
+                effective_date: editing.effective_date ?? null,
+                sunset_date: editing.sunset_date ?? null,
+                revision_notes: editing.revision_notes ?? null,
+                issued_to: editing.issued_to ?? "employee",
+                approval_required: !!editing.approval_required,
+              } : undefined,
+            }}
             onCancel={() => setEditing(null)}
             onSave={async (next) => {
-              await update.mutateAsync({ id: editing.id, body: next.body, layout: next.layout });
+              await update.mutateAsync({
+                id: editing.id,
+                body: next.body,
+                layout: next.layout,
+                metadata: next.metadata as any,
+              });
               setEditing(null);
               toast.success("Template saved");
             }}
