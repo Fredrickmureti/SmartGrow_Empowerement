@@ -115,6 +115,36 @@ function validateReturnStructure(row: any): string[] {
   return errs;
 }
 
+/**
+ * Bank-export templates are file-format specs (CSV / fixed-width) consumed
+ * by payroll disbursement. They must declare which version of the bank's
+ * file spec they implement (`spec_reference`) and an `effective_date` so
+ * old bank-format revisions can be sunset cleanly. `authority_id` is
+ * optional — most clearing formats (Pesalink, EFT) are issued by clearing
+ * houses, not statutory authorities.
+ */
+function validateBankExportStructure(row: any): string[] {
+  const errs: string[] = [];
+  const code = row.format_code ?? "(unknown)";
+  const label = `bank export template "${code}"`;
+  const spec = row.spec ?? {};
+  if (!spec || typeof spec !== "object") {
+    errs.push(`${label}: spec must be a JSON object describing the file format.`);
+  } else if (!Array.isArray(spec.columns) || spec.columns.length === 0) {
+    errs.push(`${label}: spec.columns must be a non-empty array of field descriptors.`);
+  }
+  if (!row.spec_reference || String(row.spec_reference).trim() === "") {
+    errs.push(`${label}: spec_reference is required (bank-file spec version, e.g. "KBA Pesalink Bulk File Spec v1.2").`);
+  }
+  if (!row.effective_date || String(row.effective_date) < "2000-01-01") {
+    errs.push(`${label}: effective_date must be set and >= 2000-01-01 (got ${row.effective_date ?? "null"}).`);
+  }
+  if (row.legal_reference && !row.regulation_citation) {
+    errs.push(`${label}: regulation_citation is required whenever legal_reference is set.`);
+  }
+  return errs;
+}
+
 function ok(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -142,6 +172,7 @@ Deno.serve(async (req) => {
       { data: accountRoles },
       { data: tokens },
       { data: payrollTpls },
+      { data: bankExportTpls },
     ] = await Promise.all([
       sb.from("localization_packs").select("id, country_code, name").eq("id", pack_id).maybeSingle(),
       sb.from("payroll_statutory_rules").select("id, rule_code, rule_type, computation_method, parameters, superseded_by, remittance_frequency, period")
@@ -156,6 +187,9 @@ Deno.serve(async (req) => {
       sb.from("pack_account_roles").select("rule_code, role_key").eq("pack_id", pack_id),
       sb.from("pack_token_registry").select("token_path").or(`pack_id.is.null,pack_id.eq.${pack_id}`),
       sb.from("localization_pack_payroll_templates").select("body").eq("pack_id", pack_id),
+      sb.from("localization_pack_bank_export_templates")
+        .select("format_code, spec, spec_reference, effective_date, authority_id, legal_reference, regulation_citation")
+        .eq("pack_id", pack_id),
     ]);
 
     if (!pack) return ok({ errors: [`pack ${pack_id} not found`], warnings: [] }, 404);
@@ -231,6 +265,9 @@ Deno.serve(async (req) => {
     for (const t of returnTpls ?? []) {
       for (const e of validateReturnStructure(t)) errors.push(e);
     }
+    for (const t of bankExportTpls ?? []) {
+      for (const e of validateBankExportStructure(t)) errors.push(e);
+    }
 
     return ok({ errors, warnings, summary: {
       rules: rules?.length ?? 0,
@@ -238,6 +275,7 @@ Deno.serve(async (req) => {
       returns: returnTpls?.length ?? 0,
       schedules: schedules?.length ?? 0,
       account_roles: accountRoles?.length ?? 0,
+      bank_exports: bankExportTpls?.length ?? 0,
     } });
   } catch (e) {
     return ok({ errors: [String((e as any)?.message ?? e)], warnings: [] }, 500);

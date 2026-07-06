@@ -21765,48 +21765,76 @@ export type Database = {
       }
       localization_pack_bank_export_templates: {
         Row: {
+          authority_id: string | null
           builder_kind: string
           country_code: string | null
           created_at: string
           display_name: string
+          effective_date: string | null
           file_extension: string
           format_code: string
           id: string
           is_active: boolean
+          legal_reference: string | null
           mime_type: string
           pack_id: string | null
+          pack_version_id: string | null
+          regulation_citation: string | null
           spec: Json
+          spec_reference: string | null
+          sunset_date: string | null
           updated_at: string
         }
         Insert: {
+          authority_id?: string | null
           builder_kind?: string
           country_code?: string | null
           created_at?: string
           display_name: string
+          effective_date?: string | null
           file_extension?: string
           format_code: string
           id?: string
           is_active?: boolean
+          legal_reference?: string | null
           mime_type?: string
           pack_id?: string | null
+          pack_version_id?: string | null
+          regulation_citation?: string | null
           spec?: Json
+          spec_reference?: string | null
+          sunset_date?: string | null
           updated_at?: string
         }
         Update: {
+          authority_id?: string | null
           builder_kind?: string
           country_code?: string | null
           created_at?: string
           display_name?: string
+          effective_date?: string | null
           file_extension?: string
           format_code?: string
           id?: string
           is_active?: boolean
+          legal_reference?: string | null
           mime_type?: string
           pack_id?: string | null
+          pack_version_id?: string | null
+          regulation_citation?: string | null
           spec?: Json
+          spec_reference?: string | null
+          sunset_date?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "localization_pack_bank_export_templates_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "statutory_authorities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "localization_pack_bank_export_templates_pack_id_fkey"
             columns: ["pack_id"]
