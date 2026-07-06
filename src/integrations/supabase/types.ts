@@ -65402,6 +65402,15 @@ export type Database = {
         }
         Returns: string
       }
+      publish_localization_pack_version_sql: {
+        Args: {
+          p_notes?: string
+          p_pack_id: string
+          p_publisher?: string
+          p_version: string
+        }
+        Returns: string
+      }
       publish_salary_rule_set: {
         Args: { p_effective_from?: string; p_structure_id: string }
         Returns: string
