@@ -26,18 +26,20 @@ describe("certificate-legal-metadata-immutable", () => {
       resolve(process.cwd(), "src/hooks/payroll/useTemplateOverrides.ts"),
       "utf8",
     );
-    const code = src
+    let code = src
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
 
-    // Narrow to the certificate override branch to avoid false positives from
-    // unrelated return-template code paths in the same file.
-    const certSection =
-      code.split(/certificate/i).slice(1).join("certificate") || code;
+    // Strip the `kind === "return"` branch so we only inspect code paths that
+    // can execute when saving a certificate override.
+    code = code.replace(
+      /if\s*\(\s*kind\s*===\s*"return"\s*\)\s*\{[\s\S]*?\n\s*\}/g,
+      "",
+    );
 
     for (const k of FORBIDDEN) {
       expect(
-        certSection.includes(k),
+        code.includes(k),
         `Certificate override mutation must not reference "${k}" — ` +
           `legal metadata is pack-owned per ADR-0060.`,
       ).toBe(false);
