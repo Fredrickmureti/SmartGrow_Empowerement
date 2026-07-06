@@ -578,6 +578,19 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         </div>
       </div>
 
+      <div className="hidden xl:block">
+        <CertificatePreviewPane
+          templateCode={initial.template_code}
+          displayName={initial.template_code}
+          body={liveBody}
+          meta={editMetadata ? {
+            legal_reference: meta.legal_reference,
+            regulation_citation: meta.regulation_citation,
+            effective_date: meta.effective_date,
+          } : null}
+        />
+      </div>
+
       <div className="space-y-3">
         <TemplateFieldInspector
           packId={packId}
@@ -586,6 +599,18 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
             unresolvedRef.current = unresolved;
           }}
         />
+        <div className="xl:hidden">
+          <CertificatePreviewPane
+            templateCode={initial.template_code}
+            displayName={initial.template_code}
+            body={liveBody}
+            meta={editMetadata ? {
+              legal_reference: meta.legal_reference,
+              regulation_citation: meta.regulation_citation,
+              effective_date: meta.effective_date,
+            } : null}
+          />
+        </div>
       </div>
     </div>
   );
