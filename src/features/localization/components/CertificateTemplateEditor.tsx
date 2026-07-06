@@ -585,9 +585,11 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
             </div>
             <div className="space-y-1 md:col-span-2">
               <Label className="text-xs">Footer note</Label>
-              <Input
+              <TokenAwareTextarea
+                packId={packId ?? null}
+                rows={2}
                 value={footerNote}
-                onChange={(e) => setFooterNote(e.target.value)}
+                onChange={setFooterNote}
                 placeholder="e.g. Kenya Revenue Authority · P9A Tax Deduction Card"
               />
             </div>
