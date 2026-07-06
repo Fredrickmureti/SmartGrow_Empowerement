@@ -17,6 +17,7 @@ import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody, toSummaryRows } from "../_shared/renderTemplateBody.ts";
 import { renderCertificateSections, type MonthlyRow } from "../_shared/certificateSections.ts";
+import { resolveCertificateYtd } from "../_shared/certificateSourceResolver.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -319,12 +320,17 @@ Deno.serve(async (req) => {
           }
         }
 
-        const { data: rollup, error: rollErr } = await admin.rpc("payroll_employee_ytd_rollup", {
-          p_year: body.fiscal_year,
-          p_employee_id: emp.id,
+        // ADR 0060: certificates read YTD via the shared resolver only.
+        // This is the single writer that owns the canonical
+        // payroll_employee_ytd_rollup projection + provenance snapshot.
+        const source = await resolveCertificateYtd({
+          admin,
+          organizationId: body.organization_id,
+          businessId: body.business_id,
+          employeeId: emp.id,
+          fiscalYear: body.fiscal_year,
         });
-        if (rollErr) throw new Error(rollErr.message);
-        const rows = (rollup ?? []) as RollupRow[];
+        const rows = source.rows as RollupRow[];
         // Per-employee guard: an employee with no YTD rollup rows for the
         // fiscal year has no payslip lines in an approved run — skip with an
         // actionable message rather than emitting an empty PDF or throwing.
@@ -338,44 +344,9 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Provenance snapshot (Step 2): captures the high-water mark of the
-        // payroll surface that produced this certificate. payroll_mark_stale_certificates
-        // compares this against current MAX(updated_at) and flips `stale=true`
-        // if any underlying run/payslip has changed since issuance.
-        const { data: runRows } = await admin
-          .from("payroll_runs")
-          .select("id, updated_at, pay_period_end")
-          .eq("organization_id", body.organization_id)
-          .eq("business_id", body.business_id);
-        const fyRuns = (runRows ?? []).filter(
-          (r: any) => r.pay_period_end && new Date(r.pay_period_end).getUTCFullYear() === body.fiscal_year,
-        );
-        const { data: slipRows } = await admin
-          .from("payslips")
-          .select("id, updated_at, payroll_run_id")
-          .eq("organization_id", body.organization_id)
-          .eq("business_id", body.business_id)
-          .eq("employee_id", emp.id)
-          .in("payroll_run_id", fyRuns.map((r: any) => r.id).length ? fyRuns.map((r: any) => r.id) : ["00000000-0000-0000-0000-000000000000"]);
-        const maxRunTs = fyRuns.reduce((m: number, r: any) => Math.max(m, new Date(r.updated_at).getTime()), 0);
-        const maxSlipTs = (slipRows ?? []).reduce((m: number, r: any) => Math.max(m, new Date(r.updated_at).getTime()), 0);
-        const maxPayrollUpdatedAt = new Date(Math.max(maxRunTs, maxSlipTs, 0)).toISOString();
-        const provenance = {
-          run_ids: fyRuns.map((r: any) => r.id),
-          payslip_ids: (slipRows ?? []).map((r: any) => r.id),
-          max_payroll_updated_at: maxPayrollUpdatedAt,
-          snapshot_at: new Date().toISOString(),
-        };
-
-        const totals = rows.reduce(
-          (acc, r) => {
-            acc.employee += Number(r.employee_amount) || 0;
-            acc.employer += Number(r.employer_amount) || 0;
-            acc.taxable += Number(r.taxable_amount) || 0;
-            return acc;
-          },
-          { employee: 0, employer: 0, taxable: 0 },
-        );
+        const provenance = source.provenance;
+        const maxPayrollUpdatedAt = provenance.max_payroll_updated_at;
+        const totals = source.totals;
 
         const payload = {
           template_code: template.code,
