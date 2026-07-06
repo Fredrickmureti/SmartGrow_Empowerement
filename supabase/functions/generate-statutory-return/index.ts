@@ -535,13 +535,22 @@ Deno.serve(async (req) => {
       // renderer; feature-flagged per template body so old packs keep
       // rendering through the legacy `generateReportPdf` path.
       if (isReturnTemplateV2(template as any)) {
-        const reconciliationRuleCode = (template.body as any)?.reconciliation?.rule_code;
-        const reconciliation = reconciliationRuleCode
-          ? (() => {
-              const expected = Number(reconciliationByRule?.[reconciliationRuleCode]?.expected ?? 0);
-              const actual = Number(reconciliationByRule?.[reconciliationRuleCode]?.actual ?? 0);
-              return { rule_code: reconciliationRuleCode, expected, actual, delta: actual - expected };
-            })()
+        // Adapt the outer `reconciliation` block (already computed above)
+        // into the renderer's single-rule shape. Multi-rule reconciliation
+        // is summarised by its first block; publishers can add more
+        // detail via a dedicated `reconciliation_block` section later.
+        const first = reconciliation
+          ? (Array.isArray((reconciliation as any).blocks)
+              ? (reconciliation as any).blocks[0]
+              : reconciliation)
+          : null;
+        const recoPayload = first
+          ? {
+              rule_code: String(first.rule_code ?? first.code ?? ""),
+              expected: Number(first.expected ?? 0),
+              actual: Number(first.actual ?? 0),
+              delta: Number(first.delta ?? (Number(first.actual ?? 0) - Number(first.expected ?? 0))),
+            }
           : null;
         pdfBytes = await renderReturnPdf(template as any, {
           employer: {
@@ -556,7 +565,7 @@ Deno.serve(async (req) => {
           currency: orgCurrency,
           rows: projected as any,
           totals,
-          reconciliation,
+          reconciliation: recoPayload,
           serial_number: template.code,
           generated_at: new Date().toISOString(),
         });
