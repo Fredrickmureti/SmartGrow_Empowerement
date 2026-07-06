@@ -13,6 +13,7 @@ import { resolve, join } from "node:path";
 const ROOTS = [
   "supabase/functions/generate-tax-certificate",
   "supabase/functions/_shared/certificateSections.ts",
+  "supabase/functions/_shared/certificateSourceResolver.ts",
 ];
 
 function walk(p: string): string[] {
@@ -40,6 +41,23 @@ describe("certificate-canonical-source", () => {
       offenders,
       `Certificates must read YTD figures via payroll_employee_ytd_rollup, ` +
         `not by re-summing payslip_lines. Offenders:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("payroll_employee_ytd_rollup is called only via certificateSourceResolver", () => {
+    const files = walk("supabase/functions/generate-tax-certificate").filter(
+      (f) => /\.(ts|tsx)$/.test(f),
+    );
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = readFileSync(f, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:])\/\/.*$/gm, "$1");
+      if (/payroll_employee_ytd_rollup/.test(src)) offenders.push(f);
+    }
+    expect(
+      offenders,
+      `Only certificateSourceResolver may call payroll_employee_ytd_rollup. Offenders:\n${offenders.join("\n")}`,
     ).toEqual([]);
   });
 });
