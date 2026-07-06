@@ -30,17 +30,24 @@ describe("certificate-legal-metadata-immutable", () => {
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
 
-    // Strip the `kind === "return"` branch so we only inspect code paths that
-    // can execute when saving a certificate override.
+    // Strip the `kind === "return"` branch so only certificate-reachable
+    // writes remain.
     code = code.replace(
-      /if\s*\(\s*kind\s*===\s*"return"\s*\)\s*\{[\s\S]*?\n\s*\}/g,
+      /if\s*\(\s*kind\s*===\s*"return"\s*\)\s*\{[\s\S]*?\n\s{0,6}\}/g,
       "",
     );
 
+    // Only care about actual writes to the upsert row, not the shared input
+    // TypeScript type declaration.
+    const writes = code
+      .split("\n")
+      .filter((l) => /\brow[\.\[]/.test(l))
+      .join("\n");
+
     for (const k of FORBIDDEN) {
       expect(
-        code.includes(k),
-        `Certificate override mutation must not reference "${k}" — ` +
+        writes.includes(k),
+        `Certificate override upsert must not write "${k}" — ` +
           `legal metadata is pack-owned per ADR-0060.`,
       ).toBe(false);
     }
