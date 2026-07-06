@@ -14,6 +14,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
+import { isReturnTemplateV2, renderReturnPdf } from "../_shared/pdf/returnRenderer.ts";
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderGovFile, type GovFileSubmissionFormat } from "../_shared/govFileWriter.ts";
