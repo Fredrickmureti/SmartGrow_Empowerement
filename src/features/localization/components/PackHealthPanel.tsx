@@ -12,16 +12,25 @@ import { ShieldAlert, ShieldCheck, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { usePackHealth, useCertificateTemplateHealth } from "../hooks/usePack";
+import {
+  usePackHealth,
+  useCertificateTemplateHealth,
+  useCertificateRenderFallbackHealth,
+} from "../hooks/usePack";
 import { validatePayload } from "../hooks";
 
 export function PackHealthPanel({ packId }: { packId?: string | null }) {
   const { data: rows, isLoading, refetch } = usePackHealth(packId);
   const certHealth = useCertificateTemplateHealth(packId);
+  const fallbackHealth = useCertificateRenderFallbackHealth(packId);
   const legacyCerts = certHealth.data?.legacy ?? [];
   const missingMetaCerts = certHealth.data?.missingMetadata ?? [];
+  const renderRefusals = fallbackHealth.data?.byTemplate ?? [];
   const totalWarnings =
-    (rows?.length ?? 0) + legacyCerts.length + missingMetaCerts.length;
+    (rows?.length ?? 0) +
+    legacyCerts.length +
+    missingMetaCerts.length +
+    (fallbackHealth.data?.totalRefusals ? 1 : 0);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const validateOne = async (row: any) => {
@@ -127,6 +136,28 @@ export function PackHealthPanel({ packId }: { packId?: string | null }) {
                   </li>
                 );
               })}
+            </ul>
+          </div>
+        )}
+        {renderRefusals.length > 0 && (
+          <div className="border rounded-md p-2 space-y-1">
+            <div className="text-xs font-semibold flex items-center gap-2">
+              <ShieldAlert className="h-3 w-3 text-destructive" />
+              Templates refused at render (last 30 days) ·{" "}
+              {fallbackHealth.data?.totalRefusals ?? 0} event(s)
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              These templates hit <code>TEMPLATE_STRUCTURAL_INVALID</code> in
+              the certificate renderer. Fix them at the pack level and publish
+              a new pack version; do not patch tenant data.
+            </div>
+            <ul className="text-xs list-disc pl-5">
+              {renderRefusals.map((r) => (
+                <li key={r.code}>
+                  <span className="font-mono">{r.code}</span>
+                  <span className="text-muted-foreground"> · {r.count}×</span>
+                </li>
+              ))}
             </ul>
           </div>
         )}
