@@ -1,97 +1,110 @@
 
-# ADR-0060 Follow-Through — Close the Remaining Gaps
+## Root cause (why the P9A came out broken)
 
-## 1. Audit result vs. previous plan
+The KE pack ships **three** statutory certificates:
 
-I re-ran the certificate architecture suite (6 tests, 3 files — all green) and traced every claim in `.lovable/plan.md` against the code.
+| code | sections | authority | effective_date | verdict |
+|---|---|---|---|---|
+| `P9` | 7 | ✅ KRA | 2024-07-01 | v2 refresh landed here |
+| `P9A` — *Tax Deduction Card (Low Income)* | **2** | ❌ | **1900-01-01** | **legacy stub, never refreshed** |
+| `CERT_OF_SERVICE` | 6 | ❌ | 2024-01-01 | missing authority link |
 
-**Genuinely landed (do NOT redo):**
-- Metadata columns + constraint + indexes on `localization_pack_certificate_templates` (migration `20260706001915`).
-- `certificate_template_v2` JSON Schema seeded into `pack_rule_type_schemas`.
-- `trg_assert_certificate_template_body_valid` trigger + `assert_certificate_template_body_valid()` function (legacy bodies flagged, non-conforming bodies rejected).
-- `publish-localization-pack-version` now (a) snapshots `pack_rule_type_schemas` and (b) hard-fails publish on missing authority / legal ref / `legacy_unvalidated=true` certificates.
-- `CertificateTemplateEditor` v2 with legal-metadata form, section palette from the v2 whitelist, `TemplateFieldInspector` wired, save-blocked on missing required sections / metadata / unresolved tokens.
-- `useTemplateOverrides` write path proven (by test) to never forward legal-metadata columns for the certificate kind.
-- Kenya P9A body refreshed and Certificate of Service seeded — pack rows only, no tenant writes.
-- ADR `0060-certificate-template-parity.md` published.
-- Architecture tests: `certificate-canonical-source`, `certificate-legal-metadata-immutable`, `certificate-template-publishing-gates`.
+The tenant generated `P9A`, not `P9`. `P9A.body.sections` has only 2 entries — no `employer_header`, no `employee_header`, no `monthly_breakdown`, no `signature_block`. The renderer therefore emitted its **legacy fallback columns** (`Month | Month | Basic Salary | Gross Pay | PAYE | Personal Relief | Net PAYE`) and its **legacy summary footer** (`Total employee deductions / Total employer contributions / Total taxable income`). That is exactly the PDF you're looking at.
 
-**Promised in `.lovable/plan.md` but not delivered:**
-1. `_shared/certificateSourceResolver.ts` — never created. `generate-tax-certificate` calls `payroll_employee_ytd_rollup` inline, so there is no single-writer helper mirroring `returnSourceResolver.ts`.
-2. ESLint rule `no-payslip-lines-in-certificates` — not registered in `eslint.config.js`. Only the arch test guards this today.
-3. Live realistic **preview** for certificates (parity with the return editor's `PreviewPanel`) — the editor has no preview at all.
-4. `certificate-template-v2-schema.test.ts` — missing.
-5. Publisher save-gate component test — missing.
-6. Kenya pack **version bump / proposal fan-out**: migration `20260706001915` mutates pack rows in place without inserting a new `pack_versions` row or calling `publish_pack_version_snapshot`, so no `pack_upgrade_proposals` are generated. Existing tenants will not be offered the corrected P9A / new Certificate of Service through the standard update inbox — the whole point of the exercise.
-7. `pack_upgrade_proposals` diff renderer for certificates (ADR-0056 P2.b: one renderer per rule type).
-8. `PackHealthPanel` warning for `legacy_unvalidated=true` / missing metadata.
+ADR 0060's earlier work only patched one row (`code='P9'`). The linter didn't reject the sibling because `zero_sections`, `authority IS NULL`, and `effective_date < 2000` were not publishing gates. **The iceberg is real** — the same defect likely exists on `CERT_OF_SERVICE`, on return templates, and on every future pack that inherits the same seed shape.
 
-Everything else in the original enterprise-audit prompt (return-side Slice A, P10/AHL/NSSF/NITA metadata, filter legal-basis, override immutability) was already landed by prior work (`20260630225031`, `return-override-legal-metadata-immutable.test.ts`, etc.) — leave those alone.
+## Objective
 
-## 2. Remaining work
+No tenant patch. Fix the **pack template contract** and the **publishing gates** so that any certificate/return template that ships without a valid section layout, without a linked authority, or with an epoch effective date cannot be published, cannot be rendered, and gets replaced everywhere via the existing pack-version fanout.
 
-### 2.1 Single-writer contract for certificate reads
-- Create `supabase/functions/_shared/certificateSourceResolver.ts` exporting `resolveCertificateYtd({ admin, employeeId, fiscalYear })` — the only path allowed to call `payroll_employee_ytd_rollup` for certificate generation, returning `{ rows, totals, provenance }`.
-- Refactor `generate-tax-certificate/index.ts` to consume the resolver (drops ~50 lines of inline rollup/provenance code, keeps behaviour identical).
-- Extend `certificate-canonical-source.test.ts` to also assert the resolver is the only caller of `payroll_employee_ytd_rollup` inside the certificate function tree.
+## Deliverables
 
-### 2.2 ESLint guard (defence-in-depth)
-- Add a small custom rule (or `no-restricted-syntax` entry, whichever is lighter for this repo) in `eslint.config.js` forbidding `payslip_lines` string literals and `.from("payslip_lines")` under `supabase/functions/generate-tax-certificate/**` and `supabase/functions/_shared/certificate*.ts`.
-- Registered rule name: `no-payslip-lines-in-certificates` (matches ADR wording).
+### 1. Publishing gates (platform-wide, not tenant-specific)
 
-### 2.3 Publisher preview panel
-- New `CertificateTemplatePreview.tsx` that renders the live `sections[]` against a canned fixture from `pack_test_fixtures` (fall back to a static in-file P9A sample if none exists), using the same section renderer as the runtime (`certificateSections.ts`) — no PDF, HTML preview only.
-- Slot it into the right-hand column of `CertificateTemplateEditor` next to the `TemplateFieldInspector` so publishers see the document redraw as they edit.
+Extend `lint-localization-pack` + `publish-localization-pack-version` with **hard-fail** rules applied to every certificate and return template in a pack:
 
-### 2.4 Missing tests
-- `certificate-template-v2-schema.test.ts` — reads the migration, snapshots the JSON schema, and asserts (a) `data_source` enum is `["payroll_employee_ytd"]`, (b) section-type enum matches the editor's `SECTION_TYPES`, (c) legacy string-shorthand columns rejected.
-- `certificate-editor-save-gate.test.tsx` — mounts `CertificateTemplateEditor`, drives it into each blocking state (missing authority, missing required section, unknown section type via prop injection, unresolved token) and asserts the Save button is disabled + the destructive alert lists the reason.
+- `sections` array must exist and contain at least one of each: `employer_header`, `employee_header`, `signature_block`, plus one data section (`monthly_breakdown`, `ytd_table`, or `totals`).
+- `authority_id` required for anything with `legal_reference` OR anything whose `code` matches a statutory pattern (P9%, P10%, VAT%, PAYE%, NSSF%, SHIF%, AHL%, WHT%).
+- `effective_date` required and must be `>= 2000-01-01`.
+- `regulation_citation` required when `legal_reference` is set.
+- Zero occurrences of the legacy `blocks[]` shape on statutory templates — `blocks` is now editorial-only.
 
-### 2.5 Kenya pack v-next fan-out (critical — restores the whole "tenant upgrades through the inbox" contract)
-- New migration `<ts>_publish_kenya_pack_v_next.sql` that, inside a `DO $$` block:
-  1. Reads current `latest_version` for the KE pack.
-  2. Bumps semver (patch) and inserts a `pack_versions` row with `publisher_notes` citing ADR-0060.
-  3. Calls the existing `publish_pack_version_snapshot(pack_id, new_version_id)` SQL function (already used by `publish-localization-pack-version`) so the version snapshot includes the refreshed P9A and new Certificate of Service.
-  4. Enqueues `pack_upgrade_proposals` for every installed tenant of the KE pack via the same helper the edge function uses (`propose_localization_pack_upgrade` / `propose-localization-upgrades`).
-- No `UPDATE` / `INSERT` against tenant tables — only pack + proposal fan-out.
+Failures block `publish-localization-pack-version` and surface in the Publisher Health panel as **red** (not warning).
 
-### 2.6 Upgrade-proposal diff renderer for certificates
-- Extend `pack_upgrade_proposals` renderer registry (currently returns- and rule-aware) with a `certificate_template` renderer that diffs `sections[]`, `columns` and legal metadata, so accepting the KE v-next in the inbox shows a legible diff, not a raw JSON dump.
+### 2. Retire the render-time legacy fallback (defence-in-depth)
 
-### 2.7 Publisher health surface
-- `PackHealthPanel` — add two rows: `Legacy certificate templates (n)` (any row with `legacy_unvalidated=true`) and `Certificates missing legal metadata (n)`; link each to the editor row.
+In `generate-tax-certificate/index.ts`:
 
-## 3. Explicitly out of scope
-- Any `UPDATE` / `INSERT` on tenant business tables. Kenya v-next reaches tenants only through the standard inbox.
-- ADR-0056 P2.a/P2.c/P2.d tracks (dependency graph, simulator, 4-eyes) — still deferred.
-- Other countries: this closes the Kenya reference implementation; adding a second country pack is a follow-up.
+- If `template.body.sections` is missing, empty, or contains no `monthly_breakdown`/`ytd_table`/`totals`, **refuse to render** with error code `TEMPLATE_STRUCTURAL_INVALID` (400) instead of falling back to the ad-hoc column set. The user's PDF must never exist again.
+- Remove the hard-coded `baseSummary` (`Total employee deductions / employer contributions / taxable income`). Totals come exclusively from the `totals` section spec.
+- Refuse to render when `employer.tax_pin` is empty for a template whose authority is a tax authority — no unnamed statutory certificates.
 
-## 4. Success criteria
-- `bunx vitest run src/test/architecture/certificate-*` still green, plus the two new tests.
-- `rg -n "payslip_lines" supabase/functions/generate-tax-certificate supabase/functions/_shared/certificate*` returns zero hits and `eslint` fails on any regression.
-- `generate-tax-certificate` produces byte-identical output after the resolver refactor (verified by an integration smoke test against a fixture employee).
-- After applying the Kenya v-next migration, `select code, version from pack_versions where pack_id = KE order by created_at desc limit 2;` shows the bumped version, and every installed KE tenant has one new pending row in `pack_upgrade_proposals`.
-- Opening the KE pack in the publisher UI shows the preview redrawing live, and `PackHealthPanel` reports 0 legacy / 0 missing-metadata certificate templates.
+### 3. Kenya pack refresh (v2026.4.0) — real content, not a stub
 
-## 5. Technical details
+New migration seeds:
 
-Files added:
-```
-supabase/functions/_shared/certificateSourceResolver.ts
-supabase/migrations/<ts>_publish_kenya_pack_v_next.sql
-src/features/localization/components/CertificateTemplatePreview.tsx
-src/test/architecture/certificate-template-v2-schema.test.ts
-src/test/architecture/certificate-editor-save-gate.test.tsx
-```
+- `P9A` — full P9A "Low Income Employees" layout per KRA 2024 revision:
+  - `employer_header` (name, tax_pin, address, tax_office)
+  - `employee_header` (full_name, employee_number, tax_pin, national_id, position)
+  - `fiscal_period_band` — Tax Year N
+  - `monthly_breakdown` with KRA columns **A–K**: `basic_salary`, `benefits_non_cash`, `value_of_quarters`, `gross_pay`, `defined_contribution_retirement`, `owner_occupier_interest`, `chargeable_pay`, `tax_charged`, `personal_relief`, `insurance_relief`, `paye_net`
+  - `totals` — YTD totals band using the same columns (not the deductions/contributions/taxable triad)
+  - `signature_block` — preparer, employer_stamp, date + statutory certification sentence
+  - `statutory_footnote` — Sec 37 Income Tax Act, retain for IT1
+  - `authority_id` → KRA, `legal_reference` = Income Tax Act CAP 470, `effective_date` = 2024-07-01
+- `CERT_OF_SERVICE` — attach a non-tax `statutory_authorities` row for the Ministry of Labour so the authority gate is satisfied without pretending KRA issues it. (New enum value `authority_kind = 'labour'` if not already present.)
 
-Files modified:
-```
-supabase/functions/generate-tax-certificate/index.ts   # use resolver
-src/features/localization/components/CertificateTemplateEditor.tsx  # slot in preview
-src/features/localization/components/PackHealthPanel.tsx            # + 2 warnings
-src/test/architecture/certificate-canonical-source.test.ts          # + resolver-only assertion
-eslint.config.js                                                    # + guard rule
-supabase/functions/publish-localization-pack-version/index.ts       # certificate diff renderer wiring (if renderer lives here)
-```
+New pack version `2026.4.0` published via `publish_localization_pack_version_sql` — snapshots into `pack_versions` and fans a proposal to every installed tenant. No tenant business data is touched.
 
-No schema-shape changes; no changes to tenant tables. Migration 2.5 uses only existing helper functions and `pack_versions` / `pack_upgrade_proposals` — the same publish path the edge function uses.
+### 4. Section-palette schema — extend for the new KRA columns
+
+Add three column-source enums the resolver already needs but doesn't have:
+- `benefits_non_cash`
+- `value_of_quarters`
+- `owner_occupier_interest`
+- `defined_contribution_retirement` (min of 30% × chargeable, actual, KES 30,000/mo)
+
+Wire them through `_shared/certificateSourceResolver.ts` as first-class YTD rule codes with clearly-marked provenance. The rollup RPC already supports arbitrary `rule_code` — no schema change to `payroll_employee_ytd_rollup` needed, only new registered rule codes in the KE pack.
+
+### 5. Architecture tests (guardrails so this never recurs)
+
+Add to `src/test/architecture/`:
+
+- `certificate-sections-required.test.ts` — walks every seeded template row across every migration and asserts the section contract.
+- `certificate-authority-linked.test.ts` — asserts every statutory-code template has `authority_id`, `legal_reference`, `regulation_citation`, `effective_date >= 2000-01-01`.
+- `certificate-render-refuses-invalid.test.ts` — deno test on `generate-tax-certificate` calling with a hand-crafted invalid template body and asserting the 400 refusal.
+- Extend `certificate-template-v2-schema.test.ts` to iterate `[P9, P9A, CERT_OF_SERVICE]` (currently P9-only).
+
+### 6. Sweep other document surfaces (the rest of the iceberg)
+
+In-scope for this plan, executed as separate migrations/tests once (1)–(5) land:
+
+- `localization_pack_return_templates` — same three gates (sections/authority/effective_date). Enumerate what's currently seeded, patch every KE row that fails.
+- `localization_pack_payroll_templates` — payslip layout audit against the same section contract.
+- `localization_pack_bank_export_templates` — schema is different (fixed-width/CSV), but assert it has `authority_id`, `effective_date`, and a `spec_reference` (e.g. bank file spec version).
+
+Each surface gets: (a) publishing gate, (b) architecture test, (c) refresh migration for KE, (d) publisher-health surface.
+
+### 7. Publisher Health panel
+
+Add three new checks so publishers see the state of the pack, not just the tenant:
+
+- "Statutory templates without linked authority"
+- "Templates with epoch effective_date"
+- "Templates rendering via legacy fallback in last 30 days" (from `payroll_diagnostics` where `code IN ('TOKEN_UNRESOLVED','TEMPLATE_STRUCTURAL_INVALID')`)
+
+---
+
+## Technical notes
+
+- **No tenant data written.** Everything flows through `localization_packs` → `pack_versions` snapshot → `pack_upgrade_proposals` fanout, which tenants accept explicitly.
+- **Backwards compat:** the render-time refusal (deliverable 2) is gated on `template.pack_version_id >= v2026.4.0` OR unconditional after a two-week grace period — configurable per pack via a new `pack_versions.strict_render_from` timestamp. Prevents in-flight renders from breaking during rollout.
+- **Rule-code registry:** the four new KE rule codes register in `localization_pack_payroll_rule_codes` (or equivalent — verify at implementation) so the `no-payslip-lines-in-certificates` ESLint rule keeps holding.
+- **KRA P9A visual reference:** columns A–K, personal relief line = 2,400/month, insurance relief cap = 5,000/month, signature block wording per KRA 2024 P9A revision.
+
+## Out of scope
+
+- Patching the already-generated broken PDF for this tenant (per First Principle).
+- UI polish on `CertificateTemplateEditor` beyond adding the four new column sources to the palette.
+- Other-country pack refreshes (UG/TZ/NG P-equivalents) — those get their own plans once the platform gates are in place.
+

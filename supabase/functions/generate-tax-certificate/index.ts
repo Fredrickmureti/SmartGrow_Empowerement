@@ -202,6 +202,37 @@ Deno.serve(async (req) => {
       overrideVersion = override.override_version;
     }
 
+    // ADR 0060 v2026.4.0 — Structural refusal. If the resolved template
+    // (pack OR tenant override) is missing the section contract, refuse
+    // to render instead of silently falling back to the legacy
+    // generic-column layout. This guarantees no P9/P9A/CERT_OF_SERVICE
+    // can ever be issued without identity headers, a data section, and
+    // a signature block.
+    {
+      const sec = Array.isArray(template?.body?.sections) ? template.body.sections : [];
+      const types = new Set<string>(sec.map((s: any) => String(s?.type ?? "")));
+      const missing: string[] = [];
+      for (const need of ["employer_header", "employee_header", "signature_block"]) {
+        if (!types.has(need)) missing.push(need);
+      }
+      const hasData = ["monthly_breakdown", "ytd_table", "totals"].some((d) => types.has(d));
+      if (sec.length === 0 || missing.length > 0 || !hasData) {
+        return businessError(
+          422,
+          "TEMPLATE_STRUCTURAL_INVALID",
+          `Certificate template "${template.code}" cannot be rendered: its body is missing the required section contract (identity headers, data section, and signature block). This template ships as a legacy stub and must be refreshed at the pack level before it can be issued.`,
+          "Ask your platform administrator to publish the latest localization pack version that ships this certificate with a full section layout.",
+          {
+            template_code: template.code,
+            template_source: templateSource,
+            sections_present: Array.from(types),
+            missing_identity_sections: missing,
+            has_data_section: hasData,
+          },
+        );
+      }
+    }
+
     // Resolve employees
     // Wave 1.1: position/department resolved via FK joins (legacy text cols dropped)
     // Statutory identifiers (tax_pin, nssf_number, …) live in
@@ -391,11 +422,13 @@ Deno.serve(async (req) => {
           } catch { /* never break rendering on diagnostics */ }
         }
 
-        const baseSummary: Array<{ label: string; value: string }> = [
-          { label: "Total employee deductions", value: fmtMoney(totals.employee, orgCurrency) },
-          { label: "Total employer contributions", value: fmtMoney(totals.employer, orgCurrency) },
-          { label: "Total taxable income", value: fmtMoney(totals.taxable, orgCurrency) },
-        ];
+        // ADR 0060 v2026.4.0 — the legacy baseSummary triad
+        // (deductions / employer contributions / taxable income) was a
+        // payslip concept masquerading as a statutory footer. Totals
+        // now come exclusively from the template's `totals` section
+        // via renderCertificateSections. The structural refusal above
+        // guarantees a `totals` section is always present, so
+        // sections.totalsRows will not be empty.
 
         // Sections renderer (Wave 7 / P1.1): if the resolved template carries
         // `body.sections[]`, project them into PDF primitives. This is what
@@ -488,7 +521,7 @@ Deno.serve(async (req) => {
             ...sections.headerRows,
             ...sections.periodRows,
             ...sections.reliefRows,
-            ...(sections.totalsRows.length ? sections.totalsRows : baseSummary),
+            ...sections.totalsRows,
             ...sections.signatureRows,
             ...toSummaryRows(rendered.afterTable),
           ],

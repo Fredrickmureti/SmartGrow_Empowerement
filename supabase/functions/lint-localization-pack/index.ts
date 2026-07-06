@@ -37,6 +37,48 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const EMPLOYER_KINDS = new Set(["employer_contribution", "statutory_employer"]);
 
+// ── Structural contract for certificate & return template bodies ────
+// (ADR 0060 v2026.4.0). A pack cannot be published if any statutory
+// document template ships with a legacy blocks-only body, missing
+// identity/signature sections, or missing legal metadata.
+const REQUIRED_IDENTITY_SECTIONS = ["employer_header", "employee_header", "signature_block"];
+const DATA_SECTIONS = ["monthly_breakdown", "ytd_table", "totals"];
+const STATUTORY_CODE_RE = /^(P9|P10|VAT|PAYE|NSSF|SHIF|AHL|WHT|NHIF|NITA|HELB)/i;
+
+function validateTemplateStructure(
+  kind: "certificate" | "return",
+  row: any,
+): string[] {
+  const errs: string[] = [];
+  const code = row.code ?? row.rule_code ?? "(unknown)";
+  const label = `${kind} template "${code}"`;
+  const body = row.body ?? {};
+  const sections = Array.isArray(body?.sections) ? body.sections : [];
+  if (sections.length === 0) {
+    errs.push(`${label}: body.sections is empty — legacy blocks-only templates are no longer publishable.`);
+    return errs; // no point checking further
+  }
+  const types = new Set<string>(sections.map((s: any) => String(s?.type ?? "")));
+  for (const need of REQUIRED_IDENTITY_SECTIONS) {
+    if (!types.has(need)) errs.push(`${label}: missing required section "${need}".`);
+  }
+  if (!DATA_SECTIONS.some((d) => types.has(d))) {
+    errs.push(`${label}: must contain at least one data section (${DATA_SECTIONS.join(" | ")}).`);
+  }
+  if (row.effective_date === undefined) {
+    // return templates use a different column set; ignore.
+  } else if (!row.effective_date || String(row.effective_date) < "2000-01-01") {
+    errs.push(`${label}: effective_date must be set and >= 2000-01-01 (got ${row.effective_date ?? "null"}).`);
+  }
+  if (STATUTORY_CODE_RE.test(String(code)) && !row.authority_id) {
+    errs.push(`${label}: statutory code requires authority_id (link a statutory_authorities row).`);
+  }
+  if (row.legal_reference && !row.regulation_citation) {
+    errs.push(`${label}: regulation_citation is required whenever legal_reference is set.`);
+  }
+  return errs;
+}
+
 function ok(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -69,8 +111,12 @@ Deno.serve(async (req) => {
       sb.from("payroll_statutory_rules").select("id, rule_code, rule_type, computation_method, parameters, superseded_by, remittance_frequency, period")
         .eq("pack_id", pack_id),
       sb.from("localization_pack_remittance_schedules").select("rule_code, frequency").eq("pack_id", pack_id),
-      sb.from("localization_pack_certificate_templates").select("body, rule_code").eq("pack_id", pack_id),
-      sb.from("localization_pack_return_templates").select("body, rule_code").eq("pack_id", pack_id),
+      sb.from("localization_pack_certificate_templates")
+        .select("body, rule_code, code, effective_date, authority_id, legal_reference, regulation_citation")
+        .eq("pack_id", pack_id),
+      sb.from("localization_pack_return_templates")
+        .select("body, rule_code, code, effective_date, authority_id, legal_reference, regulation_citation")
+        .eq("pack_id", pack_id),
       sb.from("pack_account_roles").select("rule_code, role_key").eq("pack_id", pack_id),
       sb.from("pack_token_registry").select("token_path").or(`pack_id.is.null,pack_id.eq.${pack_id}`),
       sb.from("localization_pack_payroll_templates").select("body").eq("pack_id", pack_id),
@@ -138,6 +184,16 @@ Deno.serve(async (req) => {
       if (!ruleByCode.has(s.rule_code)) {
         warnings.push(`Remittance schedule for rule ${s.rule_code}: rule not present in this pack`);
       }
+    }
+
+    // 8. Structural contract for certificate/return template bodies.
+    //    HARD-FAIL — anything that would fall back to the legacy
+    //    generic-column renderer at runtime is rejected here.
+    for (const t of certTpls ?? []) {
+      for (const e of validateTemplateStructure("certificate", t)) errors.push(e);
+    }
+    for (const t of returnTpls ?? []) {
+      for (const e of validateTemplateStructure("return", t)) errors.push(e);
     }
 
     return ok({ errors, warnings, summary: {
