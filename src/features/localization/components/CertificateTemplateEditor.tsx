@@ -33,6 +33,7 @@ import { AlertTriangle, Plus, Trash2, ArrowUp, ArrowDown, Loader2, ShieldCheck, 
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
+import { TokenAwareTextarea } from "./TokenAwareTextarea";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +41,7 @@ import {
   checkCertificateCompleteness,
   resolveCompletenessRule,
 } from "../lib/certificateCompleteness";
+import { snippetsFor } from "../lib/statutorySnippets";
 
 const SECTION_TYPES = [
   { value: "employer_header",    label: "Employer header",   help: "Employer name, PIN, address, tax office." },
@@ -180,6 +182,10 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
 
   const completenessRule = useMemo(
     () => resolveCompletenessRule(initial.template_code),
+    [initial.template_code],
+  );
+  const availableSnippets = useMemo(
+    () => snippetsFor(initial.template_code),
     [initial.template_code],
   );
   const completeness = useMemo(
@@ -440,13 +446,44 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                     />
                   )}
                   {s.type === "statutory_footnote" && (
-                    <Textarea
-                      rows={2}
-                      className="text-xs"
-                      placeholder="Legal notice text…"
-                      value={s.body ?? ""}
-                      onChange={(e) => patchSection(i, { body: e.target.value })}
-                    />
+                    <div className="space-y-1.5">
+                      {availableSnippets.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                            Canonical wording (click to insert verbatim)
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {availableSnippets.map((snip) => (
+                              <Button
+                                key={snip.id}
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[10px] px-2"
+                                title={snip.body}
+                                onClick={() => {
+                                  const current = String(s.body ?? "").trim();
+                                  const next = current
+                                    ? `${current}\n\n${snip.body}`
+                                    : snip.body;
+                                  patchSection(i, { body: next });
+                                }}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                {snip.title}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <TokenAwareTextarea
+                        packId={packId ?? null}
+                        rows={3}
+                        value={String(s.body ?? "")}
+                        onChange={(v) => patchSection(i, { body: v })}
+                        placeholder="Legal notice text. Use Insert field to reference tokens."
+                      />
+                    </div>
                   )}
                   {INCLUDE_OPTIONS[s.type] && (
                     <div className="space-y-1">
@@ -548,9 +585,11 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
             </div>
             <div className="space-y-1 md:col-span-2">
               <Label className="text-xs">Footer note</Label>
-              <Input
+              <TokenAwareTextarea
+                packId={packId ?? null}
+                rows={2}
                 value={footerNote}
-                onChange={(e) => setFooterNote(e.target.value)}
+                onChange={setFooterNote}
                 placeholder="e.g. Kenya Revenue Authority · P9A Tax Deduction Card"
               />
             </div>
