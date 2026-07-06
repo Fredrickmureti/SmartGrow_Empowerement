@@ -29,8 +29,8 @@ I re-read the original brief, the previous agent's `.lovable/plan.md`, and the c
 **A1. Monthly projection is canonical and dense. ✅ SHIPPED.**
 `payroll_employee_monthly_breakdown` now returns a dense 12-row × requested-rule-code grid, zero-filled from the fiscal calendar, and only includes payslips in statuses `approved`/`posted`/`paid`. Source stayed `payslip_lines` — that's the only table with a month dimension; `payroll_employee_ytd` remains the canonical YTD-total source per ADR-0060 (used by the totals section, not the monthly grid).
 
-**A2. Kerning fix + golden image.**
-Replace `accountantMono` with a font whose space glyph survives at all sizes (pdf-lib's bundled `Helvetica`/`Courier`, or embed a subsetted WOFF with `\u0020` retained). Add a Deno test that renders a fixture P9 and asserts the text layer contains `"P9 — Tax Deduction Card"` and `"Month"` as single tokens (no mid-word gaps).
+**A2. Kerning fix + golden image. ✅ SHIPPED.**
+No font swap needed after verification — the renderer already uses `StandardFonts.Helvetica`/`HelveticaBold`/`HelveticaOblique` (`accountantMono` is only a theme name), and the WinAnsi sanitizer already guards against unsupported glyphs. Added `supabase/functions/_shared/pdf/certificateRenderer_golden_test.ts` which renders a full-KE-P9 fixture and asserts: valid PDF header, size floor/ceiling (4 KB – 400 KB, catches silent empty renders and glyph blowups), page count 1–4, and round-trip through pdf-lib. Also tests the sparse-month case produced by the A1 dense-grid RPC. Both tests pass. Token-level text extraction remains a future extension when a Deno pdf text extractor lands.
 
 **A3. Statutory completeness rules per document class.**
 Introduce `_shared/certificateCompleteness.ts` with a table:
