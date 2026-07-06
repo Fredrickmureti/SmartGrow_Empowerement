@@ -184,6 +184,10 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     () => resolveCompletenessRule(initial.template_code),
     [initial.template_code],
   );
+  const availableSnippets = useMemo(
+    () => snippetsFor(initial.template_code),
+    [initial.template_code],
+  );
   const completeness = useMemo(
     () => checkCertificateCompleteness(initial.template_code, liveBody),
     [initial.template_code, liveBody],
