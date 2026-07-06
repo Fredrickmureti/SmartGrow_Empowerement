@@ -11,6 +11,7 @@ export {
   usePacks, usePack, usePackVersions, usePackUpgradeProposals,
   usePackAuditLog, usePublishPackVersion, useDecidePackUpgradeProposal,
   usePackHealth, usePromotePackVersion,
+  useCertificateTemplateHealth, useCertificateRenderFallbackHealth,
 } from "./hooks/usePack";
 export type {
   LocalizationPack, PackVersion, PackUpgradeProposal, PackAuditEntry,
