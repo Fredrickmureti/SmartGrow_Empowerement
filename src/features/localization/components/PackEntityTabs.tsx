@@ -86,6 +86,9 @@ type TemplateRow = {
   acknowledgement_spec?: any;
   api_endpoint_spec?: any;
   approval_required?: boolean | null;
+  // Certificate-only legal metadata (ADR 0060).
+  revision_notes?: string | null;
+  issued_to?: "employee" | "employer" | "both" | null;
 };
 
 
