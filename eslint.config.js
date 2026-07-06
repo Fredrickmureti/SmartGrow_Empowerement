@@ -17,6 +17,7 @@ import noDirectWindowPrint from "./eslint-rules/no-direct-window-print.js";
 import noDocumentPrintShadowPath from "./eslint-rules/no-document-print-shadow-path.js";
 import noRawZplOutsidePrinting from "./eslint-rules/no-raw-zpl-outside-printing.js";
 import noDirectEmployeesBranchWrite from "./eslint-rules/no-direct-employees-branch-write.js";
+import noPayslipLinesInCertificates from "./eslint-rules/no-payslip-lines-in-certificates.js";
 
 
 export default tseslint.config(
@@ -47,6 +48,7 @@ export default tseslint.config(
           "no-document-print-shadow-path": noDocumentPrintShadowPath,
           "no-raw-zpl-outside-printing": noRawZplOutsidePrinting,
           "no-direct-employees-branch-write": noDirectEmployeesBranchWrite,
+          "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
 
         },
       },
@@ -166,11 +168,30 @@ export default tseslint.config(
       local: {
         rules: {
           "no-literal-rule-codes-in-engines": noLiteralRuleCodesInEngines,
+          "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
         },
       },
     },
     rules: {
       "local/no-literal-rule-codes-in-engines": "error",
+    },
+  },
+  // ADR 0060 — certificate paths must read YTD figures through
+  // certificateSourceResolver, never by re-summing payslip_lines directly.
+  {
+    files: [
+      "supabase/functions/generate-tax-certificate/**/*.ts",
+      "supabase/functions/_shared/certificate*.ts",
+    ],
+    plugins: {
+      local: {
+        rules: {
+          "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
+        },
+      },
+    },
+    rules: {
+      "local/no-payslip-lines-in-certificates": "error",
     },
   },
 );
