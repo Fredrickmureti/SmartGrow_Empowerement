@@ -172,6 +172,7 @@ Deno.serve(async (req) => {
       { data: accountRoles },
       { data: tokens },
       { data: payrollTpls },
+      { data: bankExportTpls },
     ] = await Promise.all([
       sb.from("localization_packs").select("id, country_code, name").eq("id", pack_id).maybeSingle(),
       sb.from("payroll_statutory_rules").select("id, rule_code, rule_type, computation_method, parameters, superseded_by, remittance_frequency, period")
