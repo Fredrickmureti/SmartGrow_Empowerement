@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   checkCertificateCompleteness,
   resolveCompletenessRule,
@@ -50,6 +51,44 @@ const SECTION_TYPES = [
   { value: "signature_block",    label: "Signature block",   help: "Preparer + employer signature/stamp band." },
   { value: "statutory_footnote", label: "Statutory footnote",help: "Legal notice printed under the tables." },
 ] as const;
+
+// Field catalogs for `include` pickers — kept in sync with the renderer
+// defaults in supabase/functions/_shared/certificateSections.ts. Ordered
+// the way a payroll officer expects them on the printed document.
+const INCLUDE_OPTIONS: Record<string, ReadonlyArray<{ value: string; label: string }>> = {
+  employer_header: [
+    { value: "name",       label: "Name" },
+    { value: "tax_pin",    label: "Tax PIN" },
+    { value: "address",    label: "Address" },
+    { value: "tax_office", label: "Tax office" },
+    { value: "phone",      label: "Phone" },
+    { value: "email",      label: "Email" },
+  ],
+  employee_header: [
+    { value: "employee_number", label: "Employee number" },
+    { value: "tax_pin",         label: "Tax PIN" },
+    { value: "national_id",     label: "National ID" },
+    { value: "position",        label: "Position" },
+    { value: "department",      label: "Department" },
+    { value: "hire_date",       label: "Hire date" },
+  ],
+  signature_block: [
+    { value: "preparer",        label: "Preparer" },
+    { value: "date",            label: "Date" },
+    { value: "employer_stamp",  label: "Employer stamp" },
+    { value: "employee_ack",    label: "Employee acknowledgement" },
+  ],
+};
+
+// Common statutory rule-code chips for `monthly_breakdown`. Publishers
+// can still add pack-specific codes (typing + Enter) — the picker just
+// stops them typing free prose with typos.
+const COMMON_RULE_CODES = [
+  "gross_pay", "basic_pay", "allowances",
+  "paye", "nssf", "shif", "nhif", "housing_levy",
+  "insurance_relief", "personal_relief",
+  "net_pay",
+];
 
 // Baseline required sections shown before we know the doc-class rule
 // applies. Doc-class specific rules come from
