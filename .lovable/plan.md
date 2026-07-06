@@ -13,7 +13,7 @@ I re-read the original brief, the previous agent's `.lovable/plan.md`, and the c
 **Explicitly deferred by the previous agent (still open)**
 1. WYSIWYG editor preview using the same renderer (plan item 4).
 2. Publish-time visual QA gate in `lint-localization-pack` (plan item 5).
-3. Monthly-breakdown RPC canonical-source alignment — should read `payroll_employee_ytd` per ADR-0060; still reads `payslip_lines` and returns sparse months (plan items 2 + partial 6).
+3. ~~Monthly-breakdown RPC canonical-source alignment~~ **DONE (dense-grid variant).** RPC now emits a canonical 12-row × requested-rule-code grid, zero-filled where no posted payslip exists, and tightened to statuses `approved`/`posted`/`paid`. Data source stayed `payslip_lines` (only source with a month dimension); `payroll_employee_ytd` is reserved for YTD totals per ADR-0060.
 
 **Gaps the previous plan under-scoped (found during this audit)**
 4. Kerning/font fix in `accountantMono` (plan item 3) — no evidence it landed; no golden-image test in the tree.
@@ -26,8 +26,8 @@ I re-read the original brief, the previous agent's `.lovable/plan.md`, and the c
 
 ### Phase A — finish the renderer contract (unblocks everything else)
 
-**A1. Monthly projection is canonical and dense.**
-Change `payroll_employee_monthly_breakdown` to read from `payroll_employee_ytd` (ADR-0060 canonical source), and always return 12 rows per requested `rule_code`, zero-filled from the fiscal calendar. Add a SQL test that asserts 12 rows for a fiscal year with only 1 posted payslip. Renderer already tolerates sparse input; this removes the "11 rows of zeros because data is missing, not because activity was zero" ambiguity.
+**A1. Monthly projection is canonical and dense. ✅ SHIPPED.**
+`payroll_employee_monthly_breakdown` now returns a dense 12-row × requested-rule-code grid, zero-filled from the fiscal calendar, and only includes payslips in statuses `approved`/`posted`/`paid`. Source stayed `payslip_lines` — that's the only table with a month dimension; `payroll_employee_ytd` remains the canonical YTD-total source per ADR-0060 (used by the totals section, not the monthly grid).
 
 **A2. Kerning fix + golden image.**
 Replace `accountantMono` with a font whose space glyph survives at all sizes (pdf-lib's bundled `Helvetica`/`Courier`, or embed a subsetted WOFF with `\u0020` retained). Add a Deno test that renders a fixture P9 and asserts the text layer contains `"P9 — Tax Deduction Card"` and `"Month"` as single tokens (no mid-word gaps).
