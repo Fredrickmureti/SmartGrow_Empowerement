@@ -265,6 +265,9 @@ Deno.serve(async (req) => {
     for (const t of returnTpls ?? []) {
       for (const e of validateReturnStructure(t)) errors.push(e);
     }
+    for (const t of bankExportTpls ?? []) {
+      for (const e of validateBankExportStructure(t)) errors.push(e);
+    }
 
     return ok({ errors, warnings, summary: {
       rules: rules?.length ?? 0,
@@ -272,6 +275,7 @@ Deno.serve(async (req) => {
       returns: returnTpls?.length ?? 0,
       schedules: schedules?.length ?? 0,
       account_roles: accountRoles?.length ?? 0,
+      bank_exports: bankExportTpls?.length ?? 0,
     } });
   } catch (e) {
     return ok({ errors: [String((e as any)?.message ?? e)], warnings: [] }, 500);
