@@ -186,6 +186,9 @@ Deno.serve(async (req) => {
       sb.from("pack_account_roles").select("rule_code, role_key").eq("pack_id", pack_id),
       sb.from("pack_token_registry").select("token_path").or(`pack_id.is.null,pack_id.eq.${pack_id}`),
       sb.from("localization_pack_payroll_templates").select("body").eq("pack_id", pack_id),
+      sb.from("localization_pack_bank_export_templates")
+        .select("format_code, spec, spec_reference, effective_date, authority_id, legal_reference, regulation_citation")
+        .eq("pack_id", pack_id),
     ]);
 
     if (!pack) return ok({ errors: [`pack ${pack_id} not found`], warnings: [] }, 404);
