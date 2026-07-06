@@ -1,89 +1,110 @@
 
-## The concern, restated
+## Verified state (independent audit)
 
-The P9 you attached proves the point: the platform-side gates (schemas, legal metadata, publish lint, upgrade fan-out) are in place, but the **document that actually reaches the tenant is still a generic report table with a title stapled on top**. Looking at your PDF:
+I re-read the original brief, the previous agent's `.lovable/plan.md`, and the code. Confirmed against the tree, not the notes:
 
-- No employer identity band (PIN, address, tax office) — just "Joshua Holdings / KE" borrowed from the report header.
-- No employee identity band (name, KRA PIN, employee number, period of service).
-- Duplicate "Month" column, broken kerning ("M onth", "P9 - Tax Deduction Card").
-- 11 of 12 monthly rows are zeros while the footer claims Total employee deductions 121,327.26 — data projection is partially wired.
-- No relief summary block, no signature block, no statutory footnote (Income Tax Act CAP 470 §37) — the ADR-0060 sections exist in schema but never render as visual bands.
-- Bottom disclosure "Tax Certificate · P9 · FY 2026" is the report-runner footer, not a certificate signature area.
+**Landed (verified)**
+- `supabase/functions/_shared/pdf/certificateRenderer.ts` (804 lines) — dedicated section-based renderer with per-section draw functions. Real, not a stub.
+- `generate-tax-certificate/index.ts` switched to it; monthly RPC caller now reads rule codes from `columns[].key` as well as `rule_codes[]`.
+- `certificate_template_v2` JSON-Schema gate is enforced in `publish-localization-pack-version` (rejects legacy pre-v2 bodies) and `_shared/certificateSections.ts` (server-side whitelist).
+- KE P9 template body migration `20260706001915_*.sql` is present and carries the richer section set.
+- `CertificateTemplateEditor` is section-based (`sections[]` state, add/remove/move), not a raw JSON blob for the section list.
 
-## Root cause
+**Explicitly deferred by the previous agent (still open)**
+1. WYSIWYG editor preview using the same renderer (plan item 4).
+2. Publish-time visual QA gate in `lint-localization-pack` (plan item 5).
+3. Monthly-breakdown RPC canonical-source alignment — should read `payroll_employee_ytd` per ADR-0060; still reads `payslip_lines` and returns sparse months (plan items 2 + partial 6).
 
-`supabase/functions/generate-tax-certificate/index.ts` reads the rich `body.sections[]` (employer_header, employee_header, fiscal_period_band, monthly_breakdown, ytd_table, totals, relief_summary, signature_block, statutory_footnote) and then **flattens every section into a single `ReportPdfPayload`**: one `columns[]`, one `rows[]`, and a `summaryRows[]` of tiny label/value pairs. `generateReportPdf` is a spreadsheet renderer — it has no concept of an identity band, a period band, or a signed footer, so those sections either collapse into the summary strip or disappear entirely.
+**Gaps the previous plan under-scoped (found during this audit)**
+4. Kerning/font fix in `accountantMono` (plan item 3) — no evidence it landed; no golden-image test in the tree.
+5. Editor still exposes free-text `Textarea`s inside sections (column keys, footnote text, token strings). Publishers can type invalid token paths and unknown column keys that only fail at render time. Needs a **token picker** + **column picker** bound to the schema, matching the "no raw developer surface" requirement.
+6. `ReturnTemplateEditor` (790 lines) and the statutory-return renderer path have **not** been migrated to the same section-based architecture. The brief explicitly calls out P10 / PAYE returns / NSSF / SHIF / Housing Levy / remittance schedules — today only certificates use the v2 renderer, so returns will regress to the same "developer report with a title stapled on top" shape the P9 did.
+7. Publish gate does not check **statutory completeness** per document class (e.g. a P9 without `employer_header` + `employee_header` + `signature_block` + `statutory_footnote` should refuse publish). The schema whitelists section types but does not require the mandatory set.
+8. No `pack_upgrade_proposal` has actually been emitted for the improved KE P9 — the migration mutates seed data directly. Tenants on an installed older pack version won't see the improved template through the normal upgrade flow, which contradicts the brief ("do not patch the current tenant … arrive through the normal upgrade flow").
 
-Secondary issues surfaced by the same PDF:
-- `payroll_employee_monthly_breakdown` returns partial rows (only one month populated) — the projector doesn't fan a payroll_employee_ytd snapshot across 12 months when per-month rows are absent.
-- `accountantMono` theme font kerning drops space glyphs mid-word on some sizes.
-- Editor preview and runtime output diverge — publishers can't see the shallowness before shipping.
+## What to build (in this order)
 
-## What to build
+### Phase A — finish the renderer contract (unblocks everything else)
 
-### 1. Dedicated certificate renderer (`_shared/pdf/certificateRenderer.ts`)
-Consumes `body.sections[]` directly and draws one visual block per section type using the existing PdfBuilder primitives — never routes through `generateReportPdf`.
+**A1. Monthly projection is canonical and dense.**
+Change `payroll_employee_monthly_breakdown` to read from `payroll_employee_ytd` (ADR-0060 canonical source), and always return 12 rows per requested `rule_code`, zero-filled from the fiscal calendar. Add a SQL test that asserts 12 rows for a fiscal year with only 1 posted payslip. Renderer already tolerates sparse input; this removes the "11 rows of zeros because data is missing, not because activity was zero" ambiguity.
 
-```text
-┌────────────────────────────────────────────────┐
-│  EMPLOYER                    P9 — TAX DEDUCTION│
-│  Joshua Holdings Ltd         CARD              │
-│  PIN P051234567X · KRA West  Fiscal Year 2026  │
-├────────────────────────────────────────────────┤
-│  EMPLOYEE                                      │
-│  Jane Doe · PIN A012345678B · Emp# 4421        │
-│  Period of service: 01 Jan 2026 – 31 Dec 2026  │
-├────────────────────────────────────────────────┤
-│  MONTHLY BREAKDOWN                             │
-│  Mo  Basic  Gross  NSSF  SHIF  AHL  ...  PAYE  │
-│  Jan …                                         │
-├────────────────────────────────────────────────┤
-│  YTD TOTALS         RELIEF SUMMARY             │
-├────────────────────────────────────────────────┤
-│  STATUTORY FOOTNOTE (Income Tax Act §37)       │
-│  SIGNATURE: employer ______   date ______      │
-└────────────────────────────────────────────────┘
+**A2. Kerning fix + golden image.**
+Replace `accountantMono` with a font whose space glyph survives at all sizes (pdf-lib's bundled `Helvetica`/`Courier`, or embed a subsetted WOFF with `\u0020` retained). Add a Deno test that renders a fixture P9 and asserts the text layer contains `"P9 — Tax Deduction Card"` and `"Month"` as single tokens (no mid-word gaps).
+
+**A3. Statutory completeness rules per document class.**
+Introduce `_shared/certificateCompleteness.ts` with a table:
 ```
+p9  → requires: employer_header, employee_header, fiscal_period_band,
+                monthly_breakdown, ytd_table, relief_summary,
+                signature_block, statutory_footnote
+p10 → requires: employer_header, period_band, employer_totals,
+                signature_block, statutory_footnote
+cert_of_service → requires: employer_header, employee_header,
+                            period_of_service, signature_block
+```
+Wire into both `publish-localization-pack-version` (hard fail) and the editor (inline "Add missing section" prompt).
 
-Each section is a first-class draw function (`drawEmployerHeader`, `drawEmployeeHeader`, `drawFiscalPeriodBand`, `drawMonthlyBreakdown`, `drawYtdTable`, `drawTotalsBand`, `drawReliefSummary`, `drawSignatureBlock`, `drawStatutoryFootnote`) with its own vertical rhythm, its own typography weight, and its own rule lines. Unknown section types raise 422 (already enforced upstream).
+### Phase B — publisher UX (removes the developer surface)
 
-### 2. Fix monthly projection
-`payroll_employee_monthly_breakdown` must return 12 rows per rule_code even when a month has zero activity — driven by fiscal calendar, not by presence of payslip data. Current partial-row output is why 11 rows read "0 0 0 0…".
+**B1. WYSIWYG preview.**
+Extract `certificateRenderer` into a shared module runnable in the browser (pdf-lib is isomorphic). `CertificateTemplateEditor` gains a right-hand preview pane that renders the exact same PDF against a per-country fixture dataset. Any edit re-renders within 300 ms. This is the "publisher sees what the tenant will see" gate.
 
-### 3. Fix kerning in `accountantMono`
-Titles like "P9 - Tax Deduction Card" and "M onth" show dropped spaces. Switch the theme to a font that ships with a full space glyph at all sizes (Helvetica bundled with pdf-lib, or embed a WOFF subset with space preserved) and add a golden-image test.
+**B2. Token + column pickers, remove free-text where it's really an enum.**
+Replace the current `Textarea`s that hold column keys, token paths, and rule codes with:
+- **Column picker** — driven by the `certificate_template_v2` section schema per section type.
+- **Token picker** — dropdown of resolved tokens exposed by `pack_token_registry` for the pack's country (employer.pin, employee.kra_pin, period.start, etc.).
+- **Statutory-wording library** — pack-level reusable snippets (Income Tax Act CAP 470 §37, NSSF Act §20, etc.), inserted as tokens, not typed prose.
+Free text stays only for genuinely free content (footer note, publisher comments).
 
-### 4. WYSIWYG publisher preview
-`CertificateTemplateEditor`'s preview panel must call the **same** `certificateRenderer` (compiled for browser via pdf-lib) so what the publisher sees in the editor is exactly what the tenant will get. Kills the "looked fine in the editor, shallow in production" gap for good.
+**B3. Publish-time visual QA gate.**
+Extend `lint-localization-pack` to render each template through the certificate renderer against a synthetic fixture and reject publish when:
+- Any required section renders empty (zero rows / zero text).
+- Any section overflows page width.
+- Rendered PDF byte size falls under a per-doc-class floor (shallow-output proxy).
+- Statutory completeness (A3) fails.
 
-### 5. Publish-time visual QA
-Extend `lint-localization-pack` to render a synthetic P9 with fixture data, screenshot it, and reject publish if:
-- Any required section from the template body renders as empty (no rows, no text).
-- Total width of any section exceeds page width.
-- The rendered PDF is under a byte-size floor (proxy for "shallow output").
+### Phase C — extend the same architecture to returns / remittances
 
-### 6. Backfill the Kenya P9 template
-Update the seeded KE P9 template body to include all sections the renderer now supports (employer_header with PIN/tax-office tokens, employee_header with KRA PIN, fiscal_period_band with period-of-service, relief_summary with personal + insurance, signature_block, statutory_footnote citing CAP 470 §37). Ship as a `pack_upgrade_proposal`, not a forced overwrite.
+**C1. `return_template_v2` schema + renderer.**
+Introduce `return_template_v2` (mirrors certificate schema) with section types tuned for returns: `employer_header`, `period_band`, `employee_line_grid`, `employer_totals`, `reconciliation_block`, `signature_block`, `statutory_footnote`, `remittance_summary`. Add `_shared/pdf/returnRenderer.ts` reusing the same PdfBuilder primitives.
+
+**C2. Migrate `generate-statutory-return`.**
+Switch off `generateReportPdf` for returns, same way certificates were switched. Preserve the existing `columns[]`/`rows[]` fallback behind a `pack_versions.metadata.renderer` flag so already-installed packs keep working until upgraded.
+
+**C3. Migrate `ReturnTemplateEditor`.**
+Same section-based UI as `CertificateTemplateEditor` (B1 + B2 preview and pickers).
+
+### Phase D — ship via the upgrade flow (not a data patch)
+
+**D1. Convert the KE P9 body change into a `pack_upgrade_proposal`.**
+Publish a new KE pack version through `publish-localization-pack-version` (now gated by A3 + B3) rather than mutating seed rows. Tenants receive it via the existing `propose-localization-upgrades` / `apply-localization-pack-upgrade` path.
+
+**D2. Golden fixture set per country pack.**
+`localization_packs/<country>/fixtures/` — one synthetic employer + employees + a posted fiscal year, used by A2, B1, and B3. Cheap CI insurance that a new pack version renders the same shape as the previous one.
 
 ## Technical notes
 
-- `generateReportPdf` stays as-is — reports still need it. Certificates simply stop using it.
-- No schema changes. The `certificate_template_v2` schema already declares the section whitelist; this is a renderer + data-projection + preview change.
-- Tests: golden PDF snapshot per KE template section, `render_refusal_test.ts` extended to assert visual bands exist for a well-formed body.
-- Rollout: new renderer behind a `pack_versions.metadata.renderer = "v2"` flag; existing issued P9s under `payroll_tax_certificates` are historical and untouched.
+- No changes to already-issued `payroll_tax_certificates` — historical output stays as it was, per the brief.
+- Feature flag: `pack_versions.metadata.renderer = "v2"` (certificates) and `= "v2-returns"` (returns). Older packs continue to use `generateReportPdf`.
+- `certificate_template_v2` schema is unchanged; completeness rules (A3) live in application code so we can evolve per country without a schema migration.
+- Tests: golden-PDF snapshot per required section, `render_refusal_test.ts` extended with completeness failures, SQL test for the monthly projection.
 
-## Out of scope
+## Risks
 
-- Certificate of Service layout polish (same renderer, follow-on content pass).
-- Non-KE country packs — same infrastructure, different template bodies.
+- **Font swap** may shift line heights and reflow every certificate. Golden snapshots catch it; expect a one-time re-baseline.
+- **Browser pdf-lib bundle size** for the WYSIWYG preview (~350 KB gzipped). Load the preview lazily behind the editor route.
+- **Return-template migration** is the largest phase; some countries may have templates that don't map cleanly to the section vocabulary. Solution: pack-level custom section types allowed only if the pack ships a matching renderer plugin (out of scope for this pass; document as a v3 extension point).
+
+## Success criteria
+
+- A publisher can create a full P9 / P10 / return / remittance in the editor without seeing JSON, raw column keys, or unresolved tokens.
+- Publish fails loudly when a statutory document is missing a required section.
+- The KE P9 delivered to tenants through the upgrade flow visually matches the enterprise mockup in the previous agent's message (bands, totals, signatures, footnote), and the same is true for returns after Phase C.
+- Adding a new country pack requires only a fixture + template bodies — no renderer or editor code changes.
+
+## Out of scope (deferred by design)
+
 - Multi-language rendering.
-
-## Deliverables
-
-1. `_shared/pdf/certificateRenderer.ts` + per-section draw components.
-2. `generate-tax-certificate` switched to the new renderer.
-3. Monthly projection RPC returns full 12-row grid.
-4. Font/kerning fix in `accountantMono` + regression test.
-5. `CertificateTemplateEditor` preview uses the same renderer.
-6. `lint-localization-pack` visual-QA gate.
-7. KE P9 template body upgraded via `pack_upgrade_proposals`.
+- Non-KE country packs beyond fixtures needed to prove the platform.
+- Editor plugin system for custom section types (call it out as v3).

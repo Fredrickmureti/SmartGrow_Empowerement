@@ -33,6 +33,7 @@ import {
 import { compareSemver, isValidSemver } from "../_shared/semver.ts";
 import { hashSnapshot } from "../_shared/canonicalize.ts";
 import { validateAgainstSchema } from "../_shared/validateAgainstSchema.ts";
+import { checkCertificateCompleteness } from "../_shared/certificateCompleteness.ts";
 
 const PACK_TABLES = [
   "localization_pack_payroll_templates",
@@ -145,6 +146,17 @@ async function lintPack(sb: any, packId: string): Promise<string[]> {
     if (certSchema) {
       const e = validateAgainstSchema(c.body, certSchema.json_schema);
       for (const m of e) errors.push(`${label}: ${m}`);
+    }
+    // Doc-class statutory completeness (ADR 0060 follow-up): schema
+    // whitelists section TYPES but does not require the mandatory set
+    // for a given class. This rule table is the single source of truth
+    // shared with the editor (see src/features/localization/lib/
+    // certificateCompleteness.ts).
+    const completeness = checkCertificateCompleteness(c.code, c.body);
+    if (!completeness.ok) {
+      errors.push(
+        `${label}: ${completeness.rule.label} is missing required section(s): ${completeness.missing.join(", ")}`,
+      );
     }
   }
 

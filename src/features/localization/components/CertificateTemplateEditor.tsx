@@ -34,6 +34,10 @@ import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
+import {
+  checkCertificateCompleteness,
+  resolveCompletenessRule,
+} from "../lib/certificateCompleteness";
 
 const SECTION_TYPES = [
   { value: "employer_header",    label: "Employer header",   help: "Employer name, PIN, address, tax office." },
@@ -47,7 +51,11 @@ const SECTION_TYPES = [
   { value: "statutory_footnote", label: "Statutory footnote",help: "Legal notice printed under the tables." },
 ] as const;
 
-const REQUIRED_SECTIONS = ["employer_header","employee_header"] as const;
+// Baseline required sections shown before we know the doc-class rule
+// applies. Doc-class specific rules come from
+// `resolveCompletenessRule(templateCode)` and are enforced identically
+// on the server (publish gate) and here (editor).
+const BASELINE_REQUIRED_SECTIONS = ["employer_header", "employee_header"] as const;
 
 export type CertificateTemplateMetadata = {
   authority_id: string | null;
@@ -130,8 +138,22 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     footer_note: footerNote || undefined,
   }), [sections, footerNote, dataSource]);
 
-  const missingRequired = REQUIRED_SECTIONS.filter(
-    (t) => !sections.some((s) => s?.type === t),
+  const completenessRule = useMemo(
+    () => resolveCompletenessRule(initial.template_code),
+    [initial.template_code],
+  );
+  const completeness = useMemo(
+    () => checkCertificateCompleteness(initial.template_code, liveBody),
+    [initial.template_code, liveBody],
+  );
+  // Union baseline + doc-class rules for the UI chip list.
+  const missingRequired = Array.from(
+    new Set([
+      ...BASELINE_REQUIRED_SECTIONS.filter(
+        (t) => !sections.some((s) => s?.type === t),
+      ),
+      ...completeness.missing,
+    ]),
   );
   const metaErrors: string[] = [];
   if (editMetadata) {
@@ -141,7 +163,11 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   }
   const bodyErrors: string[] = [];
   if (sections.length === 0) bodyErrors.push("Add at least one section");
-  if (missingRequired.length) bodyErrors.push(`Missing required section(s): ${missingRequired.join(", ")}`);
+  if (missingRequired.length) {
+    bodyErrors.push(
+      `${completenessRule.label} is missing required section(s): ${missingRequired.join(", ")}`,
+    );
+  }
 
   const canSave = () =>
     unresolvedRef.current.length === 0 &&
@@ -298,6 +324,42 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
+            {/* Doc-class completeness card — shared with the publish gate */}
+            <div className="rounded-md border bg-muted/30 p-2 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-medium">{completenessRule.label}</div>
+                <Badge
+                  variant={completeness.ok ? "outline" : "destructive"}
+                  className="text-[10px]"
+                >
+                  {completeness.ok ? "Complete" : `${completeness.missing.length} missing`}
+                </Badge>
+              </div>
+              {completenessRule.rationale && (
+                <div className="text-[11px] text-muted-foreground">
+                  {completenessRule.rationale}
+                </div>
+              )}
+              {completeness.missing.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {completeness.missing.map((t) => {
+                    const meta = SECTION_TYPES.find((s) => s.value === t);
+                    return (
+                      <Button
+                        key={t}
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[10px]"
+                        onClick={() => addSection(t)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add {meta?.label ?? t}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             {sections.length === 0 && (
               <div className="text-xs text-muted-foreground">
                 No sections yet. A certificate must start with an employer and employee header.
