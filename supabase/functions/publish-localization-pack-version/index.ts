@@ -45,6 +45,14 @@ const PACK_TABLES = [
   "pack_token_registry",
 ] as const;
 
+// Rule-type schemas are not pack-scoped, but a pack version must
+// snapshot the schemas that were live at publish time so tenants can
+// reproduce the exact validation rules that graded the pack's contents
+// (ADR 0060). Cached under a synthetic `_schemas` key in the snapshot.
+const SNAPSHOT_GLOBAL_TABLES = [
+  "pack_rule_type_schemas",
+] as const;
+
 /** Naive deep diff producing JSON-pointer-ish paths. */
 function diff(a: any, b: any, path = ""): Record<string, { from: any; to: any }> {
   const out: Record<string, { from: any; to: any }> = {};
