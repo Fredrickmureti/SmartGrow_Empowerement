@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, Plus, Trash2, ArrowUp, ArrowDown, Loader2, ShieldCheck, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
+import { CertificatePreviewPane } from "./CertificatePreviewPane";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -251,7 +252,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-4">
         {/* Legal metadata */}
         {editMetadata && (
@@ -577,6 +578,19 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         </div>
       </div>
 
+      <div className="hidden xl:block">
+        <CertificatePreviewPane
+          templateCode={initial.template_code}
+          displayName={initial.template_code}
+          body={liveBody}
+          meta={editMetadata ? {
+            legal_reference: meta.legal_reference,
+            regulation_citation: meta.regulation_citation,
+            effective_date: meta.effective_date,
+          } : null}
+        />
+      </div>
+
       <div className="space-y-3">
         <TemplateFieldInspector
           packId={packId}
@@ -585,6 +599,18 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
             unresolvedRef.current = unresolved;
           }}
         />
+        <div className="xl:hidden">
+          <CertificatePreviewPane
+            templateCode={initial.template_code}
+            displayName={initial.template_code}
+            body={liveBody}
+            meta={editMetadata ? {
+              legal_reference: meta.legal_reference,
+              regulation_citation: meta.regulation_citation,
+              effective_date: meta.effective_date,
+            } : null}
+          />
+        </div>
       </div>
     </div>
   );
