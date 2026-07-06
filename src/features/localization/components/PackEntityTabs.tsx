@@ -472,6 +472,8 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
           "effective_date", "sunset_date", "submission_channel",
           "submission_format", "digital_signature_spec",
           "acknowledgement_spec", "api_endpoint_spec", "approval_required",
+          // Certificate-specific first-class metadata (ADR 0060).
+          "revision_notes", "issued_to",
         ]) {
           if (k in input.metadata) patch[k] = (input.metadata as any)[k];
         }
