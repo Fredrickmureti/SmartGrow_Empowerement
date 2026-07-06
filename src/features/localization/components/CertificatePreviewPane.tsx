@@ -44,7 +44,7 @@ export function CertificatePreviewPane({ templateCode, displayName, body, meta }
           meta,
         );
         const bytes = await renderCertificatePdf(tpl, KE_CERTIFICATE_PREVIEW_PAYLOAD);
-        const blob = new Blob([bytes], { type: "application/pdf" });
+        const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
         const next = URL.createObjectURL(blob);
         if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
         lastUrl.current = next;
