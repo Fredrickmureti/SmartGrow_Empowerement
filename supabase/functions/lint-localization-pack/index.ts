@@ -226,10 +226,10 @@ Deno.serve(async (req) => {
     //    HARD-FAIL — anything that would fall back to the legacy
     //    generic-column renderer at runtime is rejected here.
     for (const t of certTpls ?? []) {
-      for (const e of validateTemplateStructure("certificate", t)) errors.push(e);
+      for (const e of validateCertificateStructure(t)) errors.push(e);
     }
     for (const t of returnTpls ?? []) {
-      for (const e of validateTemplateStructure("return", t)) errors.push(e);
+      for (const e of validateReturnStructure(t)) errors.push(e);
     }
 
     return ok({ errors, warnings, summary: {
