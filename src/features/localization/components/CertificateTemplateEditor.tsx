@@ -33,6 +33,7 @@ import { AlertTriangle, Plus, Trash2, ArrowUp, ArrowDown, Loader2, ShieldCheck, 
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
+import { TokenAwareTextarea } from "./TokenAwareTextarea";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +41,7 @@ import {
   checkCertificateCompleteness,
   resolveCompletenessRule,
 } from "../lib/certificateCompleteness";
+import { snippetsFor } from "../lib/statutorySnippets";
 
 const SECTION_TYPES = [
   { value: "employer_header",    label: "Employer header",   help: "Employer name, PIN, address, tax office." },
