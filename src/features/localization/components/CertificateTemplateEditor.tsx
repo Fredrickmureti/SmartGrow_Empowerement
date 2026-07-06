@@ -34,6 +34,10 @@ import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
+import {
+  checkCertificateCompleteness,
+  resolveCompletenessRule,
+} from "../lib/certificateCompleteness";
 
 const SECTION_TYPES = [
   { value: "employer_header",    label: "Employer header",   help: "Employer name, PIN, address, tax office." },
@@ -47,7 +51,11 @@ const SECTION_TYPES = [
   { value: "statutory_footnote", label: "Statutory footnote",help: "Legal notice printed under the tables." },
 ] as const;
 
-const REQUIRED_SECTIONS = ["employer_header","employee_header"] as const;
+// Baseline required sections shown before we know the doc-class rule
+// applies. Doc-class specific rules come from
+// `resolveCompletenessRule(templateCode)` and are enforced identically
+// on the server (publish gate) and here (editor).
+const BASELINE_REQUIRED_SECTIONS = ["employer_header", "employee_header"] as const;
 
 export type CertificateTemplateMetadata = {
   authority_id: string | null;
@@ -130,8 +138,22 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     footer_note: footerNote || undefined,
   }), [sections, footerNote, dataSource]);
 
-  const missingRequired = REQUIRED_SECTIONS.filter(
-    (t) => !sections.some((s) => s?.type === t),
+  const completenessRule = useMemo(
+    () => resolveCompletenessRule(initial.template_code),
+    [initial.template_code],
+  );
+  const completeness = useMemo(
+    () => checkCertificateCompleteness(initial.template_code, liveBody),
+    [initial.template_code, liveBody],
+  );
+  // Union baseline + doc-class rules for the UI chip list.
+  const missingRequired = Array.from(
+    new Set([
+      ...BASELINE_REQUIRED_SECTIONS.filter(
+        (t) => !sections.some((s) => s?.type === t),
+      ),
+      ...completeness.missing,
+    ]),
   );
   const metaErrors: string[] = [];
   if (editMetadata) {
@@ -141,7 +163,11 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   }
   const bodyErrors: string[] = [];
   if (sections.length === 0) bodyErrors.push("Add at least one section");
-  if (missingRequired.length) bodyErrors.push(`Missing required section(s): ${missingRequired.join(", ")}`);
+  if (missingRequired.length) {
+    bodyErrors.push(
+      `${completenessRule.label} is missing required section(s): ${missingRequired.join(", ")}`,
+    );
+  }
 
   const canSave = () =>
     unresolvedRef.current.length === 0 &&
