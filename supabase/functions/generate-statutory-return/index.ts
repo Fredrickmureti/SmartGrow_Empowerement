@@ -14,6 +14,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
+import { isReturnTemplateV2, renderReturnPdf } from "../_shared/pdf/returnRenderer.ts";
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderGovFile, type GovFileSubmissionFormat } from "../_shared/govFileWriter.ts";
@@ -529,26 +530,67 @@ Deno.serve(async (req) => {
       // Do NOT consult `document_print_policies` here; statutory
       // returns must remain bit-identical regardless of tenant prefs.
       assertStatutoryPaper("a4");
-      const pdfPayload: ReportPdfPayload = {
-        title: template.display_name,
-        subtitle: `Period ${body.period_start} → ${body.period_end}${template.authority_name ? ` • ${template.authority_name}` : ""}`,
-        companyName: branding?.name ?? "",
-        organization: branding ?? undefined,
-        currency: orgCurrency,
-        columns: columns.map((c) => ({
-          key: c.key,
-          header: c.label ?? c.key,
-          align: c.source.startsWith("sum_") ? "right" : "left",
-          format: c.source.startsWith("sum_") ? "money" : undefined,
-        })),
-        rows: projected as any,
-        summaryRows: totalsKeys.map((k) => ({
-          label: `Total ${k}`,
-          value: `${orgCurrency ? orgCurrency + " " : ""}${(totals[k] ?? 0).toFixed(2)}`,
-        })),
-        footerNote: `${template.code} • ${body.period_start} → ${body.period_end}`,
-      };
-      const pdfBytes = await generateReportPdf(pdfPayload);
+      let pdfBytes: Uint8Array;
+      // v2-returns section renderer — same architecture as certificate
+      // renderer; feature-flagged per template body so old packs keep
+      // rendering through the legacy `generateReportPdf` path.
+      if (isReturnTemplateV2(template as any)) {
+        // Adapt the outer `reconciliation` block (already computed above)
+        // into the renderer's single-rule shape. Multi-rule reconciliation
+        // is summarised by its first block; publishers can add more
+        // detail via a dedicated `reconciliation_block` section later.
+        const first = reconciliation
+          ? (Array.isArray((reconciliation as any).blocks)
+              ? (reconciliation as any).blocks[0]
+              : reconciliation)
+          : null;
+        const recoPayload = first
+          ? {
+              rule_code: String(first.rule_code ?? first.code ?? ""),
+              expected: Number(first.expected ?? 0),
+              actual: Number(first.actual ?? 0),
+              delta: Number(first.delta ?? (Number(first.actual ?? 0) - Number(first.expected ?? 0))),
+            }
+          : null;
+        pdfBytes = await renderReturnPdf(template as any, {
+          employer: {
+            name: branding?.name ?? "",
+            tax_pin: (branding as any)?.tax_pin ?? null,
+            address: (branding as any)?.address ?? null,
+            tax_office: (branding as any)?.tax_office ?? null,
+          },
+          period_start: body.period_start,
+          period_end: body.period_end,
+          period_label: `${body.period_start} → ${body.period_end}`,
+          currency: orgCurrency,
+          rows: projected as any,
+          totals,
+          reconciliation: recoPayload,
+          serial_number: template.code,
+          generated_at: new Date().toISOString(),
+        });
+      } else {
+        const pdfPayload: ReportPdfPayload = {
+          title: template.display_name,
+          subtitle: `Period ${body.period_start} → ${body.period_end}${template.authority_name ? ` • ${template.authority_name}` : ""}`,
+          companyName: branding?.name ?? "",
+          organization: branding ?? undefined,
+          currency: orgCurrency,
+          columns: columns.map((c) => ({
+            key: c.key,
+            header: c.label ?? c.key,
+            align: c.source.startsWith("sum_") ? "right" : "left",
+            format: c.source.startsWith("sum_") ? "money" : undefined,
+          })),
+          rows: projected as any,
+          summaryRows: totalsKeys.map((k) => ({
+            label: `Total ${k}`,
+            value: `${orgCurrency ? orgCurrency + " " : ""}${(totals[k] ?? 0).toFixed(2)}`,
+          })),
+          footerNote: `${template.code} • ${body.period_start} → ${body.period_end}`,
+        };
+        pdfBytes = await generateReportPdf(pdfPayload);
+      }
       const path = `${basePath}.pdf`;
       const upload = await admin.storage
         .from(STORAGE_BUCKET)
