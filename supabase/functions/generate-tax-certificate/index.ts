@@ -217,6 +217,25 @@ Deno.serve(async (req) => {
       }
       const hasData = ["monthly_breakdown", "ytd_table", "totals"].some((d) => types.has(d));
       if (sec.length === 0 || missing.length > 0 || !hasData) {
+        // Best-effort diagnostic so the Publisher Health panel can surface
+        // packs whose templates are being refused in the field.
+        try {
+          await admin.from("payroll_diagnostics").insert({
+            organization_id: body.organization_id,
+            business_id: body.business_id,
+            severity: "error",
+            code: "TEMPLATE_STRUCTURAL_INVALID",
+            message: `Certificate template "${template.code}" refused: missing section contract`,
+            details: {
+              template_code: template.code,
+              template_source: templateSource,
+              pack_id: template.pack_id ?? null,
+              sections_present: Array.from(types),
+              missing_identity_sections: missing,
+              has_data_section: hasData,
+            },
+          });
+        } catch { /* diagnostics best-effort */ }
         return businessError(
           422,
           "TEMPLATE_STRUCTURAL_INVALID",
