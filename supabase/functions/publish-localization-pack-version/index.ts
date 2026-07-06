@@ -125,6 +125,29 @@ async function lintPack(sb: any, packId: string): Promise<string[]> {
     for (const m of e) errors.push(`${r.rule_name}: ${m}`);
   }
 
+  // ADR 0060 — certificate templates must carry legal metadata and
+  // pass the certificate_template_v2 schema. Legacy pre-v2 bodies
+  // (legacy_unvalidated=true) MUST be migrated before publish.
+  const { data: certs } = await sb
+    .from("localization_pack_certificate_templates")
+    .select("code, display_name, body, authority_id, legal_reference, effective_date, legacy_unvalidated")
+    .eq("pack_id", packId);
+  const certSchema = schemaByKey.get("certificate_template::v2");
+  for (const c of certs ?? []) {
+    const label = c.display_name || c.code;
+    if (!c.authority_id) errors.push(`${label}: missing statutory authority`);
+    if (!c.legal_reference) errors.push(`${label}: missing legal reference`);
+    if (!c.effective_date) errors.push(`${label}: missing effective date`);
+    if (c.legacy_unvalidated) {
+      errors.push(`${label}: legacy pre-v2 body — re-save in the editor to adopt certificate_template_v2 sections`);
+      continue;
+    }
+    if (certSchema) {
+      const e = validateAgainstSchema(c.body, certSchema.json_schema);
+      for (const m of e) errors.push(`${label}: ${m}`);
+    }
+  }
+
   return errors;
 }
 
