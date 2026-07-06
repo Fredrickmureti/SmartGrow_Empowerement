@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   checkCertificateCompleteness,
   resolveCompletenessRule,
@@ -50,6 +51,44 @@ const SECTION_TYPES = [
   { value: "signature_block",    label: "Signature block",   help: "Preparer + employer signature/stamp band." },
   { value: "statutory_footnote", label: "Statutory footnote",help: "Legal notice printed under the tables." },
 ] as const;
+
+// Field catalogs for `include` pickers — kept in sync with the renderer
+// defaults in supabase/functions/_shared/certificateSections.ts. Ordered
+// the way a payroll officer expects them on the printed document.
+const INCLUDE_OPTIONS: Record<string, ReadonlyArray<{ value: string; label: string }>> = {
+  employer_header: [
+    { value: "name",       label: "Name" },
+    { value: "tax_pin",    label: "Tax PIN" },
+    { value: "address",    label: "Address" },
+    { value: "tax_office", label: "Tax office" },
+    { value: "phone",      label: "Phone" },
+    { value: "email",      label: "Email" },
+  ],
+  employee_header: [
+    { value: "employee_number", label: "Employee number" },
+    { value: "tax_pin",         label: "Tax PIN" },
+    { value: "national_id",     label: "National ID" },
+    { value: "position",        label: "Position" },
+    { value: "department",      label: "Department" },
+    { value: "hire_date",       label: "Hire date" },
+  ],
+  signature_block: [
+    { value: "preparer",        label: "Preparer" },
+    { value: "date",            label: "Date" },
+    { value: "employer_stamp",  label: "Employer stamp" },
+    { value: "employee_ack",    label: "Employee acknowledgement" },
+  ],
+};
+
+// Common statutory rule-code chips for `monthly_breakdown`. Publishers
+// can still add pack-specific codes (typing + Enter) — the picker just
+// stops them typing free prose with typos.
+const COMMON_RULE_CODES = [
+  "gross_pay", "basic_pay", "allowances",
+  "paye", "nssf", "shif", "nhif", "housing_levy",
+  "insurance_relief", "personal_relief",
+  "net_pay",
+];
 
 // Baseline required sections shown before we know the doc-class rule
 // applies. Doc-class specific rules come from
@@ -408,27 +447,87 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                       onChange={(e) => patchSection(i, { body: e.target.value })}
                     />
                   )}
-                  {(s.type === "employer_header" || s.type === "employee_header" || s.type === "signature_block") && (
-                    <Input
-                      className="h-8 text-xs"
-                      placeholder="Include fields (comma-separated) — leave blank for defaults"
-                      value={Array.isArray(s.include) ? s.include.join(", ") : ""}
-                      onChange={(e) => patchSection(i, {
-                        include: e.target.value
-                          .split(",").map((x) => x.trim()).filter(Boolean),
-                      })}
-                    />
+                  {INCLUDE_OPTIONS[s.type] && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Fields to include (leave all off for the default set)
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        {INCLUDE_OPTIONS[s.type].map((opt) => {
+                          const current: string[] = Array.isArray(s.include) ? s.include : [];
+                          const checked = current.includes(opt.value);
+                          return (
+                            <label
+                              key={opt.value}
+                              className="flex items-center gap-1.5 text-xs cursor-pointer"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) => {
+                                  const next = v
+                                    ? Array.from(new Set([...current, opt.value]))
+                                    : current.filter((x) => x !== opt.value);
+                                  patchSection(i, {
+                                    include: next.length ? next : undefined,
+                                  });
+                                }}
+                              />
+                              {opt.label}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                   {s.type === "monthly_breakdown" && (
-                    <Input
-                      className="h-8 text-xs"
-                      placeholder="Rule codes (comma-separated) — e.g. gross_pay, paye, nssf"
-                      value={Array.isArray(s.rule_codes) ? s.rule_codes.join(", ") : ""}
-                      onChange={(e) => patchSection(i, {
-                        rule_codes: e.target.value
-                          .split(",").map((x) => x.trim()).filter(Boolean),
-                      })}
-                    />
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Rule codes shown as columns
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {(() => {
+                          const current: string[] = Array.isArray(s.rule_codes) ? s.rule_codes : [];
+                          const all = Array.from(new Set([...COMMON_RULE_CODES, ...current]));
+                          return all.map((code) => {
+                            const on = current.includes(code);
+                            return (
+                              <Button
+                                key={code}
+                                type="button"
+                                size="sm"
+                                variant={on ? "default" : "outline"}
+                                className="h-6 text-[10px] px-2"
+                                onClick={() => {
+                                  const next = on
+                                    ? current.filter((x) => x !== code)
+                                    : [...current, code];
+                                  patchSection(i, {
+                                    rule_codes: next.length ? next : undefined,
+                                  });
+                                }}
+                              >
+                                {code}
+                              </Button>
+                            );
+                          });
+                        })()}
+                      </div>
+                      <Input
+                        className="h-7 text-[11px]"
+                        placeholder="Add a pack-specific rule code and press Enter"
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          const v = (e.target as HTMLInputElement).value.trim();
+                          if (!v) return;
+                          const current: string[] = Array.isArray(s.rule_codes) ? s.rule_codes : [];
+                          if (!current.includes(v)) {
+                            patchSection(i, { rule_codes: [...current, v] });
+                          }
+                          (e.target as HTMLInputElement).value = "";
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
               );

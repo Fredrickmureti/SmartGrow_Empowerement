@@ -31,6 +31,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { extractTokens } from "../_shared/validateAgainstSchema.ts";
+import { checkCertificateCompleteness } from "../_shared/certificateCompleteness.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -41,6 +42,10 @@ const EMPLOYER_KINDS = new Set(["employer_contribution", "statutory_employer"]);
 // (ADR 0060 v2026.4.0). A pack cannot be published if any statutory
 // document template ships with a legacy blocks-only body, missing
 // identity/signature sections, or missing legal metadata.
+// Baseline sections required for EVERY certificate regardless of
+// doc-class. Doc-class specific rules (P9 needs the 12-month grid, P10
+// needs employer totals + statutory footnote, etc.) come from the
+// shared `certificateCompleteness` rule table and are applied on top.
 const REQUIRED_IDENTITY_SECTIONS = ["employer_header", "employee_header", "signature_block"];
 const DATA_SECTIONS = ["monthly_breakdown", "ytd_table", "totals"];
 const STATUTORY_CODE_RE = /^(P9|P10|VAT|PAYE|NSSF|SHIF|AHL|WHT|NHIF|NITA|HELB)/i;
@@ -76,6 +81,13 @@ function validateCertificateStructure(row: any): string[] {
     }
     if (!DATA_SECTIONS.some((d) => types.has(d))) {
       errs.push(`${label}: must contain at least one data section (${DATA_SECTIONS.join(" | ")}).`);
+    }
+    // Doc-class specific completeness (shared with publish gate + editor).
+    const completeness = checkCertificateCompleteness(String(code), body);
+    if (!completeness.ok) {
+      errs.push(
+        `${label}: ${completeness.rule.label} is missing required section(s): ${completeness.missing.join(", ")}.`,
+      );
     }
   }
   validateMetadata(label, code, row, errs);
