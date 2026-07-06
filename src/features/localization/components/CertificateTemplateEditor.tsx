@@ -252,7 +252,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-4">
         {/* Legal metadata */}
         {editMetadata && (
