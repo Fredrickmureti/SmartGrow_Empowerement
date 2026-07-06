@@ -343,3 +343,51 @@ export function useCertificateTemplateHealth(packId?: string | null) {
     },
   });
 }
+
+/**
+ * ADR 0060 §7 — Publisher health signal driven by runtime diagnostics.
+ * Counts `TEMPLATE_STRUCTURAL_INVALID` refusals emitted by
+ * generate-tax-certificate in the last 30 days for templates that
+ * belong to this pack. A non-zero count means at least one tenant hit
+ * the render-time refusal — the publisher should fix the pack
+ * template rather than wait for support tickets.
+ */
+export function useCertificateRenderFallbackHealth(packId?: string | null) {
+  return useQuery({
+    queryKey: ["pack-render-fallback-health", packId ?? "all"],
+    enabled: !!packId,
+    queryFn: async () => {
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await (supabase as any)
+        .from("payroll_diagnostics")
+        .select("id, message, details, created_at")
+        .eq("code", "TEMPLATE_STRUCTURAL_INVALID")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        id: string;
+        message: string;
+        details: any;
+        created_at: string;
+      }>;
+      const scoped = rows.filter(
+        (r) => (r.details?.pack_id ?? null) === packId,
+      );
+      const byTemplate = new Map<string, number>();
+      for (const r of scoped) {
+        const t = String(r.details?.template_code ?? "?");
+        byTemplate.set(t, (byTemplate.get(t) ?? 0) + 1);
+      }
+      return {
+        totalRefusals: scoped.length,
+        byTemplate: Array.from(byTemplate.entries()).map(([code, count]) => ({
+          code,
+          count,
+        })),
+        sample: scoped.slice(0, 5),
+      };
+    },
+  });
+}
