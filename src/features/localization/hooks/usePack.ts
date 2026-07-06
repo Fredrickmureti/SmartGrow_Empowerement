@@ -303,3 +303,43 @@ export function usePackHealth(packId?: string | null) {
     },
   });
 }
+
+/**
+ * ADR 0060 — certificate-template health signals for the publisher UI.
+ * Two independent checks:
+ *   1. `legacy_unvalidated=true` → publisher must re-save through the
+ *      v2 editor before publish will accept it.
+ *   2. Missing pack-owned legal metadata (authority / legal reference /
+ *      effective date) — the publisher lint will hard-fail publish on any
+ *      of these; surfacing them early lets the editor nag first.
+ */
+export function useCertificateTemplateHealth(packId?: string | null) {
+  return useQuery({
+    queryKey: ["pack-certificate-health", packId ?? "all"],
+    enabled: !!packId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("localization_pack_certificate_templates")
+        .select(
+          "id, code, display_name, authority_id, legal_reference, effective_date, legacy_unvalidated",
+        )
+        .eq("pack_id", packId)
+        .order("code");
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        id: string;
+        code: string;
+        display_name: string | null;
+        authority_id: string | null;
+        legal_reference: string | null;
+        effective_date: string | null;
+        legacy_unvalidated: boolean;
+      }>;
+      const legacy = rows.filter((r) => r.legacy_unvalidated);
+      const missingMetadata = rows.filter(
+        (r) => !r.authority_id || !r.legal_reference || !r.effective_date,
+      );
+      return { legacy, missingMetadata };
+    },
+  });
+}
