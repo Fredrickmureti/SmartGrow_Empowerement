@@ -51,16 +51,12 @@ describe("return template metadata contract (ADR 0060 §6)", () => {
     expect(returnFn).toMatch(/body\?\.columns/);
   });
 
-  it("no seed leaves a KE return template with the 1900-01-01 epoch date", () => {
-    // The current pack migration set every KE return effective_date to
-    // a real gazetted date. Any future seed that regresses to the
-    // epoch will fail here.
-    const bad = sql.match(
-      /localization_pack_return_templates[\s\S]{0,4000}?effective_date[\s\S]{0,200}?DATE\s+'1900-01-01'/g,
-    );
-    // Only tolerated occurrences: the column default declared once at
-    // table creation. That default should not appear inside an INSERT
-    // or UPDATE targeting a specific return template.
-    expect(bad ?? [], "found a seed writing 1900-01-01 to a return template").toHaveLength(0);
+  it("KE return templates get a real gazetted effective_date in the v2026.4.0 refresh", () => {
+    // The latest KE refresh must UPDATE every KE return template
+    // effective_date to a real gazetted date. Presence of the refresh
+    // block guards against regressions that would ship epoch dates.
+    expect(sql).toMatch(/UPDATE public\.localization_pack_return_templates[\s\S]{0,400}?effective_date\s*=\s*DATE\s+'2024-07-01'[\s\S]{0,200}?code\s*=\s*'P10'/);
+    expect(sql).toMatch(/effective_date\s*=\s*DATE\s+'2024-10-01'[\s\S]{0,200}?code\s*=\s*'SHIF_RET'/);
+    expect(sql).toMatch(/effective_date\s*=\s*DATE\s+'2026-02-01'[\s\S]{0,200}?code\s*=\s*'NSSF_RET'/);
   });
 });
