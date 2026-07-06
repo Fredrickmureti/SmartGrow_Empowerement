@@ -21818,6 +21818,8 @@ export type Database = {
       }
       localization_pack_certificate_templates: {
         Row: {
+          approval_required: boolean
+          authority_id: string | null
           body: Json
           code: string
           created_at: string
@@ -21825,15 +21827,24 @@ export type Database = {
           display_name: string
           due_day: number | null
           due_month_offset: number | null
+          effective_date: string
           id: string
+          issued_to: string
           layout: string
+          legacy_unvalidated: boolean
+          legal_reference: string | null
           pack_id: string | null
           pack_version_id: string | null
           period: string
+          regulation_citation: string | null
+          revision_notes: string | null
           sort_order: number | null
+          sunset_date: string | null
           updated_at: string
         }
         Insert: {
+          approval_required?: boolean
+          authority_id?: string | null
           body?: Json
           code: string
           created_at?: string
@@ -21841,15 +21852,24 @@ export type Database = {
           display_name: string
           due_day?: number | null
           due_month_offset?: number | null
+          effective_date?: string
           id?: string
+          issued_to?: string
           layout?: string
+          legacy_unvalidated?: boolean
+          legal_reference?: string | null
           pack_id?: string | null
           pack_version_id?: string | null
           period?: string
+          regulation_citation?: string | null
+          revision_notes?: string | null
           sort_order?: number | null
+          sunset_date?: string | null
           updated_at?: string
         }
         Update: {
+          approval_required?: boolean
+          authority_id?: string | null
           body?: Json
           code?: string
           created_at?: string
@@ -21857,15 +21877,29 @@ export type Database = {
           display_name?: string
           due_day?: number | null
           due_month_offset?: number | null
+          effective_date?: string
           id?: string
+          issued_to?: string
           layout?: string
+          legacy_unvalidated?: boolean
+          legal_reference?: string | null
           pack_id?: string | null
           pack_version_id?: string | null
           period?: string
+          regulation_citation?: string | null
+          revision_notes?: string | null
           sort_order?: number | null
+          sunset_date?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "localization_pack_certificate_templates_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "statutory_authorities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "localization_pack_certificate_templates_pack_id_fkey"
             columns: ["pack_id"]
