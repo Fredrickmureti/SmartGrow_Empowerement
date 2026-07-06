@@ -115,6 +115,36 @@ function validateReturnStructure(row: any): string[] {
   return errs;
 }
 
+/**
+ * Bank-export templates are file-format specs (CSV / fixed-width) consumed
+ * by payroll disbursement. They must declare which version of the bank's
+ * file spec they implement (`spec_reference`) and an `effective_date` so
+ * old bank-format revisions can be sunset cleanly. `authority_id` is
+ * optional — most clearing formats (Pesalink, EFT) are issued by clearing
+ * houses, not statutory authorities.
+ */
+function validateBankExportStructure(row: any): string[] {
+  const errs: string[] = [];
+  const code = row.format_code ?? "(unknown)";
+  const label = `bank export template "${code}"`;
+  const spec = row.spec ?? {};
+  if (!spec || typeof spec !== "object") {
+    errs.push(`${label}: spec must be a JSON object describing the file format.`);
+  } else if (!Array.isArray(spec.columns) || spec.columns.length === 0) {
+    errs.push(`${label}: spec.columns must be a non-empty array of field descriptors.`);
+  }
+  if (!row.spec_reference || String(row.spec_reference).trim() === "") {
+    errs.push(`${label}: spec_reference is required (bank-file spec version, e.g. "KBA Pesalink Bulk File Spec v1.2").`);
+  }
+  if (!row.effective_date || String(row.effective_date) < "2000-01-01") {
+    errs.push(`${label}: effective_date must be set and >= 2000-01-01 (got ${row.effective_date ?? "null"}).`);
+  }
+  if (row.legal_reference && !row.regulation_citation) {
+    errs.push(`${label}: regulation_citation is required whenever legal_reference is set.`);
+  }
+  return errs;
+}
+
 function ok(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
