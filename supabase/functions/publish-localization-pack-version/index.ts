@@ -76,15 +76,23 @@ async function snapshotPack(sb: any, packId: string) {
     if (error) throw new Error(`${t}: ${error.message}`);
     snap[t] = data ?? [];
   }
+  // Global tables (rule-type schemas) — snapshot at publish time so a
+  // pack version carries the exact validation rules that graded it.
+  for (const t of SNAPSHOT_GLOBAL_TABLES) {
+    const { data, error } = await sb.from(t).select("*");
+    if (error) throw new Error(`${t}: ${error.message}`);
+    snap[t] = data ?? [];
+  }
   const { data: pack } = await sb.from("localization_packs").select("*").eq("id", packId).single();
   snap["_pack"] = [pack];
   return snap;
 }
 
 /**
- * Server-side lint gate. Validates every pack payroll template against
- * its registered JSON Schema. Returns the list of human-readable errors,
- * empty means clean.
+ * Server-side lint gate. Validates every pack payroll template AND
+ * every certificate template against their registered JSON Schemas,
+ * plus certificate legal-metadata completeness (ADR 0060). Empty means
+ * clean.
  */
 async function lintPack(sb: any, packId: string): Promise<string[]> {
   const errors: string[] = [];
