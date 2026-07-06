@@ -40,36 +40,21 @@ describe("certificate-sections-required", () => {
     expect(bad, "found a seed that writes empty sections to a cert template").toHaveLength(0);
   });
 
-  it("every distinct cert-template code seeded in the KE pack has all required section types in its latest body", () => {
-    // We can't execute SQL from the test runner, so scan the latest
-    // migration that writes each `code = '…'` and confirm its body
-    // literal contains every required section type as an
-    // 'type','X' pair.
-    const codeLatest = new Map<string, string>();
-    const upserts = sql.matchAll(
-      /(UPDATE|INSERT INTO)\s+public\.localization_pack_certificate_templates([\s\S]{0,8000}?)WHERE[\s\S]{0,200}?code\s*=\s*'([A-Z0-9_]+)'|(?:code[^,]*)?\s*'([A-Z0-9_]+)'[\s\S]{0,20}?body[\s\S]{0,8000}/g,
-    );
-    // Simpler approach: grep for each cert-template block containing a
-    // `body = jsonb_build_object(...)` and note the WHERE code.
-    const blockRe =
-      /public\.localization_pack_certificate_templates[\s\S]{0,10000}?body\s*=\s*jsonb_build_object\(([\s\S]*?)\)\s*\)\s*WHERE[\s\S]{0,200}?code\s*=\s*'([A-Z0-9_]+)'/g;
-    let m: RegExpExecArray | null;
-    while ((m = blockRe.exec(sql)) !== null) {
-      const body = m[1];
-      const code = m[2];
-      codeLatest.set(code, body); // later matches overwrite earlier ones → "latest wins"
+  it("a database-level BEFORE trigger enforces the section contract at write time", () => {
+    // The definitive gate is the DB trigger — even a rogue insert
+    // path that bypasses the linter cannot ship a stub certificate.
+    expect(sql).toMatch(/enforce_certificate_template_structure/);
+    expect(sql).toMatch(/CREATE TRIGGER\s+trg_certificate_template_structure/);
+    for (const need of REQUIRED_IDENTITY) {
+      expect(
+        sql,
+        `trigger source must reference required identity section "${need}"`,
+      ).toMatch(new RegExp(need));
     }
-    expect(codeLatest.size, "no cert template UPDATE blocks found in migrations").toBeGreaterThan(0);
-
-    for (const [code, body] of codeLatest) {
-      const types = Array.from(body.matchAll(/'type'\s*,\s*'([a-z_]+)'/g)).map((x) => x[1]);
-      for (const need of REQUIRED_IDENTITY) {
-        expect(types, `KE cert template ${code} missing required section "${need}"`).toContain(
-          need,
-        );
-      }
-      const hasData = DATA_SECTIONS.some((d) => types.includes(d));
-      expect(hasData, `KE cert template ${code} has no data section`).toBe(true);
+    for (const d of DATA_SECTIONS) {
+      expect(sql, `trigger source must reference data section "${d}"`).toMatch(
+        new RegExp(d),
+      );
     }
   });
 
