@@ -324,6 +324,42 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
+            {/* Doc-class completeness card — shared with the publish gate */}
+            <div className="rounded-md border bg-muted/30 p-2 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-medium">{completenessRule.label}</div>
+                <Badge
+                  variant={completeness.ok ? "outline" : "destructive"}
+                  className="text-[10px]"
+                >
+                  {completeness.ok ? "Complete" : `${completeness.missing.length} missing`}
+                </Badge>
+              </div>
+              {completenessRule.rationale && (
+                <div className="text-[11px] text-muted-foreground">
+                  {completenessRule.rationale}
+                </div>
+              )}
+              {completeness.missing.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {completeness.missing.map((t) => {
+                    const meta = SECTION_TYPES.find((s) => s.value === t);
+                    return (
+                      <Button
+                        key={t}
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[10px]"
+                        onClick={() => addSection(t)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add {meta?.label ?? t}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             {sections.length === 0 && (
               <div className="text-xs text-muted-foreground">
                 No sections yet. A certificate must start with an employer and employee header.
