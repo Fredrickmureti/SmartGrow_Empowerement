@@ -28,9 +28,14 @@ const DIR = "supabase/migrations";
 const GRANDFATHERED = new Set<string>([
   // Original seed of the KE pack (v1.0.0) — body is the initial payload.
   "20260223091409_seed_kenya_localization_pack.sql",
+  // Pre-versioning seed refresh of KE certificate templates.
+  "20260510082513_92000ad3-6b83-42ea-a827-3142f7cbeeb8.sql",
   // ADR-0060 in-place refresh; superseded by data insert that publishes
   // 2026.5.0 and fans out upgrade proposals.
   "20260706001915_41e386c8-d216-438b-9bc5-9802b673c55d.sql",
+  // ADR-0060 companion migration touching legacy body fields; superseded
+  // by the 2026.5.0 data insert and its upgrade-proposal fan-out.
+  "20260706013020_56b00809-ba37-4703-97c1-cc38cfff0b16.sql",
 ]);
 
 describe("certificate template body changes require a pack version bump", () => {
