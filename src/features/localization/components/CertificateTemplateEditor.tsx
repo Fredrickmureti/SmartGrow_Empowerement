@@ -446,13 +446,44 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                     />
                   )}
                   {s.type === "statutory_footnote" && (
-                    <Textarea
-                      rows={2}
-                      className="text-xs"
-                      placeholder="Legal notice text…"
-                      value={s.body ?? ""}
-                      onChange={(e) => patchSection(i, { body: e.target.value })}
-                    />
+                    <div className="space-y-1.5">
+                      {availableSnippets.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                            Canonical wording (click to insert verbatim)
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {availableSnippets.map((snip) => (
+                              <Button
+                                key={snip.id}
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[10px] px-2"
+                                title={snip.body}
+                                onClick={() => {
+                                  const current = String(s.body ?? "").trim();
+                                  const next = current
+                                    ? `${current}\n\n${snip.body}`
+                                    : snip.body;
+                                  patchSection(i, { body: next });
+                                }}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                {snip.title}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <TokenAwareTextarea
+                        packId={packId ?? null}
+                        rows={3}
+                        value={String(s.body ?? "")}
+                        onChange={(v) => patchSection(i, { body: v })}
+                        placeholder="Legal notice text. Use Insert field to reference tokens."
+                      />
+                    </div>
                   )}
                   {INCLUDE_OPTIONS[s.type] && (
                     <div className="space-y-1">
