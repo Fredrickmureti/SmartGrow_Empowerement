@@ -1,45 +1,421 @@
 /**
  * CertificateTemplateEditor — publisher-facing editor for
- * `localization_pack_certificate_templates`. Composes the shared
- * block-based `TemplateEditor` with the `TemplateFieldInspector` so
- * publishers see, live, which of the tokens they reference will
- * resolve at render time. Save is blocked while any referenced token
- * is absent from `pack_token_registry` (platform-reserved + pack).
+ * `localization_pack_certificate_templates`. Combines:
+ *   1. First-class legal metadata (authority, legal ref, effective date,
+ *      revision notes, issued-to, approval-required) mirroring the
+ *      Return Template Slice A publishing surface.
+ *   2. Section palette — publishers pick from the certificate_template_v2
+ *      whitelist (employer_header, employee_header, fiscal_period_band,
+ *      monthly_breakdown, ytd_table, totals, relief_summary,
+ *      signature_block, statutory_footnote). Unknown section types can
+ *      never be authored here; the DB trigger enforces the same
+ *      whitelist at write time.
+ *   3. Live token field inspector — save blocked while any {{token}}
+ *      referenced in a section body is absent from `pack_token_registry`.
+ *   4. Free-form block editor (legacy) is still available for tenants
+ *      overriding a pack template — but admins are steered to sections.
  *
- * Mounted from `PackEntityTabs` for `localization_pack_certificate_templates`
- * rows — replaces the generic `TemplateEditor` path for certificates so
- * the architecture-guard test can verify a first-class editor exists.
+ * Mounted from `PackEntityTabs` for `localization_pack_certificate_templates`.
+ * Save contract mirrors ReturnTemplateEditor so PackEntityTabs can
+ * persist metadata columns uniformly.
  */
-import { useRef, useState } from "react";
-import { TemplateEditor } from "./TemplateEditor";
+import { useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertTriangle, Plus, Trash2, ArrowUp, ArrowDown, Loader2, ShieldCheck, Building2 } from "lucide-react";
+import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
+import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
+
+const SECTION_TYPES = [
+  { value: "employer_header",    label: "Employer header",   help: "Employer name, PIN, address, tax office." },
+  { value: "employee_header",    label: "Employee header",   help: "Employee identity band (name, PIN, ID, position)." },
+  { value: "fiscal_period_band", label: "Fiscal period",     help: "Tax year / period-of-service band." },
+  { value: "monthly_breakdown",  label: "Monthly breakdown", help: "12-row month grid pivoted by rule code." },
+  { value: "ytd_table",          label: "YTD table",         help: "Generic YTD earnings-and-deductions table." },
+  { value: "totals",             label: "Totals",            help: "Year-to-date totals band." },
+  { value: "relief_summary",     label: "Relief summary",    help: "Personal and insurance relief lines." },
+  { value: "signature_block",    label: "Signature block",   help: "Preparer + employer signature/stamp band." },
+  { value: "statutory_footnote", label: "Statutory footnote",help: "Legal notice printed under the tables." },
+] as const;
+
+const REQUIRED_SECTIONS = ["employer_header","employee_header"] as const;
+
+export type CertificateTemplateMetadata = {
+  authority_id: string | null;
+  legal_reference: string | null;
+  regulation_citation: string | null;
+  effective_date: string | null;
+  sunset_date: string | null;
+  revision_notes: string | null;
+  issued_to: "employee" | "employer" | "both";
+  approval_required: boolean;
+};
+
+function defaultMetadata(): CertificateTemplateMetadata {
+  return {
+    authority_id: null,
+    legal_reference: null,
+    regulation_citation: null,
+    effective_date: null,
+    sunset_date: null,
+    revision_notes: null,
+    issued_to: "employee",
+    approval_required: false,
+  };
+}
+
+function normalizeMetadata(input: Partial<CertificateTemplateMetadata> | null | undefined): CertificateTemplateMetadata {
+  const d = defaultMetadata();
+  if (!input) return d;
+  return {
+    authority_id:        input.authority_id ?? null,
+    legal_reference:     input.legal_reference ?? null,
+    regulation_citation: input.regulation_citation ?? null,
+    effective_date:      input.effective_date ?? null,
+    sunset_date:         input.sunset_date ?? null,
+    revision_notes:      input.revision_notes ?? null,
+    issued_to:           (input.issued_to as any) ?? "employee",
+    approval_required:   !!input.approval_required,
+  };
+}
 
 interface Props {
   mode: EditorMode;
   packId?: string | null;
   templateCode: string;
-  initial: { template_code: string; body: any; layout?: string | null; notes?: string | null };
-  onSave: (next: { body: any; layout: string | null; notes: string | null }) => Promise<void> | void;
+  initial: {
+    template_code: string;
+    body: any;
+    layout?: string | null;
+    notes?: string | null;
+    metadata?: Partial<CertificateTemplateMetadata> | null;
+  };
+  onSave: (next: {
+    body: any;
+    layout: string | null;
+    notes: string | null;
+    metadata?: CertificateTemplateMetadata;
+  }) => Promise<void> | void;
   onCancel?: () => void;
 }
 
-export function CertificateTemplateEditor({ mode, packId, templateCode, initial, onSave, onCancel }: Props) {
-  const [liveBody, setLiveBody] = useState<any>(initial.body);
+export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCancel }: Props) {
+  const editMetadata = mode === "admin" && initial.metadata !== undefined;
+  const [meta, setMeta] = useState<CertificateTemplateMetadata>(() => normalizeMetadata(initial.metadata));
+  const [sections, setSections] = useState<any[]>(() => {
+    const b = initial.body;
+    if (b && Array.isArray(b.sections)) return b.sections;
+    return [];
+  });
+  const [dataSource] = useState<"payroll_employee_ytd">("payroll_employee_ytd");
+  const [footerNote, setFooterNote] = useState<string>(() => String(initial.body?.footer_note ?? ""));
+  const [layout, setLayout] = useState<string>(initial.layout ?? "standard");
+  const [notes, setNotes] = useState<string>(initial.notes ?? "");
+  const [busy, setBusy] = useState(false);
   const unresolvedRef = useRef<string[]>([]);
+  const authoritiesQuery = useStatutoryAuthorities(editMetadata ? packId : null);
+
+  const liveBody = useMemo(() => ({
+    data_source: dataSource,
+    sections,
+    footer_note: footerNote || undefined,
+  }), [sections, footerNote, dataSource]);
+
+  const missingRequired = REQUIRED_SECTIONS.filter(
+    (t) => !sections.some((s) => s?.type === t),
+  );
+  const metaErrors: string[] = [];
+  if (editMetadata) {
+    if (!meta.authority_id) metaErrors.push("Statutory authority is required");
+    if (!meta.legal_reference) metaErrors.push("Legal reference is required");
+    if (!meta.effective_date) metaErrors.push("Effective date is required");
+  }
+  const bodyErrors: string[] = [];
+  if (sections.length === 0) bodyErrors.push("Add at least one section");
+  if (missingRequired.length) bodyErrors.push(`Missing required section(s): ${missingRequired.join(", ")}`);
+
+  const canSave = () =>
+    unresolvedRef.current.length === 0 &&
+    metaErrors.length === 0 &&
+    bodyErrors.length === 0;
+
+  const addSection = (type: string) => {
+    setSections([...sections, { type }]);
+  };
+  const removeSection = (i: number) => setSections(sections.filter((_, idx) => idx !== i));
+  const move = (i: number, dir: -1 | 1) => {
+    const next = [...sections];
+    const j = i + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    setSections(next);
+  };
+  const patchSection = (i: number, patch: Record<string, any>) => {
+    const next = [...sections];
+    next[i] = { ...next[i], ...patch };
+    setSections(next);
+  };
+
+  const doSave = async () => {
+    if (!canSave()) {
+      toast.error("Fix validation errors before saving");
+      return;
+    }
+    setBusy(true);
+    try {
+      await onSave({
+        body: liveBody,
+        layout,
+        notes: notes || null,
+        metadata: editMetadata ? meta : undefined,
+      });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <TemplateEditor
-        mode={mode}
-        packId={packId}
-        templateCode={templateCode}
-        initial={initial}
-        onSave={onSave}
-        onCancel={onCancel}
-        onBodyChange={setLiveBody}
-        canSave={() => unresolvedRef.current.length === 0}
-      />
+      <div className="space-y-4">
+        {/* Legal metadata */}
+        {editMetadata && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4" />
+                Legal metadata
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Statutory authority *</Label>
+                <Select
+                  value={meta.authority_id ?? ""}
+                  onValueChange={(v) => setMeta({ ...meta, authority_id: v || null })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select authority…" /></SelectTrigger>
+                  <SelectContent>
+                    {(authoritiesQuery.data ?? []).map((a: any) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.display_name} ({a.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Issued to</Label>
+                <Select value={meta.issued_to} onValueChange={(v) => setMeta({ ...meta, issued_to: v as any })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="employer">Employer</SelectItem>
+                    <SelectItem value="both">Both</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">Legal reference *</Label>
+                <Input
+                  value={meta.legal_reference ?? ""}
+                  onChange={(e) => setMeta({ ...meta, legal_reference: e.target.value || null })}
+                  placeholder="Income Tax Act, CAP 470"
+                />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">Regulation citation</Label>
+                <Input
+                  value={meta.regulation_citation ?? ""}
+                  onChange={(e) => setMeta({ ...meta, regulation_citation: e.target.value || null })}
+                  placeholder="Section 37 — Deduction of tax from emoluments"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Effective date *</Label>
+                <Input
+                  type="date"
+                  value={meta.effective_date ?? ""}
+                  onChange={(e) => setMeta({ ...meta, effective_date: e.target.value || null })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Sunset date</Label>
+                <Input
+                  type="date"
+                  value={meta.sunset_date ?? ""}
+                  onChange={(e) => setMeta({ ...meta, sunset_date: e.target.value || null })}
+                />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">Revision notes</Label>
+                <Textarea
+                  rows={2}
+                  value={meta.revision_notes ?? ""}
+                  onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })}
+                  placeholder="What changed in this pack version?"
+                />
+              </div>
+              <div className="flex items-center gap-2 md:col-span-2">
+                <Switch
+                  checked={meta.approval_required}
+                  onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })}
+                />
+                <Label className="text-xs">Requires approval before issuance</Label>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Sections */}
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Sections
+            </CardTitle>
+            <div className="flex items-center gap-1">
+              <Select onValueChange={(v) => addSection(v)}>
+                <SelectTrigger className="h-8 w-[210px]">
+                  <SelectValue placeholder="Add section…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SECTION_TYPES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {sections.length === 0 && (
+              <div className="text-xs text-muted-foreground">
+                No sections yet. A certificate must start with an employer and employee header.
+              </div>
+            )}
+            {sections.map((s, i) => {
+              const meta = SECTION_TYPES.find((t) => t.value === s?.type);
+              const unknown = !meta;
+              return (
+                <div key={i} className="border rounded-md p-2 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant={unknown ? "destructive" : "outline"} className="text-[10px]">
+                        {s.type}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {meta?.help ?? "Unknown section type — will be rejected on save."}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => move(i, -1)} disabled={i === 0}>
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => move(i, 1)} disabled={i === sections.length - 1}>
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeSection(i)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  {(s.type === "monthly_breakdown" || s.type === "ytd_table") && (
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Title (optional)"
+                      value={s.title ?? ""}
+                      onChange={(e) => patchSection(i, { title: e.target.value || undefined })}
+                    />
+                  )}
+                  {s.type === "statutory_footnote" && (
+                    <Textarea
+                      rows={2}
+                      className="text-xs"
+                      placeholder="Legal notice text…"
+                      value={s.body ?? ""}
+                      onChange={(e) => patchSection(i, { body: e.target.value })}
+                    />
+                  )}
+                  {(s.type === "employer_header" || s.type === "employee_header" || s.type === "signature_block") && (
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Include fields (comma-separated) — leave blank for defaults"
+                      value={Array.isArray(s.include) ? s.include.join(", ") : ""}
+                      onChange={(e) => patchSection(i, {
+                        include: e.target.value
+                          .split(",").map((x) => x.trim()).filter(Boolean),
+                      })}
+                    />
+                  )}
+                  {s.type === "monthly_breakdown" && (
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Rule codes (comma-separated) — e.g. gross_pay, paye, nssf"
+                      value={Array.isArray(s.rule_codes) ? s.rule_codes.join(", ") : ""}
+                      onChange={(e) => patchSection(i, {
+                        rule_codes: e.target.value
+                          .split(",").map((x) => x.trim()).filter(Boolean),
+                      })}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* Footer + layout */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Presentation</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Layout</Label>
+              <Input value={layout} onChange={(e) => setLayout(e.target.value)} />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-xs">Footer note</Label>
+              <Input
+                value={footerNote}
+                onChange={(e) => setFooterNote(e.target.value)}
+                placeholder="e.g. Kenya Revenue Authority · P9A Tax Deduction Card"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {(metaErrors.length > 0 || bodyErrors.length > 0) && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Save is blocked</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc pl-5 text-xs">
+                {[...metaErrors, ...bodyErrors].map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="flex justify-end gap-2">
+          {onCancel && <Button variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>}
+          <Button onClick={doSave} disabled={busy || !canSave()}>
+            {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+            Save template
+          </Button>
+        </div>
+      </div>
+
       <div className="space-y-3">
         <TemplateFieldInspector
           packId={packId}
