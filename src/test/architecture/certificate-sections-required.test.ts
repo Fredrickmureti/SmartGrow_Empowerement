@@ -63,7 +63,7 @@ describe("certificate-sections-required", () => {
       "supabase/functions/lint-localization-pack/index.ts",
       "utf8",
     );
-    expect(linter).toMatch(/validateTemplateStructure/);
+    expect(linter).toMatch(/validateCertificateStructure/);
     expect(linter).toMatch(/REQUIRED_IDENTITY_SECTIONS/);
     expect(linter).toMatch(/legacy blocks-only templates are no longer publishable/);
   });
