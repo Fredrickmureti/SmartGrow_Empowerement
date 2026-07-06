@@ -45,29 +45,8 @@ const REQUIRED_IDENTITY_SECTIONS = ["employer_header", "employee_header", "signa
 const DATA_SECTIONS = ["monthly_breakdown", "ytd_table", "totals"];
 const STATUTORY_CODE_RE = /^(P9|P10|VAT|PAYE|NSSF|SHIF|AHL|WHT|NHIF|NITA|HELB)/i;
 
-function validateTemplateStructure(
-  kind: "certificate" | "return",
-  row: any,
-): string[] {
-  const errs: string[] = [];
-  const code = row.code ?? row.rule_code ?? "(unknown)";
-  const label = `${kind} template "${code}"`;
-  const body = row.body ?? {};
-  const sections = Array.isArray(body?.sections) ? body.sections : [];
-  if (sections.length === 0) {
-    errs.push(`${label}: body.sections is empty — legacy blocks-only templates are no longer publishable.`);
-    return errs; // no point checking further
-  }
-  const types = new Set<string>(sections.map((s: any) => String(s?.type ?? "")));
-  for (const need of REQUIRED_IDENTITY_SECTIONS) {
-    if (!types.has(need)) errs.push(`${label}: missing required section "${need}".`);
-  }
-  if (!DATA_SECTIONS.some((d) => types.has(d))) {
-    errs.push(`${label}: must contain at least one data section (${DATA_SECTIONS.join(" | ")}).`);
-  }
-  if (row.effective_date === undefined) {
-    // return templates use a different column set; ignore.
-  } else if (!row.effective_date || String(row.effective_date) < "2000-01-01") {
+function validateMetadata(label: string, code: string, row: any, errs: string[]) {
+  if (!row.effective_date || String(row.effective_date) < "2000-01-01") {
     errs.push(`${label}: effective_date must be set and >= 2000-01-01 (got ${row.effective_date ?? "null"}).`);
   }
   if (STATUTORY_CODE_RE.test(String(code)) && !row.authority_id) {
@@ -76,6 +55,63 @@ function validateTemplateStructure(
   if (row.legal_reference && !row.regulation_citation) {
     errs.push(`${label}: regulation_citation is required whenever legal_reference is set.`);
   }
+}
+
+/**
+ * Certificates render as PDFs with a section-based layout; every one must
+ * carry employer/employee/signature identity + at least one data section.
+ */
+function validateCertificateStructure(row: any): string[] {
+  const errs: string[] = [];
+  const code = row.code ?? row.rule_code ?? "(unknown)";
+  const label = `certificate template "${code}"`;
+  const body = row.body ?? {};
+  const sections = Array.isArray(body?.sections) ? body.sections : [];
+  if (sections.length === 0) {
+    errs.push(`${label}: body.sections is empty — legacy blocks-only templates are no longer publishable.`);
+  } else {
+    const types = new Set<string>(sections.map((s: any) => String(s?.type ?? "")));
+    for (const need of REQUIRED_IDENTITY_SECTIONS) {
+      if (!types.has(need)) errs.push(`${label}: missing required section "${need}".`);
+    }
+    if (!DATA_SECTIONS.some((d) => types.has(d))) {
+      errs.push(`${label}: must contain at least one data section (${DATA_SECTIONS.join(" | ")}).`);
+    }
+  }
+  validateMetadata(label, code, row, errs);
+  return errs;
+}
+
+/**
+ * Return templates are aggregation specs consumed by the return-file
+ * builders (CSV / portal upload). Their body shape is column-oriented
+ * (`{ columns[], filters, group_by, totals, reconciliation }`), NOT the
+ * section-based PDF layout used by certificates. Enforce the aggregation
+ * contract + statutory metadata; do NOT require `sections[]`.
+ */
+function validateReturnStructure(row: any): string[] {
+  const errs: string[] = [];
+  const code = row.code ?? row.rule_code ?? "(unknown)";
+  const label = `return template "${code}"`;
+  const body = row.body ?? {};
+  const columns = Array.isArray(body?.columns) ? body.columns : [];
+  if (columns.length === 0) {
+    errs.push(`${label}: body.columns must be a non-empty array — return templates are aggregation specs.`);
+  } else {
+    // Every column needs a key + source; header/label optional but recommended.
+    for (let i = 0; i < columns.length; i++) {
+      const c = columns[i] ?? {};
+      if (!c.key) errs.push(`${label}: column[${i}] missing "key".`);
+      if (!c.source) errs.push(`${label}: column[${i}] missing "source" (e.g. sum_employee_amount, employee.tax_pin).`);
+    }
+  }
+  if (!body?.filters || typeof body.filters !== "object") {
+    errs.push(`${label}: body.filters must specify at least rule_codes / payslip_status to scope the aggregation.`);
+  }
+  if (!Array.isArray(body?.totals) || body.totals.length === 0) {
+    errs.push(`${label}: body.totals must list the columns to sum in the footer / reconciliation.`);
+  }
+  validateMetadata(label, code, row, errs);
   return errs;
 }
 
@@ -190,10 +226,10 @@ Deno.serve(async (req) => {
     //    HARD-FAIL — anything that would fall back to the legacy
     //    generic-column renderer at runtime is rejected here.
     for (const t of certTpls ?? []) {
-      for (const e of validateTemplateStructure("certificate", t)) errors.push(e);
+      for (const e of validateCertificateStructure(t)) errors.push(e);
     }
     for (const t of returnTpls ?? []) {
-      for (const e of validateTemplateStructure("return", t)) errors.push(e);
+      for (const e of validateReturnStructure(t)) errors.push(e);
     }
 
     return ok({ errors, warnings, summary: {
