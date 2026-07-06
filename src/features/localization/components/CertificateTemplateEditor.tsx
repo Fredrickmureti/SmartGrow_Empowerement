@@ -447,27 +447,87 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                       onChange={(e) => patchSection(i, { body: e.target.value })}
                     />
                   )}
-                  {(s.type === "employer_header" || s.type === "employee_header" || s.type === "signature_block") && (
-                    <Input
-                      className="h-8 text-xs"
-                      placeholder="Include fields (comma-separated) — leave blank for defaults"
-                      value={Array.isArray(s.include) ? s.include.join(", ") : ""}
-                      onChange={(e) => patchSection(i, {
-                        include: e.target.value
-                          .split(",").map((x) => x.trim()).filter(Boolean),
-                      })}
-                    />
+                  {INCLUDE_OPTIONS[s.type] && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Fields to include (leave all off for the default set)
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        {INCLUDE_OPTIONS[s.type].map((opt) => {
+                          const current: string[] = Array.isArray(s.include) ? s.include : [];
+                          const checked = current.includes(opt.value);
+                          return (
+                            <label
+                              key={opt.value}
+                              className="flex items-center gap-1.5 text-xs cursor-pointer"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) => {
+                                  const next = v
+                                    ? Array.from(new Set([...current, opt.value]))
+                                    : current.filter((x) => x !== opt.value);
+                                  patchSection(i, {
+                                    include: next.length ? next : undefined,
+                                  });
+                                }}
+                              />
+                              {opt.label}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                   {s.type === "monthly_breakdown" && (
-                    <Input
-                      className="h-8 text-xs"
-                      placeholder="Rule codes (comma-separated) — e.g. gross_pay, paye, nssf"
-                      value={Array.isArray(s.rule_codes) ? s.rule_codes.join(", ") : ""}
-                      onChange={(e) => patchSection(i, {
-                        rule_codes: e.target.value
-                          .split(",").map((x) => x.trim()).filter(Boolean),
-                      })}
-                    />
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Rule codes shown as columns
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {(() => {
+                          const current: string[] = Array.isArray(s.rule_codes) ? s.rule_codes : [];
+                          const all = Array.from(new Set([...COMMON_RULE_CODES, ...current]));
+                          return all.map((code) => {
+                            const on = current.includes(code);
+                            return (
+                              <Button
+                                key={code}
+                                type="button"
+                                size="sm"
+                                variant={on ? "default" : "outline"}
+                                className="h-6 text-[10px] px-2"
+                                onClick={() => {
+                                  const next = on
+                                    ? current.filter((x) => x !== code)
+                                    : [...current, code];
+                                  patchSection(i, {
+                                    rule_codes: next.length ? next : undefined,
+                                  });
+                                }}
+                              >
+                                {code}
+                              </Button>
+                            );
+                          });
+                        })()}
+                      </div>
+                      <Input
+                        className="h-7 text-[11px]"
+                        placeholder="Add a pack-specific rule code and press Enter"
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          const v = (e.target as HTMLInputElement).value.trim();
+                          if (!v) return;
+                          const current: string[] = Array.isArray(s.rule_codes) ? s.rule_codes : [];
+                          if (!current.includes(v)) {
+                            patchSection(i, { rule_codes: [...current, v] });
+                          }
+                          (e.target as HTMLInputElement).value = "";
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
               );
