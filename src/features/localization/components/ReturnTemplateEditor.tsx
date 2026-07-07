@@ -577,6 +577,145 @@ export function ReturnTemplateEditor({
           />
         </section>
 
+        {/* ── v2 section-based renderer (opt-in) ────────────────── */}
+        <section className="space-y-2 rounded-lg border bg-muted/10 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Section-based renderer (v2)
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                When enabled, the PDF is drawn from the section vocabulary
+                below (employer header, period band, employee line grid,
+                totals, reconciliation, signature, footnote, remittance).
+                Same renderer runs server-side and in the preview.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={body.renderer === "v2-returns"}
+                onCheckedChange={(v) =>
+                  setBody({ ...body, renderer: v ? "v2-returns" : null })
+                }
+              />
+              <Label className="text-xs">Enable v2 renderer</Label>
+            </div>
+          </div>
+          {body.renderer === "v2-returns" && (
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs uppercase text-muted-foreground">Sections</Label>
+                <Select
+                  value=""
+                  onValueChange={(v) =>
+                    setBody({ ...body, sections: [...(body.sections ?? []), { type: v }] })
+                  }
+                >
+                  <SelectTrigger className="h-8 w-[220px]">
+                    <SelectValue placeholder="Add section…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETURN_SECTION_TYPES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(body.sections ?? []).length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No sections yet — add at least an <code>employer_header</code>,
+                  a <code>period_band</code>, and an <code>employee_line_grid</code>.
+                </p>
+              )}
+              <div className="space-y-1.5">
+                {(body.sections ?? []).map((s, idx) => {
+                  const spec = RETURN_SECTION_TYPES.find((t) => t.value === s.type);
+                  const move = (dir: -1 | 1) => {
+                    const next = [...(body.sections ?? [])];
+                    const j = idx + dir;
+                    if (j < 0 || j >= next.length) return;
+                    [next[idx], next[j]] = [next[j], next[idx]];
+                    setBody({ ...body, sections: next });
+                  };
+                  const patch = (p: Partial<ReturnSectionSpec>) => {
+                    const next = [...(body.sections ?? [])];
+                    next[idx] = { ...next[idx], ...p };
+                    setBody({ ...body, sections: next });
+                  };
+                  const remove = () =>
+                    setBody({ ...body, sections: (body.sections ?? []).filter((_, i) => i !== idx) });
+                  return (
+                    <div key={idx} className="rounded-md border p-2 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px]">{spec?.label ?? s.type}</Badge>
+                          <code className="text-[10px] text-muted-foreground">{s.type}</code>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button type="button" size="icon" variant="ghost" onClick={() => move(-1)} disabled={idx === 0}>
+                            <ArrowUp className="h-3 w-3" />
+                          </Button>
+                          <Button type="button" size="icon" variant="ghost" onClick={() => move(1)} disabled={idx === (body.sections ?? []).length - 1}>
+                            <ArrowDown className="h-3 w-3" />
+                          </Button>
+                          <Button type="button" size="icon" variant="ghost" onClick={remove}>
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-6">
+                          <Label className="text-[10px]">Title (optional)</Label>
+                          <Input value={s.title ?? ""} onChange={(e) => patch({ title: e.target.value || undefined })} />
+                        </div>
+                      </div>
+                      {s.type === "statutory_footnote" && (
+                        <div>
+                          <Label className="text-[10px]">Footnote body</Label>
+                          <Textarea rows={3} value={s.body ?? ""} onChange={(e) => patch({ body: e.target.value })} />
+                        </div>
+                      )}
+                      {s.type === "employee_line_grid" && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Uses the columns defined in the <em>Columns</em> section above; each column's <code>key</code> and <code>format</code> is passed straight to the renderer.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="pt-2">
+                <ReturnPreviewPane
+                  templateCode={templateCode}
+                  displayName={templateCode}
+                  body={{
+                    renderer: "v2-returns",
+                    sections: (body.sections ?? []).map((s) => {
+                      if (s.type === "employee_line_grid" && !s.columns?.length) {
+                        return {
+                          ...s,
+                          columns: body.columns.map((c) => ({
+                            key: c.key,
+                            header: c.label,
+                            format: c.format === "currency" ? "money" : "text",
+                            align: c.format === "currency" ? "right" : "left",
+                          })),
+                        };
+                      }
+                      return s;
+                    }),
+                  }}
+                  meta={{
+                    legal_reference: meta.legal_reference,
+                    regulation_citation: meta.regulation_citation,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </section>
+
         <PreviewPanel body={denormalizeBody(body)} packId={packId ?? null} title="Statutory return preview" />
 
 
