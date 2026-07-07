@@ -137,93 +137,39 @@ export function usePOSEtims(registerId?: string) {
     },
   });
 
-  // Transmit POS transaction to eTIMS
+  /**
+   * Fiscalization is now event-driven via `fiscal.receipt_required` outbox events
+   * emitted by DB triggers on `pos_transactions`. The frontend no longer POSTs
+   * to `etims-transmit` synchronously — the FiscalComplianceSaga owns retries,
+   * backoff, and the circuit breaker. This mutation is a no-op success shim
+   * kept for existing callsites that await it before printing a receipt.
+   * Observe `fiscal_transmissions` (subscribe via realtime or poll) to know
+   * when the receipt is stamped with a KRA CU number and QR.
+   */
   const transmitToEtims = useMutation({
-    mutationFn: async (params: {
-      transactionId: string;
-      transactionNumber: string;
-      customerTin?: string;
-      customerName?: string;
-      items: Array<{
-        product_id: string;
-        name: string;
-        quantity: number;
-        unit_price: number;
-        tax_amount: number;
-        line_total: number;
-      }>;
-      subtotal: number;
-      taxAmount: number;
-      discountAmount: number;
-      total: number;
-    }) => {
-      if (!organizationId) throw new Error("No organization");
-
-      const { data, error } = await supabase.functions.invoke("etims-transmit", {
-        body: {
-          doc_type: "pos",
-          organizationId,
-          transactionId: params.transactionId,
-          transactionNumber: params.transactionNumber,
-          customerTin: params.customerTin,
-          customerName: params.customerName,
-          items: params.items,
-          subtotal: params.subtotal,
-          taxAmount: params.taxAmount,
-          discountAmount: params.discountAmount,
-          total: params.total,
-        },
-      });
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      if (data?.success) {
-        toast.success("Transaction transmitted to KRA eTIMS");
-      }
-    },
-    onError: (error) => {
-      console.error("eTIMS transmission error:", error);
-      // Don't show error toast - we'll queue for retry
+    mutationFn: async (_params: unknown) => {
+      return { queued: true } as const;
     },
   });
 
-  // Retry failed eTIMS transmission
+  // Retry: re-queue any transmission the saga marked failed/rejected/dead_letter.
   const retryEtimsTransmission = useMutation({
     mutationFn: async (transactionId: string) => {
-      // Fetch the transaction details
-      const { data: transaction, error } = await supabase
-        .from("pos_transactions")
-        .select(`
-          *,
-          items:pos_transaction_items(*)
-        `)
-        .eq("id", transactionId)
-        .single();
-
-      if (error || !transaction) throw new Error("Transaction not found");
-
-      // Re-transmit
-      return transmitToEtims.mutateAsync({
-        transactionId: transaction.id,
-        transactionNumber: transaction.transaction_number,
-        customerTin: (transaction as any).customer_tin,
-        customerName: (transaction as any).customer_name,
-        items: (transaction as any).items.map((item: any) => ({
-          product_id: item.product_id,
-          name: item.description,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          tax_amount: item.tax_amount || 0,
-          line_total: item.line_total,
-        })),
-        subtotal: transaction.subtotal,
-        taxAmount: transaction.tax_amount,
-        discountAmount: transaction.discount_amount,
-        total: transaction.total,
-      });
+      const { data: tx } = await supabase
+        .from("fiscal_transmissions")
+        .select("id")
+        .eq("source_doc_type", "pos_transactions")
+        .eq("source_doc_id", transactionId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!tx?.id) throw new Error("No transmission record found for this transaction");
+      const { error } = await supabase.rpc("fiscal_transmission_resend" as never, { p_transmission_id: tx.id } as never);
+      if (error) throw error;
+      return { requeued: true } as const;
     },
+    onSuccess: () => toast.success("Fiscal receipt re-queued for transmission"),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   return {
