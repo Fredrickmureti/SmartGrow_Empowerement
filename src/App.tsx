@@ -126,6 +126,7 @@ import {
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
+  FiscalComplianceWorkspace,
   AuditLogs,
   // Billing
   BillingHistory,
