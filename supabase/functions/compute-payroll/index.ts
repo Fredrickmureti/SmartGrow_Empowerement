@@ -2113,6 +2113,31 @@ Deno.serve(async (req) => {
       varEarningsByEmployee[ve.employee_id] = ve;
     }
 
+    // ─── ADR-0010 Gap #2 — data-driven employee-input tokens ───
+    // Every `pack_token_registry` row with source='employee' becomes an
+    // engine-visible input for this run. Pack-scoped: platform-wide rows
+    // (pack_id IS NULL) plus rows on any pack installed for this org.
+    // Built-in getters win on collision (see resolveInputs).
+    const dynamicEmployeeInputKeys: string[] = await (async () => {
+      try {
+        const { data: installed } = await supabaseAdmin
+          .from("organization_installed_apps")
+          .select("pack_id")
+          .eq("organization_id", organization_id)
+          .not("pack_id", "is", null);
+        const packIds = (installed ?? []).map((r: any) => r.pack_id).filter(Boolean);
+        let q = supabaseAdmin.from("pack_token_registry").select("token_path,pack_id").eq("source", "employee");
+        q = packIds.length > 0
+          ? q.or(`pack_id.is.null,pack_id.in.(${packIds.join(",")})`)
+          : q.is("pack_id", null);
+        const { data } = await q;
+        return Array.from(new Set((data ?? []).map((r: any) => String(r.token_path)).filter(Boolean)));
+      } catch {
+        return [];
+      }
+    })();
+
+
     // ─── Get next payroll number ───
     let finalPayrollNumber = `PAY-PREVIEW`;
     if (!dry_run) {
