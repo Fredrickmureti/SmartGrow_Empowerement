@@ -213,10 +213,39 @@ const EMPLOYEE_INPUT_REGISTRY: Record<string, (emp: any) => number> = {
   disability_certified: (emp) => (emp?.disability_certified ? 1 : 0),
 };
 
-function resolveInputs(emp: any): Record<string, number> {
+/**
+ * ADR-0010 Gap #2 — data-driven inputs.
+ *
+ * `dynamicKeys` are token names loaded from `pack_token_registry` where
+ * `source='employee'`, resolved once per payroll run. Each dynamic key
+ * reads `emp[key]` (coerced to Number, missing = 0), so a pack that
+ * registers a new employee-sourced token — e.g. Ghana Tier-3 voluntary
+ * contribution — becomes engine-visible with zero engine edits.
+ *
+ * Built-in getters win on collision so existing packs stay byte-identical.
+ *
+ * `variableInputs` are per-run variable earnings (bonus_amount,
+ * overtime_amount, commission, …) forwarded from `variable_earnings[]`;
+ * these OVERRIDE the emp-column read so a one-off bonus paid this cycle
+ * is visible to `bonus_windfall` / `overtime_concessional` rules without
+ * having to persist it on the employee row.
+ */
+function resolveInputs(
+  emp: any,
+  dynamicKeys: string[] = [],
+  variableInputs: Record<string, number> = {},
+): Record<string, number> {
   const out: Record<string, number> = {};
+  for (const key of dynamicKeys) {
+    if (!key || key in EMPLOYEE_INPUT_REGISTRY) continue;
+    out[key] = Number(emp?.[key] ?? 0) || 0;
+  }
   for (const [key, getter] of Object.entries(EMPLOYEE_INPUT_REGISTRY)) {
     out[key] = getter(emp);
+  }
+  for (const [key, val] of Object.entries(variableInputs)) {
+    if (val == null) continue;
+    out[key] = Number(val) || 0;
   }
   return out;
 }
@@ -460,6 +489,113 @@ function computePerEmployeeFlat(
   return p.employer_only ? { employee: 0, employer: amt } : { employee: amt, employer: 0 };
 }
 
+// ─── ADR-0010 Gap #3 — flat / bonus_windfall / overtime_concessional ────
+//
+// Country-agnostic income-tax computation methods added for Ghana's
+// non-resident PAYE, bonus tax, and overtime QJE. All three are pure
+// functions off `parameters` — no rule_code branches.
+
+/**
+ * `income_tax / flat` — single-rate tax on the whole taxable base.
+ * Used for non-resident PAYE and expat withholding. `parameters.residency`
+ * gates against `ctx.inputs.is_non_resident` (1 = non-resident, 0/absent
+ * = resident) so packs can ship resident + non-resident rules side-by-side.
+ */
+export function computeFlatIncomeTax(
+  rule: PayrollRule,
+  ctx: CalcContext,
+): { employee: number; employer: number } {
+  const p = rule.parameters || {};
+  const residency = String(p.residency ?? "any").toLowerCase();
+  if (residency !== "any") {
+    const isNonRes = (ctx.inputs?.is_non_resident ?? 0) > 0;
+    if (residency === "resident" && isNonRes) return { employee: 0, employer: 0 };
+    if (residency === "non_resident" && !isNonRes) return { employee: 0, employer: 0 };
+  }
+  const baseCode = String(p.base_code ?? "taxable_income").toLowerCase();
+  const base = baseCode === "gross_pay" ? ctx.grossPay
+             : baseCode === "basic_salary" || baseCode === "basic" ? ctx.basicSalary
+             : baseCode === "taxable_income" || baseCode === "taxable" ? ctx.taxableIncome
+             : Number(ctx.inputs?.[baseCode] ?? 0);
+  const minTaxable = Number(p.min_taxable ?? 0);
+  if (base <= minTaxable) return { employee: 0, employer: 0 };
+  const tax = (base - minTaxable) * pct(p.rate_percent ?? 0);
+  return { employee: round2(Math.max(0, tax)), employer: 0 };
+}
+
+/**
+ * `income_tax / bonus_windfall` — concessional flat rate on bonuses up
+ * to a threshold expressed as %% of annual basic; excess rolls into
+ * ordinary PAYE (Ghana 5% ≤ 15% of annual basic).
+ *
+ * The engine only computes the CONCESSIONAL portion here — the excess
+ * is exposed via `ctx.inputs['bonus_rolled_to_paye']` (set as a side
+ * effect) so the sibling PAYE bracket_progressive rule automatically
+ * taxes it through its normal path. Callers who don't ship a matching
+ * `input_code` (default `bonus_amount`) get zero, which is correct for
+ * a regular run with no bonus paid.
+ */
+export function computeBonusWindfall(
+  rule: PayrollRule,
+  ctx: CalcContext,
+): { employee: number; employer: number } {
+  const p = rule.parameters || {};
+  const inputCode = String(p.input_code ?? "bonus_amount");
+  const bonus = Number(ctx.inputs?.[inputCode] ?? 0);
+  if (bonus <= 0) return { employee: 0, employer: 0 };
+
+  const annualBasicToken = String(p.annual_basic_token ?? "").toLowerCase();
+  const annualBasic = annualBasicToken && ctx.inputs?.[annualBasicToken] != null
+    ? Number(ctx.inputs[annualBasicToken])
+    : ctx.basicSalary * 12;
+  const thresholdPct = pct(p.threshold_pct_of_annual_basic ?? 0);
+  const cap = annualBasic * thresholdPct;
+
+  const qualifying = Math.min(bonus, cap);
+  const excess = Math.max(0, bonus - cap);
+  const tax = qualifying * pct(p.flat_rate_percent ?? 0);
+
+  const excessTreatment = String(p.excess_treatment ?? "roll_to_paye").toLowerCase();
+  if (excessTreatment === "roll_to_paye") {
+    ctx.inputs.bonus_rolled_to_paye = (ctx.inputs.bonus_rolled_to_paye ?? 0) + excess;
+  }
+  return { employee: round2(tax), employer: 0 };
+}
+
+/**
+ * `income_tax / overtime_concessional` — concessional overtime rate up
+ * to a monthly cash cap; excess taxed via ordinary PAYE (Ghana QJE:
+ * 5% up to GHS 18,000/month, junior-only).
+ */
+export function computeOvertimeConcessional(
+  rule: PayrollRule,
+  ctx: CalcContext,
+): { employee: number; employer: number } {
+  const p = rule.parameters || {};
+  const inputCode = String(p.input_code ?? "overtime_amount");
+  const overtime = Number(ctx.inputs?.[inputCode] ?? 0);
+  if (overtime <= 0) return { employee: 0, employer: 0 };
+
+  // Junior-only gate. When required, employees must expose a truthy
+  // `qualifying_junior` input; if not exposed, the rule is skipped.
+  if (p.qualifying_junior_only !== false) {
+    const isJunior = (ctx.inputs?.qualifying_junior ?? 0) > 0;
+    if (!isJunior) return { employee: 0, employer: 0 };
+  }
+
+  const cap = Number(p.monthly_cash_cap ?? 0);
+  const qualifying = cap > 0 ? Math.min(overtime, cap) : overtime;
+  const excess = Math.max(0, overtime - qualifying);
+  const tax = qualifying * pct(p.flat_rate_percent ?? 0);
+
+  const excessTreatment = String(p.excess_treatment ?? "roll_to_paye").toLowerCase();
+  if (excessTreatment === "roll_to_paye") {
+    ctx.inputs.overtime_rolled_to_paye = (ctx.inputs.overtime_rolled_to_paye ?? 0) + excess;
+  }
+  return { employee: round2(tax), employer: 0 };
+}
+
+
 /**
  * Phase 3.6 — Bonus/13th-month/commission tax-method dispatch.
  *
@@ -603,6 +739,17 @@ export function computeOneRule(
       break;
     case "per_employee_flat":
       result = computePerEmployeeFlat(rule);
+      break;
+    // ADR-0010 Gap #3 — country-agnostic income-tax methods.
+    case "flat":
+    case "flat_rate":
+      result = computeFlatIncomeTax(rule, ctx);
+      break;
+    case "bonus_windfall":
+      result = computeBonusWindfall(rule, ctx);
+      break;
+    case "overtime_concessional":
+      result = computeOvertimeConcessional(rule, ctx);
       break;
     case "":
     case "auto":
@@ -1966,6 +2113,30 @@ Deno.serve(async (req) => {
       varEarningsByEmployee[ve.employee_id] = ve;
     }
 
+    // ─── ADR-0010 Gap #2 — data-driven employee-input tokens ───
+    // Every `pack_token_registry` row with source='employee' becomes an
+    // engine-visible input for this run. Pack-scoped: platform-wide rows
+    // (pack_id IS NULL) plus rows on any pack installed for this org.
+    // Built-in getters win on collision (see resolveInputs).
+    const dynamicEmployeeInputKeys: string[] = await (async () => {
+      try {
+        const { data: installed } = await supabaseAdmin
+          .from("installed_localization_packs")
+          .select("pack_id")
+          .eq("organization_id", organization_id);
+        const packIds = (installed ?? []).map((r: any) => r.pack_id).filter(Boolean);
+        let q = supabaseAdmin.from("pack_token_registry").select("token_path,pack_id").eq("source", "employee");
+        q = packIds.length > 0
+          ? q.or(`pack_id.is.null,pack_id.in.(${packIds.join(",")})`)
+          : q.is("pack_id", null);
+        const { data } = await q;
+        return Array.from(new Set((data ?? []).map((r: any) => String(r.token_path)).filter(Boolean)));
+      } catch {
+        return [];
+      }
+    })();
+
+
     // ─── Get next payroll number ───
     let finalPayrollNumber = `PAY-PREVIEW`;
     if (!dry_run) {
@@ -2581,11 +2752,23 @@ Deno.serve(async (req) => {
         // allowable deductions). The dispatch is purely off the flag —
         // no literal rule_code branches, so non-KE packs that don't ship
         // the flag stay byte-identical.
+        // ADR-0010 Gap #2/#3 — dynamic input keys + per-run variable
+        // earnings (bonus_amount, overtime_amount, commission, arrears)
+        // are surfaced as ctx.inputs so bonus_windfall /
+        // overtime_concessional / pack-registered tokens work without
+        // touching engine code.
+        const ve = varEarningsByEmployee[emp.id] ?? {};
+        const variableInputs: Record<string, number> = {
+          bonus_amount: Number(ve.bonus ?? 0),
+          overtime_amount: Number(ve.overtime_pay ?? 0),
+          commission_amount: Number(ve.commission ?? 0),
+          arrears_amount: Number(ve.arrears ?? 0),
+        };
         const ctx: CalcContext = {
           grossPay,
           taxableIncome,
           basicSalary,
-          inputs: resolveInputs(emp),
+          inputs: resolveInputs(emp, dynamicEmployeeInputKeys, variableInputs),
         };
         const empBracketTraces: BracketTrace[] = [];
 
