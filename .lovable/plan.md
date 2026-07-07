@@ -14,8 +14,8 @@ I re-read the brief, `.lovable/plan.md`, and the tree. The previous agent's last
 | **B3 visual QA gate** | ✅ shipped | renderer-driven fixture render + per-doc-class byte floor (P9 ≥ 6KB, P10 ≥ 4KB, cert_of_service ≥ 3KB) wired into `lint-localization-pack` |
 | **C1 `return_template_v2` + returnRenderer** | ✅ shipped | `_shared/pdf/returnRenderer.ts` with section vocabulary (employer_header, period_band, employee_line_grid, employer_totals, reconciliation_block, signature_block, statutory_footnote, remittance_summary) |
 | **C2 migrate `generate-statutory-return`** | ✅ shipped | branches on `isReturnTemplateV2(template)` — legacy `generateReportPdf` path preserved for older packs |
-| **C3 migrate `ReturnTemplateEditor`** | pending | ❌ 790-line editor untouched |
-| **D2 country fixture set** | pending | ❌ no `fixtures/` directory |
+| **C3 migrate `ReturnTemplateEditor`** | ✅ shipped | v2 opt-in card added; section list uses `RETURN_SECTION_TYPES` vocabulary; `ReturnPreviewPane` wired to browser mirror of `_shared/pdf/returnRenderer.ts` |
+| **D2 country fixture set** | ✅ shipped | `src/features/localization/lib/fixtures/keReturnFixture.ts` for returns preview alongside existing `kePayrollFixture.ts` (certs); both consumed by their respective editor preview panes |
 
 The order below picks up where the prior agent actually stopped — not where they said they stopped.
 
