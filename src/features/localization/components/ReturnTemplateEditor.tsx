@@ -182,6 +182,13 @@ function normalizeBody(input: any): ReturnBody {
     reconciliation: b?.reconciliation && typeof b.reconciliation === "object"
       ? { rule_code: b.reconciliation.rule_code ?? "" }
       : null,
+    renderer: b?.renderer === "v2-returns" ? "v2-returns" : null,
+    sections: Array.isArray(b?.sections) ? b.sections.map((s: any) => ({
+      type: String(s?.type ?? ""),
+      title: s?.title ?? undefined,
+      columns: Array.isArray(s?.columns) ? s.columns : undefined,
+      body: typeof s?.body === "string" ? s.body : undefined,
+    })) : [],
   };
 }
 
