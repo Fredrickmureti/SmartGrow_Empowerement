@@ -410,6 +410,17 @@ const App = () => (
                                 </SubscriptionProtectedRoute>
                               }
                             />
+                            <Route
+                              path="/compliance/etims"
+                              element={
+                                <SubscriptionProtectedRoute allowReadOnly>
+                                  <LazyRoute module="FiscalComplianceWorkspace">
+                                    <FiscalComplianceWorkspace />
+                                  </LazyRoute>
+                                </SubscriptionProtectedRoute>
+                              }
+                            />
+
 
                             {/* ============================================== */}
                             {/* APP-BASED ROUTES (Odoo-style navigation)       */}
