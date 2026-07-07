@@ -207,6 +207,16 @@ function denormalizeBody(b: ReturnBody): any {
   if (b.filters.payslip_status?.length) out.filters.payslip_status = b.filters.payslip_status;
   if (b.totals?.length) out.totals = b.totals;
   if (b.reconciliation?.rule_code) out.reconciliation = { rule_code: b.reconciliation.rule_code };
+  if (b.renderer === "v2-returns") {
+    out.renderer = "v2-returns";
+    out.sections = (b.sections ?? []).map((s) => {
+      const o: any = { type: s.type };
+      if (s.title) o.title = s.title;
+      if (Array.isArray(s.columns) && s.columns.length) o.columns = s.columns;
+      if (typeof s.body === "string" && s.body.length) o.body = s.body;
+      return o;
+    });
+  }
   return out;
 }
 
