@@ -488,28 +488,19 @@ export function useEtimsTransmission() {
 
   const transmitInvoice = (invoiceId: string) => requeueFromSource("invoices", invoiceId, "Invoice");
   const transmitCreditNote = (creditNoteId: string) => requeueFromSource("credit_notes", creditNoteId, "Credit note");
-    if (!currentOrg) return null;
 
+  const registerItem = async (productId: string) => {
+    if (!currentOrg) return null;
     try {
       const response = await supabase.functions.invoke("etims-transmit", {
-        body: {
-          action: "register_item",
-          organizationId: currentOrg.id,
-          productId,
-        },
+        body: { action: "register_item", organizationId: currentOrg.id, productId },
       });
-
       if (response.error) throw response.error;
-
       if (response.data?.success) {
-        toast({
-          title: "Item registered",
-          description: `Item has been registered with eTIMS.`,
-        });
+        toast({ title: "Item registered", description: `Item has been registered with eTIMS.` });
         return response.data;
-      } else {
-        throw new Error(response.data?.error || "Registration failed");
       }
+      throw new Error(response.data?.error || "Registration failed");
     } catch (error: any) {
       toast({
         title: "Registration failed",
