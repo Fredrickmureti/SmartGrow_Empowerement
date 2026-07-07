@@ -1,6 +1,6 @@
 # ADR 0010 — Localization-Pack Versioning, Schema Validation, and Token Resolution
 
-**Status:** Accepted — 2026-05-15
+**Status:** Accepted — 2026-05-15 · Amended 2026-07-07 (Gap closures #1–#4)
 **Owners:** Platform / HR-Payroll
 **Supersedes / relates to:** ADR 0004 (platform vs tenant), ADR 0006 (platform admin), HR architecture doc.
 
