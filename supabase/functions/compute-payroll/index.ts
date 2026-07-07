@@ -740,6 +740,17 @@ export function computeOneRule(
     case "per_employee_flat":
       result = computePerEmployeeFlat(rule);
       break;
+    // ADR-0010 Gap #3 — country-agnostic income-tax methods.
+    case "flat":
+    case "flat_rate":
+      result = computeFlatIncomeTax(rule, ctx);
+      break;
+    case "bonus_windfall":
+      result = computeBonusWindfall(rule, ctx);
+      break;
+    case "overtime_concessional":
+      result = computeOvertimeConcessional(rule, ctx);
+      break;
     case "":
     case "auto":
     default:
