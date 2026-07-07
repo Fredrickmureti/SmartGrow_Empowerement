@@ -2121,10 +2121,9 @@ Deno.serve(async (req) => {
     const dynamicEmployeeInputKeys: string[] = await (async () => {
       try {
         const { data: installed } = await supabaseAdmin
-          .from("organization_installed_apps")
+          .from("installed_localization_packs")
           .select("pack_id")
-          .eq("organization_id", organization_id)
-          .not("pack_id", "is", null);
+          .eq("organization_id", organization_id);
         const packIds = (installed ?? []).map((r: any) => r.pack_id).filter(Boolean);
         let q = supabaseAdmin.from("pack_token_registry").select("token_path,pack_id").eq("source", "employee");
         q = packIds.length > 0
