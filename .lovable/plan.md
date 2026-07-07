@@ -1,83 +1,155 @@
 
-## Independent audit of prior state
+# Ghana Localization Pack — Guided Publication & Publisher Audit
 
-I re-read the brief, `.lovable/plan.md`, and the tree. The previous agent's last-message claim that **B1 (WYSIWYG preview) shipped** is **false** — `CertificateTemplateEditor.tsx` has no pdf-lib import, no preview pane, no vite alias, no renderer bridge. Multiple other items are similarly unfinished. Verified against code:
+This is an investigation + workshop, not a code-first task. No Ghana rows get written until you and I have walked through the platform end-to-end and agreed on each artifact.
 
-| Item | Prior claim | Actual state |
+## Ground rules
+
+- **No tenant backfills. No patching installed packs.** Ghana ships as a brand-new pack + version through the normal publish pipeline.
+- **Versioning, upgrade proposals, and tenant overrides stay intact** — every change respects ADR 0010 and ADR 0056.
+- **Platform > pack.** If Ghana exposes a publisher weakness that will also hurt Nigeria/Uganda/TZ/ZA, we fix the publisher (blockers + high-value UX wins) rather than working around it in Ghana's payload.
+- **Business language first.** Every artifact is explained to you as an accountant before any JSON is authored.
+
+## Phase 1 — Reverse-engineer the publishing engine (read-only)
+
+Deliverable: an internal map of every moving part, cited to files, so I can reason about the platform without guessing. I trace, in this order:
+
+1. **Authoring surface** — publisher routes, `PackEditorShell`, `TemplateEditor`, `ReturnTemplateEditor`, `TaxTemplatesEditor`, `AccountTemplatesEditor`, `RemittanceSchedulesEditor`, `SchemaForm`, `TokenPicker`, `RuleForm`, `PackHealthPanel`, `PackDiffView`, `PreviewPanel`.
+2. **Data model** — `localization_packs`, `localization_pack_*_templates`, `pack_versions`, `pack_rule_type_schemas`, `pack_token_registry`, `pack_upgrade_proposals`, `pack_audit_log`, `pack_return_run_audit`, `pack_publisher_grants`, `pack_requirements`, `pack_rule_conflicts`, `pack_account_roles`, `pack_migration_log`, `payroll_statutory_rules`, `statutory_authorities`, `business_event_outbox`, `installed_localization_packs`.
+3. **Edge functions** — `validate-localization-payload`, `publish-localization-pack-version`, `install-localization-pack`, `process-localization-outbox`, `compute-payroll`, `generate-tax-certificate`, `generate-statutory-return`, and the shared `renderTokens.ts`.
+4. **Validation & guards** — JSON Schemas, `trg_assert_pack_payload_valid`, publish-time lint gate, `no-literal-rule-codes-in-engines` ESLint rule, `no_country_named_functions_test.sql`, `pack_income_tax_deductibility_test.sql`, `payroll_gl_readiness`.
+5. **Tenant consumption** — install pipeline, override tables, `pack_upgrade_proposals` inbox, `MissingMappingsDialog`, `PayrollGlReadinessBanner`, `payroll_diagnostics` (`TOKEN_UNRESOLVED`), return-run 8-state machine.
+
+Output: a short **Engine Map** document I share back in chat before we author anything.
+
+## Phase 2 — Explain the engine to you, accountant-first
+
+For each publisher page and each data object, I give you:
+
+- **Business purpose** (what event this models, e.g. "authority declares a new PAYE band")
+- **Who authors it** (publisher role vs tenant)
+- **Who consumes it** (payroll engine? certificate renderer? return runner? GL poster?)
+- **What breaks if it's missing** (blocked run, unresolved token, missing filing, drift)
+- **Override boundary** (pack-owned vs tenant-overridable)
+
+No JSON in this phase. Diagrams and prose only.
+
+## Phase 3 — Publisher audit
+
+I score the publisher against enterprise-publisher expectations and produce a **Publisher Audit** doc with findings tagged:
+
+- **Blocker** — Ghana cannot be published cleanly without fixing it. We fix now.
+- **High-value UX win** — clearly helps every future country (NG/UG/TZ/ZA). We fix now, small scope.
+- **Deferred** — larger rework; becomes/extends an ADR (candidates for the ADR 0056 P2 track).
+
+Dimensions scored: intuitiveness for a non-developer, JSON/DB leakage, guided flow, validation strength, dependency visualization, preview fidelity vs runtime, publish-time gate quality, upgrade proposal legibility.
+
+## Phase 4 — Ghana research
+
+Authoritative-source research (GRA, SSNIT, Ministry of Finance, Bank of Ghana, Ghana Revenue Authority publications, current Act references). I produce a **Ghana Compliance Brief** covering the full compliance surface you selected:
+
+- PAYE (resident bands, non-resident flat rate, bonus tax rule, overtime tax rule)
+- SSNIT Tier 1 (5.5% EE / 13% ER) and mandatory Tier 2 (5%), voluntary Tier 3
+- Student Loan Trust Fund deduction (where employer-mediated)
+- End-of-service / redundancy tax treatment
+- NHIL / GETFund / COVID levy insofar as they touch payroll (mostly not — noted for accounting pack)
+- Monthly PAYE return + SSNIT contribution schedule + Tier 2 schedule
+- Annual employee tax certificate + employer annual return
+- GRA / SSNIT filing workflows, remittance windows, payment channels
+- Statutory identifiers (TIN, SSNIT number, Ghana Card PIN) and their placement in employee/employer records
+- Terminology, official document layouts, GL implications, authority contacts
+
+The brief drives the pack — not the other way around.
+
+## Phase 5 — Guided publication, one artifact at a time
+
+Workshop pacing you chose. For **every** artifact we:
+
+1. I explain what it is, why Ghana needs it, where payroll/finance/compliance consume it, and what fails without it.
+2. I show you the schema/preview/tokens the publisher will use.
+3. You approve.
+4. I author it in the platform admin editor as part of the draft Ghana pack.
+5. We move to the next artifact.
+
+Publication order (dependency-safe):
+
+```text
+Pack metadata + publisher grant + statutory authorities (GRA, SSNIT)
+  → Token registry additions (Ghana-specific inputs/outputs)
+  → Account role templates + CoA account templates
+  → GL mapping keys (per statutory rule: payable + employer expense)
+  → Statutory rules
+       PAYE (progressive, resident + non-resident branch)
+       SSNIT Tier 1 employee, SSNIT Tier 1 employer
+       Tier 2 mandatory employer
+       Tier 3 voluntary (opt-in via employee input token)
+       Bonus tax rule, overtime tax rule
+       Student loan trust fund (garnishment-kind + policy)
+       End-of-service/redundancy tax treatment
+  → Payroll templates (payslip line ordering, deductibility flags,
+     pre_tax_deductions[] wiring — validated by the deductibility contract test)
+  → Bank export templates (GHS payment file formats for common banks)
+  → Remittance schedules (PAYE monthly, SSNIT monthly, Tier 2 monthly)
+  → Certificate templates (annual employee tax certificate)
+  → Return templates (monthly PAYE return, SSNIT contribution return, Tier 2 return,
+     annual employer return) with the 8-state return-run machine wiring
+  → Pack requirements (statutory identifiers publishers must collect)
+  → Pack health check → 0 conflicts, 0 unresolved tokens, 0 unmapped GL keys
+  → Publish v1.0.0 as a draft snapshot for review
+  → You review PackDiffView vs the empty baseline
+  → Publish → snapshot immutable, tenant upgrade proposals fan out
+```
+
+At no point do I install the pack against a tenant unless you explicitly ask; publication ≠ installation.
+
+## Phase 6 — Reference-quality bar
+
+Ghana v1.0.0 must meet the "reference implementation" bar so NG/UG/TZ/ZA can clone the shape:
+
+- Every statutory rule uses `computation_method` + validated `parameters` — zero engine branches.
+- Every template renders under `PreviewPanel` with zero `‹unresolved: token›` sentinels.
+- Every `pre_tax_deductions[]` code resolves per `pack_income_tax_deductibility_test.sql`.
+- Every remittance schedule maps to a real `statutory_authorities` row.
+- Every return template has a matching filing-calendar projection.
+- `payroll_gl_readiness` returns "fully mapped" for a fresh Ghana tenant fixture.
+- No `_kenya`/`paye`/`ssnit`-named SQL functions get added (`no_country_named_functions_test.sql` stays green).
+- All schemas registered in `pack_rule_type_schemas` with a `schema_version`.
+
+## Phase 7 — Platform strengthening (only where Ghana exposes it)
+
+Concrete candidates I expect to hit and how I'll handle each:
+
+| Friction I expect | Blocker? | Planned action |
 |---|---|---|
-| A1 dense monthly grid | ✅ shipped | ✅ verified |
-| A2 golden test | ✅ shipped | ✅ `certificateRenderer_golden_test.ts` present |
-| A3 completeness per doc class | in-flight | ✅ **already shipped** — `_shared/certificateCompleteness.ts` + browser mirror wired into editor and `lint-localization-pack` |
-| D1 pack version + proposals | ✅ shipped | ✅ verified in migrations |
-| **B1 WYSIWYG preview** | ✅ shipped | ✅ verified — isomorphic browser renderer + debounced preview pane |
-| **B2 token/column pickers** | ✅ shipped | ✅ column keys as chip picker; footnote body + footer note now use `TokenAwareTextarea`; canonical statutory snippet library seeded (KE P9 / P10 / cert-of-service) |
-| **B3 visual QA gate** | ✅ shipped | renderer-driven fixture render + per-doc-class byte floor (P9 ≥ 6KB, P10 ≥ 4KB, cert_of_service ≥ 3KB) wired into `lint-localization-pack` |
-| **C1 `return_template_v2` + returnRenderer** | ✅ shipped | `_shared/pdf/returnRenderer.ts` with section vocabulary (employer_header, period_band, employee_line_grid, employer_totals, reconciliation_block, signature_block, statutory_footnote, remittance_summary) |
-| **C2 migrate `generate-statutory-return`** | ✅ shipped | branches on `isReturnTemplateV2(template)` — legacy `generateReportPdf` path preserved for older packs |
-| **C3 migrate `ReturnTemplateEditor`** | ✅ shipped | v2 opt-in card added; section list uses `RETURN_SECTION_TYPES` vocabulary; `ReturnPreviewPane` wired to browser mirror of `_shared/pdf/returnRenderer.ts` |
-| **D2 country fixture set** | ✅ shipped | `src/features/localization/lib/fixtures/keReturnFixture.ts` for returns preview alongside existing `kePayrollFixture.ts` (certs); both consumed by their respective editor preview panes |
+| Bonus/overtime tax rules need a `computation_kind` we don't have a schema for | Blocker | Register schema + `SchemaForm` variant, ship with Ghana |
+| Non-resident PAYE branch inside a single rule | UX win | Add explicit `parameters.residency_branches[]` to progressive schema |
+| Publisher can't see which templates consume a token before renaming | Deferred | ADR 0056 P2.a — I do NOT build the dependency graph now, only document it |
+| `PackDiffView` shows raw JSON on the SSNIT rate change | Deferred | ADR 0056 P2.b — semantic diff, not now |
+| Tier 3 voluntary contribution needs a registered employee-input token | Blocker | Add to `EMPLOYEE_INPUT_REGISTRY` **and** `pack_token_registry` (kept in sync per the deductibility test) |
+| Missing publisher wizard for "add a new country" | UX win | Small onboarding checklist inside `PackEditorShell` — only if scope stays under a day |
+| Remittance schedule editor can't express "due 15th of following month, business days" | UX win | Extend `RemittanceSchedulesEditor` schema |
 
-The order below picks up where the prior agent actually stopped — not where they said they stopped.
+Anything larger goes into an ADR extending 0056 — not into this workshop.
 
-## Plan
+## Deliverables you will see
 
-### Phase 1 — B1 WYSIWYG preview (the biggest remaining gap)
+1. **Engine Map** (chat, with file:line refs)
+2. **Business-language platform explainer** (chat)
+3. **Publisher Audit** with Blocker / UX-win / Deferred tags (chat, and possibly `docs/audit/2026-07-07-localization-publisher-ghana.md`)
+4. **Ghana Compliance Brief** (`docs/localization/ghana/compliance-brief.md`)
+5. **Ghana pack v1.0.0 draft**, authored one artifact at a time with your approval
+6. **Platform blocker + UX-win fixes** landed alongside Ghana authoring
+7. **Deferred-work notes** appended to ADR 0056 (or a new ADR 006x if needed)
+8. **Published Ghana pack v1.0.0** with a green PackHealthPanel and a clean PackDiffView
 
-1. Isomorphize `_shared/pdf/certificateRenderer.ts` and `PdfBuilder.ts` — they already only use `pdf-lib`, which runs in the browser. Add `?url` / bare-specifier imports guarded so the same file is importable from Vite (browser) and Deno (edge). Where the Deno path uses `npm:pdf-lib`, switch to a `pdf-lib` import that both Deno (via `deno.json` import map already present) and Vite resolve.
-2. Add `src/features/localization/lib/certificatePreview.ts` — thin wrapper: `renderCertificatePreview(templateBody, fixtureCtx) → Promise<Blob>`.
-3. Add fixture context (`src/features/localization/lib/fixtures/kePayrollFixture.ts`) — one synthetic employer + employee + 12 months of posted payslips shaped exactly like the edge renderer's input.
-4. Extend `CertificateTemplateEditor.tsx` with a right-hand preview column (3-column shell: sections list · section editor · PDF preview via `<iframe src={blobUrl}>`), debounced 300 ms on state change. Lazy-load the renderer chunk behind the editor route so main bundle isn't hit.
+## Technical notes (for reference; skip if you'd rather stay business-first)
 
-### Phase 2 — B2 remove the developer surface
+- Authoring uses only existing platform-admin editors — no SQL migrations for pack content itself; content lives in `localization_pack_*` and `payroll_statutory_rules` rows written through the editors and validated by `trg_assert_pack_payload_valid` + `validate-localization-payload`.
+- Any new `pack_rule_type_schemas` row (bonus tax, non-resident PAYE branch, etc.) is a migration, small and additive.
+- Any new registered employee-input token is a two-line change to `EMPLOYEE_INPUT_REGISTRY` in `supabase/functions/compute-payroll/index.ts` **plus** a `pack_token_registry` row — the deductibility test enforces both.
+- Publish path: `publish-localization-pack-version` snapshots to `pack_versions`, diffs, and writes `pack_upgrade_proposals`. No tenant is force-upgraded.
+- After publish, `process-localization-outbox` fans out `pack.published` events; that is where the audit trail lives.
 
-5. Replace free-text inputs whose contents are actually enums:
-   - **Column picker** — dropdown of legal `columns[].key` values per section type, sourced from the same `certificate_template_v2` whitelist that already lives in `_shared/certificateSections.ts`. Re-export a small manifest to the browser.
-   - **Token picker** — resolve via `usePackTokens(packId)` (already exists); render as a searchable combobox for any field currently accepting a `{{token}}` string (footnote, header lines, signature block).
-   - **Statutory-wording snippets** — new `pack_statutory_snippets` reference list on the pack (title + body); insert as a token reference `{{snippet.p9_declaration}}`. Ship 3 seeded KE snippets.
-6. Free `Textarea` stays only for genuinely free content (publisher comments, notes).
+## What I need from you to start
 
-### Phase 3 — B3 publish-time visual QA gate
-
-7. Extend `lint-localization-pack/index.ts`: for every certificate template, render it through `certificateRenderer` against the KE fixture and reject when:
-   - Any required section renders zero draw calls (instrument `PdfBuilder` to report per-section byte deltas).
-   - Any section exceeds page width (builder already tracks x-cursor; expose overflow flag).
-   - Rendered PDF < per-doc-class byte floor (P9 ≥ 6 KB, P10 ≥ 4 KB, cert_of_service ≥ 3 KB) — proxy for shallow output.
-
-### Phase 4 — C1–C3 apply the same architecture to returns
-
-8. **C1.** Add `return_template_v2` JSON Schema alongside `certificate_template_v2`. Section vocabulary: `employer_header`, `period_band`, `employee_line_grid`, `employer_totals`, `reconciliation_block`, `signature_block`, `statutory_footnote`, `remittance_summary`. Add `_shared/pdf/returnRenderer.ts` reusing `PdfBuilder`.
-9. **C2.** In `generate-statutory-return/index.ts`, branch on `pack_versions.metadata.renderer === "v2-returns"`; when set, use `returnRenderer`, else keep `generateReportPdf` for older packs.
-10. **C3.** Refactor `ReturnTemplateEditor.tsx` to the same section-based UI as `CertificateTemplateEditor` (reuse the shared section-list widget extracted in Phase 1). Wire the same B1 preview and B2 pickers.
-11. Add `_shared/returnCompleteness.ts` (P10, PAYE monthly return, NSSF/SHIF/Housing remittance schedules) and wire into publish gate + editor.
-
-### Phase 5 — D2 fixture set + upgrade for returns
-
-12. Create `supabase/localization/fixtures/KE/` with the synthetic employer/employee/period JSON — used by A2 golden test, B1 preview, and B3 visual QA. One file, imported from both edge and browser via a Vite/Deno-compatible path.
-13. Publish KE pack version `2026.6.0` bumping return templates to v2 bodies + fanning out `pack_upgrade_proposals` (mirrors D1 pattern). Migration adds the architecture test asserting a version bump accompanies any return `body` change.
-
-### Technical notes
-
-- Feature flags: `pack_versions.metadata.renderer` = `"v2"` (certs — already live) and `"v2-returns"` (new). Old packs continue on `generateReportPdf`.
-- Isomorphic renderer: keep zero Node/Deno-only imports; `pdf-lib` and `Uint8Array` only. Any font byte arrays load via `fetch()` on browser, `Deno.readFile` on edge — factor through a small `loadFont()` adapter.
-- Bundle: preview chunk lazy-loaded — target < 400 KB gzipped for the editor route.
-- Tests: existing golden test extended with a return-template golden; SQL test asserts new pack version rows.
-
-### Risks
-
-- `pdf-lib` isomorphic path in existing Deno functions relies on `npm:pdf-lib` specifier — verify import-map alignment before Phase 1.4 or preview will fail silently in the editor.
-- Return-template migration is largest; some tenant-side custom overrides may exist. Feature flag on `pack_versions.metadata.renderer` isolates the switch per pack version, so existing installed packs are untouched until the tenant accepts the `2026.6.0` proposal.
-- Removing free-text where it was actually free (custom footnote wording) — mitigated by keeping `Textarea` for the snippet body itself; only *insertion* moves to picker.
-
-### Success criteria
-
-- Editing a certificate template in the editor renders the exact same PDF the tenant will receive, live, within 300 ms of a keystroke.
-- Publish fails loudly (with the specific missing section named) when statutory completeness or visual QA fails — for both certificates and returns.
-- No `Textarea` in the editor accepts a column key, token path, or rule code.
-- Returns (P10, PAYE, NSSF, SHIF, Housing Levy, remittance schedules) render through the same section-based renderer as certificates.
-- Adding a new country needs only a fixture file + template bodies — zero renderer or editor code change.
-
-### Out of scope
-
-- Multi-language rendering.
-- Non-KE packs beyond the fixture proving the platform.
-- Editor plugin system for custom section types (v3).
+Nothing else — pacing/scope/aggressiveness are already answered. On approval I begin Phase 1 (read-only) and come back with the Engine Map before touching anything.
