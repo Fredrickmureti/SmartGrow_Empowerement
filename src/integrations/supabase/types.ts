@@ -22124,10 +22124,12 @@ export type Database = {
           due_day_basis: string
           due_month: number | null
           frequency: string
+          grace_days: number
           id: string
           liability_account_setting_key: string | null
           pack_id: string
           pack_version_id: string | null
+          roll_forward_weekend_holiday: boolean
           rule_code: string
         }
         Insert: {
@@ -22137,10 +22139,12 @@ export type Database = {
           due_day_basis?: string
           due_month?: number | null
           frequency?: string
+          grace_days?: number
           id?: string
           liability_account_setting_key?: string | null
           pack_id: string
           pack_version_id?: string | null
+          roll_forward_weekend_holiday?: boolean
           rule_code: string
         }
         Update: {
@@ -22150,10 +22154,12 @@ export type Database = {
           due_day_basis?: string
           due_month?: number | null
           frequency?: string
+          grace_days?: number
           id?: string
           liability_account_setting_key?: string | null
           pack_id?: string
           pack_version_id?: string | null
+          roll_forward_weekend_holiday?: boolean
           rule_code?: string
         }
         Relationships: [
