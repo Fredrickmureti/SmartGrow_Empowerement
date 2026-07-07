@@ -16509,6 +16509,72 @@ export type Database = {
         }
         Relationships: []
       }
+      fiscal_device_credentials: {
+        Row: {
+          branch_id: string | null
+          branch_office_id: string | null
+          business_id: string
+          communication_key_encrypted: string | null
+          created_at: string
+          credential_expires_at: string | null
+          credential_rotated_at: string | null
+          device_serial: string | null
+          environment: string
+          id: string
+          initialized_at: string | null
+          is_active: boolean
+          last_health_check_at: string | null
+          last_health_ok: boolean | null
+          metadata: Json
+          organization_id: string
+          provider_key: string
+          tax_pin: string | null
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          branch_office_id?: string | null
+          business_id: string
+          communication_key_encrypted?: string | null
+          created_at?: string
+          credential_expires_at?: string | null
+          credential_rotated_at?: string | null
+          device_serial?: string | null
+          environment?: string
+          id?: string
+          initialized_at?: string | null
+          is_active?: boolean
+          last_health_check_at?: string | null
+          last_health_ok?: boolean | null
+          metadata?: Json
+          organization_id: string
+          provider_key: string
+          tax_pin?: string | null
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          branch_office_id?: string | null
+          business_id?: string
+          communication_key_encrypted?: string | null
+          created_at?: string
+          credential_expires_at?: string | null
+          credential_rotated_at?: string | null
+          device_serial?: string | null
+          environment?: string
+          id?: string
+          initialized_at?: string | null
+          is_active?: boolean
+          last_health_check_at?: string | null
+          last_health_ok?: boolean | null
+          metadata?: Json
+          organization_id?: string
+          provider_key?: string
+          tax_pin?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       fiscal_periods: {
         Row: {
           business_id: string
@@ -16585,6 +16651,134 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_provider_circuit: {
+        Row: {
+          consecutive_failures: number
+          id: string
+          last_error: string | null
+          next_probe_at: string | null
+          opened_at: string | null
+          organization_id: string
+          provider_key: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          consecutive_failures?: number
+          id?: string
+          last_error?: string | null
+          next_probe_at?: string | null
+          opened_at?: string | null
+          organization_id: string
+          provider_key: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          consecutive_failures?: number
+          id?: string
+          last_error?: string | null
+          next_probe_at?: string | null
+          opened_at?: string | null
+          organization_id?: string
+          provider_key?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fiscal_transmissions: {
+        Row: {
+          attempt_count: number
+          branch_id: string | null
+          business_id: string | null
+          control_unit_id: string | null
+          created_at: string
+          document_kind: string
+          event_id: string | null
+          fiscal_number: string | null
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          next_attempt_at: string | null
+          organization_id: string
+          provider_key: string
+          qr_data: string | null
+          request_payload: Json | null
+          response_payload: Json | null
+          sequence_no: number
+          signature: string | null
+          source_doc_id: string
+          source_doc_type: string
+          state: string
+          superseded_by: string | null
+          transmitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          branch_id?: string | null
+          business_id?: string | null
+          control_unit_id?: string | null
+          created_at?: string
+          document_kind: string
+          event_id?: string | null
+          fiscal_number?: string | null
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          next_attempt_at?: string | null
+          organization_id: string
+          provider_key: string
+          qr_data?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          sequence_no?: number
+          signature?: string | null
+          source_doc_id: string
+          source_doc_type: string
+          state?: string
+          superseded_by?: string | null
+          transmitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          branch_id?: string | null
+          business_id?: string | null
+          control_unit_id?: string | null
+          created_at?: string
+          document_kind?: string
+          event_id?: string | null
+          fiscal_number?: string | null
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          next_attempt_at?: string | null
+          organization_id?: string
+          provider_key?: string
+          qr_data?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          sequence_no?: number
+          signature?: string | null
+          source_doc_id?: string
+          source_doc_type?: string
+          state?: string
+          superseded_by?: string | null
+          transmitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_transmissions_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "fiscal_transmissions"
             referencedColumns: ["id"]
           },
         ]
@@ -21937,6 +22131,154 @@ export type Database = {
           },
           {
             foreignKeyName: "localization_pack_certificate_templates_pack_version_id_fkey"
+            columns: ["pack_version_id"]
+            isOneToOne: false
+            referencedRelation: "pack_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      localization_pack_fiscal_code_maps: {
+        Row: {
+          code: string
+          code_type: string
+          created_at: string
+          effective_date: string | null
+          id: string
+          metadata: Json
+          name: string
+          pack_id: string
+          pack_version_id: string | null
+          parent_code: string | null
+          provider_key: string
+        }
+        Insert: {
+          code: string
+          code_type: string
+          created_at?: string
+          effective_date?: string | null
+          id?: string
+          metadata?: Json
+          name: string
+          pack_id: string
+          pack_version_id?: string | null
+          parent_code?: string | null
+          provider_key: string
+        }
+        Update: {
+          code?: string
+          code_type?: string
+          created_at?: string
+          effective_date?: string | null
+          id?: string
+          metadata?: Json
+          name?: string
+          pack_id?: string
+          pack_version_id?: string | null
+          parent_code?: string | null
+          provider_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "localization_pack_fiscal_code_maps_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "localization_packs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "localization_pack_fiscal_code_maps_pack_version_id_fkey"
+            columns: ["pack_version_id"]
+            isOneToOne: false
+            referencedRelation: "pack_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      localization_pack_fiscal_providers: {
+        Row: {
+          authority_id: string | null
+          created_at: string
+          doc_type_map: Json
+          effective_date: string | null
+          endpoint_edge_function: string
+          id: string
+          legal_reference: string | null
+          metadata: Json
+          pack_id: string
+          pack_version_id: string | null
+          payment_type_map: Json
+          pin_regex: string | null
+          production_url: string
+          provider_key: string
+          provider_name: string
+          qr_url_template: string | null
+          receipt_footer_legal_text: string | null
+          sandbox_url: string
+          tax_category_map: Json
+          updated_at: string
+        }
+        Insert: {
+          authority_id?: string | null
+          created_at?: string
+          doc_type_map?: Json
+          effective_date?: string | null
+          endpoint_edge_function: string
+          id?: string
+          legal_reference?: string | null
+          metadata?: Json
+          pack_id: string
+          pack_version_id?: string | null
+          payment_type_map?: Json
+          pin_regex?: string | null
+          production_url: string
+          provider_key: string
+          provider_name: string
+          qr_url_template?: string | null
+          receipt_footer_legal_text?: string | null
+          sandbox_url: string
+          tax_category_map?: Json
+          updated_at?: string
+        }
+        Update: {
+          authority_id?: string | null
+          created_at?: string
+          doc_type_map?: Json
+          effective_date?: string | null
+          endpoint_edge_function?: string
+          id?: string
+          legal_reference?: string | null
+          metadata?: Json
+          pack_id?: string
+          pack_version_id?: string | null
+          payment_type_map?: Json
+          pin_regex?: string | null
+          production_url?: string
+          provider_key?: string
+          provider_name?: string
+          qr_url_template?: string | null
+          receipt_footer_legal_text?: string | null
+          sandbox_url?: string
+          tax_category_map?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "localization_pack_fiscal_providers_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "statutory_authorities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "localization_pack_fiscal_providers_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "localization_packs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "localization_pack_fiscal_providers_pack_version_id_fkey"
             columns: ["pack_version_id"]
             isOneToOne: false
             referencedRelation: "pack_versions"
@@ -61369,6 +61711,18 @@ export type Database = {
         Returns: undefined
       }
       enforce_company_limit: { Args: { _org_id: string }; Returns: undefined }
+      enqueue_fiscal_receipt_required: {
+        Args: {
+          p_branch_id: string
+          p_business_id: string
+          p_document_kind: string
+          p_org_id: string
+          p_payload: Json
+          p_source_doc_id: string
+          p_source_doc_type: string
+        }
+        Returns: string
+      }
       enqueue_hardware_command: {
         Args: {
           p_branch_id: string
