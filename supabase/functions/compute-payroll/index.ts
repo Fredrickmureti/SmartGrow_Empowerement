@@ -2752,11 +2752,23 @@ Deno.serve(async (req) => {
         // allowable deductions). The dispatch is purely off the flag —
         // no literal rule_code branches, so non-KE packs that don't ship
         // the flag stay byte-identical.
+        // ADR-0010 Gap #2/#3 — dynamic input keys + per-run variable
+        // earnings (bonus_amount, overtime_amount, commission, arrears)
+        // are surfaced as ctx.inputs so bonus_windfall /
+        // overtime_concessional / pack-registered tokens work without
+        // touching engine code.
+        const ve = varEarningsByEmployee[emp.id] ?? {};
+        const variableInputs: Record<string, number> = {
+          bonus_amount: Number(ve.bonus ?? 0),
+          overtime_amount: Number(ve.overtime_pay ?? 0),
+          commission_amount: Number(ve.commission ?? 0),
+          arrears_amount: Number(ve.arrears ?? 0),
+        };
         const ctx: CalcContext = {
           grossPay,
           taxableIncome,
           basicSalary,
-          inputs: resolveInputs(emp),
+          inputs: resolveInputs(emp, dynamicEmployeeInputKeys, variableInputs),
         };
         const empBracketTraces: BracketTrace[] = [];
 
