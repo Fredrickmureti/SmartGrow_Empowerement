@@ -62043,6 +62043,10 @@ export type Database = {
           invoice_id: string
         }[]
       }
+      fiscal_transmission_resend: {
+        Args: { p_transmission_id: string }
+        Returns: boolean
+      }
       flag_product_for_review: {
         Args: { p_business_id: string; p_product_id: string; p_reason?: string }
         Returns: Json
