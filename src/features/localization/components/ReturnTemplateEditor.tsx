@@ -33,7 +33,28 @@ import { validatePayload } from "../hooks";
 import { usePackTokens, type PackTokenOption } from "../hooks/usePackTokens";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import { PreviewPanel } from "./PreviewPanel";
+import { ReturnPreviewPane } from "./ReturnPreviewPane";
 import type { EditorMode } from "../types";
+
+// v2 section vocabulary — mirrors _shared/pdf/returnRenderer.ts. Order
+// here drives the UI dropdown; renderer accepts any subset in any order.
+const RETURN_SECTION_TYPES = [
+  { value: "employer_header",      label: "Employer header" },
+  { value: "period_band",          label: "Period band" },
+  { value: "employee_line_grid",   label: "Employee line grid" },
+  { value: "employer_totals",      label: "Employer totals" },
+  { value: "reconciliation_block", label: "Reconciliation block" },
+  { value: "signature_block",      label: "Signature block" },
+  { value: "statutory_footnote",   label: "Statutory footnote" },
+  { value: "remittance_summary",   label: "Remittance summary" },
+] as const;
+
+type ReturnSectionSpec = {
+  type: string;
+  title?: string;
+  columns?: Array<{ key: string; header?: string; align?: "left" | "right"; format?: "money" | "text" }>;
+  body?: string;
+};
 
 // First-class metadata (Slice A columns on
 // localization_pack_return_templates). Edited via the metadata section
@@ -103,6 +124,10 @@ type ReturnBody = {
   group_by?: string[];
   totals?: string[];
   reconciliation?: { rule_code?: string } | null;
+  /** Opt-in v2 section-based renderer flag. */
+  renderer?: "v2-returns" | null;
+  /** v2 section list — only meaningful when renderer === "v2-returns". */
+  sections?: ReturnSectionSpec[];
 };
 
 // Pack-agnostic fallback tokens shown while the registry is loading or
@@ -157,6 +182,13 @@ function normalizeBody(input: any): ReturnBody {
     reconciliation: b?.reconciliation && typeof b.reconciliation === "object"
       ? { rule_code: b.reconciliation.rule_code ?? "" }
       : null,
+    renderer: b?.renderer === "v2-returns" ? "v2-returns" : null,
+    sections: Array.isArray(b?.sections) ? b.sections.map((s: any) => ({
+      type: String(s?.type ?? ""),
+      title: s?.title ?? undefined,
+      columns: Array.isArray(s?.columns) ? s.columns : undefined,
+      body: typeof s?.body === "string" ? s.body : undefined,
+    })) : [],
   };
 }
 
@@ -175,6 +207,16 @@ function denormalizeBody(b: ReturnBody): any {
   if (b.filters.payslip_status?.length) out.filters.payslip_status = b.filters.payslip_status;
   if (b.totals?.length) out.totals = b.totals;
   if (b.reconciliation?.rule_code) out.reconciliation = { rule_code: b.reconciliation.rule_code };
+  if (b.renderer === "v2-returns") {
+    out.renderer = "v2-returns";
+    out.sections = (b.sections ?? []).map((s) => {
+      const o: any = { type: s.type };
+      if (s.title) o.title = s.title;
+      if (Array.isArray(s.columns) && s.columns.length) o.columns = s.columns;
+      if (typeof s.body === "string" && s.body.length) o.body = s.body;
+      return o;
+    });
+  }
   return out;
 }
 
@@ -533,6 +575,145 @@ export function ReturnTemplateEditor({
             placeholder="Rule code (e.g. PAYE)"
             className="max-w-xs"
           />
+        </section>
+
+        {/* ── v2 section-based renderer (opt-in) ────────────────── */}
+        <section className="space-y-2 rounded-lg border bg-muted/10 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Section-based renderer (v2)
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                When enabled, the PDF is drawn from the section vocabulary
+                below (employer header, period band, employee line grid,
+                totals, reconciliation, signature, footnote, remittance).
+                Same renderer runs server-side and in the preview.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={body.renderer === "v2-returns"}
+                onCheckedChange={(v) =>
+                  setBody({ ...body, renderer: v ? "v2-returns" : null })
+                }
+              />
+              <Label className="text-xs">Enable v2 renderer</Label>
+            </div>
+          </div>
+          {body.renderer === "v2-returns" && (
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs uppercase text-muted-foreground">Sections</Label>
+                <Select
+                  value=""
+                  onValueChange={(v) =>
+                    setBody({ ...body, sections: [...(body.sections ?? []), { type: v }] })
+                  }
+                >
+                  <SelectTrigger className="h-8 w-[220px]">
+                    <SelectValue placeholder="Add section…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETURN_SECTION_TYPES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(body.sections ?? []).length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No sections yet — add at least an <code>employer_header</code>,
+                  a <code>period_band</code>, and an <code>employee_line_grid</code>.
+                </p>
+              )}
+              <div className="space-y-1.5">
+                {(body.sections ?? []).map((s, idx) => {
+                  const spec = RETURN_SECTION_TYPES.find((t) => t.value === s.type);
+                  const move = (dir: -1 | 1) => {
+                    const next = [...(body.sections ?? [])];
+                    const j = idx + dir;
+                    if (j < 0 || j >= next.length) return;
+                    [next[idx], next[j]] = [next[j], next[idx]];
+                    setBody({ ...body, sections: next });
+                  };
+                  const patch = (p: Partial<ReturnSectionSpec>) => {
+                    const next = [...(body.sections ?? [])];
+                    next[idx] = { ...next[idx], ...p };
+                    setBody({ ...body, sections: next });
+                  };
+                  const remove = () =>
+                    setBody({ ...body, sections: (body.sections ?? []).filter((_, i) => i !== idx) });
+                  return (
+                    <div key={idx} className="rounded-md border p-2 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px]">{spec?.label ?? s.type}</Badge>
+                          <code className="text-[10px] text-muted-foreground">{s.type}</code>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button type="button" size="icon" variant="ghost" onClick={() => move(-1)} disabled={idx === 0}>
+                            <ArrowUp className="h-3 w-3" />
+                          </Button>
+                          <Button type="button" size="icon" variant="ghost" onClick={() => move(1)} disabled={idx === (body.sections ?? []).length - 1}>
+                            <ArrowDown className="h-3 w-3" />
+                          </Button>
+                          <Button type="button" size="icon" variant="ghost" onClick={remove}>
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-6">
+                          <Label className="text-[10px]">Title (optional)</Label>
+                          <Input value={s.title ?? ""} onChange={(e) => patch({ title: e.target.value || undefined })} />
+                        </div>
+                      </div>
+                      {s.type === "statutory_footnote" && (
+                        <div>
+                          <Label className="text-[10px]">Footnote body</Label>
+                          <Textarea rows={3} value={s.body ?? ""} onChange={(e) => patch({ body: e.target.value })} />
+                        </div>
+                      )}
+                      {s.type === "employee_line_grid" && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Uses the columns defined in the <em>Columns</em> section above; each column's <code>key</code> and <code>format</code> is passed straight to the renderer.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="pt-2">
+                <ReturnPreviewPane
+                  templateCode={templateCode}
+                  displayName={templateCode}
+                  body={{
+                    renderer: "v2-returns",
+                    sections: (body.sections ?? []).map((s) => {
+                      if (s.type === "employee_line_grid" && !s.columns?.length) {
+                        return {
+                          ...s,
+                          columns: body.columns.map((c) => ({
+                            key: c.key,
+                            header: c.label,
+                            format: c.format === "currency" ? "money" : "text",
+                            align: c.format === "currency" ? "right" : "left",
+                          })),
+                        };
+                      }
+                      return s;
+                    }),
+                  }}
+                  meta={{
+                    legal_reference: meta.legal_reference,
+                    regulation_citation: meta.regulation_citation,
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </section>
 
         <PreviewPanel body={denormalizeBody(body)} packId={packId ?? null} title="Statutory return preview" />
