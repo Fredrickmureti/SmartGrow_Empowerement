@@ -213,10 +213,39 @@ const EMPLOYEE_INPUT_REGISTRY: Record<string, (emp: any) => number> = {
   disability_certified: (emp) => (emp?.disability_certified ? 1 : 0),
 };
 
-function resolveInputs(emp: any): Record<string, number> {
+/**
+ * ADR-0010 Gap #2 — data-driven inputs.
+ *
+ * `dynamicKeys` are token names loaded from `pack_token_registry` where
+ * `source='employee'`, resolved once per payroll run. Each dynamic key
+ * reads `emp[key]` (coerced to Number, missing = 0), so a pack that
+ * registers a new employee-sourced token — e.g. Ghana Tier-3 voluntary
+ * contribution — becomes engine-visible with zero engine edits.
+ *
+ * Built-in getters win on collision so existing packs stay byte-identical.
+ *
+ * `variableInputs` are per-run variable earnings (bonus_amount,
+ * overtime_amount, commission, …) forwarded from `variable_earnings[]`;
+ * these OVERRIDE the emp-column read so a one-off bonus paid this cycle
+ * is visible to `bonus_windfall` / `overtime_concessional` rules without
+ * having to persist it on the employee row.
+ */
+function resolveInputs(
+  emp: any,
+  dynamicKeys: string[] = [],
+  variableInputs: Record<string, number> = {},
+): Record<string, number> {
   const out: Record<string, number> = {};
+  for (const key of dynamicKeys) {
+    if (!key || key in EMPLOYEE_INPUT_REGISTRY) continue;
+    out[key] = Number(emp?.[key] ?? 0) || 0;
+  }
   for (const [key, getter] of Object.entries(EMPLOYEE_INPUT_REGISTRY)) {
     out[key] = getter(emp);
+  }
+  for (const [key, val] of Object.entries(variableInputs)) {
+    if (val == null) continue;
+    out[key] = Number(val) || 0;
   }
   return out;
 }
