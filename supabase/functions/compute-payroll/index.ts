@@ -489,6 +489,113 @@ function computePerEmployeeFlat(
   return p.employer_only ? { employee: 0, employer: amt } : { employee: amt, employer: 0 };
 }
 
+// ─── ADR-0010 Gap #3 — flat / bonus_windfall / overtime_concessional ────
+//
+// Country-agnostic income-tax computation methods added for Ghana's
+// non-resident PAYE, bonus tax, and overtime QJE. All three are pure
+// functions off `parameters` — no rule_code branches.
+
+/**
+ * `income_tax / flat` — single-rate tax on the whole taxable base.
+ * Used for non-resident PAYE and expat withholding. `parameters.residency`
+ * gates against `ctx.inputs.is_non_resident` (1 = non-resident, 0/absent
+ * = resident) so packs can ship resident + non-resident rules side-by-side.
+ */
+export function computeFlatIncomeTax(
+  rule: PayrollRule,
+  ctx: CalcContext,
+): { employee: number; employer: number } {
+  const p = rule.parameters || {};
+  const residency = String(p.residency ?? "any").toLowerCase();
+  if (residency !== "any") {
+    const isNonRes = (ctx.inputs?.is_non_resident ?? 0) > 0;
+    if (residency === "resident" && isNonRes) return { employee: 0, employer: 0 };
+    if (residency === "non_resident" && !isNonRes) return { employee: 0, employer: 0 };
+  }
+  const baseCode = String(p.base_code ?? "taxable_income").toLowerCase();
+  const base = baseCode === "gross_pay" ? ctx.grossPay
+             : baseCode === "basic_salary" || baseCode === "basic" ? ctx.basicSalary
+             : baseCode === "taxable_income" || baseCode === "taxable" ? ctx.taxableIncome
+             : Number(ctx.inputs?.[baseCode] ?? 0);
+  const minTaxable = Number(p.min_taxable ?? 0);
+  if (base <= minTaxable) return { employee: 0, employer: 0 };
+  const tax = (base - minTaxable) * pct(p.rate_percent ?? 0);
+  return { employee: round2(Math.max(0, tax)), employer: 0 };
+}
+
+/**
+ * `income_tax / bonus_windfall` — concessional flat rate on bonuses up
+ * to a threshold expressed as %% of annual basic; excess rolls into
+ * ordinary PAYE (Ghana 5% ≤ 15% of annual basic).
+ *
+ * The engine only computes the CONCESSIONAL portion here — the excess
+ * is exposed via `ctx.inputs['bonus_rolled_to_paye']` (set as a side
+ * effect) so the sibling PAYE bracket_progressive rule automatically
+ * taxes it through its normal path. Callers who don't ship a matching
+ * `input_code` (default `bonus_amount`) get zero, which is correct for
+ * a regular run with no bonus paid.
+ */
+export function computeBonusWindfall(
+  rule: PayrollRule,
+  ctx: CalcContext,
+): { employee: number; employer: number } {
+  const p = rule.parameters || {};
+  const inputCode = String(p.input_code ?? "bonus_amount");
+  const bonus = Number(ctx.inputs?.[inputCode] ?? 0);
+  if (bonus <= 0) return { employee: 0, employer: 0 };
+
+  const annualBasicToken = String(p.annual_basic_token ?? "").toLowerCase();
+  const annualBasic = annualBasicToken && ctx.inputs?.[annualBasicToken] != null
+    ? Number(ctx.inputs[annualBasicToken])
+    : ctx.basicSalary * 12;
+  const thresholdPct = pct(p.threshold_pct_of_annual_basic ?? 0);
+  const cap = annualBasic * thresholdPct;
+
+  const qualifying = Math.min(bonus, cap);
+  const excess = Math.max(0, bonus - cap);
+  const tax = qualifying * pct(p.flat_rate_percent ?? 0);
+
+  const excessTreatment = String(p.excess_treatment ?? "roll_to_paye").toLowerCase();
+  if (excessTreatment === "roll_to_paye") {
+    ctx.inputs.bonus_rolled_to_paye = (ctx.inputs.bonus_rolled_to_paye ?? 0) + excess;
+  }
+  return { employee: round2(tax), employer: 0 };
+}
+
+/**
+ * `income_tax / overtime_concessional` — concessional overtime rate up
+ * to a monthly cash cap; excess taxed via ordinary PAYE (Ghana QJE:
+ * 5% up to GHS 18,000/month, junior-only).
+ */
+export function computeOvertimeConcessional(
+  rule: PayrollRule,
+  ctx: CalcContext,
+): { employee: number; employer: number } {
+  const p = rule.parameters || {};
+  const inputCode = String(p.input_code ?? "overtime_amount");
+  const overtime = Number(ctx.inputs?.[inputCode] ?? 0);
+  if (overtime <= 0) return { employee: 0, employer: 0 };
+
+  // Junior-only gate. When required, employees must expose a truthy
+  // `qualifying_junior` input; if not exposed, the rule is skipped.
+  if (p.qualifying_junior_only !== false) {
+    const isJunior = (ctx.inputs?.qualifying_junior ?? 0) > 0;
+    if (!isJunior) return { employee: 0, employer: 0 };
+  }
+
+  const cap = Number(p.monthly_cash_cap ?? 0);
+  const qualifying = cap > 0 ? Math.min(overtime, cap) : overtime;
+  const excess = Math.max(0, overtime - qualifying);
+  const tax = qualifying * pct(p.flat_rate_percent ?? 0);
+
+  const excessTreatment = String(p.excess_treatment ?? "roll_to_paye").toLowerCase();
+  if (excessTreatment === "roll_to_paye") {
+    ctx.inputs.overtime_rolled_to_paye = (ctx.inputs.overtime_rolled_to_paye ?? 0) + excess;
+  }
+  return { employee: round2(tax), employer: 0 };
+}
+
+
 /**
  * Phase 3.6 — Bonus/13th-month/commission tax-method dispatch.
  *
