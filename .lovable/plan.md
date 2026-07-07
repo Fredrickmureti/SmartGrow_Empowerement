@@ -1,82 +1,124 @@
-## Ghana Localization Pack — Remaining Publication Plan
 
-**State assumed done** (per handoff): all engine gap-closures (#1–#4), pack metadata enriched, `is_active=true`, `tokens_inherit_platform=true`, and the four `statutory_authorities` rows (GRA, SSNIT, NPRA, SLTF) exist. I will verify with a read-only `supabase--read_query` sweep before writing anything; if a row is already present with equivalent content I skip it, if it drifts from the spec below I ask before overwriting.
+## Kenya Localization Pack (v2026.4.0) — Deep Audit
 
-Everything below is authored under `pack_id = 8de30937-dab1-4a75-b6e6-6f4a25622ca2`, `country_code = 'GH'`. Nothing here backfills any installed tenant — publication is via a fresh `pack_versions` snapshot at the end, and existing tenants (if any) receive an upgrade proposal, never a silent overwrite.
+### 1. What is currently shipped
 
-### Artifact 2 — Ghana token registry additions
-Insert into `pack_token_registry` the Ghana-scoped employee inputs the rules below reference (all `source='employee'`, `data_type='number'` unless noted): `tier3_voluntary_employee`, `tier3_voluntary_employer`, `mortgage_interest_owner_occupied`, `life_insurance_premium`, `child_education_relief_count` (int), `aged_dependant_relief_count` (int), `disability_certified` (boolean-as-number), `qualifying_junior_employee` (boolean-as-number), `residency_status` (string: `resident`/`non_resident`), `sltf_monthly_deduction`. Each row carries a `description` and `sample_value` so `SchemaForm` renders sensible defaults.
+Pack `a1b2c3d4…7890`, published/stable. Inventory:
 
-### Artifact 3 — Payroll statutory rules (`payroll_statutory_rules`)
-Authored one row per rule with `computation_method` + validated `parameters` (never a literal rule_code branch). Order matters for pre-tax deductibility:
+| Artifact | Count | Notes |
+|---|---:|---|
+| Chart of accounts | 104 | IFRS-style, KES-denominated, VAT/WHT/M-Pesa accounts present |
+| Tax templates | 26 | VAT 16/8/0/Exempt, 12 WHT variants, Excise (financial), CIT 30%, TOT 3%, CGT 15%, SEP 30% |
+| Payroll rule templates | 5 | PAYE, NSSF, SHIF, AHL, NITA |
+| Statutory authorities | 7 | KRA, NSSF, SHA, NITA, HELB, MoL, (duplicate KRA row) |
+| Remittance schedules | 5 | PAYE, NSSF, SHIF, AHL monthly; NITA annual |
+| Return templates | 8 | P10, P10A, P10D, NSSF, SHIF, AHL, NITA, HELB byproducts |
+| Certificate templates | 3 | P9, P9A, Certificate of Service |
+| Bank-export templates | 1 | Pesalink CSV |
+| Garnishment kinds | 6 | Child maintenance, KRA agency, court, HELB, SACCO, advance |
+| Garnishment policies | 1 | Aggregate cap policy |
+| Account roles | 2 | Minimal |
+| Tokens | 5 | Very small — Ghana pack has 21 |
+| **Work entry types** | **0** | **Critical gap** |
 
-1. **SSNIT Tier 1 employee** — `percentage`, 5.5% of basic, ceiling GHS 61,000/month, pre-tax deductible.
-2. **SSNIT Tier 1 employer** — `percentage`, 13% of basic, ceiling GHS 61,000/month, employer contribution (Tier 2 5% carve documented via `sub_allocation` metadata, not a second engine rule — remittance schedule splits the payment).
-3. **Tier 2 mandatory** — informational row that references rule #2's carve; no separate employee cost.
-4. **Tier 3 voluntary employee** — `percentage` on `tier3_voluntary_employee`, pre-tax deductible up to the 16.5%-of-basic combined cap (parameter `combined_relief_cap_pct = 0.165`, flagged `[Verify Act 896 s.112]` in `data_source_note`).
-5. **SLTF** — `flat` monthly amount from `sltf_monthly_deduction`, post-tax.
-6. **PAYE resident** — `bracket_progressive` monthly bands derived from the annual GRA First Schedule (0/5/10/17.5/25/30/35, top band > 605,000 annual, flagged `[Verify vs PwC 600,000]`). Reads pre-tax deductions from Tier 1 + Tier 3 through the payroll-template deductibility mechanism (not hard-coded).
-7. **PAYE non-resident** — `flat` 25%, `residency='non_resident'`, no reliefs.
-8. **Bonus tax** — `bonus_windfall`, 5% up to 15% of annual basic, excess published to `ctx.inputs.bonus_rolled_to_paye`.
-9. **Overtime QJE** — `overtime_concessional`, `qualifying_junior_only=true`, annual qualifying-income cap GHS 18,000, 5% up to 50% of monthly basic then 10%, excess published to `ctx.inputs.overtime_rolled_to_paye`.
+### 2. Odoo `l10n_ke*` + KRA/Employment-Act parity baseline
 
-Each row: `effective_from='2025-01-01'`, `data_source_note` citing the compliance brief, `legacy_unvalidated=false` (validator must accept).
+Odoo's Kenyan localization (l10n_ke, l10n_ke_hr_payroll, l10n_ke_edi_oscu, l10n_ke_reports) plus a fully-fiscalized KE stack ships:
 
-### Artifact 4 — Account roles + account templates + GL mappings
-- `pack_account_roles`: `GH_PAYE_PAYABLE`, `GH_SSNIT_TIER1_PAYABLE`, `GH_SSNIT_TIER2_PAYABLE`, `GH_TIER3_PAYABLE`, `GH_SLTF_PAYABLE`, `GH_SALARIES_EXPENSE`, `GH_EMPLOYER_SSNIT_EXPENSE`, `GH_NET_PAY_CLEARING`.
-- `localization_pack_account_templates`: one row per role above with a Ghana-conventional account number (2xxx liabilities, 5xxx/6xxx expenses, 1xxx clearing) and normal balance.
-- Each `payroll_statutory_rules` row's `gl_mapping` (or the equivalent pack-level rule→role join) points to the correct role so `payroll_gl_readiness` reports 100 %.
+1. IFRS CoA (present).
+2. Fiscal positions: Resident, Non-Resident, EPZ/SEZ, Export, Reverse-charge imported services, Withholding-VAT customer/vendor (missing).
+3. Tax report mappings — VAT3 boxes, WHT return schedules (P11), CGT return, TOT return, CIT (IT2C), Excise, DST/SEP, Import VAT (missing).
+4. eTIMS OSCU signing on every tax invoice (CU serial, receipt sig, QR) — code exists in tree, not wired to pack.
+5. KRA PIN validation regex (`^[AP]\d{9}[A-Z]$`) on contacts/orgs.
+6. Withholding VAT 6% (appointed agents) — separate from income WHT.
+7. Payroll: PAYE + NSSF Tier I/II + SHIF + AHL + NITA (all present), **plus** Personal Relief (KES 2,400/mo), Insurance Relief (15% cap 5,000), Mortgage Interest Relief (cap 25,000/mo), Pension Contribution Relief (cap 20,000/mo or 30% of pensionable), Disability Exemption (first 150,000/mo), Home-Ownership Savings Plan (sunset marker), Owner-occupied interest deduction, Fringe Benefit Tax on cheap staff loans, Car benefit, Housing benefit, Per-diem tax-free 2,000/day, Overtime rules, Gratuity/Service pay, Employer NSSF match, HELB recovery (currently only a garnishment kind — needs a payroll rule for statutory ordering).
+8. Employer-side: WIBA insurance, Standards Levy 0.2% (KEBS, manufacturers), Tourism Levy 2% (hospitality), County single-business-permit hook.
+9. Public holidays (KE) seeded from pack.
+10. Work entry types (normal, OT 1.5×/2×, sick, annual, maternity, paternity, unpaid, public holiday, study, compassionate).
+11. Employment-Act leave defaults (21 annual, 14 sick, 90 maternity, 14 paternity).
+12. Bank formats: Pesalink (present) + KBA EFT batch + RTGS/SWIFT MT103 + M-Pesa B2C bulk + M-Pesa Paybill remittance file.
+13. NHIF legacy sunset marker (Oct 2024 → SHIF), NSSF Act 2013 Tier I/II split explicit.
+14. Fringe benefit tax quarterly market rate (CBR-linked).
+15. Statutory identifiers: KRA PIN, NSSF, SHIF, HELB, NITA, WIBA — with format validators.
+16. Payslip legal footer + P9 continuous accrual.
+17. RBA (Retirement Benefits Authority) occupational pension mapping.
 
-### Artifact 5 — Payroll templates & work-entry types
-- `localization_pack_payroll_templates`: one payslip template ordering earnings → pre-tax deductions (Tier 1 EE, Tier 3 EE) → PAYE → post-tax (SLTF, garnishments) → net; explicitly marks Tier 1 EE and Tier 3 EE `reduces_taxable_income=true` (the `pack_income_tax_deductibility_test` SQL test will assert this).
-- `localization_pack_work_entry_type_templates`: `REGULAR`, `OVERTIME_QJE`, `BONUS`, `LEAVE_PAID`, `LEAVE_UNPAID`, `REDUNDANCY_EXEMPT` (flagged tax-exempt), `PILON`, `GRATUITY`.
+### 3. Verdict
 
-### Artifact 6 — Remittance schedules
-Four rows in `localization_pack_remittance_schedules`, all using the new `roll_forward_weekend_holiday=true`:
-| Authority | Rule set | Due | Grace |
-|---|---|---|---|
-| GRA | PAYE | 15th of following month | 0 |
-| SSNIT | Tier 1 (5.5 % + 8 %) | 14th of following month | 0 |
-| NPRA | Tier 2 (5 % carve, paid to trustee) | 14th of following month | 0 |
-| SLTF | SLTF deductions | 15th of following month | 0 |
+**Not green-light.** Chart of accounts, VAT/WHT catalog, and monthly-return byproducts are solid — matches or exceeds Odoo on those. But payroll depth, work-entry types, tax-report field mappings, fiscal positions, statutory reliefs, and non-payroll return templates are shallow compared to a production KE stack. Below is the gap remediation plan.
 
-### Artifact 7 — Return templates
-- **PAYE monthly return** (`localization_pack_return_templates`) — GRA layout, tokens for employer TIN, period, per-employee gross/allowable-deductions/chargeable/PAYE, totals. Bound to `GH_GRA`.
-- **SSNIT monthly contribution schedule** — SSNIT layout, per-employee SSNIT number, basic, 5.5 %, 13 %, total. Bound to `GH_SSNIT`.
-- **Annual employer schedule (Form of Return of Income)** — due 30 April.
+### 4. Gap list, prioritized
 
-### Artifact 8 — Certificate templates
-- **Annual employee tax certificate** — one page, one employee, one tax year; tokens for name, TIN, SSNIT no., total gross, allowable deductions, chargeable income, PAYE paid, employer name/TIN. Passes ADR-0060 completeness lint.
+**P0 — blocks correct payroll math today**
+- G1. Personal Relief (KES 2,400/mo) as a payroll rule that reduces PAYE — currently implicit in bracket table or missing.
+- G2. Insurance Relief (15% of premiums, cap 5,000/mo).
+- G3. Mortgage Interest Relief (cap 25,000/mo).
+- G4. Pension Contribution Relief (min of contribution, 30% pensionable, or 30,000/mo — 2024 Act).
+- G5. Disability Tax Exemption (first 150,000/mo, KRA cert required).
+- G6. Employer NSSF matching contribution rule (Tier I 6% + Tier II 6%, currently only employee side).
+- G7. Employer AHL matching (1.5%) — verify separated from employee 1.5%.
+- G8. HELB payroll rule (statutory, not just garnishment) so ordering vs PAYE is deterministic.
+- G9. Seed the 10 work entry types (0 today) inheriting to `payroll_work_entry_types`.
 
-### Artifact 9 — Bank export templates
-- Ghana ACH / GhIPSS-compatible CSV for staff net pay and a second layout for statutory bulk payments (GRA / SSNIT / SLTF). Currency `GHS`.
+**P1 — blocks statutory filing coverage**
+- G10. VAT3 monthly return template + box mapping (KRA online VAT3 CSV).
+- G11. Withholding VAT (6%) tax templates + reverse-charge fiscal position.
+- G12. WHT return template (monthly WHT eSlip payload).
+- G13. CIT annual return (IT2C) template.
+- G14. Turnover Tax monthly return template.
+- G15. CGT return template (per-transaction, 5-working-day deadline).
+- G16. DST/SEP return template.
+- G17. Excise Duty return + missing excise rates (airtime/data 15%, alcohol/tobacco tiers, sugar tax, plastics).
+- G18. Fiscal positions: Resident / Non-Resident / EPZ / SEZ / Export / Reverse-charge / WHT-VAT-appointed.
 
-### Artifact 10 — Garnishment kinds & policies
-- `COURT_ORDER`, `SLTF_NOTICE`, `TAX_ARREARS_NOTICE`. Policies: SLTF pre-tax? no — post-tax per current SLTF practice.
+**P2 — completeness / parity**
+- G19. eTIMS OSCU invoice-signature spec attached to bank-export/document templates so tax invoices print CU serial + QR.
+- G20. KRA PIN + NSSF/SHIF/HELB identifier regex + validator on `organization_statutory_identifiers` and contacts.
+- G21. Public-holidays seed for KE (10 dated + 2 Islamic movable).
+- G22. Employment-Act leave-type defaults (21/14/90/14) — seed via existing `leave_types` platform templates.
+- G23. Bank formats: KBA EFT batch, M-Pesa B2C bulk, RTGS MT103.
+- G24. Fringe Benefit Tax quarterly market rate rule (references CBR).
+- G25. Car benefit + housing benefit computations as rules.
+- G26. Per-diem tax-free threshold constant (2,000/day) token.
+- G27. Standards Levy 0.2% (manufacturers only, gated by sector).
+- G28. Tourism Levy 2% (hospitality only).
+- G29. WIBA employer insurance expense mapping (informational).
+- G30. NHIF legacy rule row marked `sunset_date=2024-10-01`, superseded_by = SHIF — audit trail.
+- G31. Expand pack_token_registry: currently 5 tokens; needs ~25 (personal_relief_amount, insurance_relief_cap, mortgage_interest_cap, pension_relief_cap, disability_exempt_amount, per_diem_cap, nssf_tier1_ceiling, nssf_tier2_ceiling, ahl_rate, shif_rate, nita_flat, helb_min_repayment, cbr_rate, etc.).
+- G32. Payslip legal footer (Employment Act 2007 §20 disclosure line).
 
-### Artifact 11 — Pack requirements
-Employer-level: TIN, SSNIT employer number, NPRA-licensed Tier 2 trustee identifier.
-Employee-level: TIN, SSNIT number, Ghana Card PIN, residency status, date of birth (for QJE age check).
+### 5. Delivery batches (each = one migration + verification query)
 
-### Artifact 12 — Health, lint, publish
-1. Run `PackHealthPanel` query — expect zero legacy_unvalidated, zero missing schedule, zero unmapped role.
-2. Invoke `validate-localization-payload` for every rule and template.
-3. Invoke `lint-localization-pack` — must return 0 blocking findings; `[Verify]` items land as warnings with `data_source_note`.
-4. Invoke `publish-localization-pack-version` with `version = '1.0.0'` — snapshots into `pack_versions`, emits `pack.published` to outbox, refreshes filing calendar. No installed tenants today, so no upgrade proposals fan out; this is a clean maiden version.
+Because we're following the same platform contracts that Ghana used, each batch keeps the engine country-agnostic (dispatch on `computation_method` + parameters; no new literal rule-code branches).
 
-### Platform improvements shipped alongside (UX-wins from the audit, kept small)
-- **U-#10** Sample-employee preview button in `CertificateTemplateEditor` and `ReturnTemplateEditor` — one canned Ghana fixture, drives existing `PreviewPanel`.
-- **U-#11** GL coverage strip inside `AccountTemplatesEditor` listing unmapped `pack_account_roles`.
-- **U-#12** Four extra `PackHealthPanel` checks: (a) authority without schedule, (b) schedule without return template, (c) return template with no filing-calendar projection, (d) rule without GL mapping.
+```text
+Batch KE-1  P0 payroll depth  →  G1-G8 (8 new rules + parameters)
+Batch KE-2  Work entry types  →  G9 (10 rows)
+Batch KE-3  Fiscal positions + WHT-VAT + missing excise  →  G11, G17, G18
+Batch KE-4  Returns + tax-report mappings  →  G10, G12-G16
+Batch KE-5  Identifiers, holidays, leave defaults  →  G20, G21, G22
+Batch KE-6  eTIMS OSCU wiring + payslip footer  →  G19, G32
+Batch KE-7  Additional bank formats  →  G23
+Batch KE-8  Sector-gated levies + FBT + benefits + tokens  →  G24-G31
+Batch KE-9  Publish v2026.5.0 snapshot to pack_versions,
+            mark v2026.4.0 as superseded, flip status
+```
 
-Deferred to ADR 0056 P2 (unchanged from the earlier audit): semantic diff (#6), dependency graph (#7), dry-run simulator (#8), 4-eyes review (#9).
+Each batch ends with: (a) sample compute-payroll dry-run against a synthetic KE employee to compare PAYE against KRA's public calculator, (b) `pack_income_tax_deductibility_test.sql` re-run, (c) `no_country_named_functions_test.sql` re-run.
 
-### Order of execution
-1. Read-only verification sweep (confirm handoff state).
-2. Artifacts 2 → 11 via `supabase--insert` (data) with `ON CONFLICT DO NOTHING`, one artifact per call so each is reviewable.
-3. Platform UX-wins U-#10/11/12 via frontend edits (no schema).
-4. Health → lint → publish via `stack_modern--invoke-server-function` calls in-app; report the resulting `pack_versions` row id.
+### 6. Verification checkpoints (must pass before Batch KE-9 publish)
 
-### What I need from you
-- Confirm plan; on approval I switch to build mode and execute in the order above, pausing after each artifact insert so you see what landed before the next one.
-- Two `[Verify]` items worth flagging now so we don't block on them: PAYE top band threshold (605k vs 600k annual) and Tier 3 combined cap wording. I'll author with the compliance-brief numbers and mark both `data_source_note = '[Verify: GRA First Schedule 2025]'` — legal review can amend before any tenant activates.
+1. Payslip for gross KES 250,000 with 20k pension, 5k insurance premium, mortgage 30k/mo, matches KRA iTax PAYE calculator to the shilling.
+2. All P0 rules resolve via `pre_tax_deductions[]` or engine input registry — deductibility test green.
+3. Every new template has `authority_id`, `legal_reference`, `regulation_citation`, and `effective_date`.
+4. `computation_method` on every new rule is already in the extended CHECK constraint.
+5. Sunset marker on NHIF row present; SHIF row marked `effective_date=2024-10-01`.
+6. Pesalink + at least one additional bank format (EFT) exports round-trip.
+
+### 7. What I need from you before starting Batch KE-1
+
+- Confirm scope: full 9-batch remediation, or stop after P0+P1 (batches KE-1 through KE-4) and defer the rest.
+- Legal verify sourcing: I'll cite Finance Act 2023/2024, KRA public rulings, NSSF Act 2013, SHIF Act 2023, AHL Act 2023 — flag anywhere you want me to withhold a rate and mark `[Verify]` in `data_source_note` instead.
+- Version bump target: propose `v2026.5.0` immutable snapshot, keeping `v2026.4.0` byte-identical for tenants already on it (built-ins-win-on-collision guarantee).
+
+Approve this plan (or narrow the scope) and I'll open Batch KE-1 as the first migration.
