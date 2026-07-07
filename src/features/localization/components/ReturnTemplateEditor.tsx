@@ -124,6 +124,10 @@ type ReturnBody = {
   group_by?: string[];
   totals?: string[];
   reconciliation?: { rule_code?: string } | null;
+  /** Opt-in v2 section-based renderer flag. */
+  renderer?: "v2-returns" | null;
+  /** v2 section list — only meaningful when renderer === "v2-returns". */
+  sections?: ReturnSectionSpec[];
 };
 
 // Pack-agnostic fallback tokens shown while the registry is loading or
