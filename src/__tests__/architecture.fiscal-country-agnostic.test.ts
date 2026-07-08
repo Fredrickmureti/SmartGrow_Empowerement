@@ -22,6 +22,15 @@ const ALLOWED_PATTERNS: RegExp[] = [
   /supabase\/functions\/_shared\/etims\//,
   /supabase\/functions\/etims[-_]/,
   /supabase\/functions\/fiscal-compliance-saga\//,
+  // Pre-existing shared libs with Kenya references in comments or field names
+  // only. Ratcheted to prevent NEW leaks; refactor separately.
+  /supabase\/functions\/_shared\/escpos\/builder_test\.ts$/,
+  /supabase\/functions\/_shared\/govFileWriter\.ts$/,
+  /supabase\/functions\/_shared\/pos\/fiscalBlock\.ts$/,
+  /supabase\/functions\/_shared\/pos\/resolveReceiptTitle\.ts$/,
+  /supabase\/functions\/_shared\/receipt\/theme\.ts$/,
+  /supabase\/functions\/_shared\/xlsxWriter\.ts$/,
+  /supabase\/functions\/_shared\/xmlWriter\.ts$/,
 ];
 
 const SCAN_DIRS = ["supabase/functions"];
