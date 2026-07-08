@@ -612,3 +612,73 @@ export default function PhysicalCountDetail() {
     </div>
   );
 }
+
+/**
+ * PreflightButton — wraps an action button in a Tooltip that surfaces the
+ * server-computed reason the action is disabled. Keeps the button reachable
+ * for keyboard users even when disabled so the tooltip fires.
+ */
+function PreflightButton(props: {
+  label: string;
+  disabled: boolean;
+  reason?: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+}) {
+  const btn = (
+    <Button size="sm" disabled={props.disabled} onClick={props.onClick}>
+      {props.icon}
+      {props.label}
+    </Button>
+  );
+  if (!props.disabled || !props.reason) return btn;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild><span tabIndex={0}>{btn}</span></TooltipTrigger>
+      <TooltipContent><span className="text-xs">{props.reason}</span></TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * PreflightBanner — enterprise-style status strip summarising the exact
+ * blockers between the current state and posting to the ledger.
+ */
+function PreflightBanner({ preflight }: {
+  preflight: {
+    checks: {
+      period_open: boolean;
+      period_status: string;
+      inventory_account: boolean;
+      adjustment_account: boolean;
+      tolerance_flags: number;
+      uncounted_lines: number;
+      sod_submit_would_block: boolean;
+      sod_approve_would_block: boolean;
+      sod_post_would_block: boolean;
+    };
+  };
+}) {
+  const c = preflight.checks;
+  const issues: string[] = [];
+  if (!c.period_open) issues.push(`Fiscal period ${c.period_status} — reopen in Accounting → Fiscal Periods`);
+  if (!c.inventory_account) issues.push("Default 'inventory' account not mapped");
+  if (!c.adjustment_account) issues.push("Default 'inventory_adjustment' account not mapped");
+  if (c.tolerance_flags > 0) issues.push(`${c.tolerance_flags} line(s) exceed tolerance — recount or approve with an override reason`);
+  if (c.uncounted_lines > 0) issues.push(`${c.uncounted_lines} line(s) still uncounted`);
+  if (c.sod_approve_would_block) issues.push("SoD: you created / froze / submitted this count and cannot approve it");
+  if (c.sod_post_would_block) issues.push("SoD: you approved this count and cannot also post it");
+
+  if (issues.length === 0) return null;
+  return (
+    <Alert variant="destructive" className="border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle>Preflight — action blocked</AlertTitle>
+      <AlertDescription>
+        <ul className="ml-4 list-disc space-y-0.5 text-sm">
+          {issues.map((i) => <li key={i}>{i}</li>)}
+        </ul>
+      </AlertDescription>
+    </Alert>
+  );
+}
