@@ -16,8 +16,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, RotateCcw, Undo2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Loader2, RotateCcw, ShieldAlert, Undo2 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { RecordHeader, ActionBar } from "@/design-system";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -135,11 +137,74 @@ export default function PhysicalCountDetail() {
     },
   });
 
+  // D5: server-authoritative preflight — drives action-bar disabled states + tooltips.
+  const preflightQ = useQuery({
+    queryKey: ["physical-count-preflight", id, user?.id],
+    enabled: !!id && !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as unknown as (
+        n: string, a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>)(
+        "physical_count_preflight", { p_count_id: id, p_user_id: user!.id },
+      );
+      if (error) throw error;
+      return data as {
+        state: string;
+        checks: {
+          period_open: boolean;
+          period_status: string;
+          inventory_account: boolean;
+          adjustment_account: boolean;
+          tolerance_flags: number;
+          uncounted_lines: number;
+          sod_submit_would_block: boolean;
+          sod_approve_would_block: boolean;
+          sod_post_would_block: boolean;
+        };
+        impact: { variance_lines: number; surplus_value: number; shrinkage_value: number; net_value: number };
+      };
+    },
+  });
+
+  // D5: server-authoritative JE preview — exact per-account lines the post will write.
+  const previewQ = useQuery({
+    queryKey: ["physical-count-preview-je", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as unknown as (
+        n: string, a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>)(
+        "physical_count_preview_je", { p_count_id: id },
+      );
+      if (error) throw error;
+      return data as {
+        inventory_account: { code: string; name: string } | null;
+        adjustment_account: { code: string; name: string } | null;
+        surplus_value: number;
+        shrinkage_value: number;
+        net_value: number;
+        journal_lines: Array<{ account: string; debit: number; credit: number; purpose: string }>;
+        lines: Array<{ product_name: string; sku: string | null; variance_qty: number; unit_cost: number; value: number; direction: string }>;
+      };
+    },
+  });
+
   const header = headerQ.data;
   const lines = linesQ.data ?? [];
   const events = eventsQ.data ?? [];
+  const preflight = preflightQ.data;
+  const preview = previewQ.data;
 
   const jePreview = useMemo(() => {
+    // Prefer server preview; fall back to local computation for zero-latency render.
+    if (preview) {
+      return {
+        surplus: preview.surplus_value,
+        shrinkage: preview.shrinkage_value,
+        net: preview.net_value,
+        lineCount: preview.lines.length,
+      };
+    }
     let surplus = 0, shrinkage = 0;
     const varianceLines = lines.filter((l) => l.counted_qty !== null && l.variance_qty !== 0);
     for (const l of varianceLines) {
@@ -148,7 +213,7 @@ export default function PhysicalCountDetail() {
       else shrinkage += Math.abs(val);
     }
     return { surplus, shrinkage, net: surplus - shrinkage, lineCount: varianceLines.length };
-  }, [lines]);
+  }, [lines, preview]);
 
   const runRpc = async (
     action: "freeze" | "submit" | "approve" | "post" | "cancel" | "supersede" | "request_recount",
@@ -171,6 +236,8 @@ export default function PhysicalCountDetail() {
       if (action === "supersede") args.p_source_count_id = id;
       else args.p_count_id = id;
       if (action === "approve" && !("p_allow_self" in args)) args.p_allow_self = false;
+      if (action === "post" && !("p_allow_self" in args)) args.p_allow_self = false;
+      if (action === "submit" && !("p_allow_self" in args)) args.p_allow_self = false;
 
       const { data, error } = await (supabase.rpc as unknown as (
         n: string, a: Record<string, unknown>,
@@ -182,6 +249,8 @@ export default function PhysicalCountDetail() {
       qc.invalidateQueries({ queryKey: ["physical-count-detail", id] });
       qc.invalidateQueries({ queryKey: ["physical-count-lines", id] });
       qc.invalidateQueries({ queryKey: ["physical-count-events", id] });
+      qc.invalidateQueries({ queryKey: ["physical-count-preflight", id] });
+      qc.invalidateQueries({ queryKey: ["physical-count-preview-je", id] });
       qc.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
       setSelected(new Set());
     } catch (err: unknown) {
@@ -190,6 +259,32 @@ export default function PhysicalCountDetail() {
       setBusy(false);
     }
   };
+
+  const handleApprove = () => {
+    const flagged = preflight?.checks.tolerance_flags ?? 0;
+    if (flagged > 0) {
+      const reason = window.prompt(
+        `${flagged} line(s) exceed tolerance. Type a written override reason to approve anyway, or Cancel to Request Recount instead.`,
+      );
+      if (!reason || !reason.trim()) return;
+      runRpc("approve", { p_tolerance_override_reason: reason.trim() });
+      return;
+    }
+    runRpc("approve");
+  };
+
+  const handlePost = () => {
+    if (!preflight?.checks.period_open) {
+      toast.error("Fiscal period is closed — reopen it in Accounting → Fiscal Periods first.");
+      return;
+    }
+    if (!preflight.checks.inventory_account || !preflight.checks.adjustment_account) {
+      toast.error("Default accounts missing (inventory / inventory_adjustment).");
+      return;
+    }
+    runRpc("post");
+  };
+
 
   if (headerQ.isLoading) {
     return <div className="p-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></div>;
@@ -222,43 +317,84 @@ export default function PhysicalCountDetail() {
         }
         actions={
           <ActionBar>
-            <RefreshButton queryKeyPrefixes={[["physical-count-detail", id] as const, ["physical-count-lines", id] as const]} tooltip="Refresh" />
-            {header.state === "draft" && (
-              <Button size="sm" disabled={busy} onClick={() => runRpc("freeze")}>Freeze</Button>
-            )}
-            {header.state === "counting" && (
-              <Button size="sm" disabled={busy} onClick={() => runRpc("submit")}>Submit for review</Button>
-            )}
-            {header.state === "in_review" && selected.size > 0 && (
-              <Button size="sm" variant="outline" disabled={busy}
-                      onClick={() => runRpc("request_recount", { p_line_ids: Array.from(selected) })}>
-                <RotateCcw className="mr-1 h-3 w-3" /> Recount {selected.size}
-              </Button>
-            )}
-            {header.state === "in_review" && (
-              <Button size="sm" disabled={busy} onClick={() => runRpc("approve")}>Approve</Button>
-            )}
-            {header.state === "approved" && (
-              <Button size="sm" disabled={busy} onClick={() => runRpc("post")}>Post to ledger</Button>
-            )}
-            {["draft", "counting", "in_review", "approved"].includes(header.state) && (
-              <Button size="sm" variant="destructive" disabled={busy}
-                      onClick={() => runRpc("cancel", { p_reason: "Cancelled from detail workspace" })}>
-                Cancel
-              </Button>
-            )}
-            {header.state === "posted" && (
-              <Button size="sm" variant="destructive" disabled={busy}
-                      onClick={() => {
-                        const reason = window.prompt("Reason for reversal?", "Reversal");
-                        if (reason) runRpc("supersede", { p_reason: reason });
-                      }}>
-                <Undo2 className="mr-1 h-3 w-3" /> Reverse
-              </Button>
-            )}
+            <RefreshButton queryKeyPrefixes={[["physical-count-detail", id] as const, ["physical-count-lines", id] as const, ["physical-count-preflight", id] as const]} tooltip="Refresh" />
+            <TooltipProvider>
+              {header.state === "draft" && (
+                <Button size="sm" disabled={busy} onClick={() => runRpc("freeze")}>Freeze</Button>
+              )}
+              {header.state === "counting" && (
+                <PreflightButton
+                  label="Submit for review"
+                  disabled={busy || (preflight?.checks.uncounted_lines ?? 0) > 0 || preflight?.checks.sod_submit_would_block === true}
+                  reason={
+                    (preflight?.checks.uncounted_lines ?? 0) > 0
+                      ? `${preflight?.checks.uncounted_lines} line(s) still uncounted`
+                      : preflight?.checks.sod_submit_would_block
+                        ? "You created this count — ask another user to submit"
+                        : undefined
+                  }
+                  onClick={() => runRpc("submit")}
+                />
+              )}
+              {header.state === "in_review" && selected.size > 0 && (
+                <Button size="sm" variant="outline" disabled={busy}
+                        onClick={() => runRpc("request_recount", { p_line_ids: Array.from(selected) })}>
+                  <RotateCcw className="mr-1 h-3 w-3" /> Recount {selected.size}
+                </Button>
+              )}
+              {header.state === "in_review" && (
+                <PreflightButton
+                  label={(preflight?.checks.tolerance_flags ?? 0) > 0 ? `Approve (${preflight?.checks.tolerance_flags} flagged)` : "Approve"}
+                  disabled={busy || preflight?.checks.sod_approve_would_block === true}
+                  reason={preflight?.checks.sod_approve_would_block ? "Segregation of duties — you created, froze, or submitted this count" : undefined}
+                  icon={(preflight?.checks.tolerance_flags ?? 0) > 0 ? <ShieldAlert className="mr-1 h-3 w-3" /> : undefined}
+                  onClick={handleApprove}
+                />
+              )}
+              {header.state === "approved" && (
+                <PreflightButton
+                  label="Post to ledger"
+                  disabled={
+                    busy ||
+                    !preflight?.checks.period_open ||
+                    !preflight?.checks.inventory_account ||
+                    !preflight?.checks.adjustment_account ||
+                    preflight?.checks.sod_post_would_block === true
+                  }
+                  reason={
+                    !preflight?.checks.period_open ? "Fiscal period is closed"
+                    : !preflight?.checks.inventory_account ? "Default 'inventory' account not mapped"
+                    : !preflight?.checks.adjustment_account ? "Default 'inventory_adjustment' account not mapped"
+                    : preflight?.checks.sod_post_would_block ? "You approved this count — another user must post"
+                    : undefined
+                  }
+                  onClick={handlePost}
+                />
+              )}
+              {["draft", "counting", "in_review", "approved"].includes(header.state) && (
+                <Button size="sm" variant="destructive" disabled={busy}
+                        onClick={() => runRpc("cancel", { p_reason: "Cancelled from detail workspace" })}>
+                  Cancel
+                </Button>
+              )}
+              {header.state === "posted" && (
+                <Button size="sm" variant="destructive" disabled={busy}
+                        onClick={() => {
+                          const reason = window.prompt("Reason for reversal?", "Reversal");
+                          if (reason) runRpc("supersede", { p_reason: reason });
+                        }}>
+                  <Undo2 className="mr-1 h-3 w-3" /> Reverse
+                </Button>
+              )}
+            </TooltipProvider>
           </ActionBar>
         }
       />
+
+      {preflight && (header.state === "in_review" || header.state === "approved" || header.state === "counting") && (
+        <PreflightBanner preflight={preflight} />
+      )}
+
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Lines</CardTitle></CardHeader>
@@ -348,7 +484,7 @@ export default function PhysicalCountDetail() {
             <CardHeader>
               <CardTitle className="text-base">Journal entry preview</CardTitle>
               <CardDescription>
-                Computed live from unit-cost snapshots. The actual posting resolves accounts via the ledger contract and enforces open-fiscal-period checks.
+                Resolved server-side using the business's default accounts. The actual posting enforces open-fiscal-period checks, segregation of duties, and tolerance overrides.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -357,42 +493,17 @@ export default function PhysicalCountDetail() {
                   <TableHead>Account</TableHead>
                   <TableHead className="text-right">Debit</TableHead>
                   <TableHead className="text-right">Credit</TableHead>
-                  <TableHead>Description</TableHead>
+                  <TableHead>Purpose</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {jePreview.surplus > 0 && (
-                    <>
-                      <TableRow>
-                        <TableCell>Inventory</TableCell>
-                        <TableCell className="text-right tabular-nums">${money(jePreview.surplus)}</TableCell>
-                        <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">Physical count — surplus</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Inventory adjustment</TableCell>
-                        <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-right tabular-nums">${money(jePreview.surplus)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">Surplus offset</TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                  {jePreview.shrinkage > 0 && (
-                    <>
-                      <TableRow>
-                        <TableCell>Inventory adjustment</TableCell>
-                        <TableCell className="text-right tabular-nums">${money(jePreview.shrinkage)}</TableCell>
-                        <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">Physical count — shrinkage</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Inventory</TableCell>
-                        <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-right tabular-nums">${money(jePreview.shrinkage)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">Shrinkage offset</TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                  {jePreview.surplus === 0 && jePreview.shrinkage === 0 && (
+                  {preview && (preview.surplus_value > 0 || preview.shrinkage_value > 0) ? preview.journal_lines.map((jl, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-mono text-xs">{jl.account}</TableCell>
+                      <TableCell className="text-right tabular-nums">{jl.debit > 0 ? `$${money(jl.debit)}` : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{jl.credit > 0 ? `$${money(jl.credit)}` : "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{jl.purpose}</TableCell>
+                    </TableRow>
+                  )) : (
                     <TableRow><TableCell colSpan={4} className="p-8 text-center text-sm text-muted-foreground">
                       Zero variance — no journal entry will be posted.
                     </TableCell></TableRow>
@@ -404,9 +515,41 @@ export default function PhysicalCountDetail() {
                   ${money(jePreview.net)}
                 </span> across {jePreview.lineCount} variance line{jePreview.lineCount === 1 ? "" : "s"}.
               </div>
+
+              {preview && preview.lines.length > 0 && (
+                <div className="mt-6">
+                  <div className="mb-2 text-sm font-medium">Top contributors</div>
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead className="text-right">Variance</TableHead>
+                      <TableHead className="text-right">Unit cost</TableHead>
+                      <TableHead className="text-right">Value</TableHead>
+                      <TableHead>Direction</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {preview.lines.slice(0, 20).map((l, i) => (
+                        <TableRow key={i}>
+                          <TableCell>
+                            <div className="font-medium">{l.product_name}</div>
+                            {l.sku && <div className="text-xs text-muted-foreground">{l.sku}</div>}
+                          </TableCell>
+                          <TableCell className={`text-right tabular-nums ${l.variance_qty > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {money(l.variance_qty)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">${money(l.unit_cost)}</TableCell>
+                          <TableCell className={`text-right tabular-nums ${l.value > 0 ? "text-emerald-600" : "text-red-600"}`}>${money(l.value)}</TableCell>
+                          <TableCell><Badge variant="outline" className="capitalize">{l.direction}</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
+
 
         <TabsContent value="audit">
           <Card>
@@ -467,5 +610,75 @@ export default function PhysicalCountDetail() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/**
+ * PreflightButton — wraps an action button in a Tooltip that surfaces the
+ * server-computed reason the action is disabled. Keeps the button reachable
+ * for keyboard users even when disabled so the tooltip fires.
+ */
+function PreflightButton(props: {
+  label: string;
+  disabled: boolean;
+  reason?: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+}) {
+  const btn = (
+    <Button size="sm" disabled={props.disabled} onClick={props.onClick}>
+      {props.icon}
+      {props.label}
+    </Button>
+  );
+  if (!props.disabled || !props.reason) return btn;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild><span tabIndex={0}>{btn}</span></TooltipTrigger>
+      <TooltipContent><span className="text-xs">{props.reason}</span></TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * PreflightBanner — enterprise-style status strip summarising the exact
+ * blockers between the current state and posting to the ledger.
+ */
+function PreflightBanner({ preflight }: {
+  preflight: {
+    checks: {
+      period_open: boolean;
+      period_status: string;
+      inventory_account: boolean;
+      adjustment_account: boolean;
+      tolerance_flags: number;
+      uncounted_lines: number;
+      sod_submit_would_block: boolean;
+      sod_approve_would_block: boolean;
+      sod_post_would_block: boolean;
+    };
+  };
+}) {
+  const c = preflight.checks;
+  const issues: string[] = [];
+  if (!c.period_open) issues.push(`Fiscal period ${c.period_status} — reopen in Accounting → Fiscal Periods`);
+  if (!c.inventory_account) issues.push("Default 'inventory' account not mapped");
+  if (!c.adjustment_account) issues.push("Default 'inventory_adjustment' account not mapped");
+  if (c.tolerance_flags > 0) issues.push(`${c.tolerance_flags} line(s) exceed tolerance — recount or approve with an override reason`);
+  if (c.uncounted_lines > 0) issues.push(`${c.uncounted_lines} line(s) still uncounted`);
+  if (c.sod_approve_would_block) issues.push("SoD: you created / froze / submitted this count and cannot approve it");
+  if (c.sod_post_would_block) issues.push("SoD: you approved this count and cannot also post it");
+
+  if (issues.length === 0) return null;
+  return (
+    <Alert variant="destructive" className="border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle>Preflight — action blocked</AlertTitle>
+      <AlertDescription>
+        <ul className="ml-4 list-disc space-y-0.5 text-sm">
+          {issues.map((i) => <li key={i}>{i}</li>)}
+        </ul>
+      </AlertDescription>
+    </Alert>
   );
 }

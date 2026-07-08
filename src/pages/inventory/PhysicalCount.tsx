@@ -181,41 +181,48 @@ export default function PhysicalCount() {
 
     setIsSubmitting(true);
     try {
-      const lines = adjustments.map(line => ({
-        product_id: line.product_id,
-        system_qty: line.system_qty,
-        counted_qty: line.counted_qty,
-        variance: line.variance,
-        cost_price: line.cost_price,
-      }));
+      // D5: shim retired — drive the lifecycle RPCs and hand off to the
+      // detail workspace so a different user can approve + post (SoD).
+      const rpc = supabase.rpc as unknown as (
+        n: string, a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>;
 
-      const { data, error } = await supabase.rpc("apply_physical_count_atomic", {
+      const created = await rpc("physical_count_create", {
         p_organization_id: currentOrg.id,
         p_business_id: currentBusiness?.id || null,
-        p_warehouse_id: warehouseFilter || null,
+        p_warehouse_id: warehouseFilter,
         p_user_id: user.id,
-        p_lines: lines,
+        p_count_type: "full",
       });
+      if (created.error) throw created.error;
+      const countId = created.data as string;
 
-      if (error) throw error;
+      const frozen = await rpc("physical_count_freeze", { p_count_id: countId, p_user_id: user.id });
+      if (frozen.error) throw frozen.error;
 
-      const result = data as any;
-      if (!result?.success) {
-        throw new Error(result?.error || "Failed to apply physical count");
+      for (const line of adjustments) {
+        const rec = await rpc("physical_count_record_line", {
+          p_count_id: countId,
+          p_product_id: line.product_id,
+          p_counted_qty: line.counted_qty,
+          p_user_id: user.id,
+        });
+        if (rec.error) throw rec.error;
       }
 
-      toast.success(`${adjustments.length} adjustment(s) applied from physical count${result.gl_posted ? " (GL posted)" : ""}`);
-      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-adjustments"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      setStep("scope");
-      setCountLines([]);
+      const submitted = await rpc("physical_count_submit", { p_count_id: countId, p_user_id: user.id });
+      if (submitted.error) throw submitted.error;
+
+      toast.success(`Count submitted for review — open the workspace to approve & post`);
+      queryClient.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
+      window.location.assign(`/inventory/physical-counts/${countId}`);
     } catch (err: any) {
       toast.error(normalizeError(err).message);
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   const steps: WizardStep[] = [
     { id: "scope", label: "Scope", description: "Pick warehouse" },

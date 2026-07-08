@@ -63595,6 +63595,14 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_product_frozen: {
+        Args: {
+          _organization_id: string
+          _product_id: string
+          _warehouse_id: string
+        }
+        Returns: boolean
+      }
       is_project_member: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
@@ -65770,10 +65778,24 @@ export type Database = {
         Args: { _payslip_id: string }
         Returns: boolean
       }
-      physical_count_approve: {
-        Args: { p_allow_self?: boolean; p_count_id: string; p_user_id: string }
-        Returns: Json
-      }
+      physical_count_approve:
+        | {
+            Args: {
+              p_allow_self?: boolean
+              p_count_id: string
+              p_user_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_allow_self?: boolean
+              p_count_id: string
+              p_tolerance_override_reason?: string
+              p_user_id: string
+            }
+            Returns: Json
+          }
       physical_count_cancel: {
         Args: { p_count_id: string; p_reason: string; p_user_id: string }
         Returns: Json
@@ -65795,10 +65817,21 @@ export type Database = {
         Args: { p_count_id: string; p_user_id: string }
         Returns: Json
       }
-      physical_count_post: {
+      physical_count_post:
+        | { Args: { p_count_id: string; p_user_id: string }; Returns: Json }
+        | {
+            Args: {
+              p_allow_self?: boolean
+              p_count_id: string
+              p_user_id: string
+            }
+            Returns: Json
+          }
+      physical_count_preflight: {
         Args: { p_count_id: string; p_user_id: string }
         Returns: Json
       }
+      physical_count_preview_je: { Args: { p_count_id: string }; Returns: Json }
       physical_count_record_line: {
         Args: {
           p_count_id: string
@@ -65814,10 +65847,16 @@ export type Database = {
         Args: { p_count_id: string; p_line_ids: string[]; p_user_id: string }
         Returns: Json
       }
-      physical_count_submit: {
-        Args: { p_count_id: string; p_user_id: string }
-        Returns: Json
-      }
+      physical_count_submit:
+        | { Args: { p_count_id: string; p_user_id: string }; Returns: Json }
+        | {
+            Args: {
+              p_allow_self?: boolean
+              p_count_id: string
+              p_user_id: string
+            }
+            Returns: Json
+          }
       physical_count_supersede: {
         Args: {
           p_reason?: string
