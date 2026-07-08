@@ -317,43 +317,84 @@ export default function PhysicalCountDetail() {
         }
         actions={
           <ActionBar>
-            <RefreshButton queryKeyPrefixes={[["physical-count-detail", id] as const, ["physical-count-lines", id] as const]} tooltip="Refresh" />
-            {header.state === "draft" && (
-              <Button size="sm" disabled={busy} onClick={() => runRpc("freeze")}>Freeze</Button>
-            )}
-            {header.state === "counting" && (
-              <Button size="sm" disabled={busy} onClick={() => runRpc("submit")}>Submit for review</Button>
-            )}
-            {header.state === "in_review" && selected.size > 0 && (
-              <Button size="sm" variant="outline" disabled={busy}
-                      onClick={() => runRpc("request_recount", { p_line_ids: Array.from(selected) })}>
-                <RotateCcw className="mr-1 h-3 w-3" /> Recount {selected.size}
-              </Button>
-            )}
-            {header.state === "in_review" && (
-              <Button size="sm" disabled={busy} onClick={() => runRpc("approve")}>Approve</Button>
-            )}
-            {header.state === "approved" && (
-              <Button size="sm" disabled={busy} onClick={() => runRpc("post")}>Post to ledger</Button>
-            )}
-            {["draft", "counting", "in_review", "approved"].includes(header.state) && (
-              <Button size="sm" variant="destructive" disabled={busy}
-                      onClick={() => runRpc("cancel", { p_reason: "Cancelled from detail workspace" })}>
-                Cancel
-              </Button>
-            )}
-            {header.state === "posted" && (
-              <Button size="sm" variant="destructive" disabled={busy}
-                      onClick={() => {
-                        const reason = window.prompt("Reason for reversal?", "Reversal");
-                        if (reason) runRpc("supersede", { p_reason: reason });
-                      }}>
-                <Undo2 className="mr-1 h-3 w-3" /> Reverse
-              </Button>
-            )}
+            <RefreshButton queryKeyPrefixes={[["physical-count-detail", id] as const, ["physical-count-lines", id] as const, ["physical-count-preflight", id] as const]} tooltip="Refresh" />
+            <TooltipProvider>
+              {header.state === "draft" && (
+                <Button size="sm" disabled={busy} onClick={() => runRpc("freeze")}>Freeze</Button>
+              )}
+              {header.state === "counting" && (
+                <PreflightButton
+                  label="Submit for review"
+                  disabled={busy || (preflight?.checks.uncounted_lines ?? 0) > 0 || preflight?.checks.sod_submit_would_block === true}
+                  reason={
+                    (preflight?.checks.uncounted_lines ?? 0) > 0
+                      ? `${preflight?.checks.uncounted_lines} line(s) still uncounted`
+                      : preflight?.checks.sod_submit_would_block
+                        ? "You created this count — ask another user to submit"
+                        : undefined
+                  }
+                  onClick={() => runRpc("submit")}
+                />
+              )}
+              {header.state === "in_review" && selected.size > 0 && (
+                <Button size="sm" variant="outline" disabled={busy}
+                        onClick={() => runRpc("request_recount", { p_line_ids: Array.from(selected) })}>
+                  <RotateCcw className="mr-1 h-3 w-3" /> Recount {selected.size}
+                </Button>
+              )}
+              {header.state === "in_review" && (
+                <PreflightButton
+                  label={(preflight?.checks.tolerance_flags ?? 0) > 0 ? `Approve (${preflight?.checks.tolerance_flags} flagged)` : "Approve"}
+                  disabled={busy || preflight?.checks.sod_approve_would_block === true}
+                  reason={preflight?.checks.sod_approve_would_block ? "Segregation of duties — you created, froze, or submitted this count" : undefined}
+                  icon={(preflight?.checks.tolerance_flags ?? 0) > 0 ? <ShieldAlert className="mr-1 h-3 w-3" /> : undefined}
+                  onClick={handleApprove}
+                />
+              )}
+              {header.state === "approved" && (
+                <PreflightButton
+                  label="Post to ledger"
+                  disabled={
+                    busy ||
+                    !preflight?.checks.period_open ||
+                    !preflight?.checks.inventory_account ||
+                    !preflight?.checks.adjustment_account ||
+                    preflight?.checks.sod_post_would_block === true
+                  }
+                  reason={
+                    !preflight?.checks.period_open ? "Fiscal period is closed"
+                    : !preflight?.checks.inventory_account ? "Default 'inventory' account not mapped"
+                    : !preflight?.checks.adjustment_account ? "Default 'inventory_adjustment' account not mapped"
+                    : preflight?.checks.sod_post_would_block ? "You approved this count — another user must post"
+                    : undefined
+                  }
+                  onClick={handlePost}
+                />
+              )}
+              {["draft", "counting", "in_review", "approved"].includes(header.state) && (
+                <Button size="sm" variant="destructive" disabled={busy}
+                        onClick={() => runRpc("cancel", { p_reason: "Cancelled from detail workspace" })}>
+                  Cancel
+                </Button>
+              )}
+              {header.state === "posted" && (
+                <Button size="sm" variant="destructive" disabled={busy}
+                        onClick={() => {
+                          const reason = window.prompt("Reason for reversal?", "Reversal");
+                          if (reason) runRpc("supersede", { p_reason: reason });
+                        }}>
+                  <Undo2 className="mr-1 h-3 w-3" /> Reverse
+                </Button>
+              )}
+            </TooltipProvider>
           </ActionBar>
         }
       />
+
+      {preflight && (header.state === "in_review" || header.state === "approved" || header.state === "counting") && (
+        <PreflightBanner preflight={preflight} />
+      )}
+
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Lines</CardTitle></CardHeader>
