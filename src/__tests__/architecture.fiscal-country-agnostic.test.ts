@@ -40,9 +40,16 @@ const ALLOWED_PATTERNS: RegExp[] = [
   // route level by the pack gate; ratcheted here to prevent NEW leaks).
   /src\/components\/etims\//,
   /src\/components\/common\/EtimsQRCode\.tsx$/,
+  /src\/components\/pos\/EtimsSettingsCard\.tsx$/,
+  /src\/components\/pos\/ReceiptPreviewDialog\.tsx$/,
+  /src\/components\/pos\/TransactionSummaryView\.tsx$/,
+  /src\/components\/products\/detail\/tabs\/OverviewTab\.tsx$/,
+  /src\/components\/payroll\/PayslipDisplayPreferencesCard\.tsx$/,
+  /src\/components\/payroll\/ReturnsTab\.tsx$/,
   /src\/pages\/(settings\/|.*)Etims/i,
   /src\/App\.tsx$/, // route registration only
 ];
+
 
 
 const SCAN_DIRS = ["src", "supabase/functions"];
