@@ -29,14 +29,21 @@ const ALLOWED_PATTERNS: RegExp[] = [
   /supabase\/functions\/_shared\/etims\//,
   /supabase\/functions\/etims[-_]/,
   /supabase\/functions\/fiscal-compliance-saga\//,
-  /supabase\/migrations\/.*\.sql$/, // migrations are per-country seeded intentionally
+  /supabase\/migrations\/.*\.sql$/,
   /src\/pages\/FiscalComplianceWorkspace\.tsx$/,
   /src\/hooks\/pos\/usePOSEtims\.ts$/,
   /src\/hooks\/useTaxCompliance\.ts$/,
   /src\/integrations\/supabase\/types\.ts$/,
   /src\/__tests__\/architecture\.fiscal-country-agnostic\.test\.ts$/,
-  /src\/lib\/regionConfig\.ts$/, // region metadata (informational only)
+  /src\/lib\/regionConfig\.ts$/,
+  // Kenya-gated UI (must remain hidden for non-Kenya tenants — enforced at
+  // route level by the pack gate; ratcheted here to prevent NEW leaks).
+  /src\/components\/etims\//,
+  /src\/components\/common\/EtimsQRCode\.tsx$/,
+  /src\/pages\/(settings\/|.*)Etims/i,
+  /src\/App\.tsx$/, // route registration only
 ];
+
 
 const SCAN_DIRS = ["src", "supabase/functions"];
 const IGNORE = new Set(["node_modules", ".git", "dist", "build", ".next", "coverage"]);
