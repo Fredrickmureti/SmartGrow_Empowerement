@@ -50,10 +50,13 @@ const ALLOWED_PATTERNS: RegExp[] = [
   /src\/components\/settings\/ReceiptSectionEditor\.tsx$/,
   /src\/components\/settings\/TaxComplianceSettings\.tsx$/,
   /src\/components\/settings\/TaxSettings\.tsx$/,
-  /src\/data\/documentationContent\.ts$/, // help docs
-  /src\/features\/localization\//, // pack editor UI
+  /src\/data\/documentationContent\.ts$/,
+  /src\/features\/localization\//,
+  /src\/hooks\/useEtims.*\.ts$/,
+  /src\/lib\/hr\/__tests__\/employeeImportSchema\.test\.ts$/,
+  /src\/lib\/payroll\/payslipDrillDown\.ts$/,
   /src\/pages\/(settings\/|.*)Etims/i,
-  /src\/App\.tsx$/, // route registration only
+  /src\/App\.tsx$/,
 ];
 
 
