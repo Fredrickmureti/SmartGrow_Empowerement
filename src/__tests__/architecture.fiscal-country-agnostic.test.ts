@@ -46,6 +46,10 @@ const ALLOWED_PATTERNS: RegExp[] = [
   /src\/components\/products\/detail\/tabs\/OverviewTab\.tsx$/,
   /src\/components\/payroll\/PayslipDisplayPreferencesCard\.tsx$/,
   /src\/components\/payroll\/ReturnsTab\.tsx$/,
+  /src\/components\/settings\/OrgDataResetTool\.tsx$/,
+  /src\/components\/settings\/ReceiptSectionEditor\.tsx$/,
+  /src\/components\/settings\/TaxComplianceSettings\.tsx$/,
+  /src\/components\/settings\/TaxSettings\.tsx$/,
   /src\/pages\/(settings\/|.*)Etims/i,
   /src\/App\.tsx$/, // route registration only
 ];
