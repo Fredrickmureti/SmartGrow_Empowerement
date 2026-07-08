@@ -76,6 +76,7 @@ describe("Physical Count business event", () => {
     const offenders: string[] = [];
     for (const file of ALL) {
       if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue;
+      if (file.endsWith("integrations/supabase/types.ts")) continue; // auto-generated
       const src = readFileSync(file, "utf8");
       if (/apply_physical_count_atomic/.test(src)) offenders.push(file);
     }
