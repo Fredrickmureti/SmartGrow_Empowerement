@@ -444,34 +444,40 @@ export function useEtimsTransmission() {
   const { toast } = useToast();
   const [isTransmitting, setIsTransmitting] = useState(false);
 
-  const transmitInvoice = async (invoiceId: string) => {
+  /**
+   * Fiscalization is now event-driven. Invoice/credit-note issuance emits a
+   * `fiscal.receipt_required` event via a DB trigger; the FiscalComplianceSaga
+   * dispatches to the pack-registered provider adapter with retry, backoff,
+   * and circuit breaker. The frontend just requeues on manual retry and
+   * observes `fiscal_transmissions` for state.
+   */
+  const requeueFromSource = async (sourceType: "invoices" | "credit_notes", sourceId: string, label: string) => {
     if (!currentOrg) return null;
-
     setIsTransmitting(true);
     try {
-      const response = await supabase.functions.invoke("etims-transmit", {
-        body: {
-          doc_type: "invoice",
-          organizationId: currentOrg.id,
-          invoiceId,
-        },
-      });
-
-      if (response.error) throw response.error;
-
-      if (response.data?.success) {
+      const { data: tx } = await supabase
+        .from("fiscal_transmissions")
+        .select("id")
+        .eq("source_doc_type", sourceType)
+        .eq("source_doc_id", sourceId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!tx?.id) {
         toast({
-          title: "Invoice transmitted",
-          description: `CU Number: ${response.data.cuNumber}`,
+          title: "Queued",
+          description: `${label} is queued for transmission.`,
         });
-        return response.data;
-      } else {
-        throw new Error(response.data?.error || "Transmission failed");
+        return { queued: true };
       }
+      const { error } = await supabase.rpc("fiscal_transmission_resend" as never, { p_transmission_id: tx.id } as never);
+      if (error) throw error;
+      toast({ title: "Re-queued", description: `${label} re-queued for KRA transmission.` });
+      return { requeued: true };
     } catch (error: any) {
       toast({
-        title: "Transmission failed",
-        description: normalizeError(error).message || "Failed to transmit invoice to eTIMS",
+        title: "Requeue failed",
+        description: normalizeError(error).message || "Failed to requeue fiscal transmission",
         variant: "destructive",
       });
       return null;
@@ -480,65 +486,21 @@ export function useEtimsTransmission() {
     }
   };
 
-  const transmitCreditNote = async (creditNoteId: string) => {
-    if (!currentOrg) return null;
-
-    setIsTransmitting(true);
-    try {
-      const response = await supabase.functions.invoke("etims-transmit", {
-        body: {
-          doc_type: "credit_note",
-          organizationId: currentOrg.id,
-          creditNoteId,
-        },
-      });
-
-      if (response.error) throw response.error;
-
-      if (response.data?.success) {
-        toast({
-          title: "Credit note transmitted",
-          description: `CU Number: ${response.data.cuNumber}`,
-        });
-        return response.data;
-      } else {
-        throw new Error(response.data?.error || "Transmission failed");
-      }
-    } catch (error: any) {
-      toast({
-        title: "Transmission failed",
-        description: normalizeError(error).message || "Failed to transmit credit note to eTIMS",
-        variant: "destructive",
-      });
-      return null;
-    } finally {
-      setIsTransmitting(false);
-    }
-  };
+  const transmitInvoice = (invoiceId: string) => requeueFromSource("invoices", invoiceId, "Invoice");
+  const transmitCreditNote = (creditNoteId: string) => requeueFromSource("credit_notes", creditNoteId, "Credit note");
 
   const registerItem = async (productId: string) => {
     if (!currentOrg) return null;
-
     try {
       const response = await supabase.functions.invoke("etims-transmit", {
-        body: {
-          action: "register_item",
-          organizationId: currentOrg.id,
-          productId,
-        },
+        body: { action: "register_item", organizationId: currentOrg.id, productId },
       });
-
       if (response.error) throw response.error;
-
       if (response.data?.success) {
-        toast({
-          title: "Item registered",
-          description: `Item has been registered with eTIMS.`,
-        });
+        toast({ title: "Item registered", description: `Item has been registered with eTIMS.` });
         return response.data;
-      } else {
-        throw new Error(response.data?.error || "Registration failed");
       }
+      throw new Error(response.data?.error || "Registration failed");
     } catch (error: any) {
       toast({
         title: "Registration failed",

@@ -55916,6 +55916,18 @@ export type Database = {
           },
         ]
       }
+      v_fiscal_workspace_health: {
+        Row: {
+          failing_count: number | null
+          last_activity_at: string | null
+          last_success_at: string | null
+          organization_id: string | null
+          pending_count: number | null
+          provider_key: string | null
+          succeeded_count: number | null
+        }
+        Relationships: []
+      }
       v_hr_contract_expiry_pipeline: {
         Row: {
           bucket: string | null

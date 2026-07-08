@@ -126,6 +126,7 @@ import {
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
+  FiscalComplianceWorkspace,
   AuditLogs,
   // Billing
   BillingHistory,
@@ -410,6 +411,17 @@ const App = () => (
                                 </SubscriptionProtectedRoute>
                               }
                             />
+                            <Route
+                              path="/compliance/etims"
+                              element={
+                                <SubscriptionProtectedRoute allowReadOnly>
+                                  <LazyRoute module="FiscalComplianceWorkspace">
+                                    <FiscalComplianceWorkspace />
+                                  </LazyRoute>
+                                </SubscriptionProtectedRoute>
+                              }
+                            />
+
 
                             {/* ============================================== */}
                             {/* APP-BASED ROUTES (Odoo-style navigation)       */}
