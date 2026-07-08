@@ -484,7 +484,7 @@ export default function PhysicalCountDetail() {
             <CardHeader>
               <CardTitle className="text-base">Journal entry preview</CardTitle>
               <CardDescription>
-                Computed live from unit-cost snapshots. The actual posting resolves accounts via the ledger contract and enforces open-fiscal-period checks.
+                Resolved server-side using the business's default accounts. The actual posting enforces open-fiscal-period checks, segregation of duties, and tolerance overrides.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -493,42 +493,17 @@ export default function PhysicalCountDetail() {
                   <TableHead>Account</TableHead>
                   <TableHead className="text-right">Debit</TableHead>
                   <TableHead className="text-right">Credit</TableHead>
-                  <TableHead>Description</TableHead>
+                  <TableHead>Purpose</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {jePreview.surplus > 0 && (
-                    <>
-                      <TableRow>
-                        <TableCell>Inventory</TableCell>
-                        <TableCell className="text-right tabular-nums">${money(jePreview.surplus)}</TableCell>
-                        <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">Physical count — surplus</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Inventory adjustment</TableCell>
-                        <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-right tabular-nums">${money(jePreview.surplus)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">Surplus offset</TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                  {jePreview.shrinkage > 0 && (
-                    <>
-                      <TableRow>
-                        <TableCell>Inventory adjustment</TableCell>
-                        <TableCell className="text-right tabular-nums">${money(jePreview.shrinkage)}</TableCell>
-                        <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">Physical count — shrinkage</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Inventory</TableCell>
-                        <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-right tabular-nums">${money(jePreview.shrinkage)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">Shrinkage offset</TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                  {jePreview.surplus === 0 && jePreview.shrinkage === 0 && (
+                  {preview && (preview.surplus_value > 0 || preview.shrinkage_value > 0) ? preview.journal_lines.map((jl, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-mono text-xs">{jl.account}</TableCell>
+                      <TableCell className="text-right tabular-nums">{jl.debit > 0 ? `$${money(jl.debit)}` : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{jl.credit > 0 ? `$${money(jl.credit)}` : "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{jl.purpose}</TableCell>
+                    </TableRow>
+                  )) : (
                     <TableRow><TableCell colSpan={4} className="p-8 text-center text-sm text-muted-foreground">
                       Zero variance — no journal entry will be posted.
                     </TableCell></TableRow>
@@ -540,9 +515,41 @@ export default function PhysicalCountDetail() {
                   ${money(jePreview.net)}
                 </span> across {jePreview.lineCount} variance line{jePreview.lineCount === 1 ? "" : "s"}.
               </div>
+
+              {preview && preview.lines.length > 0 && (
+                <div className="mt-6">
+                  <div className="mb-2 text-sm font-medium">Top contributors</div>
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead className="text-right">Variance</TableHead>
+                      <TableHead className="text-right">Unit cost</TableHead>
+                      <TableHead className="text-right">Value</TableHead>
+                      <TableHead>Direction</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {preview.lines.slice(0, 20).map((l, i) => (
+                        <TableRow key={i}>
+                          <TableCell>
+                            <div className="font-medium">{l.product_name}</div>
+                            {l.sku && <div className="text-xs text-muted-foreground">{l.sku}</div>}
+                          </TableCell>
+                          <TableCell className={`text-right tabular-nums ${l.variance_qty > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {money(l.variance_qty)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">${money(l.unit_cost)}</TableCell>
+                          <TableCell className={`text-right tabular-nums ${l.value > 0 ? "text-emerald-600" : "text-red-600"}`}>${money(l.value)}</TableCell>
+                          <TableCell><Badge variant="outline" className="capitalize">{l.direction}</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
+
 
         <TabsContent value="audit">
           <Card>
