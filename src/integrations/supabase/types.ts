@@ -58757,6 +58757,10 @@ export type Database = {
       _pos_build_receipt_snapshot: { Args: { p_tx_id: string }; Returns: Json }
       _primary_business_for_org: { Args: { _org: string }; Returns: string }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
+      _release_physical_count_reservations: {
+        Args: { p_count_id: string }
+        Returns: number
+      }
       _resolve_account_detail_type: {
         Args: {
           _account_type: string
@@ -65812,6 +65816,14 @@ export type Database = {
       }
       physical_count_submit: {
         Args: { p_count_id: string; p_user_id: string }
+        Returns: Json
+      }
+      physical_count_supersede: {
+        Args: {
+          p_reason?: string
+          p_source_count_id: string
+          p_user_id: string
+        }
         Returns: Json
       }
       platform_delete_organization: {
