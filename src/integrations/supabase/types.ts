@@ -32950,6 +32950,360 @@ export type Database = {
           },
         ]
       }
+      physical_count_events: {
+        Row: {
+          actor_id: string | null
+          count_id: string
+          created_at: string
+          event_type: string
+          id: string
+          organization_id: string
+          payload: Json
+        }
+        Insert: {
+          actor_id?: string | null
+          count_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          organization_id: string
+          payload?: Json
+        }
+        Update: {
+          actor_id?: string | null
+          count_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          organization_id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physical_count_events_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "physical_counts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      physical_count_freeze_movements: {
+        Row: {
+          count_id: string
+          frozen_at: string
+          id: string
+          last_movement_id: string | null
+          organization_id: string
+          product_id: string
+          warehouse_id: string
+        }
+        Insert: {
+          count_id: string
+          frozen_at?: string
+          id?: string
+          last_movement_id?: string | null
+          organization_id: string
+          product_id: string
+          warehouse_id: string
+        }
+        Update: {
+          count_id?: string
+          frozen_at?: string
+          id?: string
+          last_movement_id?: string | null
+          organization_id?: string
+          product_id?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physical_count_freeze_movements_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "physical_counts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      physical_count_lines: {
+        Row: {
+          bin_id: string | null
+          business_id: string
+          cost_source: string | null
+          count_id: string
+          counted_at: string | null
+          counted_by: string | null
+          counted_qty: number | null
+          created_at: string
+          device_id: string | null
+          freeze_reconciliation_qty: number
+          id: string
+          lot_id: string | null
+          notes: string | null
+          organization_id: string
+          packaging_id: string | null
+          product_id: string
+          recount_qty: number | null
+          scan_events: Json | null
+          status: string
+          system_qty_at_freeze: number
+          unit_cost_snapshot: number | null
+          updated_at: string
+          variance_qty: number | null
+          variance_value: number | null
+        }
+        Insert: {
+          bin_id?: string | null
+          business_id: string
+          cost_source?: string | null
+          count_id: string
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_qty?: number | null
+          created_at?: string
+          device_id?: string | null
+          freeze_reconciliation_qty?: number
+          id?: string
+          lot_id?: string | null
+          notes?: string | null
+          organization_id: string
+          packaging_id?: string | null
+          product_id: string
+          recount_qty?: number | null
+          scan_events?: Json | null
+          status?: string
+          system_qty_at_freeze?: number
+          unit_cost_snapshot?: number | null
+          updated_at?: string
+          variance_qty?: number | null
+          variance_value?: number | null
+        }
+        Update: {
+          bin_id?: string | null
+          business_id?: string
+          cost_source?: string | null
+          count_id?: string
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_qty?: number | null
+          created_at?: string
+          device_id?: string | null
+          freeze_reconciliation_qty?: number
+          id?: string
+          lot_id?: string | null
+          notes?: string | null
+          organization_id?: string
+          packaging_id?: string | null
+          product_id?: string
+          recount_qty?: number | null
+          scan_events?: Json | null
+          status?: string
+          system_qty_at_freeze?: number
+          unit_cost_snapshot?: number | null
+          updated_at?: string
+          variance_qty?: number | null
+          variance_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physical_count_lines_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "physical_counts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physical_count_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "physical_count_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      physical_count_tolerance_policies: {
+        Row: {
+          business_id: string
+          category_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          require_freeze: boolean
+          require_manager_approval: boolean
+          require_recount: boolean
+          updated_at: string
+          variance_pct: number | null
+          variance_value: number | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          business_id: string
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          require_freeze?: boolean
+          require_manager_approval?: boolean
+          require_recount?: boolean
+          updated_at?: string
+          variance_pct?: number | null
+          variance_value?: number | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          require_freeze?: boolean
+          require_manager_approval?: boolean
+          require_recount?: boolean
+          updated_at?: string
+          variance_pct?: number | null
+          variance_value?: number | null
+          warehouse_id?: string | null
+        }
+        Relationships: []
+      }
+      physical_counts: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          attachments: Json | null
+          branch_id: string | null
+          business_id: string
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          count_number: string
+          count_type: string
+          created_at: string
+          created_by: string | null
+          frozen_at: string | null
+          frozen_by: string | null
+          id: string
+          journal_book_id: string | null
+          notes: string | null
+          organization_id: string
+          posted_adjustment_ids: string[] | null
+          posted_at: string | null
+          posted_by: string | null
+          posted_journal_entry_id: string | null
+          scope: Json
+          source_count_id: string | null
+          state: string
+          submitted_at: string | null
+          submitted_by: string | null
+          superseded_by: string | null
+          tolerance_pct: number | null
+          tolerance_value: number | null
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          attachments?: Json | null
+          branch_id?: string | null
+          business_id: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          count_number: string
+          count_type?: string
+          created_at?: string
+          created_by?: string | null
+          frozen_at?: string | null
+          frozen_by?: string | null
+          id?: string
+          journal_book_id?: string | null
+          notes?: string | null
+          organization_id: string
+          posted_adjustment_ids?: string[] | null
+          posted_at?: string | null
+          posted_by?: string | null
+          posted_journal_entry_id?: string | null
+          scope?: Json
+          source_count_id?: string | null
+          state?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          superseded_by?: string | null
+          tolerance_pct?: number | null
+          tolerance_value?: number | null
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          attachments?: Json | null
+          branch_id?: string | null
+          business_id?: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          count_number?: string
+          count_type?: string
+          created_at?: string
+          created_by?: string | null
+          frozen_at?: string | null
+          frozen_by?: string | null
+          id?: string
+          journal_book_id?: string | null
+          notes?: string | null
+          organization_id?: string
+          posted_adjustment_ids?: string[] | null
+          posted_at?: string | null
+          posted_by?: string | null
+          posted_journal_entry_id?: string | null
+          scope?: Json
+          source_count_id?: string | null
+          state?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          superseded_by?: string | null
+          tolerance_pct?: number | null
+          tolerance_value?: number | null
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physical_counts_source_count_id_fkey"
+            columns: ["source_count_id"]
+            isOneToOne: false
+            referencedRelation: "physical_counts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physical_counts_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "physical_counts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physical_counts_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plan_app_access: {
         Row: {
           app_id: string
