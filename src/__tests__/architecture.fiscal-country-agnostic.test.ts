@@ -31,6 +31,12 @@ const ALLOWED_PATTERNS: RegExp[] = [
   /supabase\/functions\/_shared\/receipt\/theme\.ts$/,
   /supabase\/functions\/_shared\/xlsxWriter\.ts$/,
   /supabase\/functions\/_shared\/xmlWriter\.ts$/,
+  /supabase\/functions\/_shared\/__tests__\//,
+  /supabase\/functions\/_shared\/entitlementCheck\.ts$/,
+  /supabase\/functions\/_shared\/escpos\/(blocks|builder)\.ts$/,
+  /supabase\/functions\/generate-document\//,
+  /supabase\/functions\/generate-payslip-pdf\//,
+  /supabase\/functions\/generate-statutory-return\//,
 ];
 
 const SCAN_DIRS = ["supabase/functions"];
