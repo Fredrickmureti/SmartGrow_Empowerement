@@ -58695,6 +58695,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      _next_physical_count_number: { Args: { p_org: string }; Returns: string }
       _payroll_assert_je_line_account: {
         Args: { _account_id: string }
         Returns: undefined
@@ -65764,6 +65765,54 @@ export type Database = {
       payslip_visible_to_employee: {
         Args: { _payslip_id: string }
         Returns: boolean
+      }
+      physical_count_approve: {
+        Args: { p_allow_self?: boolean; p_count_id: string; p_user_id: string }
+        Returns: Json
+      }
+      physical_count_cancel: {
+        Args: { p_count_id: string; p_reason: string; p_user_id: string }
+        Returns: Json
+      }
+      physical_count_create: {
+        Args: {
+          p_business_id: string
+          p_count_type?: string
+          p_organization_id: string
+          p_scope?: Json
+          p_tolerance_pct?: number
+          p_tolerance_value?: number
+          p_user_id: string
+          p_warehouse_id: string
+        }
+        Returns: string
+      }
+      physical_count_freeze: {
+        Args: { p_count_id: string; p_user_id: string }
+        Returns: Json
+      }
+      physical_count_post: {
+        Args: { p_count_id: string; p_user_id: string }
+        Returns: Json
+      }
+      physical_count_record_line: {
+        Args: {
+          p_count_id: string
+          p_counted_qty: number
+          p_device_id?: string
+          p_product_id: string
+          p_scan_ref?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      physical_count_request_recount: {
+        Args: { p_count_id: string; p_line_ids: string[]; p_user_id: string }
+        Returns: Json
+      }
+      physical_count_submit: {
+        Args: { p_count_id: string; p_user_id: string }
+        Returns: Json
       }
       platform_delete_organization: {
         Args: { p_confirmation_token: string; p_org_id: string }
