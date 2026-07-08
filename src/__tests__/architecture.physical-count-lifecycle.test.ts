@@ -62,8 +62,6 @@ describe("Physical Count business event", () => {
     for (const file of ALL) {
       if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue;
       const src = readFileSync(file, "utf8");
-      // Only flag when combined with a JE insert on the same file; the string
-      // may legitimately appear in analytics dashboards or reports.
       if (
         /source_type\s*:\s*['"]physical_count['"]/.test(src) &&
         /from\(["']journal_entries["']\)\s*\.insert/.test(src)
@@ -73,4 +71,22 @@ describe("Physical Count business event", () => {
     }
     expect(offenders, offenders.join("\n")).toEqual([]);
   });
+
+  it("no client code calls the retired apply_physical_count_atomic shim", () => {
+    const offenders: string[] = [];
+    for (const file of ALL) {
+      if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue;
+      const src = readFileSync(file, "utf8");
+      if (/apply_physical_count_atomic/.test(src)) offenders.push(file);
+    }
+    expect(offenders, `The shim is retired; use physical_count_* lifecycle RPCs.\n${offenders.join("\n")}`).toEqual([]);
+  });
+
+  it("detail workspace consumes the server-side preflight and JE preview", () => {
+    const src = readFileSync(join(ROOT, "pages/inventory/PhysicalCountDetail.tsx"), "utf8");
+    expect(src).toMatch(/physical_count_preflight/);
+    expect(src).toMatch(/physical_count_preview_je/);
+    expect(src).toMatch(/tolerance_flags|tolerance_override_reason/);
+  });
 });
+
