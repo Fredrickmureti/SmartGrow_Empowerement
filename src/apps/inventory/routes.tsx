@@ -270,6 +270,16 @@ export function InventoryApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        <Route
+          path="physical-counts"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Physical Count Workspace">
+                <PhysicalCountWorkspace />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         
         {/* Stock Reports */}
         <Route
