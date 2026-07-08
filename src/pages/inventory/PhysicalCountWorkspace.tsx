@@ -166,7 +166,11 @@ export default function PhysicalCountWorkspace() {
             const busy = busyId === c.id;
             return (
               <TableRow key={c.id}>
-                <TableCell className="font-mono text-xs">{c.count_number}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  <Link to={`/inventory/physical-counts/${c.id}`} className="hover:underline">
+                    {c.count_number}
+                  </Link>
+                </TableCell>
                 <TableCell>{c.warehouses?.name ?? "—"}</TableCell>
                 <TableCell className="capitalize">{c.count_type}</TableCell>
                 <TableCell>{renderStateBadge(c.state)}</TableCell>
