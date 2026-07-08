@@ -137,11 +137,74 @@ export default function PhysicalCountDetail() {
     },
   });
 
+  // D5: server-authoritative preflight — drives action-bar disabled states + tooltips.
+  const preflightQ = useQuery({
+    queryKey: ["physical-count-preflight", id, user?.id],
+    enabled: !!id && !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as unknown as (
+        n: string, a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>)(
+        "physical_count_preflight", { p_count_id: id, p_user_id: user!.id },
+      );
+      if (error) throw error;
+      return data as {
+        state: string;
+        checks: {
+          period_open: boolean;
+          period_status: string;
+          inventory_account: boolean;
+          adjustment_account: boolean;
+          tolerance_flags: number;
+          uncounted_lines: number;
+          sod_submit_would_block: boolean;
+          sod_approve_would_block: boolean;
+          sod_post_would_block: boolean;
+        };
+        impact: { variance_lines: number; surplus_value: number; shrinkage_value: number; net_value: number };
+      };
+    },
+  });
+
+  // D5: server-authoritative JE preview — exact per-account lines the post will write.
+  const previewQ = useQuery({
+    queryKey: ["physical-count-preview-je", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as unknown as (
+        n: string, a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>)(
+        "physical_count_preview_je", { p_count_id: id },
+      );
+      if (error) throw error;
+      return data as {
+        inventory_account: { code: string; name: string } | null;
+        adjustment_account: { code: string; name: string } | null;
+        surplus_value: number;
+        shrinkage_value: number;
+        net_value: number;
+        journal_lines: Array<{ account: string; debit: number; credit: number; purpose: string }>;
+        lines: Array<{ product_name: string; sku: string | null; variance_qty: number; unit_cost: number; value: number; direction: string }>;
+      };
+    },
+  });
+
   const header = headerQ.data;
   const lines = linesQ.data ?? [];
   const events = eventsQ.data ?? [];
+  const preflight = preflightQ.data;
+  const preview = previewQ.data;
 
   const jePreview = useMemo(() => {
+    // Prefer server preview; fall back to local computation for zero-latency render.
+    if (preview) {
+      return {
+        surplus: preview.surplus_value,
+        shrinkage: preview.shrinkage_value,
+        net: preview.net_value,
+        lineCount: preview.lines.length,
+      };
+    }
     let surplus = 0, shrinkage = 0;
     const varianceLines = lines.filter((l) => l.counted_qty !== null && l.variance_qty !== 0);
     for (const l of varianceLines) {
@@ -150,7 +213,7 @@ export default function PhysicalCountDetail() {
       else shrinkage += Math.abs(val);
     }
     return { surplus, shrinkage, net: surplus - shrinkage, lineCount: varianceLines.length };
-  }, [lines]);
+  }, [lines, preview]);
 
   const runRpc = async (
     action: "freeze" | "submit" | "approve" | "post" | "cancel" | "supersede" | "request_recount",
@@ -173,6 +236,8 @@ export default function PhysicalCountDetail() {
       if (action === "supersede") args.p_source_count_id = id;
       else args.p_count_id = id;
       if (action === "approve" && !("p_allow_self" in args)) args.p_allow_self = false;
+      if (action === "post" && !("p_allow_self" in args)) args.p_allow_self = false;
+      if (action === "submit" && !("p_allow_self" in args)) args.p_allow_self = false;
 
       const { data, error } = await (supabase.rpc as unknown as (
         n: string, a: Record<string, unknown>,
@@ -184,6 +249,8 @@ export default function PhysicalCountDetail() {
       qc.invalidateQueries({ queryKey: ["physical-count-detail", id] });
       qc.invalidateQueries({ queryKey: ["physical-count-lines", id] });
       qc.invalidateQueries({ queryKey: ["physical-count-events", id] });
+      qc.invalidateQueries({ queryKey: ["physical-count-preflight", id] });
+      qc.invalidateQueries({ queryKey: ["physical-count-preview-je", id] });
       qc.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
       setSelected(new Set());
     } catch (err: unknown) {
@@ -192,6 +259,32 @@ export default function PhysicalCountDetail() {
       setBusy(false);
     }
   };
+
+  const handleApprove = () => {
+    const flagged = preflight?.checks.tolerance_flags ?? 0;
+    if (flagged > 0) {
+      const reason = window.prompt(
+        `${flagged} line(s) exceed tolerance. Type a written override reason to approve anyway, or Cancel to Request Recount instead.`,
+      );
+      if (!reason || !reason.trim()) return;
+      runRpc("approve", { p_tolerance_override_reason: reason.trim() });
+      return;
+    }
+    runRpc("approve");
+  };
+
+  const handlePost = () => {
+    if (!preflight?.checks.period_open) {
+      toast.error("Fiscal period is closed — reopen it in Accounting → Fiscal Periods first.");
+      return;
+    }
+    if (!preflight.checks.inventory_account || !preflight.checks.adjustment_account) {
+      toast.error("Default accounts missing (inventory / inventory_adjustment).");
+      return;
+    }
+    runRpc("post");
+  };
+
 
   if (headerQ.isLoading) {
     return <div className="p-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></div>;
