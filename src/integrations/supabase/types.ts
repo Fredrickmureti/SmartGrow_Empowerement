@@ -62156,18 +62156,20 @@ export type Database = {
         Returns: undefined
       }
       enforce_company_limit: { Args: { _org_id: string }; Returns: undefined }
-      enqueue_fiscal_receipt_required: {
-        Args: {
-          p_branch_id: string
-          p_business_id: string
-          p_document_kind: string
-          p_org_id: string
-          p_payload: Json
-          p_source_doc_id: string
-          p_source_doc_type: string
-        }
-        Returns: string
-      }
+      enqueue_fiscal_receipt_required:
+        | {
+            Args: {
+              p_branch_id: string
+              p_business_id: string
+              p_document_kind: string
+              p_org_id: string
+              p_payload: Json
+              p_source_doc_id: string
+              p_source_doc_type: string
+            }
+            Returns: string
+          }
+        | { Args: { p_transmission_id: string }; Returns: string }
       enqueue_hardware_command: {
         Args: {
           p_branch_id: string
