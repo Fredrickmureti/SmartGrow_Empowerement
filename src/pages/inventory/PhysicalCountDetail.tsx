@@ -444,12 +444,35 @@ export default function PhysicalCountDetail() {
   };
 
   const handlePost = () => {
-    if (!preflight?.checks.period_open) {
-      toast.error("Fiscal period is closed — reopen it in Accounting → Fiscal Periods first.");
+    const c = preflight?.checks;
+    if (c?.period_defined === false) {
+      toast.error("No fiscal period defined for today's date.", {
+        description: "Open Accounting → Fiscal Periods and create a period that covers today before posting.",
+      });
       return;
     }
-    if (!preflight.checks.inventory_account || !preflight.checks.adjustment_account) {
-      toast.error("Default accounts missing (inventory / inventory_adjustment).");
+    if (c && !c.period_open) {
+      toast.error("Fiscal period is closed.", {
+        description: "Reopen it in Accounting → Fiscal Periods first.",
+      });
+      return;
+    }
+    if (c && (!c.inventory_account || !c.adjustment_account)) {
+      toast.error("Default GL accounts are not mapped.", {
+        description: "Map the Inventory and Inventory Adjustment accounts under Accounting → Default Accounts.",
+      });
+      return;
+    }
+    if (c && c.journal_book === false) {
+      toast.error("No active journal book configured.", {
+        description: "Create a General journal book under Accounting → Journal Books before posting.",
+      });
+      return;
+    }
+    if (c && c.warehouse_active === false) {
+      toast.error("Warehouse is not active.", {
+        description: "Reactivate the warehouse under Inventory → Warehouses.",
+      });
       return;
     }
     runRpc("post");
