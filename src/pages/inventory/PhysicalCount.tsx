@@ -183,11 +183,15 @@ export default function PhysicalCount() {
     try {
       // D5: shim retired — drive the lifecycle RPCs and hand off to the
       // detail workspace so a different user can approve + post (SoD).
-      const rpc = supabase.rpc as unknown as (
-        n: string, a: Record<string, unknown>,
-      ) => Promise<{ data: unknown; error: { message: string } | null }>;
+      // NOTE: must call `supabase.rpc(...)` directly — extracting it into a
+      // local binding drops `this` and blows up inside supabase-js with
+      // "Cannot read properties of undefined (reading 'rest')".
+      const rpc = <T = unknown>(n: string, a: Record<string, unknown>) =>
+        (supabase.rpc as (name: string, args: Record<string, unknown>) => Promise<{ data: T; error: { message: string; code?: string; details?: string; hint?: string } | null }>).call(
+          supabase, n, a,
+        );
 
-      const created = await rpc("physical_count_create", {
+      const created = await rpc<string>("physical_count_create", {
         p_organization_id: currentOrg.id,
         p_business_id: currentBusiness?.id || null,
         p_warehouse_id: warehouseFilter,
