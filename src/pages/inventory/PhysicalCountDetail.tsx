@@ -983,9 +983,12 @@ function WorkflowStepper({ state }: { state: CountState }) {
 type Preflight = {
   checks: {
     period_open: boolean;
+    period_defined?: boolean;
     period_status: string;
     inventory_account: boolean;
     adjustment_account: boolean;
+    journal_book?: boolean;
+    warehouse_active?: boolean;
     tolerance_flags: number;
     uncounted_lines: number;
     sod_submit_would_block: boolean;
