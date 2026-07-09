@@ -1,92 +1,328 @@
-# Physical Count → Post to Ledger — Root Cause & Repair
+## Verdict
 
-## 1. Business-Event Trace (what actually happens)
+No mappings should be seeded. Your observation is correct: **Inventory Adjustment is configured** in the UI registry. The failure is caused by an architectural split and a regression in `physical_count_post`, not by missing user configuration.
 
+The proven disconnect is:
+
+```text
+Settings UI / Advanced Accounts
+  writes default_account_settings.setting_key = 'inventory'
+  writes default_account_settings.setting_key = 'inventory_adjustment'
+
+physical_count_preflight / JE preview
+  reads resolve_default_account(..., 'inventory')
+  reads resolve_default_account(..., 'inventory_adjustment')
+
+live physical_count_post
+  reads resolve_default_account(..., 'inventory_asset')   <-- wrong legacy alias
+  reads resolve_default_account(..., 'inventory_adjustment')
+
+resolve_default_account
+  reads legacy table default_accounts first
+  only has fallback logic for 'inventory', not 'inventory_asset'
 ```
-Approve Count
-  └─ UI: PhysicalCountDetail / PhysicalCountWorkspace
-       └─ supabase.rpc('physical_count_post', { p_count_id, p_user_id })
-            └─ SQL fn public.physical_count_post(uuid, uuid)   [migration 20260709215521]
-                 1. Lock physical_counts row, require state='approved'
-                 2. governance_assert_not_self(...)             ← SoD gate
-                 3. fiscal_periods lookup for CURRENT_DATE, must not be 'closed'
-                 4. resolve_default_account(business_id,'inventory')            → v_inv_acct
-                 5. resolve_default_account(business_id,'inventory_adjustment') → v_adj_acct
-                    IF either NULL → RAISE P0001
-                 6. INSERT stock_adjustments (status='draft', …)               ← check constraints
-                 7. Loop lines → INSERT stock_adjustment_items + stock_movements (trigger validation)
-                 8. UPDATE stock_adjustments status='approved'
-                 9. IF net variance value > 0:
-                      INSERT journal_entries (journal_book_id = v_c.journal_book_id, status='posted')
-                      INSERT journal_entry_lines (debit/credit, account_id FK)
-                10. UPDATE physical_counts state='posted'
-                11. physical_count_events + business_event_outbox
+
+So the UI can truthfully show `5910 – Inventory Adjustments`, while runtime still throws `Inventory or Inventory Adjustment default accounts are not configured` because the **inventory asset side** is looked up under the obsolete key `inventory_asset`.
+
+## Evidence
+
+### 1. Current physical count being posted
+
+Database evidence for the approved count:
+
+```text
+count_id:        4eadc08c-0583-4b2b-aea0-50c2e338ced1
+count_number:    PC-000005
+state:           approved
+organization_id: 8e682296-c634-44c8-ae00-bc48940ec28b
+organization:    Joshua Holdings
+business_id:     bf392ca6-a743-435c-ae41-5bf25199470d
+business:        Joshua Holdings
+branch_id:       aeb86a80-af26-437b-a033-e95615fdaa28
+warehouse_id:    22782c20-a09b-449d-ad37-89cca25ab988
+warehouse:       Headquarters Warehouse
+warehouse active:true
+product:         Lemonade Soda 300ML
+product_category:Beverage
+category_id:     26a7e515-c30d-46f7-9b61-e3e854897a00
+variance_qty:    60
+unit_cost:       30
+expected value:  1,800
 ```
 
-## 2. Real Root Cause
+Important: the posting function **does not use product category for account resolution**. The category is `Beverage`, but account lookup is global per business/default role.
 
-Two independent defects combine into the symptom the user sees.
+### 2. UI configuration is present
 
-**Defect A — the frontend hides the real Postgres error.**
-Both call sites (`PhysicalCountDetail.tsx:350-362`, `PhysicalCountWorkspace.tsx:128-138`) only treat SQLSTATE codes starting with `P` (`P0001`, `42501`) as "business" errors. Everything else is routed through `ErrorNormalizer.ts`, and SQLSTATE `23514` (check constraint) / `23P01` (exclusion) / HTTP 422 map to the `validation` shape — literally the string *"Some of the information you entered is not valid."* (`ErrorNormalizer.ts:88-93, 197`). NOT-NULL (`23502`) and FK (`23503`) fall into the `unknown` shape. In all four cases the real Postgres `message`, `details`, and `hint` are captured only in `cause` and never rendered. This is why an approved count that fails a downstream constraint looks like a form-validation error.
+The UI component `src/components/finance/DefaultAccountsConfig.tsx` defines Advanced Accounts:
 
-**Defect B — the RPC only raises P0001 for the *first* prerequisite tier.**
-Lines 100-134 raise `P0001` for missing count, wrong state, closed period, missing default accounts (this is the one the user probably actually hits on a fresh org — but with Defect A it never reaches them cleanly). Once the RPC enters the INSERT block (lines 147-333), every remaining failure surfaces as its raw SQLSTATE:
-- `physical_counts.journal_book_id` may be NULL for older count rows → `journal_entries.journal_book_id` FK/NOT-NULL error.
-- Any `stock_adjustments`/`stock_movements`/`journal_entry_lines` check constraint (allow_negative, non-negative debit/credit, movement_type domain) fires as `23514`.
-- Product without `unit_cost_snapshot` where a downstream trigger requires it → NOT-NULL.
+- `inventory` at lines 179–188
+- `inventory_adjustment` at lines 241–249
+- maps UI config keys to `default_account_settings.setting_key` at lines 305–332
+- loads from `default_account_settings` at lines 377–390
+- saves to `default_account_settings` at lines 489–517
 
-That means: **fiscal period missing (not closed, just absent) is silently allowed; a NULL journal book crashes with a raw FK; and a fresh org with unmapped accounts hits P0001 correctly but the user still sees the generic string because Defect A applies.** Wait — P0001 *is* surfaced. So on a fresh Supabase project the very first *unmapped-accounts* raise would give the user the real text. If the user instead sees "Some of the information you entered is not valid.", the failure is *past* the P0001 tier and inside an INSERT — most commonly the NULL `journal_book_id` FK or a `stock_movements`/`journal_entry_lines` check constraint.
+Database rows prove the mappings exist in the UI/canonical registry:
 
-## 3. Enterprise Behaviour We Are Aligning To
+```text
+registry: default_account_settings
+setting_key: inventory
+account: 1200 – Inventory
+account_id: 85db7e0d-a0ec-4d41-8116-b38ef5ab69ac
+business_id: bf392ca6-a743-435c-ae41-5bf25199470d
+branch_id: null
 
-SAP MI07/MI20, Oracle Fusion Cost Accounting, Odoo `stock.valuation.layer`, D365 F&O counting journal post, and NetSuite Inventory Adjustment all share three properties we currently violate:
+registry: default_account_settings
+setting_key: inventory_adjustment
+account: 5910 – Inventory Adjustments
+account_id: 2bc9033a-ddb8-4483-8886-050376779ecd
+business_id: bf392ca6-a743-435c-ae41-5bf25199470d
+branch_id: null
+```
 
-1. **Preflight gate before Post.** The Post button is only enabled once posting prerequisites (accounts, period, journal, governance) are green; blockers are enumerated with remediation links. We already have `physical_count_preflight` (referenced in the architecture test) but the UI doesn't gate on it.
-2. **Every failure is a named business exception.** Constraint violations are translated into domain messages ("Journal book not configured for warehouse X", "Inventory asset account missing", etc.), never leaked as SQLSTATE.
-3. **Post is idempotent and atomic.** A retry after fixing config must not double-post. Our RPC is already atomic; the outbox ON CONFLICT DO NOTHING covers idempotency.
+The effective-dated binding mirror also exists:
 
-## 4. Repair Plan (three coordinated changes, no duplication)
+```text
+registry: default_account_setting_bindings
+setting_key: inventory
+account: 1200 – Inventory
+source: manual
+effective_to: null
 
-### 4.1 SQL — harden `physical_count_post` prerequisite tier (new migration)
+registry: default_account_setting_bindings
+setting_key: inventory_adjustment
+account: 5910 – Inventory Adjustments
+source: manual
+effective_to: null
+```
 
-Extend the P0001 tier *before* any INSERT so every posting blocker is a business exception with a hint:
+### 3. Runtime lookup table is different
 
-- Add: **fiscal period must exist** for CURRENT_DATE (currently only "not closed"). Raise P0001 with hint pointing to Fiscal Periods.
-- Add: **`journal_book_id` resolution**. If `v_c.journal_book_id IS NULL`, resolve the org's default journal book (e.g. code `GEN`, or first active `journal_books` row for business). If still NULL, raise P0001 with hint "configure a General Journal book".
-- Add: **warehouse active** check → P0001.
-- Wrap the INSERT block (147-333) in `BEGIN … EXCEPTION WHEN check_violation | not_null_violation | foreign_key_violation THEN RAISE EXCEPTION '<business message>' USING ERRCODE='P0001', HINT=SQLERRM;` so any residual low-level constraint failure is translated into a business error carrying the real Postgres detail as HINT.
-- Keep the existing `stock_adjustment` created_by rotation (already correct).
+The live `physical_count_post` function in `supabase/migrations/20260709223205_a0cfa0fc-6e4e-4565-842e-d97321986f7b.sql` does this at lines 57–60:
 
-Also extend `physical_count_preflight` (same migration) to return the same expanded blocker set, so UI and RPC agree on the contract.
+```sql
+v_inv_acct := public.resolve_default_account(v_c.business_id, 'inventory_asset');
+v_adj_acct := public.resolve_default_account(v_c.business_id, 'inventory_adjustment');
+```
 
-### 4.2 Frontend — surface Postgres detail, and gate the Post button on preflight
+But the live resolver reads `default_accounts`, not `default_account_settings`:
 
-**a. Stop swallowing 23xxx errors.** In `PhysicalCountDetail.tsx:350-362` and `PhysicalCountWorkspace.tsx:128-138`, treat any Postgres error object with a `message` AND a `code` matching `/^(P|23|42)/` as a business error and render `message` (+ `hint` in the toast description, + `details` when present). Fall back to `normalizeError` only when there's no Postgres message at all. This is a display-layer fix only — the normalizer stays intact for non-Postgres errors.
+```sql
+SELECT account_id
+FROM public.default_accounts
+WHERE business_id = p_business_id
+  AND purpose = p_purpose
+  AND branch_id IS NULL;
+```
 
-**b. Preflight gating.** On `PhysicalCountDetail` (already calls `physical_count_preflight` per the architecture test), disable the Post button when preflight returns blockers and render a compact "Blocking issues" panel with one remediation link per blocker (Default Accounts, Fiscal Periods, Journal Books, Governance). This is the enterprise pattern and prevents users from ever reaching the raw error path in normal flow.
+Database evidence:
 
-### 4.3 Verification
+```text
+default_accounts total rows: 0
+default_accounts rows for business bf392ca6-a743-435c-ae41-5bf25199470d: 0
+```
 
-- New migration compiles; RPC signature unchanged (still 2-arg) so no frontend contract change is needed.
-- Manual: with a fresh org (no default accounts) → Post button is disabled + panel says "Set Inventory & Inventory Adjustment default accounts" with link. Force-clicking Post still returns the same P0001 with the real message rendered.
-- Manual: with accounts mapped but no active journal book → new P0001 "General Journal book not configured".
-- Manual: with everything mapped → posts, creates `stock_adjustments` + `journal_entries` + outbox row, count moves to `posted`.
-- Existing test `src/__tests__/architecture.physical-count-lifecycle.test.ts` continues to pass (no new args, still uses lifecycle RPCs, no client-side JE writes, no `p_allow_self`).
+So the exact failing lookup is effectively:
 
-## Technical Details
+```sql
+SELECT account_id
+FROM public.default_accounts
+WHERE business_id = 'bf392ca6-a743-435c-ae41-5bf25199470d'
+  AND purpose = 'inventory_asset'
+  AND branch_id IS NULL;
+```
 
-**Files touched**
-- `supabase/migrations/<new>.sql` — CREATE OR REPLACE `physical_count_post(uuid,uuid)` with the expanded prerequisite tier + wrapped INSERT block; CREATE OR REPLACE `physical_count_preflight` returning the expanded blocker list. GRANT EXECUTE to `authenticated` + `service_role`.
-- `src/pages/inventory/PhysicalCountDetail.tsx` — error mapping in the post mutation catch; render preflight blockers panel; disable Post button when blockers present.
-- `src/pages/inventory/PhysicalCountWorkspace.tsx` — same error-mapping fix on the workspace-level Post action.
-- No changes to `ErrorNormalizer.ts` (still correct for non-Postgres errors), no changes to `useGLPosting` (not on this path), no changes to governance (`governance_assert_not_self` already raises P0001 correctly).
+Actual result: **no row**.
 
-**Governance / SoD**
-Reuses existing `governance_assert_not_self` unchanged. No duplicated governance logic.
+The row that should satisfy the business intent exists, but in the canonical UI registry under the canonical key:
 
-**Idempotency**
-`business_event_outbox` ON CONFLICT DO NOTHING already in place; retries after fixing config are safe.
+```sql
+SELECT setting_key, account_id
+FROM public.default_account_settings
+WHERE organization_id = '8e682296-c634-44c8-ae00-bc48940ec28b'
+  AND business_id = 'bf392ca6-a743-435c-ae41-5bf25199470d'
+  AND setting_key = 'inventory';
+```
 
-**Out of scope**
-Chart-of-accounts seeding, journal book seeding, and default-account UI already exist elsewhere in the app; this plan links to them from the blockers panel rather than reimplementing.
+Actual row:
+
+```text
+setting_key: inventory
+account: 1200 – Inventory
+```
+
+It does not satisfy the runtime lookup because runtime asks legacy `default_accounts.purpose = 'inventory_asset'` instead of canonical `default_account_settings.setting_key = 'inventory'` / binding resolver.
+
+### 4. Preflight and post disagree
+
+`physical_count_preflight` uses the canonical-ish old key at lines 30–32 of the live function definition:
+
+```sql
+v_inv_acct := public.resolve_default_account(v_c.business_id, 'inventory');
+v_adj_acct := public.resolve_default_account(v_c.business_id, 'inventory_adjustment');
+```
+
+For PC-000005, preflight returns:
+
+```text
+inventory_account: true
+adjustment_account: true
+journal_book: true
+period_open: true
+warehouse_active: true
+```
+
+But `physical_count_post` uses `inventory_asset`, so the Post action can fail even when preflight says the accounts are configured. This is the direct UI-vs-runtime contradiction.
+
+### 5. There are more regressions after the account lookup
+
+The latest `physical_count_post` migration also regressed schema assumptions:
+
+- It queries `physical_count_lines.physical_count_id`, but the real column is `count_id`.
+- It inserts `stock_adjustments` without required `organization_id` and `adjustment_number`.
+- It references `stock_adjustments.source_physical_count_id`, which is not present in the current column set.
+- It inserts `journal_entries` without required `organization_id` and `entry_number`.
+- It inserts `journal_entry_lines` without required `organization_id`.
+- It bypasses the existing `post_journal_entry_atomic` ledger helper.
+
+Therefore fixing only the mapping key would expose the next broken assumption. The correct fix must restore the full event pipeline, not insert another mapping row.
+
+## Architectural finding
+
+There are currently duplicate accounting configuration surfaces:
+
+1. **Legacy registry**: `default_accounts`
+   - columns: `purpose`, `account_id`, `business_id`, optional branch support
+   - consumed by legacy `resolve_default_account`
+   - currently empty for this business
+   - not what Settings → Account Mappings edits
+
+2. **Canonical flat registry**: `default_account_settings`
+   - columns: `setting_key`, `account_id`, `organization_id`, `business_id`, `branch_id`
+   - edited by Settings → Account Mappings → Advanced Accounts
+   - used by frontend hooks and several edge functions
+   - validated by role/detail-type eligibility rules
+
+3. **Canonical effective-dated registry**: `default_account_setting_bindings`
+   - populated from `default_account_settings` by `trg_default_account_settings_binding_sync`
+   - resolved by `resolve_default_account_binding`
+   - already used by payroll posting as the enterprise-grade pattern
+
+The enterprise-grade source should be:
+
+```text
+default_account_settings  -> current editable mapping surface
+default_account_setting_bindings -> posting-time/effective-dated resolution surface
+resolve_default_account_binding -> canonical runtime resolver
+```
+
+`default_accounts` is a legacy registry and should not be used by Inventory → Finance posting.
+
+## Implementation plan
+
+### 1. Replace physical count account resolution with the canonical resolver
+
+Update `physical_count_post`, `physical_count_preflight`, and `physical_count_preview_je` to resolve accounts through:
+
+```sql
+public.resolve_default_account_binding(
+  _setting_key := 'inventory',
+  _org_id := v_c.organization_id,
+  _business_id := v_c.business_id,
+  _branch_id := v_c.branch_id,
+  _as_of := now()
+)
+```
+
+and:
+
+```sql
+public.resolve_default_account_binding(
+  _setting_key := 'inventory_adjustment',
+  _org_id := v_c.organization_id,
+  _business_id := v_c.business_id,
+  _branch_id := v_c.branch_id,
+  _as_of := now()
+)
+```
+
+No new mappings. No seed data. Use the rows that already exist.
+
+### 2. Restore one shared physical-count posting pipeline
+
+Rebuild `physical_count_post` so the event path is consistent:
+
+```text
+Physical Count approved
+  -> validate warehouse / fiscal period / SoD
+  -> resolve canonical GL mappings
+  -> create stock adjustment with organization_id + adjustment_number
+  -> create stock movement lines from count_id lines
+  -> compute surplus/shrinkage from counted_qty, variance_qty, unit_cost_snapshot
+  -> post balanced journal via post_journal_entry_atomic
+  -> mark physical count posted
+  -> write physical_count_events
+  -> write business_event_outbox
+```
+
+### 3. Fix schema-column regressions
+
+Use actual schema columns:
+
+- `physical_count_lines.count_id`, not `physical_count_lines.physical_count_id`
+- include `organization_id` on stock adjustments, journal entries, and journal lines
+- include required `adjustment_number` and `entry_number`
+- do not reference absent `source_physical_count_id`
+
+### 4. Fix preview and preflight to use the same resolver as posting
+
+- `physical_count_preflight` must report missing mappings using the exact same keys and resolver as `physical_count_post`.
+- `physical_count_preview_je` must stop using `v_inv_row->>'code'` on a PL/pgSQL record; convert to JSON or use scalar fields.
+- Preview, preflight, and post must agree on account IDs before the button is enabled.
+
+### 5. Preserve enterprise accounting architecture
+
+Do not make `Advanced Accounts` and `Default Accounts` separate authorities. Treat Advanced Accounts as a UI grouping inside the same default-account configuration surface.
+
+Canonical rule:
+
+```text
+All module postings resolve GL mappings through default_account_setting_bindings.
+default_account_settings is the editable current-state table.
+default_accounts is legacy and must not be consumed by new Inventory posting.
+```
+
+### 6. Add regression guards
+
+Add tests/guards to prevent recurrence:
+
+- physical count posting must not reference `inventory_asset` as a canonical key.
+- physical count posting must not read `default_accounts` or call legacy `resolve_default_account` for inventory postings.
+- preflight, preview, and post must use the same mapping keys.
+- physical count SQL must use `physical_count_lines.count_id`.
+- journal posting must include organization/business/branch scope and be balanced/idempotent.
+
+## Expected result after implementation
+
+For PC-000005, posting should resolve:
+
+```text
+Inventory asset:
+  key: inventory
+  account: 1200 – Inventory
+  source: default_account_setting_bindings / default_account_settings
+
+Inventory adjustment:
+  key: inventory_adjustment
+  account: 5910 – Inventory Adjustments
+  source: default_account_setting_bindings / default_account_settings
+```
+
+Then the ledger event should post approximately:
+
+```text
+DR 1200 – Inventory                  1,800
+CR 5910 – Inventory Adjustments      1,800
+```
+
+for the current surplus line, with branch and business dimensions preserved.

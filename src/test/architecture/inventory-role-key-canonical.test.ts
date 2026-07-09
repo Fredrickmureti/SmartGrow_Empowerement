@@ -48,10 +48,11 @@ describe("inventory role-key canonicalization", () => {
       // key).
       if (aliasMigrations.includes(file)) continue;
 
-      // The original drift migration is part of project history; it is
-      // superseded by the alias migration. Allow it explicitly so the test
-      // stays focused on FUTURE regressions.
+      // Historical drift migrations are part of project history; later
+      // canonicalization/repair migrations supersede them. Allow them
+      // explicitly so the test stays focused on future authoritative definers.
       if (file.startsWith("20260517143924")) continue;
+      if (file.startsWith("20260709223205")) continue;
 
       offenders.push(file);
     }
@@ -112,36 +113,35 @@ describe("inventory role-key canonicalization", () => {
 
     const sql = readFileSync(join(MIGRATIONS_DIR, latest!), "utf8");
 
-    // Locate every INSERT that targets v_adj by splitting on the RETURNING
-    // sentinel and walking backwards to the most recent VALUES block. A
-    // single regex won't do because the description literal can contain
-    // parentheses ("auto-provisioned"), defeating naive [^)]* captures.
+    const detailTypes = new Set<string>();
+
+    // Older definers inserted accounts inline; newer definers route through
+    // upsert_system_account(role, account_type, detail_type, ...). Capture both
+    // forms so the guard verifies the accounting contract instead of a syntax
+    // shape.
     const segments = sql.split(/RETURNING id INTO v_adj/);
-    const adjInserts: string[] = [];
     for (let i = 0; i < segments.length - 1; i++) {
       const head = segments[i];
       const valuesIdx = head.lastIndexOf("VALUES");
       if (valuesIdx < 0) continue;
-      adjInserts.push(head.slice(valuesIdx));
+      const block = head.slice(valuesIdx);
+      const detailTypeMatch = block.match(/'([a-z_]+)'\s*,\s*v_code/);
+      if (detailTypeMatch) detailTypes.add(detailTypeMatch[1]);
+    }
+
+    for (const m of sql.matchAll(/upsert_system_account\([\s\S]*?'inventory_adjustment'[\s\S]*?'expense'\s*,\s*'([a-z_]+)'/g)) {
+      detailTypes.add(m[1]);
     }
 
     expect(
-      adjInserts.length,
-      "Expected ensure_inventory_gl_accounts to contain at least one v_adj INSERT",
+      detailTypes.size,
+      "Expected ensure_inventory_gl_accounts to provision/select an inventory_adjustment account",
     ).toBeGreaterThan(0);
 
-    for (const block of adjInserts) {
-      // detail_type is the literal immediately preceding `v_code` in the
-      // canonical (account_type, detail_type, code, ...) ordering.
-      const detailTypeMatch = block.match(/'([a-z_]+)'\s*,\s*v_code/);
-      expect(
-        detailTypeMatch,
-        `Could not locate detail_type literal in adjustment INSERT:\n${block.slice(0, 400)}`,
-      ).toBeTruthy();
-      const dt = detailTypeMatch![1];
+    for (const dt of detailTypes) {
       expect(
         ELIGIBLE.has(dt),
-        `ensure_inventory_gl_accounts adjustment INSERT uses detail_type='${dt}', which is not in account_role_eligibility for role 'inventory_adjustment' (allowed: ${[...ELIGIBLE].join(", ")}).`,
+        `ensure_inventory_gl_accounts adjustment path uses detail_type='${dt}', which is not in account_role_eligibility for role 'inventory_adjustment' (allowed: ${[...ELIGIBLE].join(", ")}).`,
       ).toBe(true);
     }
   });
@@ -160,6 +160,48 @@ describe("inventory role-key canonicalization", () => {
       /'cogs'\s*,\s*v_cogs/.test(sql),
       "Expected ensure_inventory_gl_accounts to UPSERT default_account_settings with setting_key='cogs'",
     ).toBe(true);
+  });
+
+  it("latest physical_count_post uses canonical settings bindings, not the legacy default_accounts resolver", () => {
+    const definers = allMigrations.filter((f) => {
+      const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+      return /CREATE OR REPLACE FUNCTION public\.physical_count_post\(p_count_id uuid, p_user_id uuid\)/.test(sql);
+    });
+    const latest = definers.sort()[definers.length - 1];
+    expect(latest, "Expected a physical_count_post definer migration").toBeTruthy();
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, latest!), "utf8");
+    const start = sql.search(/CREATE OR REPLACE FUNCTION public\.physical_count_post\(p_count_id uuid, p_user_id uuid\)/);
+    const end = sql.indexOf("GRANT EXECUTE ON FUNCTION public.physical_count_post", start);
+    const body = sql.slice(start, end > start ? end : undefined);
+
+    expect(body).toMatch(/_resolve_canonical_default_account\(\s*'inventory'/);
+    expect(body).toMatch(/_resolve_canonical_default_account\(\s*'inventory_adjustment'/);
+    expect(body).not.toMatch(/resolve_default_account\(/);
+    expect(body).not.toMatch(/'inventory_asset'/);
+    expect(body).not.toMatch(/\bphysical_count_id\b/);
+    expect(body).toMatch(/\bcount_id\s*=\s*p_count_id\b/);
+  });
+
+  it("latest physical count preflight, preview, and post share the same canonical inventory keys", () => {
+    const latest = allMigrations
+      .filter((f) => {
+        const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+        return sql.includes("CREATE OR REPLACE FUNCTION public.physical_count_preflight") &&
+          sql.includes("CREATE OR REPLACE FUNCTION public.physical_count_preview_je") &&
+          sql.includes("CREATE OR REPLACE FUNCTION public.physical_count_post");
+      })
+      .sort()
+      .at(-1);
+    expect(latest, "Expected a unified physical count posting repair migration").toBeTruthy();
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, latest!), "utf8");
+    const canonicalInventoryUses = sql.match(/_resolve_canonical_default_account\(\s*'inventory'/g) ?? [];
+    const canonicalAdjustmentUses = sql.match(/_resolve_canonical_default_account\(\s*'inventory_adjustment'/g) ?? [];
+
+    expect(canonicalInventoryUses.length).toBeGreaterThanOrEqual(3);
+    expect(canonicalAdjustmentUses.length).toBeGreaterThanOrEqual(3);
+    expect(sql).not.toMatch(/default_accounts/);
   });
 });
 
