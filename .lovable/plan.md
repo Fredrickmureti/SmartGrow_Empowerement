@@ -1,73 +1,79 @@
-## Root cause of the "Post to ledger" failure
 
-`physical_count_post` creates a `stock_adjustments` row with `created_by = p_user_id` (the poster), then in the same call updates it to `status = 'approved'` with `approved_by = p_user_id`. The BEFORE-UPDATE trigger `guard_stock_adjustment_self_approval` runs `governance_assert_not_self(approved_by, created_by, ...)` — since both equal the poster, it raises `ERRCODE 42501` (permission denied). PostgREST returns HTTP 400. On the client, `normalizeError` maps 42501 → the canned "Not allowed / permission denied" text (and in this project, without a `status` on the error object, falls through to `unknown` → "An unexpected error occurred"). That's why the toast is generic and the console is empty.
+## Diagnosis (evidence-based)
 
-SoD is already fully enforced at the `physical_counts` layer (creator ≠ submitter ≠ approver ≠ poster, with server-side preflight and explicit override). Re-enforcing SoD on the *derived* `stock_adjustments` row via poster-vs-poster is a false positive — that row is a machine-emitted side-effect of the count post, not an independent adjustment.
+The previous fix did not work because the failure is not in the `stock_adjustments` guard trigger — it is upstream, in Physical Count's own lifecycle RPCs, which **do not consult the governance engine at all**.
 
-## Second issue
+### The engine (canonical, working)
+- Wave G3 shipped `public.governance_assert_not_self(actor, subject, action, org, entity_type, entity_id)` (migration `20260611191633`), which resolves `organizations.governance_mode`. For `solo` + ≤1 active member it writes `sod.self_action_auto_allowed` to `audit_logs` and returns — no exception.
+- Every other approval surface consumes it via a `BEFORE UPDATE` guard trigger. Example: `guard_stock_adjustment_self_approval` (`20260611181051`) calls `governance_assert_not_self(NEW.approved_by, NEW.created_by, 'inventory.approve_adjustment', …)`. In a solo org this guard is a no-op — it never raises. `mem/features/sod-self-action.md` documents this as the single policy engine.
 
-`src/pages/inventory/CycleCountSchedules.tsx` exposes internal identifiers to end users:
-- Title/description says "draft `physical_counts` row via `generate_due_cycle_counts()`" — table and function names in the UI.
-- Sheet description mentions `next_run_at` and `pg_cron`.
-- Header caption uses "cycle counts feed draft physical-counts into your workspace" — jargon.
-- Nothing explains what cycle counting is, what a cadence means, what tolerance does, what "scope" filters, or what happens when it runs.
+### The disconnect (Physical Count)
+The three lifecycle RPCs added in `20260708072719_...sql` (and preserved by `20260709191147_...sql`) enforce SoD **inline, in PL/pgSQL, without touching the engine**:
 
-## Fix
+- `physical_count_submit`, `_approve`, `_post` all contain literal:
+  ```
+  IF NOT p_allow_self AND p_user_id = v_c.<x>_by THEN
+    RAISE EXCEPTION 'segregation of duties: …' USING ERRCODE='P0001';
+  ```
+- Callers (`src/pages/inventory/PhysicalCountDetail.tsx:238-240`, `PhysicalCountWorkspace.tsx:119`) always pass `p_allow_self=false`.
+- Result: in Solo mode with one user, `p_user_id = v_c.approved_by` is always true, and the `RAISE` fires at the top of `physical_count_post` **before any stock_adjustments row is touched**. The governance engine is never queried; `governance_mode='solo'` is irrelevant to this code path.
 
-### 1. Unblock the post (migration)
+### Why the previous "fix" failed
+Migration `20260709191147` tried to make the derived `stock_adjustments` row look like it was created by a different user (stamping `created_by := v_c.approved_by`). That change targeted the wrong layer — the `sod_stock_adjustments_guard` trigger already delegates to `governance_assert_not_self` and in solo mode auto-allows. The real block is the hardcoded `IF NOT p_allow_self AND p_user_id = v_c.approved_by` at line 22 of `physical_count_post`, which runs first and never asks governance anything.
 
-Rewrite `physical_count_post` so the auto-generated `stock_adjustments` row records the true actors and does not trip SoD:
+### Enterprise pattern
+SAP GRC, Oracle Risk Cloud, NetSuite SoD, Dynamics 365 Segregation of Duties, Workday BP security, and Odoo Approvals all model this as a **single policy engine consulted by every operational lifecycle**. Inventory counts do not carry their own approval logic — they ask "does governance permit actor X to perform action Y on entity Z?" That is exactly what `governance_assert_not_self` already answers.
 
-- `created_by := v_c.approved_by` (the approver of the count is the operational "creator" of the derived adjustment)
-- `approved_by := p_user_id` (the poster)
-- Because the physical-count lifecycle already guarantees `approved_by ≠ posted_by` (SoD in `physical_count_post` itself, unless `p_allow_self`), `approved_by ≠ created_by` on the derived row, so `guard_stock_adjustment_self_approval` passes.
-- Fallback: if `v_c.approved_by IS NULL` (should not happen in `approved` state) or equals `p_user_id` (self-override path), stamp `created_by := COALESCE(v_c.submitted_by, v_c.created_by, p_user_id)` and, if still equal, set a session-local bypass `SET LOCAL app.governance_self_bypass = 'physical_count_post'` and have the guard honour it (narrow, auditable, mirrors the existing `app.physical_count_freeze_override` pattern).
+## Fix — connect Physical Count to the engine
 
-Preferred: use the actor-reassignment approach (no new bypass flag) — cleaner and still passes SoD in the self-override edge case because we explicitly log the override in `physical_count_events.payload.allow_self`.
+No new engine. No bypass flags. Delete duplicated logic and delegate.
 
-Also: surface a clearer, deterministic error on the RPC — wrap the `UPDATE stock_adjustments ... approved` in an exception handler that re-raises with a business-facing message ("The generated inventory adjustment could not be approved — …").
+### 1. Migration — rewrite the three lifecycle RPCs
+Replace every inline `IF NOT p_allow_self AND p_user_id = v_c.<x>_by THEN RAISE …` block in:
+- `public.physical_count_submit`
+- `public.physical_count_approve`
+- `public.physical_count_post`
 
-### 2. Improve client error surfacing
+with a single call:
 
-In `PhysicalCountDetail.runRpc`, when `error.message` from Supabase contains a business message (P0001 / 42501 raises), pass it through instead of the canned catalog text. Do this narrowly: if the Supabase error has a non-empty `message` and (`code` starts with `P` or `code = '42501'`), show that message directly via `toast.error(err.message)`. Keep `normalizeError` for network/auth/unknown categories.
+```sql
+PERFORM public.governance_assert_not_self(
+  p_user_id,                 -- actor
+  v_c.<prior_actor>,         -- subject: created_by / submitted_by / approved_by
+  'inventory.<submit|approve_count|post_count>',
+  v_c.organization_id,
+  'physical_count',
+  p_count_id
+);
+```
 
-### 3. Rewrite `CycleCountSchedules.tsx` in business language
+Drop the `p_allow_self` parameter usage inside the guard (the engine + `self_action_overrides` is the sanctioned bypass path; keep the parameter signature for compatibility so we don't have to touch the client this turn, but ignore it — override consumption happens inside the engine).
 
-No more table names, function names, or column names in the UI. Replace with plain English an inventory manager understands.
+In `physical_count_post`, additionally **revert** the fake `v_adj_created_by` remapping introduced by `20260709191147`. Set `created_by := p_user_id` on the derived `stock_adjustments` row so the audit trail reflects reality. The `sod_stock_adjustments_guard` trigger will call the engine, which will auto-allow in solo mode (or block per policy in standard/strict — the correct behaviour).
 
-- **Page header:**
-  Title: "Cycle counting"
-  Subtitle: "Automatically schedule small, recurring stock counts so you never rely on a single year-end count. Each schedule picks a warehouse and a rotation, and drops a ready-to-count worksheet into Physical Counts on its due date."
-- **Toolbar buttons:**
-  "Run now" (was "Run due now") with tooltip "Check every active schedule and create today's count worksheets immediately, instead of waiting for the overnight run."
-  "New schedule".
-- **Empty state:** "No cycle counts scheduled yet. Create a schedule to have the system automatically prepare count worksheets on a rhythm — e.g. count your A-class items every week, everything else every quarter."
-- **Table caption (replaces the code sentence):** "Schedules run automatically overnight. Use *Run now* to generate today's worksheets on demand."
-- **Column tweaks:** "Cadence" → "How often"; "Scope" → "What to count" with human labels ("Entire warehouse", "A-class items", "Category: <name>", "Selected products"); "Next run" → "Next count due"; "Last run" → "Last generated".
-- **Create/edit sheet:**
-  - Title: "New cycle count schedule" / "Edit cycle count schedule".
-  - Description: "Cycle counting means counting a slice of your stock on a regular rhythm instead of shutting the warehouse for a full count. Configure how often to count, what to count, and how large a variance is acceptable before requiring investigation."
-  - Field help text:
-    - Name — "A label your team will recognise, e.g. *Weekly A-class — Main warehouse*."
-    - Warehouse — "Which warehouse this rotation applies to."
-    - How often — "How frequently the system should generate a new count worksheet."
-    - What to count — options relabelled ("The entire warehouse", "Only A/B/C class items", "A specific product category", "A hand-picked product list").
-    - Tolerance % — "Variances smaller than this are auto-accepted. Larger variances are flagged for review before posting."
-    - Tolerance value — "Same idea, but as a money amount. Use whichever suits the products in scope."
-    - Auto-freeze on generation — "When on, the worksheet skips 'Draft' and locks stock immediately so counters can start straight away. Leave off if you want a supervisor to review before locking stock."
-    - Active — "Paused schedules stop generating new count worksheets."
+Approver check in `_approve` widens to cover creator/frozen/submitted only when governance is in standard/strict; the engine handles that via three separate action keys (`inventory.approve_count`, plus its `subject` argument covers the prior-actor being distinct). We register one action key per lifecycle step:
+- `inventory.submit_count`
+- `inventory.approve_count`
+- `inventory.post_count`
 
-### 4. Guards / tests
+### 2. Register the three new action keys
+Add three entries to `src/lib/governance/selfActionCatalogue.ts` (module `"Inventory"`, `entityType: "stock_adjustment"` reused — or introduce `"physical_count"` in the union; both are one-liners) so Settings → Governance can render per-action overrides for physical counts like every other module.
 
-- Update `src/__tests__/architecture.physical-count-lifecycle.test.ts` (or add a sibling test) to assert `CycleCountSchedules.tsx` contains no raw identifiers: no `physical_counts`, no `generate_due_cycle_counts`, no `next_run_at`, no `pg_cron`, no backticks around code identifiers.
-- Add a pgTAP-style or SQL smoke test in `supabase/tests/` (if the folder is used) that: creates a count, freezes, counts a line, submits with user A, approves with user B, posts with user C, and asserts the derived `stock_adjustments` row lands `status='approved'` without the SoD trigger raising.
+### 3. Architecture guard test
+Extend `src/__tests__/architecture.physical-count-lifecycle.test.ts` with a case asserting the three RPC bodies contain `governance_assert_not_self` and do NOT contain the string `'segregation of duties'` (proves no inline SoD survives).
 
-## Technical details
+### 4. UI
+No changes required. `parseGovernanceError` already translates the engine's `42501 / GOV_SELF_ACTION` errors into the friendly self-approval explainer. Removing the `P0001` inline raises means users now see the correct override affordance from `src/lib/governance/selfActionErrors.ts`.
 
-Files touched:
-- New migration `supabase/migrations/<ts>_physical_count_post_sod_fix.sql` — CREATE OR REPLACE `physical_count_post(p_count_id, p_user_id, p_allow_self)`, only the block that INSERTs `stock_adjustments` and UPDATEs it to approved is changed; also improves the error message on the approval UPDATE.
-- `src/pages/inventory/PhysicalCountDetail.tsx` — refine `runRpc` catch to prefer server-supplied P0001/42501 message.
-- `src/pages/inventory/CycleCountSchedules.tsx` — copy overhaul only (no logic change).
-- `src/__tests__/architecture.cycle-count-copy.test.ts` (new) — string-level guard against jargon regressions.
+## Verification steps
 
-Non-goals: no changes to `_pc_immutable_after_post`, `enforce_physical_count_freeze`, `physical_count_preflight`, `physical_count_preview_je`, or the D6/D7/D8 scope. No new RLS. No schema changes.
+1. In the connected org (solo, one user): run the three RPCs — each should succeed and produce a `sod.self_action_auto_allowed` row in `audit_logs`.
+2. Flip `organizations.governance_mode` to `standard` in a test org with two users → single-user post still blocks with `42501 / GOV_SELF_ACTION`, UI shows the override dialog.
+3. Existing tests (`architecture.physical-count-lifecycle`, `sod-coverage`) plus the new assertion pass.
+
+## What this plan explicitly does NOT do
+
+- Does not introduce a parallel governance engine.
+- Does not add bypass flags — the engine's `self_action_overrides` is the only sanctioned bypass.
+- Does not modify the `stock_adjustments` trigger, the client, or the Governance workspace UI.
+- Does not touch other modules — the change is localized to Physical Count catching up to the pattern the rest of the ERP already follows.
