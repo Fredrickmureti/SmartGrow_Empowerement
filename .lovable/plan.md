@@ -1,52 +1,77 @@
+## Finding
+
+The current failure is not coming from the `physical_count_post` outbox insert that was previously patched.
+
+The deployed database shows:
+
+- `public.business_event_outbox` has no `business_id` column.
+- `public.physical_count_post(uuid, uuid)` no longer inserts `business_id` as an outbox column; it carries `business_id` inside `payload`.
+- But `physical_count_post` later updates `public.physical_counts.state` to `posted`.
+- That update fires `trg_physical_count_post_side_effects`.
+- The trigger function `public._physical_count_post_side_effects()` still does this:
+
+```sql
+INSERT INTO public.business_event_outbox (
+  org_id,
+  business_id,
+  branch_id,
+  ...
+)
+```
+
+That trigger is the remaining writer causing:
+
+```text
+column "business_id" of relation "business_event_outbox" does not exist
+```
+
 ## Root cause
 
-`physical_count_post` now delegates to `approve_stock_adjustment_atomic`, which writes `stock_movements` rows with `reference_type = 'stock_adjustment'`.
+There are two physical-count outbox emission paths:
 
-The BEFORE INSERT trigger `enforce_physical_count_freeze` on `stock_movements` only exempts rows where `reference_type = 'physical_count'`. So the exact writer that is *closing* the freeze (the count's own adjustment) is blocked by the freeze it owns. The freeze effectively self-deadlocks on post.
+1. Main RPC emission: `physical_count_post` emits `inventory.physical_count.posted`.
+2. State-change side-effect trigger: `_physical_count_post_side_effects` emits `inventory.reorder.recompute` after the count becomes posted.
 
-Every other write path (POS, deliveries, transfers, manual adjustments) is correctly blocked — this is only wrong for the count's own reconciliation write.
+Only path 1 was patched. Path 2 was missed, so posting still fails when the posted-state trigger executes.
 
-## Why the previous version worked
+## Enterprise-grade fix
 
-The prior `physical_count_post` inserted `stock_movements` directly with `reference_type = 'physical_count'`, so it hit the exemption. When we moved posting into `approve_stock_adjustment_atomic` (correct ADR 0016 direction), the reference_type flipped and lost the exemption.
+Create one database migration that rewrites `public._physical_count_post_side_effects()` so it matches the actual `business_event_outbox` schema:
 
-## Fix (enterprise-grade, no band-aid)
+- Remove `business_id` from the outbox column list.
+- Preserve `org_id`, `branch_id`, event type, source doc, status, source, actor, idempotency key.
+- Add `business_id` into the JSON payload instead:
 
-Use the freeze system's existing, first-class escape hatch: the `app.physical_count_freeze_override` session GUC. `physical_count_post` runs `SECURITY DEFINER` inside a single transaction, so it can:
+```json
+{
+  "business_id": NEW.business_id,
+  "warehouse_id": NEW.warehouse_id,
+  "count_id": NEW.id
+}
+```
 
-1. Read prior value of `app.physical_count_freeze_override`.
-2. `PERFORM set_config('app.physical_count_freeze_override','on', true)` (the `true` = transaction-local, auto-reset at COMMIT/ROLLBACK — cannot leak).
-3. Call `approve_stock_adjustment_atomic(v_adj_id, p_user_id)`.
-4. Restore the prior GUC value.
+- Keep the reservation-release event behavior unchanged.
+- Keep idempotency unchanged: `inventory.reorder.recompute:physical_count:<count_id>`.
 
-This keeps the freeze contract intact for every other caller, keeps ADR 0016 delegation, and uses the same override channel the manager-override RPC already uses — no new bypass surface.
+## Architecture guardrail
 
-We are NOT going to:
-- Change the trigger to exempt `stock_adjustment` — that would silently let *any* stock adjustment bypass any freeze.
-- Match by `client_request_id` in the trigger — couples the trigger to physical-count internals and adds a per-row subquery on the hot movement path.
+Add/update an architecture test to assert physical-count posting has no outbox insert path that declares `business_id` as a physical column. The test should cover both:
 
-## Migration
+- `physical_count_post`
+- `_physical_count_post_side_effects`
 
-Single migration replacing `public.physical_count_post`:
+This prevents the same schema/function mismatch from returning.
 
-- Same body as today, but wrap the `approve_stock_adjustment_atomic` call in:
-  ```sql
-  v_prev_override := current_setting('app.physical_count_freeze_override', true);
-  PERFORM set_config('app.physical_count_freeze_override', 'on', true); -- txn-local
-  v_approve_result := public.approve_stock_adjustment_atomic(v_adj_id, p_user_id);
-  PERFORM set_config('app.physical_count_freeze_override',
-                     COALESCE(v_prev_override, ''), true);
-  ```
-- No schema changes, no data changes.
+## Verification after migration
 
-## Verification
+After approval and execution:
 
-- Add a pgTAP-style architecture test asserting `physical_count_post` source contains `set_config('app.physical_count_freeze_override'` around the `approve_stock_adjustment_atomic` call.
-- Manual: re-post the failing count. Expect success, `stock_movements` row written with `reference_type='stock_adjustment'` and `reference_id = v_adj_id`, JE created, `physical_counts.state='posted'`, freeze released on state transition, subsequent unrelated writes on the same warehouse no longer blocked.
+1. Re-read `business_event_outbox` schema.
+2. Re-read both deployed function definitions.
+3. Confirm neither physical-count outbox insert column list includes `business_id`.
+4. Confirm payload still includes `business_id` for downstream consumers.
+5. Ask you to retry posting, or inspect the resulting outbox rows if posting data is available.
 
-## Files touched
+## No frontend changes
 
-- New migration: `physical_count_post` replaced with the wrapped-GUC version.
-- `src/__tests__/architecture.physical-count-lifecycle.test.ts`: add the GUC-wrap assertion.
-
-No frontend changes.
+This is a database function/trigger mismatch only. No UI code should be changed.

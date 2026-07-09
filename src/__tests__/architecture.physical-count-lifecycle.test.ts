@@ -30,6 +30,30 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+function latestMigrationMatching(pattern: RegExp): string | undefined {
+  return readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .reverse()
+    .find((file) => pattern.test(readFileSync(join(MIGRATIONS, file), "utf8")));
+}
+
+function businessEventOutboxColumnLists(sql: string): string[] {
+  const lists: string[] = [];
+  const rx = /INSERT\s+INTO\s+public\.business_event_outbox\s*\(([^)]*)\)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = rx.exec(sql)) !== null) {
+    lists.push(
+      match[1]
+        .split(",")
+        .map((c) => c.trim().replace(/\s+/g, " ").toLowerCase())
+        .filter(Boolean)
+        .join(","),
+    );
+  }
+  return lists;
+}
+
 const ALL = walk(ROOT);
 
 describe("Physical Count business event", () => {
@@ -114,14 +138,7 @@ describe("Physical Count business event", () => {
   });
 
   it("latest physical_count_post migration delegates GL posting to approve_stock_adjustment_atomic and never writes generated columns", () => {
-    const files = readdirSync(MIGRATIONS)
-      .filter((f) => f.endsWith(".sql"))
-      .sort()
-      .reverse();
-    const latestPost = files.find((file) => {
-      const src = readFileSync(join(MIGRATIONS, file), "utf8");
-      return /CREATE OR REPLACE FUNCTION public\.physical_count_post\s*\(/.test(src);
-    });
+    const latestPost = latestMigrationMatching(/CREATE OR REPLACE FUNCTION public\.physical_count_post\s*\(/);
     expect(latestPost, "physical_count_post migration must exist").toBeTruthy();
     const src = readFileSync(join(MIGRATIONS, latestPost!), "utf8");
 
@@ -151,6 +168,30 @@ describe("Physical Count business event", () => {
       src,
       "physical_count_post must wrap approve_stock_adjustment_atomic in a txn-local freeze override",
     ).toMatch(/set_config\(\s*'app\.physical_count_freeze_override'/);
+  });
+
+  it("physical-count outbox emitters never address business_id as an outbox column", () => {
+    const files = [
+      latestMigrationMatching(/CREATE OR REPLACE FUNCTION public\.physical_count_post\s*\(/),
+      latestMigrationMatching(/CREATE OR REPLACE FUNCTION public\._physical_count_post_side_effects\s*\(/),
+    ];
+
+    for (const file of files) {
+      expect(file, "physical-count outbox emitter migration must exist").toBeTruthy();
+      const src = readFileSync(join(MIGRATIONS, file!), "utf8");
+      const columnLists = businessEventOutboxColumnLists(src);
+      expect(columnLists.length, `${file} must emit a business_event_outbox event`).toBeGreaterThan(0);
+      for (const columns of columnLists) {
+        expect(
+          columns.split(","),
+          `${file} must keep business_id inside payload JSON, not as a business_event_outbox column`,
+        ).not.toContain("business_id");
+      }
+      expect(
+        src,
+        `${file} must preserve business_id in event payload for downstream consumers`,
+      ).toMatch(/jsonb_build_object\([\s\S]*['"]business_id['"]/i);
+    }
   });
 
 
