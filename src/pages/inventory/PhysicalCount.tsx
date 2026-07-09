@@ -189,7 +189,7 @@ export default function PhysicalCount() {
       // local binding drops `this` and blows up inside supabase-js with
       // "Cannot read properties of undefined (reading 'rest')".
       const rpc = <T = unknown>(n: string, a: Record<string, unknown>) =>
-        (supabase.rpc as (name: string, args: Record<string, unknown>) => Promise<{ data: T; error: { message: string; code?: string; details?: string; hint?: string } | null }>).call(
+        (supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: T; error: { message: string; code?: string; details?: string; hint?: string } | null }>).call(
           supabase, n, a,
         );
 
