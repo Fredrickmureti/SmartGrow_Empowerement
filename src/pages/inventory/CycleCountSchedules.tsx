@@ -424,7 +424,7 @@ export default function CycleCountSchedules() {
         title="Delete schedule?"
         description={`"${deleteTarget?.name}" will stop generating cycle counts.`}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget.id)}
-        loading={remove.isPending}
+        isLoading={remove.isPending}
       />
     </div>
   );
