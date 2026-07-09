@@ -876,6 +876,39 @@ export default function PhysicalCountDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={overrideOpen} onOpenChange={setOverrideOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve with tolerance override</DialogTitle>
+            <DialogDescription>
+              {(preflight?.checks.tolerance_flags ?? 0)} line(s) exceed the counting
+              tolerance. Approving now accepts these variances as-is. Provide a written
+              reason — it is recorded permanently in the audit trail.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="override-reason">Override reason</Label>
+            <Textarea
+              id="override-reason"
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              placeholder="e.g. Physical stock verified against supplier delivery note; variance accepted."
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOverrideOpen(false)}>Cancel</Button>
+            <Button
+              disabled={busy || overrideReason.trim().length === 0}
+              onClick={confirmOverrideApprove}
+            >
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Approve with override
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
