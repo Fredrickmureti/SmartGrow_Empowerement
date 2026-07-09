@@ -259,9 +259,9 @@ export default function PhysicalCountDetail() {
       const args: Record<string, unknown> = { p_user_id: user.id, ...extra };
       if (action === "supersede") args.p_source_count_id = id;
       else args.p_count_id = id;
-      if (action === "approve" && !("p_allow_self" in args)) args.p_allow_self = false;
-      if (action === "post" && !("p_allow_self" in args)) args.p_allow_self = false;
-      if (action === "submit" && !("p_allow_self" in args)) args.p_allow_self = false;
+      if (action === "approve" && !("p_allow_self" in args)) args.p_allow_self = soloOverride;
+      if (action === "post" && !("p_allow_self" in args)) args.p_allow_self = soloOverride;
+      if (action === "submit" && !("p_allow_self" in args)) args.p_allow_self = soloOverride;
 
       const { data, error } = await (supabase.rpc as unknown as (
         n: string, a: Record<string, unknown>,
