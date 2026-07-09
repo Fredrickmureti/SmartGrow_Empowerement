@@ -116,7 +116,9 @@ export default function PhysicalCountWorkspace() {
 
       const args: Record<string, unknown> = { p_count_id: id, p_user_id: user.id };
       if (action === "cancel") args.p_reason = "Cancelled from workspace";
+      if (action === "submit") args.p_allow_self = false;
       if (action === "approve") args.p_allow_self = false;
+      if (action === "post") args.p_allow_self = false;
 
       const { data, error } = await (supabase.rpc as unknown as (
         name: string, args: Record<string, unknown>
@@ -127,7 +129,16 @@ export default function PhysicalCountWorkspace() {
       toast.success(`${action} succeeded`);
       qc.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
     } catch (err: unknown) {
-      toast.error(normalizeError(err).message);
+      const e = err as { message?: string; code?: string; hint?: string } | null;
+      const code = (e?.code || "").toString();
+      const rawMsg = (e?.message || "").trim();
+      const isBusinessError =
+        rawMsg.length > 0 && (code === "P0001" || code === "42501" || code.startsWith("P"));
+      if (isBusinessError) {
+        toast.error(rawMsg, e?.hint ? { description: e.hint } : undefined);
+      } else {
+        toast.error(normalizeError(err).message);
+      }
     } finally {
       setBusyId(null);
     }

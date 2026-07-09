@@ -18,6 +18,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(process.cwd(), "src");
+const MIGRATIONS = join(process.cwd(), "supabase", "migrations");
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -88,6 +89,35 @@ describe("Physical Count business event", () => {
     expect(src).toMatch(/physical_count_preflight/);
     expect(src).toMatch(/physical_count_preview_je/);
     expect(src).toMatch(/tolerance_flags|tolerance_override_reason/);
+  });
+
+  it("client lifecycle calls pass p_allow_self so PostgREST selects governed overloads", () => {
+    const files = [
+      join(ROOT, "pages/inventory/PhysicalCount.tsx"),
+      join(ROOT, "pages/inventory/PhysicalCountWorkspace.tsx"),
+      join(ROOT, "pages/inventory/PhysicalCountDetail.tsx"),
+    ];
+    for (const file of files) {
+      const src = readFileSync(file, "utf8");
+      const callsLifecycle = /physical_count_(submit|approve|post)/.test(src);
+      if (!callsLifecycle) continue;
+      expect(src, `${file} must include p_allow_self when calling governed lifecycle RPCs`).toMatch(/p_allow_self/);
+    }
+  });
+
+  it("latest physical-count governance migration removes stale inline SoD overloads", () => {
+    const files = readdirSync(MIGRATIONS)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .reverse();
+    const latestGovernanceFix = files.find((file) => {
+      const src = readFileSync(join(MIGRATIONS, file), "utf8");
+      return /physical_count_(submit|approve|post)/.test(src) && /governance|compatibility/i.test(src);
+    });
+    expect(latestGovernanceFix).toBeTruthy();
+    const src = readFileSync(join(MIGRATIONS, latestGovernanceFix!), "utf8");
+    expect(src).toMatch(/governance_assert_not_self|RETURN public\.physical_count_(submit|approve|post)/);
+    expect(src).not.toMatch(/segregation of duties/);
   });
 });
 
