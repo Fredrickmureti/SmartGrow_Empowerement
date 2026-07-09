@@ -113,6 +113,38 @@ describe("Physical Count business event", () => {
     }
   });
 
+  it("latest physical_count_post migration delegates GL posting to approve_stock_adjustment_atomic and never writes generated columns", () => {
+    const files = readdirSync(MIGRATIONS)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .reverse();
+    const latestPost = files.find((file) => {
+      const src = readFileSync(join(MIGRATIONS, file), "utf8");
+      return /CREATE OR REPLACE FUNCTION public\.physical_count_post\s*\(/.test(src);
+    });
+    expect(latestPost, "physical_count_post migration must exist").toBeTruthy();
+    const src = readFileSync(join(MIGRATIONS, latestPost!), "utf8");
+
+    // Delegates to the standard adjustment RPC (ADR 0016).
+    expect(src, "physical_count_post must delegate to approve_stock_adjustment_atomic")
+      .toMatch(/approve_stock_adjustment_atomic\s*\(/);
+
+    // Must never write variance_qty — it is a GENERATED column.
+    expect(src, "physical_count_post must not write variance_qty").not.toMatch(
+      /variance_qty\s*=(?!\s*EXCLUDED)/,
+    );
+
+    // Must not hand-roll a journal entry (that path bypasses ADR 0016 invariants).
+    expect(src, "physical_count_post must not insert journal_entries directly")
+      .not.toMatch(/INSERT\s+INTO\s+public\.journal_entries\b/i);
+    expect(src, "physical_count_post must not insert journal_entry_lines directly")
+      .not.toMatch(/INSERT\s+INTO\s+public\.journal_entry_lines\b/i);
+
+    // Idempotency: retried POST must reuse the same stock_adjustment row.
+    expect(src, "physical_count_post must use client_request_id for idempotency")
+      .toMatch(/client_request_id/);
+  });
+
 
   it("latest physical-count governance migration removes stale inline SoD overloads", () => {
     const files = readdirSync(MIGRATIONS)
