@@ -348,13 +348,18 @@ export default function PhysicalCountDetail() {
       qc.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
       setSelected(new Set());
     } catch (err: unknown) {
-      const e = err as { message?: string; code?: string; hint?: string } | null;
+      const e = err as { message?: string; code?: string; hint?: string; details?: string } | null;
       const code = (e?.code || "").toString();
       const rawMsg = (e?.message || "").trim();
-      const isBusinessError =
-        rawMsg.length > 0 && (code === "P0001" || code === "42501" || code.startsWith("P"));
-      if (isBusinessError) {
-        toast.error(rawMsg, e?.hint ? { description: e.hint } : undefined);
+      // Any Postgres error (P*, 23xxx integrity, 42xxx permission/syntax) carries
+      // real business context in `message` / `hint` / `details`. Surface it verbatim
+      // instead of collapsing it to the generic "Some of the information you entered
+      // is not valid" toast that hides the actual blocker.
+      const isPostgresError =
+        rawMsg.length > 0 && /^(P|23|42)/.test(code);
+      if (isPostgresError) {
+        const description = e?.hint || e?.details || undefined;
+        toast.error(rawMsg, description ? { description } : undefined);
       } else {
         toast.error(normalizeError(err).message);
       }
