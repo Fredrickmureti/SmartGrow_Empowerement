@@ -308,12 +308,15 @@ export default function CycleCountSchedules() {
         description="Draft counts are generated when next_run_at is reached and Run due now is invoked (or by pg_cron)."
         footer={
           <FooterActionBar
-            primary={{
-              label: editing ? "Save" : "Create",
-              onClick: () => save.mutate(),
-              loading: save.isPending,
-            }}
-            secondary={{ label: "Cancel", onClick: () => setSheetOpen(false) }}
+            anchor="sheet"
+            trailing={
+              <>
+                <Button variant="outline" onClick={() => setSheetOpen(false)}>Cancel</Button>
+                <Button onClick={() => save.mutate()} disabled={save.isPending}>
+                  {editing ? "Save" : "Create"}
+                </Button>
+              </>
+            }
           />
         }
       >
