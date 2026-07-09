@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck, Loader2, Save, AlertTriangle, CheckCircle2, ArrowLeft, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
@@ -46,6 +47,7 @@ export default function PhysicalCount() {
   const { user } = useAuth();
   const { products } = useProducts();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // Audit lane: every scan dispatched while this screen is mounted lands
   // in `scan_events` with workspace_id='physical_count', branch resolved
@@ -223,7 +225,7 @@ export default function PhysicalCount() {
 
       toast.success(`Count submitted for review — open the workspace to approve & post`);
       queryClient.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
-      window.location.assign(`/inventory/physical-counts/${countId}`);
+      navigate(`/inventory-app/physical-counts/${countId}`);
     } catch (err: any) {
       // Surface the true cause — never mask with a generic "unexpected error".
       // eslint-disable-next-line no-console

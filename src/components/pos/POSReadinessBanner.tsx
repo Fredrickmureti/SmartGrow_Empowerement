@@ -250,7 +250,7 @@ export function POSReadinessBanner() {
               detail:
                 "POS sales draw stock from a warehouse linked to the selling branch. Create or activate one to avoid checkout failures.",
               severity: "blocking",
-              cta: { label: "Manage warehouses", href: "/inventory/warehouses" },
+              cta: { label: "Manage warehouses", href: "/inventory-app/warehouses" },
             };
           case "branch_warehouse":
             return {
@@ -259,7 +259,7 @@ export function POSReadinessBanner() {
               detail:
                 "Every branch that has a POS register must have at least one active warehouse. POS sales would fail at checkout for the affected branches.",
               severity: "blocking",
-              cta: { label: "Open warehouses", href: "/inventory/warehouses" },
+              cta: { label: "Open warehouses", href: "/inventory-app/warehouses" },
             };
           case "payment_methods":
             return {

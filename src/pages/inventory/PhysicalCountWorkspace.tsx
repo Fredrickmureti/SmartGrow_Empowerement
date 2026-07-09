@@ -3,7 +3,7 @@
  *
  * Enterprise Inventory Manager view over the persisted `physical_counts`
  * aggregate. Complements (rather than replaces) the counting wizard at
- * `/inventory/count`: this page shows every count that ever existed —
+ * `/inventory-app/count`: this page shows every count that ever existed —
  * drafts, in-flight counts, in-review counts pending approval, approved
  * counts awaiting posting, posted counts with drill-down to the ledger,
  * and cancelled/superseded counts.
@@ -178,7 +178,7 @@ export default function PhysicalCountWorkspace() {
             return (
               <TableRow key={c.id}>
                 <TableCell className="font-mono text-xs">
-                  <Link to={`/inventory/physical-counts/${c.id}`} className="hover:underline">
+                  <Link to={`/inventory-app/physical-counts/${c.id}`} className="hover:underline">
                     {c.count_number}
                   </Link>
                 </TableCell>
@@ -238,7 +238,7 @@ export default function PhysicalCountWorkspace() {
               tooltip="Refresh"
             />
             <Button asChild>
-              <Link to="/inventory/count">
+              <Link to="/inventory-app/count">
                 <ClipboardCheck className="mr-2 h-4 w-4" /> New count
               </Link>
             </Button>

@@ -313,7 +313,7 @@ export default function PhysicalCountDetail() {
   return (
     <div className="space-y-6 p-4 md:p-6">
       <RecordHeader
-        eyebrow={<Link to="/inventory/physical-counts" className="hover:underline">Physical Counts</Link>}
+        eyebrow={<Link to="/inventory-app/physical-counts" className="hover:underline">Physical Counts</Link>}
         title={<span className="font-mono">{header.count_number}</span>}
         meta={
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -607,7 +607,7 @@ export default function PhysicalCountDetail() {
               {header.posted_adjustment_ids?.map((aid) => (
                 <div key={aid}>
                   <Button asChild variant="outline" size="sm">
-                    <Link to={`/inventory/adjustments/${aid}`}>Stock adjustment {aid.slice(0, 8)} <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                    <Link to={`/inventory-app/adjustments/${aid}`}>Stock adjustment {aid.slice(0, 8)} <ArrowRight className="ml-1 h-3 w-3" /></Link>
                   </Button>
                 </div>
               ))}
