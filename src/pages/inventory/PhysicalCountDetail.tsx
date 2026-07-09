@@ -598,8 +598,23 @@ export default function PhysicalCountDetail() {
                   {lines.map((l) => {
                     const impact = (l.variance_qty || 0) * (l.unit_cost_snapshot || 0);
                     const canSelect = header.state === "in_review";
+                    // A line can be (re)counted in place while the count is
+                    // being counted or reviewed. Recount-flagged or never-
+                    // counted lines are the ones that block approval.
+                    const editable = header.state === "counting" || header.state === "in_review";
+                    const needsCount =
+                      l.counted_qty == null &&
+                      (l.status === "recount_required" || l.status === "pending");
+                    const showEntry = editable && (needsCount || l.status === "recount_required");
                     return (
-                      <TableRow key={l.id} className={l.variance_qty !== 0 ? "" : "opacity-60"}>
+                      <TableRow
+                        key={l.id}
+                        className={
+                          l.status === "recount_required"
+                            ? "bg-amber-50/60"
+                            : l.variance_qty !== 0 ? "" : "opacity-60"
+                        }
+                      >
                         <TableCell>
                           <Checkbox checked={selected.has(l.id)} disabled={!canSelect}
                                     onCheckedChange={() => toggle(l.id)} />
@@ -610,7 +625,38 @@ export default function PhysicalCountDetail() {
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{money(l.system_qty_at_freeze)}</TableCell>
                         <TableCell className="text-right tabular-nums text-xs text-muted-foreground">{money(l.freeze_reconciliation_qty)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{l.counted_qty == null ? "—" : money(l.counted_qty)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {showEntry ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                className="h-8 w-24 text-right"
+                                placeholder={l.counted_qty == null ? "recount" : money(l.counted_qty)}
+                                value={recountDrafts[l.id] ?? ""}
+                                onChange={(e) =>
+                                  setRecountDrafts((prev) => ({ ...prev, [l.id]: e.target.value }))
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") { e.preventDefault(); void recordRecountLine(l); }
+                                }}
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2"
+                                disabled={savingLine === l.id || (recountDrafts[l.id] ?? "").trim() === ""}
+                                onClick={() => void recordRecountLine(l)}
+                              >
+                                {savingLine === l.id
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <ClipboardCheck className="h-3 w-3" />}
+                              </Button>
+                            </div>
+                          ) : (
+                            l.counted_qty == null ? "—" : money(l.counted_qty)
+                          )}
+                        </TableCell>
                         <TableCell className={`text-right tabular-nums font-semibold ${l.variance_qty > 0 ? "text-emerald-600" : l.variance_qty < 0 ? "text-red-600" : ""}`}>
                           {money(l.variance_qty)}
                         </TableCell>
@@ -618,7 +664,14 @@ export default function PhysicalCountDetail() {
                         <TableCell className={`text-right tabular-nums ${impact > 0 ? "text-emerald-600" : impact < 0 ? "text-red-600" : ""}`}>
                           {formatCurrency(impact)}
                         </TableCell>
-                        <TableCell><Badge variant="outline" className="capitalize">{l.status.replace("_", " ")}</Badge></TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={l.status === "recount_required" ? "destructive" : "outline"}
+                            className="capitalize"
+                          >
+                            {l.status.replace("_", " ")}
+                          </Badge>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
