@@ -173,8 +173,8 @@ export default function PhysicalCount() {
    */
   const handleApplyAdjustments = async () => {
     if (!currentOrg?.id || !user?.id) return;
-    const adjustments = varianceLines;
-    if (adjustments.length === 0) {
+    const counted = countedLines;
+    if (varianceLines.length === 0) {
       toast.info("No variances to adjust");
       return;
     }
@@ -200,7 +200,7 @@ export default function PhysicalCount() {
       const frozen = await rpc("physical_count_freeze", { p_count_id: countId, p_user_id: user.id });
       if (frozen.error) throw frozen.error;
 
-      for (const line of adjustments) {
+      for (const line of counted) {
         const rec = await rpc("physical_count_record_line", {
           p_count_id: countId,
           p_product_id: line.product_id,
