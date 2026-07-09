@@ -1,65 +1,65 @@
-# Physical Count post → 404 — Investigation & Fix
+# Physical Inventory Count — Audit & Enterprise Redesign
 
-## Business-event trace
+## Phase 1 — Audit findings (what is actually wrong)
 
+**1. The RPC error is a deploy-hygiene bug, not a logic bug.**
+The database has *duplicate overloaded* lifecycle functions. The previous agent added a wider signature but left the old thin wrapper deployed:
+
+- `physical_count_approve(count_id, user_id, allow_self)` — thin wrapper that just calls the 4-arg version
+- `physical_count_approve(count_id, user_id, allow_self, tolerance_override_reason DEFAULT null)` — real body
+
+The frontend calls with `{p_count_id, p_user_id, p_allow_self}`. Because the 4-arg version's extra param has a DEFAULT, **both** signatures are valid candidates → PostgREST cannot resolve → the "could not choose the best candidate function" error. The identical duplication exists for `physical_count_submit` and `physical_count_post` (2-arg wrapper + 3-arg body).
+
+**2. `p_allow_self` is vestigial.** The real approve/submit/post bodies never read `p_allow_self` — separation-of-duties is decided entirely by `governance_assert_not_self`, which reads `organizations.governance_mode`, `self_action_policy`, and `self_action_overrides`. So the previous "fix" that made the button clickable did nothing at the DB layer; governance was already correct. The client `p_allow_self` flag is dead weight that also *causes* the overload ambiguity.
+
+**3. Governance is actually sound.** `governance_assert_not_self`: `solo` mode + ≤1 member → auto-allow (audited); `standard` → warn (allow) for owner/admin, block for others; `strict` → block unless a fresh override exists. The original "self-approval wrongly blocked" symptom only occurs when the org is `strict`/multi-member — which is correct enterprise behavior. No governance rewrite needed; it needs verification tests, not surgery.
+
+**4. The Counts workspace already exists but is orphaned.** `PhysicalCountWorkspace` (`/inventory-app/physical-counts`) with Active / In-review / Posted / All buckets is built and routed — but it is **not in the sidebar nav** (`nav.ts` only links `/count`, the counting wizard). Users who post/submit get navigated to the *detail* page and have no sidebar path back to the list. This is the "trapped / dead-end / no workspace" complaint.
+
+**5. The detail page is data-rich but not workflow-legible.** It has summary cards, a preflight banner, JE preview, audit stream, and context-aware buttons — but no workflow *stage indicator*, no approval *timeline*, no "what happens next / who does it" guidance, and recounts are invisible after the fact.
+
+**6. Recount is destructive.** `physical_count_request_recount` sets the chosen lines to `recount_required`, **nulls `counted_qty`**, and reverts the whole count to `counting`. Prior counted values are lost (only a line-count is logged), so recount rounds are not traceable.
+
+## Phase 2 — Business workflow model (target)
+
+```text
+draft ─freeze→ counting ─submit→ in_review ─approve→ approved ─post→ posted
+                  ↑                    │
+                  └──request_recount───┘
+any active state ─cancel→ cancelled          posted ─supersede→ superseded (reversal)
 ```
-create → freeze → record lines → submit → approve → post
-         (stock)                          (JE + inv adjustment posted)
-                                                    │
-                                                    ▼
-                                        land on Count Detail (read-only anchor)
-                                        ├─ drill-through: Journal Entry
-                                        ├─ drill-through: Stock Adjustment
-                                        └─ drill-through: Stock Movements
-```
+Per state: permitted actions, the single *primary next action*, the responsible actor, and whether the page is editable or a read-only audit record. Every transition already emits a `physical_count_events` row — we build the UI on top of that event stream rather than inventing new state.
 
-The count document is the ledger-anchor for the whole event (per ADR 0016 and the physical-count lifecycle guard test). Adjustment + JE are produced by `physical_count_post` and linked back to the count via `source_type='inventory_adjustment' + source_subtype='physical_count'`. That matches how SAP (MI07), Odoo (`stock.inventory`), D365 (counting journals), Oracle, and NetSuite behave: **the count stays the source-of-record, becomes read-only after posting, and exposes JE / movement drill-throughs from its detail page.** So the *destination* — the count-detail page — is architecturally correct.
+## Phase 3 — UX redesign (detail page, from first principles)
 
-## Actual root cause of the 404
+Rebuild `PhysicalCountDetail` around four zones:
+1. **Workflow stepper** — horizontal Draft → Counting → In review → Approved → Posted, current stage highlighted, terminal states (cancelled/superseded) shown distinctly. Derived from `state` + events.
+2. **Next-action card** — one prominent, state-aware CTA with a plain-English sentence: what just happened, what is next, who performs it, and why any action is blocked (fed by the existing `physical_count_preflight` checks). Replaces the scattered header buttons as the primary driver; header keeps secondary actions.
+3. **At-a-glance summary** — warehouse, count type, tolerance, variance summary (surplus / shrinkage / net), line counts, and inventory impact.
+4. **Tabs** — Lines, JE preview, **Recounts** (new), Activity timeline (existing audit, rendered as a readable vertical timeline instead of raw JSON), Drill-down. Posted/cancelled/superseded render read-only with an "audit record" banner.
 
-The Inventory app is mounted in `src/App.tsx` at:
+## Phase 4 — Database / RPC redesign (one migration)
 
-```
-path="/inventory-app/*"    → <InventoryApp />  (defines physical-counts/:id)
-```
+- **Drop the thin wrapper overloads** for `approve`, `submit`, `post` so exactly one signature per verb remains. Standardize each canonical signature to accept its params with DEFAULTs (`p_allow_self` retained only as an accepted-but-ignored arg for backward compatibility, or removed and the client stops sending it — the client will stop sending it). This permanently removes RPC ambiguity.
+- **Make recount non-destructive.** Update `physical_count_request_recount` to copy the current `counted_qty` into `recount_qty` history (and into the event payload as `previous_qty` per line) before clearing it, and stamp a `recount_round` counter on the count/event. Prior rounds stay fully reconstructable from `physical_count_events`. Nothing is deleted.
+- Keep all governance calls intact; add no new privileged surface.
 
-But the post-submit navigation in `src/pages/inventory/PhysicalCount.tsx:226` sends the browser to:
+## Phase 5 — Frontend architecture
 
-```
-window.location.assign(`/inventory/physical-counts/${countId}`)
-                        ^^^^^^^^^^ wrong prefix — no route matches → 404
-```
+- **Nav:** add a "Counts" entry (`/inventory-app/physical-counts`) to `nav.ts` Operations group so the workspace is always reachable; keep "New count" → `/count`.
+- **Workspace:** stop sending `p_allow_self`; add a "Recount requested" bucket and clearer state filters; keep it the operational hub.
+- **Detail/wizard:** stop sending `p_allow_self`; wire recount round history into the new Recounts tab; ensure cache invalidation covers workspace + detail + preflight (already mostly present); confirm deep-linking/refresh/back-button all resolve from `useParams` (already the case).
 
-The UUID is correct (the freshly created `physical_counts.id`). The destination is correct. Only the URL **prefix is stale** — it uses the legacy `/inventory/...` namespace instead of the canonical `/inventory-app/...` used everywhere else (Products, Warehouses, Adjustments, Transfers, Stock all live under `/inventory-app/`).
+## Phase 6 — Implementation order
 
-Grep confirms this is a small, localized drift — 5 stale links total, all in Physical Count pages plus one POS banner:
+1. Migration: drop duplicate overloads, harden recount for traceability.
+2. Remove `p_allow_self` from all client RPC calls (wizard, workspace, detail).
+3. Add the nav entry.
+4. Redesign `PhysicalCountDetail` (stepper, next-action card, timeline, Recounts tab, read-only terminal states).
+5. Add the Recount-requested bucket to the workspace.
+6. Verify: clicking Approve succeeds; solo-org self-approval works; strict-org self-approval blocks with a clear message; recount preserves prior rounds. Run the existing `architecture.physical-count-lifecycle` tests plus a browser pass through freeze → submit → approve → post and a recount cycle.
 
-| File | Line | Broken link |
-|---|---|---|
-| `src/pages/inventory/PhysicalCount.tsx` | 226 | `` `/inventory/physical-counts/${countId}` `` |
-| `src/pages/inventory/PhysicalCountWorkspace.tsx` | 181 | `` `/inventory/physical-counts/${c.id}` `` |
-| `src/pages/inventory/PhysicalCountWorkspace.tsx` | 241 | `/inventory/count` |
-| `src/pages/inventory/PhysicalCountDetail.tsx` | 316 | `/inventory/physical-counts` |
-| `src/components/pos/POSReadinessBanner.tsx` | 253, 262 | `/inventory/warehouses` |
-
-## Fix (smallest change that restores the correct business-event flow)
-
-Rewrite the 5 stale links to the canonical `/inventory-app/...` prefix. No new routes, no new pages, no navigation rethink — the count-detail destination is already the correct enterprise landing surface.
-
-1. `PhysicalCount.tsx` L226 → `/inventory-app/physical-counts/${countId}`
-2. `PhysicalCountWorkspace.tsx` L181 → `/inventory-app/physical-counts/${c.id}`
-3. `PhysicalCountWorkspace.tsx` L241 → `/inventory-app/count`
-4. `PhysicalCountDetail.tsx` L316 → `/inventory-app/physical-counts`
-5. `POSReadinessBanner.tsx` L253, L262 → `/inventory-app/warehouses`
-
-Also swap the `window.location.assign` in `PhysicalCount.tsx` for `useNavigate()` so it stays inside the SPA (no full reload, preserves the query-invalidation on the workspace key that runs one line above).
-
-## Guard test (prevent regression)
-
-Add an architecture test `src/test/architecture/inventory-canonical-prefix.test.ts` that fails on any occurrence of `/inventory/` (not `/inventory-app/`) inside `src/pages/inventory/**`, `src/apps/inventory/**`, and `src/components/**`. This locks the URL contract so the two prefixes cannot drift again.
-
-## Out of scope
-
-- No changes to the Physical Count lifecycle RPCs, GL posting, adjustment linkage, or invariants from ADR 0016.
-- No re-navigation to the JE or adjustment — those remain drill-throughs from the count detail, matching SAP/Odoo/D365 convention.
-- Unrelated pre-existing build errors are ignored per the standing instruction.
+## Technical notes
+- Overload fix is the single source of the reported error; verified via `pg_get_functiondef` that both signatures exist and the 4-arg default makes them ambiguous under PostgREST named-arg resolution.
+- No change to the ledger/JE posting path, tolerance logic, or `governance_assert_not_self`.
+- Recount history uses existing columns (`recount_qty`, `physical_count_events`) — no new tables required, so no new GRANTs/RLS.
