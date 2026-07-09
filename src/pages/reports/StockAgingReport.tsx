@@ -302,13 +302,17 @@ function StockAgingReportInner() {
 
 
 import { BranchScopeGate } from "@/components/inventory/BranchScopeGate";
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 
 export default function StockAgingReport() {
   return (
-    <CompanyScopeGate reportName="Stock aging">
-      <BranchScopeGate pageName="Stock aging">
-        <StockAgingReportInner />
-      </BranchScopeGate>
-    </CompanyScopeGate>
+    <ReportFilterProvider>
+      <CompanyScopeGate reportName="Stock aging">
+        <BranchScopeGate pageName="Stock aging">
+          <StockAgingReportInner />
+        </BranchScopeGate>
+      </CompanyScopeGate>
+    </ReportFilterProvider>
   );
 }
+

@@ -213,7 +213,7 @@ export default function PhysicalCountWorkspace() {
                     )}
                     {c.posted_journal_entry_id && (
                       <Button size="sm" variant="ghost" asChild>
-                        <Link to={`/reports/journal?entry=${c.posted_journal_entry_id}`}>
+                        <Link to={`/finance/journal-entries/${c.posted_journal_entry_id}`}>
                           JE <ArrowRight className="ml-1 h-3 w-3" />
                         </Link>
                       </Button>
