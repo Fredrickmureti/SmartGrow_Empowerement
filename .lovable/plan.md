@@ -1,65 +1,92 @@
-# Physical Inventory Count — Audit & Enterprise Redesign
+# Physical Count → Post to Ledger — Root Cause & Repair
 
-## Phase 1 — Audit findings (what is actually wrong)
+## 1. Business-Event Trace (what actually happens)
 
-**1. The RPC error is a deploy-hygiene bug, not a logic bug.**
-The database has *duplicate overloaded* lifecycle functions. The previous agent added a wider signature but left the old thin wrapper deployed:
-
-- `physical_count_approve(count_id, user_id, allow_self)` — thin wrapper that just calls the 4-arg version
-- `physical_count_approve(count_id, user_id, allow_self, tolerance_override_reason DEFAULT null)` — real body
-
-The frontend calls with `{p_count_id, p_user_id, p_allow_self}`. Because the 4-arg version's extra param has a DEFAULT, **both** signatures are valid candidates → PostgREST cannot resolve → the "could not choose the best candidate function" error. The identical duplication exists for `physical_count_submit` and `physical_count_post` (2-arg wrapper + 3-arg body).
-
-**2. `p_allow_self` is vestigial.** The real approve/submit/post bodies never read `p_allow_self` — separation-of-duties is decided entirely by `governance_assert_not_self`, which reads `organizations.governance_mode`, `self_action_policy`, and `self_action_overrides`. So the previous "fix" that made the button clickable did nothing at the DB layer; governance was already correct. The client `p_allow_self` flag is dead weight that also *causes* the overload ambiguity.
-
-**3. Governance is actually sound.** `governance_assert_not_self`: `solo` mode + ≤1 member → auto-allow (audited); `standard` → warn (allow) for owner/admin, block for others; `strict` → block unless a fresh override exists. The original "self-approval wrongly blocked" symptom only occurs when the org is `strict`/multi-member — which is correct enterprise behavior. No governance rewrite needed; it needs verification tests, not surgery.
-
-**4. The Counts workspace already exists but is orphaned.** `PhysicalCountWorkspace` (`/inventory-app/physical-counts`) with Active / In-review / Posted / All buckets is built and routed — but it is **not in the sidebar nav** (`nav.ts` only links `/count`, the counting wizard). Users who post/submit get navigated to the *detail* page and have no sidebar path back to the list. This is the "trapped / dead-end / no workspace" complaint.
-
-**5. The detail page is data-rich but not workflow-legible.** It has summary cards, a preflight banner, JE preview, audit stream, and context-aware buttons — but no workflow *stage indicator*, no approval *timeline*, no "what happens next / who does it" guidance, and recounts are invisible after the fact.
-
-**6. Recount is destructive.** `physical_count_request_recount` sets the chosen lines to `recount_required`, **nulls `counted_qty`**, and reverts the whole count to `counting`. Prior counted values are lost (only a line-count is logged), so recount rounds are not traceable.
-
-## Phase 2 — Business workflow model (target)
-
-```text
-draft ─freeze→ counting ─submit→ in_review ─approve→ approved ─post→ posted
-                  ↑                    │
-                  └──request_recount───┘
-any active state ─cancel→ cancelled          posted ─supersede→ superseded (reversal)
 ```
-Per state: permitted actions, the single *primary next action*, the responsible actor, and whether the page is editable or a read-only audit record. Every transition already emits a `physical_count_events` row — we build the UI on top of that event stream rather than inventing new state.
+Approve Count
+  └─ UI: PhysicalCountDetail / PhysicalCountWorkspace
+       └─ supabase.rpc('physical_count_post', { p_count_id, p_user_id })
+            └─ SQL fn public.physical_count_post(uuid, uuid)   [migration 20260709215521]
+                 1. Lock physical_counts row, require state='approved'
+                 2. governance_assert_not_self(...)             ← SoD gate
+                 3. fiscal_periods lookup for CURRENT_DATE, must not be 'closed'
+                 4. resolve_default_account(business_id,'inventory')            → v_inv_acct
+                 5. resolve_default_account(business_id,'inventory_adjustment') → v_adj_acct
+                    IF either NULL → RAISE P0001
+                 6. INSERT stock_adjustments (status='draft', …)               ← check constraints
+                 7. Loop lines → INSERT stock_adjustment_items + stock_movements (trigger validation)
+                 8. UPDATE stock_adjustments status='approved'
+                 9. IF net variance value > 0:
+                      INSERT journal_entries (journal_book_id = v_c.journal_book_id, status='posted')
+                      INSERT journal_entry_lines (debit/credit, account_id FK)
+                10. UPDATE physical_counts state='posted'
+                11. physical_count_events + business_event_outbox
+```
 
-## Phase 3 — UX redesign (detail page, from first principles)
+## 2. Real Root Cause
 
-Rebuild `PhysicalCountDetail` around four zones:
-1. **Workflow stepper** — horizontal Draft → Counting → In review → Approved → Posted, current stage highlighted, terminal states (cancelled/superseded) shown distinctly. Derived from `state` + events.
-2. **Next-action card** — one prominent, state-aware CTA with a plain-English sentence: what just happened, what is next, who performs it, and why any action is blocked (fed by the existing `physical_count_preflight` checks). Replaces the scattered header buttons as the primary driver; header keeps secondary actions.
-3. **At-a-glance summary** — warehouse, count type, tolerance, variance summary (surplus / shrinkage / net), line counts, and inventory impact.
-4. **Tabs** — Lines, JE preview, **Recounts** (new), Activity timeline (existing audit, rendered as a readable vertical timeline instead of raw JSON), Drill-down. Posted/cancelled/superseded render read-only with an "audit record" banner.
+Two independent defects combine into the symptom the user sees.
 
-## Phase 4 — Database / RPC redesign (one migration)
+**Defect A — the frontend hides the real Postgres error.**
+Both call sites (`PhysicalCountDetail.tsx:350-362`, `PhysicalCountWorkspace.tsx:128-138`) only treat SQLSTATE codes starting with `P` (`P0001`, `42501`) as "business" errors. Everything else is routed through `ErrorNormalizer.ts`, and SQLSTATE `23514` (check constraint) / `23P01` (exclusion) / HTTP 422 map to the `validation` shape — literally the string *"Some of the information you entered is not valid."* (`ErrorNormalizer.ts:88-93, 197`). NOT-NULL (`23502`) and FK (`23503`) fall into the `unknown` shape. In all four cases the real Postgres `message`, `details`, and `hint` are captured only in `cause` and never rendered. This is why an approved count that fails a downstream constraint looks like a form-validation error.
 
-- **Drop the thin wrapper overloads** for `approve`, `submit`, `post` so exactly one signature per verb remains. Standardize each canonical signature to accept its params with DEFAULTs (`p_allow_self` retained only as an accepted-but-ignored arg for backward compatibility, or removed and the client stops sending it — the client will stop sending it). This permanently removes RPC ambiguity.
-- **Make recount non-destructive.** Update `physical_count_request_recount` to copy the current `counted_qty` into `recount_qty` history (and into the event payload as `previous_qty` per line) before clearing it, and stamp a `recount_round` counter on the count/event. Prior rounds stay fully reconstructable from `physical_count_events`. Nothing is deleted.
-- Keep all governance calls intact; add no new privileged surface.
+**Defect B — the RPC only raises P0001 for the *first* prerequisite tier.**
+Lines 100-134 raise `P0001` for missing count, wrong state, closed period, missing default accounts (this is the one the user probably actually hits on a fresh org — but with Defect A it never reaches them cleanly). Once the RPC enters the INSERT block (lines 147-333), every remaining failure surfaces as its raw SQLSTATE:
+- `physical_counts.journal_book_id` may be NULL for older count rows → `journal_entries.journal_book_id` FK/NOT-NULL error.
+- Any `stock_adjustments`/`stock_movements`/`journal_entry_lines` check constraint (allow_negative, non-negative debit/credit, movement_type domain) fires as `23514`.
+- Product without `unit_cost_snapshot` where a downstream trigger requires it → NOT-NULL.
 
-## Phase 5 — Frontend architecture
+That means: **fiscal period missing (not closed, just absent) is silently allowed; a NULL journal book crashes with a raw FK; and a fresh org with unmapped accounts hits P0001 correctly but the user still sees the generic string because Defect A applies.** Wait — P0001 *is* surfaced. So on a fresh Supabase project the very first *unmapped-accounts* raise would give the user the real text. If the user instead sees "Some of the information you entered is not valid.", the failure is *past* the P0001 tier and inside an INSERT — most commonly the NULL `journal_book_id` FK or a `stock_movements`/`journal_entry_lines` check constraint.
 
-- **Nav:** add a "Counts" entry (`/inventory-app/physical-counts`) to `nav.ts` Operations group so the workspace is always reachable; keep "New count" → `/count`.
-- **Workspace:** stop sending `p_allow_self`; add a "Recount requested" bucket and clearer state filters; keep it the operational hub.
-- **Detail/wizard:** stop sending `p_allow_self`; wire recount round history into the new Recounts tab; ensure cache invalidation covers workspace + detail + preflight (already mostly present); confirm deep-linking/refresh/back-button all resolve from `useParams` (already the case).
+## 3. Enterprise Behaviour We Are Aligning To
 
-## Phase 6 — Implementation order
+SAP MI07/MI20, Oracle Fusion Cost Accounting, Odoo `stock.valuation.layer`, D365 F&O counting journal post, and NetSuite Inventory Adjustment all share three properties we currently violate:
 
-1. Migration: drop duplicate overloads, harden recount for traceability.
-2. Remove `p_allow_self` from all client RPC calls (wizard, workspace, detail).
-3. Add the nav entry.
-4. Redesign `PhysicalCountDetail` (stepper, next-action card, timeline, Recounts tab, read-only terminal states).
-5. Add the Recount-requested bucket to the workspace.
-6. Verify: clicking Approve succeeds; solo-org self-approval works; strict-org self-approval blocks with a clear message; recount preserves prior rounds. Run the existing `architecture.physical-count-lifecycle` tests plus a browser pass through freeze → submit → approve → post and a recount cycle.
+1. **Preflight gate before Post.** The Post button is only enabled once posting prerequisites (accounts, period, journal, governance) are green; blockers are enumerated with remediation links. We already have `physical_count_preflight` (referenced in the architecture test) but the UI doesn't gate on it.
+2. **Every failure is a named business exception.** Constraint violations are translated into domain messages ("Journal book not configured for warehouse X", "Inventory asset account missing", etc.), never leaked as SQLSTATE.
+3. **Post is idempotent and atomic.** A retry after fixing config must not double-post. Our RPC is already atomic; the outbox ON CONFLICT DO NOTHING covers idempotency.
 
-## Technical notes
-- Overload fix is the single source of the reported error; verified via `pg_get_functiondef` that both signatures exist and the 4-arg default makes them ambiguous under PostgREST named-arg resolution.
-- No change to the ledger/JE posting path, tolerance logic, or `governance_assert_not_self`.
-- Recount history uses existing columns (`recount_qty`, `physical_count_events`) — no new tables required, so no new GRANTs/RLS.
+## 4. Repair Plan (three coordinated changes, no duplication)
+
+### 4.1 SQL — harden `physical_count_post` prerequisite tier (new migration)
+
+Extend the P0001 tier *before* any INSERT so every posting blocker is a business exception with a hint:
+
+- Add: **fiscal period must exist** for CURRENT_DATE (currently only "not closed"). Raise P0001 with hint pointing to Fiscal Periods.
+- Add: **`journal_book_id` resolution**. If `v_c.journal_book_id IS NULL`, resolve the org's default journal book (e.g. code `GEN`, or first active `journal_books` row for business). If still NULL, raise P0001 with hint "configure a General Journal book".
+- Add: **warehouse active** check → P0001.
+- Wrap the INSERT block (147-333) in `BEGIN … EXCEPTION WHEN check_violation | not_null_violation | foreign_key_violation THEN RAISE EXCEPTION '<business message>' USING ERRCODE='P0001', HINT=SQLERRM;` so any residual low-level constraint failure is translated into a business error carrying the real Postgres detail as HINT.
+- Keep the existing `stock_adjustment` created_by rotation (already correct).
+
+Also extend `physical_count_preflight` (same migration) to return the same expanded blocker set, so UI and RPC agree on the contract.
+
+### 4.2 Frontend — surface Postgres detail, and gate the Post button on preflight
+
+**a. Stop swallowing 23xxx errors.** In `PhysicalCountDetail.tsx:350-362` and `PhysicalCountWorkspace.tsx:128-138`, treat any Postgres error object with a `message` AND a `code` matching `/^(P|23|42)/` as a business error and render `message` (+ `hint` in the toast description, + `details` when present). Fall back to `normalizeError` only when there's no Postgres message at all. This is a display-layer fix only — the normalizer stays intact for non-Postgres errors.
+
+**b. Preflight gating.** On `PhysicalCountDetail` (already calls `physical_count_preflight` per the architecture test), disable the Post button when preflight returns blockers and render a compact "Blocking issues" panel with one remediation link per blocker (Default Accounts, Fiscal Periods, Journal Books, Governance). This is the enterprise pattern and prevents users from ever reaching the raw error path in normal flow.
+
+### 4.3 Verification
+
+- New migration compiles; RPC signature unchanged (still 2-arg) so no frontend contract change is needed.
+- Manual: with a fresh org (no default accounts) → Post button is disabled + panel says "Set Inventory & Inventory Adjustment default accounts" with link. Force-clicking Post still returns the same P0001 with the real message rendered.
+- Manual: with accounts mapped but no active journal book → new P0001 "General Journal book not configured".
+- Manual: with everything mapped → posts, creates `stock_adjustments` + `journal_entries` + outbox row, count moves to `posted`.
+- Existing test `src/__tests__/architecture.physical-count-lifecycle.test.ts` continues to pass (no new args, still uses lifecycle RPCs, no client-side JE writes, no `p_allow_self`).
+
+## Technical Details
+
+**Files touched**
+- `supabase/migrations/<new>.sql` — CREATE OR REPLACE `physical_count_post(uuid,uuid)` with the expanded prerequisite tier + wrapped INSERT block; CREATE OR REPLACE `physical_count_preflight` returning the expanded blocker list. GRANT EXECUTE to `authenticated` + `service_role`.
+- `src/pages/inventory/PhysicalCountDetail.tsx` — error mapping in the post mutation catch; render preflight blockers panel; disable Post button when blockers present.
+- `src/pages/inventory/PhysicalCountWorkspace.tsx` — same error-mapping fix on the workspace-level Post action.
+- No changes to `ErrorNormalizer.ts` (still correct for non-Postgres errors), no changes to `useGLPosting` (not on this path), no changes to governance (`governance_assert_not_self` already raises P0001 correctly).
+
+**Governance / SoD**
+Reuses existing `governance_assert_not_self` unchanged. No duplicated governance logic.
+
+**Idempotency**
+`business_event_outbox` ON CONFLICT DO NOTHING already in place; retries after fixing config are safe.
+
+**Out of scope**
+Chart-of-accounts seeding, journal book seeding, and default-account UI already exist elsewhere in the app; this plan links to them from the blockers panel rather than reimplementing.
