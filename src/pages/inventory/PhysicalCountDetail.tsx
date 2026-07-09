@@ -24,6 +24,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -130,6 +136,12 @@ export default function PhysicalCountDetail() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Inline recount entry: lineId -> draft quantity string (while re-counting).
+  const [recountDrafts, setRecountDrafts] = useState<Record<string, string>>({});
+  const [savingLine, setSavingLine] = useState<string | null>(null);
+  // Tolerance override dialog (sandbox-safe replacement for window.prompt).
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
   const { formatCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
 
@@ -354,14 +366,76 @@ export default function PhysicalCountDetail() {
   const handleApprove = () => {
     const flagged = preflight?.checks.tolerance_flags ?? 0;
     if (flagged > 0) {
-      const reason = window.prompt(
-        `${flagged} line(s) exceed tolerance. Type a written override reason to approve anyway, or Cancel to Request Recount instead.`,
-      );
-      if (!reason || !reason.trim()) return;
-      runRpc("approve", { p_tolerance_override_reason: reason.trim() });
+      // Flagged lines that still have no recorded (re)count cannot be
+      // approved-over — they must be recounted first. Only offer the written
+      // override when every flagged line actually has a counted value.
+      const unresolved = lines.filter(
+        (l) => l.status === "recount_required" && l.counted_qty == null,
+      ).length;
+      if (unresolved > 0) {
+        toast.error(
+          `${unresolved} recount-flagged line(s) have no recorded count yet`,
+          { description: "Enter their new counts in the Lines tab, then approve." },
+        );
+        return;
+      }
+      setOverrideReason("");
+      setOverrideOpen(true);
       return;
     }
     runRpc("approve");
+  };
+
+  const confirmOverrideApprove = () => {
+    const reason = overrideReason.trim();
+    if (!reason) return;
+    setOverrideOpen(false);
+    runRpc("approve", { p_tolerance_override_reason: reason });
+  };
+
+  // Record (or re-record) a line's counted quantity. The DB RPC accepts this
+  // while the count is in `counting` OR `in_review`, so a reviewer can resolve
+  // a recount-flagged line in place — clearing `recount_required` and
+  // unblocking approval without a destructive state bounce.
+  const recordRecountLine = async (line: CountLine) => {
+    if (!user?.id || !id) return;
+    const raw = recountDrafts[line.id];
+    if (raw == null || raw.trim() === "") {
+      toast.error("Enter a counted quantity first");
+      return;
+    }
+    const qty = Number(raw);
+    if (!Number.isFinite(qty) || qty < 0) {
+      toast.error("Counted quantity must be a non-negative number");
+      return;
+    }
+    setSavingLine(line.id);
+    try {
+      const { data, error } = await (supabase.rpc as unknown as (
+        n: string, a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>)(
+        "physical_count_record_line",
+        { p_count_id: id, p_product_id: line.product_id, p_counted_qty: qty, p_user_id: user.id },
+      );
+      if (error) throw error;
+      const res = data as { success?: boolean; error?: string } | null;
+      if (res && res.success === false) throw new Error(res.error || "record failed");
+      toast.success(`Recount saved for ${line.products?.name ?? "line"}`);
+      setRecountDrafts((prev) => {
+        const next = { ...prev };
+        delete next[line.id];
+        return next;
+      });
+      qc.invalidateQueries({ queryKey: ["physical-count-lines", id] });
+      qc.invalidateQueries({ queryKey: ["physical-count-preflight", id] });
+      qc.invalidateQueries({ queryKey: ["physical-count-preview-je", id] });
+    } catch (err: unknown) {
+      const e = err as { message?: string; code?: string } | null;
+      const rawMsg = (e?.message || "").trim();
+      toast.error(rawMsg || normalizeError(err).message);
+    } finally {
+      setSavingLine(null);
+    }
   };
 
   const handlePost = () => {
@@ -524,8 +598,23 @@ export default function PhysicalCountDetail() {
                   {lines.map((l) => {
                     const impact = (l.variance_qty || 0) * (l.unit_cost_snapshot || 0);
                     const canSelect = header.state === "in_review";
+                    // A line can be (re)counted in place while the count is
+                    // being counted or reviewed. Recount-flagged or never-
+                    // counted lines are the ones that block approval.
+                    const editable = header.state === "counting" || header.state === "in_review";
+                    const needsCount =
+                      l.counted_qty == null &&
+                      (l.status === "recount_required" || l.status === "pending");
+                    const showEntry = editable && (needsCount || l.status === "recount_required");
                     return (
-                      <TableRow key={l.id} className={l.variance_qty !== 0 ? "" : "opacity-60"}>
+                      <TableRow
+                        key={l.id}
+                        className={
+                          l.status === "recount_required"
+                            ? "bg-amber-50/60"
+                            : l.variance_qty !== 0 ? "" : "opacity-60"
+                        }
+                      >
                         <TableCell>
                           <Checkbox checked={selected.has(l.id)} disabled={!canSelect}
                                     onCheckedChange={() => toggle(l.id)} />
@@ -536,7 +625,38 @@ export default function PhysicalCountDetail() {
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{money(l.system_qty_at_freeze)}</TableCell>
                         <TableCell className="text-right tabular-nums text-xs text-muted-foreground">{money(l.freeze_reconciliation_qty)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{l.counted_qty == null ? "—" : money(l.counted_qty)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {showEntry ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                className="h-8 w-24 text-right"
+                                placeholder={l.counted_qty == null ? "recount" : money(l.counted_qty)}
+                                value={recountDrafts[l.id] ?? ""}
+                                onChange={(e) =>
+                                  setRecountDrafts((prev) => ({ ...prev, [l.id]: e.target.value }))
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") { e.preventDefault(); void recordRecountLine(l); }
+                                }}
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2"
+                                disabled={savingLine === l.id || (recountDrafts[l.id] ?? "").trim() === ""}
+                                onClick={() => void recordRecountLine(l)}
+                              >
+                                {savingLine === l.id
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <ClipboardCheck className="h-3 w-3" />}
+                              </Button>
+                            </div>
+                          ) : (
+                            l.counted_qty == null ? "—" : money(l.counted_qty)
+                          )}
+                        </TableCell>
                         <TableCell className={`text-right tabular-nums font-semibold ${l.variance_qty > 0 ? "text-emerald-600" : l.variance_qty < 0 ? "text-red-600" : ""}`}>
                           {money(l.variance_qty)}
                         </TableCell>
@@ -544,7 +664,14 @@ export default function PhysicalCountDetail() {
                         <TableCell className={`text-right tabular-nums ${impact > 0 ? "text-emerald-600" : impact < 0 ? "text-red-600" : ""}`}>
                           {formatCurrency(impact)}
                         </TableCell>
-                        <TableCell><Badge variant="outline" className="capitalize">{l.status.replace("_", " ")}</Badge></TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={l.status === "recount_required" ? "destructive" : "outline"}
+                            className="capitalize"
+                          >
+                            {l.status.replace("_", " ")}
+                          </Badge>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -749,6 +876,39 @@ export default function PhysicalCountDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={overrideOpen} onOpenChange={setOverrideOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve with tolerance override</DialogTitle>
+            <DialogDescription>
+              {(preflight?.checks.tolerance_flags ?? 0)} line(s) exceed the counting
+              tolerance. Approving now accepts these variances as-is. Provide a written
+              reason — it is recorded permanently in the audit trail.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="override-reason">Override reason</Label>
+            <Textarea
+              id="override-reason"
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              placeholder="e.g. Physical stock verified against supplier delivery note; variance accepted."
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOverrideOpen(false)}>Cancel</Button>
+            <Button
+              disabled={busy || overrideReason.trim().length === 0}
+              onClick={confirmOverrideApprove}
+            >
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Approve with override
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

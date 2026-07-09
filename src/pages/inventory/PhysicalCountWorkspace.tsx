@@ -197,7 +197,9 @@ export default function PhysicalCountWorkspace() {
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => runRpc(c.id, "submit")}>Submit</Button>
                     )}
                     {c.state === "in_review" && (
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => runRpc(c.id, "approve")}>Approve</Button>
+                      <Button size="sm" variant="outline" disabled={busy} asChild>
+                        <Link to={`/inventory-app/physical-counts/${c.id}`}>Review &amp; approve</Link>
+                      </Button>
                     )}
                     {c.state === "approved" && (
                       <Button size="sm" disabled={busy} onClick={() => runRpc(c.id, "post")}>Post</Button>
