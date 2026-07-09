@@ -173,8 +173,8 @@ export default function PhysicalCount() {
    */
   const handleApplyAdjustments = async () => {
     if (!currentOrg?.id || !user?.id) return;
-    const adjustments = varianceLines;
-    if (adjustments.length === 0) {
+    const counted = countedLines;
+    if (varianceLines.length === 0) {
       toast.info("No variances to adjust");
       return;
     }
@@ -200,7 +200,7 @@ export default function PhysicalCount() {
       const frozen = await rpc("physical_count_freeze", { p_count_id: countId, p_user_id: user.id });
       if (frozen.error) throw frozen.error;
 
-      for (const line of adjustments) {
+      for (const line of counted) {
         const rec = await rpc("physical_count_record_line", {
           p_count_id: countId,
           p_product_id: line.product_id,
@@ -210,14 +210,26 @@ export default function PhysicalCount() {
         if (rec.error) throw rec.error;
       }
 
-      const submitted = await rpc("physical_count_submit", { p_count_id: countId, p_user_id: user.id });
+      const submitted = await rpc("physical_count_submit", {
+        p_count_id: countId,
+        p_user_id: user.id,
+        p_allow_self: false,
+      });
       if (submitted.error) throw submitted.error;
 
       toast.success(`Count submitted for review — open the workspace to approve & post`);
       queryClient.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
       window.location.assign(`/inventory/physical-counts/${countId}`);
     } catch (err: any) {
-      toast.error(normalizeError(err).message);
+      const code = (err?.code || "").toString();
+      const rawMsg = (err?.message || "").trim();
+      const isBusinessError =
+        rawMsg.length > 0 && (code === "P0001" || code === "42501" || code.startsWith("P"));
+      if (isBusinessError) {
+        toast.error(rawMsg, err?.hint ? { description: err.hint } : undefined);
+      } else {
+        toast.error(normalizeError(err).message);
+      }
     } finally {
       setIsSubmitting(false);
     }
