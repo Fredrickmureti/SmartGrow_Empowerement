@@ -547,7 +547,7 @@ export default function PhysicalCountDetail() {
               </Table>
               <div className="mt-4 text-xs text-muted-foreground">
                 Net impact: <span className={jePreview.net > 0 ? "text-emerald-600" : jePreview.net < 0 ? "text-red-600" : ""}>
-                  ${money(jePreview.net)}
+                  {formatCurrency(jePreview.net)}
                 </span> across {jePreview.lineCount} variance line{jePreview.lineCount === 1 ? "" : "s"}.
               </div>
 
