@@ -3,6 +3,15 @@
  *
  * Line-level enterprise view over a single physical_counts aggregate.
  * All actions call D2/D4 lifecycle RPCs — no client-side ledger writes.
+ *
+ * The page is organised around the count's WORKFLOW, not around raw data:
+ *  1. Workflow stepper      — where the document is in its lifecycle.
+ *  2. Next-action card       — the single primary action, who does it, and why
+ *                              it may be blocked (plain-English, preflight-fed).
+ *  3. At-a-glance summary    — variance / inventory impact.
+ *  4. Tabs                   — Lines, JE preview, Recounts, Activity, Drill-down.
+ * Terminal states (posted / cancelled / superseded) render as read-only
+ * audit records.
  */
 
 import { useMemo, useState } from "react";
@@ -19,7 +28,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowRight, Loader2, RotateCcw, ShieldAlert, Undo2 } from "lucide-react";
+import {
+  AlertTriangle, ArrowRight, Loader2, RotateCcw, ShieldAlert, Undo2,
+  Snowflake, Send, CheckCircle2, PackageCheck, XCircle, Lock, History,
+  ClipboardCheck, Ban, CircleDot,
+} from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { RecordHeader, ActionBar } from "@/design-system";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -85,8 +98,31 @@ const STATE_STYLES: Record<CountState, string> = {
   superseded: "bg-gray-100 text-gray-800",
 };
 
+// The happy-path lifecycle rendered by the stepper.
+const STAGES: { key: CountState; label: string }[] = [
+  { key: "draft", label: "Draft" },
+  { key: "counting", label: "Counting" },
+  { key: "in_review", label: "In review" },
+  { key: "approved", label: "Approved" },
+  { key: "posted", label: "Posted" },
+];
+
+const TERMINAL: CountState[] = ["posted", "cancelled", "superseded"];
+
 const money = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Human-readable label + icon for each audit event type.
+const EVENT_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
+  created: { label: "Count created", icon: ClipboardCheck },
+  frozen: { label: "Stock frozen", icon: Snowflake },
+  submitted: { label: "Submitted for review", icon: Send },
+  recount_requested: { label: "Recount requested", icon: RotateCcw },
+  approved: { label: "Approved", icon: CheckCircle2 },
+  posted: { label: "Posted to ledger", icon: PackageCheck },
+  cancelled: { label: "Cancelled", icon: Ban },
+  superseded: { label: "Reversed / superseded", icon: Undo2 },
+};
 
 export default function PhysicalCountDetail() {
   const { id } = useParams<{ id: string }>();
@@ -99,7 +135,7 @@ export default function PhysicalCountDetail() {
 
   // Solo governance override — when the org is in "solo" mode and has ≤1
   // active member, self-approval is auto-allowed. Suppress SoD blockers in
-  // the UI and pass p_allow_self=true to the lifecycle RPCs.
+  // the UI. (The DB engine decides authoritatively; this only drives display.)
   const soloQ = useQuery({
     queryKey: ["org-solo-mode", currentOrg?.id],
     enabled: !!currentOrg?.id,
@@ -115,7 +151,6 @@ export default function PhysicalCountDetail() {
     },
   });
   const soloOverride = (soloQ.data?.mode ?? "solo") === "solo" && (soloQ.data?.members ?? 0) <= 1;
-
 
   const headerQ = useQuery({
     queryKey: ["physical-count-detail", id],
@@ -219,8 +254,30 @@ export default function PhysicalCountDetail() {
   const preflight = preflightQ.data;
   const preview = previewQ.data;
 
+  const productName = useMemo(() => {
+    const m = new Map<string, string>();
+    lines.forEach((l) => m.set(l.product_id, l.products?.name ?? l.product_id));
+    return m;
+  }, [lines]);
+
+  // Recount rounds reconstructed from the append-only event stream (oldest → newest).
+  const recountRounds = useMemo(() => {
+    return events
+      .filter((e) => e.event_type === "recount_requested")
+      .map((e) => ({
+        id: e.id,
+        at: e.created_at,
+        actor: e.actor_id,
+        round: (e.payload?.round as number | undefined) ?? null,
+        lineCount: (e.payload?.lines as number | undefined) ?? null,
+        previous: (e.payload?.previous as Array<{
+          line_id: string; product_id: string; previous_qty: number | null; previous_variance: number | null;
+        }> | undefined) ?? [],
+      }))
+      .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  }, [events]);
+
   const jePreview = useMemo(() => {
-    // Prefer server preview; fall back to local computation for zero-latency render.
     if (preview) {
       return {
         surplus: preview.surplus_value,
@@ -256,12 +313,13 @@ export default function PhysicalCountDetail() {
         request_recount: "physical_count_request_recount",
       }[action];
 
+      // NOTE: p_allow_self is intentionally NOT sent. Separation-of-duties is
+      // decided server-side by governance_assert_not_self (governance_mode +
+      // self_action_policy + overrides). Sending it was both dead weight and
+      // the cause of the RPC overload ambiguity that has since been removed.
       const args: Record<string, unknown> = { p_user_id: user.id, ...extra };
       if (action === "supersede") args.p_source_count_id = id;
       else args.p_count_id = id;
-      if (action === "approve" && !("p_allow_self" in args)) args.p_allow_self = soloOverride;
-      if (action === "post" && !("p_allow_self" in args)) args.p_allow_self = soloOverride;
-      if (action === "submit" && !("p_allow_self" in args)) args.p_allow_self = soloOverride;
 
       const { data, error } = await (supabase.rpc as unknown as (
         n: string, a: Record<string, unknown>,
@@ -278,8 +336,6 @@ export default function PhysicalCountDetail() {
       qc.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
       setSelected(new Set());
     } catch (err: unknown) {
-      // Prefer server-supplied business messages (P0001 RAISE, 42501 governance)
-      // over the canned normalizeError catalog so users see the actual reason.
       const e = err as { message?: string; code?: string; hint?: string } | null;
       const code = (e?.code || "").toString();
       const rawMsg = (e?.message || "").trim();
@@ -320,7 +376,6 @@ export default function PhysicalCountDetail() {
     runRpc("post");
   };
 
-
   if (headerQ.isLoading) {
     return <div className="p-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></div>;
   }
@@ -333,6 +388,8 @@ export default function PhysicalCountDetail() {
     next.has(lineId) ? next.delete(lineId) : next.add(lineId);
     setSelected(next);
   };
+
+  const isTerminal = TERMINAL.includes(header.state);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -352,84 +409,68 @@ export default function PhysicalCountDetail() {
         }
         actions={
           <ActionBar>
-            <RefreshButton queryKeyPrefixes={[["physical-count-detail", id] as const, ["physical-count-lines", id] as const, ["physical-count-preflight", id] as const]} tooltip="Refresh" />
-            <TooltipProvider>
-              {header.state === "draft" && (
-                <Button size="sm" disabled={busy} onClick={() => runRpc("freeze")}>Freeze</Button>
-              )}
-              {header.state === "counting" && (
-                <PreflightButton
-                  label="Submit for review"
-                  disabled={busy || (preflight?.checks.uncounted_lines ?? 0) > 0 || (!soloOverride && preflight?.checks.sod_submit_would_block === true)}
-                  reason={
-                    (preflight?.checks.uncounted_lines ?? 0) > 0
-                      ? `${preflight?.checks.uncounted_lines} line(s) still uncounted`
-                      : !soloOverride && preflight?.checks.sod_submit_would_block
-                        ? "You created this count — ask another user to submit"
-                        : undefined
-                  }
-                  onClick={() => runRpc("submit")}
-                />
-              )}
-              {header.state === "in_review" && selected.size > 0 && (
-                <Button size="sm" variant="outline" disabled={busy}
-                        onClick={() => runRpc("request_recount", { p_line_ids: Array.from(selected) })}>
-                  <RotateCcw className="mr-1 h-3 w-3" /> Recount {selected.size}
-                </Button>
-              )}
-              {header.state === "in_review" && (
-                <PreflightButton
-                  label={(preflight?.checks.tolerance_flags ?? 0) > 0 ? `Approve (${preflight?.checks.tolerance_flags} flagged)` : "Approve"}
-                  disabled={busy || (!soloOverride && preflight?.checks.sod_approve_would_block === true)}
-                  reason={!soloOverride && preflight?.checks.sod_approve_would_block ? "Segregation of duties — you created, froze, or submitted this count" : undefined}
-                  icon={(preflight?.checks.tolerance_flags ?? 0) > 0 ? <ShieldAlert className="mr-1 h-3 w-3" /> : undefined}
-                  onClick={handleApprove}
-                />
-              )}
-              {header.state === "approved" && (
-                <PreflightButton
-                  label="Post to ledger"
-                  disabled={
-                    busy ||
-                    !preflight?.checks.period_open ||
-                    !preflight?.checks.inventory_account ||
-                    !preflight?.checks.adjustment_account ||
-                    (!soloOverride && preflight?.checks.sod_post_would_block === true)
-                  }
-                  reason={
-                    !preflight?.checks.period_open ? "Fiscal period is closed"
-                    : !preflight?.checks.inventory_account ? "Default 'inventory' account not mapped"
-                    : !preflight?.checks.adjustment_account ? "Default 'inventory_adjustment' account not mapped"
-                    : !soloOverride && preflight?.checks.sod_post_would_block ? "You approved this count — another user must post"
-                    : undefined
-                  }
-                  onClick={handlePost}
-                />
-              )}
-              {["draft", "counting", "in_review", "approved"].includes(header.state) && (
-                <Button size="sm" variant="destructive" disabled={busy}
-                        onClick={() => runRpc("cancel", { p_reason: "Cancelled from detail workspace" })}>
-                  Cancel
-                </Button>
-              )}
-              {header.state === "posted" && (
-                <Button size="sm" variant="destructive" disabled={busy}
-                        onClick={() => {
-                          const reason = window.prompt("Reason for reversal?", "Reversal");
-                          if (reason) runRpc("supersede", { p_reason: reason });
-                        }}>
-                  <Undo2 className="mr-1 h-3 w-3" /> Reverse
-                </Button>
-              )}
-            </TooltipProvider>
+            <RefreshButton queryKeyPrefixes={[["physical-count-detail", id] as const, ["physical-count-lines", id] as const, ["physical-count-preflight", id] as const, ["physical-count-events", id] as const]} tooltip="Refresh" />
+            {/* Recount is a contextual action available while lines are selected in review. */}
+            {header.state === "in_review" && selected.size > 0 && (
+              <Button size="sm" variant="outline" disabled={busy}
+                      onClick={() => runRpc("request_recount", { p_line_ids: Array.from(selected) })}>
+                <RotateCcw className="mr-1 h-3 w-3" /> Recount {selected.size}
+              </Button>
+            )}
+            {/* Secondary lifecycle actions. The primary next step lives in the Next-action card. */}
+            {["draft", "counting", "in_review", "approved"].includes(header.state) && (
+              <Button size="sm" variant="destructive" disabled={busy}
+                      onClick={() => {
+                        const reason = window.prompt("Reason for cancelling this count?", "Cancelled");
+                        if (reason) runRpc("cancel", { p_reason: reason });
+                      }}>
+                Cancel
+              </Button>
+            )}
+            {header.state === "posted" && (
+              <Button size="sm" variant="destructive" disabled={busy}
+                      onClick={() => {
+                        const reason = window.prompt("Reason for reversal?", "Reversal");
+                        if (reason) runRpc("supersede", { p_reason: reason });
+                      }}>
+                <Undo2 className="mr-1 h-3 w-3" /> Reverse
+              </Button>
+            )}
           </ActionBar>
         }
       />
 
-      {preflight && (header.state === "in_review" || header.state === "approved" || header.state === "counting") && (
-        <PreflightBanner preflight={preflight} suppressSod={soloOverride} />
-      )}
+      <WorkflowStepper state={header.state} />
 
+      <NextActionCard
+        state={header.state}
+        preflight={preflight}
+        soloOverride={soloOverride}
+        busy={busy}
+        selectedCount={selected.size}
+        onFreeze={() => runRpc("freeze")}
+        onSubmit={() => runRpc("submit")}
+        onApprove={handleApprove}
+        onPost={handlePost}
+      />
+
+      {isTerminal && (
+        <Alert className="border-border bg-muted/40">
+          <Lock className="h-4 w-4" />
+          <AlertTitle>
+            {header.state === "posted" ? "Posted — read-only audit record"
+              : header.state === "cancelled" ? "Cancelled — read-only audit record"
+              : "Superseded — read-only audit record"}
+          </AlertTitle>
+          <AlertDescription className="text-sm">
+            {header.state === "posted"
+              ? "Inventory levels and the general ledger have been updated. To change stock, reverse this count or record a new adjustment."
+              : header.state === "cancelled"
+              ? (header.cancellation_reason ? `Reason: ${header.cancellation_reason}` : "This count was cancelled and had no ledger impact.")
+              : "This count was reversed by a later document. Its history is preserved for audit."}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Lines</CardTitle></CardHeader>
@@ -448,7 +489,8 @@ export default function PhysicalCountDetail() {
         <TabsList>
           <TabsTrigger value="lines">Lines ({lines.length})</TabsTrigger>
           <TabsTrigger value="je">JE preview</TabsTrigger>
-          <TabsTrigger value="audit">Audit ({events.length})</TabsTrigger>
+          <TabsTrigger value="recounts">Recounts ({recountRounds.length})</TabsTrigger>
+          <TabsTrigger value="audit">Activity ({events.length})</TabsTrigger>
           <TabsTrigger value="drill">Drill-down</TabsTrigger>
         </TabsList>
 
@@ -457,7 +499,10 @@ export default function PhysicalCountDetail() {
             <CardHeader>
               <CardTitle className="text-base">Count lines</CardTitle>
               <CardDescription>
-                Variance = counted − (system + freeze-window reconciliation). Select rows to request a recount while in review.
+                Variance = counted − (system + freeze-window reconciliation).{" "}
+                {header.state === "in_review"
+                  ? "Select rows and use Recount to send them back for a re-count."
+                  : "Recount selection is available while the count is in review."}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -585,32 +630,92 @@ export default function PhysicalCountDetail() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="recounts">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Recount history</CardTitle>
+              <CardDescription>
+                Every recount round is preserved. Requesting a recount sends the selected
+                lines back for re-counting without discarding the previous figures.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {recountRounds.length === 0 && (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  No recounts requested for this count.
+                </div>
+              )}
+              {recountRounds.map((r) => (
+                <div key={r.id} className="rounded-lg border">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <RotateCcw className="h-4 w-4" />
+                      Round {r.round ?? "?"} · {r.lineCount ?? r.previous.length} line{(r.lineCount ?? r.previous.length) === 1 ? "" : "s"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(r.at).toLocaleString()} · by {r.actor?.slice(0, 8) ?? "—"}
+                    </div>
+                  </div>
+                  {r.previous.length > 0 ? (
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead className="text-right">Previous counted</TableHead>
+                        <TableHead className="text-right">Previous variance</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {r.previous.map((p) => (
+                          <TableRow key={p.line_id}>
+                            <TableCell className="font-medium">{productName.get(p.product_id) ?? p.product_id}</TableCell>
+                            <TableCell className="text-right tabular-nums">{p.previous_qty == null ? "—" : money(p.previous_qty)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{p.previous_variance == null ? "—" : money(p.previous_variance)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="px-4 py-3 text-xs text-muted-foreground">
+                      Previous quantities were not captured for this round.
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="audit">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Event stream</CardTitle>
-              <CardDescription>Append-only audit trail — created, frozen, submitted, approved, posted, reservations, reversals.</CardDescription>
+              <CardTitle className="text-base">Activity timeline</CardTitle>
+              <CardDescription>Append-only audit trail — created, frozen, submitted, recount, approved, posted, reversals.</CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader><TableRow>
-                  <TableHead>When</TableHead>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Actor</TableHead>
-                  <TableHead>Payload</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {events.map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell className="text-xs text-muted-foreground">{new Date(e.created_at).toLocaleString()}</TableCell>
-                      <TableCell><Badge variant="outline">{e.event_type}</Badge></TableCell>
-                      <TableCell className="font-mono text-xs">{e.actor_id?.slice(0, 8) ?? "—"}</TableCell>
-                      <TableCell><pre className="max-w-lg overflow-x-auto text-xs">{JSON.stringify(e.payload, null, 0)}</pre></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <CardContent>
+              {events.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">No activity yet.</div>
+              ) : (
+                <ol className="relative space-y-5 border-l pl-6">
+                  {events.map((e) => {
+                    const meta = EVENT_META[e.event_type] ?? { label: e.event_type.replace(/_/g, " "), icon: CircleDot };
+                    const Icon = meta.icon;
+                    return (
+                      <li key={e.id} className="relative">
+                        <span className="absolute -left-[31px] flex h-6 w-6 items-center justify-center rounded-full border bg-background">
+                          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                        </span>
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="text-sm font-medium">{meta.label}</span>
+                          <span className="text-xs text-muted-foreground">{new Date(e.created_at).toLocaleString()}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Actor {e.actor_id?.slice(0, 8) ?? "system"}
+                          {renderEventDetail(e)}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -648,73 +753,223 @@ export default function PhysicalCountDetail() {
   );
 }
 
-/**
- * PreflightButton — wraps an action button in a Tooltip that surfaces the
- * server-computed reason the action is disabled. Keeps the button reachable
- * for keyboard users even when disabled so the tooltip fires.
- */
-function PreflightButton(props: {
-  label: string;
-  disabled: boolean;
-  reason?: string;
-  icon?: React.ReactNode;
-  onClick: () => void;
-}) {
-  const btn = (
-    <Button size="sm" disabled={props.disabled} onClick={props.onClick}>
-      {props.icon}
-      {props.label}
-    </Button>
-  );
-  if (!props.disabled || !props.reason) return btn;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild><span tabIndex={0}>{btn}</span></TooltipTrigger>
-      <TooltipContent><span className="text-xs">{props.reason}</span></TooltipContent>
-    </Tooltip>
-  );
+/** Compact inline description for an event row. */
+function renderEventDetail(e: CountEvent): React.ReactNode {
+  const p = e.payload ?? {};
+  switch (e.event_type) {
+    case "recount_requested":
+      return ` · round ${(p.round as number) ?? "?"}, ${(p.lines as number) ?? 0} line(s)`;
+    case "submitted":
+      return typeof p.lines_flagged_recount === "number" && p.lines_flagged_recount > 0
+        ? ` · ${p.lines_flagged_recount} line(s) flagged over tolerance`
+        : null;
+    case "approved":
+      return p.tolerance_override_reason
+        ? ` · override: ${String(p.tolerance_override_reason)}`
+        : typeof p.flagged_lines_at_approval === "number" && p.flagged_lines_at_approval > 0
+          ? ` · ${p.flagged_lines_at_approval} flagged at approval`
+          : null;
+    default:
+      return null;
+  }
 }
 
 /**
- * PreflightBanner — enterprise-style status strip summarising the exact
- * blockers between the current state and posting to the ledger.
+ * WorkflowStepper — horizontal lifecycle indicator. Terminal off-path states
+ * (cancelled / superseded) are surfaced distinctly at the end.
  */
-function PreflightBanner({ preflight, suppressSod = false }: {
-  preflight: {
-    checks: {
-      period_open: boolean;
-      period_status: string;
-      inventory_account: boolean;
-      adjustment_account: boolean;
-      tolerance_flags: number;
-      uncounted_lines: number;
-      sod_submit_would_block: boolean;
-      sod_approve_would_block: boolean;
-      sod_post_would_block: boolean;
-    };
-  };
-  suppressSod?: boolean;
-}) {
-  const c = preflight.checks;
-  const issues: string[] = [];
-  if (!c.period_open) issues.push(`Fiscal period ${c.period_status} — reopen in Accounting → Fiscal Periods`);
-  if (!c.inventory_account) issues.push("Default 'inventory' account not mapped");
-  if (!c.adjustment_account) issues.push("Default 'inventory_adjustment' account not mapped");
-  if (c.tolerance_flags > 0) issues.push(`${c.tolerance_flags} line(s) exceed tolerance — recount or approve with an override reason`);
-  if (c.uncounted_lines > 0) issues.push(`${c.uncounted_lines} line(s) still uncounted`);
-  if (!suppressSod && c.sod_approve_would_block) issues.push("SoD: you created / froze / submitted this count and cannot approve it");
-  if (!suppressSod && c.sod_post_would_block) issues.push("SoD: you approved this count and cannot also post it");
+function WorkflowStepper({ state }: { state: CountState }) {
+  const normalized: CountState = state === "counted" ? "counting" : state;
+  const activeIdx =
+    state === "cancelled" || state === "superseded"
+      ? -1
+      : STAGES.findIndex((s) => s.key === normalized);
+  const off = state === "cancelled" || state === "superseded";
 
-  if (issues.length === 0) return null;
   return (
-    <Alert variant="destructive" className="border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-      <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Preflight — action blocked</AlertTitle>
-      <AlertDescription>
-        <ul className="ml-4 list-disc space-y-0.5 text-sm">
-          {issues.map((i) => <li key={i}>{i}</li>)}
-        </ul>
-      </AlertDescription>
-    </Alert>
+    <div className="flex flex-wrap items-center gap-1 rounded-lg border bg-card p-3">
+      {STAGES.map((s, i) => {
+        const done = !off && i < activeIdx;
+        const active = !off && i === activeIdx;
+        return (
+          <div key={s.key} className="flex items-center">
+            <div
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+                active ? "bg-primary text-primary-foreground"
+                  : done ? "bg-emerald-100 text-emerald-800"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : active ? <CircleDot className="h-3.5 w-3.5" /> : <CircleDot className="h-3.5 w-3.5 opacity-40" />}
+              {s.label}
+            </div>
+            {i < STAGES.length - 1 && <ArrowRight className="mx-0.5 h-3 w-3 text-muted-foreground/50" />}
+          </div>
+        );
+      })}
+      {off && (
+        <>
+          <ArrowRight className="mx-0.5 h-3 w-3 text-muted-foreground/50" />
+          <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${STATE_STYLES[state]}`}>
+            {state === "cancelled" ? <Ban className="h-3.5 w-3.5" /> : <Undo2 className="h-3.5 w-3.5" />}
+            {state === "cancelled" ? "Cancelled" : "Superseded"}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+type Preflight = {
+  checks: {
+    period_open: boolean;
+    period_status: string;
+    inventory_account: boolean;
+    adjustment_account: boolean;
+    tolerance_flags: number;
+    uncounted_lines: number;
+    sod_submit_would_block: boolean;
+    sod_approve_would_block: boolean;
+    sod_post_would_block: boolean;
+  };
+};
+
+/**
+ * NextActionCard — the single, prominent driver of the workflow. Explains in
+ * plain English what just happened, what the next step is, who performs it,
+ * and surfaces the exact blocker (from server preflight) when the action can't
+ * proceed. Terminal states render an informational card with no CTA.
+ */
+function NextActionCard({
+  state, preflight, soloOverride, busy, selectedCount,
+  onFreeze, onSubmit, onApprove, onPost,
+}: {
+  state: CountState;
+  preflight: Preflight | undefined;
+  soloOverride: boolean;
+  busy: boolean;
+  selectedCount: number;
+  onFreeze: () => void;
+  onSubmit: () => void;
+  onApprove: () => void;
+  onPost: () => void;
+}) {
+  const c = preflight?.checks;
+
+  const config = (() => {
+    switch (state) {
+      case "draft":
+        return {
+          title: "Ready to freeze",
+          body: "This count is a draft. Freezing snapshots current warehouse stock and opens the count for entry. Anyone with inventory access can do this.",
+          cta: { label: "Freeze & start counting", icon: <Snowflake className="mr-1 h-4 w-4" />, onClick: onFreeze, disabled: busy, reason: undefined as string | undefined },
+        };
+      case "counting":
+      case "counted": {
+        const uncounted = c?.uncounted_lines ?? 0;
+        const sod = !soloOverride && c?.sod_submit_would_block === true;
+        return {
+          title: "Counting in progress",
+          body: "Record a counted quantity for every line, then submit the count for review. The reviewer should be a different person from the counter.",
+          cta: {
+            label: "Submit for review",
+            icon: <Send className="mr-1 h-4 w-4" />,
+            onClick: onSubmit,
+            disabled: busy || uncounted > 0 || sod,
+            reason: uncounted > 0 ? `${uncounted} line(s) still uncounted`
+              : sod ? "You created this count — ask another user to submit"
+              : undefined,
+          },
+        };
+      }
+      case "in_review": {
+        const flagged = c?.tolerance_flags ?? 0;
+        const sod = !soloOverride && c?.sod_approve_would_block === true;
+        return {
+          title: "Awaiting approval",
+          body: flagged > 0
+            ? `${flagged} line(s) exceed tolerance. Select them and Request Recount, or approve with a written override reason. Approval must come from someone who did not create, freeze, or submit this count.`
+            : "A reviewer approves the variances, or selects lines and requests a recount. Approval must come from someone who did not create, freeze, or submit this count."
+            + (selectedCount > 0 ? ` (${selectedCount} line(s) selected for recount — use the Recount button above.)` : ""),
+          cta: {
+            label: flagged > 0 ? `Approve (${flagged} flagged)` : "Approve",
+            icon: flagged > 0 ? <ShieldAlert className="mr-1 h-4 w-4" /> : <CheckCircle2 className="mr-1 h-4 w-4" />,
+            onClick: onApprove,
+            disabled: busy || sod,
+            reason: sod ? "Segregation of duties — you created, froze, or submitted this count" : undefined,
+          },
+        };
+      }
+      case "approved": {
+        const blocked =
+          !c?.period_open ? "Fiscal period is closed — reopen it in Accounting → Fiscal Periods"
+          : !c?.inventory_account ? "Default 'inventory' account not mapped"
+          : !c?.adjustment_account ? "Default 'inventory_adjustment' account not mapped"
+          : (!soloOverride && c?.sod_post_would_block) ? "You approved this count — another user must post it"
+          : undefined;
+        return {
+          title: "Approved — ready to post",
+          body: "Posting writes the stock adjustment and the general-ledger journal entry. The poster must be different from the approver.",
+          cta: {
+            label: "Post to ledger",
+            icon: <PackageCheck className="mr-1 h-4 w-4" />,
+            onClick: onPost,
+            disabled: busy || !!blocked,
+            reason: blocked,
+          },
+        };
+      }
+      case "posted":
+        return { title: "Completed", body: "Inventory and the general ledger have been updated. This count is now a read-only audit record.", cta: null };
+      case "cancelled":
+        return { title: "Cancelled", body: "This count was cancelled and has no ledger impact.", cta: null };
+      case "superseded":
+        return { title: "Superseded", body: "This count was reversed by a later document and is retained for audit.", cta: null };
+      default:
+        return { title: "", body: "", cta: null };
+    }
+  })();
+
+  const StatusIcon = state === "posted" ? PackageCheck
+    : state === "cancelled" ? XCircle
+    : state === "superseded" ? Undo2
+    : CircleDot;
+
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-5">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+            <StatusIcon className="h-4.5 w-4.5 text-foreground" />
+          </span>
+          <div>
+            <div className="text-sm font-semibold">{config.title}</div>
+            <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">{config.body}</p>
+          </div>
+        </div>
+        {config.cta && (
+          <div className="shrink-0">
+            <TooltipProvider>
+              {config.cta.disabled && config.cta.reason ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>
+                      <Button disabled onClick={config.cta.onClick}>
+                        {config.cta.icon}{config.cta.label}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent><span className="text-xs">{config.cta.reason}</span></TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button disabled={config.cta.disabled} onClick={config.cta.onClick}>
+                  {config.cta.icon}{config.cta.label}
+                </Button>
+              )}
+            </TooltipProvider>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

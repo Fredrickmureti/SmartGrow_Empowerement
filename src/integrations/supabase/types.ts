@@ -65860,24 +65860,15 @@ export type Database = {
         Args: { _payslip_id: string }
         Returns: boolean
       }
-      physical_count_approve:
-        | {
-            Args: {
-              p_allow_self?: boolean
-              p_count_id: string
-              p_user_id: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_allow_self?: boolean
-              p_count_id: string
-              p_tolerance_override_reason?: string
-              p_user_id: string
-            }
-            Returns: Json
-          }
+      physical_count_approve: {
+        Args: {
+          p_allow_self?: boolean
+          p_count_id: string
+          p_tolerance_override_reason?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       physical_count_cancel: {
         Args: { p_count_id: string; p_reason: string; p_user_id: string }
         Returns: Json
@@ -65899,16 +65890,10 @@ export type Database = {
         Args: { p_count_id: string; p_user_id: string }
         Returns: Json
       }
-      physical_count_post:
-        | { Args: { p_count_id: string; p_user_id: string }; Returns: Json }
-        | {
-            Args: {
-              p_allow_self?: boolean
-              p_count_id: string
-              p_user_id: string
-            }
-            Returns: Json
-          }
+      physical_count_post: {
+        Args: { p_allow_self?: boolean; p_count_id: string; p_user_id: string }
+        Returns: Json
+      }
       physical_count_preflight: {
         Args: { p_count_id: string; p_user_id: string }
         Returns: Json
@@ -65929,16 +65914,10 @@ export type Database = {
         Args: { p_count_id: string; p_line_ids: string[]; p_user_id: string }
         Returns: Json
       }
-      physical_count_submit:
-        | { Args: { p_count_id: string; p_user_id: string }; Returns: Json }
-        | {
-            Args: {
-              p_allow_self?: boolean
-              p_count_id: string
-              p_user_id: string
-            }
-            Returns: Json
-          }
+      physical_count_submit: {
+        Args: { p_allow_self?: boolean; p_count_id: string; p_user_id: string }
+        Returns: Json
+      }
       physical_count_supersede: {
         Args: {
           p_reason?: string

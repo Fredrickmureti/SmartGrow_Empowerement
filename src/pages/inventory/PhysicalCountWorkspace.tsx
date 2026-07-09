@@ -116,9 +116,6 @@ export default function PhysicalCountWorkspace() {
 
       const args: Record<string, unknown> = { p_count_id: id, p_user_id: user.id };
       if (action === "cancel") args.p_reason = "Cancelled from workspace";
-      if (action === "submit") args.p_allow_self = false;
-      if (action === "approve") args.p_allow_self = false;
-      if (action === "post") args.p_allow_self = false;
 
       const { data, error } = await (supabase.rpc as unknown as (
         name: string, args: Record<string, unknown>
