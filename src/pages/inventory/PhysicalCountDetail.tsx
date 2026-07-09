@@ -23,6 +23,8 @@ import { AlertTriangle, ArrowRight, Loader2, RotateCcw, ShieldAlert, Undo2 } fro
 import { normalizeError } from "@/services/resilience";
 import { RecordHeader, ActionBar } from "@/design-system";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { useCurrency } from "@/hooks/useCurrency";
+import { useOrganization } from "@/hooks/useOrganization";
 
 type CountState =
   | "draft" | "counting" | "counted" | "in_review"
