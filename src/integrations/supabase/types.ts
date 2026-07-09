@@ -58849,6 +58849,16 @@ export type Database = {
         }
         Returns: string
       }
+      _resolve_canonical_default_account: {
+        Args: {
+          p_as_of?: string
+          p_branch_id?: string
+          p_business_id: string
+          p_org_id: string
+          p_setting_key: string
+        }
+        Returns: string
+      }
       _resolve_invoice_gl_accounts: {
         Args: {
           p_business_id: string
