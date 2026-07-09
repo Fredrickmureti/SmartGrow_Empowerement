@@ -884,7 +884,7 @@ export default function PhysicalCountDetail() {
             <CardContent className="space-y-2">
               {header.posted_journal_entry_id ? (
                 <Button asChild variant="outline">
-                  <Link to={`/reports/journal?entry=${header.posted_journal_entry_id}`}>
+                  <Link to={`/finance/journal-entries/${header.posted_journal_entry_id}`}>
                     Open journal entry <ArrowRight className="ml-1 h-3 w-3" />
                   </Link>
                 </Button>
