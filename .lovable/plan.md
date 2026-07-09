@@ -1,76 +1,73 @@
+## Root cause of the "Post to ledger" failure
 
-# Physical Count — Enterprise Hardening (continuation)
+`physical_count_post` creates a `stock_adjustments` row with `created_by = p_user_id` (the poster), then in the same call updates it to `status = 'approved'` with `approved_by = p_user_id`. The BEFORE-UPDATE trigger `guard_stock_adjustment_self_approval` runs `governance_assert_not_self(approved_by, created_by, ...)` — since both equal the poster, it raises `ERRCODE 42501` (permission denied). PostgREST returns HTTP 400. On the client, `normalizeError` maps 42501 → the canned "Not allowed / permission denied" text (and in this project, without a `status` on the error object, falls through to `unknown` → "An unexpected error occurred"). That's why the toast is generic and the console is empty.
 
-Prior turn shipped the D2 lifecycle RPCs (`physical_count_create/record_line/freeze/submit/approve/post/cancel/request_recount/supersede`), D4 reservation soft-locks, mirror-sign reversal via `physical_count_supersede`, and a workspace + detail UI. Architecture guards pass. Below is what remains to reach SAP/Oracle/Odoo parity while staying country-agnostic.
+SoD is already fully enforced at the `physical_counts` layer (creator ≠ submitter ≠ approver ≠ poster, with server-side preflight and explicit override). Re-enforcing SoD on the *derived* `stock_adjustments` row via poster-vs-poster is a false positive — that row is a machine-emitted side-effect of the count post, not an independent adjustment.
 
-## Gaps found in verification
+## Second issue
 
-1. **No Segregation of Duties enforcement.** `physical_count_submit → approve → post` don't check that submitter ≠ approver ≠ poster, and don't consult `self_action_policy` / `self_action_overrides`. Any single user can drive a count from freeze to posted.
-2. **Tolerance flagging exists but doesn't gate approval.** `_apply_tolerance_flags` marks `lines.status='over_tolerance'`, but `physical_count_approve` and `physical_count_post` don't block or require justification when flagged lines remain uncleared (recount / override).
-3. **No approval-rule integration.** `approval_rules` / `approval_requests` are not consulted for high-value variance thresholds — unlike stock adjustments, which route through `apply_or_request_stock_adjustment`.
-4. **Fiscal period + GL account preflight missing.** `physical_count_post` will raise deep inside `post_journal_entry_atomic` if the period is closed or the shrinkage/surplus accounts aren't mapped. No user-facing preflight in the RPC or the UI.
-5. **Valuation preview is qty × snapshot cost only.** No FIFO/AVCO layer-level preview; UI shows net impact but not per-account breakdown or the actual JE lines that will be posted.
-6. **No cycle-count / ABC scheduler.** `count_type` column exists but there is no recurring cycle-count generator, no ABC classification driver, no "next due" surface — enterprise systems require this.
-7. **Cross-module blocking is partial.** Freeze creates soft reservations, but POS `create_pos_sale_atomic`, `confirm_invoice_and_release_stock_atomic`, and `receive_goods_atomic` do not check for a *frozen* physical count on the affected warehouse/product; they'll compete with the reservation and can succeed silently in edge cases.
-8. **Legacy shim still callable.** `apply_physical_count_atomic` remains as a public RPC. It should either be dropped or made a hard-error stub to prevent regressions.
-9. **UI gaps in workspace/detail.**
-   - No "Financial impact preview" modal showing the exact JE the post will produce (per account, per line).
-   - No tolerance / SoD indicators on the action bar (button is enabled but RPC will reject).
-   - No cycle-count schedule surface, no ABC filter, no "counts due" widget on the inventory dashboard.
-   - No inline recount workflow (currently only bulk-select "Request recount" — no line-level counter input in review state).
-   - No linkage from the ledger drill-down to the reversing JE when `supersede` is used.
-10. **Missing pgTAP tests.** `supabase/tests/inventory-adjustment-gl.sql` exists but there is no `physical-count-lifecycle.sql` covering SoD, tolerance gating, reservation release, supersede, and period-closed rejection.
+`src/pages/inventory/CycleCountSchedules.tsx` exposes internal identifiers to end users:
+- Title/description says "draft `physical_counts` row via `generate_due_cycle_counts()`" — table and function names in the UI.
+- Sheet description mentions `next_run_at` and `pg_cron`.
+- Header caption uses "cycle counts feed draft physical-counts into your workspace" — jargon.
+- Nothing explains what cycle counting is, what a cadence means, what tolerance does, what "scope" filters, or what happens when it runs.
 
-## Deliverables
+## Fix
 
-### Migration `2026-07-08 D5 — SoD, tolerance-gated approval, preflight`
-- Add `physical_count_events` rows for every state transition with `actor_user_id` (already partially present — normalize).
-- Enforce SoD inside `physical_count_submit/approve/post`: reject if `actor = created_by / submitted_by / approved_by` unless `self_action_overrides` has an active grant for the actor+action. Reuse `has_self_action_override(_user, _action, _entity)` helper (create if absent) rather than duplicating logic.
-- `physical_count_approve` and `physical_count_post`: reject when any line status is `over_tolerance` unless (a) an accompanying `p_tolerance_override_reason` is provided AND (b) actor has `physical_count.override_tolerance` permission (new capability).
-- Preflight in `physical_count_post`: assert (i) fiscal period for `posted_at::date` is `open`, (ii) `default_accounts` for `inventory_asset`, `inventory_shrinkage`, `inventory_surplus` all resolve for the org/business. Raise a `P0001` with a stable code (`E_PC_PERIOD_CLOSED`, `E_PC_ACCOUNT_MISSING`) so the UI can render actionable messages.
-- Emit `approval_requests` when variance value ≥ business-configurable threshold (`inventory_settings.pc_auto_approve_below`). Add table `inventory_settings` if absent (single row per business) — otherwise reuse `businesses.settings jsonb`.
+### 1. Unblock the post (migration)
 
-### Migration `2026-07-08 D6 — cross-module freeze awareness`
-- New helper `is_product_frozen(_org, _business, _wh, _product) → boolean`.
-- Update `create_pos_sale_atomic`, `confirm_invoice_and_release_stock_atomic`, `receive_goods_atomic`, `complete_delivery_atomic`, `create_stock_transfer_atomic`, and `approve_stock_adjustment_atomic` to call the helper and raise `E_PC_WAREHOUSE_FROZEN` (POS treats it as a soft-fail with a manager-override path already implemented via `pos_manager_overrides`).
+Rewrite `physical_count_post` so the auto-generated `stock_adjustments` row records the true actors and does not trip SoD:
 
-### Migration `2026-07-08 D7 — cycle count scheduler`
-- Table `cycle_count_schedules` (business_id, warehouse_id, abc_class, cadence_days, next_due_at, active).
-- Function `generate_due_cycle_counts()` (runnable from a scheduled edge function) that inserts `physical_counts` rows in `draft` state for each due schedule, seeding lines from ABC-classified products only.
-- Materialised view `product_abc_classification` (based on 12-mo COGS by product) refreshed nightly.
+- `created_by := v_c.approved_by` (the approver of the count is the operational "creator" of the derived adjustment)
+- `approved_by := p_user_id` (the poster)
+- Because the physical-count lifecycle already guarantees `approved_by ≠ posted_by` (SoD in `physical_count_post` itself, unless `p_allow_self`), `approved_by ≠ created_by` on the derived row, so `guard_stock_adjustment_self_approval` passes.
+- Fallback: if `v_c.approved_by IS NULL` (should not happen in `approved` state) or equals `p_user_id` (self-override path), stamp `created_by := COALESCE(v_c.submitted_by, v_c.created_by, p_user_id)` and, if still equal, set a session-local bypass `SET LOCAL app.governance_self_bypass = 'physical_count_post'` and have the guard honour it (narrow, auditable, mirrors the existing `app.physical_count_freeze_override` pattern).
 
-### Migration `2026-07-08 D8 — retire shim`
-- `DROP FUNCTION apply_physical_count_atomic(...) CASCADE;` (all callers already migrated per architecture guard).
+Preferred: use the actor-reassignment approach (no new bypass flag) — cleaner and still passes SoD in the self-override edge case because we explicitly log the override in `physical_count_events.payload.allow_self`.
 
-### Frontend
-- `PhysicalCountDetail.tsx`
-  - New "Financial Impact" side panel: fetches previewed JE via new read-only RPC `physical_count_preview_je(count_id)` returning `[{account_id, account_code, account_name, debit, credit}]`. Show per-account totals + expandable per-line breakdown.
-  - Action bar: show badges when SoD would block, when tolerance override needed, when period closed, when accounts unmapped — disable the offending action and show a tooltip explaining why (pre-check via `physical_count_preflight(count_id)` new RPC).
-  - Inline recount input: for lines flagged `recount_requested`, expose a numeric input that calls `physical_count_record_line` with `p_is_recount := true`.
-  - Ledger drill-down: when `state='reversed'` show both the original and reversing JE side by side.
-- `PhysicalCountWorkspace.tsx`
-  - Filters for `count_type` (full / cycle / spot) and `abc_class`.
-  - "Due today" and "Overdue" tabs backed by the cycle-count scheduler.
-- `InventoryDashboard.tsx`
-  - New KPI card: open counts, overdue cycle counts, unposted variance value.
-- Retire the legacy wizard `PhysicalCount.tsx` (523 lines) — replace with a thin creator that calls `physical_count_create` and redirects to `/inventory/physical-counts/:id`. Keep the file as a redirect for one release then delete.
+Also: surface a clearer, deterministic error on the RPC — wrap the `UPDATE stock_adjustments ... approved` in an exception handler that re-raises with a business-facing message ("The generated inventory adjustment could not be approved — …").
 
-### Tests
-- `supabase/tests/physical-count-lifecycle.sql` (pgTAP): SoD rejects same-user submit→approve→post; tolerance flag blocks approve until override; supersede posts mirror-sign JE with `is_reversal=true`; freeze releases reservations on post AND cancel; cross-module POS sale on frozen warehouse rejects.
-- `src/test/architecture/physical-count-lifecycle.test.ts`: extend to assert no client calls `apply_physical_count_atomic` (already covered) AND no UI writes to `physical_count_events` directly AND `physical_count_preview_je` is only read from the detail panel.
-- `src/test/architecture/inventory-cross-module-freeze.test.ts`: new guard scanning the D6 RPC bodies for the `is_product_frozen` check.
+### 2. Improve client error surfacing
 
-## Sequencing
+In `PhysicalCountDetail.runRpc`, when `error.message` from Supabase contains a business message (P0001 / 42501 raises), pass it through instead of the canned catalog text. Do this narrowly: if the Supabase error has a non-empty `message` and (`code` starts with `P` or `code = '42501'`), show that message directly via `toast.error(err.message)`. Keep `normalizeError` for network/auth/unknown categories.
 
-1. D5 migration + preflight/preview RPCs.
-2. Detail page: financial-impact panel, preflight badges, inline recount.
-3. D6 migration + cross-module architecture test.
-4. D7 scheduler + dashboard/workspace surfaces.
-5. D8 shim retirement + legacy wizard removal.
-6. pgTAP + architecture tests, then Playwright checklist for staging QA (documented, not executed in sandbox).
+### 3. Rewrite `CycleCountSchedules.tsx` in business language
 
-## Out of scope
+No more table names, function names, or column names in the UI. Replace with plain English an inventory manager understands.
 
-- Multi-warehouse consolidation counts (deferred — needs UX design).
-- Manufacturing back-flush interactions (no MRP module active yet).
-- Handheld / RF-gun counting flow (hardware track owns this).
+- **Page header:**
+  Title: "Cycle counting"
+  Subtitle: "Automatically schedule small, recurring stock counts so you never rely on a single year-end count. Each schedule picks a warehouse and a rotation, and drops a ready-to-count worksheet into Physical Counts on its due date."
+- **Toolbar buttons:**
+  "Run now" (was "Run due now") with tooltip "Check every active schedule and create today's count worksheets immediately, instead of waiting for the overnight run."
+  "New schedule".
+- **Empty state:** "No cycle counts scheduled yet. Create a schedule to have the system automatically prepare count worksheets on a rhythm — e.g. count your A-class items every week, everything else every quarter."
+- **Table caption (replaces the code sentence):** "Schedules run automatically overnight. Use *Run now* to generate today's worksheets on demand."
+- **Column tweaks:** "Cadence" → "How often"; "Scope" → "What to count" with human labels ("Entire warehouse", "A-class items", "Category: <name>", "Selected products"); "Next run" → "Next count due"; "Last run" → "Last generated".
+- **Create/edit sheet:**
+  - Title: "New cycle count schedule" / "Edit cycle count schedule".
+  - Description: "Cycle counting means counting a slice of your stock on a regular rhythm instead of shutting the warehouse for a full count. Configure how often to count, what to count, and how large a variance is acceptable before requiring investigation."
+  - Field help text:
+    - Name — "A label your team will recognise, e.g. *Weekly A-class — Main warehouse*."
+    - Warehouse — "Which warehouse this rotation applies to."
+    - How often — "How frequently the system should generate a new count worksheet."
+    - What to count — options relabelled ("The entire warehouse", "Only A/B/C class items", "A specific product category", "A hand-picked product list").
+    - Tolerance % — "Variances smaller than this are auto-accepted. Larger variances are flagged for review before posting."
+    - Tolerance value — "Same idea, but as a money amount. Use whichever suits the products in scope."
+    - Auto-freeze on generation — "When on, the worksheet skips 'Draft' and locks stock immediately so counters can start straight away. Leave off if you want a supervisor to review before locking stock."
+    - Active — "Paused schedules stop generating new count worksheets."
+
+### 4. Guards / tests
+
+- Update `src/__tests__/architecture.physical-count-lifecycle.test.ts` (or add a sibling test) to assert `CycleCountSchedules.tsx` contains no raw identifiers: no `physical_counts`, no `generate_due_cycle_counts`, no `next_run_at`, no `pg_cron`, no backticks around code identifiers.
+- Add a pgTAP-style or SQL smoke test in `supabase/tests/` (if the folder is used) that: creates a count, freezes, counts a line, submits with user A, approves with user B, posts with user C, and asserts the derived `stock_adjustments` row lands `status='approved'` without the SoD trigger raising.
+
+## Technical details
+
+Files touched:
+- New migration `supabase/migrations/<ts>_physical_count_post_sod_fix.sql` — CREATE OR REPLACE `physical_count_post(p_count_id, p_user_id, p_allow_self)`, only the block that INSERTs `stock_adjustments` and UPDATEs it to approved is changed; also improves the error message on the approval UPDATE.
+- `src/pages/inventory/PhysicalCountDetail.tsx` — refine `runRpc` catch to prefer server-supplied P0001/42501 message.
+- `src/pages/inventory/CycleCountSchedules.tsx` — copy overhaul only (no logic change).
+- `src/__tests__/architecture.cycle-count-copy.test.ts` (new) — string-level guard against jargon regressions.
+
+Non-goals: no changes to `_pc_immutable_after_post`, `enforce_physical_count_freeze`, `physical_count_preflight`, `physical_count_preview_je`, or the D6/D7/D8 scope. No new RLS. No schema changes.
