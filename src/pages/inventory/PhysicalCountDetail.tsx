@@ -534,8 +534,8 @@ export default function PhysicalCountDetail() {
                   {preview && (preview.surplus_value > 0 || preview.shrinkage_value > 0) ? preview.journal_lines.map((jl, i) => (
                     <TableRow key={i}>
                       <TableCell className="font-mono text-xs">{jl.account}</TableCell>
-                      <TableCell className="text-right tabular-nums">{jl.debit > 0 ? `$${money(jl.debit)}` : "—"}</TableCell>
-                      <TableCell className="text-right tabular-nums">{jl.credit > 0 ? `$${money(jl.credit)}` : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{jl.debit > 0 ? formatCurrency(jl.debit) : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{jl.credit > 0 ? formatCurrency(jl.credit) : "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{jl.purpose}</TableCell>
                     </TableRow>
                   )) : (
