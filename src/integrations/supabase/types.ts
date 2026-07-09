@@ -33209,6 +33209,66 @@ export type Database = {
           },
         ]
       }
+      physical_count_post_reconciliations: {
+        Row: {
+          business_id: string
+          count_id: string
+          final_variance_qty: number
+          id: string
+          line_id: string
+          movement_cutoff: string | null
+          organization_id: string
+          posted_at: string
+          posted_by: string | null
+          product_id: string
+          reconciled_qty: number
+          warehouse_id: string
+        }
+        Insert: {
+          business_id: string
+          count_id: string
+          final_variance_qty?: number
+          id?: string
+          line_id: string
+          movement_cutoff?: string | null
+          organization_id: string
+          posted_at?: string
+          posted_by?: string | null
+          product_id: string
+          reconciled_qty?: number
+          warehouse_id: string
+        }
+        Update: {
+          business_id?: string
+          count_id?: string
+          final_variance_qty?: number
+          id?: string
+          line_id?: string
+          movement_cutoff?: string | null
+          organization_id?: string
+          posted_at?: string
+          posted_by?: string | null
+          product_id?: string
+          reconciled_qty?: number
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physical_count_post_reconciliations_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "physical_counts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physical_count_post_reconciliations_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "physical_count_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       physical_count_tolerance_policies: {
         Row: {
           business_id: string
