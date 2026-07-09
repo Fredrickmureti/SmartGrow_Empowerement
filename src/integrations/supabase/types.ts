@@ -65891,7 +65891,7 @@ export type Database = {
         Returns: Json
       }
       physical_count_post: {
-        Args: { p_allow_self?: boolean; p_count_id: string; p_user_id: string }
+        Args: { p_count_id: string; p_user_id: string }
         Returns: Json
       }
       physical_count_preflight: {
