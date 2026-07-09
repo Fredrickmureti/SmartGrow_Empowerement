@@ -238,7 +238,7 @@ export default function PhysicalCountWorkspace() {
               tooltip="Refresh"
             />
             <Button asChild>
-              <Link to="/inventory/count">
+              <Link to="/inventory-app/count">
                 <ClipboardCheck className="mr-2 h-4 w-4" /> New count
               </Link>
             </Button>
