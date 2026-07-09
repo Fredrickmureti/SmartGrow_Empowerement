@@ -20,6 +20,7 @@ import {
   Hourglass,
   Warehouse,
   Scale,
+  CalendarClock,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
@@ -36,6 +37,7 @@ export const INVENTORY_NAV: WorkspaceNav = {
         { to: "/inventory-app/forecast", label: "Forecast", icon: TrendingUp },
         { to: "/inventory-app/scrap", label: "Scrap", icon: Trash2 },
         { to: "/inventory-app/count", label: "Physical count", icon: ClipboardCheck },
+        { to: "/inventory-app/cycle-schedules", label: "Cycle schedules", icon: CalendarClock },
       ],
     },
     {

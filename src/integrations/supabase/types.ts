@@ -9960,6 +9960,86 @@ export type Database = {
           },
         ]
       }
+      cycle_count_schedules: {
+        Row: {
+          abc_class: string | null
+          active: boolean
+          auto_freeze: boolean
+          branch_id: string | null
+          business_id: string | null
+          cadence: string
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          last_generated_count_id: string | null
+          last_run_at: string | null
+          name: string
+          next_run_at: string
+          organization_id: string
+          product_ids: string[] | null
+          scope_type: string
+          tolerance_pct: number | null
+          tolerance_value: number | null
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          abc_class?: string | null
+          active?: boolean
+          auto_freeze?: boolean
+          branch_id?: string | null
+          business_id?: string | null
+          cadence: string
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_generated_count_id?: string | null
+          last_run_at?: string | null
+          name: string
+          next_run_at?: string
+          organization_id: string
+          product_ids?: string[] | null
+          scope_type?: string
+          tolerance_pct?: number | null
+          tolerance_value?: number | null
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          abc_class?: string | null
+          active?: boolean
+          auto_freeze?: boolean
+          branch_id?: string | null
+          business_id?: string | null
+          cadence?: string
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_generated_count_id?: string | null
+          last_run_at?: string | null
+          name?: string
+          next_run_at?: string
+          organization_id?: string
+          product_ids?: string[] | null
+          scope_type?: string
+          tolerance_pct?: number | null
+          tolerance_value?: number | null
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycle_count_schedules_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       default_account_mapping_audit: {
         Row: {
           action: string
@@ -58881,6 +58961,10 @@ export type Database = {
         Args: { _proposal_id: string }
         Returns: Json
       }
+      advance_cycle_count_next_run: {
+        Args: { _cadence: string; _from: string }
+        Returns: string
+      }
       amend_contract: {
         Args: {
           p_changes: Json
@@ -58930,16 +59014,6 @@ export type Database = {
       }
       apply_pack_upgrade_atomic: {
         Args: { _proposal_id: string }
-        Returns: Json
-      }
-      apply_physical_count_atomic: {
-        Args: {
-          p_business_id: string
-          p_lines: Json
-          p_organization_id: string
-          p_user_id: string
-          p_warehouse_id: string
-        }
         Returns: Json
       }
       apply_project_template: {
@@ -62520,6 +62594,14 @@ export type Database = {
       gc_payroll_readiness_findings: {
         Args: { p_org_id: string }
         Returns: number
+      }
+      generate_due_cycle_counts: {
+        Args: { p_now?: string }
+        Returns: {
+          count_id: string
+          count_number: string
+          schedule_id: string
+        }[]
       }
       generate_invoice_number: {
         Args: {

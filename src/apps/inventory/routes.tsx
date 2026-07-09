@@ -29,6 +29,7 @@ const ScrapNew = lazy(() => import("@/pages/inventory/ScrapNew"));
 const PhysicalCount = lazy(() => import("@/pages/inventory/PhysicalCount"));
 const PhysicalCountWorkspace = lazy(() => import("@/pages/inventory/PhysicalCountWorkspace"));
 const PhysicalCountDetail = lazy(() => import("@/pages/inventory/PhysicalCountDetail"));
+const CycleCountSchedules = lazy(() => import("@/pages/inventory/CycleCountSchedules"));
 const Transfers = lazy(() => import("@/pages/inventory/Transfers"));
 const TransferNew = lazy(() => import("@/pages/inventory/TransferNew"));
 const Forecast = lazy(() => import("@/pages/inventory/Forecast"));
@@ -287,6 +288,16 @@ export function InventoryApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Physical Count Detail">
                 <PhysicalCountDetail />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="cycle-schedules"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Cycle Count Schedules">
+                <CycleCountSchedules />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
