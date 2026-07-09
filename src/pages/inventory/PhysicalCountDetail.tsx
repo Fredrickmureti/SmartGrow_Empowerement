@@ -347,7 +347,7 @@ export default function PhysicalCountDetail() {
             <span>·</span>
             <span className="capitalize">{header.count_type}</span>
             {header.tolerance_pct != null && <><span>·</span><span>tol {header.tolerance_pct}%</span></>}
-            {header.tolerance_value != null && <><span>·</span><span>tol ${money(header.tolerance_value)}</span></>}
+            {header.tolerance_value != null && <><span>·</span><span>tol {formatCurrency(header.tolerance_value)}</span></>}
           </div>
         }
         actions={
