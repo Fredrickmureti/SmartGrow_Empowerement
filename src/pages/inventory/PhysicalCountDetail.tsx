@@ -23,6 +23,8 @@ import { AlertTriangle, ArrowRight, Loader2, RotateCcw, ShieldAlert, Undo2 } fro
 import { normalizeError } from "@/services/resilience";
 import { RecordHeader, ActionBar } from "@/design-system";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { useCurrency } from "@/hooks/useCurrency";
+import { useOrganization } from "@/hooks/useOrganization";
 
 type CountState =
   | "draft" | "counting" | "counted" | "in_review"
@@ -92,6 +94,28 @@ export default function PhysicalCountDetail() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { formatCurrency } = useCurrency();
+  const { currentOrg } = useOrganization();
+
+  // Solo governance override — when the org is in "solo" mode and has ≤1
+  // active member, self-approval is auto-allowed. Suppress SoD blockers in
+  // the UI and pass p_allow_self=true to the lifecycle RPCs.
+  const soloQ = useQuery({
+    queryKey: ["org-solo-mode", currentOrg?.id],
+    enabled: !!currentOrg?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const [{ data: org }, { count }] = await Promise.all([
+        supabase.from("organizations").select("governance_mode").eq("id", currentOrg!.id).maybeSingle(),
+        supabase.from("user_roles").select("user_id", { count: "exact", head: true })
+          .eq("organization_id", currentOrg!.id).eq("is_active", true),
+      ]);
+      const mode = (org as { governance_mode?: string } | null)?.governance_mode ?? "solo";
+      return { mode, members: count ?? 0 };
+    },
+  });
+  const soloOverride = (soloQ.data?.mode ?? "solo") === "solo" && (soloQ.data?.members ?? 0) <= 1;
+
 
   const headerQ = useQuery({
     queryKey: ["physical-count-detail", id],
@@ -235,9 +259,9 @@ export default function PhysicalCountDetail() {
       const args: Record<string, unknown> = { p_user_id: user.id, ...extra };
       if (action === "supersede") args.p_source_count_id = id;
       else args.p_count_id = id;
-      if (action === "approve" && !("p_allow_self" in args)) args.p_allow_self = false;
-      if (action === "post" && !("p_allow_self" in args)) args.p_allow_self = false;
-      if (action === "submit" && !("p_allow_self" in args)) args.p_allow_self = false;
+      if (action === "approve" && !("p_allow_self" in args)) args.p_allow_self = soloOverride;
+      if (action === "post" && !("p_allow_self" in args)) args.p_allow_self = soloOverride;
+      if (action === "submit" && !("p_allow_self" in args)) args.p_allow_self = soloOverride;
 
       const { data, error } = await (supabase.rpc as unknown as (
         n: string, a: Record<string, unknown>,
@@ -323,7 +347,7 @@ export default function PhysicalCountDetail() {
             <span>·</span>
             <span className="capitalize">{header.count_type}</span>
             {header.tolerance_pct != null && <><span>·</span><span>tol {header.tolerance_pct}%</span></>}
-            {header.tolerance_value != null && <><span>·</span><span>tol ${money(header.tolerance_value)}</span></>}
+            {header.tolerance_value != null && <><span>·</span><span>tol {formatCurrency(header.tolerance_value)}</span></>}
           </div>
         }
         actions={
@@ -336,11 +360,11 @@ export default function PhysicalCountDetail() {
               {header.state === "counting" && (
                 <PreflightButton
                   label="Submit for review"
-                  disabled={busy || (preflight?.checks.uncounted_lines ?? 0) > 0 || preflight?.checks.sod_submit_would_block === true}
+                  disabled={busy || (preflight?.checks.uncounted_lines ?? 0) > 0 || (!soloOverride && preflight?.checks.sod_submit_would_block === true)}
                   reason={
                     (preflight?.checks.uncounted_lines ?? 0) > 0
                       ? `${preflight?.checks.uncounted_lines} line(s) still uncounted`
-                      : preflight?.checks.sod_submit_would_block
+                      : !soloOverride && preflight?.checks.sod_submit_would_block
                         ? "You created this count — ask another user to submit"
                         : undefined
                   }
@@ -356,8 +380,8 @@ export default function PhysicalCountDetail() {
               {header.state === "in_review" && (
                 <PreflightButton
                   label={(preflight?.checks.tolerance_flags ?? 0) > 0 ? `Approve (${preflight?.checks.tolerance_flags} flagged)` : "Approve"}
-                  disabled={busy || preflight?.checks.sod_approve_would_block === true}
-                  reason={preflight?.checks.sod_approve_would_block ? "Segregation of duties — you created, froze, or submitted this count" : undefined}
+                  disabled={busy || (!soloOverride && preflight?.checks.sod_approve_would_block === true)}
+                  reason={!soloOverride && preflight?.checks.sod_approve_would_block ? "Segregation of duties — you created, froze, or submitted this count" : undefined}
                   icon={(preflight?.checks.tolerance_flags ?? 0) > 0 ? <ShieldAlert className="mr-1 h-3 w-3" /> : undefined}
                   onClick={handleApprove}
                 />
@@ -370,13 +394,13 @@ export default function PhysicalCountDetail() {
                     !preflight?.checks.period_open ||
                     !preflight?.checks.inventory_account ||
                     !preflight?.checks.adjustment_account ||
-                    preflight?.checks.sod_post_would_block === true
+                    (!soloOverride && preflight?.checks.sod_post_would_block === true)
                   }
                   reason={
                     !preflight?.checks.period_open ? "Fiscal period is closed"
                     : !preflight?.checks.inventory_account ? "Default 'inventory' account not mapped"
                     : !preflight?.checks.adjustment_account ? "Default 'inventory_adjustment' account not mapped"
-                    : preflight?.checks.sod_post_would_block ? "You approved this count — another user must post"
+                    : !soloOverride && preflight?.checks.sod_post_would_block ? "You approved this count — another user must post"
                     : undefined
                   }
                   onClick={handlePost}
@@ -403,7 +427,7 @@ export default function PhysicalCountDetail() {
       />
 
       {preflight && (header.state === "in_review" || header.state === "approved" || header.state === "counting") && (
-        <PreflightBanner preflight={preflight} />
+        <PreflightBanner preflight={preflight} suppressSod={soloOverride} />
       )}
 
 
@@ -415,9 +439,9 @@ export default function PhysicalCountDetail() {
             {lines.filter((l) => l.counted_qty !== null && l.variance_qty !== 0).length}
           </div></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Surplus value</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-emerald-600">${money(jePreview.surplus)}</div></CardContent></Card>
+          <CardContent><div className="text-2xl font-bold text-emerald-600">{formatCurrency(jePreview.surplus)}</div></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Shrinkage value</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-red-600">${money(jePreview.shrinkage)}</div></CardContent></Card>
+          <CardContent><div className="text-2xl font-bold text-red-600">{formatCurrency(jePreview.shrinkage)}</div></CardContent></Card>
       </div>
 
       <Tabs defaultValue="lines">
@@ -471,9 +495,9 @@ export default function PhysicalCountDetail() {
                         <TableCell className={`text-right tabular-nums font-semibold ${l.variance_qty > 0 ? "text-emerald-600" : l.variance_qty < 0 ? "text-red-600" : ""}`}>
                           {money(l.variance_qty)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">${money(l.unit_cost_snapshot)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(l.unit_cost_snapshot ?? 0)}</TableCell>
                         <TableCell className={`text-right tabular-nums ${impact > 0 ? "text-emerald-600" : impact < 0 ? "text-red-600" : ""}`}>
-                          ${money(impact)}
+                          {formatCurrency(impact)}
                         </TableCell>
                         <TableCell><Badge variant="outline" className="capitalize">{l.status.replace("_", " ")}</Badge></TableCell>
                       </TableRow>
@@ -510,8 +534,8 @@ export default function PhysicalCountDetail() {
                   {preview && (preview.surplus_value > 0 || preview.shrinkage_value > 0) ? preview.journal_lines.map((jl, i) => (
                     <TableRow key={i}>
                       <TableCell className="font-mono text-xs">{jl.account}</TableCell>
-                      <TableCell className="text-right tabular-nums">{jl.debit > 0 ? `$${money(jl.debit)}` : "—"}</TableCell>
-                      <TableCell className="text-right tabular-nums">{jl.credit > 0 ? `$${money(jl.credit)}` : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{jl.debit > 0 ? formatCurrency(jl.debit) : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{jl.credit > 0 ? formatCurrency(jl.credit) : "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{jl.purpose}</TableCell>
                     </TableRow>
                   )) : (
@@ -523,7 +547,7 @@ export default function PhysicalCountDetail() {
               </Table>
               <div className="mt-4 text-xs text-muted-foreground">
                 Net impact: <span className={jePreview.net > 0 ? "text-emerald-600" : jePreview.net < 0 ? "text-red-600" : ""}>
-                  ${money(jePreview.net)}
+                  {formatCurrency(jePreview.net)}
                 </span> across {jePreview.lineCount} variance line{jePreview.lineCount === 1 ? "" : "s"}.
               </div>
 
@@ -548,8 +572,8 @@ export default function PhysicalCountDetail() {
                           <TableCell className={`text-right tabular-nums ${l.variance_qty > 0 ? "text-emerald-600" : "text-red-600"}`}>
                             {money(l.variance_qty)}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">${money(l.unit_cost)}</TableCell>
-                          <TableCell className={`text-right tabular-nums ${l.value > 0 ? "text-emerald-600" : "text-red-600"}`}>${money(l.value)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(l.unit_cost)}</TableCell>
+                          <TableCell className={`text-right tabular-nums ${l.value > 0 ? "text-emerald-600" : "text-red-600"}`}>{formatCurrency(l.value)}</TableCell>
                           <TableCell><Badge variant="outline" className="capitalize">{l.direction}</Badge></TableCell>
                         </TableRow>
                       ))}
@@ -655,7 +679,7 @@ function PreflightButton(props: {
  * PreflightBanner — enterprise-style status strip summarising the exact
  * blockers between the current state and posting to the ledger.
  */
-function PreflightBanner({ preflight }: {
+function PreflightBanner({ preflight, suppressSod = false }: {
   preflight: {
     checks: {
       period_open: boolean;
@@ -669,6 +693,7 @@ function PreflightBanner({ preflight }: {
       sod_post_would_block: boolean;
     };
   };
+  suppressSod?: boolean;
 }) {
   const c = preflight.checks;
   const issues: string[] = [];
@@ -677,8 +702,8 @@ function PreflightBanner({ preflight }: {
   if (!c.adjustment_account) issues.push("Default 'inventory_adjustment' account not mapped");
   if (c.tolerance_flags > 0) issues.push(`${c.tolerance_flags} line(s) exceed tolerance — recount or approve with an override reason`);
   if (c.uncounted_lines > 0) issues.push(`${c.uncounted_lines} line(s) still uncounted`);
-  if (c.sod_approve_would_block) issues.push("SoD: you created / froze / submitted this count and cannot approve it");
-  if (c.sod_post_would_block) issues.push("SoD: you approved this count and cannot also post it");
+  if (!suppressSod && c.sod_approve_would_block) issues.push("SoD: you created / froze / submitted this count and cannot approve it");
+  if (!suppressSod && c.sod_post_would_block) issues.push("SoD: you approved this count and cannot also post it");
 
   if (issues.length === 0) return null;
   return (
