@@ -20,6 +20,7 @@ import {
   Hourglass,
   Warehouse,
   Scale,
+  CalendarClock,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
