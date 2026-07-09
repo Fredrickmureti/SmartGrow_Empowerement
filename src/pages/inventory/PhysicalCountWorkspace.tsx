@@ -3,7 +3,7 @@
  *
  * Enterprise Inventory Manager view over the persisted `physical_counts`
  * aggregate. Complements (rather than replaces) the counting wizard at
- * `/inventory/count`: this page shows every count that ever existed —
+ * `/inventory-app/count`: this page shows every count that ever existed —
  * drafts, in-flight counts, in-review counts pending approval, approved
  * counts awaiting posting, posted counts with drill-down to the ledger,
  * and cancelled/superseded counts.
