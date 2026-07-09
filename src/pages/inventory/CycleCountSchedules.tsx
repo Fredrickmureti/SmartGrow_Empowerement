@@ -195,7 +195,7 @@ export default function CycleCountSchedules() {
 
   const runNow = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc("generate_due_cycle_counts" as never, {});
+      const { data, error } = await (supabase.rpc as unknown as (n: string) => Promise<{ data: unknown; error: unknown }>)("generate_due_cycle_counts");
       if (error) throw error;
       return (data ?? []) as { schedule_id: string; count_id: string; count_number: string }[];
     },
