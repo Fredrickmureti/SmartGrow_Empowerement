@@ -94,6 +94,28 @@ export default function PhysicalCountDetail() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { formatCurrency } = useCurrency();
+  const { currentOrg } = useOrganization();
+
+  // Solo governance override — when the org is in "solo" mode and has ≤1
+  // active member, self-approval is auto-allowed. Suppress SoD blockers in
+  // the UI and pass p_allow_self=true to the lifecycle RPCs.
+  const soloQ = useQuery({
+    queryKey: ["org-solo-mode", currentOrg?.id],
+    enabled: !!currentOrg?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const [{ data: org }, { count }] = await Promise.all([
+        supabase.from("organizations").select("governance_mode").eq("id", currentOrg!.id).maybeSingle(),
+        supabase.from("user_roles").select("user_id", { count: "exact", head: true })
+          .eq("organization_id", currentOrg!.id).eq("is_active", true),
+      ]);
+      const mode = (org as { governance_mode?: string } | null)?.governance_mode ?? "solo";
+      return { mode, members: count ?? 0 };
+    },
+  });
+  const soloOverride = (soloQ.data?.mode ?? "solo") === "solo" && (soloQ.data?.members ?? 0) <= 1;
+
 
   const headerQ = useQuery({
     queryKey: ["physical-count-detail", id],
