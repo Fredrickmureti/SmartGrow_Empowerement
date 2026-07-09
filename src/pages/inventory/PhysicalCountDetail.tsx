@@ -572,8 +572,8 @@ export default function PhysicalCountDetail() {
                           <TableCell className={`text-right tabular-nums ${l.variance_qty > 0 ? "text-emerald-600" : "text-red-600"}`}>
                             {money(l.variance_qty)}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">${money(l.unit_cost)}</TableCell>
-                          <TableCell className={`text-right tabular-nums ${l.value > 0 ? "text-emerald-600" : "text-red-600"}`}>${money(l.value)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(l.unit_cost)}</TableCell>
+                          <TableCell className={`text-right tabular-nums ${l.value > 0 ? "text-emerald-600" : "text-red-600"}`}>{formatCurrency(l.value)}</TableCell>
                           <TableCell><Badge variant="outline" className="capitalize">{l.direction}</Badge></TableCell>
                         </TableRow>
                       ))}
