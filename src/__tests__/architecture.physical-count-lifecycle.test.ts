@@ -143,6 +143,14 @@ describe("Physical Count business event", () => {
     // Idempotency: retried POST must reuse the same stock_adjustment row.
     expect(src, "physical_count_post must use client_request_id for idempotency")
       .toMatch(/client_request_id/);
+
+    // The count's own reconciliation adjustment must be exempted from its own
+    // freeze via the transaction-local override GUC, otherwise the delegated
+    // approve call raises E_PC_WAREHOUSE_FROZEN on its own stock_movements insert.
+    expect(
+      src,
+      "physical_count_post must wrap approve_stock_adjustment_atomic in a txn-local freeze override",
+    ).toMatch(/set_config\(\s*'app\.physical_count_freeze_override'/);
   });
 
 
