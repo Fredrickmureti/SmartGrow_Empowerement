@@ -221,15 +221,24 @@ export default function PhysicalCount() {
       queryClient.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
       window.location.assign(`/inventory/physical-counts/${countId}`);
     } catch (err: any) {
-      const code = (err?.code || "").toString();
+      // Surface the true cause — never mask with a generic "unexpected error".
+      // eslint-disable-next-line no-console
+      console.error("[PhysicalCount] handleApplyAdjustments failed", {
+        message: err?.message,
+        code: err?.code,
+        details: err?.details,
+        hint: err?.hint,
+        raw: err,
+      });
       const rawMsg = (err?.message || "").trim();
-      const isBusinessError =
-        rawMsg.length > 0 && (code === "P0001" || code === "42501" || code.startsWith("P"));
-      if (isBusinessError) {
-        toast.error(rawMsg, err?.hint ? { description: err.hint } : undefined);
-      } else {
-        toast.error(normalizeError(err).message);
-      }
+      const parts = [
+        rawMsg,
+        err?.details ? `Details: ${err.details}` : null,
+        err?.hint ? `Hint: ${err.hint}` : null,
+        err?.code ? `Code: ${err.code}` : null,
+      ].filter(Boolean) as string[];
+      const shown = parts.length > 0 ? parts.join(" · ") : normalizeError(err).message;
+      toast.error(shown);
     } finally {
       setIsSubmitting(false);
     }
