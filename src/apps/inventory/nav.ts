@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Trash2,
   ClipboardCheck,
+  ClipboardList,
   BarChart3,
   Coins,
   Hourglass,
