@@ -126,13 +126,17 @@ export default function PhysicalCountWorkspace() {
       toast.success(`${action} succeeded`);
       qc.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
     } catch (err: unknown) {
-      const e = err as { message?: string; code?: string; hint?: string } | null;
+      const e = err as { message?: string; code?: string; hint?: string; details?: string } | null;
       const code = (e?.code || "").toString();
       const rawMsg = (e?.message || "").trim();
-      const isBusinessError =
-        rawMsg.length > 0 && (code === "P0001" || code === "42501" || code.startsWith("P"));
-      if (isBusinessError) {
-        toast.error(rawMsg, e?.hint ? { description: e.hint } : undefined);
+      // Postgres errors (P*, 23xxx integrity, 42xxx permission/syntax) always
+      // carry actionable business context — surface it verbatim rather than
+      // collapsing to a generic "input not valid" toast.
+      const isPostgresError =
+        rawMsg.length > 0 && /^(P|23|42)/.test(code);
+      if (isPostgresError) {
+        const description = e?.hint || e?.details || undefined;
+        toast.error(rawMsg, description ? { description } : undefined);
       } else {
         toast.error(normalizeError(err).message);
       }

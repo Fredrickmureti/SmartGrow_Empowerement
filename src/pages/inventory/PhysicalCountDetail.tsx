@@ -348,13 +348,18 @@ export default function PhysicalCountDetail() {
       qc.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
       setSelected(new Set());
     } catch (err: unknown) {
-      const e = err as { message?: string; code?: string; hint?: string } | null;
+      const e = err as { message?: string; code?: string; hint?: string; details?: string } | null;
       const code = (e?.code || "").toString();
       const rawMsg = (e?.message || "").trim();
-      const isBusinessError =
-        rawMsg.length > 0 && (code === "P0001" || code === "42501" || code.startsWith("P"));
-      if (isBusinessError) {
-        toast.error(rawMsg, e?.hint ? { description: e.hint } : undefined);
+      // Any Postgres error (P*, 23xxx integrity, 42xxx permission/syntax) carries
+      // real business context in `message` / `hint` / `details`. Surface it verbatim
+      // instead of collapsing it to the generic "Some of the information you entered
+      // is not valid" toast that hides the actual blocker.
+      const isPostgresError =
+        rawMsg.length > 0 && /^(P|23|42)/.test(code);
+      if (isPostgresError) {
+        const description = e?.hint || e?.details || undefined;
+        toast.error(rawMsg, description ? { description } : undefined);
       } else {
         toast.error(normalizeError(err).message);
       }
@@ -439,12 +444,35 @@ export default function PhysicalCountDetail() {
   };
 
   const handlePost = () => {
-    if (!preflight?.checks.period_open) {
-      toast.error("Fiscal period is closed — reopen it in Accounting → Fiscal Periods first.");
+    const c = preflight?.checks;
+    if (c?.period_defined === false) {
+      toast.error("No fiscal period defined for today's date.", {
+        description: "Open Accounting → Fiscal Periods and create a period that covers today before posting.",
+      });
       return;
     }
-    if (!preflight.checks.inventory_account || !preflight.checks.adjustment_account) {
-      toast.error("Default accounts missing (inventory / inventory_adjustment).");
+    if (c && !c.period_open) {
+      toast.error("Fiscal period is closed.", {
+        description: "Reopen it in Accounting → Fiscal Periods first.",
+      });
+      return;
+    }
+    if (c && (!c.inventory_account || !c.adjustment_account)) {
+      toast.error("Default GL accounts are not mapped.", {
+        description: "Map the Inventory and Inventory Adjustment accounts under Accounting → Default Accounts.",
+      });
+      return;
+    }
+    if (c && c.journal_book === false) {
+      toast.error("No active journal book configured.", {
+        description: "Create a General journal book under Accounting → Journal Books before posting.",
+      });
+      return;
+    }
+    if (c && c.warehouse_active === false) {
+      toast.error("Warehouse is not active.", {
+        description: "Reactivate the warehouse under Inventory → Warehouses.",
+      });
       return;
     }
     runRpc("post");
@@ -983,9 +1011,12 @@ function WorkflowStepper({ state }: { state: CountState }) {
 type Preflight = {
   checks: {
     period_open: boolean;
+    period_defined?: boolean;
     period_status: string;
     inventory_account: boolean;
     adjustment_account: boolean;
+    journal_book?: boolean;
+    warehouse_active?: boolean;
     tolerance_flags: number;
     uncounted_lines: number;
     sod_submit_would_block: boolean;
@@ -1062,9 +1093,12 @@ function NextActionCard({
       }
       case "approved": {
         const blocked =
-          !c?.period_open ? "Fiscal period is closed — reopen it in Accounting → Fiscal Periods"
+          c?.period_defined === false ? "No fiscal period defined for today — create one in Accounting → Fiscal Periods"
+          : !c?.period_open ? "Fiscal period is closed — reopen it in Accounting → Fiscal Periods"
           : !c?.inventory_account ? "Default 'inventory' account not mapped"
           : !c?.adjustment_account ? "Default 'inventory_adjustment' account not mapped"
+          : c?.journal_book === false ? "No active journal book — create a General journal book in Accounting → Journal Books"
+          : c?.warehouse_active === false ? "Warehouse is not active — reactivate it in Inventory → Warehouses"
           : (!soloOverride && c?.sod_post_would_block) ? "You approved this count — another user must post it"
           : undefined;
         return {
