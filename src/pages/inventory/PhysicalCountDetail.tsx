@@ -427,7 +427,7 @@ export default function PhysicalCountDetail() {
       />
 
       {preflight && (header.state === "in_review" || header.state === "approved" || header.state === "counting") && (
-        <PreflightBanner preflight={preflight} />
+        <PreflightBanner preflight={preflight} suppressSod={soloOverride} />
       )}
 
 
