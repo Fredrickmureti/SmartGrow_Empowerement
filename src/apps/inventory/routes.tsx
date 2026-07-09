@@ -292,6 +292,16 @@ export function InventoryApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        <Route
+          path="cycle-schedules"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Cycle Count Schedules">
+                <CycleCountSchedules />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         
         
         {/* Stock Reports */}
