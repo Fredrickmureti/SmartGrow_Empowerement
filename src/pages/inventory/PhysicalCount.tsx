@@ -219,7 +219,6 @@ export default function PhysicalCount() {
       const submitted = await rpc("physical_count_submit", {
         p_count_id: countId,
         p_user_id: user.id,
-        p_allow_self: false,
       });
       if (submitted.error) throw submitted.error;
 
