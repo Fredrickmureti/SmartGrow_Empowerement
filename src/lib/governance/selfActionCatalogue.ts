@@ -335,6 +335,30 @@ export const SELF_ACTION_CATALOGUE: SelfActionEntry[] = [
     entityType: "stock_transfer",
     subjectMode: "actor",
   },
+  {
+    key: "inventory.submit_count",
+    module: "Inventory",
+    label: "Submit own physical count",
+    description: "Submit a physical count for review that the submitter created.",
+    entityType: "stock_adjustment",
+    subjectMode: "actor",
+  },
+  {
+    key: "inventory.approve_count",
+    module: "Inventory",
+    label: "Approve own physical count",
+    description: "Approve a physical count that the approver created, froze, or submitted.",
+    entityType: "stock_adjustment",
+    subjectMode: "actor",
+  },
+  {
+    key: "inventory.post_count",
+    module: "Inventory",
+    label: "Post own physical count",
+    description: "Post a physical count that the poster previously approved.",
+    entityType: "stock_adjustment",
+    subjectMode: "actor",
+  },
   // Spend
   {
     key: "expense.approve",
