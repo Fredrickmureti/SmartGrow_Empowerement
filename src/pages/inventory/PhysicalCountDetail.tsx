@@ -679,7 +679,7 @@ function PreflightButton(props: {
  * PreflightBanner — enterprise-style status strip summarising the exact
  * blockers between the current state and posting to the ledger.
  */
-function PreflightBanner({ preflight }: {
+function PreflightBanner({ preflight, suppressSod = false }: {
   preflight: {
     checks: {
       period_open: boolean;
@@ -693,6 +693,7 @@ function PreflightBanner({ preflight }: {
       sod_post_would_block: boolean;
     };
   };
+  suppressSod?: boolean;
 }) {
   const c = preflight.checks;
   const issues: string[] = [];
@@ -701,8 +702,8 @@ function PreflightBanner({ preflight }: {
   if (!c.adjustment_account) issues.push("Default 'inventory_adjustment' account not mapped");
   if (c.tolerance_flags > 0) issues.push(`${c.tolerance_flags} line(s) exceed tolerance — recount or approve with an override reason`);
   if (c.uncounted_lines > 0) issues.push(`${c.uncounted_lines} line(s) still uncounted`);
-  if (c.sod_approve_would_block) issues.push("SoD: you created / froze / submitted this count and cannot approve it");
-  if (c.sod_post_would_block) issues.push("SoD: you approved this count and cannot also post it");
+  if (!suppressSod && c.sod_approve_would_block) issues.push("SoD: you created / froze / submitted this count and cannot approve it");
+  if (!suppressSod && c.sod_post_would_block) issues.push("SoD: you approved this count and cannot also post it");
 
   if (issues.length === 0) return null;
   return (
