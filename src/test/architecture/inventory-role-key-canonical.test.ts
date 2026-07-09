@@ -113,36 +113,35 @@ describe("inventory role-key canonicalization", () => {
 
     const sql = readFileSync(join(MIGRATIONS_DIR, latest!), "utf8");
 
-    // Locate every INSERT that targets v_adj by splitting on the RETURNING
-    // sentinel and walking backwards to the most recent VALUES block. A
-    // single regex won't do because the description literal can contain
-    // parentheses ("auto-provisioned"), defeating naive [^)]* captures.
+    const detailTypes = new Set<string>();
+
+    // Older definers inserted accounts inline; newer definers route through
+    // upsert_system_account(role, account_type, detail_type, ...). Capture both
+    // forms so the guard verifies the accounting contract instead of a syntax
+    // shape.
     const segments = sql.split(/RETURNING id INTO v_adj/);
-    const adjInserts: string[] = [];
     for (let i = 0; i < segments.length - 1; i++) {
       const head = segments[i];
       const valuesIdx = head.lastIndexOf("VALUES");
       if (valuesIdx < 0) continue;
-      adjInserts.push(head.slice(valuesIdx));
+      const block = head.slice(valuesIdx);
+      const detailTypeMatch = block.match(/'([a-z_]+)'\s*,\s*v_code/);
+      if (detailTypeMatch) detailTypes.add(detailTypeMatch[1]);
+    }
+
+    for (const m of sql.matchAll(/upsert_system_account\([\s\S]*?'inventory_adjustment'[\s\S]*?'expense'\s*,\s*'([a-z_]+)'/g)) {
+      detailTypes.add(m[1]);
     }
 
     expect(
-      adjInserts.length,
-      "Expected ensure_inventory_gl_accounts to contain at least one v_adj INSERT",
+      detailTypes.size,
+      "Expected ensure_inventory_gl_accounts to provision/select an inventory_adjustment account",
     ).toBeGreaterThan(0);
 
-    for (const block of adjInserts) {
-      // detail_type is the literal immediately preceding `v_code` in the
-      // canonical (account_type, detail_type, code, ...) ordering.
-      const detailTypeMatch = block.match(/'([a-z_]+)'\s*,\s*v_code/);
-      expect(
-        detailTypeMatch,
-        `Could not locate detail_type literal in adjustment INSERT:\n${block.slice(0, 400)}`,
-      ).toBeTruthy();
-      const dt = detailTypeMatch![1];
+    for (const dt of detailTypes) {
       expect(
         ELIGIBLE.has(dt),
-        `ensure_inventory_gl_accounts adjustment INSERT uses detail_type='${dt}', which is not in account_role_eligibility for role 'inventory_adjustment' (allowed: ${[...ELIGIBLE].join(", ")}).`,
+        `ensure_inventory_gl_accounts adjustment path uses detail_type='${dt}', which is not in account_role_eligibility for role 'inventory_adjustment' (allowed: ${[...ELIGIBLE].join(", ")}).`,
       ).toBe(true);
     }
   });
