@@ -360,11 +360,11 @@ export default function PhysicalCountDetail() {
               {header.state === "counting" && (
                 <PreflightButton
                   label="Submit for review"
-                  disabled={busy || (preflight?.checks.uncounted_lines ?? 0) > 0 || preflight?.checks.sod_submit_would_block === true}
+                  disabled={busy || (preflight?.checks.uncounted_lines ?? 0) > 0 || (!soloOverride && preflight?.checks.sod_submit_would_block === true)}
                   reason={
                     (preflight?.checks.uncounted_lines ?? 0) > 0
                       ? `${preflight?.checks.uncounted_lines} line(s) still uncounted`
-                      : preflight?.checks.sod_submit_would_block
+                      : !soloOverride && preflight?.checks.sod_submit_would_block
                         ? "You created this count — ask another user to submit"
                         : undefined
                   }
@@ -380,8 +380,8 @@ export default function PhysicalCountDetail() {
               {header.state === "in_review" && (
                 <PreflightButton
                   label={(preflight?.checks.tolerance_flags ?? 0) > 0 ? `Approve (${preflight?.checks.tolerance_flags} flagged)` : "Approve"}
-                  disabled={busy || preflight?.checks.sod_approve_would_block === true}
-                  reason={preflight?.checks.sod_approve_would_block ? "Segregation of duties — you created, froze, or submitted this count" : undefined}
+                  disabled={busy || (!soloOverride && preflight?.checks.sod_approve_would_block === true)}
+                  reason={!soloOverride && preflight?.checks.sod_approve_would_block ? "Segregation of duties — you created, froze, or submitted this count" : undefined}
                   icon={(preflight?.checks.tolerance_flags ?? 0) > 0 ? <ShieldAlert className="mr-1 h-3 w-3" /> : undefined}
                   onClick={handleApprove}
                 />
@@ -394,13 +394,13 @@ export default function PhysicalCountDetail() {
                     !preflight?.checks.period_open ||
                     !preflight?.checks.inventory_account ||
                     !preflight?.checks.adjustment_account ||
-                    preflight?.checks.sod_post_would_block === true
+                    (!soloOverride && preflight?.checks.sod_post_would_block === true)
                   }
                   reason={
                     !preflight?.checks.period_open ? "Fiscal period is closed"
                     : !preflight?.checks.inventory_account ? "Default 'inventory' account not mapped"
                     : !preflight?.checks.adjustment_account ? "Default 'inventory_adjustment' account not mapped"
-                    : preflight?.checks.sod_post_would_block ? "You approved this count — another user must post"
+                    : !soloOverride && preflight?.checks.sod_post_would_block ? "You approved this count — another user must post"
                     : undefined
                   }
                   onClick={handlePost}
