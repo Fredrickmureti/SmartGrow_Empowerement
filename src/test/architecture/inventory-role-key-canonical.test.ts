@@ -48,10 +48,11 @@ describe("inventory role-key canonicalization", () => {
       // key).
       if (aliasMigrations.includes(file)) continue;
 
-      // The original drift migration is part of project history; it is
-      // superseded by the alias migration. Allow it explicitly so the test
-      // stays focused on FUTURE regressions.
+      // Historical drift migrations are part of project history; later
+      // canonicalization/repair migrations supersede them. Allow them
+      // explicitly so the test stays focused on future authoritative definers.
       if (file.startsWith("20260517143924")) continue;
+      if (file.startsWith("20260709223205")) continue;
 
       offenders.push(file);
     }
@@ -160,6 +161,48 @@ describe("inventory role-key canonicalization", () => {
       /'cogs'\s*,\s*v_cogs/.test(sql),
       "Expected ensure_inventory_gl_accounts to UPSERT default_account_settings with setting_key='cogs'",
     ).toBe(true);
+  });
+
+  it("latest physical_count_post uses canonical settings bindings, not the legacy default_accounts resolver", () => {
+    const definers = allMigrations.filter((f) => {
+      const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+      return /CREATE OR REPLACE FUNCTION public\.physical_count_post\(p_count_id uuid, p_user_id uuid\)/.test(sql);
+    });
+    const latest = definers.sort()[definers.length - 1];
+    expect(latest, "Expected a physical_count_post definer migration").toBeTruthy();
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, latest!), "utf8");
+    const start = sql.search(/CREATE OR REPLACE FUNCTION public\.physical_count_post\(p_count_id uuid, p_user_id uuid\)/);
+    const end = sql.indexOf("GRANT EXECUTE ON FUNCTION public.physical_count_post", start);
+    const body = sql.slice(start, end > start ? end : undefined);
+
+    expect(body).toMatch(/_resolve_canonical_default_account\(\s*'inventory'/);
+    expect(body).toMatch(/_resolve_canonical_default_account\(\s*'inventory_adjustment'/);
+    expect(body).not.toMatch(/resolve_default_account\(/);
+    expect(body).not.toMatch(/'inventory_asset'/);
+    expect(body).not.toMatch(/\bphysical_count_id\b/);
+    expect(body).toMatch(/\bcount_id\s*=\s*p_count_id\b/);
+  });
+
+  it("latest physical count preflight, preview, and post share the same canonical inventory keys", () => {
+    const latest = allMigrations
+      .filter((f) => {
+        const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+        return sql.includes("CREATE OR REPLACE FUNCTION public.physical_count_preflight") &&
+          sql.includes("CREATE OR REPLACE FUNCTION public.physical_count_preview_je") &&
+          sql.includes("CREATE OR REPLACE FUNCTION public.physical_count_post");
+      })
+      .sort()
+      .at(-1);
+    expect(latest, "Expected a unified physical count posting repair migration").toBeTruthy();
+
+    const sql = readFileSync(join(MIGRATIONS_DIR, latest!), "utf8");
+    const canonicalInventoryUses = sql.match(/_resolve_canonical_default_account\(\s*'inventory'/g) ?? [];
+    const canonicalAdjustmentUses = sql.match(/_resolve_canonical_default_account\(\s*'inventory_adjustment'/g) ?? [];
+
+    expect(canonicalInventoryUses.length).toBeGreaterThanOrEqual(3);
+    expect(canonicalAdjustmentUses.length).toBeGreaterThanOrEqual(3);
+    expect(sql).not.toMatch(/default_accounts/);
   });
 });
 
