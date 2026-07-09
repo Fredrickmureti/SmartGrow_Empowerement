@@ -1093,9 +1093,12 @@ function NextActionCard({
       }
       case "approved": {
         const blocked =
-          !c?.period_open ? "Fiscal period is closed — reopen it in Accounting → Fiscal Periods"
+          c?.period_defined === false ? "No fiscal period defined for today — create one in Accounting → Fiscal Periods"
+          : !c?.period_open ? "Fiscal period is closed — reopen it in Accounting → Fiscal Periods"
           : !c?.inventory_account ? "Default 'inventory' account not mapped"
           : !c?.adjustment_account ? "Default 'inventory_adjustment' account not mapped"
+          : c?.journal_book === false ? "No active journal book — create a General journal book in Accounting → Journal Books"
+          : c?.warehouse_active === false ? "Warehouse is not active — reactivate it in Inventory → Warehouses"
           : (!soloOverride && c?.sod_post_would_block) ? "You approved this count — another user must post it"
           : undefined;
         return {
