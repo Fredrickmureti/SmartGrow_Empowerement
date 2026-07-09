@@ -136,6 +136,12 @@ export default function PhysicalCountDetail() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Inline recount entry: lineId -> draft quantity string (while re-counting).
+  const [recountDrafts, setRecountDrafts] = useState<Record<string, string>>({});
+  const [savingLine, setSavingLine] = useState<string | null>(null);
+  // Tolerance override dialog (sandbox-safe replacement for window.prompt).
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
   const { formatCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
 
