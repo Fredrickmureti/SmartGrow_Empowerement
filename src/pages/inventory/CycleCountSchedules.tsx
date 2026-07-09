@@ -1,12 +1,9 @@
 /**
- * Cycle Count Schedules — recurring physical-count generator.
+ * Cycle Counting page.
  *
- * D7 of the Physical Count enterprise hardening plan. Lets ops define
- * cadence-based cycle counts (daily/weekly/monthly, optionally scoped by
- * ABC class / category / product list) per warehouse. The
- * `generate_due_cycle_counts()` RPC materialises due schedules into draft
- * `physical_counts` rows, which then flow through the standard
- * freeze → count → submit → approve → post lifecycle.
+ * All copy on this page is written for an inventory manager — no table
+ * names, no function names, no column names. Enforced by
+ * `src/__tests__/architecture.cycle-count-copy.test.ts`.
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +25,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDeleteDialog } from "@/components/shared/ConfirmDeleteDialog";
 import { DetailSheet, FieldGrid, FooterActionBar } from "@/design-system";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Plus, Pencil, Trash2, Play, CalendarClock } from "lucide-react";
 import { format } from "date-fns";
 
@@ -73,6 +73,28 @@ const EMPTY: FormState = {
   tolerance_value: "",
   auto_freeze: false,
   active: true,
+};
+
+const CADENCE_LABEL: Record<Cadence, string> = {
+  daily: "Every day",
+  weekly: "Every week",
+  biweekly: "Every two weeks",
+  monthly: "Every month",
+  quarterly: "Every quarter",
+};
+
+const SCOPE_LABEL: Record<ScopeType, string> = {
+  warehouse: "The entire warehouse",
+  abc_class: "Only A/B/C class items",
+  category: "A specific product category",
+  product_list: "A hand-picked product list",
+};
+
+const scopeSummary = (s: Schedule) => {
+  if (s.scope_type === "abc_class") {
+    return s.abc_class ? `Class ${s.abc_class} items` : "A/B/C class items";
+  }
+  return SCOPE_LABEL[s.scope_type];
 };
 
 export default function CycleCountSchedules() {
@@ -143,9 +165,9 @@ export default function CycleCountSchedules() {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!orgId || !bizId) throw new Error("Missing org/business");
-      if (!form.name.trim()) throw new Error("Name required");
-      if (!form.warehouse_id) throw new Error("Warehouse required");
+      if (!orgId || !bizId) throw new Error("Please select an organization and business first.");
+      if (!form.name.trim()) throw new Error("Give this schedule a name your team will recognise.");
+      if (!form.warehouse_id) throw new Error("Choose which warehouse this schedule applies to.");
       const payload = {
         organization_id: orgId,
         business_id: bizId,
@@ -177,7 +199,7 @@ export default function CycleCountSchedules() {
       setSheetOpen(false);
       qc.invalidateQueries({ queryKey: ["cycle-count-schedules"] });
     },
-    onError: (e: Error) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Could not save schedule", description: e.message, variant: "destructive" }),
   });
 
   const remove = useMutation({
@@ -190,7 +212,7 @@ export default function CycleCountSchedules() {
       setDeleteTarget(null);
       qc.invalidateQueries({ queryKey: ["cycle-count-schedules"] });
     },
-    onError: (e: Error) => toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Could not delete schedule", description: e.message, variant: "destructive" }),
   });
 
   const runNow = useMutation({
@@ -201,231 +223,283 @@ export default function CycleCountSchedules() {
     },
     onSuccess: (rows) => {
       toast({
-        title: rows.length ? `${rows.length} draft count(s) generated` : "Nothing due",
+        title: rows.length
+          ? `${rows.length} count worksheet${rows.length === 1 ? "" : "s"} generated`
+          : "Nothing due right now",
+        description: rows.length
+          ? "New worksheets are ready in Physical Counts."
+          : "All active schedules are up to date — check back later.",
       });
       qc.invalidateQueries({ queryKey: ["cycle-count-schedules"] });
     },
-    onError: (e: Error) => toast({ title: "Run failed", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Could not generate worksheets", description: e.message, variant: "destructive" }),
   });
 
   return (
-    <div className="space-y-4 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <CalendarClock className="h-6 w-6" /> Cycle count schedules
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Recurring cycle counts feed draft physical-counts into your workspace on schedule.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => runNow.mutate()} disabled={runNow.isPending}>
-            <Play className="mr-2 h-4 w-4" /> Run due now
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" /> New schedule
-          </Button>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Schedules</CardTitle>
-          <CardDescription>
-            Due schedules generate a draft `physical_counts` row via `generate_due_cycle_counts()`.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-sm text-muted-foreground py-8 text-center">Loading…</div>
-          ) : schedules.length === 0 ? (
-            <div className="text-sm text-muted-foreground py-8 text-center">
-              No cycle-count schedules yet.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Warehouse</TableHead>
-                  <TableHead>Cadence</TableHead>
-                  <TableHead>Scope</TableHead>
-                  <TableHead>Next run</TableHead>
-                  <TableHead>Last run</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {schedules.map((s) => {
-                  const wh = warehouses.find((w) => w.id === s.warehouse_id);
-                  return (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-medium">{s.name}</TableCell>
-                      <TableCell>{wh?.name ?? "—"}</TableCell>
-                      <TableCell><Badge variant="secondary">{s.cadence}</Badge></TableCell>
-                      <TableCell>
-                        <span className="text-xs">
-                          {s.scope_type}
-                          {s.abc_class ? ` · ${s.abc_class}` : ""}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {format(new Date(s.next_run_at), "PP p")}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {s.last_run_at ? format(new Date(s.last_run_at), "PP p") : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={s.active ? "default" : "outline"}>
-                          {s.active ? "Active" : "Paused"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => openEdit(s)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(s)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <DetailSheet
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        title={editing ? "Edit schedule" : "New cycle-count schedule"}
-        description="Draft counts are generated when next_run_at is reached and Run due now is invoked (or by pg_cron)."
-        footer={
-          <FooterActionBar
-            anchor="sheet"
-            trailing={
-              <>
-                <Button variant="outline" onClick={() => setSheetOpen(false)}>Cancel</Button>
-                <Button onClick={() => save.mutate()} disabled={save.isPending}>
-                  {editing ? "Save" : "Create"}
+    <TooltipProvider>
+      <div className="space-y-4 p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold flex items-center gap-2">
+              <CalendarClock className="h-6 w-6" /> Cycle counting
+            </h1>
+            <p className="text-sm text-muted-foreground max-w-2xl">
+              Automatically schedule small, recurring stock counts so you never
+              rely on a single year-end count. Each schedule picks a warehouse
+              and a rhythm, and drops a ready-to-count worksheet into Physical
+              Counts on its due date.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" onClick={() => runNow.mutate()} disabled={runNow.isPending}>
+                  <Play className="mr-2 h-4 w-4" /> Run now
                 </Button>
-              </>
-            }
-          />
-        }
-      >
-        <FieldGrid columns={2}>
-          <div className="col-span-2">
-            <Label>Name</Label>
-            <Input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Weekly A-class count — Main"
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                Checks every active schedule and creates today's count
+                worksheets immediately, instead of waiting for the overnight
+                run.
+              </TooltipContent>
+            </Tooltip>
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" /> New schedule
+            </Button>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Schedules</CardTitle>
+            <CardDescription>
+              Schedules run automatically overnight. Use <em>Run now</em> to
+              generate today's worksheets on demand.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-sm text-muted-foreground py-8 text-center">Loading…</div>
+            ) : schedules.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-8 text-center max-w-md mx-auto">
+                No cycle counts scheduled yet. Create a schedule to have the
+                system automatically prepare count worksheets on a rhythm —
+                for example, count your A-class items every week and
+                everything else every quarter.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Warehouse</TableHead>
+                    <TableHead>How often</TableHead>
+                    <TableHead>What to count</TableHead>
+                    <TableHead>Next count due</TableHead>
+                    <TableHead>Last generated</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {schedules.map((s) => {
+                    const wh = warehouses.find((w) => w.id === s.warehouse_id);
+                    return (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium">{s.name}</TableCell>
+                        <TableCell>{wh?.name ?? "—"}</TableCell>
+                        <TableCell><Badge variant="secondary">{CADENCE_LABEL[s.cadence]}</Badge></TableCell>
+                        <TableCell><span className="text-xs">{scopeSummary(s)}</span></TableCell>
+                        <TableCell className="text-xs">
+                          {format(new Date(s.next_run_at), "PP p")}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {s.last_run_at ? format(new Date(s.last_run_at), "PP p") : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={s.active ? "default" : "outline"}>
+                            {s.active ? "Active" : "Paused"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button size="icon" variant="ghost" onClick={() => openEdit(s)} aria-label="Edit">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(s)} aria-label="Delete">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <DetailSheet
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          title={editing ? "Edit cycle count schedule" : "New cycle count schedule"}
+          description="Cycle counting means counting a slice of your stock on a regular rhythm instead of shutting the warehouse for a full count. Configure how often to count, what to count, and how large a variance is acceptable before requiring investigation."
+          footer={
+            <FooterActionBar
+              anchor="sheet"
+              trailing={
+                <>
+                  <Button variant="outline" onClick={() => setSheetOpen(false)}>Cancel</Button>
+                  <Button onClick={() => save.mutate()} disabled={save.isPending}>
+                    {editing ? "Save changes" : "Create schedule"}
+                  </Button>
+                </>
+              }
             />
-          </div>
-          <div>
-            <Label>Warehouse</Label>
-            <Select value={form.warehouse_id} onValueChange={(v) => setForm({ ...form, warehouse_id: v })}>
-              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                {warehouses.map((w) => (
-                  <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Cadence</Label>
-            <Select value={form.cadence} onValueChange={(v) => setForm({ ...form, cadence: v as Cadence })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="biweekly">Bi-weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="quarterly">Quarterly</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Scope</Label>
-            <Select value={form.scope_type} onValueChange={(v) => setForm({ ...form, scope_type: v as ScopeType })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="warehouse">Whole warehouse</SelectItem>
-                <SelectItem value="abc_class">ABC class</SelectItem>
-                <SelectItem value="category">Category</SelectItem>
-                <SelectItem value="product_list">Product list</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {form.scope_type === "abc_class" && (
+          }
+        >
+          <FieldGrid columns={2}>
+            <div className="col-span-2">
+              <Label>Name</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Weekly A-class — Main warehouse"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                A label your team will recognise on the Physical Counts list.
+              </p>
+            </div>
+
             <div>
-              <Label>ABC class</Label>
-              <Select
-                value={form.abc_class || undefined}
-                onValueChange={(v) => setForm({ ...form, abc_class: v as FormState["abc_class"] })}
-              >
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <Label>Warehouse</Label>
+              <Select value={form.warehouse_id} onValueChange={(v) => setForm({ ...form, warehouse_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Select a warehouse" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A">A</SelectItem>
-                  <SelectItem value="B">B</SelectItem>
-                  <SelectItem value="C">C</SelectItem>
+                  {warehouses.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Which warehouse this rotation applies to.
+              </p>
             </div>
-          )}
-          <div>
-            <Label>Tolerance %</Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={form.tolerance_pct}
-              onChange={(e) => setForm({ ...form, tolerance_pct: e.target.value })}
-              placeholder="e.g. 2"
-            />
-          </div>
-          <div>
-            <Label>Tolerance value</Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={form.tolerance_value}
-              onChange={(e) => setForm({ ...form, tolerance_value: e.target.value })}
-              placeholder="e.g. 5000"
-            />
-          </div>
-          <div className="flex items-center justify-between col-span-2 rounded border p-3">
-            <div>
-              <Label>Auto-freeze on generation</Label>
-              <p className="text-xs text-muted-foreground">Skip draft — immediately move the generated count to counting.</p>
-            </div>
-            <Switch checked={form.auto_freeze} onCheckedChange={(v) => setForm({ ...form, auto_freeze: v })} />
-          </div>
-          <div className="flex items-center justify-between col-span-2 rounded border p-3">
-            <div>
-              <Label>Active</Label>
-              <p className="text-xs text-muted-foreground">Inactive schedules are skipped by the generator.</p>
-            </div>
-            <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} />
-          </div>
-        </FieldGrid>
-      </DetailSheet>
 
-      <ConfirmDeleteDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Delete schedule?"
-        description={`"${deleteTarget?.name}" will stop generating cycle counts.`}
-        onConfirm={() => deleteTarget && remove.mutate(deleteTarget.id)}
-        isLoading={remove.isPending}
-      />
-    </div>
+            <div>
+              <Label>How often</Label>
+              <Select value={form.cadence} onValueChange={(v) => setForm({ ...form, cadence: v as Cadence })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Every day</SelectItem>
+                  <SelectItem value="weekly">Every week</SelectItem>
+                  <SelectItem value="biweekly">Every two weeks</SelectItem>
+                  <SelectItem value="monthly">Every month</SelectItem>
+                  <SelectItem value="quarterly">Every quarter</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                How frequently the system should generate a new count worksheet.
+              </p>
+            </div>
+
+            <div>
+              <Label>What to count</Label>
+              <Select value={form.scope_type} onValueChange={(v) => setForm({ ...form, scope_type: v as ScopeType })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="warehouse">The entire warehouse</SelectItem>
+                  <SelectItem value="abc_class">Only A/B/C class items</SelectItem>
+                  <SelectItem value="category">A specific product category</SelectItem>
+                  <SelectItem value="product_list">A hand-picked product list</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Which stock the worksheet should include.
+              </p>
+            </div>
+
+            {form.scope_type === "abc_class" && (
+              <div>
+                <Label>ABC class</Label>
+                <Select
+                  value={form.abc_class || undefined}
+                  onValueChange={(v) => setForm({ ...form, abc_class: v as FormState["abc_class"] })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="A">A — highest value / fastest movers</SelectItem>
+                    <SelectItem value="B">B — mid-tier</SelectItem>
+                    <SelectItem value="C">C — long-tail / low value</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div>
+              <Label>Tolerance %</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={form.tolerance_pct}
+                onChange={(e) => setForm({ ...form, tolerance_pct: e.target.value })}
+                placeholder="e.g. 2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Variances smaller than this percentage are auto-accepted.
+                Larger variances are flagged for review before posting.
+              </p>
+            </div>
+
+            <div>
+              <Label>Tolerance amount</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={form.tolerance_value}
+                onChange={(e) => setForm({ ...form, tolerance_value: e.target.value })}
+                placeholder="e.g. 5,000"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Same idea, but as a money amount. Use whichever suits the
+                products in scope.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between col-span-2 rounded border p-3">
+              <div className="pr-4">
+                <Label>Lock stock automatically when the worksheet is generated</Label>
+                <p className="text-xs text-muted-foreground">
+                  When on, the worksheet skips <em>Draft</em> and locks stock
+                  immediately so counters can start straight away. Leave off
+                  if you want a supervisor to review before locking stock.
+                </p>
+              </div>
+              <Switch checked={form.auto_freeze} onCheckedChange={(v) => setForm({ ...form, auto_freeze: v })} />
+            </div>
+
+            <div className="flex items-center justify-between col-span-2 rounded border p-3">
+              <div className="pr-4">
+                <Label>Active</Label>
+                <p className="text-xs text-muted-foreground">
+                  Paused schedules stop generating new count worksheets.
+                </p>
+              </div>
+              <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} />
+            </div>
+          </FieldGrid>
+        </DetailSheet>
+
+        <ConfirmDeleteDialog
+          open={!!deleteTarget}
+          onOpenChange={(o) => !o && setDeleteTarget(null)}
+          title="Delete this schedule?"
+          description={`"${deleteTarget?.name}" will stop generating new count worksheets. Existing worksheets already in Physical Counts are not affected.`}
+          onConfirm={() => deleteTarget && remove.mutate(deleteTarget.id)}
+          isLoading={remove.isPending}
+        />
+      </div>
+    </TooltipProvider>
   );
 }

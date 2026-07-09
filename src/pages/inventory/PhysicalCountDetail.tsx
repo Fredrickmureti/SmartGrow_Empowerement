@@ -254,7 +254,18 @@ export default function PhysicalCountDetail() {
       qc.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
       setSelected(new Set());
     } catch (err: unknown) {
-      toast.error(normalizeError(err).message);
+      // Prefer server-supplied business messages (P0001 RAISE, 42501 governance)
+      // over the canned normalizeError catalog so users see the actual reason.
+      const e = err as { message?: string; code?: string; hint?: string } | null;
+      const code = (e?.code || "").toString();
+      const rawMsg = (e?.message || "").trim();
+      const isBusinessError =
+        rawMsg.length > 0 && (code === "P0001" || code === "42501" || code.startsWith("P"));
+      if (isBusinessError) {
+        toast.error(rawMsg, e?.hint ? { description: e.hint } : undefined);
+      } else {
+        toast.error(normalizeError(err).message);
+      }
     } finally {
       setBusy(false);
     }
