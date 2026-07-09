@@ -224,7 +224,7 @@ export default function PhysicalCount() {
 
       toast.success(`Count submitted for review — open the workspace to approve & post`);
       queryClient.invalidateQueries({ queryKey: ["physical-counts-workspace"] });
-      window.location.assign(`/inventory/physical-counts/${countId}`);
+      navigate(`/inventory-app/physical-counts/${countId}`);
     } catch (err: any) {
       // Surface the true cause — never mask with a generic "unexpected error".
       // eslint-disable-next-line no-console
