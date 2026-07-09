@@ -366,14 +366,76 @@ export default function PhysicalCountDetail() {
   const handleApprove = () => {
     const flagged = preflight?.checks.tolerance_flags ?? 0;
     if (flagged > 0) {
-      const reason = window.prompt(
-        `${flagged} line(s) exceed tolerance. Type a written override reason to approve anyway, or Cancel to Request Recount instead.`,
-      );
-      if (!reason || !reason.trim()) return;
-      runRpc("approve", { p_tolerance_override_reason: reason.trim() });
+      // Flagged lines that still have no recorded (re)count cannot be
+      // approved-over — they must be recounted first. Only offer the written
+      // override when every flagged line actually has a counted value.
+      const unresolved = lines.filter(
+        (l) => l.status === "recount_required" && l.counted_qty == null,
+      ).length;
+      if (unresolved > 0) {
+        toast.error(
+          `${unresolved} recount-flagged line(s) have no recorded count yet`,
+          { description: "Enter their new counts in the Lines tab, then approve." },
+        );
+        return;
+      }
+      setOverrideReason("");
+      setOverrideOpen(true);
       return;
     }
     runRpc("approve");
+  };
+
+  const confirmOverrideApprove = () => {
+    const reason = overrideReason.trim();
+    if (!reason) return;
+    setOverrideOpen(false);
+    runRpc("approve", { p_tolerance_override_reason: reason });
+  };
+
+  // Record (or re-record) a line's counted quantity. The DB RPC accepts this
+  // while the count is in `counting` OR `in_review`, so a reviewer can resolve
+  // a recount-flagged line in place — clearing `recount_required` and
+  // unblocking approval without a destructive state bounce.
+  const recordRecountLine = async (line: CountLine) => {
+    if (!user?.id || !id) return;
+    const raw = recountDrafts[line.id];
+    if (raw == null || raw.trim() === "") {
+      toast.error("Enter a counted quantity first");
+      return;
+    }
+    const qty = Number(raw);
+    if (!Number.isFinite(qty) || qty < 0) {
+      toast.error("Counted quantity must be a non-negative number");
+      return;
+    }
+    setSavingLine(line.id);
+    try {
+      const { data, error } = await (supabase.rpc as unknown as (
+        n: string, a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>)(
+        "physical_count_record_line",
+        { p_count_id: id, p_product_id: line.product_id, p_counted_qty: qty, p_user_id: user.id },
+      );
+      if (error) throw error;
+      const res = data as { success?: boolean; error?: string } | null;
+      if (res && res.success === false) throw new Error(res.error || "record failed");
+      toast.success(`Recount saved for ${line.products?.name ?? "line"}`);
+      setRecountDrafts((prev) => {
+        const next = { ...prev };
+        delete next[line.id];
+        return next;
+      });
+      qc.invalidateQueries({ queryKey: ["physical-count-lines", id] });
+      qc.invalidateQueries({ queryKey: ["physical-count-preflight", id] });
+      qc.invalidateQueries({ queryKey: ["physical-count-preview-je", id] });
+    } catch (err: unknown) {
+      const e = err as { message?: string; code?: string } | null;
+      const rawMsg = (e?.message || "").trim();
+      toast.error(rawMsg || normalizeError(err).message);
+    } finally {
+      setSavingLine(null);
+    }
   };
 
   const handlePost = () => {
