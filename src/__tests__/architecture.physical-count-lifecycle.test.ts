@@ -91,7 +91,13 @@ describe("Physical Count business event", () => {
     expect(src).toMatch(/tolerance_flags|tolerance_override_reason/);
   });
 
-  it("client lifecycle calls pass p_allow_self so PostgREST selects governed overloads", () => {
+  it("client lifecycle calls do NOT pass p_allow_self (SoD is decided server-side)", () => {
+    // The governed lifecycle RPCs now have a single signature each — the
+    // ambiguous overload pair that once required p_allow_self to disambiguate
+    // has been dropped. Separation-of-duties is enforced entirely server-side
+    // by governance_assert_not_self (governance_mode + self_action_policy +
+    // overrides). Sending p_allow_self from the client is dead weight and is
+    // forbidden so the browser can never claim to bypass SoD.
     const files = [
       join(ROOT, "pages/inventory/PhysicalCount.tsx"),
       join(ROOT, "pages/inventory/PhysicalCountWorkspace.tsx"),
@@ -101,9 +107,12 @@ describe("Physical Count business event", () => {
       const src = readFileSync(file, "utf8");
       const callsLifecycle = /physical_count_(submit|approve|post)/.test(src);
       if (!callsLifecycle) continue;
-      expect(src, `${file} must include p_allow_self when calling governed lifecycle RPCs`).toMatch(/p_allow_self/);
+      expect(src, `${file} must NOT send p_allow_self — SoD is server-side`).not.toMatch(
+        /p_allow_self\s*:/,
+      );
     }
   });
+
 
   it("latest physical-count governance migration removes stale inline SoD overloads", () => {
     const files = readdirSync(MIGRATIONS)
