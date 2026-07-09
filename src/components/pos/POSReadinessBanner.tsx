@@ -259,7 +259,7 @@ export function POSReadinessBanner() {
               detail:
                 "Every branch that has a POS register must have at least one active warehouse. POS sales would fail at checkout for the affected branches.",
               severity: "blocking",
-              cta: { label: "Open warehouses", href: "/inventory/warehouses" },
+              cta: { label: "Open warehouses", href: "/inventory-app/warehouses" },
             };
           case "payment_methods":
             return {
