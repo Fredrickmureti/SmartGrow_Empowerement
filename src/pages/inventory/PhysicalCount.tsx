@@ -47,6 +47,7 @@ export default function PhysicalCount() {
   const { user } = useAuth();
   const { products } = useProducts();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // Audit lane: every scan dispatched while this screen is mounted lands
   // in `scan_events` with workspace_id='physical_count', branch resolved
