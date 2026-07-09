@@ -439,9 +439,9 @@ export default function PhysicalCountDetail() {
             {lines.filter((l) => l.counted_qty !== null && l.variance_qty !== 0).length}
           </div></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Surplus value</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-emerald-600">${money(jePreview.surplus)}</div></CardContent></Card>
+          <CardContent><div className="text-2xl font-bold text-emerald-600">{formatCurrency(jePreview.surplus)}</div></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Shrinkage value</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-red-600">${money(jePreview.shrinkage)}</div></CardContent></Card>
+          <CardContent><div className="text-2xl font-bold text-red-600">{formatCurrency(jePreview.shrinkage)}</div></CardContent></Card>
       </div>
 
       <Tabs defaultValue="lines">
