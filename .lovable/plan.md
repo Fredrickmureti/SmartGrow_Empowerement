@@ -1,79 +1,65 @@
+# Physical Count post → 404 — Investigation & Fix
 
-## Diagnosis (evidence-based)
+## Business-event trace
 
-The previous fix did not work because the failure is not in the `stock_adjustments` guard trigger — it is upstream, in Physical Count's own lifecycle RPCs, which **do not consult the governance engine at all**.
-
-### The engine (canonical, working)
-- Wave G3 shipped `public.governance_assert_not_self(actor, subject, action, org, entity_type, entity_id)` (migration `20260611191633`), which resolves `organizations.governance_mode`. For `solo` + ≤1 active member it writes `sod.self_action_auto_allowed` to `audit_logs` and returns — no exception.
-- Every other approval surface consumes it via a `BEFORE UPDATE` guard trigger. Example: `guard_stock_adjustment_self_approval` (`20260611181051`) calls `governance_assert_not_self(NEW.approved_by, NEW.created_by, 'inventory.approve_adjustment', …)`. In a solo org this guard is a no-op — it never raises. `mem/features/sod-self-action.md` documents this as the single policy engine.
-
-### The disconnect (Physical Count)
-The three lifecycle RPCs added in `20260708072719_...sql` (and preserved by `20260709191147_...sql`) enforce SoD **inline, in PL/pgSQL, without touching the engine**:
-
-- `physical_count_submit`, `_approve`, `_post` all contain literal:
-  ```
-  IF NOT p_allow_self AND p_user_id = v_c.<x>_by THEN
-    RAISE EXCEPTION 'segregation of duties: …' USING ERRCODE='P0001';
-  ```
-- Callers (`src/pages/inventory/PhysicalCountDetail.tsx:238-240`, `PhysicalCountWorkspace.tsx:119`) always pass `p_allow_self=false`.
-- Result: in Solo mode with one user, `p_user_id = v_c.approved_by` is always true, and the `RAISE` fires at the top of `physical_count_post` **before any stock_adjustments row is touched**. The governance engine is never queried; `governance_mode='solo'` is irrelevant to this code path.
-
-### Why the previous "fix" failed
-Migration `20260709191147` tried to make the derived `stock_adjustments` row look like it was created by a different user (stamping `created_by := v_c.approved_by`). That change targeted the wrong layer — the `sod_stock_adjustments_guard` trigger already delegates to `governance_assert_not_self` and in solo mode auto-allows. The real block is the hardcoded `IF NOT p_allow_self AND p_user_id = v_c.approved_by` at line 22 of `physical_count_post`, which runs first and never asks governance anything.
-
-### Enterprise pattern
-SAP GRC, Oracle Risk Cloud, NetSuite SoD, Dynamics 365 Segregation of Duties, Workday BP security, and Odoo Approvals all model this as a **single policy engine consulted by every operational lifecycle**. Inventory counts do not carry their own approval logic — they ask "does governance permit actor X to perform action Y on entity Z?" That is exactly what `governance_assert_not_self` already answers.
-
-## Fix — connect Physical Count to the engine
-
-No new engine. No bypass flags. Delete duplicated logic and delegate.
-
-### 1. Migration — rewrite the three lifecycle RPCs
-Replace every inline `IF NOT p_allow_self AND p_user_id = v_c.<x>_by THEN RAISE …` block in:
-- `public.physical_count_submit`
-- `public.physical_count_approve`
-- `public.physical_count_post`
-
-with a single call:
-
-```sql
-PERFORM public.governance_assert_not_self(
-  p_user_id,                 -- actor
-  v_c.<prior_actor>,         -- subject: created_by / submitted_by / approved_by
-  'inventory.<submit|approve_count|post_count>',
-  v_c.organization_id,
-  'physical_count',
-  p_count_id
-);
+```
+create → freeze → record lines → submit → approve → post
+         (stock)                          (JE + inv adjustment posted)
+                                                    │
+                                                    ▼
+                                        land on Count Detail (read-only anchor)
+                                        ├─ drill-through: Journal Entry
+                                        ├─ drill-through: Stock Adjustment
+                                        └─ drill-through: Stock Movements
 ```
 
-Drop the `p_allow_self` parameter usage inside the guard (the engine + `self_action_overrides` is the sanctioned bypass path; keep the parameter signature for compatibility so we don't have to touch the client this turn, but ignore it — override consumption happens inside the engine).
+The count document is the ledger-anchor for the whole event (per ADR 0016 and the physical-count lifecycle guard test). Adjustment + JE are produced by `physical_count_post` and linked back to the count via `source_type='inventory_adjustment' + source_subtype='physical_count'`. That matches how SAP (MI07), Odoo (`stock.inventory`), D365 (counting journals), Oracle, and NetSuite behave: **the count stays the source-of-record, becomes read-only after posting, and exposes JE / movement drill-throughs from its detail page.** So the *destination* — the count-detail page — is architecturally correct.
 
-In `physical_count_post`, additionally **revert** the fake `v_adj_created_by` remapping introduced by `20260709191147`. Set `created_by := p_user_id` on the derived `stock_adjustments` row so the audit trail reflects reality. The `sod_stock_adjustments_guard` trigger will call the engine, which will auto-allow in solo mode (or block per policy in standard/strict — the correct behaviour).
+## Actual root cause of the 404
 
-Approver check in `_approve` widens to cover creator/frozen/submitted only when governance is in standard/strict; the engine handles that via three separate action keys (`inventory.approve_count`, plus its `subject` argument covers the prior-actor being distinct). We register one action key per lifecycle step:
-- `inventory.submit_count`
-- `inventory.approve_count`
-- `inventory.post_count`
+The Inventory app is mounted in `src/App.tsx` at:
 
-### 2. Register the three new action keys
-Add three entries to `src/lib/governance/selfActionCatalogue.ts` (module `"Inventory"`, `entityType: "stock_adjustment"` reused — or introduce `"physical_count"` in the union; both are one-liners) so Settings → Governance can render per-action overrides for physical counts like every other module.
+```
+path="/inventory-app/*"    → <InventoryApp />  (defines physical-counts/:id)
+```
 
-### 3. Architecture guard test
-Extend `src/__tests__/architecture.physical-count-lifecycle.test.ts` with a case asserting the three RPC bodies contain `governance_assert_not_self` and do NOT contain the string `'segregation of duties'` (proves no inline SoD survives).
+But the post-submit navigation in `src/pages/inventory/PhysicalCount.tsx:226` sends the browser to:
 
-### 4. UI
-No changes required. `parseGovernanceError` already translates the engine's `42501 / GOV_SELF_ACTION` errors into the friendly self-approval explainer. Removing the `P0001` inline raises means users now see the correct override affordance from `src/lib/governance/selfActionErrors.ts`.
+```
+window.location.assign(`/inventory/physical-counts/${countId}`)
+                        ^^^^^^^^^^ wrong prefix — no route matches → 404
+```
 
-## Verification steps
+The UUID is correct (the freshly created `physical_counts.id`). The destination is correct. Only the URL **prefix is stale** — it uses the legacy `/inventory/...` namespace instead of the canonical `/inventory-app/...` used everywhere else (Products, Warehouses, Adjustments, Transfers, Stock all live under `/inventory-app/`).
 
-1. In the connected org (solo, one user): run the three RPCs — each should succeed and produce a `sod.self_action_auto_allowed` row in `audit_logs`.
-2. Flip `organizations.governance_mode` to `standard` in a test org with two users → single-user post still blocks with `42501 / GOV_SELF_ACTION`, UI shows the override dialog.
-3. Existing tests (`architecture.physical-count-lifecycle`, `sod-coverage`) plus the new assertion pass.
+Grep confirms this is a small, localized drift — 5 stale links total, all in Physical Count pages plus one POS banner:
 
-## What this plan explicitly does NOT do
+| File | Line | Broken link |
+|---|---|---|
+| `src/pages/inventory/PhysicalCount.tsx` | 226 | `` `/inventory/physical-counts/${countId}` `` |
+| `src/pages/inventory/PhysicalCountWorkspace.tsx` | 181 | `` `/inventory/physical-counts/${c.id}` `` |
+| `src/pages/inventory/PhysicalCountWorkspace.tsx` | 241 | `/inventory/count` |
+| `src/pages/inventory/PhysicalCountDetail.tsx` | 316 | `/inventory/physical-counts` |
+| `src/components/pos/POSReadinessBanner.tsx` | 253, 262 | `/inventory/warehouses` |
 
-- Does not introduce a parallel governance engine.
-- Does not add bypass flags — the engine's `self_action_overrides` is the only sanctioned bypass.
-- Does not modify the `stock_adjustments` trigger, the client, or the Governance workspace UI.
-- Does not touch other modules — the change is localized to Physical Count catching up to the pattern the rest of the ERP already follows.
+## Fix (smallest change that restores the correct business-event flow)
+
+Rewrite the 5 stale links to the canonical `/inventory-app/...` prefix. No new routes, no new pages, no navigation rethink — the count-detail destination is already the correct enterprise landing surface.
+
+1. `PhysicalCount.tsx` L226 → `/inventory-app/physical-counts/${countId}`
+2. `PhysicalCountWorkspace.tsx` L181 → `/inventory-app/physical-counts/${c.id}`
+3. `PhysicalCountWorkspace.tsx` L241 → `/inventory-app/count`
+4. `PhysicalCountDetail.tsx` L316 → `/inventory-app/physical-counts`
+5. `POSReadinessBanner.tsx` L253, L262 → `/inventory-app/warehouses`
+
+Also swap the `window.location.assign` in `PhysicalCount.tsx` for `useNavigate()` so it stays inside the SPA (no full reload, preserves the query-invalidation on the workspace key that runs one line above).
+
+## Guard test (prevent regression)
+
+Add an architecture test `src/test/architecture/inventory-canonical-prefix.test.ts` that fails on any occurrence of `/inventory/` (not `/inventory-app/`) inside `src/pages/inventory/**`, `src/apps/inventory/**`, and `src/components/**`. This locks the URL contract so the two prefixes cannot drift again.
+
+## Out of scope
+
+- No changes to the Physical Count lifecycle RPCs, GL posting, adjustment linkage, or invariants from ADR 0016.
+- No re-navigation to the JE or adjustment — those remain drill-throughs from the count detail, matching SAP/Odoo/D365 convention.
+- Unrelated pre-existing build errors are ignored per the standing instruction.
