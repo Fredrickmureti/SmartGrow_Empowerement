@@ -178,7 +178,7 @@ export default function PhysicalCountWorkspace() {
             return (
               <TableRow key={c.id}>
                 <TableCell className="font-mono text-xs">
-                  <Link to={`/inventory/physical-counts/${c.id}`} className="hover:underline">
+                  <Link to={`/inventory-app/physical-counts/${c.id}`} className="hover:underline">
                     {c.count_number}
                   </Link>
                 </TableCell>
