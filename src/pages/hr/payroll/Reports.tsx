@@ -49,10 +49,6 @@ function PayrollReportsInner() {
   const now = new Date();
   const { filters } = useReportFilters();
   const [reportKey, setReportKey] = useState<ReportKey>("payroll_register");
-  const { data: defs } = usePayrollReportDefinitions(currentBusiness?.country_code as any);
-  const groups = groupPayrollReports(defs);
-  const activeDef = defs?.find((d) => d.reportKey === reportKey);
-  const activeLabel = activeDef?.label ?? reportKey;
   const [dateFrom, setDateFrom] = useState(filters.dateFrom || format(startOfMonth(now), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
   const { currentOrg } = useOrganization();
@@ -61,6 +57,12 @@ function PayrollReportsInner() {
   const { formatCurrency } = useCurrency();
   const navigate = useNavigate();
   const canSeeMoney = can("viewSalaryDetails");
+  const { data: defs } = usePayrollReportDefinitions(
+    (currentBusiness as any)?.country_code ?? null,
+  );
+  const groups = groupPayrollReports(defs);
+  const activeDef = defs?.find((d) => d.reportKey === reportKey);
+  const activeLabel = activeDef?.label ?? reportKey;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["payroll-report", reportKey, currentOrg?.id, currentBusiness?.id, filters.branchId, dateFrom, dateTo],
