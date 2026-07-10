@@ -8,20 +8,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,7 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { DetailSheet, StatusBadge } from "@/design-system";
 import {
   Search,
   History,
@@ -57,18 +50,25 @@ import {
   Eye,
   Download,
   Filter,
-  Plus,
-  Pencil,
   Trash2,
-  RefreshCw,
+  Copy,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { normalizeError } from "@/services/resilience";
+import {
+  humanizeEntityType,
+  humanizeAction,
+  humanizeSentence,
+  formatFieldName,
+  formatFieldValue,
+  diffValues,
+} from "./audit-logs/format";
 
 interface AuditLogDetail {
   id: string;
+  user_id?: string | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
@@ -87,14 +87,12 @@ export default function AuditLogs() {
   const [isClearing, setIsClearing] = useState(false);
   const { currentOrg } = useOrganization();
   const { getUserName, members } = useOrgMembers();
-  
-  // Check if user is admin or owner
+
   const userRole = currentOrg?.role;
   const isAdmin = userRole === "owner" || userRole === "admin" || userRole === "super_admin";
-  
-  // Debounced search
+
   const debouncedSearch = useDebouncedCallback((value: string) => {
-    setFilters(prev => ({ ...prev, search: value || undefined }));
+    setFilters((prev) => ({ ...prev, search: value || undefined }));
   }, 300);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,13 +111,13 @@ export default function AuditLogs() {
     setPageSize,
     refetch,
   } = useAuditLogsPaginated(filters);
-  
+
   const [selectedLog, setSelectedLog] = useState<AuditLogDetail | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showTechnicalFields, setShowTechnicalFields] = useState(false);
 
   const handleClearAllLogs = async () => {
     if (!currentOrg?.id) return;
-    
     setIsClearing(true);
     try {
       const { data, error } = await supabase
@@ -128,14 +126,10 @@ export default function AuditLogs() {
         .delete()
         .eq("organization_id", currentOrg.id)
         .select();
-
       if (error) throw error;
-
-      // Check if any rows were actually deleted
       if (!data || data.length === 0) {
         throw new Error("Deletion was blocked by security policy. You may not have admin permissions.");
       }
-
       toast.success(`Cleared ${data.length} audit log entries`);
       refetch();
     } catch (error: any) {
@@ -147,17 +141,34 @@ export default function AuditLogs() {
   };
 
   const handleExportCSV = () => {
-    const headers = ["Date", "User", "Action", "Entity Type", "Entity Name", "Changes"];
-    const rows = auditLogs.map(log => [
+    const headers = [
+      "Date",
+      "User",
+      "Action",
+      "Entity",
+      "Name",
+      "Summary",
+      "action_raw",
+      "entity_type_raw",
+    ];
+    const rows = auditLogs.map((log) => [
       format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss"),
       getUserName(log.user_id),
+      humanizeAction(log.action).label,
+      humanizeEntityType(log.entity_type),
+      log.entity_name || "",
+      log.changes_summary ||
+        humanizeSentence({
+          action: log.action,
+          entityType: log.entity_type,
+          entityName: log.entity_name,
+        }),
       log.action,
       log.entity_type,
-      log.entity_name || "",
-      log.changes_summary || "",
     ]);
-    
-    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -166,23 +177,20 @@ export default function AuditLogs() {
     a.click();
   };
 
-  const getActionIcon = (action: string) => {
-    switch (action.toLowerCase()) {
-      case "create": return <Plus className="h-3 w-3" />;
-      case "update": return <Pencil className="h-3 w-3" />;
-      case "delete": return <Trash2 className="h-3 w-3" />;
-      default: return <RefreshCw className="h-3 w-3" />;
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error("Copy failed");
     }
   };
 
-  const getActionBadge = (action: string) => {
-    switch (action.toLowerCase()) {
-      case "create": return <Badge className="bg-green-100 text-green-800">{getActionIcon(action)} Create</Badge>;
-      case "update": return <Badge className="bg-blue-100 text-blue-800">{getActionIcon(action)} Update</Badge>;
-      case "delete": return <Badge variant="destructive">{getActionIcon(action)} Delete</Badge>;
-      default: return <Badge variant="outline">{action}</Badge>;
-    }
-  };
+  const diff = selectedLog
+    ? diffValues(selectedLog.old_values, selectedLog.new_values, {
+        includeNoise: showTechnicalFields,
+      })
+    : [];
 
   return (
     <PlatformAppLayout>
@@ -206,10 +214,7 @@ export default function AuditLogs() {
             {isAdmin && auditLogs.length > 0 && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="destructive" 
-                    disabled={isClearing}
-                  >
+                  <Button variant="destructive" disabled={isClearing}>
                     {isClearing ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
@@ -222,7 +227,7 @@ export default function AuditLogs() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Clear All Audit Logs</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete all audit logs for this organization. 
+                      This will permanently delete all audit logs for this organization.
                       This action cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -253,14 +258,16 @@ export default function AuditLogs() {
                   <Label>User</Label>
                   <Select
                     value={filters.userId || "all"}
-                    onValueChange={(v) => setFilters(prev => ({ ...prev, userId: v === "all" ? undefined : v }))}
+                    onValueChange={(v) =>
+                      setFilters((prev) => ({ ...prev, userId: v === "all" ? undefined : v }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="All users" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Users</SelectItem>
-                      {members.map(m => (
+                      {members.map((m) => (
                         <SelectItem key={m.user_id} value={m.user_id}>
                           {m.full_name || m.email}
                         </SelectItem>
@@ -269,18 +276,22 @@ export default function AuditLogs() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Entity Type</Label>
+                  <Label>Entity</Label>
                   <Select
                     value={filters.entityType || "all"}
-                    onValueChange={(v) => setFilters(prev => ({ ...prev, entityType: v === "all" ? undefined : v }))}
+                    onValueChange={(v) =>
+                      setFilters((prev) => ({ ...prev, entityType: v === "all" ? undefined : v }))
+                    }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="All types" />
+                      <SelectValue placeholder="All entities" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="all">All Entities</SelectItem>
                       {entityTypes.map((type: any) => (
-                        <SelectItem key={String(type)} value={String(type)}>{String(type)}</SelectItem>
+                        <SelectItem key={String(type)} value={String(type)}>
+                          {humanizeEntityType(String(type))}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -289,7 +300,9 @@ export default function AuditLogs() {
                   <Label>Action</Label>
                   <Select
                     value={filters.action || "all"}
-                    onValueChange={(v) => setFilters(prev => ({ ...prev, action: v === "all" ? undefined : v }))}
+                    onValueChange={(v) =>
+                      setFilters((prev) => ({ ...prev, action: v === "all" ? undefined : v }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="All actions" />
@@ -297,7 +310,9 @@ export default function AuditLogs() {
                     <SelectContent>
                       <SelectItem value="all">All Actions</SelectItem>
                       {actions.map((action: any) => (
-                        <SelectItem key={String(action)} value={String(action)}>{String(action)}</SelectItem>
+                        <SelectItem key={String(action)} value={String(action)}>
+                          {humanizeAction(String(action)).label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -307,7 +322,9 @@ export default function AuditLogs() {
                   <Input
                     type="date"
                     value={filters.startDate || ""}
-                    onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value || undefined }))}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, startDate: e.target.value || undefined }))
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -315,13 +332,15 @@ export default function AuditLogs() {
                   <Input
                     type="date"
                     value={filters.endDate || ""}
-                    onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value || undefined }))}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, endDate: e.target.value || undefined }))
+                    }
                   />
                 </div>
               </div>
               <div className="flex justify-end mt-4">
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => {
                     setFilters({});
                     setSearchInput("");
@@ -364,45 +383,56 @@ export default function AuditLogs() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date & Time</TableHead>
+                    <TableHead>When</TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Action</TableHead>
                     <TableHead>Entity</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead className="max-w-xs">Changes</TableHead>
+                    <TableHead className="max-w-xs">What happened</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {auditLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {getUserName(log.user_id)}
-                      </TableCell>
-                      <TableCell>{getActionBadge(log.action)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{log.entity_type}</Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {log.entity_name || "-"}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate text-muted-foreground">
-                        {log.changes_summary || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => setSelectedLog(log)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {auditLogs.map((log) => {
+                    const action = humanizeAction(log.action);
+                    const summary =
+                      log.changes_summary ||
+                      humanizeSentence({
+                        action: log.action,
+                        entityType: log.entity_type,
+                        entityName: log.entity_name,
+                      });
+                    return (
+                      <TableRow key={log.id} className="cursor-pointer" onClick={() => setSelectedLog(log)}>
+                        <TableCell className="whitespace-nowrap text-sm">
+                          {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
+                        </TableCell>
+                        <TableCell className="text-sm">{getUserName(log.user_id) || "System"}</TableCell>
+                        <TableCell>
+                          <StatusBadge tone={action.tone}>{action.label}</StatusBadge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" title={log.entity_type}>
+                            {humanizeEntityType(log.entity_type)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{log.entity_name || "—"}</TableCell>
+                        <TableCell className="max-w-xs truncate text-muted-foreground">{summary}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLog(log);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -419,89 +449,182 @@ export default function AuditLogs() {
           />
         )}
 
-        {/* Detail Dialog */}
-        <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Audit Log Details</DialogTitle>
-              <DialogDescription>
-                {selectedLog && format(new Date(selectedLog.created_at), "MMMM d, yyyy 'at' HH:mm:ss")}
-              </DialogDescription>
-            </DialogHeader>
-            
-            {selectedLog && (
-              <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label className="text-muted-foreground">Action</Label>
-                    <div className="mt-1">{getActionBadge(selectedLog.action)}</div>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Entity Type</Label>
-                    <p className="font-medium">{selectedLog.entity_type}</p>
-                  </div>
-                  {selectedLog.entity_name && (
-                    <div>
-                      <Label className="text-muted-foreground">Entity Name</Label>
-                      <p className="font-medium">{selectedLog.entity_name}</p>
-                    </div>
-                  )}
-                  {selectedLog.entity_id && (
-                    <div>
-                      <Label className="text-muted-foreground">Entity ID</Label>
-                      <p className="font-mono text-sm">{selectedLog.entity_id}</p>
-                    </div>
-                  )}
-                </div>
-
-                {selectedLog.changes_summary && (
-                  <div>
-                    <Label className="text-muted-foreground">Changes Summary</Label>
-                    <p>{selectedLog.changes_summary}</p>
-                  </div>
+        {/* Detail Sheet — always mounted; open bound to !!selectedLog */}
+        <DetailSheet
+          open={!!selectedLog}
+          onOpenChange={(open) => {
+            if (!open) setSelectedLog(null);
+          }}
+          size="lg"
+          title={
+            selectedLog
+              ? humanizeSentence({
+                  action: selectedLog.action,
+                  entityType: selectedLog.entity_type,
+                  entityName: selectedLog.entity_name,
+                })
+              : "Audit entry"
+          }
+          description={
+            selectedLog
+              ? format(new Date(selectedLog.created_at), "MMMM d, yyyy 'at' HH:mm:ss")
+              : undefined
+          }
+          headerActions={
+            selectedLog && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(selectedLog.id, "Log ID")}
+                >
+                  <Copy className="mr-1.5 h-3.5 w-3.5" />
+                  ID
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    copyToClipboard(
+                      JSON.stringify(
+                        {
+                          old_values: selectedLog.old_values,
+                          new_values: selectedLog.new_values,
+                        },
+                        null,
+                        2,
+                      ),
+                      "JSON",
+                    )
+                  }
+                >
+                  <Copy className="mr-1.5 h-3.5 w-3.5" />
+                  JSON
+                </Button>
+              </>
+            )
+          }
+        >
+          {selectedLog && (
+            <div className="space-y-6">
+              {/* Summary strip */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SummaryItem label="Action">
+                  <StatusBadge tone={humanizeAction(selectedLog.action).tone}>
+                    {humanizeAction(selectedLog.action).label}
+                  </StatusBadge>
+                </SummaryItem>
+                <SummaryItem label="Entity">
+                  {humanizeEntityType(selectedLog.entity_type)}
+                </SummaryItem>
+                {selectedLog.entity_name && (
+                  <SummaryItem label="Record">{selectedLog.entity_name}</SummaryItem>
                 )}
-
-                {selectedLog.old_values && Object.keys(selectedLog.old_values).length > 0 && (
-                  <div>
-                    <Label className="text-muted-foreground">Previous Values</Label>
-                    <ScrollArea className="h-32 rounded border p-2 mt-1">
-                      <pre className="text-xs">
-                        {JSON.stringify(selectedLog.old_values, null, 2)}
-                      </pre>
-                    </ScrollArea>
-                  </div>
+                <SummaryItem label="User">{getUserName(selectedLog.user_id) || "System"}</SummaryItem>
+                {selectedLog.entity_id && (
+                  <SummaryItem label="Record ID">
+                    <span className="font-mono text-xs">{selectedLog.entity_id}</span>
+                  </SummaryItem>
                 )}
-
-                {selectedLog.new_values && Object.keys(selectedLog.new_values).length > 0 && (
-                  <div>
-                    <Label className="text-muted-foreground">New Values</Label>
-                    <ScrollArea className="h-32 rounded border p-2 mt-1">
-                      <pre className="text-xs">
-                        {JSON.stringify(selectedLog.new_values, null, 2)}
-                      </pre>
-                    </ScrollArea>
-                  </div>
+                {selectedLog.ip_address && (
+                  <SummaryItem label="IP address">
+                    <span className="font-mono text-xs">{selectedLog.ip_address}</span>
+                  </SummaryItem>
                 )}
-
-                <div className="grid gap-4 md:grid-cols-2 pt-4 border-t">
-                  {selectedLog.ip_address && (
-                    <div>
-                      <Label className="text-muted-foreground">IP Address</Label>
-                      <p className="font-mono text-sm">{selectedLog.ip_address}</p>
-                    </div>
-                  )}
-                  {selectedLog.user_agent && (
-                    <div>
-                      <Label className="text-muted-foreground">User Agent</Label>
-                      <p className="text-sm truncate">{selectedLog.user_agent}</p>
-                    </div>
-                  )}
-                </div>
               </div>
-            )}
-          </DialogContent>
-        </Dialog>
+
+              {selectedLog.changes_summary && (
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                    Summary
+                  </div>
+                  <p className="text-sm">{selectedLog.changes_summary}</p>
+                </div>
+              )}
+
+              {/* Field-level diff */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Changes
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Switch
+                      id="tech-fields"
+                      checked={showTechnicalFields}
+                      onCheckedChange={setShowTechnicalFields}
+                    />
+                    <Label htmlFor="tech-fields" className="cursor-pointer text-xs">
+                      Show technical fields
+                    </Label>
+                  </div>
+                </div>
+                {diff.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">No field changes recorded.</p>
+                ) : (
+                  <div className="rounded-md border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 text-xs text-muted-foreground">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">Field</th>
+                          <th className="text-left px-3 py-2 font-medium">Before</th>
+                          <th className="text-left px-3 py-2 font-medium">After</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {diff.map((entry) => (
+                          <tr key={entry.key} className="border-t align-top">
+                            <td className="px-3 py-2 font-medium">{formatFieldName(entry.key)}</td>
+                            <td className="px-3 py-2 text-muted-foreground line-through decoration-muted-foreground/40">
+                              {formatFieldValue(entry.key, entry.before)}
+                            </td>
+                            <td className="px-3 py-2">
+                              {formatFieldValue(entry.key, entry.after)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {selectedLog.user_agent && (
+                <SummaryItem label="User agent">
+                  <span className="text-xs text-muted-foreground break-all">
+                    {selectedLog.user_agent}
+                  </span>
+                </SummaryItem>
+              )}
+
+              {/* Raw JSON — collapsed by default */}
+              <details className="rounded-md border bg-muted/30">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">
+                  Raw payload (for engineers)
+                </summary>
+                <pre className="px-3 py-2 text-xs overflow-x-auto">
+                  {JSON.stringify(
+                    { old_values: selectedLog.old_values, new_values: selectedLog.new_values },
+                    null,
+                    2,
+                  )}
+                </pre>
+              </details>
+            </div>
+          )}
+        </DetailSheet>
       </div>
     </PlatformAppLayout>
+  );
+}
+
+function SummaryItem({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">
+        {label}
+      </div>
+      <div className="text-sm">{children}</div>
+    </div>
   );
 }
