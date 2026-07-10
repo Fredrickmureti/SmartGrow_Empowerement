@@ -26,6 +26,7 @@ import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { ReportFilters } from "@/components/reports/ReportFilters";
 import { ReportFilterProvider, useReportFilters } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
+import { PayrollReportsKpiStrip } from "./PayrollReportsKpiStrip";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -187,6 +188,7 @@ function PayrollReportsInner() {
         </ReportFilters>
       }
     >
+      <PayrollReportsKpiStrip dateFrom={dateFrom} dateTo={dateTo} />
       <div className="space-y-3 mb-4">
         {TAB_GROUPS.map((group) => (
           <div key={group.label}>
