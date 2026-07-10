@@ -136,6 +136,7 @@ import {
 // APP MODULES (Odoo-style app navigation)
 // ============================================
 const MigrationPage = lazy(() => import("@/pages/settings/MigrationPage"));
+const ConsolidationReport = lazy(() => import("@/pages/reports/Consolidation"));
 const BranchNullDiagnostic = lazy(() => import("@/pages/diagnostics/BranchNullDiagnostic"));
 const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
 const CarriersSettings = lazy(() => import("@/pages/settings/Carriers"));
