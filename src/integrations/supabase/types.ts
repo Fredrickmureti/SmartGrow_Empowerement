@@ -67589,6 +67589,16 @@ export type Database = {
             }
             Returns: string
           }
+        | {
+            Args: {
+              p_branch_id?: string
+              p_business_id: string
+              p_org_id: string
+              p_reason: string
+              p_sign: number
+            }
+            Returns: string
+          }
       resolve_adjustment_unit_cost: {
         Args: {
           p_business_id: string
