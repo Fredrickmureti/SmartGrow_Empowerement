@@ -97,9 +97,18 @@ export default function ScrapNew() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.product_id]);
 
+  useEffect(() => {
+    setForm((f) => {
+      if (!f.warehouse_id) return f;
+      return warehouses.some((w) => w.id === f.warehouse_id)
+        ? f
+        : { ...f, warehouse_id: "" };
+    });
+  }, [warehouses]);
+
   const totalValue = Math.abs(form.quantity || 0) * Number(form.unit_cost || 0);
   const invalid =
-    !form.product_id || !form.reason || form.quantity <= 0;
+    !currentBusiness?.id || !form.product_id || !form.warehouse_id || !form.reason || form.quantity <= 0;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -171,13 +180,13 @@ export default function ScrapNew() {
             </div>
           </FieldCell>
           <div className="space-y-2">
-            <Label>Warehouse</Label>
+            <Label>Warehouse *</Label>
             <Select
               value={form.warehouse_id}
               onValueChange={(v) => setForm((f) => ({ ...f, warehouse_id: v }))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Default" />
+                <SelectValue placeholder="Select warehouse" />
               </SelectTrigger>
               <SelectContent>
                 {warehouses.map((w) => (
