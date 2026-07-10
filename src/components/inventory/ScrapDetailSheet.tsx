@@ -51,6 +51,7 @@ function statusTone(status: string): "default" | "secondary" | "destructive" | "
 export function ScrapDetailSheet({ open, onOpenChange, scrapId }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [reversing, setReversing] = useState(false);
 
   const { data, isLoading } = useQuery({
