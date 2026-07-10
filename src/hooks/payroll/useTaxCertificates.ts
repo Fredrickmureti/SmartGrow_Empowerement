@@ -24,6 +24,7 @@ export interface TaxCertificate {
   fiscal_year: number;
   payload: any;
   pdf_path: string | null;
+  xlsx_path?: string | null;
   serial_number: string;
   status: "draft" | "issued" | "superseded";
   generated_at: string;
@@ -385,10 +386,13 @@ export function useCertificateSubmissions(certificateIds: string[]) {
   });
 }
 
-export async function downloadTaxCertificate(certificate: Pick<TaxCertificate, "id" | "pdf_path"> | string) {
+export async function downloadTaxCertificate(
+  certificate: Pick<TaxCertificate, "id" | "pdf_path"> | string,
+  format: "pdf" | "xlsx" = "pdf",
+) {
   const body = typeof certificate === "string"
-    ? { pdf_path: certificate }
-    : { certificate_id: certificate.id };
+    ? { pdf_path: certificate, format }
+    : { certificate_id: certificate.id, format };
   const { data, error } = await supabase.functions.invoke("download-tax-certificate", { body });
   if (error || !(data as any)?.signedUrl) {
     const { toast } = await import("sonner");
@@ -400,7 +404,7 @@ export async function downloadTaxCertificate(certificate: Pick<TaxCertificate, "
   a.href = (data as any).signedUrl;
   a.rel = "noopener";
   a.target = "_blank";
-  a.download = (data as any).filename ?? "certificate.pdf";
+  a.download = (data as any).filename ?? (format === "xlsx" ? "certificate.xlsx" : "certificate.pdf");
   document.body.appendChild(a);
   a.click();
   a.remove();
