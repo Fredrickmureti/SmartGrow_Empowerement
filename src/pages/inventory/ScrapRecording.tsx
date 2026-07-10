@@ -36,6 +36,7 @@ import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { SCRAP_REASONS, scrapReasonLabel } from "./scrapReasons";
+import { ScrapDetailSheet } from "@/components/inventory/ScrapDetailSheet";
 
 type ScrapRow = {
   id: string;
@@ -86,6 +87,8 @@ export default function ScrapRecording() {
 
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailScrapId, setDetailScrapId] = useState<string | null>(null);
 
   const { data: scraps = [], isLoading } = useQuery({
     queryKey: [
@@ -348,7 +351,14 @@ export default function ScrapRecording() {
                   const extra = items.length > 1 ? ` +${items.length - 1}` : "";
                   const je = s.journal_entries?.[0];
                   return (
-                    <TableRow key={s.id}>
+                    <TableRow
+                      key={s.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => {
+                        setDetailScrapId(s.id);
+                        setDetailOpen(true);
+                      }}
+                    >
                       <TableCell className="font-mono text-xs">
                         {s.adjustment_number ?? s.id.slice(0, 8)}
                       </TableCell>
@@ -359,7 +369,8 @@ export default function ScrapRecording() {
                         {firstProduct ? (
                           <button
                             className="text-primary hover:underline text-left"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSelectedProductId(firstProduct.id);
                               setProductDrawerOpen(true);
                             }}
@@ -398,6 +409,12 @@ export default function ScrapRecording() {
         open={productDrawerOpen}
         onOpenChange={setProductDrawerOpen}
         productId={selectedProductId}
+      />
+
+      <ScrapDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        scrapId={detailScrapId}
       />
     </div>
   );
