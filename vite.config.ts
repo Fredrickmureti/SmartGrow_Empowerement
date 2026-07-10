@@ -20,6 +20,14 @@ export default defineConfig(({ mode }) => ({
         entry: "./router.tsx",
         generatedRouteTree: "./routeTree.gen.ts",
       },
+      // Wire our TanStack Start server entry (src/server.ts). Without this,
+      // @tanstack/start-server-core can't resolve the `#tanstack-start-entry`
+      // subpath import at SSR time, every request 500s, and the browser
+      // receives a bare shell with no <link rel="stylesheet"> — which strips
+      // Tailwind + tokens and triggers a hydration mismatch on the client.
+      server: {
+        entry: "./server.ts",
+      },
     }),
     react(),
     mode === "development" ? (componentTagger() as unknown as PluginOption) : null,

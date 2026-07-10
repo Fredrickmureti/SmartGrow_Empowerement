@@ -1,70 +1,72 @@
-## Verified findings
+## Incident summary
 
-**Immediate production defect**
-- `SCR-2026-00001` exists as a real scrap document in `stock_adjustments` with `adjustment_type='scrap'`, status `approved`, value `210`, JE `JE-00003`, stock movement, and `scrap.posted` outbox event.
-- The scrap page hides it because `ScrapRecording.tsx` filters rows with `(r as any).adjustment_type === 'scrap'`, but the query does not select `adjustment_type`. Every row is therefore filtered out client-side.
+The app renders as bare HTML with no Tailwind/theme styling and React reports "hydration failed / server HTML replaced with client content". These are **downstream symptoms**. The CSS pipeline, Tailwind config, `index.css`, `tokens.css`, `__root.tsx`, providers, and `App.tsx` are all healthy.
 
-**What the previous implementation actually delivered**
-- Scrap is partially promoted from a bare movement to `stock_adjustments` + `stock_adjustment_items` via `record_scrap_atomic`.
-- It delegates posting to `approve_stock_adjustment_atomic`, so stock movement, valuation, cost resolution, lot consumption path, and GL posting reuse the hardened adjustment engine.
-- `scrap_reasons`, `scrap_attachments`, `scrap.posted`, `scrap.reversed`, and scrap SoD catalogue entries exist.
-- The UI has a log, reason setup page, and detail sheet, but it is still single-line and has direct RPC calls in `ScrapNew.tsx` despite `useScrap` saying it is canonical.
+## True root cause (proven, not guessed)
 
-**Architectural gaps still present**
-- No dedicated `create_scrap_atomic`, `approve_scrap_atomic`, `post_scrap_atomic`, or `reverse_scrap_atomic`; only a wrapper over stock adjustment approval exists.
-- Scrap lifecycle status is inconsistent: database status remains `approved` even though GL is posted; the outbox calls it `scrap.posted`.
-- Reason thresholds and required attachments are stored but not enforced before posting.
-- Reason-specific GL mapping is shallow: reasons mostly collapse to shrinkage instead of resolving configurable `offset_account_purpose` through the canonical default-account architecture.
-- The reason setup UI hardcodes `offset_account_purpose: "shrinkage"` and does not let finance configure the purpose.
-- No attachment upload/verification workflow exists.
-- Governance is limited to self-approval guard; approval thresholds/maker-checker are not yet wired into the approval framework.
-- Reporting is UI-local and fragile; no canonical scrap reporting view/query exists for KPIs, lists, and drill-down.
+Every request to the dev server currently returns **HTTP 500** with this SSR error in the Vite daemon log:
 
-## Implementation plan
+```
+Error: Cannot find module '#tanstack-start-entry'
+  imported from '@tanstack/start-server-core/dist/esm/createStartHandler.js'
+  at loadEntries (createStartHandler.ts:115)
+  at plugin.js:79 (@tanstack/start-plugin-core dev-server-plugin)
+```
 
-### 1. Fix the current user-visible reporting defect first
-- Add `adjustment_type` to the `ScrapRecording.tsx` query, or better, filter `adjustment_type='scrap'` in the database query now that the column exists in generated types.
-- Keep `approved` treated as posted only where the current engine genuinely posts the JE during approval.
-- Change the empty state copy only if no scrap documents truly exist.
-- Validate that `SCR-2026-00001` appears in the list and KPI cards show:
-  - Posted this month: `1`
-  - Loss MTD: `210`
-  - Loss today: `210`
+`#tanstack-start-entry` is the subpath-imports alias TanStack Start's server core uses to load the project's server entry (our `src/server.ts`, which correctly exports `{ fetch }` via `createStartHandler(defaultStreamHandler)`).
 
-### 2. Remove shallow frontend inconsistencies
-- Make `ScrapNew.tsx` use `useRecordScrap` instead of calling `record_scrap_atomic` directly.
-- Update `ScrapRecording.tsx` reason filters to use database `scrap_reasons`, not the legacy hardcoded catalogue.
-- Ensure the detail sheet shows the linked JE, stock movement, unit cost, total value, requester/approver, and outbox/audit status where available.
-- Add an architecture test that prevents client-side filtering by a column that is not selected.
+`vite.config.ts` is currently hand-written and calls the raw plugin:
 
-### 3. Make reporting canonical
-- Add a database view or RPC for scrap dashboard/list rows that returns document header, line totals, status, reason, warehouse, JE id/number, movement count, requester, approver, and financial value.
-- Point the scrap page and detail sheet at this canonical read model so KPI cards and lists cannot drift from the posting model.
-- Include legacy orphan visibility for any historical `stock_movements` scrap rows that do not have a `stock_adjustments` header, clearly marked as legacy.
+```ts
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+...
+plugins: [
+  ...tanstackStart({
+    router: { entry: "./router.tsx", generatedRouteTree: "./routeTree.gen.ts" },
+  }),
+  react(),
+  ...
+]
+```
 
-### 4. Enforce enterprise controls that currently only exist as fields
-- Enforce `scrap_reasons.requires_attachment` before posting.
-- Enforce `requires_approval_above` by routing above-threshold scrap through existing approval/governance tables instead of immediately approving.
-- Keep solo-organization behavior safe, but do not allow multi-user orgs to self-approve material scrap without a governance override.
-- Add tests for threshold, attachment, and self-approval behavior.
+It configures `router.entry` but **never sets `server.entry`**, and it does not go through `@lovable.dev/vite-tanstack-config` (the wrapper is installed in `node_modules/@lovable.dev/vite-tanstack-config` but unused). The lovable wrapper is what registers the `#tanstack-start-entry` alias pointing at `src/server.ts`. Without it, `@tanstack/start-server-core` cannot resolve the entry, throws during `loadEntries`, h3 catches it and returns a 500 for every request — including `/`.
 
-### 5. Complete accounting configuration properly
-- Replace reason hardcoding in `resolve_adjustment_offset_account` with lookup of `scrap_reasons.offset_account_purpose`.
-- Resolve the offset account through the existing default-account/account-role architecture rather than adding another mapping system.
-- Expose offset-account purpose in the reason setup UI.
-- Fail fast when an account cannot be resolved; never post stock without GL.
+Consequences that produced every visible symptom:
 
-### 6. Close lifecycle gaps
-- Introduce dedicated scrap RPCs only where they add lifecycle semantics beyond the generic stock-adjustment engine:
-  - create/request scrap
-  - approve/post scrap
-  - reverse scrap
-- Preserve `record_scrap_atomic` as a backwards-compatible wrapper.
-- Align statuses so posted scrap is unambiguous in UI, reports, and outbox events.
-- Add regression tests for stock movement, cost resolution, JE linkage, outbox emission, reversal, and dashboard visibility.
+1. The SSR shell is never rendered, so the response HTML contains none of the `<link rel="stylesheet">` / `<script type="module">` tags that `HeadContent` + `Scripts` inject. The browser gets a near-empty document → "renders as almost pure HTML", no Tailwind, no tokens.
+2. When the client bundle eventually loads (or fails to), React tries to hydrate against markup that doesn't match anything → "Hydration failed / server HTML replaced with client content".
 
-### 7. Validate end-to-end
-- Reproduce the current failure on the scrap page.
-- Apply the fix and verify the same posted scrap appears in the dashboard/list.
-- Verify database state for document, item, stock movement, JE, and outbox.
-- Run focused architecture/unit tests for scrap lifecycle and stock adjustment posting.
+Both symptoms disappear the moment SSR can resolve the server entry.
+
+Ruled out during investigation:
+- `tailwind.config.ts`, `postcss.config.js`, `@tailwind` directives, `src/styles.css`, `src/index.css`, `src/design-system/tokens.css` — all intact and correct.
+- `__root.tsx` correctly imports both CSS files and renders `<HeadContent />` + `<Scripts />`.
+- `src/App.tsx`, providers, `ThemeProvider`, `BrowserRouter` bootstrap — unchanged and correct.
+- Random values / browser globals during render — not the cause (SSR never runs).
+- `src/server.ts` — present and correctly shaped.
+
+## Fix (root-cause repair, not a workaround)
+
+Replace `vite.config.ts` with a `@lovable.dev/vite-tanstack-config` `defineConfig` that:
+
+1. Sets `tanstackStart.server.entry = "server"` → registers the `#tanstack-start-entry` alias to `src/server.ts`. This alone eliminates the 500.
+2. Keeps `tanstackStart.router.entry = "./router.tsx"` and `generatedRouteTree = "./routeTree.gen.ts"` so the existing (intentionally minimal) TanStack router + the legacy react-router-dom SPA mounted inside `src/routes/index.tsx` and `src/routes/$.tsx` keep working exactly as documented in `router.tsx`.
+3. Preserves every other current behavior verbatim: `base: process.env.ELECTRON_BUILD ? './' : '/'`, dev server on `::` port 8080, `@vitejs/plugin-react-swc`, `lovable-tagger` in development, `vite-plugin-pwa` config (disabled for `ELECTRON_BUILD`, otherwise full manifest / workbox / runtime caching), and the `@` → `./src` alias.
+
+No changes to `src/server.ts`, `src/router.tsx`, `src/routes/__root.tsx`, `src/routes/index.tsx`, `src/App.tsx`, CSS files, Tailwind config, PostCSS config, or providers. No `ssr: false`, no StrictMode removal, no hydration suppression, no forced client-only shell.
+
+## Verification checklist
+
+After the config change and a dev-server restart:
+
+- `curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/` returns `200`.
+- Response HTML contains a `<link rel="stylesheet" ...>` for the compiled Tailwind stylesheet and the module script for the client entry.
+- No `Cannot find module '#tanstack-start-entry'` lines in the Vite daemon log after restart.
+- Browser: landing page renders with full ERP styling (colors, spacing, sidebar theme), no hydration-mismatch warning in the console.
+- Navigation into an internal route still routes through the react-router-dom SPA inside `<App />` (as intended by `src/router.tsx`'s comments).
+
+## Technical notes
+
+- `@lovable.dev/vite-tanstack-config`'s `defineConfig` is the sanctioned wrapper on this stack; it wires the `#tanstack-start-entry` subpath import in addition to any options passed under `tanstackStart`. The knowledge card `tanstack-ssr-error-handling` explicitly requires this wrapper for `server.entry` overrides to take effect.
+- The stray file `vite.config.ts.timestamp-1769837119628-....mjs` at the project root is a leftover Vite temp from before the migration and unrelated to the incident; it is not loaded by Vite. It can be safely deleted for hygiene but is not part of the fix.
+- If, after applying the fix, any residual hydration warning appears on a specific route, that would be a separate, narrower issue to diagnose from a working SSR baseline — not a reason to disable SSR or wrap more of the tree in `ClientOnly`.
