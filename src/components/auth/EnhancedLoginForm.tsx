@@ -133,7 +133,7 @@ export function EnhancedLoginForm() {
     e.preventDefault();
     setIsLoading(true);
 
-    const { error } = await signIn(email, password);
+    const { error, user: signedInUser } = await signIn(email, password);
 
     if (error) {
       const isUnconfirmedEmail =
@@ -159,7 +159,7 @@ export function EnhancedLoginForm() {
       return;
     }
 
-    await handlePostLogin();
+    await handlePostLogin(signedInUser);
     setIsLoading(false);
   };
 
@@ -195,7 +195,7 @@ export function EnhancedLoginForm() {
       }
 
       // Set the session from the edge function response
-      const { error: sessionError } = await supabase.auth.setSession({
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
         access_token: data.session.access_token,
         refresh_token: data.session.refresh_token,
       });
@@ -207,7 +207,7 @@ export function EnhancedLoginForm() {
         return;
       }
 
-      await handlePostLogin();
+      await handlePostLogin(sessionData?.user ?? null);
     } catch (err: any) {
       setPinError(err.message || "PIN login failed");
       setPin("");
@@ -216,11 +216,13 @@ export function EnhancedLoginForm() {
     }
   };
 
-  const handlePostLogin = async () => {
-    const {
-      data: { user: freshUser },
-    } = await supabase.auth.getUser();
-
+  const handlePostLogin = async (authedUser: import("@supabase/supabase-js").User | null) => {
+    // IMPORTANT: use the user returned by the sign-in call itself. Do NOT
+    // call `supabase.auth.getUser()` here — right after `signInWithPassword`
+    // it can transiently return `null` while the session propagates, and
+    // `resolvePostLoginDestination(null)` returns `/login`, which produces
+    // exactly the "toast shows 'Welcome back' but the page stays on the
+    // login form" symptom (navigate('/login') is a no-op on /login).
     toast({
       title: "Welcome back!",
       description: "You have successfully signed in.",
@@ -242,10 +244,21 @@ export function EnhancedLoginForm() {
         intendedPath = stateFrom;
       }
     }
+    // Never allow the intended path to be an auth page — that would bounce
+    // the newly signed-in user right back to the form.
+    if (intendedPath && /^\/(login|signup|forgot-password|reset-password|auth\/callback)(\/|$|\?)/.test(intendedPath)) {
+      intendedPath = null;
+    }
 
     const { resolvePostLoginDestination } = await import("@/lib/auth/postLoginRedirect");
-    const destination = await resolvePostLoginDestination({ user: freshUser, intendedPath });
-    navigate(destination);
+    let destination = await resolvePostLoginDestination({ user: authedUser, intendedPath });
+    // Belt-and-braces: if resolution ever hands us back an auth route while
+    // we KNOW auth just succeeded, fall back to the authenticated landing
+    // surface instead of no-op'ing on the current /login route.
+    if (!destination || destination === "/login" || destination === location.pathname) {
+      destination = "/home";
+    }
+    navigate(destination, { replace: true });
   };
 
   const firstGroupSize = Math.ceil(pinLength / 2);
