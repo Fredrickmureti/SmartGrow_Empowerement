@@ -36,6 +36,7 @@ import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { SCRAP_REASONS, scrapReasonLabel } from "./scrapReasons";
+import { ScrapDetailSheet } from "@/components/inventory/ScrapDetailSheet";
 
 type ScrapRow = {
   id: string;
