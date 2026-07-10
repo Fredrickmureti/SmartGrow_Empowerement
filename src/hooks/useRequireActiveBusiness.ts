@@ -13,7 +13,15 @@ import { useBusinesses } from "./useBusinesses";
 import { useOrganization } from "./useOrganization";
 import { toast } from "sonner";
 
-export function useRequireActiveBusiness(featureLabel?: string) {
+interface RequireActiveBusinessOptions {
+  enabled?: boolean;
+}
+
+export function useRequireActiveBusiness(
+  featureLabel?: string,
+  options: RequireActiveBusinessOptions = {},
+) {
+  const { enabled = true } = options;
   const { currentOrg } = useOrganization();
   const { currentBusiness, businesses, isLoading } = useBusinesses();
 
@@ -26,22 +34,24 @@ export function useRequireActiveBusiness(featureLabel?: string) {
     isLoading || (!!currentOrg && !currentBusiness && businesses.length > 0);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!currentOrg) return;
     if (isContextLoading) return;
     if (currentBusiness) return;
+    if (businesses.length === 0) return;
     toast.error(
       featureLabel
         ? `Select a Company to use ${featureLabel}.`
         : "Select a Company from the workspace switcher to continue.",
       { id: "no-active-business" },
     );
-  }, [currentOrg?.id, currentBusiness?.id, isContextLoading, featureLabel]);
+  }, [enabled, currentOrg?.id, currentBusiness?.id, businesses.length, isContextLoading, featureLabel]);
 
   return {
     ready: !!currentOrg && !!currentBusiness,
     currentOrg,
     currentBusiness,
-    needsCompanySelection: !!currentOrg && !isLoading && !currentBusiness && businesses.length > 0,
+    needsCompanySelection: !!currentOrg && !isContextLoading && !currentBusiness && businesses.length > 0,
     needsCompanyCreation: !!currentOrg && !isLoading && businesses.length === 0,
   };
 }

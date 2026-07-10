@@ -61,8 +61,11 @@ export function PlatformShell({
   const [isActivating, setIsActivating] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Honor the active-business contract — same as HrAppShell.
-  useRequireActiveBusiness(app.name);
+  // Honor the active-business contract, but only after the workspace snapshot
+  // is authoritative. During sign-in, /home can mount before BusinessContext
+  // has switched from its signed-out snapshot to the selected org; firing here
+  // creates the false "Select a Company to use Home" toast.
+  useRequireActiveBusiness(app.name, { enabled: workspaceReady });
 
   const accessInfo = useMemo(() => canAccessApp(app), [app, canAccessApp]);
   const isAppInstalled = app.isPlatform || isInstalled(app.id);

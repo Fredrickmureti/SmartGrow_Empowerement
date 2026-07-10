@@ -84,15 +84,19 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const [accessMap, setAccessMap] = useState<Map<string, BusinessAccessInfo>>(new Map());
   const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadedOrgId, setLoadedOrgId] = useState<string | null>(null);
 
   const fetchBusinesses = useCallback(async () => {
     if (!currentOrg) {
       setBusinesses([]);
       setAccessMap(new Map());
       setCurrentBusiness(null);
+      setLoadedOrgId(null);
       setIsLoading(false);
       return;
     }
+
+    const orgId = currentOrg.id;
 
     setIsLoading(true);
     try {
@@ -100,6 +104,9 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setBusinesses([]);
+        setAccessMap(new Map());
+        setCurrentBusiness(null);
+        setLoadedOrgId(orgId);
         setIsLoading(false);
         return;
       }
@@ -109,7 +116,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         .from("user_business_access")
         .select("business_id, is_primary, can_switch")
         .eq("user_id", user.id)
-        .eq("organization_id", currentOrg.id);
+        .eq("organization_id", orgId);
 
       if (accessError) throw accessError;
 
@@ -156,13 +163,13 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       // Phase E: DB is source of truth. user_active_business holds the
       // per-(user, org) active company. localStorage is only a startup hint.
       const primaryBiz = data.find(b => newAccessMap.get(b.id)?.isPrimary);
-      const localHint = localStorage.getItem(`currentBusinessId_${currentOrg.id}`);
+      const localHint = localStorage.getItem(`currentBusinessId_${orgId}`);
 
       const { data: activeRow } = await supabase
         .from("user_active_business")
         .select("business_id")
         .eq("user_id", user.id)
-        .eq("organization_id", currentOrg.id)
+        .eq("organization_id", orgId)
         .maybeSingle();
 
       const dbActive = activeRow?.business_id
@@ -179,17 +186,18 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         await supabase
           .from("user_active_business")
           .upsert(
-            { user_id: user.id, organization_id: currentOrg.id, business_id: chosen.id },
+            { user_id: user.id, organization_id: orgId, business_id: chosen.id },
             { onConflict: "user_id,organization_id" },
           );
       }
       if (chosen) {
-        localStorage.setItem(`currentBusinessId_${currentOrg.id}`, chosen.id);
+        localStorage.setItem(`currentBusinessId_${orgId}`, chosen.id);
       }
     } catch (error) {
       console.error("Error fetching businesses:", error);
       toast.error("Failed to load businesses");
     } finally {
+      setLoadedOrgId(orgId);
       setIsLoading(false);
     }
   }, [currentOrg]);
@@ -239,6 +247,11 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   }, [currentOrg, businesses, queryClient]);
 
   const hasMultipleBusinesses = businesses.length >= 2;
+  // During sign-in / org switches there is one render where SessionContext has
+  // selected an org but this provider still holds the signed-out/previous-org
+  // business snapshot. Surface that as loading synchronously so downstream
+  // guards do not emit false "Select a Company" toasts before this effect runs.
+  const effectiveIsLoading = isLoading || (!!currentOrg && loadedOrgId !== currentOrg.id);
   const canSwitchBusiness = useMemo(() => {
     if (!hasMultipleBusinesses) return false;
     return Array.from(accessMap.values()).some(a => a.canSwitch);
@@ -383,7 +396,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       value={{
         businesses,
         currentBusiness,
-        isLoading,
+          isLoading: effectiveIsLoading,
         hasMultipleCompanies: hasMultipleBusinesses,
         hasMultipleBusinesses,
         canSwitchBusiness,
