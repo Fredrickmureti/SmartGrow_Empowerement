@@ -34,6 +34,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     ],
   }),
   shellComponent: RootDocument,
+  component: RootComponent,
   notFoundComponent: () => (
     <div style={{ padding: 24, fontFamily: "system-ui" }}>
       <h1>404 — Page Not Found</h1>
@@ -55,5 +56,6 @@ function RootDocument({ children }: { children: ReactNode }) {
   );
 }
 
-// Component is required by createRootRouteWithContext for client rendering.
-(Route as any).options.component = () => <Outlet />;
+function RootComponent() {
+  return <Outlet />;
+}
