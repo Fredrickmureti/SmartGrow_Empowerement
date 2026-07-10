@@ -1,10 +1,11 @@
 /**
- * Scrap / Waste record — routed create surface.
+ * Scrap / Waste record — create surface.
  *
- * Replaces the legacy `Record Scrap` dialog that used to live inside
- * `ScrapRecording.tsx`. Same `record_scrap_atomic` RPC contract; only the
- * shell changed. Cancel routes back to the scrap log; submit navigates back
- * on success so the new movement appears in the recent list.
+ * Delegates to `record_scrap_atomic` which now wraps the hardened
+ * `approve_stock_adjustment_atomic` engine: creates a `stock_adjustments`
+ * document (`adjustment_type='scrap'`), one item, posts inventory
+ * movement + GL entry, and enforces SoD on approval. Same wire-level
+ * contract, richer semantics.
  */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
@@ -26,6 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info, ShieldAlert } from "lucide-react";
 import {
   RecordFormShell,
   Section,
@@ -33,15 +36,7 @@ import {
   FieldCell,
 } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
-
-const SCRAP_REASONS = [
-  "Damaged",
-  "Expired",
-  "Defective",
-  "Obsolete",
-  "Quality Failure",
-  "Other",
-] as const;
+import { SCRAP_REASONS } from "./scrapReasons";
 
 export default function ScrapNew() {
   const navigate = useNavigate();
@@ -71,11 +66,26 @@ export default function ScrapNew() {
     product_id: "",
     warehouse_id: "",
     quantity: 1,
+    unit_cost: 0,
     reason: "",
     notes: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const selectedProduct = inventoryProducts.find((p) => p.id === form.product_id);
+  const selectedReason = SCRAP_REASONS.find((r) => r.code === form.reason);
+  const productCost = (selectedProduct as any)?.cost_price ?? 0;
+
+  // When the product changes, seed unit cost from product.cost_price so the
+  // caller can see (and override) what will be booked to the GL.
+  useEffect(() => {
+    if (selectedProduct) {
+      setForm((f) => ({ ...f, unit_cost: Number(productCost) || 0 }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.product_id]);
+
+  const totalValue = Math.abs(form.quantity || 0) * Number(form.unit_cost || 0);
   const invalid =
     !form.product_id || !form.reason || form.quantity <= 0;
 
@@ -84,15 +94,13 @@ export default function ScrapNew() {
     if (!currentOrg?.id || !user?.id || invalid) return;
     setIsSubmitting(true);
     try {
-      const product = inventoryProducts.find((p) => p.id === form.product_id);
-      const costPrice = (product as any)?.cost_price || 0;
       const { data, error } = await supabase.rpc("record_scrap_atomic", {
         p_organization_id: currentOrg.id,
         p_business_id: currentBusiness?.id || null,
         p_product_id: form.product_id,
         p_warehouse_id: form.warehouse_id || null,
         p_quantity: form.quantity,
-        p_unit_cost: costPrice,
+        p_unit_cost: Number(form.unit_cost) || 0,
         p_reason: form.reason,
         p_notes: form.notes || null,
         p_user_id: user.id,
@@ -102,10 +110,12 @@ export default function ScrapNew() {
       if (!result?.success) {
         throw new Error(result?.error || "Failed to record scrap");
       }
+      const number = result.adjustment_number ? ` ${result.adjustment_number}` : "";
       toast.success(
-        `Scrap recorded successfully${result.gl_posted ? " (GL posted)" : ""}`,
+        `Scrap${number} recorded${result.gl_posted ? " — journal entry posted" : " (no GL entry posted)"}`,
       );
       queryClient.invalidateQueries({ queryKey: ["scrap-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-adjustments"] });
       queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       navigate("/inventory-app/scrap");
@@ -171,19 +181,48 @@ export default function ScrapNew() {
             <Input
               type="number"
               min={1}
+              step="any"
               value={form.quantity}
               onChange={(e) =>
                 setForm((f) => ({
                   ...f,
-                  quantity: parseInt(e.target.value) || 0,
+                  quantity: parseFloat(e.target.value) || 0,
                 }))
               }
             />
           </div>
+          <div className="space-y-2">
+            <Label>Unit cost</Label>
+            <Input
+              type="number"
+              min={0}
+              step="any"
+              value={form.unit_cost}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  unit_cost: parseFloat(e.target.value) || 0,
+                }))
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Server resolves this against warehouse average / product cost /
+              last inbound if left at 0.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Total loss value</Label>
+            <div className="rounded-md border bg-muted/40 px-3 py-2 font-medium">
+              {totalValue.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+          </div>
         </FieldGrid>
       </Section>
 
-      <Section title="Reason" description="Why this stock is being written off.">
+      <Section title="Reason" description="Drives GL account mapping, approvals, and downstream saga handlers.">
         <FieldGrid columns={2}>
           <div className="space-y-2">
             <Label>Reason *</Label>
@@ -196,15 +235,18 @@ export default function ScrapNew() {
               </SelectTrigger>
               <SelectContent>
                 {SCRAP_REASONS.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {r}
+                  <SelectItem key={r.code} value={r.code}>
+                    {r.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {selectedReason && (
+              <p className="text-xs text-muted-foreground">{selectedReason.description}</p>
+            )}
           </div>
           <div className="space-y-2">
-            <Label>Additional Notes</Label>
+            <Label>Additional notes</Label>
             <Textarea
               value={form.notes}
               onChange={(e) =>
@@ -213,6 +255,44 @@ export default function ScrapNew() {
               placeholder="Optional details..."
             />
           </div>
+
+          {selectedReason?.requiresAttachment && (
+            <FieldCell span={2}>
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  This reason typically requires a supporting document
+                  (disposal certificate, expiry log, or photo). Attachment
+                  upload will be enforced once the scrap-attachments feature
+                  ships; for now, reference the document in notes.
+                </AlertDescription>
+              </Alert>
+            </FieldCell>
+          )}
+          {selectedReason?.insuranceEligible && (
+            <FieldCell span={2}>
+              <Alert>
+                <ShieldAlert className="h-4 w-4" />
+                <AlertDescription>
+                  Theft / shrinkage may be eligible for an insurance claim.
+                  A domain event will fire on post so the claims workflow
+                  can pick it up.
+                </AlertDescription>
+              </Alert>
+            </FieldCell>
+          )}
+
+          <FieldCell span={2}>
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Segregation of duties: whoever creates a scrap cannot also
+                approve it. Owners may issue a one-time co-signed override.
+                The offset expense posts to the inventory-shrinkage account
+                resolved by the finance engine.
+              </AlertDescription>
+            </Alert>
+          </FieldCell>
         </FieldGrid>
       </Section>
     </RecordFormShell>
