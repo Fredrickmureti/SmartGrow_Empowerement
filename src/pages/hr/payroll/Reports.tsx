@@ -27,6 +27,10 @@ import { ReportFilters } from "@/components/reports/ReportFilters";
 import { ReportFilterProvider, useReportFilters } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import { PayrollReportsKpiStrip } from "./PayrollReportsKpiStrip";
+import {
+  usePayrollReportDefinitions,
+  groupPayrollReports,
+} from "@/hooks/payroll/usePayrollReportDefinitions";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -35,64 +39,11 @@ import { useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
 
-type ReportKey =
-  | "payroll_register"
-  | "payroll_summary"
-  | "employer_contributions"
-  | "statutory_liabilities"
-  | "employee_earnings"
-  | "branch_payroll_cost"
-  | "department_payroll_cost"
-  | "payroll_overtime"
-  | "payroll_variance";
-
-/**
- * Tab ordering mirrors the enterprise payroll-reporting mental model:
- *   Operate        → Register, Summary, Employee Earnings, Overtime
- *   Compliance     → Employer Contributions, Statutory Liabilities
- *   Cost Analysis  → Branch / Department Payroll Cost, Variance
- *
- * Each group renders as its own tabs row so payroll officers see the
- * report families at a glance — no mixed alphabetical wall of tabs.
- */
-const TAB_GROUPS: { label: string; items: { key: ReportKey; label: string }[] }[] = [
-  {
-    label: "Operate",
-    items: [
-      { key: "payroll_register",       label: "Register" },
-      { key: "payroll_summary",        label: "Summary" },
-      { key: "employee_earnings",      label: "Employee Earnings" },
-      { key: "payroll_overtime",       label: "Overtime" },
-    ],
-  },
-  {
-    label: "Compliance",
-    items: [
-      { key: "employer_contributions", label: "Employer Contributions" },
-      { key: "statutory_liabilities",  label: "Statutory Liabilities" },
-    ],
-  },
-  {
-    label: "Cost Analysis",
-    items: [
-      { key: "branch_payroll_cost",     label: "By Branch" },
-      { key: "department_payroll_cost", label: "By Department" },
-      { key: "payroll_variance",        label: "Variance" },
-    ],
-  },
-];
-
-const TITLE: Record<ReportKey, string> = {
-  payroll_register: "Payroll Register",
-  payroll_summary: "Payroll Summary",
-  employer_contributions: "Employer Contributions",
-  statutory_liabilities: "Statutory Liabilities",
-  employee_earnings: "Employee Earnings",
-  branch_payroll_cost: "Branch Payroll Cost",
-  department_payroll_cost: "Department Payroll Cost",
-  payroll_overtime: "Overtime Report",
-  payroll_variance: "Payroll Variance",
-};
+// Report keys, labels, and category grouping now come from the
+// `payroll_report_definitions` registry via
+// usePayrollReportDefinitions() — no hardcoded arrays. Country packs
+// can publish additional reports without touching this file.
+type ReportKey = string;
 
 function PayrollReportsInner() {
   const now = new Date();
@@ -106,6 +57,12 @@ function PayrollReportsInner() {
   const { formatCurrency } = useCurrency();
   const navigate = useNavigate();
   const canSeeMoney = can("viewSalaryDetails");
+  const { data: defs } = usePayrollReportDefinitions(
+    (currentBusiness as any)?.country_code ?? null,
+  );
+  const groups = groupPayrollReports(defs);
+  const activeDef = defs?.find((d) => d.reportKey === reportKey);
+  const activeLabel = activeDef?.label ?? reportKey;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["payroll-report", reportKey, currentOrg?.id, currentBusiness?.id, filters.branchId, dateFrom, dateTo],
@@ -159,7 +116,7 @@ function PayrollReportsInner() {
       return out;
     });
     return {
-      title: TITLE[reportKey],
+      title: activeLabel,
       companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
@@ -170,9 +127,9 @@ function PayrollReportsInner() {
         align: (c.align as any) ?? undefined,
       })),
       rows: exportRows,
-      sheetName: TITLE[reportKey],
+      sheetName: activeLabel,
     };
-  }, [rows, columns, reportKey, dateFrom, dateTo, currentOrg, canSeeMoney]);
+  }, [rows, columns, reportKey, activeLabel, dateFrom, dateTo, currentOrg, canSeeMoney]);
 
   return (
     <ReportPageLayout
@@ -190,15 +147,15 @@ function PayrollReportsInner() {
     >
       <PayrollReportsKpiStrip dateFrom={dateFrom} dateTo={dateTo} />
       <div className="space-y-3 mb-4">
-        {TAB_GROUPS.map((group) => (
-          <div key={group.label}>
+        {groups.map((group) => (
+          <div key={group.category}>
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
               {group.label}
             </div>
-            <Tabs value={reportKey} onValueChange={(v) => setReportKey(v as ReportKey)}>
+            <Tabs value={reportKey} onValueChange={(v) => setReportKey(v)}>
               <TabsList className="flex-wrap h-auto">
                 {group.items.map((t) => (
-                  <TabsTrigger key={t.key} value={t.key}>{t.label}</TabsTrigger>
+                  <TabsTrigger key={t.reportKey} value={t.reportKey}>{t.label}</TabsTrigger>
                 ))}
               </TabsList>
             </Tabs>
