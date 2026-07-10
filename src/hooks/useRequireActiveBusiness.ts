@@ -17,9 +17,17 @@ export function useRequireActiveBusiness(featureLabel?: string) {
   const { currentOrg } = useOrganization();
   const { currentBusiness, businesses, isLoading } = useBusinesses();
 
+  // Mirror the SidebarContextSwitcher loading heuristic: BusinessContext
+  // flips isLoading=false one tick before currentBusiness is assigned, so a
+  // naive check fires the toast during normal hydration. Treat the org →
+  // business chain as still loading while businesses exist but none is
+  // active yet.
+  const isContextLoading =
+    isLoading || (!!currentOrg && !currentBusiness && businesses.length > 0);
+
   useEffect(() => {
     if (!currentOrg) return;
-    if (isLoading) return;
+    if (isContextLoading) return;
     if (currentBusiness) return;
     toast.error(
       featureLabel
@@ -27,7 +35,7 @@ export function useRequireActiveBusiness(featureLabel?: string) {
         : "Select a Company from the workspace switcher to continue.",
       { id: "no-active-business" },
     );
-  }, [currentOrg?.id, currentBusiness?.id, isLoading, featureLabel]);
+  }, [currentOrg?.id, currentBusiness?.id, isContextLoading, featureLabel]);
 
   return {
     ready: !!currentOrg && !!currentBusiness,
