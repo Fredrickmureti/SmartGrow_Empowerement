@@ -1,8 +1,3 @@
-/* Design system tokens — imported first so PostCSS's rule that @import must
- * precede all other statements is satisfied. tokens.css only defines `--ds-*`
- * names and never redefines shadcn tokens, so cascade order is irrelevant. */
-@import "./design-system/tokens.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
