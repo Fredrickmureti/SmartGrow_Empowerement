@@ -36,7 +36,8 @@ import {
   FieldCell,
 } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
-import { SCRAP_REASONS } from "./scrapReasons";
+import { SCRAP_REASONS, scrapReasonLabel } from "./scrapReasons";
+import { useScrapReasons } from "@/hooks/useScrap";
 
 export default function ScrapNew() {
   const navigate = useNavigate();
