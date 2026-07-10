@@ -319,13 +319,16 @@ function InventoryValuationReportInner() {
 
 
 import { BranchScopeGate } from "@/components/inventory/BranchScopeGate";
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 
 export default function InventoryValuationReport() {
   return (
-    <CompanyScopeGate reportName="Inventory valuation">
-      <BranchScopeGate pageName="Inventory valuation">
-        <InventoryValuationReportInner />
-      </BranchScopeGate>
-    </CompanyScopeGate>
+    <ReportFilterProvider>
+      <CompanyScopeGate reportName="Inventory valuation">
+        <BranchScopeGate pageName="Inventory valuation">
+          <InventoryValuationReportInner />
+        </BranchScopeGate>
+      </CompanyScopeGate>
+    </ReportFilterProvider>
   );
 }
