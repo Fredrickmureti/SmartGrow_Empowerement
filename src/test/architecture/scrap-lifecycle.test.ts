@@ -43,10 +43,12 @@ describe("scrap lifecycle architecture", () => {
       .join("\n\n");
     expect(migs).toMatch(/sod_stock_adjustment_scrap_guard/);
     expect(migs).toMatch(/'scrap\.approve'/);
+    expect(migs).toMatch(/'scrap\.post'/);
     expect(migs).toMatch(/'scrap\.reverse'/);
 
     const catalogue = read("src/lib/governance/selfActionCatalogue.ts");
     expect(catalogue).toMatch(/key:\s*"scrap\.approve"/);
+    expect(catalogue).toMatch(/key:\s*"scrap\.post"/);
     expect(catalogue).toMatch(/key:\s*"scrap\.reverse"/);
   });
 
@@ -76,11 +78,10 @@ describe("scrap lifecycle architecture", () => {
     expect(migs).toMatch(/GRANT[^;]+ON public\.scrap_attachments TO authenticated/);
   });
 
-  it("useScrap is the canonical entry point (no direct rpc call in pages)", () => {
+  it("useScrap is the canonical entry point (no direct scrap RPC calls in pages)", () => {
     const scrapNew = read("src/pages/inventory/ScrapNew.tsx");
-    // ScrapNew is allowed to call record_scrap_atomic directly (single-item
-    // legacy path), but no other page/component under inventory may.
     const disallowed = [
+      "src/pages/inventory/ScrapNew.tsx",
       "src/pages/inventory/ScrapRecording.tsx",
       "src/components/inventory/ScrapDetailSheet.tsx",
     ];
@@ -91,6 +92,25 @@ describe("scrap lifecycle architecture", () => {
         `${path} must not call record_scrap_atomic directly`,
       ).toBe(false);
     }
-    expect(scrapNew).toMatch(/record_scrap_atomic|useRecordScrap/);
+    expect(scrapNew).toMatch(/useRecordScrap/);
+  });
+
+  it("scrap dashboard filters by adjustment_type in SQL and selects the column", () => {
+    const page = read("src/pages/inventory/ScrapRecording.tsx");
+    expect(page).toMatch(/adjustment_type/);
+    expect(page).toMatch(/\.eq\(\s*["']adjustment_type["']\s*,\s*["']scrap["']\s*\)/);
+    expect(page).not.toMatch(/\.filter\([\s\S]{0,160}adjustment_type[\s\S]{0,160}scrap/);
+  });
+
+  it("scrap reason controls are enforced server-side before posting", () => {
+    const migs = readdirSync("supabase/migrations")
+      .filter((f) => f.endsWith(".sql"))
+      .map((f) => read(join("supabase/migrations", f)))
+      .join("\n\n");
+    expect(migs).toMatch(/enforce_scrap_reason_controls/);
+    expect(migs).toMatch(/SCRAP_ATTACHMENT_REQUIRED/);
+    expect(migs).toMatch(/SCRAP_APPROVAL_REQUIRED/);
+    expect(migs).toMatch(/offset_account_purpose/);
+    expect(migs).toMatch(/_resolve_canonical_default_account/);
   });
 });

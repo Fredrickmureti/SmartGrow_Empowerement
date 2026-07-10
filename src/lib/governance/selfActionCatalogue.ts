@@ -369,6 +369,15 @@ export const SELF_ACTION_CATALOGUE: SelfActionEntry[] = [
     subjectMode: "actor",
   },
   {
+    key: "scrap.post",
+    module: "Inventory",
+    label: "Post own scrap / waste",
+    description:
+      "Post a scrap / waste document the poster recorded. Blocks self-posting when policy requires a distinct reviewer.",
+    entityType: "stock_adjustment",
+    subjectMode: "actor",
+  },
+  {
     key: "scrap.reverse",
     module: "Inventory",
     label: "Reverse own scrap / waste",

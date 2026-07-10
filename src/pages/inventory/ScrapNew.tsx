@@ -1,11 +1,9 @@
 /**
  * Scrap / Waste record — create surface.
  *
- * Delegates to `record_scrap_atomic` which now wraps the hardened
- * `approve_stock_adjustment_atomic` engine: creates a `stock_adjustments`
- * document (`adjustment_type='scrap'`), one item, posts inventory
- * movement + GL entry, and enforces SoD on approval. Same wire-level
- * contract, richer semantics.
+ * Delegates through `useRecordScrap`, the canonical scrap lifecycle hook.
+ * The backend creates a `stock_adjustments` document, posts inventory and
+ * GL atomically, and enforces governance controls server-side.
  */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
@@ -135,7 +133,7 @@ export default function ScrapNew() {
       });
       navigate("/inventory-app/scrap");
     } catch (err: any) {
-      toast.error(describeScrapError(err));
+      if (!recordScrap.failureReason) toast.error(describeScrapError(err));
     } finally {
       setIsSubmitting(false);
     }

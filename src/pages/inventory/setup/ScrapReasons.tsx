@@ -26,6 +26,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -53,7 +60,15 @@ const emptyDraft = (): Draft => ({
   regulatory_reporting_flag: false,
   sort_order: 100,
   is_active: true,
+  offset_account_purpose: "shrinkage",
 });
+
+const OFFSET_PURPOSES = [
+  { value: "shrinkage", label: "Inventory shrinkage / loss" },
+  { value: "inventory_adjustment", label: "Inventory adjustment" },
+  { value: "operating_expenses", label: "Operating expense" },
+  { value: "cost_of_goods_sold", label: "Cost of goods sold" },
+];
 
 export default function ScrapReasons() {
   const { currentOrg } = useOrganization();
@@ -94,7 +109,7 @@ export default function ScrapReasons() {
         regulatory_reporting_flag: !!d.regulatory_reporting_flag,
         sort_order: Number(d.sort_order) || 100,
         is_active: d.is_active !== false,
-        offset_account_purpose: "shrinkage",
+        offset_account_purpose: d.offset_account_purpose || "shrinkage",
       };
       if (editingId) {
         const { error } = await (supabase as any)
@@ -184,6 +199,7 @@ export default function ScrapReasons() {
                 <TableRow>
                   <TableHead>Code</TableHead>
                   <TableHead>Label</TableHead>
+                  <TableHead>GL purpose</TableHead>
                   <TableHead>Flags</TableHead>
                   <TableHead className="text-right">Approval threshold</TableHead>
                   <TableHead className="text-right">Order</TableHead>
@@ -202,6 +218,10 @@ export default function ScrapReasons() {
                           {r.description}
                         </div>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {OFFSET_PURPOSES.find((p) => p.value === r.offset_account_purpose)?.label ??
+                        r.offset_account_purpose}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
@@ -297,6 +317,26 @@ export default function ScrapReasons() {
                 <p className="text-xs text-muted-foreground">
                   0 = always require approval per org policy.
                 </p>
+              </div>
+              <div className="space-y-2">
+                <Label>GL offset purpose</Label>
+                <Select
+                  value={draft.offset_account_purpose || "shrinkage"}
+                  onValueChange={(v) =>
+                    setDraft((d) => ({ ...d, offset_account_purpose: v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select account purpose" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OFFSET_PURPOSES.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Sort order</Label>
