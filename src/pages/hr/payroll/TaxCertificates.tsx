@@ -612,6 +612,16 @@ export default function TaxCertificates() {
                           PDF
                         </Button>
                       )}
+                      {(c as any).xlsx_path && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => downloadTaxCertificate(c, "xlsx")}
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          XLSX
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
