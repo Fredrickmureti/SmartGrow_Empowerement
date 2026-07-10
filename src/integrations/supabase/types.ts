@@ -22262,7 +22262,7 @@ export type Database = {
         Row: {
           asset_key: string
           byte_size: number
-          bytes: string
+          bytes: string | null
           content_type: string
           created_at: string
           description: string | null
@@ -22270,12 +22270,13 @@ export type Database = {
           pack_id: string
           pack_version_id: string | null
           sha256: string
+          source_url: string | null
           updated_at: string
         }
         Insert: {
           asset_key: string
           byte_size: number
-          bytes: string
+          bytes?: string | null
           content_type?: string
           created_at?: string
           description?: string | null
@@ -22283,12 +22284,13 @@ export type Database = {
           pack_id: string
           pack_version_id?: string | null
           sha256: string
+          source_url?: string | null
           updated_at?: string
         }
         Update: {
           asset_key?: string
           byte_size?: number
-          bytes?: string
+          bytes?: string | null
           content_type?: string
           created_at?: string
           description?: string | null
@@ -22296,6 +22298,7 @@ export type Database = {
           pack_id?: string
           pack_version_id?: string | null
           sha256?: string
+          source_url?: string | null
           updated_at?: string
         }
         Relationships: [

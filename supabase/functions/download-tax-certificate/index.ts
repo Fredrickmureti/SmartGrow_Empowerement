@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const certificateId = typeof body?.certificate_id === "string" ? body.certificate_id : null;
     const pdfPath = typeof body?.pdf_path === "string" ? body.pdf_path : null;
+    const format = (typeof body?.format === "string" ? body.format : "pdf").toLowerCase();
     if (!certificateId && !pdfPath) {
       return jsonResponse({ error: "certificate_id or pdf_path required" }, 400);
     }
@@ -45,13 +46,21 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
     let query = admin
       .from("payroll_tax_certificates")
-      .select("id, organization_id, business_id, employee_id, pdf_path, serial_number, status")
+      .select("id, organization_id, business_id, employee_id, pdf_path, xlsx_path, serial_number, status")
       .limit(1);
     query = certificateId ? query.eq("id", certificateId) : query.eq("pdf_path", pdfPath);
 
     const { data: cert, error: certErr } = await query.maybeSingle();
     if (certErr) return jsonResponse({ error: `failed to load certificate: ${certErr.message}` }, 500);
-    if (!cert?.pdf_path) return jsonResponse({ error: "certificate PDF is missing" }, 404);
+    if (!cert) return jsonResponse({ error: "certificate not found" }, 404);
+    const wantXlsx = format === "xlsx";
+    const storagePath = wantXlsx ? (cert as any).xlsx_path : cert.pdf_path;
+    if (!storagePath) {
+      return jsonResponse(
+        { error: wantXlsx ? "certificate XLSX is missing" : "certificate PDF is missing" },
+        404,
+      );
+    }
 
     // Self-service bypass: if the requesting user owns the employee row this
     // certificate belongs to, skip the payroll.read permission check. Mirrors
@@ -76,10 +85,10 @@ Deno.serve(async (req) => {
       if (!allowed) return jsonResponse({ error: "permission denied" }, 403);
     }
 
-    const filename = fileNameFromPath(cert.pdf_path);
+    const filename = fileNameFromPath(storagePath);
     const { data: signed, error: signErr } = await admin.storage
       .from(STORAGE_BUCKET)
-      .createSignedUrl(cert.pdf_path, 60, { download: filename });
+      .createSignedUrl(storagePath, 60, { download: filename });
     if (signErr || !signed?.signedUrl) {
       return jsonResponse({ error: `certificate file not found in storage: ${signErr?.message ?? "no signed URL"}` }, 404);
     }
