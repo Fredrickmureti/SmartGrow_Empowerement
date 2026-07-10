@@ -250,6 +250,19 @@ export function InventoryApp() {
           }
         />
 
+        {/* Scrap reasons — master data */}
+        <Route
+          path="setup/scrap-reasons"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Scrap Reasons">
+                <ScrapReasons />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+
         {/* Stock Adjustment — routed create */}
         <Route
           path="adjustments/new"
