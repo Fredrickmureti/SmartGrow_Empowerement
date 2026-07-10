@@ -46684,6 +46684,123 @@ export type Database = {
           },
         ]
       }
+      scrap_attachments: {
+        Row: {
+          business_id: string | null
+          content_type: string | null
+          file_name: string | null
+          id: string
+          kind: string
+          organization_id: string
+          scrap_id: string
+          size_bytes: number | null
+          storage_path: string
+          uploaded_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          content_type?: string | null
+          file_name?: string | null
+          id?: string
+          kind?: string
+          organization_id: string
+          scrap_id: string
+          size_bytes?: number | null
+          storage_path: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          content_type?: string | null
+          file_name?: string | null
+          id?: string
+          kind?: string
+          organization_id?: string
+          scrap_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scrap_attachments_scrap_id_fkey"
+            columns: ["scrap_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_integrity_findings_stock_adjustments"
+            referencedColumns: ["entity_id"]
+          },
+          {
+            foreignKeyName: "scrap_attachments_scrap_id_fkey"
+            columns: ["scrap_id"]
+            isOneToOne: false
+            referencedRelation: "stock_adjustments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scrap_reasons: {
+        Row: {
+          business_id: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          insurance_claim_flag: boolean
+          is_active: boolean
+          label: string
+          offset_account_purpose: string
+          organization_id: string
+          quality_hold_flag: boolean
+          regulatory_reporting_flag: boolean
+          requires_approval_above: number
+          requires_attachment: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          business_id?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          insurance_claim_flag?: boolean
+          is_active?: boolean
+          label: string
+          offset_account_purpose?: string
+          organization_id: string
+          quality_hold_flag?: boolean
+          regulatory_reporting_flag?: boolean
+          requires_approval_above?: number
+          requires_attachment?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          insurance_claim_flag?: boolean
+          is_active?: boolean
+          label?: string
+          offset_account_purpose?: string
+          organization_id?: string
+          quality_hold_flag?: boolean
+          regulatory_reporting_flag?: boolean
+          requires_approval_above?: number
+          requires_attachment?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       security_alerts: {
         Row: {
           action_expires_at: string | null
@@ -62326,6 +62443,10 @@ export type Database = {
       }
       ensure_default_email_templates: {
         Args: { _org_id: string }
+        Returns: undefined
+      }
+      ensure_default_scrap_reasons: {
+        Args: { p_org_id: string }
         Returns: undefined
       }
       ensure_inventory_gl_accounts: {
