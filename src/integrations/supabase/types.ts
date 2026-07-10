@@ -3937,6 +3937,13 @@ export type Database = {
             foreignKeyName: "bank_reconciliation_matches_matched_journal_entry_id_fkey"
             columns: ["matched_journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_matches_matched_journal_entry_id_fkey"
+            columns: ["matched_journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -4403,6 +4410,13 @@ export type Database = {
             foreignKeyName: "bank_reconciliation_writeoffs_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_writeoffs_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -4810,6 +4824,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "bank_transactions_journal_entry_id_fkey"
@@ -5325,6 +5346,13 @@ export type Database = {
             foreignKeyName: "bill_payments_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -5541,6 +5569,13 @@ export type Database = {
             foreignKeyName: "bills_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bills_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -5634,6 +5669,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_bills_journal_entry_id"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "fk_bills_journal_entry_id"
@@ -11214,6 +11256,13 @@ export type Database = {
             foreignKeyName: "depreciation_entries_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "depreciation_entries_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -11348,6 +11397,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "depreciation_schedules_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "depreciation_schedules_journal_entry_id_fkey"
@@ -14345,6 +14401,13 @@ export type Database = {
             foreignKeyName: "employee_loans_disbursement_journal_entry_id_fkey"
             columns: ["disbursement_journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_disbursement_journal_entry_id_fkey"
+            columns: ["disbursement_journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -14464,6 +14527,13 @@ export type Database = {
             foreignKeyName: "employee_loans_settlement_journal_entry_id_fkey"
             columns: ["settlement_journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_settlement_journal_entry_id_fkey"
+            columns: ["settlement_journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -14494,6 +14564,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_loans_writeoff_journal_entry_id_fkey"
+            columns: ["writeoff_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "employee_loans_writeoff_journal_entry_id_fkey"
@@ -16407,6 +16484,13 @@ export type Database = {
             foreignKeyName: "expenses_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "expenses_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -17419,6 +17503,13 @@ export type Database = {
             foreignKeyName: "fx_revaluation_runs_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "fx_revaluation_runs_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -17463,6 +17554,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fx_revaluation_runs_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "fx_revaluation_runs_reversal_journal_entry_id_fkey"
@@ -19569,6 +19667,13 @@ export type Database = {
             foreignKeyName: "fk_invoices_journal_entry_id"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "fk_invoices_journal_entry_id"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -19639,6 +19744,13 @@ export type Database = {
             foreignKeyName: "invoices_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "invoices_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -19704,6 +19816,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "invoices_reversal_journal_entry_id_fkey"
@@ -20324,6 +20443,13 @@ export type Database = {
             foreignKeyName: "journal_entries_reversed_entry_id_fkey"
             columns: ["reversed_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -20490,6 +20616,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "journal_entry_lines_journal_entry_id_fkey"
@@ -21587,6 +21720,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_repayments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "loan_repayments_journal_entry_id_fkey"
@@ -26912,6 +27052,13 @@ export type Database = {
             foreignKeyName: "payments_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -27847,6 +27994,13 @@ export type Database = {
             foreignKeyName: "payroll_liabilities_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "payroll_liabilities_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -28375,6 +28529,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_payment_batches_payment_journal_entry_id_fkey"
+            columns: ["payment_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "payroll_payment_batches_payment_journal_entry_id_fkey"
@@ -29104,6 +29265,13 @@ export type Database = {
             foreignKeyName: "payroll_reclassification_audi_reclassification_journal_ent_fkey"
             columns: ["reclassification_journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "payroll_reclassification_audi_reclassification_journal_ent_fkey"
+            columns: ["reclassification_journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -29134,6 +29302,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_reclassification_audit_original_journal_entry_id_fkey"
+            columns: ["original_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "payroll_reclassification_audit_original_journal_entry_id_fkey"
@@ -29402,6 +29577,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_remittance_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "payroll_remittance_payments_journal_entry_id_fkey"
@@ -31092,6 +31274,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_reclassification_journal_entry_id_fkey"
+            columns: ["reclassification_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "payroll_runs_reclassification_journal_entry_id_fkey"
@@ -35259,6 +35448,13 @@ export type Database = {
             foreignKeyName: "pos_cash_movements_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "pos_cash_movements_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -38166,6 +38362,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_shifts_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "pos_shifts_journal_entry_id_fkey"
@@ -46736,6 +46939,13 @@ export type Database = {
             foreignKeyName: "scrap_attachments_scrap_id_fkey"
             columns: ["scrap_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scrap_attachments_scrap_id_fkey"
+            columns: ["scrap_id"]
+            isOneToOne: false
             referencedRelation: "stock_adjustments"
             referencedColumns: ["id"]
           },
@@ -48163,6 +48373,13 @@ export type Database = {
             foreignKeyName: "stock_adjustment_backfill_log_adjustment_id_fkey"
             columns: ["adjustment_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustment_backfill_log_adjustment_id_fkey"
+            columns: ["adjustment_id"]
+            isOneToOne: false
             referencedRelation: "stock_adjustments"
             referencedColumns: ["id"]
           },
@@ -48193,6 +48410,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustment_backfill_log_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "stock_adjustment_backfill_log_journal_entry_id_fkey"
@@ -48274,6 +48498,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accounting_integrity_findings_stock_adjustments"
             referencedColumns: ["entity_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustment_items_adjustment_id_fkey"
+            columns: ["adjustment_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "stock_adjustment_items_adjustment_id_fkey"
@@ -48460,6 +48691,13 @@ export type Database = {
             foreignKeyName: "stock_adjustments_reversed_by_adjustment_id_fkey"
             columns: ["reversed_by_adjustment_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_reversed_by_adjustment_id_fkey"
+            columns: ["reversed_by_adjustment_id"]
+            isOneToOne: false
             referencedRelation: "stock_adjustments"
             referencedColumns: ["id"]
           },
@@ -48469,6 +48707,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accounting_integrity_findings_stock_adjustments"
             referencedColumns: ["entity_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_reverses_adjustment_id_fkey"
+            columns: ["reverses_adjustment_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "stock_adjustments_reverses_adjustment_id_fkey"
@@ -52896,6 +53141,13 @@ export type Database = {
             foreignKeyName: "vendor_credit_notes_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_notes_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
@@ -55462,6 +55714,83 @@ export type Database = {
         }
         Relationships: []
       }
+      scrap_document_facts: {
+        Row: {
+          adjustment_date: string | null
+          adjustment_number: string | null
+          approved_at: string | null
+          approved_by: string | null
+          branch_id: string | null
+          business_id: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string | null
+          journal_entry_id: string | null
+          journal_entry_number: string | null
+          journal_entry_status: string | null
+          line_count: number | null
+          movement_count: number | null
+          notes: string | null
+          organization_id: string | null
+          reason: string | null
+          status: string | null
+          total_quantity: number | null
+          total_value: number | null
+          warehouse_id: string | null
+          warehouse_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_adjustments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_provider_configs_masked: {
         Row: {
           account_sid_masked: string | null
@@ -58006,6 +58335,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_payment_batches_payment_journal_entry_id_fkey"
+            columns: ["payment_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "payroll_payment_batches_payment_journal_entry_id_fkey"
