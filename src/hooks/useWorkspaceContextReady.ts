@@ -103,6 +103,9 @@ export function useWorkspaceContextReady(
   // 4. BusinessContext: portal users skip this.
   if (requireBusiness && userType !== "portal") {
     if (businessLoading) return { ready: false, reason: "businesses" };
+    if (!currentBusiness && businesses.length > 0) {
+      return { ready: false, reason: "businesses" };
+    }
     // If the org genuinely has no business yet, that's a terminal state
     // (handled by the company-setup flow), not a hydration gap.
     if (!currentBusiness && businesses.length === 0) {

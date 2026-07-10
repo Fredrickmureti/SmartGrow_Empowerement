@@ -10,7 +10,6 @@
 import { ReactNode } from "react";
 import { PlatformShell } from "@/components/layout/shell/PlatformShell";
 import { POS_APP } from "@/lib/apps/registry";
-import { useRequireActiveBusiness } from "@/hooks/useRequireActiveBusiness";
 import { ActiveBranchBadge } from "@/components/inventory/ActiveBranchBadge";
 import { UnmatchedMpesaBadge } from "@/components/pos/UnmatchedMpesaBadge";
 import { POS_NAV } from "./nav";
@@ -20,7 +19,6 @@ interface POSLayoutProps {
 }
 
 export function POSLayout({ children }: POSLayoutProps) {
-  useRequireActiveBusiness("Point of Sale");
   return (
     <PlatformShell app={POS_APP} nav={POS_NAV}>
       <div className="flex justify-end items-center gap-2 px-4 pt-2">
