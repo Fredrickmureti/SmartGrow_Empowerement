@@ -22,6 +22,8 @@ export type DomainEventType =
   | 'delivery_note.dispatched'
   | 'sales_return.accepted'
   | 'stock_adjustment.approved'
+  | 'scrap.posted'
+  | 'scrap.reversed'
   | 'product.created'
   | 'asset.capitalised'
   | 'payment.received'
