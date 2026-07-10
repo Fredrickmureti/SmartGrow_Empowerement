@@ -48220,6 +48220,7 @@ export type Database = {
         Row: {
           adjustment_date: string
           adjustment_number: string
+          adjustment_type: string
           allow_negative: boolean
           approved_at: string | null
           approved_by: string | null
@@ -48243,6 +48244,7 @@ export type Database = {
         Insert: {
           adjustment_date?: string
           adjustment_number: string
+          adjustment_type?: string
           allow_negative?: boolean
           approved_at?: string | null
           approved_by?: string | null
@@ -48266,6 +48268,7 @@ export type Database = {
         Update: {
           adjustment_date?: string
           adjustment_number?: string
+          adjustment_type?: string
           allow_negative?: boolean
           approved_at?: string | null
           approved_by?: string | null
