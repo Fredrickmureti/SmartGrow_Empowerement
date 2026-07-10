@@ -24,6 +24,7 @@ import { Trash2, RotateCcw, ExternalLink, ShieldAlert } from "lucide-react";
 import { scrapReasonLabel } from "@/pages/inventory/scrapReasons";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   open: boolean;
