@@ -53,6 +53,11 @@ import {
   type PayrollFilters,
 } from "../_shared/reports/payrollData.ts";
 import {
+  buildPayrollExtendedReport,
+  type PayrollExtendedReportKey,
+  type PayrollExtendedFilters,
+} from "../_shared/reports/payrollExtendedData.ts";
+import {
   buildProjectReport,
   type ProjectReportKey,
   type ProjectFilters,
@@ -78,6 +83,7 @@ export type ReportType =
   | "audit_trail"
   | AttendanceReportKey
   | PayrollReportKey
+  | PayrollExtendedReportKey
   | ProjectReportKey;
 
 /**
@@ -339,6 +345,14 @@ serve(async (req) => {
       ] as const
     ).includes(reportType as PayrollReportKey);
 
+    const isPayrollExtended = (
+      [
+        "payroll_gl_posting",
+        "payroll_audit_trail",
+        "payroll_work_entries",
+      ] as const
+    ).includes(reportType as PayrollExtendedReportKey);
+
     const isProject = typeof reportType === "string" && reportType.startsWith("project_");
 
     const result = isAttendance
@@ -360,6 +374,16 @@ serve(async (req) => {
           dateFrom,
           dateTo,
           (body?.filters ?? {}) as PayrollFilters,
+        )
+      : isPayrollExtended
+      ? await buildPayrollExtendedReport(
+          supabase,
+          reportType as PayrollExtendedReportKey,
+          organizationId,
+          businessId,
+          dateFrom,
+          dateTo,
+          (body?.filters ?? {}) as PayrollExtendedFilters,
         )
       : isProject
       ? await buildProjectReport(
