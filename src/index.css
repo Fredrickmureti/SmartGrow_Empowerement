@@ -2,8 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Enterprise Accounting SaaS Design System */
+/* Design system tokens — must be imported AFTER the @tailwind directives so
+ * `:root` lands in the cascade above .dark/[data-density] overrides below.
+ * Every workspace, primitive, and module consumes these. */
+@import "./design-system/tokens.css";
 
+/* Enterprise Accounting SaaS Design System */
 
 @layer base {
   :root {
