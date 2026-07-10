@@ -1,79 +1,153 @@
 
-## Audit — what's wrong on `/settings/audit-logs`
+# Scrap / Waste — Business-Event Lifecycle (Investigation + Implementation Plan)
 
-Two independent problems, both in `src/pages/AuditLogs.tsx`:
+## 1. What exists today (verified)
 
-### 1. Presentation is raw/technical
-- **Entity type** rendered verbatim from DB (`payroll_run`, `employee_contract`, `pos_transaction_items`) — snake_case, cryptic to non-engineers.
-- **Action** shows the past-tense DB verb as-is (`created`/`updated`/`posted`/`reversed`); no human phrasing per entity ("Invoice created", "Payroll run posted").
-- **Entity Type filter** dropdown lists raw table identifiers (`payroll_liabilities`, `journal_entry_lines`) — same problem.
-- **Changes column** shows the `changes_summary` string when present, `-` otherwise — nothing derived from `old_values`/`new_values`.
-- **Detail view** dumps `old_values` and `new_values` as `JSON.stringify(..., null, 2)` inside a `<pre>` — the "JSON data view" the user is complaining about. No field-level diff, no formatting of dates/money/booleans, no hiding of noisy internal columns (`updated_at`, `id`, `organization_id`, `business_id`, `search_vector`, `metadata`).
-- **User column** shows `getUserName(user_id)` which returns raw UUID / email prefix for non-members (system triggers, deleted users).
-- **IP / user agent** captured on the row but never surfaced.
+- **UI:** `src/pages/inventory/ScrapNew.tsx` — 4 inputs (product, warehouse, qty, reason, notes). Reason is a hard-coded string list. Cost is silently pulled from `products.cost_price` on the client and passed to the RPC.
+- **RPC:** `record_scrap_atomic` (migration `20260413031122`). Immediately, in one call:
+  1. Inserts one row into `stock_movements` (`movement_type='scrap'`, `quantity=-abs`, `unit_cost=p_unit_cost`).
+  2. Locates accounts by hard-coded `detail_type` (`inventory` → `inventory_adjustment` → falls back to `operating_expenses`). Ignores `default_accounts` / `resolve_default_account` and ignores `branch_id`.
+  3. Posts a `journal_entries` row with `source_type='scrap'`, status `posted`, in one shot. No approval state, no draft.
+- **No header record** — scrap is a bare movement, not a document. `stock_adjustments` is NOT used for scrap despite existing.
+- **No SoD trigger** for scrap (compare `sod_stock_adjustment_guard` per `mem/features/sod-self-action`).
+- **No outbox emission** — the domain event bus lists `stock_adjustment.approved` but nothing emits a scrap event.
+- **No lot / serial / expiry handling.** Outbound FIFO consumption via `consume_lots_atomic` accepts `scrap`, but the scrap RPC never calls it.
+- **No reason master data**, no attachments, no reversal, no thresholds, no dashboards.
+- **Peek:** the log page shows plain `stock_movements` rows — no drill-down to JE, no financial impact card, no status.
 
-### 2. Detail view uses a Dialog, not the right-side Sheet
-Lines 423–479 use `<Dialog>` / `<DialogContent className="max-w-2xl">`. Project standard (see `docs/architecture/OVERLAYS.md`, `src/design-system/primitives/DetailSheet.tsx`, and the recent Payroll Preview migration) is the right-sliding `DetailSheet` for record peeks.
+The current build is a **movement + JE**, not a business event. Every enterprise concern below is either missing or bypassed.
 
-The `Clear All` `AlertDialog` (lines 207–239) is the correct primitive for a destructive confirmation and stays as-is — AlertDialog ≠ Dialog and is the platform-wide pattern for confirmations. Only the record-detail Dialog moves to a Sheet.
+## 2. Enterprise lifecycle (target)
 
----
+```text
+Request  →  Review/Approve (policy)  →  Post  →  Inventory move + Costing (AVCO/FIFO/lot)
+   │            │                        │             │
+   │            └─ SoD guard             │             ├─ warehouse_stock update
+   │            └─ approval_requests     │             ├─ cost_layer consumption
+   │                                     │             └─ lot / expiry reservation
+   │                                     ▼
+   │                             GL posting (reason-keyed accounts, branch-aware)
+   │                                     │
+   │                                     ├─ audit_logs
+   │                                     ├─ business_event_outbox → BusinessSaga
+   │                                     ├─ notifications (finance, ops)
+   │                                     └─ reporting / dashboards / statements
+   ▼
+Reversal (mirror JE, restore stock, immutable trail)
+```
 
-## Plan
+Mapped onto our existing frameworks:
 
-### A. Humanization layer — new file `src/pages/audit-logs/format.ts`
+| Concern | Reuse (do NOT reinvent) |
+| --- | --- |
+| Header document | `stock_adjustments` + `stock_adjustment_items` (already models qty/cost/warehouse/lot) — extend with `type='scrap'` |
+| Approval | `approval_workflows` / `approval_rules` / `approval_requests` |
+| SoD / self-approval | `governance_assert_not_self`, `self_action_policy`, `sod_<table>_guard` pattern (Wave G2) |
+| Accounts | `default_accounts` + `resolve_default_account` RPC (branch-aware, ADR-0016) |
+| Reason master data | new `scrap_reasons` config table (org-scoped, seeded per locale) |
+| Costing | `resolve_adjustment_unit_cost` + `consume_lots_atomic` (lot-aware, ADR-0025) |
+| Domain event | `business_event_outbox` → `stock_adjustment.approved` extended with `scrap.posted` |
+| Audit | existing `audit_logs` trigger surface |
+| Reporting | `stock_movements` + JE, plus new views for dashboards |
 
-Pure helpers, no UI:
+## 3. Root architectural fixes
 
-1. `humanizeEntityType(type: string): string` — snake_case → Title Case with a curated override map for the top ~40 entity types actually written to `audit_logs` (see keys already seen: `invoices`, `bills`, `payments`, `payroll_runs`, `payroll_liabilities`, `payslips`, `journal_entries`, `employees`, `employee_contracts`, `products`, `pos_transactions`, `sales_orders`, `purchase_orders`, `delivery_notes`, `stock_movements`, `contacts`, `users`/`user_roles`, `organizations`, `bank_reconciliation_sessions`, `credit_notes`, `vendor_credit_notes`, `expenses`, `fixed_assets`, `leave_requests`, `attendance`, `estimates`, `proforma_invoices`, …). Fallback: split on `_`, Title Case, singularize trailing `s`.
-2. `humanizeAction(action: string): { label: string; tone: StatusBadge tone; icon }` — maps `created|updated|deleted|posted|reversed|paid|approved|rejected|submitted|voided|cancelled|refunded|closed|reopened|sent|received|assigned|unassigned|logged_in|logged_out|exported|imported|…` → readable label + tone (`success` / `info` / `warning` / `danger` / `neutral`). Replaces the current 3-branch `getActionBadge`.
-3. `humanizeSentence({ action, entityType, entityName })` — produces the row's Changes fallback: `"Invoice INV-0231 posted"`, `"Employee Jane Doe updated"`, `"Payroll run July 2026 reversed"`. Used when `changes_summary` is null.
-4. `formatFieldName(key: string)` — snake_case → readable label for the diff view.
-5. `formatFieldValue(key, value)` — formats ISO dates (`format(..., "MMM d, yyyy HH:mm")`), booleans (`Yes`/`No`), numbers that look monetary (keys ending in `_amount|_total|price|cost|balance` → currency), UUIDs (monospace short), objects/arrays (compact one-line, expandable), nulls (`—`).
-6. `NOISE_KEYS: Set<string>` — omit `id`, `created_at`, `updated_at`, `organization_id`, `business_id`, `search_vector`, `metadata`, `tsv`, `_row_version` from the diff view by default; expose a "Show technical fields" toggle in the sheet.
-7. `diffValues(old, new)` — returns `Array<{ key, before, after, kind: 'added'|'removed'|'changed' }>`, sorted, with noise keys filtered.
+### 3.1 Promote scrap to a document
+- Every scrap becomes a row in `stock_adjustments` with a new discriminator `adjustment_type='scrap'` (column exists as `reason`; add `adjustment_type` enum: `stock_take`, `physical_count`, `scrap`, `revaluation`, `opening_balance`). Lines go in `stock_adjustment_items` — one row per product/lot.
+- Numbering `SCR-YYYY-NNNN` via `invoice_sequences`-style helper already used elsewhere.
+- Statuses: `draft → pending_approval → approved → posted → reversed`.
 
-### B. Replace the Dialog with `DetailSheet`
+### 3.2 Split the RPC into three
+Replace the monolithic `record_scrap_atomic` with:
+1. `create_scrap_atomic(header, lines[])` — writes draft/pending. No stock or GL.
+2. `approve_scrap_atomic(id)` — SoD-guarded (`governance_assert_not_self`), consumes approval override if needed, transitions to `approved`, then internally calls posting.
+3. `post_scrap_atomic(id)` — atomic: lock stock, resolve costs, consume lots (FIFO/FEFO), write movements, post JE, emit outbox event, insert `audit_logs`. Same shape as the hardened `approve_stock_adjustment_atomic` (see `docs/audit/2026-05-21-inventory-adjustment-gl.md`).
+4. `reverse_scrap_atomic(id, reason)` — mirror JE, restore stock, mark reversed, immutability trigger blocks edits after posting.
 
-In `src/pages/AuditLogs.tsx`:
+### 3.3 Reason as master data
+- New `scrap_reasons(id, org_id, code, label, requires_attachment, requires_approval_above, offset_account_purpose, insurance_claim_flag, quality_hold_flag, regulatory_reporting_flag, is_active, sort_order)`.
+- Seed from localization pack: `damaged`, `expired`, `defective`, `obsolete`, `quality_reject`, `manufacturing_scrap`, `theft_shrinkage`, `sample_giveaway`, `hazardous_disposal`, `other`.
+- `offset_account_purpose` is the key that resolves to a GL account via `resolve_default_account` — one row per reason enables reason-keyed offset accounts (Phase D of the adjustment fix).
 
-- Remove `Dialog`, `DialogContent`, `DialogDescription`, `DialogHeader`, `DialogTitle` imports.
-- Import `DetailSheet` from `@/design-system` and `StatusBadge`.
-- Render `<DetailSheet open={!!selectedLog} onOpenChange={(o) => !o && setSelectedLog(null)} size="lg" title={…} description={…}>` — always-mounted per `docs/architecture/OVERLAYS.md` (drive open via `!!selectedLog`, don't gate the mount on the value).
-- Sheet body sections:
-  1. **Summary strip** — humanized sentence, action `StatusBadge`, entity type badge, timestamp, actor (name + avatar initial via existing `getDisplayName` util), IP address, user agent (truncated with tooltip).
-  2. **Changes** — field-level diff table (before → after) using `diffValues`. Empty state: "No field changes recorded." Toggle "Show technical fields" to reveal noise keys.
-  3. **Raw payload** — collapsed `<details>` (closed by default) exposing the original JSON for engineers who still need it. This preserves auditability without leading with JSON.
-- Sheet header actions: `Copy log ID`, `Copy JSON`.
+### 3.4 Branch-aware, reason-keyed GL
+Add default-account purposes: `scrap_expense_damaged`, `scrap_expense_expired`, `scrap_expense_obsolete`, `scrap_expense_quality`, `scrap_expense_manufacturing`, `scrap_expense_shrinkage`, `scrap_expense_default`.
+`post_scrap_atomic` resolves offset per line by `resolve_default_account(business_id, reason.offset_account_purpose, header.branch_id)`, falling back to `scrap_expense_default`, then `inventory_adjustment`. Inventory side resolves from `products.inventory_account_id` → `default_accounts` `inventory_asset`. Fast-fail if either is missing — no silent skip.
 
-### C. Table + filters cleanup (same file)
+### 3.5 SoD + governance
+- Add `sod_stock_adjustment_scrap_guard` on `BEFORE UPDATE OF status` to `stock_adjustments` where `adjustment_type='scrap'` and `NEW.status IN ('approved','posted')` — calls `governance_assert_not_self(created_by, approved_by, 'scrap.approve')`.
+- Register catalog entry in `src/lib/governance/selfActionCatalogue.ts`: `scrap.approve` (block by default), `scrap.post`, `scrap.reverse`.
+- Thresholds: reuse `approval_rules` targeting `stock_adjustments`, add pre-built rule "Scrap > X value requires manager approval". Rule value comes from `businesses.scrap_auto_approve_threshold` (new col) — org-configurable, defaults from localization pack.
 
-- Column **Action**: render via `humanizeAction(...).label` inside `StatusBadge` (design-system primitive) instead of the ad-hoc `bg-green-100` Badge.
-- Column **Entity**: `humanizeEntityType(log.entity_type)` in the badge; keep raw value in a `title` tooltip.
-- Column **Changes**: prefer `log.changes_summary`; if null, fall back to `humanizeSentence(...)` so every row reads as English.
-- **Entity Type filter** `<Select>`: show `humanizeEntityType(type)` as the item label, keep `value={type}` so the query still filters on the raw column.
-- **Action filter** `<Select>`: same — humanized label, raw value.
-- **User column**: keep `getUserName` but wrap through `getDisplayName` (`src/lib/user-display-name.ts`) so email-prefix names don't leak.
-- Export CSV: use humanized labels for `Action` and `Entity Type` columns; keep raw values in two extra columns (`action_raw`, `entity_type_raw`) so exports remain machine-parseable.
+### 3.6 Lot / serial / expiry
+When `products.track_lots` or `products.track_serials` is true, `post_scrap_atomic` requires each line to carry `lot_id` (or serials) and calls `consume_lots_atomic('scrap', …)` for the FIFO consumption. Blocks scrap if reserved stock (`stock_reservations`) would be violated — checks `warehouse_stock.quantity_available`.
 
-### D. Nothing else changes
+### 3.7 Domain event + saga
+- Emit `scrap.posted` (new `DomainEventType`) into `business_event_outbox`.
+- Register handlers via `BusinessSaga`: label printing (disposal label), notification to finance & warehouse manager, insurance claim webhook when `reason.insurance_claim_flag`, quality-hold check when `reason.quality_hold_flag`, regulatory registry write for `controlled_substance_register` when applicable.
 
-- `useAuditLogsPaginated`, RLS, backend, and the `Clear All` AlertDialog are untouched.
-- No new dependencies. `DetailSheet`, `StatusBadge`, `date-fns`, and the existing hooks cover everything.
+### 3.8 Attachments
+`stock_adjustment_attachments` (already implied by `project_documents` pattern) — table `scrap_attachments(scrap_id, storage_path, kind='photo'|'disposal_certificate'|'insurance_form', uploaded_by, uploaded_at)` gated by reason master data (`requires_attachment=true` blocks posting).
 
----
+### 3.9 Reversal + immutability
+- After `status='posted'`, `BEFORE UPDATE` trigger blocks edits to header/lines except a status transition to `reversed` written by `reverse_scrap_atomic`.
+- Reversal writes a mirror JE (`source_type='scrap_reversal'`, links to original), inverse `stock_movements`, and marks header `reversed_by/reversed_at/reversal_reason`.
 
-## Technical notes
+## 4. UX rebuild (`/inventory-app/scrap` + `/inventory-app/scrap/new`)
 
-- Files touched:
-  - `src/pages/AuditLogs.tsx` — swap Dialog → DetailSheet, wire humanizers, refactor table cells & filter options, extend CSV export.
-  - `src/pages/audit-logs/format.ts` — **new**, pure helpers + tests.
-  - `src/pages/audit-logs/__tests__/format.test.ts` — **new**, unit tests for `humanizeEntityType`, `humanizeAction`, `diffValues`, `formatFieldValue`.
-- Overlay rules from `docs/architecture/OVERLAYS.md` observed: `DetailSheet` mounted unconditionally, `open` bound to `!!selectedLog`, `onOpenChange` clears state.
-- No schema/migration work; entity-type override map is a plain object, so adding new humanized names later is a one-line change.
+Log page becomes an **operational dashboard**:
+- KPI strip: Pending approval, Approved / not posted, Posted today, Posted MTD, Financial loss MTD, Top reason, Warehouse with highest loss.
+- Filters: status, reason, warehouse, product, date range, requester, approver.
+- Row → right `DetailSheet` (per `docs/architecture/OVERLAYS.md`) showing header, lines with cost, journal entry link, movement link, audit trail, attachments, reversal button (permission-gated).
 
-## Out of scope
+New/edit page becomes a **multi-line document**:
+- Header: warehouse, branch (defaults from context), reason (from master data), reference #, occurrence date, attachments, notes.
+- Lines table: product, lot (when tracked), qty, unit cost (server-resolved, editable with permission), total value.
+- Right rail: running total value, GL preview (accounts that will be hit, per reason), governance banner ("Requires approval by …", "SoD block: you cannot approve your own scrap"), attachment gate.
+- Submit routes: "Save draft", "Submit for approval", or "Approve & post" (only if under threshold AND user has `scrap.post`).
 
-- Backfilling `changes_summary` on historic rows.
-- Cross-linking `entity_id` to the source record's page (nice-to-have; would need a per-entity-type route resolver — separate follow-up).
-- Reworking the `Clear All` AlertDialog (already the correct primitive).
+Config page under `Setup`:
+- `/inventory-app/setup/scrap-reasons` — CRUD for `scrap_reasons` (flags, offset account purpose picker).
+- Default-account settings section under existing Finance settings gets the seven `scrap_expense_*` purposes.
+
+## 5. Files & migrations
+
+### Migrations (in order)
+1. `stock_adjustments`: add `adjustment_type` enum + column (default `stock_take`); add `reversed_by`, `reversed_at`, `reversal_reason`, `reversal_of_id`. Backfill existing rows to `stock_take`.
+2. `scrap_reasons` table + GRANTs + RLS + seed defaults.
+3. `default_accounts`: register new `scrap_expense_*` purposes (via `default_account_settings` catalog).
+4. `scrap_attachments` table + storage bucket convention row.
+5. RPCs: `create_scrap_atomic`, `approve_scrap_atomic`, `post_scrap_atomic`, `reverse_scrap_atomic`. Drop-in replaces the old `record_scrap_atomic` (kept as a thin wrapper that calls create+approve+post so any external caller still works, then deprecated).
+6. Triggers: `sod_stock_adjustment_scrap_guard`, `enforce_scrap_immutable_after_post`.
+7. Outbox event type `scrap.posted` (extend `business_event_outbox` allowed types) + saga registration in `BusinessSaga.ts`.
+8. Governance catalog rows for `scrap.approve`, `scrap.post`, `scrap.reverse`.
+
+### Frontend
+- Replace `src/pages/inventory/ScrapNew.tsx` with document-shaped form (lines editor). Reuse `RecordFormShell`, existing `StockLine` component pattern from adjustments.
+- Rebuild `src/pages/inventory/ScrapRecording.tsx` as a filtered list + KPIs + DetailSheet.
+- New `src/pages/inventory/ScrapDetail.tsx` (peek sheet body) + reversal action.
+- New `src/pages/inventory/setup/ScrapReasons.tsx` for master data.
+- Extend `src/lib/governance/selfActionCatalogue.ts` and `src/services/events/domainEventBus.ts` (`scrap.posted`).
+- Extend `useInventory` / add `useScrap` hook wrapping the four RPCs with react-query invalidations.
+
+### Architecture guards (tests)
+- `src/test/architecture/scrap-lifecycle.test.ts` — asserts:
+  - RPC set is present and old `record_scrap_atomic` is only a wrapper.
+  - `stock_adjustments.adjustment_type` and `scrap_reasons` exist.
+  - SoD trigger present.
+  - `scrap.posted` is a registered `DomainEventType` and business_event_outbox emits it in `post_scrap_atomic`.
+  - `resolve_default_account` is called for scrap offset (not raw `detail_type` lookup).
+- Extend `sod-coverage.test.ts` with scrap actions.
+
+## 6. Out of scope (explicit)
+
+- Manufacturing back-flush integration (`production_orders` scrap yield) — separate BOM/routing epic.
+- Insurance claim automation beyond emitting the domain event (webhook handler follow-up).
+- Multi-currency revaluation of already-posted scrap — inherits from existing FX revaluation runs.
+- Backfilling historic bare `stock_movements` scrap rows into headers. A finance-review query will identify orphans (mirrors the pattern from `docs/audit/2026-05-21-inventory-adjustment-gl.md`).
+
+## 7. Success criteria
+
+- Every scrap event has: header, lines, resolved cost, movement(s), JE, outbox row, audit trail, permission-gated reversal path.
+- No scrap ever writes stock without GL, and no scrap ever posts GL without SoD + policy check.
+- Zero new account-lookup code — every account resolves through `resolve_default_account`.
+- Every UI surface reads through the same `useScrap` hook; no ad-hoc `supabase.from('stock_movements')` scrap queries remain.
