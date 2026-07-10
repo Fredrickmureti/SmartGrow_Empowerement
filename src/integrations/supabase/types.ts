@@ -22258,6 +22258,63 @@ export type Database = {
           },
         ]
       }
+      localization_pack_binary_assets: {
+        Row: {
+          asset_key: string
+          byte_size: number
+          bytes: string
+          content_type: string
+          created_at: string
+          description: string | null
+          id: string
+          pack_id: string
+          pack_version_id: string | null
+          sha256: string
+          updated_at: string
+        }
+        Insert: {
+          asset_key: string
+          byte_size: number
+          bytes: string
+          content_type?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          pack_id: string
+          pack_version_id?: string | null
+          sha256: string
+          updated_at?: string
+        }
+        Update: {
+          asset_key?: string
+          byte_size?: number
+          bytes?: string
+          content_type?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          pack_id?: string
+          pack_version_id?: string | null
+          sha256?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "localization_pack_binary_assets_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "localization_packs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "localization_pack_binary_assets_pack_version_id_fkey"
+            columns: ["pack_version_id"]
+            isOneToOne: false
+            referencedRelation: "pack_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       localization_pack_certificate_templates: {
         Row: {
           approval_required: boolean
@@ -31851,6 +31908,7 @@ export type Database = {
           template_code: string
           template_pack_id: string | null
           updated_at: string
+          xlsx_path: string | null
         }
         Insert: {
           batch_id?: string | null
@@ -31877,6 +31935,7 @@ export type Database = {
           template_code: string
           template_pack_id?: string | null
           updated_at?: string
+          xlsx_path?: string | null
         }
         Update: {
           batch_id?: string | null
@@ -31903,6 +31962,7 @@ export type Database = {
           template_code?: string
           template_pack_id?: string | null
           updated_at?: string
+          xlsx_path?: string | null
         }
         Relationships: [
           {
