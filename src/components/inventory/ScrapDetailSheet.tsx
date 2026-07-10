@@ -17,14 +17,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { LoadingState } from "@/design-system";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { Trash2, RotateCcw, ExternalLink, ShieldAlert } from "lucide-react";
 import { scrapReasonLabel } from "@/pages/inventory/scrapReasons";
-import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useReverseScrap } from "@/hooks/useScrap";
 
 interface Props {
   open: boolean;
@@ -50,9 +49,7 @@ function statusTone(status: string): "default" | "secondary" | "destructive" | "
 
 export function ScrapDetailSheet({ open, onOpenChange, scrapId }: Props) {
   const navigate = useNavigate();
-  const qc = useQueryClient();
-  const { user } = useAuth();
-  const [reversing, setReversing] = useState(false);
+  const reverseScrap = useReverseScrap();
 
   const { data, isLoading } = useQuery({
     queryKey: ["scrap-detail", scrapId],
@@ -109,28 +106,10 @@ export function ScrapDetailSheet({ open, onOpenChange, scrapId }: Props) {
     n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const handleReverse = async () => {
-    if (!scrapId || !header || !user?.id) return;
+    if (!scrapId || !header) return;
     const reason = window.prompt("Reversal reason (audit trail):");
     if (!reason || !reason.trim()) return;
-    setReversing(true);
-    try {
-      const { error } = await supabase.rpc("reverse_stock_adjustment_atomic", {
-        p_adjustment_id: scrapId,
-        p_user_id: user.id,
-        p_reversal_reason: reason,
-      });
-      if (error) throw error;
-      toast.success("Scrap reversed", {
-        description: "Inventory restored and mirror journal entry posted.",
-      });
-      qc.invalidateQueries({ queryKey: ["scrap-adjustments"] });
-      qc.invalidateQueries({ queryKey: ["scrap-detail", scrapId] });
-      qc.invalidateQueries({ queryKey: ["stock-movements"] });
-    } catch (e: any) {
-      toast.error("Reversal failed", { description: e?.message ?? String(e) });
-    } finally {
-      setReversing(false);
-    }
+    await reverseScrap.mutateAsync({ scrapId, reason: reason.trim() });
   };
 
   const canReverse =
@@ -286,10 +265,10 @@ export function ScrapDetailSheet({ open, onOpenChange, scrapId }: Props) {
                 variant="destructive"
                 size="sm"
                 onClick={handleReverse}
-                disabled={reversing}
+                disabled={reverseScrap.isPending}
               >
                 <RotateCcw className="h-4 w-4 mr-2" />
-                {reversing ? "Reversing…" : "Reverse scrap"}
+                {reverseScrap.isPending ? "Reversing…" : "Reverse scrap"}
               </Button>
             )}
           </div>

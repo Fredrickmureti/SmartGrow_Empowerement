@@ -97,8 +97,13 @@ describe("scrap lifecycle architecture", () => {
 
   it("scrap dashboard filters by adjustment_type in SQL and selects the column", () => {
     const page = read("src/pages/inventory/ScrapRecording.tsx");
-    expect(page).toMatch(/adjustment_type/);
-    expect(page).toMatch(/\.eq\(\s*["']adjustment_type["']\s*,\s*["']scrap["']\s*\)/);
+    const migs = readdirSync("supabase/migrations")
+      .filter((f) => f.endsWith(".sql"))
+      .map((f) => read(join("supabase/migrations", f)))
+      .join("\n\n");
+    expect(page).toMatch(/scrap_document_facts/);
+    expect(migs).toMatch(/CREATE(?:\s+OR\s+REPLACE)?\s+VIEW\s+public\.scrap_document_facts/i);
+    expect(migs).toMatch(/WHERE\s+a\.adjustment_type\s*=\s*'scrap'/i);
     expect(page).not.toMatch(/\.filter\([\s\S]{0,160}adjustment_type[\s\S]{0,160}scrap/);
   });
 

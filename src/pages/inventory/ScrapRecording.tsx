@@ -1,10 +1,8 @@
 /**
  * Scrap / Waste log & dashboard.
  *
- * Reads from `stock_adjustments where adjustment_type='scrap'` (the
- * canonical scrap document) joined to its items, journal entry, and
- * approver. Falls back to legacy bare `stock_movements` rows written by
- * pre-2026-07 scrap flows so historical data stays visible.
+ * Reads from `scrap_document_facts`, the canonical scrap reporting view
+ * over stock_adjustments, items, movements, warehouses, and GL linkage.
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -41,25 +39,28 @@ import { useScrapReasons } from "@/hooks/useScrap";
 
 type ScrapRow = {
   id: string;
+  organization_id: string;
+  business_id: string;
+  branch_id: string | null;
+  warehouse_id: string | null;
   adjustment_number: string | null;
   adjustment_date: string;
   reason: string | null;
   notes: string | null;
   status: string;
-  adjustment_type: string;
   approved_by: string | null;
   approved_at: string | null;
   created_by: string | null;
-  warehouse_id: string | null;
-  warehouses?: { id: string; name: string } | null;
-  stock_adjustment_items?: Array<{
-    id: string;
-    product_id: string;
-    quantity_adjustment: number;
-    unit_cost: number | null;
-    products?: { id: string; name: string; sku: string | null } | null;
-  }>;
-  journal_entries?: Array<{ id: string; entry_number: string | null }>;
+  line_count: number;
+  total_quantity: number;
+  total_value: number;
+  first_product_id: string | null;
+  first_product_name: string | null;
+  first_product_sku: string | null;
+  journal_entry_id: string | null;
+  journal_entry_number: string | null;
+  warehouse_name: string | null;
+  movement_count: number;
 };
 
 function statusTone(status: string): "default" | "secondary" | "destructive" | "outline" {
@@ -102,21 +103,11 @@ export default function ScrapRecording() {
     ],
     queryFn: async () => {
       if (!currentOrg?.id || !currentBusiness?.id) return [] as ScrapRow[];
-      let query = supabase
-        .from("stock_adjustments")
-        .select(
-          `id, adjustment_number, adjustment_date, reason, notes, status,
-           adjustment_type, approved_by, approved_at, created_by, warehouse_id,
-           warehouses:warehouse_id ( id, name ),
-           stock_adjustment_items (
-             id, product_id, quantity_adjustment, unit_cost,
-             products:product_id ( id, name, sku )
-           ),
-           journal_entries!journal_entries_source_id_fkey ( id, entry_number )`,
-        )
+      let query = (supabase as any)
+        .from("scrap_document_facts")
+        .select("*")
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
-        .eq("adjustment_type", "scrap")
         .order("adjustment_date", { ascending: false })
         .limit(200);
 
@@ -150,12 +141,8 @@ export default function ScrapRecording() {
     const reasonTally = new Map<string, number>();
 
     for (const s of scraps) {
-      const value = (s.stock_adjustment_items ?? []).reduce(
-        (sum, it) =>
-          sum + Math.abs(Number(it.quantity_adjustment) || 0) * Number(it.unit_cost || 0),
-        0,
-      );
-      for (const it of s.stock_adjustment_items ?? []) productSet.add(it.product_id);
+      const value = Number(s.total_value || 0);
+      if (s.first_product_id) productSet.add(s.first_product_id);
 
       if (s.status === "pending_approval" || s.status === "draft") pending += 1;
 
@@ -338,21 +325,9 @@ export default function ScrapRecording() {
               </TableHeader>
               <TableBody>
                 {filtered.map((s) => {
-                  const items = s.stock_adjustment_items ?? [];
-                  const qty = items.reduce(
-                    (sum, it) => sum + Math.abs(Number(it.quantity_adjustment) || 0),
-                    0,
-                  );
-                  const value = items.reduce(
-                    (sum, it) =>
-                      sum +
-                      Math.abs(Number(it.quantity_adjustment) || 0) *
-                        Number(it.unit_cost || 0),
-                    0,
-                  );
-                  const firstProduct = items[0]?.products;
-                  const extra = items.length > 1 ? ` +${items.length - 1}` : "";
-                  const je = s.journal_entries?.[0];
+                  const qty = Number(s.total_quantity || 0);
+                  const value = Number(s.total_value || 0);
+                  const extra = s.line_count > 1 ? ` +${s.line_count - 1}` : "";
                   return (
                     <TableRow
                       key={s.id}
@@ -369,23 +344,23 @@ export default function ScrapRecording() {
                         {format(new Date(s.adjustment_date), "MMM d, yyyy")}
                       </TableCell>
                       <TableCell className="max-w-[220px] truncate">
-                        {firstProduct ? (
+                        {s.first_product_id ? (
                           <button
                             className="text-primary hover:underline text-left"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedProductId(firstProduct.id);
+                              setSelectedProductId(s.first_product_id);
                               setProductDrawerOpen(true);
                             }}
                           >
-                            {firstProduct.name}
+                            {s.first_product_name ?? "Product"}
                             {extra}
                           </button>
                         ) : (
                           "—"
                         )}
                       </TableCell>
-                      <TableCell>{s.warehouses?.name ?? "—"}</TableCell>
+                      <TableCell>{s.warehouse_name ?? "—"}</TableCell>
                       <TableCell>{scrapReasonLabel(s.reason)}</TableCell>
                       <TableCell className="text-right text-destructive">
                         {fmt(qty)}
@@ -397,7 +372,7 @@ export default function ScrapRecording() {
                         </Badge>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {je?.entry_number ?? "—"}
+                        {s.journal_entry_number ?? "—"}
                       </TableCell>
                     </TableRow>
                   );
