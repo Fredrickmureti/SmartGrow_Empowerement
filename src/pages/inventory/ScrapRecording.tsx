@@ -351,7 +351,14 @@ export default function ScrapRecording() {
                   const extra = items.length > 1 ? ` +${items.length - 1}` : "";
                   const je = s.journal_entries?.[0];
                   return (
-                    <TableRow key={s.id}>
+                    <TableRow
+                      key={s.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => {
+                        setDetailScrapId(s.id);
+                        setDetailOpen(true);
+                      }}
+                    >
                       <TableCell className="font-mono text-xs">
                         {s.adjustment_number ?? s.id.slice(0, 8)}
                       </TableCell>
