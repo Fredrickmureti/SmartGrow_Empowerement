@@ -1,72 +1,121 @@
 
-# Payroll Reports — Enterprise Redesign
+# Kenya P9 — pixel-exact replacement via the Localization Pack
 
-## 1. Business-event framing
+## Decisions from clarifications
+- **Output**: both XLSX and PDF stored per issuance.
+- **Master quirks**: fix the SUM range (rows 15–26), set the year header dynamically, blank the sample employer/employee cells. Every label, heading, section title, column letter, note, merge, border, colour, column width, row height, print setup stays byte-identical to the upload.
+- **Column mapping**: proposed below; encoded in the pack, not the engine.
 
-Reports exist because payroll events happen. The current workspace exposes 9 tabbed tables (`payroll_register`, `payroll_summary`, `employer_contributions`, `statutory_liabilities`, `employee_earnings`, `branch_payroll_cost`, `department_payroll_cost`, `payroll_overtime`, `payroll_variance`) — all universal, all sourced from `payroll_runs` + `payslips` + `payslip_lines` + `payroll_remittances` via `render-report` → `_shared/reports/payrollData.ts`. Gaps against the payroll lifecycle:
+## What exists today
+- `localization_pack_certificate_templates.body` is a JSON section-list (ADR-0060 v2). Renderer: `_shared/pdf/certificateRenderer.ts` draws sections via pdf-lib. There is no path for a binary Office template and no XLSX writer.
+- Publisher UI (`TemplateEditor`) only supports the JSON section schema.
+- `generate-tax-certificate` writes one artefact (PDF) to `documents/<org>/payroll/tax-certificates/<year>/<code>/<serial>.pdf`.
+- KE P9 currently lives as a `sections[]` body — it cannot reproduce the KRA layout (18 columns, 55 merges, sub-header row for E1/E2/E3, employer footer block, P9A legal notes).
 
-| Lifecycle stage | Event source | Reportable? | Present today |
-|---|---|---|---|
-| Contract activated / structure assigned | `employee_contracts`, `salary_structures` | Compensation distribution, structure coverage | ❌ |
-| Work entries generated | `payroll_work_entries` | Work-entry breakdown, hours vs pay | ❌ |
-| Payroll computed | `payroll_runs`, `payslips`, `payslip_lines` | Register, Summary, Earnings | ✅ |
-| Corrections / retro | `retro_pay_adjustments`, `payroll_correction_adjustments`, `payroll_reclassification_audit` | Retro & correction reports | ❌ |
-| Approved / posted to GL | `journal_entries` (via `payroll_runs.journal_entry_id`) | Journal preview, posting history, GL by dept/branch | ❌ |
-| Liabilities created | `payroll_liabilities`, `payroll_remittances` | Statutory liability aging, remittance status | Partial |
-| Payments recorded | `payroll_payment_batches`, `payroll_bank_export_files` | Bank file register, unpaid-payslip aging | ❌ |
-| Certificates / returns | `payroll_tax_certificates`, `payroll_return_runs` | Certificate & return registers (country-specific) | ❌ |
-| Audit surface | `payroll_period_audit`, `garnishment_audit_log`, `loan_lifecycle_events`, `payroll_run_loan_skip_overrides`, `admin_audit_log` | Changes, overrides, approvals, SoD | ❌ |
+## Target architecture
 
-## 2. Report catalogue (target)
+```text
+Localization Pack (KE, v-next)
+  └─ certificate_template rows have `computation_kind = 'xlsx_binary'`
+     ├─ body.master_asset       → storage path to the .xlsx master
+     ├─ body.master_sha256      → integrity pin
+     ├─ body.cell_bindings[]    → { cell | range, token, format? }
+     ├─ body.year_bindings[]    → { cell, token: "period.year" } etc.
+     └─ body.output = ['xlsx','pdf']
 
-Categorised set the new workspace ships with. `U` = universal, `L` = localization-driven.
+Publisher
+  └─ new "Binary template" tab lets a publisher upload the .xlsx,
+     preview it, and author cell_bindings against `pack_token_registry`.
 
-**Operational (U):** Payroll Register · Payroll Summary · Payslip Register · Employee Earnings · Employee Payroll History · Earnings Analysis (by category) · Deduction Analysis · Employer Contribution Summary · Work-Entry Breakdown · Overtime Analysis · Retro & Correction Report · Variance (MoM / YoY) · Payroll Run Comparison.
+Resolver (unchanged public shape)
+  └─ generate-tax-certificate picks the template, coalesces overrides
+     (existing Stage-C flow), then dispatches by computation_kind:
+        v2          → existing sections renderer
+        xlsx_binary → new BinaryCertificateRenderer
 
-**Cost / Financial (U):** Department Payroll Cost · Branch Payroll Cost · Cost-Centre Payroll · Payroll Journal Preview (pre-post) · Payroll Journal Posting History · Payroll Expense by GL · Payroll Allocation (analytic) · Accrued Payroll · Payroll Clearing · Payroll Trends.
+BinaryCertificateRenderer (new)
+  1. Load master.xlsx from Storage (cached by sha256).
+  2. Fill cells / ranges from resolved payload using ExcelJS (Deno-compatible).
+     Merges, borders, fills, fonts, column widths, row heights, page setup,
+     print area, print titles are all inherited from the master — we only
+     write values into existing cells.
+  3. Recalculate formula cells via ExcelJS's built-in calc (SUM only —
+     covers this template).
+  4. Emit XLSX bytes.
+  5. Convert to PDF via an external converter (Gotenberg or CloudConvert
+     — see "Open decision" below). Store both artefacts.
+```
 
-**Management (U):** Headcount Cost · Overtime Cost Trend · Employer Contribution Trend · Average Salary · Compensation Distribution · Workforce Cost Analysis.
+## Column mapping (proposed, encoded in the pack)
 
-**Compliance (L, published by localization packs):** Statutory Liability Summary · per-authority Tax / Social-Security / Housing / Levy monthly summaries · Annual Statutory Certificate Register · Return Filing Register (draft / submitted / accepted). Rendered through the existing pack pipeline (`localization_pack_return_templates`, `localization_pack_certificate_templates`, `payroll_return_runs`, `payroll_tax_certificates`, `pack_requirements`, `returnSourceResolver`).
+Row 15–26 = Jan–Dec. Values come from `payslip_lines` aggregated per employee per month, keyed by rule_code from the KE pack.
 
-**Audit (U):** Payroll Changes · Reversals · Corrections & Manual Adjustments · Override History (loan skip, self-action) · Approval History · Segregation-of-Duties (uses `governance_sod_conflicts`).
+| Col | Header | Source (rule_code / derived) |
+|-----|--------|------------------------------|
+| A | Month | derived (Jan…Dec) |
+| B | Basic Salary | `basic_salary` |
+| C | Benefits – NonCash | `non_cash_benefits` |
+| D | Value of Quarters | `housing_benefit` |
+| E | Total Gross Pay | `gross_pay` |
+| F (E1) | DC pension — 30% of A | `min(basic*0.30, actual, 30000)` (rule output) |
+| G (E2) | DC pension — Actual | `pension_contribution_actual` |
+| H (E3) | DC pension — 30k cap | fixed 30000 |
+| I | Affordable Housing Levy | `ahl_employee` |
+| J | SHIF | `shif_employee` |
+| K | Post Retirement Medical Fund | `prmf_employee` |
+| L | Owner-Occupied Interest | `mortgage_interest_relief_base` |
+| M | Total Deductions (lower of…) | `total_relief_deductions` |
+| N | Chargeable Pay (D-J) | `chargeable_pay` |
+| O | Tax Charged | `paye_gross` |
+| P | Personal Relief | `personal_relief` |
+| Q | Insurance Relief | `insurance_relief` |
+| R | PAYE Tax (L-M-N) | `paye_net` |
 
-## 3. Architecture
+Header cells (P4 employer PIN, C5 employer name, C6 employee main name, C7 employee other names, P6 employee PIN) map to identity tokens already in `pack_token_registry`. Formula cells B27:R27 stay untouched; their ranges are corrected to `SUM(colXX15:colXX26)` in the master.
 
-- **Report metadata registry.** New `payroll_report_definitions` (universal, seeded) + reuse of existing `pack_requirements` rows (`kind = 'report'`) that localization packs publish. Each definition: `key`, `title`, `description`, `category` (`operate|cost|compliance|management|audit`), `scope` (`org|business|branch|department|employee`), `data_availability` (`draft|approved|posted|paid`), `default_filters`, `columns`, `format_profile`, `drilldown_targets`, `currency_mode` (`base|report|multi`), `origin` (`universal|pack:<pack_id>`).
-- **Discovery hook** `usePayrollReportCatalogue()` merges universal + installed-pack definitions and filters by user permission / installed apps.
-- **Single render pipeline.** `render-report` stays the only entry point. Add builder cases for the new keys inside `_shared/reports/payrollData.ts` (register/summary/earnings/branch/dept/overtime/variance already exist) plus new files `payrollGlData.ts` (journal-preview, posting-history, expense-by-GL, allocation, clearing) and `payrollAuditData.ts` (changes, overrides, SoD). Compliance definitions dispatch into the existing statutory-return / certificate rendering path — no parallel logic.
-- **Multi-currency.** Reuse existing base-currency architecture: `ReportContext` already injects `currentBusiness.base_currency`. Extend `PayrollFilters` with `reportCurrency` (defaults to base); server builders read `journal_entries.exchange_rate` / `payslips.gross_pay` + `businesses.base_currency` and translate through `exchange_rates`. No new currency system.
-- **Localization publisher extension.** `pack_rule_type_schemas` gains a `report` kind. `PackEditorShell` gets a Reports tab (mirrors TemplateEditor). Publish rules validate `columns[].source` against `returnSourceResolver` and against `payslip_lines.rule_code` referenced in the pack. Certificate/return templates already ship — we now surface them in the Reports workspace as first-class report definitions instead of hiding them under a separate "Returns" page.
-- **Dashboard.** Reports landing page becomes a workspace, not a tab bar: KPI strip (last run status, headcount, MTD cost, outstanding liabilities), Recent Runs, Recent / Scheduled / Favourite reports, Compliance-due chips (`payroll_filing_calendar_projection`), Trend charts (12-month gross / employer cost / headcount), quick "Run report" launcher opening a report picker filtered by role.
-- **Drill-down.** Standardised in `_meta`: report row → payslip → calculation breakdown (`payslip_lines`) → journal entry → GL transaction. Wire `payroll_liability` meta into `/hr/payroll/remittances` with rule-code deep-link, `payroll_run` into `PayrollRunDetailsDialog`, GL rows into `/finance/journal/entries/:id`.
-- **Scheduling / export.** Reuse `scheduled_reports` + `process-scheduled-reports`; every definition automatically gets Schedule / Favourite / Export (PDF / CSV / Excel) through `ReportPageLayout`.
+## Implementation phases
 
-## 4. Root cause of the current failure
+**Phase A — Pack schema & storage**
+- Migration: new `computation_kind='xlsx_binary'` JSON Schema in `pack_rule_type_schemas` for `certificate_template`; validates `master_asset`, `master_sha256`, `cell_bindings[]`, `output[]`.
+- New storage bucket convention `localization-pack-assets/<pack_id>/<version>/certificates/<code>.xlsx` (private, service-role read).
 
-`edge-function-logs-render-report` shows repeated `column payslips.basic_salary does not exist` (42703). No source file in `supabase/functions/_shared/reports/*` or `render-report/index.ts` selects `basic_salary` today — the current builder projects only `gross_pay, net_pay, total_deductions` from `payslips`. This means **the deployed `render-report` function is stale** relative to the repo (a previous version selected `payslips.basic_salary` before the country-agnostic rewrite). The fix is a redeploy of `render-report` plus its `_shared` sources; add a regression architecture test asserting `payrollData.ts` never re-references dropped columns.
+**Phase B — Master ingestion**
+- Upload the (fixed) master workbook to storage.
+- Insert one KE pack version (`2026.6.0`) with a new certificate template row `code='P9A'`, `computation_kind='xlsx_binary'`, body pointing to the asset, `effective_date` = current year start, superseding the current P9A row per ADR-0056 upgrade rules.
+- Pack-version bump + `propose-localization-upgrades` fan-out (existing flow) surfaces the update to installed tenants; the D1 architecture test already enforces the pairing.
 
-## 5. Implementation phases
+**Phase C — Renderer**
+- Add `_shared/xlsx/binaryCertificateRenderer.ts` (ExcelJS via `npm:exceljs`).
+- Route selection in `generate-tax-certificate` by `computation_kind`.
+- Reuse existing resolver, override-coalesce, TEMPLATE_OUT_OF_DATE, tokens (`renderTokens`), `payroll_employee_ytd_rollup`.
+- Diagnostics: unresolved bindings → `payroll_return_diagnostics` (same channel as today's `‹unresolved:›` markers).
 
-1. **Redeploy + regression guard** — redeploy `render-report`; add `src/test/architecture/payroll-reports-no-legacy-columns.test.ts` that fails if `_shared/reports/payrollData.ts` selects any of `basic_salary`, `other_earnings`, `taxable_income` from `payslips`.
-2. **Report metadata layer** — migration for `payroll_report_definitions` (+ GRANTs + RLS `TO authenticated` read-only + service_role writes), seed universal definitions, add `report` kind to `pack_rule_type_schemas`.
-3. **Discovery + workspace shell** — `usePayrollReportCatalogue`, refactor `src/pages/hr/payroll/Reports.tsx` into `PayrollReportsWorkspace` (dashboard + catalogue + report viewer) using the design system primitives; keep old tab surface reachable via `?report=<key>` deep links for back-compat.
-4. **New builders** — `payrollGlData.ts` (journal preview / posting history / expense-by-GL / allocation / clearing / accrued), `payrollAuditData.ts` (changes, reversals, overrides, approvals, SoD), `payrollWorkEntryData.ts` (work-entry breakdown, overtime cost trend). Wire into `render-report` dispatcher.
-5. **Multi-currency projection** — add `reportCurrency` to `PayrollFilters` + translation helper in `_shared/reports/currency.ts` reusing `exchange_rates`.
-6. **Localization Reports publisher** — extend `PackEditorShell` with a Reports tab and a `ReportDefinitionEditor` (columns / filters / sources / legal reference / supported formats). Pack install materialises definitions into `pack_requirements(kind='report')`; uninstall removes them.
-7. **Dashboard + drill-downs** — KPI strip, trends, compliance chips, standardised `_meta` drill-down router.
-8. **Audit reports wiring** — connect existing `payroll_period_audit`, `governance_sod_conflicts`, `admin_audit_log`, override tables.
+**Phase D — PDF conversion**
+- New helper `_shared/xlsx/toPdf.ts` calls the chosen converter.
+- Store `<serial>.xlsx` alongside `<serial>.pdf`; update `payroll_tax_certificates` with both paths (add `xlsx_path` column via migration).
+- `download-tax-certificate` gains a `format=xlsx|pdf` query param.
 
-## 6. Technical notes
+**Phase E — Publisher UI**
+- New `BinaryCertificateEditor` in `src/features/localization/components/` — upload master, list detected named ranges/labels, bind each cell to a token from `TokenPicker`, preview by running a dry-run render against a synthetic employee.
+- Register in `PackEditorShell` next to `TemplateEditor`.
 
-- Country-agnostic invariant preserved: universal builders never reference rule codes, identifier names or currencies.
-- Every new table follows the `<public-schema-grants>` rule.
-- `render-report` remains the only entry point; no new edge functions (protects the 88/100 ceiling per ADR 0005).
-- All new report pages use `ReportPageLayout` + `ReportContext` so branding / base currency / export are inherited.
-- Trigger-guarded write surfaces (ADR 0005/0022) are untouched — reporting is read-only.
+**Phase F — Tests & guards**
+- Architecture guard: `xlsx_binary` templates must supply `master_sha256` and `output[]`.
+- Golden test: render the KE P9 for a fixture employee; assert byte-for-byte equality of merges/column widths/row heights/print setup with the master, and cell values match the fixture.
+- Extend `certificate-body-change-requires-pack-version-bump.test.ts` allow-list is untouched — the new pack version enforces the rule.
+- Preserve the country-agnostic guard: the renderer is generic; only the pack row is KE-specific.
 
-## 7. Non-goals
+## Open decision (single question I need answered before Phase D)
+Deno edge functions cannot spawn LibreOffice. Two choices for the XLSX→PDF converter:
+- **Gotenberg** (self-hosted or hosted): free, no per-doc cost, needs a URL + service token added via `add_secret`.
+- **CloudConvert**: fully managed SaaS, needs an API key secret; per-conversion cost.
 
-- No changes to `compute-payroll`, `post-payroll-gl`, `assert_payroll_ready_json`, or the ADR-0022 mapping-integrity path.
-- No UI rewrite of `/hr/payroll/runs`, payslips, or remittances (only their drill-down targets are consumed).
-- eTIMS / M-Pesa edge consolidation remains out of scope (ADR 0005).
+I'll default to Gotenberg (cheaper, more auditable) unless you say otherwise when I hit Phase D.
+
+## Non-goals
+- No changes to the generic payroll engine or `compute-payroll`.
+- No new engine rule codes — mapping references existing KE pack outputs; anything missing is added to the pack, not the engine.
+- No UI change to the employee `/me` portal beyond an extra "Download XLSX" button on the P9 row.
+
+## Deliverables per phase
+Each phase ships behind the existing pack-version gate; nothing goes live to tenants until the `2026.6.0` upgrade proposal is accepted.
