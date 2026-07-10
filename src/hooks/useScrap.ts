@@ -104,7 +104,10 @@ export function useRecordScrap() {
       qc.invalidateQueries({ queryKey: ["stock-movements"] });
       qc.invalidateQueries({ queryKey: ["products"] });
     },
-    onError: (err: any) => toast.error(normalizeError(err).message),
+    onError: (err: any) => {
+      const message = typeof err?.message === "string" ? err.message.trim() : "";
+      toast.error(message || normalizeError(err).message);
+    },
   });
 }
 
