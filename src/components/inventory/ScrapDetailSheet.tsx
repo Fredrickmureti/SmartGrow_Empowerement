@@ -85,7 +85,7 @@ export function ScrapDetailSheet({ open, onOpenChange, scrapId }: Props) {
     },
   });
 
-  const header = (data?.header as any) | undefined || data?.header;
+  const header = data?.header as any;
   const items = (header?.stock_adjustment_items ?? []) as any[];
   const je = (header?.journal_entries ?? [])[0];
 
