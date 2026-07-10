@@ -517,7 +517,82 @@ Deno.serve(async (req) => {
         }
 
         const serial = makeSerial(body.organization_id, emp.id, body.fiscal_year, template.code);
-        const pdfBytes = await renderCertificatePdf(
+        const isBinaryTpl = (template.body as any)?.kind === "xlsx_binary";
+
+        let pdfBytes: Uint8Array | null = null;
+        let xlsxBytes: Uint8Array | null = null;
+
+        if (isBinaryTpl) {
+          // Resolve asset URL for this pack version
+          const packVersionId = (template as any).pack_version_id
+            ?? (packTemplate as any).pack_version_id
+            ?? null;
+          const assetKey = (template.body as any).asset_key as string;
+          let assetRow: any = null;
+          if (packVersionId) {
+            const r = await admin
+              .from("localization_pack_binary_assets")
+              .select("source_url")
+              .eq("pack_version_id", packVersionId)
+              .eq("asset_key", assetKey)
+              .maybeSingle();
+            assetRow = r.data;
+          }
+          if (!assetRow) {
+            // Fallback: latest asset row matching this pack + asset_key
+            const r = await admin
+              .from("localization_pack_binary_assets")
+              .select("source_url")
+              .eq("pack_id", template.pack_id)
+              .eq("asset_key", assetKey)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            assetRow = r.data;
+          }
+          const sourceUrl = assetRow?.source_url as string | null | undefined;
+          if (!sourceUrl) {
+            throw new Error(`master workbook not registered for ${assetKey}`);
+          }
+          const origin = new URL(req.url).origin;
+          const fetcher = makeUrlAssetFetcher(() => sourceUrl, origin);
+          xlsxBytes = await renderBinaryCertificateXlsx(
+            template.body as BinaryCertificateBody,
+            {
+              employer: {
+                name: branding?.name ?? "",
+                tax_pin: (branding as any)?.tax_pin ?? "",
+                address: (branding as any)?.address ?? "",
+                tax_office: (branding as any)?.tax_office ?? "",
+                phone: (branding as any)?.phone ?? "",
+                email: (branding as any)?.email ?? "",
+              },
+              employee: {
+                id: emp.id,
+                full_name: payload.employee.full_name,
+                first_name: (emp as any).first_name ?? "",
+                last_name: (emp as any).last_name ?? "",
+                employee_number: payload.employee.employee_number,
+                tax_pin: payload.employee.tax_pin,
+                national_id: payload.employee.national_id,
+                position: payload.employee.position,
+                department: payload.employee.department,
+              },
+              fiscal_year: body.fiscal_year,
+              currency: orgCurrency,
+              monthly: monthlyRows.map((r) => ({
+                month: Number((r as any).month) || 0,
+                rule_code: String((r as any).rule_code ?? ""),
+                amount: Number((r as any).amount) || 0,
+              })),
+              totals,
+              serial_number: serial,
+              generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+            },
+            fetcher,
+          );
+        } else {
+        pdfBytes = await renderCertificatePdf(
           {
             code: template.code,
             display_name: template.display_name,
@@ -564,16 +639,38 @@ Deno.serve(async (req) => {
           },
           { branding: branding ?? null },
         );
+        }
 
-        const path = `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${serial}.pdf`;
-
-        const upload = await admin.storage
-          .from(STORAGE_BUCKET)
-          .upload(path, new Blob([pdfBytes], { type: "application/pdf" }), {
-            contentType: "application/pdf",
-            upsert: true,
-          });
-        if (upload.error) throw new Error(`upload failed: ${upload.error.message}`);
+        const basePath = `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${serial}`;
+        let pdfPath: string | null = null;
+        let xlsxPath: string | null = null;
+        if (pdfBytes) {
+          pdfPath = `${basePath}.pdf`;
+          const up = await admin.storage
+            .from(STORAGE_BUCKET)
+            .upload(pdfPath, new Blob([pdfBytes], { type: "application/pdf" }), {
+              contentType: "application/pdf",
+              upsert: true,
+            });
+          if (up.error) throw new Error(`upload failed: ${up.error.message}`);
+        }
+        if (xlsxBytes) {
+          xlsxPath = `${basePath}.xlsx`;
+          const up = await admin.storage
+            .from(STORAGE_BUCKET)
+            .upload(
+              xlsxPath,
+              new Blob([xlsxBytes], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              }),
+              {
+                contentType:
+                  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                upsert: true,
+              },
+            );
+          if (up.error) throw new Error(`xlsx upload failed: ${up.error.message}`);
+        }
 
         // Supersede prior issued row if regenerating
         if (body.regenerate) {
@@ -606,14 +703,15 @@ Deno.serve(async (req) => {
             template_pack_id: template.pack_id,
             fiscal_year: body.fiscal_year,
             payload,
-            pdf_path: path,
+            pdf_path: pdfPath,
+            xlsx_path: xlsxPath,
             serial_number: serial,
             status: "issued",
             generated_by: userId,
             batch_id: batchId,
             provenance,
           })
-          .select("id, serial_number, pdf_path, fiscal_year, employee_id, template_code, status, batch_id")
+          .select("id, serial_number, pdf_path, xlsx_path, fiscal_year, employee_id, template_code, status, batch_id")
           .single();
         if (insErr) throw new Error(insErr.message);
         created.push(inserted);
