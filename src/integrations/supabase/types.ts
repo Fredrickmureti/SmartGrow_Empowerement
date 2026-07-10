@@ -29748,6 +29748,65 @@ export type Database = {
           },
         ]
       }
+      payroll_report_definitions: {
+        Row: {
+          category: string
+          country_code: string | null
+          created_at: string
+          description: string | null
+          feature_flag: string | null
+          id: string
+          is_active: boolean
+          label: string
+          localization_pack_id: string | null
+          report_key: string
+          scope: string
+          sort_order: number
+          spec: Json
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          country_code?: string | null
+          created_at?: string
+          description?: string | null
+          feature_flag?: string | null
+          id?: string
+          is_active?: boolean
+          label: string
+          localization_pack_id?: string | null
+          report_key: string
+          scope?: string
+          sort_order?: number
+          spec?: Json
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          country_code?: string | null
+          created_at?: string
+          description?: string | null
+          feature_flag?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          localization_pack_id?: string | null
+          report_key?: string
+          scope?: string
+          sort_order?: number
+          spec?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_report_definitions_localization_pack_id_fkey"
+            columns: ["localization_pack_id"]
+            isOneToOne: false
+            referencedRelation: "localization_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_return_diagnostics: {
         Row: {
           blocking: boolean
