@@ -10,7 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   isOfflineMode: boolean;
   isEmailVerified: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; user: User | null }>;
   signOut: () => Promise<void>;
   resendConfirmation: (email: string) => Promise<{ error: Error | null }>;
 }
