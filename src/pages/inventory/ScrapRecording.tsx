@@ -410,6 +410,12 @@ export default function ScrapRecording() {
         onOpenChange={setProductDrawerOpen}
         productId={selectedProductId}
       />
+
+      <ScrapDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        scrapId={detailScrapId}
+      />
     </div>
   );
 }
