@@ -1,13 +1,14 @@
+/* Design system tokens — imported first so PostCSS's rule that @import must
+ * precede all other statements is satisfied. tokens.css only defines `--ds-*`
+ * names and never redefines shadcn tokens, so cascade order is irrelevant. */
+@import "./design-system/tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Design system tokens — must be imported AFTER the @tailwind directives so
- * `:root` lands in the cascade above .dark/[data-density] overrides below.
- * Every workspace, primitive, and module consumes these. */
-@import "./design-system/tokens.css";
-
 /* Enterprise Accounting SaaS Design System */
+
 
 @layer base {
   :root {
