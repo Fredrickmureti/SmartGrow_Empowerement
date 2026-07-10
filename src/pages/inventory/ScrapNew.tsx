@@ -73,8 +73,19 @@ export default function ScrapNew() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { data: dbReasons = [] } = useScrapReasons();
+  const reasonList = dbReasons.length
+    ? dbReasons.map((r) => ({
+        code: r.code,
+        label: r.label,
+        description: r.description ?? "",
+        requiresAttachment: r.requires_attachment,
+        insuranceEligible: r.insurance_claim_flag,
+      }))
+    : SCRAP_REASONS;
+
   const selectedProduct = inventoryProducts.find((p) => p.id === form.product_id);
-  const selectedReason = SCRAP_REASONS.find((r) => r.code === form.reason);
+  const selectedReason = reasonList.find((r) => r.code === form.reason);
   const productCost = (selectedProduct as any)?.cost_price ?? 0;
 
   // When the product changes, seed unit cost from product.cost_price so the
