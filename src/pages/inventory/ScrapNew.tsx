@@ -246,7 +246,7 @@ export default function ScrapNew() {
                 <SelectValue placeholder="Select reason" />
               </SelectTrigger>
               <SelectContent>
-                {SCRAP_REASONS.map((r) => (
+                {reasonList.map((r) => (
                   <SelectItem key={r.code} value={r.code}>
                     {r.label}
                   </SelectItem>
