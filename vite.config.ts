@@ -1,4 +1,5 @@
 import { defineConfig, type PluginOption } from "vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
@@ -14,6 +15,12 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [
+    ...tanstackStart({
+      router: {
+        entry: "./router.tsx",
+        generatedRouteTree: "./routeTree.gen.ts",
+      },
+    }),
     react(),
     mode === "development" ? (componentTagger() as unknown as PluginOption) : null,
     // Service worker is disabled for Electron packaged builds — `file://`

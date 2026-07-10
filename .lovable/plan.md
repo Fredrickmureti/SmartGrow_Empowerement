@@ -1,153 +1,70 @@
+## Verified findings
 
-# Scrap / Waste — Business-Event Lifecycle (Investigation + Implementation Plan)
+**Immediate production defect**
+- `SCR-2026-00001` exists as a real scrap document in `stock_adjustments` with `adjustment_type='scrap'`, status `approved`, value `210`, JE `JE-00003`, stock movement, and `scrap.posted` outbox event.
+- The scrap page hides it because `ScrapRecording.tsx` filters rows with `(r as any).adjustment_type === 'scrap'`, but the query does not select `adjustment_type`. Every row is therefore filtered out client-side.
 
-## 1. What exists today (verified)
+**What the previous implementation actually delivered**
+- Scrap is partially promoted from a bare movement to `stock_adjustments` + `stock_adjustment_items` via `record_scrap_atomic`.
+- It delegates posting to `approve_stock_adjustment_atomic`, so stock movement, valuation, cost resolution, lot consumption path, and GL posting reuse the hardened adjustment engine.
+- `scrap_reasons`, `scrap_attachments`, `scrap.posted`, `scrap.reversed`, and scrap SoD catalogue entries exist.
+- The UI has a log, reason setup page, and detail sheet, but it is still single-line and has direct RPC calls in `ScrapNew.tsx` despite `useScrap` saying it is canonical.
 
-- **UI:** `src/pages/inventory/ScrapNew.tsx` — 4 inputs (product, warehouse, qty, reason, notes). Reason is a hard-coded string list. Cost is silently pulled from `products.cost_price` on the client and passed to the RPC.
-- **RPC:** `record_scrap_atomic` (migration `20260413031122`). Immediately, in one call:
-  1. Inserts one row into `stock_movements` (`movement_type='scrap'`, `quantity=-abs`, `unit_cost=p_unit_cost`).
-  2. Locates accounts by hard-coded `detail_type` (`inventory` → `inventory_adjustment` → falls back to `operating_expenses`). Ignores `default_accounts` / `resolve_default_account` and ignores `branch_id`.
-  3. Posts a `journal_entries` row with `source_type='scrap'`, status `posted`, in one shot. No approval state, no draft.
-- **No header record** — scrap is a bare movement, not a document. `stock_adjustments` is NOT used for scrap despite existing.
-- **No SoD trigger** for scrap (compare `sod_stock_adjustment_guard` per `mem/features/sod-self-action`).
-- **No outbox emission** — the domain event bus lists `stock_adjustment.approved` but nothing emits a scrap event.
-- **No lot / serial / expiry handling.** Outbound FIFO consumption via `consume_lots_atomic` accepts `scrap`, but the scrap RPC never calls it.
-- **No reason master data**, no attachments, no reversal, no thresholds, no dashboards.
-- **Peek:** the log page shows plain `stock_movements` rows — no drill-down to JE, no financial impact card, no status.
+**Architectural gaps still present**
+- No dedicated `create_scrap_atomic`, `approve_scrap_atomic`, `post_scrap_atomic`, or `reverse_scrap_atomic`; only a wrapper over stock adjustment approval exists.
+- Scrap lifecycle status is inconsistent: database status remains `approved` even though GL is posted; the outbox calls it `scrap.posted`.
+- Reason thresholds and required attachments are stored but not enforced before posting.
+- Reason-specific GL mapping is shallow: reasons mostly collapse to shrinkage instead of resolving configurable `offset_account_purpose` through the canonical default-account architecture.
+- The reason setup UI hardcodes `offset_account_purpose: "shrinkage"` and does not let finance configure the purpose.
+- No attachment upload/verification workflow exists.
+- Governance is limited to self-approval guard; approval thresholds/maker-checker are not yet wired into the approval framework.
+- Reporting is UI-local and fragile; no canonical scrap reporting view/query exists for KPIs, lists, and drill-down.
 
-The current build is a **movement + JE**, not a business event. Every enterprise concern below is either missing or bypassed.
+## Implementation plan
 
-## 2. Enterprise lifecycle (target)
+### 1. Fix the current user-visible reporting defect first
+- Add `adjustment_type` to the `ScrapRecording.tsx` query, or better, filter `adjustment_type='scrap'` in the database query now that the column exists in generated types.
+- Keep `approved` treated as posted only where the current engine genuinely posts the JE during approval.
+- Change the empty state copy only if no scrap documents truly exist.
+- Validate that `SCR-2026-00001` appears in the list and KPI cards show:
+  - Posted this month: `1`
+  - Loss MTD: `210`
+  - Loss today: `210`
 
-```text
-Request  →  Review/Approve (policy)  →  Post  →  Inventory move + Costing (AVCO/FIFO/lot)
-   │            │                        │             │
-   │            └─ SoD guard             │             ├─ warehouse_stock update
-   │            └─ approval_requests     │             ├─ cost_layer consumption
-   │                                     │             └─ lot / expiry reservation
-   │                                     ▼
-   │                             GL posting (reason-keyed accounts, branch-aware)
-   │                                     │
-   │                                     ├─ audit_logs
-   │                                     ├─ business_event_outbox → BusinessSaga
-   │                                     ├─ notifications (finance, ops)
-   │                                     └─ reporting / dashboards / statements
-   ▼
-Reversal (mirror JE, restore stock, immutable trail)
-```
+### 2. Remove shallow frontend inconsistencies
+- Make `ScrapNew.tsx` use `useRecordScrap` instead of calling `record_scrap_atomic` directly.
+- Update `ScrapRecording.tsx` reason filters to use database `scrap_reasons`, not the legacy hardcoded catalogue.
+- Ensure the detail sheet shows the linked JE, stock movement, unit cost, total value, requester/approver, and outbox/audit status where available.
+- Add an architecture test that prevents client-side filtering by a column that is not selected.
 
-Mapped onto our existing frameworks:
+### 3. Make reporting canonical
+- Add a database view or RPC for scrap dashboard/list rows that returns document header, line totals, status, reason, warehouse, JE id/number, movement count, requester, approver, and financial value.
+- Point the scrap page and detail sheet at this canonical read model so KPI cards and lists cannot drift from the posting model.
+- Include legacy orphan visibility for any historical `stock_movements` scrap rows that do not have a `stock_adjustments` header, clearly marked as legacy.
 
-| Concern | Reuse (do NOT reinvent) |
-| --- | --- |
-| Header document | `stock_adjustments` + `stock_adjustment_items` (already models qty/cost/warehouse/lot) — extend with `type='scrap'` |
-| Approval | `approval_workflows` / `approval_rules` / `approval_requests` |
-| SoD / self-approval | `governance_assert_not_self`, `self_action_policy`, `sod_<table>_guard` pattern (Wave G2) |
-| Accounts | `default_accounts` + `resolve_default_account` RPC (branch-aware, ADR-0016) |
-| Reason master data | new `scrap_reasons` config table (org-scoped, seeded per locale) |
-| Costing | `resolve_adjustment_unit_cost` + `consume_lots_atomic` (lot-aware, ADR-0025) |
-| Domain event | `business_event_outbox` → `stock_adjustment.approved` extended with `scrap.posted` |
-| Audit | existing `audit_logs` trigger surface |
-| Reporting | `stock_movements` + JE, plus new views for dashboards |
+### 4. Enforce enterprise controls that currently only exist as fields
+- Enforce `scrap_reasons.requires_attachment` before posting.
+- Enforce `requires_approval_above` by routing above-threshold scrap through existing approval/governance tables instead of immediately approving.
+- Keep solo-organization behavior safe, but do not allow multi-user orgs to self-approve material scrap without a governance override.
+- Add tests for threshold, attachment, and self-approval behavior.
 
-## 3. Root architectural fixes
+### 5. Complete accounting configuration properly
+- Replace reason hardcoding in `resolve_adjustment_offset_account` with lookup of `scrap_reasons.offset_account_purpose`.
+- Resolve the offset account through the existing default-account/account-role architecture rather than adding another mapping system.
+- Expose offset-account purpose in the reason setup UI.
+- Fail fast when an account cannot be resolved; never post stock without GL.
 
-### 3.1 Promote scrap to a document
-- Every scrap becomes a row in `stock_adjustments` with a new discriminator `adjustment_type='scrap'` (column exists as `reason`; add `adjustment_type` enum: `stock_take`, `physical_count`, `scrap`, `revaluation`, `opening_balance`). Lines go in `stock_adjustment_items` — one row per product/lot.
-- Numbering `SCR-YYYY-NNNN` via `invoice_sequences`-style helper already used elsewhere.
-- Statuses: `draft → pending_approval → approved → posted → reversed`.
+### 6. Close lifecycle gaps
+- Introduce dedicated scrap RPCs only where they add lifecycle semantics beyond the generic stock-adjustment engine:
+  - create/request scrap
+  - approve/post scrap
+  - reverse scrap
+- Preserve `record_scrap_atomic` as a backwards-compatible wrapper.
+- Align statuses so posted scrap is unambiguous in UI, reports, and outbox events.
+- Add regression tests for stock movement, cost resolution, JE linkage, outbox emission, reversal, and dashboard visibility.
 
-### 3.2 Split the RPC into three
-Replace the monolithic `record_scrap_atomic` with:
-1. `create_scrap_atomic(header, lines[])` — writes draft/pending. No stock or GL.
-2. `approve_scrap_atomic(id)` — SoD-guarded (`governance_assert_not_self`), consumes approval override if needed, transitions to `approved`, then internally calls posting.
-3. `post_scrap_atomic(id)` — atomic: lock stock, resolve costs, consume lots (FIFO/FEFO), write movements, post JE, emit outbox event, insert `audit_logs`. Same shape as the hardened `approve_stock_adjustment_atomic` (see `docs/audit/2026-05-21-inventory-adjustment-gl.md`).
-4. `reverse_scrap_atomic(id, reason)` — mirror JE, restore stock, mark reversed, immutability trigger blocks edits after posting.
-
-### 3.3 Reason as master data
-- New `scrap_reasons(id, org_id, code, label, requires_attachment, requires_approval_above, offset_account_purpose, insurance_claim_flag, quality_hold_flag, regulatory_reporting_flag, is_active, sort_order)`.
-- Seed from localization pack: `damaged`, `expired`, `defective`, `obsolete`, `quality_reject`, `manufacturing_scrap`, `theft_shrinkage`, `sample_giveaway`, `hazardous_disposal`, `other`.
-- `offset_account_purpose` is the key that resolves to a GL account via `resolve_default_account` — one row per reason enables reason-keyed offset accounts (Phase D of the adjustment fix).
-
-### 3.4 Branch-aware, reason-keyed GL
-Add default-account purposes: `scrap_expense_damaged`, `scrap_expense_expired`, `scrap_expense_obsolete`, `scrap_expense_quality`, `scrap_expense_manufacturing`, `scrap_expense_shrinkage`, `scrap_expense_default`.
-`post_scrap_atomic` resolves offset per line by `resolve_default_account(business_id, reason.offset_account_purpose, header.branch_id)`, falling back to `scrap_expense_default`, then `inventory_adjustment`. Inventory side resolves from `products.inventory_account_id` → `default_accounts` `inventory_asset`. Fast-fail if either is missing — no silent skip.
-
-### 3.5 SoD + governance
-- Add `sod_stock_adjustment_scrap_guard` on `BEFORE UPDATE OF status` to `stock_adjustments` where `adjustment_type='scrap'` and `NEW.status IN ('approved','posted')` — calls `governance_assert_not_self(created_by, approved_by, 'scrap.approve')`.
-- Register catalog entry in `src/lib/governance/selfActionCatalogue.ts`: `scrap.approve` (block by default), `scrap.post`, `scrap.reverse`.
-- Thresholds: reuse `approval_rules` targeting `stock_adjustments`, add pre-built rule "Scrap > X value requires manager approval". Rule value comes from `businesses.scrap_auto_approve_threshold` (new col) — org-configurable, defaults from localization pack.
-
-### 3.6 Lot / serial / expiry
-When `products.track_lots` or `products.track_serials` is true, `post_scrap_atomic` requires each line to carry `lot_id` (or serials) and calls `consume_lots_atomic('scrap', …)` for the FIFO consumption. Blocks scrap if reserved stock (`stock_reservations`) would be violated — checks `warehouse_stock.quantity_available`.
-
-### 3.7 Domain event + saga
-- Emit `scrap.posted` (new `DomainEventType`) into `business_event_outbox`.
-- Register handlers via `BusinessSaga`: label printing (disposal label), notification to finance & warehouse manager, insurance claim webhook when `reason.insurance_claim_flag`, quality-hold check when `reason.quality_hold_flag`, regulatory registry write for `controlled_substance_register` when applicable.
-
-### 3.8 Attachments
-`stock_adjustment_attachments` (already implied by `project_documents` pattern) — table `scrap_attachments(scrap_id, storage_path, kind='photo'|'disposal_certificate'|'insurance_form', uploaded_by, uploaded_at)` gated by reason master data (`requires_attachment=true` blocks posting).
-
-### 3.9 Reversal + immutability
-- After `status='posted'`, `BEFORE UPDATE` trigger blocks edits to header/lines except a status transition to `reversed` written by `reverse_scrap_atomic`.
-- Reversal writes a mirror JE (`source_type='scrap_reversal'`, links to original), inverse `stock_movements`, and marks header `reversed_by/reversed_at/reversal_reason`.
-
-## 4. UX rebuild (`/inventory-app/scrap` + `/inventory-app/scrap/new`)
-
-Log page becomes an **operational dashboard**:
-- KPI strip: Pending approval, Approved / not posted, Posted today, Posted MTD, Financial loss MTD, Top reason, Warehouse with highest loss.
-- Filters: status, reason, warehouse, product, date range, requester, approver.
-- Row → right `DetailSheet` (per `docs/architecture/OVERLAYS.md`) showing header, lines with cost, journal entry link, movement link, audit trail, attachments, reversal button (permission-gated).
-
-New/edit page becomes a **multi-line document**:
-- Header: warehouse, branch (defaults from context), reason (from master data), reference #, occurrence date, attachments, notes.
-- Lines table: product, lot (when tracked), qty, unit cost (server-resolved, editable with permission), total value.
-- Right rail: running total value, GL preview (accounts that will be hit, per reason), governance banner ("Requires approval by …", "SoD block: you cannot approve your own scrap"), attachment gate.
-- Submit routes: "Save draft", "Submit for approval", or "Approve & post" (only if under threshold AND user has `scrap.post`).
-
-Config page under `Setup`:
-- `/inventory-app/setup/scrap-reasons` — CRUD for `scrap_reasons` (flags, offset account purpose picker).
-- Default-account settings section under existing Finance settings gets the seven `scrap_expense_*` purposes.
-
-## 5. Files & migrations
-
-### Migrations (in order)
-1. `stock_adjustments`: add `adjustment_type` enum + column (default `stock_take`); add `reversed_by`, `reversed_at`, `reversal_reason`, `reversal_of_id`. Backfill existing rows to `stock_take`.
-2. `scrap_reasons` table + GRANTs + RLS + seed defaults.
-3. `default_accounts`: register new `scrap_expense_*` purposes (via `default_account_settings` catalog).
-4. `scrap_attachments` table + storage bucket convention row.
-5. RPCs: `create_scrap_atomic`, `approve_scrap_atomic`, `post_scrap_atomic`, `reverse_scrap_atomic`. Drop-in replaces the old `record_scrap_atomic` (kept as a thin wrapper that calls create+approve+post so any external caller still works, then deprecated).
-6. Triggers: `sod_stock_adjustment_scrap_guard`, `enforce_scrap_immutable_after_post`.
-7. Outbox event type `scrap.posted` (extend `business_event_outbox` allowed types) + saga registration in `BusinessSaga.ts`.
-8. Governance catalog rows for `scrap.approve`, `scrap.post`, `scrap.reverse`.
-
-### Frontend
-- Replace `src/pages/inventory/ScrapNew.tsx` with document-shaped form (lines editor). Reuse `RecordFormShell`, existing `StockLine` component pattern from adjustments.
-- Rebuild `src/pages/inventory/ScrapRecording.tsx` as a filtered list + KPIs + DetailSheet.
-- New `src/pages/inventory/ScrapDetail.tsx` (peek sheet body) + reversal action.
-- New `src/pages/inventory/setup/ScrapReasons.tsx` for master data.
-- Extend `src/lib/governance/selfActionCatalogue.ts` and `src/services/events/domainEventBus.ts` (`scrap.posted`).
-- Extend `useInventory` / add `useScrap` hook wrapping the four RPCs with react-query invalidations.
-
-### Architecture guards (tests)
-- `src/test/architecture/scrap-lifecycle.test.ts` — asserts:
-  - RPC set is present and old `record_scrap_atomic` is only a wrapper.
-  - `stock_adjustments.adjustment_type` and `scrap_reasons` exist.
-  - SoD trigger present.
-  - `scrap.posted` is a registered `DomainEventType` and business_event_outbox emits it in `post_scrap_atomic`.
-  - `resolve_default_account` is called for scrap offset (not raw `detail_type` lookup).
-- Extend `sod-coverage.test.ts` with scrap actions.
-
-## 6. Out of scope (explicit)
-
-- Manufacturing back-flush integration (`production_orders` scrap yield) — separate BOM/routing epic.
-- Insurance claim automation beyond emitting the domain event (webhook handler follow-up).
-- Multi-currency revaluation of already-posted scrap — inherits from existing FX revaluation runs.
-- Backfilling historic bare `stock_movements` scrap rows into headers. A finance-review query will identify orphans (mirrors the pattern from `docs/audit/2026-05-21-inventory-adjustment-gl.md`).
-
-## 7. Success criteria
-
-- Every scrap event has: header, lines, resolved cost, movement(s), JE, outbox row, audit trail, permission-gated reversal path.
-- No scrap ever writes stock without GL, and no scrap ever posts GL without SoD + policy check.
-- Zero new account-lookup code — every account resolves through `resolve_default_account`.
-- Every UI surface reads through the same `useScrap` hook; no ad-hoc `supabase.from('stock_movements')` scrap queries remain.
+### 7. Validate end-to-end
+- Reproduce the current failure on the scrap page.
+- Apply the fix and verify the same posted scrap appears in the dashboard/list.
+- Verify database state for document, item, stock movement, JE, and outbox.
+- Run focused architecture/unit tests for scrap lifecycle and stock adjustment posting.
