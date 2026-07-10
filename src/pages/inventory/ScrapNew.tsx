@@ -110,6 +110,19 @@ export default function ScrapNew() {
   const invalid =
     !currentBusiness?.id || !form.product_id || !form.warehouse_id || !form.reason || form.quantity <= 0;
 
+  const describeScrapError = (err: any) => {
+    const message = typeof err?.message === "string" ? err.message.trim() : "";
+    if (
+      message &&
+      !/^failed to fetch$/i.test(message) &&
+      !/^load failed$/i.test(message) &&
+      !/^networkerror/i.test(message)
+    ) {
+      return message;
+    }
+    return normalizeError(err).message;
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!currentOrg?.id || !user?.id || invalid) return;
@@ -141,7 +154,7 @@ export default function ScrapNew() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       navigate("/inventory-app/scrap");
     } catch (err: any) {
-      toast.error(normalizeError(err).message);
+      toast.error(describeScrapError(err));
     } finally {
       setIsSubmitting(false);
     }
