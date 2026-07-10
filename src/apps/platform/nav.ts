@@ -69,7 +69,7 @@ export const PLATFORM_NAV: WorkspaceNav = {
     {
       label: "Insights",
       items: [
-        { to: "/audit-logs",            label: "Audit Logs",    icon: History },
+        { to: "/settings/audit-logs",   label: "Audit Logs",    icon: History },
         { to: "/compliance",            label: "Compliance",    icon: ShieldCheck },
         { to: "/reports/consolidation", label: "Consolidation", icon: FileBarChart2 },
       ],
@@ -77,8 +77,8 @@ export const PLATFORM_NAV: WorkspaceNav = {
     {
       label: "Billing",
       items: [
-        { to: "/upgrade",         label: "Upgrade",         icon: Sparkles },
-        { to: "/billing-history", label: "Billing History", icon: Receipt },
+        { to: "/upgrade", label: "Upgrade",         icon: Sparkles },
+        { to: "/billing", label: "Billing History", icon: Receipt },
       ],
     },
   ],
