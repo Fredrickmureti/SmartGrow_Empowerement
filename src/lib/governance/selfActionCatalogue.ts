@@ -359,6 +359,24 @@ export const SELF_ACTION_CATALOGUE: SelfActionEntry[] = [
     entityType: "stock_adjustment",
     subjectMode: "actor",
   },
+  {
+    key: "scrap.approve",
+    module: "Inventory",
+    label: "Approve own scrap / waste",
+    description:
+      "Approve a scrap / waste document the approver recorded. Blocks self-approval unless a governance override is issued.",
+    entityType: "stock_adjustment",
+    subjectMode: "actor",
+  },
+  {
+    key: "scrap.reverse",
+    module: "Inventory",
+    label: "Reverse own scrap / waste",
+    description:
+      "Reverse a scrap / waste document the reverser posted. Blocks self-reversal to preserve audit trail.",
+    entityType: "stock_adjustment",
+    subjectMode: "actor",
+  },
   // Spend
   {
     key: "expense.approve",
