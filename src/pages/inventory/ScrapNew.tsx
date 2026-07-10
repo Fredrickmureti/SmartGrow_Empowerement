@@ -14,8 +14,6 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useProducts } from "@/hooks/useProducts";
-import { useAuth } from "@/contexts/AuthContext";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,16 +35,15 @@ import {
 } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
 import { SCRAP_REASONS } from "./scrapReasons";
-import { useScrapReasons } from "@/hooks/useScrap";
+import { useRecordScrap, useScrapReasons } from "@/hooks/useScrap";
 
 export default function ScrapNew() {
   const navigate = useNavigate();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
-  const { user } = useAuth();
   const { products } = useProducts();
-  const queryClient = useQueryClient();
+  const recordScrap = useRecordScrap();
 
   const inventoryProducts = products.filter((p) => p.type === "product");
 
@@ -125,33 +122,17 @@ export default function ScrapNew() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!currentOrg?.id || !user?.id || invalid) return;
+    if (!currentOrg?.id || invalid) return;
     setIsSubmitting(true);
     try {
-      const { data, error } = await supabase.rpc("record_scrap_atomic", {
-        p_organization_id: currentOrg.id,
-        p_business_id: currentBusiness?.id || null,
-        p_product_id: form.product_id,
-        p_warehouse_id: form.warehouse_id || null,
-        p_quantity: form.quantity,
-        p_unit_cost: Number(form.unit_cost) || 0,
-        p_reason: form.reason,
-        p_notes: form.notes || null,
-        p_user_id: user.id,
+      await recordScrap.mutateAsync({
+        product_id: form.product_id,
+        warehouse_id: form.warehouse_id || null,
+        quantity: form.quantity,
+        unit_cost: Number(form.unit_cost) || 0,
+        reason: form.reason,
+        notes: form.notes || null,
       });
-      if (error) throw error;
-      const result = data as any;
-      if (!result?.success) {
-        throw new Error(result?.error || "Failed to record scrap");
-      }
-      const number = result.adjustment_number ? ` ${result.adjustment_number}` : "";
-      toast.success(
-        `Scrap${number} recorded${result.gl_posted ? " — journal entry posted" : " (no GL entry posted)"}`,
-      );
-      queryClient.invalidateQueries({ queryKey: ["scrap-movements"] });
-      queryClient.invalidateQueries({ queryKey: ["scrap-adjustments"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
       navigate("/inventory-app/scrap");
     } catch (err: any) {
       toast.error(describeScrapError(err));

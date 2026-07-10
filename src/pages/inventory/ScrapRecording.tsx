@@ -35,8 +35,9 @@ import { ProductDetailPanel } from "@/components/products/detail/ProductDetailPa
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { SCRAP_REASONS, scrapReasonLabel } from "./scrapReasons";
+import { scrapReasonLabel } from "./scrapReasons";
 import { ScrapDetailSheet } from "@/components/inventory/ScrapDetailSheet";
+import { useScrapReasons } from "@/hooks/useScrap";
 
 type ScrapRow = {
   id: string;
@@ -45,6 +46,7 @@ type ScrapRow = {
   reason: string | null;
   notes: string | null;
   status: string;
+  adjustment_type: string;
   approved_by: string | null;
   approved_at: string | null;
   created_by: string | null;
@@ -89,6 +91,7 @@ export default function ScrapRecording() {
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailScrapId, setDetailScrapId] = useState<string | null>(null);
+  const { data: reasonOptions = [] } = useScrapReasons();
 
   const { data: scraps = [], isLoading } = useQuery({
     queryKey: [
@@ -103,7 +106,7 @@ export default function ScrapRecording() {
         .from("stock_adjustments")
         .select(
           `id, adjustment_number, adjustment_date, reason, notes, status,
-           approved_by, approved_at, created_by, warehouse_id,
+           adjustment_type, approved_by, approved_at, created_by, warehouse_id,
            warehouses:warehouse_id ( id, name ),
            stock_adjustment_items (
              id, product_id, quantity_adjustment, unit_cost,
@@ -111,19 +114,16 @@ export default function ScrapRecording() {
            ),
            journal_entries!journal_entries_source_id_fkey ( id, entry_number )`,
         )
-        // adjustment_type is filtered client-side to survive type
-        // regeneration timing after the migration.
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
+        .eq("adjustment_type", "scrap")
         .order("adjustment_date", { ascending: false })
         .limit(200);
 
       if (currentBranch?.id) query = query.eq("branch_id", currentBranch.id);
       const { data, error } = await query;
       if (error) throw error;
-      return ((data as any[]) ?? []).filter(
-        (r) => (r as any).adjustment_type === "scrap",
-      ) as ScrapRow[];
+      return ((data as any[]) ?? []) as ScrapRow[];
     },
     enabled: !!currentOrg?.id && !!currentBusiness?.id,
   });
@@ -303,7 +303,7 @@ export default function ScrapRecording() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All reasons</SelectItem>
-                {SCRAP_REASONS.map((r) => (
+                {reasonOptions.map((r) => (
                   <SelectItem key={r.code} value={r.code}>
                     {r.label}
                   </SelectItem>
