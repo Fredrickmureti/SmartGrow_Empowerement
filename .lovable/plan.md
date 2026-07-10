@@ -1,72 +1,34 @@
-## Incident summary
+## Diagnosis
 
-The app renders as bare HTML with no Tailwind/theme styling and React reports "hydration failed / server HTML replaced with client content". These are **downstream symptoms**. The CSS pipeline, Tailwind config, `index.css`, `tokens.css`, `__root.tsx`, providers, and `App.tsx` are all healthy.
+I unzipped `production.zip` into `/tmp/prod` and hashed every plausibly-relevant file against the current tree. **`package.json` is byte-identical** — no dependency drift, no reinstall needed. Only **four files** diverged from production, and together they explain the "bare shell / unstyled / hydration" symptom class:
 
-## True root cause (proven, not guessed)
+| File | What dev did | Effect |
+|---|---|---|
+| `vite.config.ts` | Added the `@tanstack/react-start/plugin/vite` `tanstackStart({...})` plugin | Converts the pure Vite SPA into a TanStack Start SSR app. `src/App.tsx` (BrowserRouter, Sentry, Supabase, 200+ pages) was never designed to SSR — every request now goes through `src/server.ts` and serves a shell that the client has to re-mount. This is the root cause. |
+| `src/main.tsx` | Added `import "./design-system/tokens.css"` alongside `./index.css` | Compensation for the next change. Harmless once vite.config is reverted, but unnecessary. |
+| `src/index.css` | Removed the `@import "./design-system/tokens.css"` line | Broke the single-CSS-entry contract prod relies on. |
+| `src/routes/__root.tsx` | Added `import "../design-system/tokens.css"; import "../index.css";` and swapped the component wiring | Only relevant while TanStack Start is the entry — becomes dead code once the SPA is restored, but must match prod so the file doesn't regress if TanStack is ever re-enabled. |
 
-Every request to the dev server currently returns **HTTP 500** with this SSR error in the Vite daemon log:
+Everything else — `App.tsx`, `router.tsx`, `server.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `index.html`, `package.json`, all of `src/apps/*`, `src/features/*`, `src/components/*`, `supabase/functions/*`, `src/routeTree.gen.ts`, the newer Inventory/Payroll/Settings/HR work — is byte-identical to prod or brand-new (untouched by this restore).
 
-```
-Error: Cannot find module '#tanstack-start-entry'
-  imported from '@tanstack/start-server-core/dist/esm/createStartHandler.js'
-  at loadEntries (createStartHandler.ts:115)
-  at plugin.js:79 (@tanstack/start-plugin-core dev-server-plugin)
-```
+The 4 files above are the entire divergence. No feature code is affected.
 
-`#tanstack-start-entry` is the subpath-imports alias TanStack Start's server core uses to load the project's server entry (our `src/server.ts`, which correctly exports `{ fetch }` via `createStartHandler(defaultStreamHandler)`).
+## Plan
 
-`vite.config.ts` is currently hand-written and calls the raw plugin:
+1. **Restore `vite.config.ts`** from `/tmp/prod/vite.config.ts` — removes the `tanstackStart()` plugin and its `@tanstack/react-start/plugin/vite` import. The config becomes: `react()` + `componentTagger()` (dev only) + `VitePWA()`, exactly like prod. `index.html` (already identical) will mount `/src/main.tsx` directly.
+2. **Restore `src/main.tsx`** from prod — a single `import "./index.css"` before `initSentry()` and `createRoot(...).render(<App />)`.
+3. **Restore `src/index.css`** from prod — re-adds the `@import "./design-system/tokens.css"` after the `@tailwind` directives so tokens ship with the one global stylesheet.
+4. **Restore `src/routes/__root.tsx`** from prod — brings back the `(Route as any).options.component = () => <Outlet />` hack and drops the double CSS imports. This file becomes inert once TanStack Start is unplugged; restoring it keeps parity in case the Lovable sandbox ever re-enables the SSR entry.
+5. **Leave everything else alone.** No package installs (lockfile + package.json already match prod), no touches to `src/App.tsx`, `src/router.tsx`, `src/server.ts`, feature directories, supabase functions, or `src/routeTree.gen.ts`.
+6. **Verify**: after restart, `curl -s http://localhost:8080/` should return `index.html` verbatim (not a TanStack SSR shell), and the browser should render `<App />` with full Tailwind + tokens applied.
 
-```ts
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-...
-plugins: [
-  ...tanstackStart({
-    router: { entry: "./router.tsx", generatedRouteTree: "./routeTree.gen.ts" },
-  }),
-  react(),
-  ...
-]
-```
+## Rollback
 
-It configures `router.entry` but **never sets `server.entry`**, and it does not go through `@lovable.dev/vite-tanstack-config` (the wrapper is installed in `node_modules/@lovable.dev/vite-tanstack-config` but unused). The lovable wrapper is what registers the `#tanstack-start-entry` alias pointing at `src/server.ts`. Without it, `@tanstack/start-server-core` cannot resolve the entry, throws during `loadEntries`, h3 catches it and returns a 500 for every request — including `/`.
+All four target files are exactly `/tmp/prod/<path>`; if the SPA restore surfaces any newer expectation, we can re-apply the current `vite.config.ts` in isolation without touching anything else.
 
-Consequences that produced every visible symptom:
+## Files changed
 
-1. The SSR shell is never rendered, so the response HTML contains none of the `<link rel="stylesheet">` / `<script type="module">` tags that `HeadContent` + `Scripts` inject. The browser gets a near-empty document → "renders as almost pure HTML", no Tailwind, no tokens.
-2. When the client bundle eventually loads (or fails to), React tries to hydrate against markup that doesn't match anything → "Hydration failed / server HTML replaced with client content".
-
-Both symptoms disappear the moment SSR can resolve the server entry.
-
-Ruled out during investigation:
-- `tailwind.config.ts`, `postcss.config.js`, `@tailwind` directives, `src/styles.css`, `src/index.css`, `src/design-system/tokens.css` — all intact and correct.
-- `__root.tsx` correctly imports both CSS files and renders `<HeadContent />` + `<Scripts />`.
-- `src/App.tsx`, providers, `ThemeProvider`, `BrowserRouter` bootstrap — unchanged and correct.
-- Random values / browser globals during render — not the cause (SSR never runs).
-- `src/server.ts` — present and correctly shaped.
-
-## Fix (root-cause repair, not a workaround)
-
-Replace `vite.config.ts` with a `@lovable.dev/vite-tanstack-config` `defineConfig` that:
-
-1. Sets `tanstackStart.server.entry = "server"` → registers the `#tanstack-start-entry` alias to `src/server.ts`. This alone eliminates the 500.
-2. Keeps `tanstackStart.router.entry = "./router.tsx"` and `generatedRouteTree = "./routeTree.gen.ts"` so the existing (intentionally minimal) TanStack router + the legacy react-router-dom SPA mounted inside `src/routes/index.tsx` and `src/routes/$.tsx` keep working exactly as documented in `router.tsx`.
-3. Preserves every other current behavior verbatim: `base: process.env.ELECTRON_BUILD ? './' : '/'`, dev server on `::` port 8080, `@vitejs/plugin-react-swc`, `lovable-tagger` in development, `vite-plugin-pwa` config (disabled for `ELECTRON_BUILD`, otherwise full manifest / workbox / runtime caching), and the `@` → `./src` alias.
-
-No changes to `src/server.ts`, `src/router.tsx`, `src/routes/__root.tsx`, `src/routes/index.tsx`, `src/App.tsx`, CSS files, Tailwind config, PostCSS config, or providers. No `ssr: false`, no StrictMode removal, no hydration suppression, no forced client-only shell.
-
-## Verification checklist
-
-After the config change and a dev-server restart:
-
-- `curl -sS -o /dev/null -w '%{http_code}' http://localhost:8080/` returns `200`.
-- Response HTML contains a `<link rel="stylesheet" ...>` for the compiled Tailwind stylesheet and the module script for the client entry.
-- No `Cannot find module '#tanstack-start-entry'` lines in the Vite daemon log after restart.
-- Browser: landing page renders with full ERP styling (colors, spacing, sidebar theme), no hydration-mismatch warning in the console.
-- Navigation into an internal route still routes through the react-router-dom SPA inside `<App />` (as intended by `src/router.tsx`'s comments).
-
-## Technical notes
-
-- `@lovable.dev/vite-tanstack-config`'s `defineConfig` is the sanctioned wrapper on this stack; it wires the `#tanstack-start-entry` subpath import in addition to any options passed under `tanstackStart`. The knowledge card `tanstack-ssr-error-handling` explicitly requires this wrapper for `server.entry` overrides to take effect.
-- The stray file `vite.config.ts.timestamp-1769837119628-....mjs` at the project root is a leftover Vite temp from before the migration and unrelated to the incident; it is not loaded by Vite. It can be safely deleted for hygiene but is not part of the fix.
-- If, after applying the fix, any residual hydration warning appears on a specific route, that would be a separate, narrower issue to diagnose from a working SSR baseline — not a reason to disable SSR or wrap more of the tree in `ClientOnly`.
+- `vite.config.ts`
+- `src/main.tsx`
+- `src/index.css`
+- `src/routes/__root.tsx`

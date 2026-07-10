@@ -1,5 +1,4 @@
 import { defineConfig, type PluginOption } from "vite";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
@@ -15,20 +14,6 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [
-    ...tanstackStart({
-      router: {
-        entry: "./router.tsx",
-        generatedRouteTree: "./routeTree.gen.ts",
-      },
-      // Wire our TanStack Start server entry (src/server.ts). Without this,
-      // @tanstack/start-server-core can't resolve the `#tanstack-start-entry`
-      // subpath import at SSR time, every request 500s, and the browser
-      // receives a bare shell with no <link rel="stylesheet"> — which strips
-      // Tailwind + tokens and triggers a hydration mismatch on the client.
-      server: {
-        entry: "./server.ts",
-      },
-    }),
     react(),
     mode === "development" ? (componentTagger() as unknown as PluginOption) : null,
     // Service worker is disabled for Electron packaged builds — `file://`
