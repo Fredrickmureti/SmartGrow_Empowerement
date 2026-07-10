@@ -87,6 +87,8 @@ export default function ScrapRecording() {
 
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailScrapId, setDetailScrapId] = useState<string | null>(null);
 
   const { data: scraps = [], isLoading } = useQuery({
     queryKey: [
