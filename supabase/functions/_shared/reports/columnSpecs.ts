@@ -482,6 +482,49 @@ REPORT_SPECS["payroll_variance"] = {
   ],
 };
 
+// ─── Payroll extended reports (Phase 4) ──────────────────────────
+REPORT_SPECS["payroll_gl_posting"] = {
+  title: "Payroll GL Posting",
+  orientation: "landscape",
+  formatProfile: "financial",
+  columns: [
+    { key: "entry_date", header: "Date", width: 12, align: "left", format: "date" },
+    { key: "entry_number", header: "Entry #", width: 14, align: "left", format: "text" },
+    { key: "payroll_number", header: "Run #", width: 14, align: "left", format: "text" },
+    { key: "account", header: "Account", width: 30, align: "left", format: "text" },
+    { key: "description", header: "Description", width: 30, align: "left", format: "text" },
+    { key: "debit", header: "Debit", width: 14, align: "right", format: "currency" },
+    { key: "credit", header: "Credit", width: 14, align: "right", format: "currency" },
+    { key: "status", header: "Status", width: 10, align: "left", format: "text" },
+  ],
+};
+REPORT_SPECS["payroll_audit_trail"] = {
+  title: "Payroll Audit Trail",
+  orientation: "landscape",
+  columns: [
+    { key: "when", header: "When", width: 18, align: "left", format: "date" },
+    { key: "actor", header: "Actor", width: 22, align: "left", format: "text" },
+    { key: "action", header: "Action", width: 14, align: "left", format: "text" },
+    { key: "entity_type", header: "Entity", width: 18, align: "left", format: "text" },
+    { key: "entity", header: "Ref", width: 20, align: "left", format: "text" },
+    { key: "summary", header: "Change", width: 40, align: "left", format: "text" },
+  ],
+};
+REPORT_SPECS["payroll_work_entries"] = {
+  title: "Payroll Work Entries",
+  orientation: "landscape",
+  columns: [
+    { key: "employee", header: "Employee", width: 22, align: "left", format: "text" },
+    { key: "employee_number", header: "Emp #", width: 10, align: "left", format: "text" },
+    { key: "entry_type", header: "Type", width: 18, align: "left", format: "text" },
+    { key: "period", header: "Period", width: 22, align: "left", format: "text" },
+    { key: "hours", header: "Hours", width: 12, align: "right", format: "number" },
+    { key: "overtime_hours", header: "OT Hours", width: 12, align: "right", format: "number" },
+    { key: "holiday_hours", header: "Holiday Hrs", width: 12, align: "right", format: "number" },
+    { key: "source", header: "Source", width: 12, align: "left", format: "text" },
+  ],
+};
+
 // ─── Project reports ─────────────────────────────────────────────
 REPORT_SPECS["project_portfolio"] = {
   title: "Project Portfolio",
