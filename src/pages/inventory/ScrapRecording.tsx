@@ -369,7 +369,8 @@ export default function ScrapRecording() {
                         {firstProduct ? (
                           <button
                             className="text-primary hover:underline text-left"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSelectedProductId(firstProduct.id);
                               setProductDrawerOpen(true);
                             }}
