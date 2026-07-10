@@ -53,7 +53,7 @@ describe("payroll reports — no legacy payslip columns", () => {
     // Broad safety net — catches any new builder that gets added outside
     // the in-scope list above.
     const out = execSync(
-      `rg --files-with-matches "basic_salary" supabase/functions -g '!**/*.test.ts' -g '!_shared/returnSourceResolver.ts' || true`,
+      `rg --files-with-matches "basic_salary" supabase/functions -g '!**/*.test.ts' || true`,
       { encoding: "utf8" },
     )
       .trim()
@@ -61,10 +61,12 @@ describe("payroll reports — no legacy payslip columns", () => {
       .filter(Boolean);
     // compute-payroll + generate-payroll-document write basic_salary onto
     // OTHER tables (payslip inputs, payroll document snapshots) — allowed.
+    // returnSourceResolver.ts only references the string in a doc comment.
     const disallowed = out.filter(
       (p) =>
         !p.endsWith("compute-payroll/index.ts") &&
-        !p.endsWith("generate-payroll-document/index.ts"),
+        !p.endsWith("generate-payroll-document/index.ts") &&
+        !p.endsWith("_shared/returnSourceResolver.ts"),
     );
     expect(disallowed, `Unexpected basic_salary reads: ${disallowed.join(", ")}`).toEqual([]);
   });
