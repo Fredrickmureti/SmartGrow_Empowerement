@@ -3,7 +3,7 @@
  * header, lines with cost, linked journal entry, movement trail, audit
  * metadata and, when posted, an SoD-guarded reversal action.
  */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
