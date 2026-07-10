@@ -19,6 +19,11 @@ import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody, toSummaryRows } from "../_shared/renderTemplateBody.ts";
 import { type MonthlyRow } from "../_shared/certificateSections.ts";
 import { resolveCertificateYtd } from "../_shared/certificateSourceResolver.ts";
+import {
+  renderBinaryCertificateXlsx,
+  makeUrlAssetFetcher,
+  type BinaryCertificateBody,
+} from "../_shared/pdf/binaryCertificateRenderer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -217,7 +222,8 @@ Deno.serve(async (req) => {
         if (!types.has(need)) missing.push(need);
       }
       const hasData = ["monthly_breakdown", "ytd_table", "totals"].some((d) => types.has(d));
-      if (sec.length === 0 || missing.length > 0 || !hasData) {
+      const isBinary = (template?.body as any)?.kind === "xlsx_binary";
+      if (!isBinary && (sec.length === 0 || missing.length > 0 || !hasData)) {
         // Best-effort diagnostic so the Publisher Health panel can surface
         // packs whose templates are being refused in the field.
         try {
