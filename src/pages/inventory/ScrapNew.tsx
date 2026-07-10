@@ -1,11 +1,9 @@
 /**
  * Scrap / Waste record — create surface.
  *
- * Delegates to `record_scrap_atomic` which now wraps the hardened
- * `approve_stock_adjustment_atomic` engine: creates a `stock_adjustments`
- * document (`adjustment_type='scrap'`), one item, posts inventory
- * movement + GL entry, and enforces SoD on approval. Same wire-level
- * contract, richer semantics.
+ * Delegates through `useRecordScrap`, the canonical scrap lifecycle hook.
+ * The backend creates a `stock_adjustments` document, posts inventory and
+ * GL atomically, and enforces governance controls server-side.
  */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
@@ -14,7 +12,6 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useProducts } from "@/hooks/useProducts";
-import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,7 +30,6 @@ import {
   FieldGrid,
   FieldCell,
 } from "@/design-system";
-import { normalizeError } from "@/services/resilience";
 import { SCRAP_REASONS } from "./scrapReasons";
 import { useRecordScrap, useScrapReasons } from "@/hooks/useScrap";
 
@@ -107,19 +103,6 @@ export default function ScrapNew() {
   const invalid =
     !currentBusiness?.id || !form.product_id || !form.warehouse_id || !form.reason || form.quantity <= 0;
 
-  const describeScrapError = (err: any) => {
-    const message = typeof err?.message === "string" ? err.message.trim() : "";
-    if (
-      message &&
-      !/^failed to fetch$/i.test(message) &&
-      !/^load failed$/i.test(message) &&
-      !/^networkerror/i.test(message)
-    ) {
-      return message;
-    }
-    return normalizeError(err).message;
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!currentOrg?.id || invalid) return;
@@ -134,8 +117,8 @@ export default function ScrapNew() {
         notes: form.notes || null,
       });
       navigate("/inventory-app/scrap");
-    } catch (err: any) {
-      toast.error(describeScrapError(err));
+    } catch {
+      // useRecordScrap owns user-facing error toasts.
     } finally {
       setIsSubmitting(false);
     }

@@ -27,6 +27,7 @@ export interface ScrapReason {
   code: string;
   label: string;
   description: string | null;
+  offset_account_purpose: string;
   requires_attachment: boolean;
   requires_approval_above: number;
   insurance_claim_flag: boolean;
