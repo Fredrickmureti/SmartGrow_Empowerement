@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     ...tanstackStart({
       router: {
-        entry: "./src/router.tsx",
-        generatedRouteTree: "./src/routeTree.gen.ts",
+        entry: "./router.tsx",
+        generatedRouteTree: "./routeTree.gen.ts",
       },
     }),
     react(),
