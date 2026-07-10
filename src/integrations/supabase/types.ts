@@ -55724,6 +55724,9 @@ export type Database = {
           business_id: string | null
           created_at: string | null
           created_by: string | null
+          first_product_id: string | null
+          first_product_name: string | null
+          first_product_sku: string | null
           id: string | null
           journal_entry_id: string | null
           journal_entry_number: string | null
@@ -55740,6 +55743,20 @@ export type Database = {
           warehouse_name: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "stock_adjustment_items_product_id_fkey"
+            columns: ["first_product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustment_items_product_id_fkey"
+            columns: ["first_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "stock_adjustments_branch_id_fkey"
             columns: ["branch_id"]
