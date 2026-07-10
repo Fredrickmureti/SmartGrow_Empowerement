@@ -107,7 +107,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@lovable.dev/vite-tanstack-config": "^2.7.2",
     "@rsbuild/core": "^2.0.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^25.6.0",
