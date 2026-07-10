@@ -67219,6 +67219,16 @@ export type Database = {
           }
         | {
             Args: {
+              p_branch_id?: string
+              p_business_id: string
+              p_org_id: string
+              p_reason: string
+              p_sign: number
+            }
+            Returns: string
+          }
+        | {
+            Args: {
               p_business_id: string
               p_org_id: string
               p_reason: string
