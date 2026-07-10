@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!error && data?.user) {
         trackDeviceLogin('password');
       }
-      return { error };
+      return { error, user: data?.user ?? null };
     } catch (err) {
       // Network-level failures (e.g. `TypeError: Failed to fetch` when
       // offline) bubble out of supabase-js instead of arriving via the
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const message = err instanceof Error ? err.message : 'Network error';
       const e = new Error(message);
       e.name = 'NetworkError';
-      return { error: e };
+      return { error: e, user: null };
     }
   };
 
