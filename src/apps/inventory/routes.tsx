@@ -26,6 +26,7 @@ const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
 const ReplenishmentLog = lazy(() => import("@/pages/ReplenishmentLog"));
 const ScrapRecording = lazy(() => import("@/pages/inventory/ScrapRecording"));
 const ScrapNew = lazy(() => import("@/pages/inventory/ScrapNew"));
+const ScrapReasons = lazy(() => import("@/pages/inventory/setup/ScrapReasons"));
 const PhysicalCount = lazy(() => import("@/pages/inventory/PhysicalCount"));
 const PhysicalCountWorkspace = lazy(() => import("@/pages/inventory/PhysicalCountWorkspace"));
 const PhysicalCountDetail = lazy(() => import("@/pages/inventory/PhysicalCountDetail"));
@@ -248,6 +249,19 @@ export function InventoryApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* Scrap reasons — master data */}
+        <Route
+          path="setup/scrap-reasons"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Scrap Reasons">
+                <ScrapReasons />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
 
         {/* Stock Adjustment — routed create */}
         <Route

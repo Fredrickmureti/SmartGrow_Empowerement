@@ -206,6 +206,9 @@ export default function ScrapRecording() {
             ]}
             tooltip="Refresh scrap log"
           />
+          <Button variant="outline" onClick={() => navigate("/inventory-app/setup/scrap-reasons")}>
+            Reasons
+          </Button>
           <Button onClick={() => navigate("/inventory-app/scrap/new")}>
             <Trash2 className="mr-2 h-4 w-4" />
             Record scrap

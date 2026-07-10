@@ -24,6 +24,7 @@ import { Trash2, RotateCcw, ExternalLink, ShieldAlert } from "lucide-react";
 import { scrapReasonLabel } from "@/pages/inventory/scrapReasons";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   open: boolean;
@@ -50,6 +51,7 @@ function statusTone(status: string): "default" | "secondary" | "destructive" | "
 export function ScrapDetailSheet({ open, onOpenChange, scrapId }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [reversing, setReversing] = useState(false);
 
   const { data, isLoading } = useQuery({
@@ -107,14 +109,15 @@ export function ScrapDetailSheet({ open, onOpenChange, scrapId }: Props) {
     n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const handleReverse = async () => {
-    if (!scrapId || !header) return;
+    if (!scrapId || !header || !user?.id) return;
     const reason = window.prompt("Reversal reason (audit trail):");
     if (!reason || !reason.trim()) return;
     setReversing(true);
     try {
-      const { error } = await supabase.rpc("reverse_stock_adjustment_atomic" as any, {
+      const { error } = await supabase.rpc("reverse_stock_adjustment_atomic", {
         p_adjustment_id: scrapId,
-        p_reason: reason,
+        p_user_id: user.id,
+        p_reversal_reason: reason,
       });
       if (error) throw error;
       toast.success("Scrap reversed", {
