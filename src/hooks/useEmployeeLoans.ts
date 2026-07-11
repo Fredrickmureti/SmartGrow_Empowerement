@@ -323,8 +323,8 @@ export function useEmployeeLoans() {
    */
   const disburseLoan = async (id: string, bankAccountId: string, valueDate?: string) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
-    const { data, error } = await (supabase as any).functions.invoke("post-loan-disbursement", {
-      body: { loan_id: id, bank_account_id: bankAccountId, value_date: valueDate || new Date().toISOString().slice(0, 10) },
+    const { data, error } = await (supabase as any).functions.invoke("loan-gl", {
+      body: { action: "disburse", loan_id: id, bank_account_id: bankAccountId, value_date: valueDate || new Date().toISOString().slice(0, 10) },
     });
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
