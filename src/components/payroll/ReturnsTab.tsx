@@ -409,6 +409,30 @@ export function ReturnsTab() {
                             >
                               <FileText className="h-3.5 w-3.5 mr-1" /> PDF
                             </Button>
+                            {r.gov_file_path && (() => {
+                              const ext = r.gov_file_path.split(".").pop()?.toUpperCase() ?? "GOV";
+                              const label = ext === "XLSX" ? "Excel" : ext === "XML" ? "XML" : ext === "CSV" ? "Gov CSV" : ext;
+                              return (
+                                <Button
+                                  size="sm" variant="outline"
+                                  onClick={async () => {
+                                    try {
+                                      await downloadReturnArtifact(r.gov_file_path!);
+                                    } catch (err: any) {
+                                      toast({
+                                        title: `${label} download failed`,
+                                        description: normalizeError(err).message,
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  title="Official portal-ready file (from localization pack)"
+                                >
+                                  <Download className="h-3.5 w-3.5 mr-1" /> {label}
+                                </Button>
+                              );
+                            })()}
+
                             <Button
                               size="sm" variant="ghost"
                               onClick={() => setHistoryRun(r)}
