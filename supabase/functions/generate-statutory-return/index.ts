@@ -539,6 +539,7 @@ Deno.serve(async (req) => {
         );
       }
       csvPath = path;
+      pushArtifact({ format: "csv", path, mime: "text/csv", ext: "csv", size: csv.length, role: "audit" });
     }
 
     if (template.output === "pdf" || template.output === "both") {
