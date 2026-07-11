@@ -801,7 +801,7 @@ Deno.serve(async (req) => {
             batch_id: batchId,
             provenance,
           })
-          .select("id, serial_number, pdf_path, xlsx_path, fiscal_year, employee_id, template_code, status, batch_id")
+          .select("id, serial_number, pdf_path, xlsx_path, artifacts, fiscal_year, employee_id, template_code, status, batch_id")
           .single();
         if (insErr) throw new Error(insErr.message);
         created.push(inserted);
