@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { validatePayload } from "../hooks";
 import { usePackTokens, type PackTokenOption } from "../hooks/usePackTokens";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
+import { OutputsCard } from "./OutputsCard";
 import { PreviewPanel } from "./PreviewPanel";
 import { ReturnPreviewPane } from "./ReturnPreviewPane";
 import type { EditorMode } from "../types";
@@ -394,6 +395,14 @@ export function ReturnTemplateEditor({
             onChange={setMeta}
             authorities={authoritiesQuery.data ?? []}
             authoritiesLoading={authoritiesQuery.isLoading}
+          />
+        )}
+
+        {editMetadata && (
+          <OutputsCard
+            value={meta.outputs}
+            onChange={(next) => setMeta({ ...meta, outputs: next })}
+            surface="return"
           />
         )}
 
