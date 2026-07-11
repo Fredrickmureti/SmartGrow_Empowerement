@@ -303,6 +303,12 @@ export function useReturnRuns(params: { templateCode?: string; year?: number }) 
         csv_path: run.csv_path ? normalizeReturnArtifactPath(run.csv_path) : run.csv_path,
         pdf_path: run.pdf_path ? normalizeReturnArtifactPath(run.pdf_path) : run.pdf_path,
         gov_file_path: run.gov_file_path ? normalizeReturnArtifactPath(run.gov_file_path) : run.gov_file_path,
+        artifacts: Array.isArray((run as any).artifacts)
+          ? (run as any).artifacts.map((a: any) => ({
+              ...a,
+              path: typeof a?.path === "string" ? normalizeReturnArtifactPath(a.path) : a?.path,
+            }))
+          : [],
       }));
     },
   });
