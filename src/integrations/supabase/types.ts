@@ -31926,6 +31926,7 @@ export type Database = {
       }
       payroll_tax_certificates: {
         Row: {
+          artifacts: Json
           batch_id: string | null
           branch_id: string | null
           business_id: string
@@ -31953,6 +31954,7 @@ export type Database = {
           xlsx_path: string | null
         }
         Insert: {
+          artifacts?: Json
           batch_id?: string | null
           branch_id?: string | null
           business_id: string
@@ -31980,6 +31982,7 @@ export type Database = {
           xlsx_path?: string | null
         }
         Update: {
+          artifacts?: Json
           batch_id?: string | null
           branch_id?: string | null
           business_id?: string
