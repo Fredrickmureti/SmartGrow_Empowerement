@@ -43,6 +43,7 @@ import {
 } from "../lib/certificateCompleteness";
 import { snippetsFor } from "../lib/statutorySnippets";
 import { usePackFormatRegistry } from "../hooks/usePackFormatRegistry";
+import { OutputsCard } from "./OutputsCard";
 
 const SECTION_TYPES = [
   { value: "employer_header",    label: "Employer header",   help: "Employer name, PIN, address, tax office." },
