@@ -24,6 +24,23 @@ import {
   makeUrlAssetFetcher,
   type BinaryCertificateBody,
 } from "../_shared/pdf/binaryCertificateRenderer.ts";
+import {
+  requireApprovedRunsForYear,
+} from "../_shared/payrollLifecycleGate.ts";
+
+// Canonical artifact shape aligned with `payroll_tax_certificates.artifacts`
+// and `payroll_return_runs.artifacts` (see migration 20260711232041 +
+// tax-certificates follow-up). Every dispatched output produces one of these.
+interface CertificateArtifact {
+  format: string;
+  path: string;
+  mime: string;
+  ext: string;
+  size: number;
+  role: string;
+  generated_at: string;
+  label?: string | null;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
