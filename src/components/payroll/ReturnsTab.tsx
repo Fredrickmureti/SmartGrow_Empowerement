@@ -372,65 +372,76 @@ export function ReturnsTab() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm" variant="outline"
-                              disabled={!r.csv_path}
-                              onClick={async () => {
-                                if (!r.csv_path) return;
-                                try {
-                                  await downloadReturnArtifact(r.csv_path);
-                                } catch (err: any) {
-                                  toast({
-                                    title: "CSV download failed",
-                                    description: normalizeError(err).message,
-                                    variant: "destructive",
+                          <div className="flex justify-end gap-2 flex-wrap">
+                            {(() => {
+                              // Pack-declared exports land in `r.artifacts`.
+                              // Older rows only have the legacy scalar
+                              // columns; project them into the same shape so
+                              // the UI has one code path.
+                              const legacyFallback: ReturnRun["artifacts"] = [];
+                              if ((!r.artifacts || r.artifacts.length === 0)) {
+                                if (r.csv_path) legacyFallback.push({ format: "csv", path: r.csv_path, mime: "text/csv", ext: "csv", role: "audit", generated_at: r.generated_at });
+                                if (r.pdf_path) legacyFallback.push({ format: "pdf", path: r.pdf_path, mime: "application/pdf", ext: "pdf", role: "human_readable", generated_at: r.generated_at });
+                                if (r.gov_file_path) {
+                                  const ext = r.gov_file_path.split(".").slice(-2).join(".");
+                                  const isXlsx = ext.endsWith("xlsx");
+                                  const isXml = ext.endsWith("xml");
+                                  legacyFallback.push({
+                                    format: isXlsx ? "gov_xlsx" : isXml ? "gov_xml" : "gov_csv",
+                                    path: r.gov_file_path,
+                                    mime: isXlsx
+                                      ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                      : isXml ? "application/xml" : "text/csv",
+                                    ext: isXlsx ? "gov.xlsx" : isXml ? "gov.xml" : "gov.csv",
+                                    role: "portal",
+                                    generated_at: r.generated_at,
                                   });
                                 }
-                              }}
-                            >
-                              <Download className="h-3.5 w-3.5 mr-1" /> CSV
-                            </Button>
-                            <Button
-                              size="sm" variant="outline"
-                              disabled={!r.pdf_path}
-                              onClick={async () => {
-                                if (!r.pdf_path) return;
-                                try {
-                                  await downloadReturnArtifact(r.pdf_path);
-                                } catch (err: any) {
-                                  toast({
-                                    title: "PDF download failed",
-                                    description: normalizeError(err).message,
-                                    variant: "destructive",
-                                  });
+                              }
+                              const arts = (r.artifacts && r.artifacts.length ? r.artifacts : legacyFallback);
+                              if (!arts.length) {
+                                return (
+                                  <span className="text-xs text-muted-foreground">No artifacts</span>
+                                );
+                              }
+                              const labelFor = (a: ReturnRun["artifacts"][number]) => {
+                                if (a.label) return a.label;
+                                switch (a.format) {
+                                  case "csv": return "CSV";
+                                  case "pdf": return "PDF";
+                                  case "gov_csv": return "Gov CSV";
+                                  case "gov_xlsx": return "Gov Excel";
+                                  case "gov_xml": return "Gov XML";
+                                  case "xlsx_binary": return "Excel";
+                                  case "xml": return "XML";
+                                  default: return a.format.toUpperCase();
                                 }
-                              }}
-                            >
-                              <FileText className="h-3.5 w-3.5 mr-1" /> PDF
-                            </Button>
-                            {r.gov_file_path && (() => {
-                              const ext = r.gov_file_path.split(".").pop()?.toUpperCase() ?? "GOV";
-                              const label = ext === "XLSX" ? "Excel" : ext === "XML" ? "XML" : ext === "CSV" ? "Gov CSV" : ext;
-                              return (
+                              };
+                              const iconFor = (a: ReturnRun["artifacts"][number]) =>
+                                a.format === "pdf" ? <FileText className="h-3.5 w-3.5 mr-1" /> : <Download className="h-3.5 w-3.5 mr-1" />;
+                              return arts.map((a) => (
                                 <Button
+                                  key={`${a.format}-${a.path}`}
                                   size="sm" variant="outline"
+                                  disabled={!a.path}
+                                  title={a.role === "portal" ? "Official portal-ready file (from localization pack)" : labelFor(a)}
                                   onClick={async () => {
+                                    if (!a.path) return;
                                     try {
-                                      await downloadReturnArtifact(r.gov_file_path!);
+                                      await downloadReturnArtifact(a.path);
                                     } catch (err: any) {
                                       toast({
-                                        title: `${label} download failed`,
+                                        title: `${labelFor(a)} download failed`,
                                         description: normalizeError(err).message,
                                         variant: "destructive",
                                       });
                                     }
                                   }}
-                                  title="Official portal-ready file (from localization pack)"
                                 >
-                                  <Download className="h-3.5 w-3.5 mr-1" /> {label}
+                                  {iconFor(a)}
+                                  {labelFor(a)}
                                 </Button>
-                              );
+                              ));
                             })()}
 
                             <Button
