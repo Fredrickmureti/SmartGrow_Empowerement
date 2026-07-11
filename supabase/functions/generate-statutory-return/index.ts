@@ -501,6 +501,23 @@ Deno.serve(async (req) => {
     let pdfPath: string | null = null;
     let govFilePath: string | null = null;
 
+    // Canonical artifact registry — pack-declared exports land here. Legacy
+    // {csv,pdf,gov_file}_path columns remain populated for one release as
+    // read-mirrors so existing tenants and UIs continue to work while
+    // callers migrate to `artifacts`.
+    type Artifact = {
+      format: string;
+      path: string;
+      mime: string;
+      ext: string;
+      size: number;
+      role: "primary" | "human_readable" | "audit" | "portal";
+      generated_at: string;
+    };
+    const artifacts: Artifact[] = [];
+    const pushArtifact = (a: Omit<Artifact, "generated_at">) =>
+      artifacts.push({ ...a, generated_at: new Date().toISOString() });
+
     if (template.output === "csv" || template.output === "both") {
       const header = columns.map((c) => csvEscape(c.label ?? c.key)).join(",");
       const rowsCsv = projected.map((r) => columns.map((c) => csvEscape(r[c.key])).join(",")).join("\n");
