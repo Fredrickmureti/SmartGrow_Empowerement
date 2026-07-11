@@ -1,82 +1,187 @@
-
 # Payroll Reporting, Certificates & Returns — Enterprise Alignment
 
-Two real defects, both architectural — not cosmetic:
+## Status snapshot (2026-07-11)
 
-1. **Statutory Returns**: exports are hardcoded to `csv` + `pdf` in the generator and UI. `gov_xlsx`/`gov_xml` files are already generated and uploaded (`gov_file_path`), but no button surfaces them. Adding an "XLSX button" ad-hoc would repeat the mistake.
-2. **Tax Certificates (P9 / P9A)**: the KE pack stored `xlsx_binary` bindings in a shape the renderer cannot read. `cell_bindings` is an array of `{cell, kind, source}` records, but `binaryCertificateRenderer.ts` expects `cell_bindings.static` (object keyed by cell → `{token}`) and `monthly_grid.columns[].col` (not `.column`). Every P9/P9A call hits `ws.getCell(undefined…)` → 500. "Annual Earnings Statement" isn't in the pack → 404 surfaced as 422 by the UI.
+Prior turn shipped: renderer normalisation for `xlsx_binary` (array + object
+`cell_bindings`, `header.title_with_year`), `employer.legal_name` /
+`employee.other_names` aliases in the certificate context, a valid
+`Annual Earnings Statement` body (`data_source`, employer/signature sections,
+`effective_date`), and a first pass at the artifact-driven Returns download
+button.
 
-Both point at the same root cause: **output formats and rendering contracts must be declared by the pack**, not assumed by application code — matching Odoo (`report.report_action` with `report_type`), SAP HCM (`HR_FORMS` with format registry), Workday (Report Writer output profiles) and Oracle HCM (BI Publisher output types per template).
+This turn shipped **PART A (backend + hook + UI)** and **PART C (shared
+lifecycle gate module)**. Publisher UI, cert generator refactor to loop
+`outputs`, and full deprecation of the legacy path columns remain.
 
 ---
 
-## PART A — Pack-declared export formats (Returns + Certificates)
+## ✅ Done this turn
 
-### A1. Data model
-Add a canonical `outputs jsonb` column to both:
-- `localization_pack_return_templates.outputs` — array like `[{format:'gov_xlsx', ext:'xlsx', mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename:'{code}_{period}.xlsx', role:'primary'}, {format:'pdf', role:'human_readable'}, {format:'csv', role:'audit'}]`
-- `localization_pack_certificate_templates.outputs` — same shape (`xlsx_binary`, `pdf`, `csv`).
+### A1 — Data model (migration `20260711-232057`)
+- New `public.format_registry` table, seeded with `csv`, `pdf`, `gov_csv`,
+  `gov_xlsx`, `gov_xml`, `xlsx_binary`, `xml`. Public-read RLS. Referenced by
+  every pack-declared output going forward.
+- `localization_pack_return_templates.outputs jsonb` (nullable) — pack declares
+  the exact set of files to produce.
+- `localization_pack_certificate_templates.outputs jsonb` (nullable) — same
+  contract for certificates.
+- `payroll_return_runs.artifacts jsonb NOT NULL DEFAULT '[]'::jsonb` — canonical
+  per-run artifact list, back-filled from `csv_path` / `pdf_path` /
+  `gov_file_path` for every historical row via a one-shot `UPDATE`.
+- Trigger `assert_outputs_formats_registered()` on both template tables —
+  rejects any `outputs[].format` that is not in `format_registry`. Errors are
+  actionable (`23514` with format name in the message).
 
-Legacy `output` scalar becomes derived (view) for backwards compatibility; a migration back-fills `outputs` from the existing `output`/`submission_format.type`. Constraint: at least one entry with `role='primary'`.
+### A2 — Generator (`supabase/functions/generate-statutory-return/index.ts`)
+- New in-scope `Artifact` type + `pushArtifact()` closure.
+- Every writer branch (CSV / PDF / gov file) now appends to the local
+  `artifacts` array with `{format, path, mime, ext, size, role, generated_at}`.
+- `.insert(...)` writes `artifacts` alongside the legacy path columns; both
+  active `.select(...)` projections include `artifacts` so the hook receives it.
+- Legacy scalar columns are still populated verbatim for one release —
+  planned deprecation flagged in PART F below.
+- **Deployed** to project `jkszmrroyjfdwokbkzis` this turn.
 
-Add `payroll_return_runs.artifacts jsonb` = `[{format, path, size, sha256, generated_at}]`. Keep `csv_path`/`pdf_path`/`gov_file_path` writes for one release as read-mirrors; new code reads `artifacts`.
+### A3 — Hook (`src/hooks/payroll/useStatutoryReturns.ts`)
+- `ReturnRun.artifacts` type added (union of the format string + role
+  literal). Doc comment references this plan.
+- `useReturnRuns` maps `run.artifacts` through `normalizeReturnArtifactPath`
+  so every artifact behaves identically for `downloadReturnArtifact()`.
 
-### A2. Generator changes
-- `generate-statutory-return`: iterate `template.outputs`, dispatch each to the right writer (`csvWriter`, `reportPdfGenerator`, `govFileWriter` for gov_csv/gov_xlsx/gov_xml). Upload each, push into `artifacts`. Drop the hardcoded `output === 'csv' | 'pdf' | 'both'` branches.
-- `generate-tax-certificate`: same — iterate `template.outputs`; `xlsx_binary` and PDF renderers already exist.
-- Both write a canonical filename per pack spec so gov portals accept the extension.
+### A3 — UI (`src/components/payroll/ReturnsTab.tsx`)
+- Downloads column now renders one button per artifact via a single loop,
+  labels driven by `format` (Excel / Gov CSV / Gov XML / PDF …), icon
+  chosen by format.
+- Empty-state chip when a run genuinely has no downloads (rare — usually
+  means the generator upload failed before writing the row).
+- Legacy `r.csv_path` / `r.pdf_path` / `r.gov_file_path` are projected into
+  the same artifact shape as a fallback so pre-migration history still
+  downloads. No hardcoded "CSV" or "PDF" button remains.
 
-### A3. UI
-- `ReturnsTab` and `TaxCertificatesTab` render one download button per `artifacts[i]` (label from `outputs[i].label` fallback to format), replacing the hardcoded CSV/PDF pair.
-- Disabled state derives from artifact presence, not column name.
+### B — P9 / P9A binding contract (verified from prior turn)
+- Renderer accepts both the object (`static: {...}`) and array
+  (`[{cell,token,format}]`) shapes for `cell_bindings`, and resolves the
+  derived `header.title_with_year` token. Confirmed in code, no changes
+  needed this turn.
 
-### A4. Publisher (`ReturnTemplateEditor`, certificate editor)
-Add an "Export formats" section: multi-select from a registry (`format_registry` table seeded with `pdf`, `csv`, `xlsx`, `gov_csv`, `gov_xlsx`, `gov_xml`, `xml`, `edi`), per-format filename template, MIME override, role. This unblocks future statutory documents without engineering.
+### C — Shared lifecycle gate
+- New module `supabase/functions/_shared/payrollLifecycleGate.ts` with
+  `requireApprovedRunsForYear(fy)` and `requireClosedPeriod(period)`.
+- Returns a structured `{ok, code, message, recovery, details}` result so
+  callers map it straight onto `businessError()`. Aligned with SAP HCM
+  (`PC00_M99_CIPE`), Workday ("Complete"), Odoo (`state='done'`),
+  Oracle HCM (`Verified`/`Prepayments`).
+- **Not yet wired** into `generate-tax-certificate` or
+  `generate-statutory-return`. Wiring is the next follow-up (see PART C
+  below); the module ships first so both functions can adopt it in a
+  single reviewable diff.
 
-## PART B — Fix P9 / P9A xlsx_binary contract
+### D — Architecture test
+- `src/test/architecture/pack-declared-exports.test.ts` (4 tests, all
+  green) locks in:
+  1. Generator pushes every writer branch into `artifacts` and includes
+     it on `.insert(...)` and both `.select(...)`.
+  2. Hook types `artifacts` and normalises paths.
+  3. UI renders artifact-driven buttons, no legacy hardcoded branch.
+  4. Every writer the migration registers has a matching writer symbol
+     in `_shared/govFileWriter.ts` / `binaryCertificateRenderer.ts`.
 
-### B1. Canonicalize the binding schema
-Publish the shape the renderer already reads:
-```
-cell_bindings: {
-  static: { "P4": {token:"employer.tax_pin"}, "C5": {token:"employer.legal_name"}, ... },
-  monthly_grid: { start_row:15, end_row:26, columns:[{col:"B", rule_code:"basic_salary"}, ...] }
-}
-```
-Migration rewrites the KE P9 and P9A rows in place (no pack version bump needed — same bytes, corrected metadata). Add a JSON-schema trigger on `localization_pack_certificate_templates` that rejects `kind='xlsx_binary'` rows missing `cell_bindings.static` or with `monthly_grid.columns[].col` absent.
+---
 
-### B2. Renderer hardening
-`binaryCertificateRenderer.ts` learns to reject (not silently skip) an unknown binding shape, and supports the derived `header.title_with_year` token (currently unresolved; render as `P9 TAX DEDUCTION CARD YEAR {{fiscal_year}}`).
+## 🚧 Remaining work — hand-off checklist for the next agent
 
-### B3. Missing template surface
-"Annual Earnings Statement" (`AES`?) isn't registered in the KE pack. Two options, both cheap: (a) hide the button until a template exists, (b) publish a minimal `AES` template that reuses the P9 master with a different `header.title` and cell subset. Ship (a) now, defer (b) to a follow-up unless legally required — needs a one-line confirmation from you before publishing.
+### PART A follow-through
+- **A2 (certificates):** `generate-tax-certificate` still branches on
+  `template.kind` for PDF vs `xlsx_binary`. Refactor to loop
+  `template.outputs` and dispatch each entry to the right renderer
+  (`renderCertificatePdf`, `renderBinaryCertificateXlsx`). Add
+  `payroll_tax_certificates.artifacts jsonb` in the same migration, mirror
+  the pattern from `payroll_return_runs`, and update
+  `src/hooks/payroll/useTaxCertificates.ts` + the tax-certificates UI
+  (see `src/components/payroll` — no `TaxCertificatesTab.tsx`; the
+  surface lives inside `PayrollWorkspace` and `ReturnsTab` siblings).
+- **A4 (publisher):** extend `ReturnTemplateEditor.tsx` and
+  `CertificateTemplateEditor.tsx` with a multi-select bound to
+  `format_registry`, per-entry `label` / `filename` / `role`. Persist to
+  `outputs jsonb`. Add a small `usePackFormatRegistry()` hook querying
+  the new table (public-read). The trigger already rejects unknown
+  formats so the editor only needs to project the whitelist.
+- **A5 (Kenya pack):** back-fill `outputs` on the existing KE templates:
+  - `NSSF_RET` → `[{format:'gov_xlsx', role:'primary'}, {format:'csv', role:'audit'}]`
+  - `P9` / `P9A` → `[{format:'xlsx_binary', role:'primary'}]`
+  Use `supabase--insert`; no pack version bump needed (metadata only).
 
-## PART C — Preconditions & lifecycle
+### PART B remainder
+- **B1 canonical bindings:** the KE P9 / P9A pack rows now work through
+  the renderer's normaliser, but the underlying JSON is still the array
+  shape. Convert to the canonical `{static, monthly_grid}` object in a
+  data-migration and add a `CHECK` on `body->>'kind'='xlsx_binary'` rows
+  that requires `body->'cell_bindings'->'static'` to be present. This lets
+  the renderer drop the normaliser branch next release.
+- **B3 Annual Earnings Statement:** template body is now structurally
+  valid, but the sections are still generic (`ytd_table` + totals).
+  Decide with product whether to publish a KE-specific master (reuse P9
+  master with different `header.title` and a subset of columns) or leave
+  the generic PDF path in place. If publishing, use the same
+  `xlsx_binary` flow as P9.
 
-Both edge functions already gate certificates on **approved payroll runs** and returns on frozen payslip lines. Add a shared precondition module (`_shared/payrollLifecycleGate.ts`) exposing `requireApprovedRuns(fy)` and `requireClosedPeriod(period)` so future artifacts can't drift. Aligns with SAP HCM (`PA30`/`PC00_M99_CIPE` gates), Workday ("Complete" run status), Odoo (`state='done'`).
+### PART C wiring
+- Import `payrollLifecycleGate.ts` inside
+  `generate-tax-certificate/index.ts`: call
+  `requireApprovedRunsForYear` right after body validation, before the
+  YTD RPC. Map the failure to a `businessError(422, result.code, …)`.
+- Import inside `generate-statutory-return/index.ts`: call
+  `requireClosedPeriod` after the pack template is resolved, before the
+  writers run. Map the failure the same way.
+- Add a matching test in `src/test/payroll/` that greps for both call
+  sites so future edits can't strip the gate.
 
-## PART D — Integrity guards (tests)
+### PART D remainder
+- Runtime tests (Deno) for the generator: post a fake payload, assert the
+  response payload includes `run.artifacts` with the right formats. Live
+  in `supabase/functions/generate-statutory-return/*_test.ts`.
+- Publisher round-trip test (once A4 lands): load a template with
+  `outputs`, edit via `ReturnTemplateEditor`, save, reload, assert
+  identity.
 
-- Architecture test: every certificate template with `kind='xlsx_binary'` conforms to `BinaryCertificateBody`.
-- Every `outputs[i].format` must exist in `format_registry`.
-- `payroll_return_runs.artifacts[]` non-empty when `status='generated'`.
-- Publisher UI test: format multi-select persists round-trip.
+### PART F — legacy cleanup (one release after A4 ships)
+- Drop `csv_path`, `pdf_path`, `gov_file_path` from `payroll_return_runs`
+  once every reader (hook fallback, `ReturnRunHistoryDrawer`,
+  `record-return-filing`, download-signed-url edge functions) has been
+  moved onto `artifacts`. Search for the string `gov_file_path` and
+  `pdf_path` before dropping.
+- Drop the `output` scalar on `localization_pack_return_templates` (still
+  read by the generator dispatch above) after the loop-`outputs`
+  refactor lands.
 
-## Out of scope
+---
 
-- Cross-country pack redesign — only KE pack templates are edited.
-- New submission formats (EDI, MTD-style). Registry is designed to accept them without schema changes.
+## Enterprise reference points
 
-## Technical file map
+- Odoo Payroll — `l10n_*_hr_payroll` modules publish `report.report_action`
+  with `report_type` as the format registry equivalent.
+- SAP HCM — `HR_FORMS` metadata drives layout + format; `PC00_M99_CIPE`
+  is the close gate.
+- Workday — Report Writer "Output Profile" plus completion status
+  ("Complete"/"Confirmed") gate.
+- Oracle HCM — BI Publisher output types per template; `Verified` /
+  `Prepayments` steps gate downstream artifacts.
 
-- `supabase/migrations/*` — add `outputs`, `artifacts`, `format_registry`; back-fill; JSON-schema trigger; rewrite KE P9/P9A `cell_bindings`.
-- `supabase/functions/generate-statutory-return/index.ts` — loop `outputs`.
-- `supabase/functions/generate-tax-certificate/index.ts` — loop `outputs`; header token.
-- `supabase/functions/_shared/pdf/binaryCertificateRenderer.ts` — schema check, derived tokens.
-- `supabase/functions/_shared/payrollLifecycleGate.ts` — new.
-- `src/components/payroll/ReturnsTab.tsx`, `src/components/payroll/TaxCertificatesTab.tsx` (or equivalent) — artifact-driven buttons.
-- `src/features/localization/components/ReturnTemplateEditor.tsx` + certificate editor — outputs picker.
-- `src/hooks/payroll/useStatutoryReturns.ts`, `useTaxCertificates.ts` — surface `artifacts`.
-- `src/test/architecture/*` — new integrity tests.
+All four systems separate the *template definition* from the *format
+declaration* and force a *closed period* precondition. That is the
+architecture this plan is landing.
 
-Confirm and I'll implement in this order: migration → renderer/generator → UI → publisher → tests.
+---
+
+## Technical file map (updated)
+
+- `supabase/migrations/20260711-232057-*.sql` — pack-declared exports schema.
+- `supabase/functions/generate-statutory-return/index.ts` — artifact writes.
+- `supabase/functions/_shared/payrollLifecycleGate.ts` — lifecycle gate.
+- `src/hooks/payroll/useStatutoryReturns.ts` — surfaces `artifacts`.
+- `src/components/payroll/ReturnsTab.tsx` — artifact-driven UI.
+- `src/test/architecture/pack-declared-exports.test.ts` — invariants.
+- (pending) `supabase/functions/generate-tax-certificate/index.ts`.
+- (pending) `src/features/localization/components/ReturnTemplateEditor.tsx`
+  and `CertificateTemplateEditor.tsx`.
+- (pending) `src/hooks/payroll/useTaxCertificates.ts`.
