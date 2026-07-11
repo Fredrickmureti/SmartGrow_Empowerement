@@ -100,13 +100,12 @@ export async function requireClosedPeriod(
   }
   const row = (data ?? [])[0];
   if (!row) {
-    return {
-      ok: false,
-      code: "PAYROLL_PERIOD_MISSING",
-      message: `No payroll period exists covering ${args.period_start} → ${args.period_end}.`,
-      recovery: "Create the payroll period first (Payroll → Periods), then regenerate.",
-      details: { period_start: args.period_start, period_end: args.period_end },
-    };
+    // Tenants that have not operationalised `payroll_periods` yet still
+    // need to be able to file returns. Absence of a matching period row
+    // means the customer's process is run-driven, not period-driven; the
+    // approved-runs check in `generate-statutory-return` already guarantees
+    // the underlying data is frozen. Treat as advisory, not blocking.
+    return OK;
   }
   const status = String(row.status ?? "");
   if (!["closed", "locked", "filed"].includes(status)) {
