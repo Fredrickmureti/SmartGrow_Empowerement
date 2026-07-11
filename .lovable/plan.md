@@ -1,106 +1,82 @@
-# Kenya NSSF Return — Match Official Portal Template
 
-## 1. What the official template actually is
+# Payroll Reporting, Certificates & Returns — Enterprise Alignment
 
-The attached `Payroll_Template-NSSF-Rel03.02.18.xlsx` is the NSSF byproduct upload template. It is intentionally minimal — the portal rejects anything beyond the exact shape below.
+Two real defects, both architectural — not cosmetic:
 
-**Sheet 1 (only sheet), row 1 headers, then data rows. Nothing else.**
+1. **Statutory Returns**: exports are hardcoded to `csv` + `pdf` in the generator and UI. `gov_xlsx`/`gov_xml` files are already generated and uploaded (`gov_file_path`), but no button surfaces them. Adding an "XLSX button" ad-hoc would repeat the mistake.
+2. **Tax Certificates (P9 / P9A)**: the KE pack stored `xlsx_binary` bindings in a shape the renderer cannot read. `cell_bindings` is an array of `{cell, kind, source}` records, but `binaryCertificateRenderer.ts` expects `cell_bindings.static` (object keyed by cell → `{token}`) and `monthly_grid.columns[].col` (not `.column`). Every P9/P9A call hits `ws.getCell(undefined…)` → 500. "Annual Earnings Statement" isn't in the pack → 404 surfaced as 422 by the UI.
 
-| Col | Header | Format | Source |
-|-----|--------|--------|--------|
-| A | PAYROLL NUMBER | Text (optional) | `employee.employee_number` |
-| B | SURNAME | Text | `employee.last_name` |
-| C | OTHER NAMES | Text | `employee.first_name` |
-| D | ID NO | Text | `employee.national_id` |
-| E | KRA PIN | Text | `employee.tax_id` |
-| F | NSSF NO | Text, 9–10 chars, leading zeros / trailing `X` preserved | `employee.statutory_id.nssf` |
-| G | GROSS PAY | Number | `sum_taxable_amount` (pensionable pay, capped at NSSF Tier II ceiling by the rule) |
-| H | VOLUNTARY | Number | `sum_rule.nssf_voluntary.employee` (0 when unmapped — future-safe) |
+Both point at the same root cause: **output formats and rendering contracts must be declared by the pack**, not assumed by application code — matching Odoo (`report.report_action` with `report_type`), SAP HCM (`HR_FORMS` with format registry), Workday (Report Writer output profiles) and Oracle HCM (BI Publisher output types per template).
 
-Portal rules baked into the writer:
-- No formulas, no totals row, no blank rows, no hidden rows/cols, one sheet only.
-- Description/instruction rows must not appear in the submitted file.
-- Cols A–F stored as text (preserves leading zeros in NSSF/ID/PIN); G–H numeric.
+---
 
-Current DB row (`localization_pack_return_templates` where `code='NSSF_RET'`) outputs **CSV** with 7 wrong-order columns (nssf_number first, employee_name concatenated, no ID, no KRA PIN, no payroll number, no voluntary, has totals + reconciliation footer). This is what the mission calls out — the pack is not shipping the legal template.
+## PART A — Pack-declared export formats (Returns + Certificates)
 
-## 2. Architecture — no gaps, no publisher changes needed
+### A1. Data model
+Add a canonical `outputs jsonb` column to both:
+- `localization_pack_return_templates.outputs` — array like `[{format:'gov_xlsx', ext:'xlsx', mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename:'{code}_{period}.xlsx', role:'primary'}, {format:'pdf', role:'human_readable'}, {format:'csv', role:'audit'}]`
+- `localization_pack_certificate_templates.outputs` — same shape (`xlsx_binary`, `pdf`, `csv`).
 
-Traced the lifecycle end-to-end. Everything required to render this template already exists:
+Legacy `output` scalar becomes derived (view) for backwards compatibility; a migration back-fills `outputs` from the existing `output`/`submission_format.type`. Constraint: at least one entry with `role='primary'`.
 
-```text
-Pack publish  →  localization_pack_return_templates (versioned by pack_version_id, legal_reference, effective_date, sunset_date)
-     ↓
-Tenant install/upgrade  →  installed_localization_packs (auto-surfaces under Payroll → Statutory Remittances → Returns)
-     ↓
-Payroll Approved → payslips frozen → payslip_lines carry per-rule employee/employer amounts
-     ↓
-User clicks "Generate NSSF Return"  →  edge fn `generate-statutory-return`
-     ↓
-Loads template.body + submission_format
-     ↓
-Builds SourceContext per employee from payroll history (payslip_lines filtered by rule_codes)
-     ↓
-_shared/govFileWriter.ts  →  gov_xlsx branch  →  _shared/xlsxWriter.ts  →  bytes
-     ↓
-Uploaded, immutable, downloadable; regenerate re-derives from frozen payroll
+Add `payroll_return_runs.artifacts jsonb` = `[{format, path, size, sha256, generated_at}]`. Keep `csv_path`/`pdf_path`/`gov_file_path` writes for one release as read-mirrors; new code reads `artifacts`.
+
+### A2. Generator changes
+- `generate-statutory-return`: iterate `template.outputs`, dispatch each to the right writer (`csvWriter`, `reportPdfGenerator`, `govFileWriter` for gov_csv/gov_xlsx/gov_xml). Upload each, push into `artifacts`. Drop the hardcoded `output === 'csv' | 'pdf' | 'both'` branches.
+- `generate-tax-certificate`: same — iterate `template.outputs`; `xlsx_binary` and PDF renderers already exist.
+- Both write a canonical filename per pack spec so gov portals accept the extension.
+
+### A3. UI
+- `ReturnsTab` and `TaxCertificatesTab` render one download button per `artifacts[i]` (label from `outputs[i].label` fallback to format), replacing the hardcoded CSV/PDF pair.
+- Disabled state derives from artifact presence, not column name.
+
+### A4. Publisher (`ReturnTemplateEditor`, certificate editor)
+Add an "Export formats" section: multi-select from a registry (`format_registry` table seeded with `pdf`, `csv`, `xlsx`, `gov_csv`, `gov_xlsx`, `gov_xml`, `xml`, `edi`), per-format filename template, MIME override, role. This unblocks future statutory documents without engineering.
+
+## PART B — Fix P9 / P9A xlsx_binary contract
+
+### B1. Canonicalize the binding schema
+Publish the shape the renderer already reads:
 ```
-
-- **Publisher (`ReturnTemplateEditor`)** already supports `output='xlsx'`, `submission_format.type='gov_xlsx'`, columns with `source` + `format`, and pack versioning. **No publisher extension required for this template** — its shape (flat row-per-employee grid) is inside the writer's current capability. Complex fixed-layout returns (SARS EMP201-style forms with merged cells and print regions) would need the `xlsx_binary` path that already exists for certificates; that is out of scope for NSSF and not needed.
-- **Resolver (`returnSourceResolver.ts`)** already recognizes every source token used above — `employee.*` dynamic, `employee.statutory_id.nssf`, `sum_taxable_amount`, `sum_rule.<code>.<side>`. No resolver change needed.
-- **Text formatting** for cols A–F is enforced by the writer: `xlsxWriter` will receive them as strings (source returns strings for `employee.*`), so Excel keeps leading zeros. `format` on G/H stays numeric.
-
-## 3. Changes
-
-### 3.1 Data change (single migration/update) — republish `KE.NSSF_RET`
-
-Update the existing template row in-place inside a **new pack version** (immutability: prior version stays untouched for historical returns already filed against it):
-
-1. `INSERT` a new `pack_versions` row for the KE pack (bump semver, e.g. `1.1.0`), with change note "Align NSSF return to official portal template Rel 03.02.18".
-2. `INSERT` a new `localization_pack_return_templates` row for that `pack_version_id` with:
-   - `code = 'NSSF_RET'`
-   - `display_name = 'NSSF Monthly Byproduct Return'`
-   - `authority_id` → existing NSSF-KE authority row
-   - `output = 'xlsx'`
-   - `legal_reference = 'NSSF Act No. 45 of 2013, Section 20 — Monthly Contribution Return'`
-   - `regulation_citation = 'NSSF Portal Byproduct Template Rel 03.02.18'`
-   - `effective_date = '2026-08-01'` (next filing cycle)
-   - `submission_format` = the 8-column `gov_xlsx` descriptor (see §4)
-   - `body.columns` mirroring the same 8 columns for the on-screen preview grid; `body.filters.rule_codes = ['nssf']`; `body.group_by = ['employee_id']`; **no totals, no reconciliation footer** (portal forbids it — the writer already skips them when unset).
-3. Update `installed_localization_packs` propagation: existing `pack_upgrade_proposals` flow already auto-notifies tenants; nothing new to build.
-
-No schema migration. No edge function code change. No publisher UI change.
-
-### 3.2 Verification
-
-- Deno test in `supabase/functions/generate-statutory-return/`: feed a fixture payroll run through the new template, assert output XLSX has exactly one sheet, row 1 = the 8 official headers, N data rows, no trailing totals row.
-- Golden-file test: open generated bytes with `exceljs`, verify col A–F cell types are string (leading zero preserved on a `009123456X` NSSF sample), col G/H numeric.
-- Manual: trigger regeneration on an existing approved payroll period; download; diff header row against attached template byte-for-byte.
-
-## 4. Technical detail — submission_format payload
-
-```json
-{
-  "type": "gov_xlsx",
-  "sheet_name": "Sheet1",
-  "columns": [
-    { "header": "PAYROLL NUMBER", "source": "employee.employee_number" },
-    { "header": "SURNAME",        "source": "employee.last_name" },
-    { "header": "OTHER NAMES",    "source": "employee.first_name" },
-    { "header": "ID NO",          "source": "employee.national_id" },
-    { "header": "KRA PIN",        "source": "employee.tax_id" },
-    { "header": "NSSF NO",        "source": "employee.statutory_id.nssf" },
-    { "header": "GROSS PAY",      "source": "sum_taxable_amount",              "format": "fixed2" },
-    { "header": "VOLUNTARY",      "source": "sum_rule.nssf_voluntary.employee","format": "fixed2" }
-  ]
+cell_bindings: {
+  static: { "P4": {token:"employer.tax_pin"}, "C5": {token:"employer.legal_name"}, ... },
+  monthly_grid: { start_row:15, end_row:26, columns:[{col:"B", rule_code:"basic_salary"}, ...] }
 }
 ```
+Migration rewrites the KE P9 and P9A rows in place (no pack version bump needed — same bytes, corrected metadata). Add a JSON-schema trigger on `localization_pack_certificate_templates` that rejects `kind='xlsx_binary'` rows missing `cell_bindings.static` or with `monthly_grid.columns[].col` absent.
 
-`xlsxWriter.writeXlsx` already emits a single-sheet workbook with header row + data rows, which is exactly what the portal accepts. No trailer, no formulas, no extra sheets.
+### B2. Renderer hardening
+`binaryCertificateRenderer.ts` learns to reject (not silently skip) an unknown binding shape, and supports the derived `header.title_with_year` token (currently unresolved; render as `P9 TAX DEDUCTION CARD YEAR {{fiscal_year}}`).
 
-## 5. Out of scope
+### B3. Missing template surface
+"Annual Earnings Statement" (`AES`?) isn't registered in the KE pack. Two options, both cheap: (a) hide the button until a template exists, (b) publish a minimal `AES` template that reuses the P9 master with a different `header.title` and cell subset. Ship (a) now, defer (b) to a follow-up unless legally required — needs a one-line confirmation from you before publishing.
 
-- No changes to the P9 certificate work already shipped.
-- No publisher UI extensions — this template does not require merged cells, print regions, or repeating headers.
-- No new edge functions (deployment cap remains untouched).
-- Voluntary NSSF rule authoring: column resolves to 0 today; when the KE pack later defines a `nssf_voluntary` deduction rule, the same template picks it up with no republish.
+## PART C — Preconditions & lifecycle
+
+Both edge functions already gate certificates on **approved payroll runs** and returns on frozen payslip lines. Add a shared precondition module (`_shared/payrollLifecycleGate.ts`) exposing `requireApprovedRuns(fy)` and `requireClosedPeriod(period)` so future artifacts can't drift. Aligns with SAP HCM (`PA30`/`PC00_M99_CIPE` gates), Workday ("Complete" run status), Odoo (`state='done'`).
+
+## PART D — Integrity guards (tests)
+
+- Architecture test: every certificate template with `kind='xlsx_binary'` conforms to `BinaryCertificateBody`.
+- Every `outputs[i].format` must exist in `format_registry`.
+- `payroll_return_runs.artifacts[]` non-empty when `status='generated'`.
+- Publisher UI test: format multi-select persists round-trip.
+
+## Out of scope
+
+- Cross-country pack redesign — only KE pack templates are edited.
+- New submission formats (EDI, MTD-style). Registry is designed to accept them without schema changes.
+
+## Technical file map
+
+- `supabase/migrations/*` — add `outputs`, `artifacts`, `format_registry`; back-fill; JSON-schema trigger; rewrite KE P9/P9A `cell_bindings`.
+- `supabase/functions/generate-statutory-return/index.ts` — loop `outputs`.
+- `supabase/functions/generate-tax-certificate/index.ts` — loop `outputs`; header token.
+- `supabase/functions/_shared/pdf/binaryCertificateRenderer.ts` — schema check, derived tokens.
+- `supabase/functions/_shared/payrollLifecycleGate.ts` — new.
+- `src/components/payroll/ReturnsTab.tsx`, `src/components/payroll/TaxCertificatesTab.tsx` (or equivalent) — artifact-driven buttons.
+- `src/features/localization/components/ReturnTemplateEditor.tsx` + certificate editor — outputs picker.
+- `src/hooks/payroll/useStatutoryReturns.ts`, `useTaxCertificates.ts` — surface `artifacts`.
+- `src/test/architecture/*` — new integrity tests.
+
+Confirm and I'll implement in this order: migration → renderer/generator → UI → publisher → tests.

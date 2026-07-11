@@ -561,6 +561,7 @@ Deno.serve(async (req) => {
             {
               employer: {
                 name: branding?.name ?? "",
+                legal_name: (branding as any)?.legal_name ?? branding?.name ?? "",
                 tax_pin: (branding as any)?.tax_pin ?? "",
                 address: (branding as any)?.address ?? "",
                 tax_office: (branding as any)?.tax_office ?? "",
@@ -572,12 +573,14 @@ Deno.serve(async (req) => {
                 full_name: payload.employee.full_name,
                 first_name: (emp as any).first_name ?? "",
                 last_name: (emp as any).last_name ?? "",
+                other_names: [(emp as any).first_name, (emp as any).last_name].filter(Boolean).join(" "),
                 employee_number: payload.employee.employee_number,
                 tax_pin: payload.employee.tax_pin,
                 national_id: payload.employee.national_id,
                 position: payload.employee.position,
                 department: payload.employee.department,
               },
+
               fiscal_year: body.fiscal_year,
               currency: orgCurrency,
               monthly: monthlyRows.map((r) => ({
