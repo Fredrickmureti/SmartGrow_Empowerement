@@ -25,6 +25,21 @@ export interface TaxCertificate {
   payload: any;
   pdf_path: string | null;
   xlsx_path?: string | null;
+  /**
+   * Canonical per-certificate artifact list — one entry per pack-declared
+   * output format. Empty for pre-migration rows (fall back to pdf_path /
+   * xlsx_path). See ADR 0060 v2026.5.0 + migration 20260711232041.
+   */
+  artifacts?: Array<{
+    format: string;
+    path: string;
+    mime?: string | null;
+    ext?: string | null;
+    size?: number | null;
+    role?: string | null;
+    generated_at?: string | null;
+    label?: string | null;
+  }>;
   serial_number: string;
   status: "draft" | "issued" | "superseded";
   generated_at: string;
@@ -387,12 +402,22 @@ export function useCertificateSubmissions(certificateIds: string[]) {
 }
 
 export async function downloadTaxCertificate(
-  certificate: Pick<TaxCertificate, "id" | "pdf_path"> | string,
+  certificate:
+    | Pick<TaxCertificate, "id" | "pdf_path"> | string
+    | { artifact_path: string; filename?: string },
   format: "pdf" | "xlsx" = "pdf",
 ) {
-  const body = typeof certificate === "string"
-    ? { pdf_path: certificate, format }
-    : { certificate_id: certificate.id, format };
+  let body: Record<string, unknown>;
+  if (typeof certificate === "string") {
+    body = { pdf_path: certificate, format };
+  } else if ("artifact_path" in certificate) {
+    body = {
+      artifact_path: certificate.artifact_path,
+      filename: certificate.filename,
+    };
+  } else {
+    body = { certificate_id: certificate.id, format };
+  }
   const { data, error } = await supabase.functions.invoke("download-tax-certificate", { body });
   if (error || !(data as any)?.signedUrl) {
     const { toast } = await import("sonner");

@@ -66,7 +66,7 @@ export default function MyTaxCertificates() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("payroll_tax_certificates")
-        .select("id, organization_id, business_id, branch_id, employee_id, template_code, fiscal_year, pdf_path, serial_number, status, generated_at")
+        .select("id, organization_id, business_id, branch_id, employee_id, template_code, fiscal_year, pdf_path, xlsx_path, artifacts, serial_number, status, generated_at")
         .eq("employee_id", employeeId!)
         .order("fiscal_year", { ascending: false })
         .order("generated_at", { ascending: false });

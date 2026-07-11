@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { validatePayload } from "../hooks";
 import { usePackTokens, type PackTokenOption } from "../hooks/usePackTokens";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
+import { OutputsCard } from "./OutputsCard";
 import { PreviewPanel } from "./PreviewPanel";
 import { ReturnPreviewPane } from "./ReturnPreviewPane";
 import type { EditorMode } from "../types";
@@ -73,6 +74,8 @@ export type ReturnTemplateMetadata = {
   acknowledgement_spec: Record<string, any> | null;
   api_endpoint_spec: Record<string, any> | null;
   approval_required: boolean;
+  /** Pack-declared exports (ADR 0060 v2026.5.0 — migration 20260711232041). */
+  outputs: Array<{ format: string; role?: string; label?: string | null; filename?: string | null }> | null;
 };
 
 function defaultMetadata(): ReturnTemplateMetadata {
@@ -88,6 +91,7 @@ function defaultMetadata(): ReturnTemplateMetadata {
     acknowledgement_spec: null,
     api_endpoint_spec: null,
     approval_required: false,
+    outputs: null,
   };
 }
 
@@ -114,6 +118,7 @@ function normalizeMetadata(input: Partial<ReturnTemplateMetadata> | null | undef
       ? input.api_endpoint_spec as Record<string, any>
       : null,
     approval_required: !!input.approval_required,
+    outputs: Array.isArray(input.outputs) ? input.outputs : null,
   };
 }
 
@@ -390,6 +395,14 @@ export function ReturnTemplateEditor({
             onChange={setMeta}
             authorities={authoritiesQuery.data ?? []}
             authoritiesLoading={authoritiesQuery.isLoading}
+          />
+        )}
+
+        {editMetadata && (
+          <OutputsCard
+            value={meta.outputs}
+            onChange={(next) => setMeta({ ...meta, outputs: next })}
+            surface="return"
           />
         )}
 

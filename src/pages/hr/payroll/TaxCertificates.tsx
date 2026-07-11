@@ -602,26 +602,53 @@ export default function TaxCertificates() {
                       {new Date(c.generated_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      {c.pdf_path && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadTaxCertificate(c)}
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          PDF
-                        </Button>
-                      )}
-                      {(c as any).xlsx_path && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadTaxCertificate(c, "xlsx")}
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          XLSX
-                        </Button>
-                      )}
+                      {(() => {
+                        // Pack-declared exports land in `c.artifacts`. Pre-migration
+                        // rows have empty artifacts and are served via the
+                        // pdf_path / xlsx_path scalars — mirror them into the same
+                        // artifact shape so the loop below handles both.
+                        const arts = Array.isArray((c as any).artifacts) && (c as any).artifacts.length
+                          ? ((c as any).artifacts as Array<any>)
+                          : ([
+                              c.pdf_path
+                                ? { format: "pdf", path: c.pdf_path, role: "human_readable" }
+                                : null,
+                              (c as any).xlsx_path
+                                ? { format: "xlsx_binary", path: (c as any).xlsx_path, role: "primary" }
+                                : null,
+                            ].filter(Boolean) as Array<any>);
+                        if (!arts.length) {
+                          return <span className="text-xs text-muted-foreground">No downloads</span>;
+                        }
+                        return arts.map((a, i) => {
+                          const label = a.label ?? (
+                            a.format === "pdf" ? "PDF" :
+                            a.format === "xlsx_binary" ? "Excel" :
+                            a.format === "gov_xlsx" ? "Gov Excel" :
+                            a.format === "gov_xml" ? "Gov XML" :
+                            a.format === "gov_csv" ? "Gov CSV" :
+                            a.format === "csv" ? "CSV" :
+                            String(a.format).toUpperCase()
+                          );
+                          return (
+                            <Button
+                              key={`${a.path ?? a.format}-${i}`}
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                a.path && a.format !== "pdf" && a.format !== "xlsx_binary"
+                                  ? downloadTaxCertificate({ artifact_path: a.path })
+                                  : a.format === "xlsx_binary"
+                                  ? downloadTaxCertificate(c, "xlsx")
+                                  : downloadTaxCertificate(c)
+                              }
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              {label}
+                            </Button>
+                          );
+                        });
+                      })()}
                     </TableCell>
                   </TableRow>
                 );

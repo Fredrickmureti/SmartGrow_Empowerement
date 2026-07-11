@@ -24,6 +24,23 @@ import {
   makeUrlAssetFetcher,
   type BinaryCertificateBody,
 } from "../_shared/pdf/binaryCertificateRenderer.ts";
+import {
+  requireApprovedRunsForYear,
+} from "../_shared/payrollLifecycleGate.ts";
+
+// Canonical artifact shape aligned with `payroll_tax_certificates.artifacts`
+// and `payroll_return_runs.artifacts` (see migration 20260711232041 +
+// tax-certificates follow-up). Every dispatched output produces one of these.
+interface CertificateArtifact {
+  format: string;
+  path: string;
+  mime: string;
+  ext: string;
+  size: number;
+  role: string;
+  generated_at: string;
+  label?: string | null;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -309,38 +326,28 @@ Deno.serve(async (req) => {
     const branding = await getOrganizationBranding(admin, body.organization_id, body.business_id);
     const orgCurrency = branding?.currencyCode ?? "";
 
-    // Enterprise rule (see .lovable/plan.md — Phase 2/5g):
-    // Tax certificates are downstream of Payroll APPROVAL, not Payment or
-    // GL Posting. Refuse the request up-front with a structured error if the
-    // fiscal year has no approved payroll runs for this org/business — this
-    // is what previously surfaced to users as an opaque "500 Internal Server
-    // Error" after the per-employee YTD rollup returned nothing.
-    // Payment status is NOT checked here (mirrors SAP HCM / Workday / Oracle
-    // HCM: year-end certificates are producible immediately after approval).
+    // Enterprise lifecycle gate — statutory documents can only be issued
+    // from a *frozen* payroll history. Mirrors SAP HCM `PC00_M99_CIPE`,
+    // Workday "Complete", Odoo `state='done'`, Oracle HCM
+    // `Verified`/`Prepayments`. The shared module lives at
+    // `_shared/payrollLifecycleGate.ts` so every generator uses the exact
+    // same rules — no per-generator drift.
     {
-      const fyStart = `${body.fiscal_year}-01-01`;
-      const fyEnd = `${body.fiscal_year}-12-31`;
-      const { count: approvedRunCount, error: runCntErr } = await admin
-        .from("payroll_runs")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", body.organization_id)
-        .eq("business_id", body.business_id)
-        .lte("pay_period_start", fyEnd)
-        .gte("pay_period_end", fyStart)
-        .not("approved_at", "is", null);
-      if (runCntErr) {
-        return jsonResponse({ error: `approval check failed: ${runCntErr.message}` }, 500);
-      }
-      if (!approvedRunCount || approvedRunCount === 0) {
+      const gate = await requireApprovedRunsForYear(admin, {
+        organization_id: body.organization_id,
+        business_id: body.business_id,
+        fy: body.fiscal_year,
+      });
+      if (!gate.ok) {
         return businessError(
-          400,
-          "NO_APPROVED_PAYROLL_RUNS",
-          `No approved payroll runs were found for fiscal year ${body.fiscal_year}. Tax certificates can only be issued from an approved (finalised) payroll.`,
-          "Approve at least one payroll run inside this fiscal year, then generate the certificate again. You do not need to pay employees or post to the GL first.",
+          gate.code === "LIFECYCLE_QUERY_FAILED" ? 500 : 422,
+          gate.code ?? "LIFECYCLE_REFUSED",
+          gate.message ?? "Payroll lifecycle preconditions were not met.",
+          gate.recovery ?? "Complete the outstanding payroll approvals, then retry.",
           {
             template_code: body.template_code,
             fiscal_year: body.fiscal_year,
-            requires: "payroll_runs.approved_at",
+            ...(gate.details ?? {}),
           },
         );
       }
@@ -519,10 +526,37 @@ Deno.serve(async (req) => {
         const serial = makeSerial(body.organization_id, emp.id, body.fiscal_year, template.code);
         const isBinaryTpl = (template.body as any)?.kind === "xlsx_binary";
 
+        // Resolve declared outputs. Publishers can list one or many
+        // formats on `template.outputs`; falling back to the historic
+        // one-format-per-body-kind default means legacy pack rows keep
+        // working. Every entry must have a `format` string that lives in
+        // `format_registry` (trigger-enforced at pack save time).
+        const declaredOutputs: Array<{
+          format: string;
+          role?: string;
+          label?: string | null;
+          filename?: string | null;
+        }> = Array.isArray((template as any).outputs) && (template as any).outputs.length
+          ? ((template as any).outputs as any[]).map((o) => ({
+              format: String(o?.format ?? ""),
+              role: o?.role ? String(o.role) : undefined,
+              label: o?.label ?? null,
+              filename: o?.filename ?? null,
+            })).filter((o) => o.format)
+          : [{
+              format: isBinaryTpl ? "xlsx_binary" : "pdf",
+              role: "primary",
+              label: null,
+              filename: null,
+            }];
+
+        // Render lazily and cache — a pack that declares both `xlsx_binary`
+        // (primary) and `pdf` (human_readable) still renders each engine only
+        // once. Renderers are pure: same payload ⇒ same bytes.
         let pdfBytes: Uint8Array | null = null;
         let xlsxBytes: Uint8Array | null = null;
 
-        if (isBinaryTpl) {
+        const renderBinary = async () => {
           // Resolve asset URL for this pack version
           const packVersionId = (template as any).pack_version_id
             ?? (packTemplate as any).pack_version_id
@@ -552,11 +586,14 @@ Deno.serve(async (req) => {
           }
           const sourceUrl = assetRow?.source_url as string | null | undefined;
           if (!sourceUrl) {
-            throw new Error(`master workbook not registered for ${assetKey}`);
+            throw new Error(
+              `MASTER_WORKBOOK_MISSING: pack ${template.pack_id ?? "?"} has no binary asset registered for '${assetKey}'. ` +
+              `Republish the localization pack version so localization_pack_binary_assets is populated.`,
+            );
           }
           const origin = new URL(req.url).origin;
           const fetcher = makeUrlAssetFetcher(() => sourceUrl, origin);
-          xlsxBytes = await renderBinaryCertificateXlsx(
+          return await renderBinaryCertificateXlsx(
             template.body as BinaryCertificateBody,
             {
               employer: {
@@ -594,8 +631,10 @@ Deno.serve(async (req) => {
             },
             fetcher,
           );
-        } else {
-        pdfBytes = await renderCertificatePdf(
+        };
+
+        const renderPdf = async () => {
+          return await renderCertificatePdf(
           {
             code: template.code,
             display_name: template.display_name,
@@ -641,38 +680,85 @@ Deno.serve(async (req) => {
             generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
           },
           { branding: branding ?? null },
-        );
-        }
+          );
+        };
 
         const basePath = `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${serial}`;
+        const artifactsList: CertificateArtifact[] = [];
         let pdfPath: string | null = null;
         let xlsxPath: string | null = null;
-        if (pdfBytes) {
-          pdfPath = `${basePath}.pdf`;
+
+        for (const decl of declaredOutputs) {
+          let bytes: Uint8Array;
+          let ext: string;
+          let mime: string;
+          if (decl.format === "xlsx_binary") {
+            if (!isBinaryTpl) {
+              throw new Error(
+                `OUTPUT_INCOMPATIBLE: template '${template.code}' declares output 'xlsx_binary' but body.kind is not 'xlsx_binary'. ` +
+                `Fix the pack template so body.kind matches the primary output, or drop the xlsx_binary entry from outputs.`,
+              );
+            }
+            if (!xlsxBytes) xlsxBytes = await renderBinary();
+            bytes = xlsxBytes;
+            ext = "xlsx";
+            mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+          } else if (decl.format === "pdf") {
+            if (!pdfBytes) pdfBytes = await renderPdf();
+            bytes = pdfBytes;
+            ext = "pdf";
+            mime = "application/pdf";
+          } else {
+            // Unknown/unsupported writer for certificates. The trigger on
+            // pack save should have caught this, but we defensively skip
+            // and record a diagnostic so publishers see it.
+            try {
+              await admin.from("payroll_diagnostics").insert({
+                organization_id: body.organization_id,
+                pack_id: template.pack_id ?? null,
+                template_code: template.code,
+                surface: "certificate",
+                severity: "error",
+                code: "CERT_OUTPUT_UNSUPPORTED",
+                message: `Certificate output format '${decl.format}' has no renderer.`,
+                details: { format: decl.format, template_code: template.code },
+              });
+            } catch { /* diagnostics best-effort */ }
+            continue;
+          }
+
+          const storagePath = decl.filename
+            ? `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${decl.filename}`
+            : `${basePath}.${ext}`;
           const up = await admin.storage
             .from(STORAGE_BUCKET)
-            .upload(pdfPath, new Blob([pdfBytes], { type: "application/pdf" }), {
-              contentType: "application/pdf",
+            .upload(storagePath, new Blob([bytes], { type: mime }), {
+              contentType: mime,
               upsert: true,
             });
-          if (up.error) throw new Error(`upload failed: ${up.error.message}`);
+          if (up.error) {
+            throw new Error(`upload failed (${decl.format}): ${up.error.message}`);
+          }
+
+          artifactsList.push({
+            format: decl.format,
+            path: storagePath,
+            mime,
+            ext,
+            size: bytes.byteLength,
+            role: decl.role ?? (decl.format === "pdf" ? "human_readable" : "primary"),
+            generated_at: new Date().toISOString(),
+            label: decl.label ?? null,
+          });
+
+          if (decl.format === "pdf") pdfPath = storagePath;
+          if (decl.format === "xlsx_binary") xlsxPath = storagePath;
         }
-        if (xlsxBytes) {
-          xlsxPath = `${basePath}.xlsx`;
-          const up = await admin.storage
-            .from(STORAGE_BUCKET)
-            .upload(
-              xlsxPath,
-              new Blob([xlsxBytes], {
-                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-              }),
-              {
-                contentType:
-                  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                upsert: true,
-              },
-            );
-          if (up.error) throw new Error(`xlsx upload failed: ${up.error.message}`);
+
+        if (artifactsList.length === 0) {
+          throw new Error(
+            `NO_ARTIFACTS_PRODUCED: template '${template.code}' resolved to zero renderable outputs.`,
+          );
         }
 
         // Supersede prior issued row if regenerating
@@ -708,13 +794,14 @@ Deno.serve(async (req) => {
             payload,
             pdf_path: pdfPath,
             xlsx_path: xlsxPath,
+            artifacts: artifactsList,
             serial_number: serial,
             status: "issued",
             generated_by: userId,
             batch_id: batchId,
             provenance,
           })
-          .select("id, serial_number, pdf_path, xlsx_path, fiscal_year, employee_id, template_code, status, batch_id")
+          .select("id, serial_number, pdf_path, xlsx_path, artifacts, fiscal_year, employee_id, template_code, status, batch_id")
           .single();
         if (insErr) throw new Error(insErr.message);
         created.push(inserted);

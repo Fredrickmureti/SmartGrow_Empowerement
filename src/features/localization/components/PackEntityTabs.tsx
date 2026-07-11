@@ -477,6 +477,8 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
           "acknowledgement_spec", "api_endpoint_spec", "approval_required",
           // Certificate-specific first-class metadata (ADR 0060).
           "revision_notes", "issued_to",
+          // Pack-declared exports (ADR 0060 v2026.5.0 — migration 20260711232041).
+          "outputs",
         ]) {
           if (k in input.metadata) patch[k] = (input.metadata as any)[k];
         }
@@ -613,6 +615,7 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
                 acknowledgement_spec: editing.acknowledgement_spec ?? null,
                 api_endpoint_spec: editing.api_endpoint_spec ?? null,
                 approval_required: !!editing.approval_required,
+                outputs: (editing as any).outputs ?? null,
               } : undefined,
             }}
             onCancel={() => setEditing(null)}
@@ -650,6 +653,7 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
                 revision_notes: editing.revision_notes ?? null,
                 issued_to: editing.issued_to ?? "employee",
                 approval_required: !!editing.approval_required,
+                outputs: (editing as any).outputs ?? null,
               } : undefined,
             }}
             onCancel={() => setEditing(null)}

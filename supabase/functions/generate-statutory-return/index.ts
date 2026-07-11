@@ -23,6 +23,7 @@ import {
   extractExtraRuleCodes,
   type SourceContext,
 } from "../_shared/returnSourceResolver.ts";
+import { requireClosedPeriod } from "../_shared/payrollLifecycleGate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -236,6 +237,33 @@ Deno.serve(async (req) => {
         "Ask an administrator to complete the return template layout before generating this return.",
         { template_code: body.template_code },
       );
+    }
+
+    // Enterprise lifecycle gate — statutory returns may only be filed
+    // from a closed payroll period. Shared with `generate-tax-certificate`
+    // via `_shared/payrollLifecycleGate.ts`. SAP HCM / Workday / Oracle
+    // HCM parity: no open period may emit a filable return.
+    {
+      const gate = await requireClosedPeriod(admin, {
+        organization_id: body.organization_id,
+        business_id: body.business_id,
+        period_start: body.period_start,
+        period_end: body.period_end,
+      });
+      if (!gate.ok) {
+        return businessError(
+          gate.code === "LIFECYCLE_QUERY_FAILED" ? 500 : 422,
+          gate.code ?? "LIFECYCLE_REFUSED",
+          gate.message ?? "Payroll lifecycle preconditions were not met.",
+          gate.recovery ?? "Close the payroll period, then retry.",
+          {
+            template_code: body.template_code,
+            period_start: body.period_start,
+            period_end: body.period_end,
+            ...(gate.details ?? {}),
+          },
+        );
+      }
     }
 
     // Country-agnostic: discover every extra rule_code the template

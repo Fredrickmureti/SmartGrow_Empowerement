@@ -42,6 +42,8 @@ import {
   resolveCompletenessRule,
 } from "../lib/certificateCompleteness";
 import { snippetsFor } from "../lib/statutorySnippets";
+import { usePackFormatRegistry } from "../hooks/usePackFormatRegistry";
+import { OutputsCard } from "./OutputsCard";
 
 const SECTION_TYPES = [
   { value: "employer_header",    label: "Employer header",   help: "Employer name, PIN, address, tax office." },
@@ -108,6 +110,13 @@ export type CertificateTemplateMetadata = {
   revision_notes: string | null;
   issued_to: "employee" | "employer" | "both";
   approval_required: boolean;
+  /**
+   * Pack-declared export formats (ADR 0060 v2026.5.0). Array of
+   * `{format, role?, label?, filename?}`. Every `format` must exist in
+   * `public.format_registry` (trigger-enforced at save time). `null`
+   * means "fall back to legacy body.kind dispatch".
+   */
+  outputs: Array<{ format: string; role?: string; label?: string | null; filename?: string | null }> | null;
 };
 
 function defaultMetadata(): CertificateTemplateMetadata {
@@ -120,6 +129,7 @@ function defaultMetadata(): CertificateTemplateMetadata {
     revision_notes: null,
     issued_to: "employee",
     approval_required: false,
+    outputs: null,
   };
 }
 
@@ -135,6 +145,7 @@ function normalizeMetadata(input: Partial<CertificateTemplateMetadata> | null | 
     revision_notes:      input.revision_notes ?? null,
     issued_to:           (input.issued_to as any) ?? "employee",
     approval_required:   !!input.approval_required,
+    outputs:             Array.isArray(input.outputs) ? input.outputs : null,
   };
 }
 
@@ -347,6 +358,18 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Pack-declared exports (ADR 0060 v2026.5.0). Publishers pick the
+            set of files this certificate emits at generation time. The
+            trigger `assert_outputs_formats_registered` blocks unknown
+            formats at save time so the whitelist here is authoritative. */}
+        {editMetadata && (
+          <OutputsCard
+            value={meta.outputs}
+            onChange={(next) => setMeta({ ...meta, outputs: next })}
+            surface="certificate"
+          />
         )}
 
         {/* Sections */}
