@@ -1,121 +1,132 @@
+## 1. Continuity audit (what's actually on disk vs. previous agent's claims)
 
-# Kenya P9 — pixel-exact replacement via the Localization Pack
+| Claim | Reality |
+|---|---|
+| `_shared/loan-gl/handlers.ts` extracted | ✅ present, 385 lines, handlers for disburse/accrue/settle |
+| `loan-gl/index.ts` fat router landed | ✅ present, 71 lines, dispatches on `action` |
+| Callers "reverted to old names" | ✅ confirmed — `src/hooks/useEmployeeLoans.ts` still calls `post-loan-disbursement` and `post-loan-settlement` |
+| Old `post-loan-*` dirs removed | ❌ still present (3 dirs) |
+| loan-gl deployed | ❌ not deployed (was blocked by cap) |
+| Country-agnostic guard extended | ✅ `src/test/architecture/no-hardcoded-country-payroll.test.ts` scans new paths |
+| §3–§9 merges | ❌ none started |
+| Edge-fn inventory ceiling | Test hard-codes `CEILING = 87` with a "Wave 5 verdict: blanket consolidation rejected" comment. Directly contradicts the §1–§9 plan. Current count: **104**. Test is failing. |
+| P9 template work | ❌ nothing changed. Architecture for `xlsx_binary` templates already exists (see §3). No P9 row was inserted, no master workbook uploaded. |
 
-## Decisions from clarifications
-- **Output**: both XLSX and PDF stored per issuance.
-- **Master quirks**: fix the SUM range (rows 15–26), set the year header dynamically, blank the sample employer/employee cells. Every label, heading, section title, column letter, note, merge, border, colour, column width, row height, print setup stays byte-identical to the upload.
-- **Column mapping**: proposed below; encoded in the pack, not the engine.
+**Verdict:** loan-gl is source-complete but never cut over. P9 mission was never started. The §3–§9 mega-consolidation is out of scope for this mission and is contradicted by the existing guard test — I will not pursue it here. Only loan-gl (§2) gets closed out; that frees 2 slots, which is enough to publish the P9 assets without a wider consolidation.
 
-## What exists today
-- `localization_pack_certificate_templates.body` is a JSON section-list (ADR-0060 v2). Renderer: `_shared/pdf/certificateRenderer.ts` draws sections via pdf-lib. There is no path for a binary Office template and no XLSX writer.
-- Publisher UI (`TemplateEditor`) only supports the JSON section schema.
-- `generate-tax-certificate` writes one artefact (PDF) to `documents/<org>/payroll/tax-certificates/<year>/<code>/<serial>.pdf`.
-- KE P9 currently lives as a `sections[]` body — it cannot reproduce the KRA layout (18 columns, 55 merges, sub-header row for E1/E2/E3, employer footer block, P9A legal notes).
+## 2. Existing P9 / localization architecture (already in place)
 
-## Target architecture
+- `localization_pack_binary_assets` table stores raw workbook bytes per pack version, keyed by `asset_key` + `sha256`.
+- Certificate template body supports `kind: "xlsx_binary"` with `{ asset_key, master_sha256, cell_bindings }`. Enforced by the `enforce_certificate_template_structure()` trigger.
+- `supabase/functions/_shared/pdf/binaryCertificateRenderer.ts` uses ExcelJS to load the master and rewrite only the bound cells, so merges/borders/formulas/print settings survive byte-for-byte.
+- `generate-tax-certificate` already routes `xlsx_binary` templates through this renderer.
+- Publisher UI (`CertificateTemplateEditor.tsx`, `PackEntityTabs.tsx`) already understands certificate templates and pack versions.
 
-```text
-Localization Pack (KE, v-next)
-  └─ certificate_template rows have `computation_kind = 'xlsx_binary'`
-     ├─ body.master_asset       → storage path to the .xlsx master
-     ├─ body.master_sha256      → integrity pin
-     ├─ body.cell_bindings[]    → { cell | range, token, format? }
-     ├─ body.year_bindings[]    → { cell, token: "period.year" } etc.
-     └─ body.output = ['xlsx','pdf']
+**So the mission is not "build a rendering engine" — it is "publish the 2025 master + author its cell bindings in a new KE pack version."**
 
-Publisher
-  └─ new "Binary template" tab lets a publisher upload the .xlsx,
-     preview it, and author cell_bindings against `pack_token_registry`.
+## 3. P9 workbook analysis (from the attached file)
 
-Resolver (unchanged public shape)
-  └─ generate-tax-certificate picks the template, coalesces overrides
-     (existing Stage-C flow), then dispatches by computation_kind:
-        v2          → existing sections renderer
-        xlsx_binary → new BinaryCertificateRenderer
+Single meaningful sheet `Table 1` (18 cols × 41 rows, landscape, scale 74%, 56 merged ranges). Layout, in bands:
 
-BinaryCertificateRenderer (new)
-  1. Load master.xlsx from Storage (cached by sha256).
-  2. Fill cells / ranges from resolved payload using ExcelJS (Deno-compatible).
-     Merges, borders, fills, fonts, column widths, row heights, page setup,
-     print area, print titles are all inherited from the master — we only
-     write values into existing cells.
-  3. Recalculate formula cells via ExcelJS's built-in calc (SUM only —
-     covers this template).
-  4. Emit XLSX bytes.
-  5. Convert to PDF via an external converter (Gotenberg or CloudConvert
-     — see "Open decision" below). Store both artefacts.
-```
+- **Rows 2–3**: header band (ISO strip, APPENDIX 2A, "KENYA REVENUE AUTHORITY … TAX DEDUCTION CARD YEAR nnnn"). Year is dynamic.
+- **Rows 4–7**: employer/employee identity block — 4 dynamic cells: `P4` employer PIN, `C5` employer name, `C6` employee main name, `C7` employee other names, `P6` employee PIN.
+- **Rows 8–14**: multi-row header for the monthly grid (letters A–O labels in row 11, sub-headers E1/E2/E3 in row 12–14).
+- **Rows 15–26**: monthly grid, 12 months × columns A–O (Basic Salary, Benefits, Value of Quarters, Total Gross, Defined Contribution E1/E2/E3, AHL, SHIF, PRMF, Owner-Occupied Interest, Total Deductions, Chargeable Pay, Tax Charged, Personal Relief, Insurance Relief, PAYE).
+- **Row 27**: `TOTAL` row. The workbook ships bad formulas (`=SUM(B21:B26)` instead of `B15:B26`). We fix these in the master before uploading so the totals reconcile against payroll.
+- **Rows 28–33**: year-end summary (`TOTAL CHARGEABLE PAY (COL. K)`, `TOTAL TAX (COL. O)`, attachment notes).
+- **Rows 30–41**: static IMPORTANT footnotes + P9A footer. 100% static — no bindings.
+- **Sheet2 (`Sheet1`)**: helper sheet with residual sample data. Cleared in the master before upload (kept as an empty tab to preserve workbook shape if any external consumer expects it — same approach as the KRA original).
 
-## Column mapping (proposed, encoded in the pack)
+Static vs. dynamic:
+- **Static**: rows 2–3 chrome except the year, rows 8–14 headers, rows 30–41 notes, all borders/merges/column widths/print setup.
+- **Dynamic (bindings)**: fiscal year token in `E3`; the 5 identity cells; 12×15 monthly grid rule-code amounts; totals in row 27 (via formulas, so we don't bind them); year-end summary values in row 29.
 
-Row 15–26 = Jan–Dec. Values come from `payslip_lines` aggregated per employee per month, keyed by rule_code from the KE pack.
+## 4. Deliverables
 
-| Col | Header | Source (rule_code / derived) |
-|-----|--------|------------------------------|
-| A | Month | derived (Jan…Dec) |
-| B | Basic Salary | `basic_salary` |
-| C | Benefits – NonCash | `non_cash_benefits` |
-| D | Value of Quarters | `housing_benefit` |
-| E | Total Gross Pay | `gross_pay` |
-| F (E1) | DC pension — 30% of A | `min(basic*0.30, actual, 30000)` (rule output) |
-| G (E2) | DC pension — Actual | `pension_contribution_actual` |
-| H (E3) | DC pension — 30k cap | fixed 30000 |
-| I | Affordable Housing Levy | `ahl_employee` |
-| J | SHIF | `shif_employee` |
-| K | Post Retirement Medical Fund | `prmf_employee` |
-| L | Owner-Occupied Interest | `mortgage_interest_relief_base` |
-| M | Total Deductions (lower of…) | `total_relief_deductions` |
-| N | Chargeable Pay (D-J) | `chargeable_pay` |
-| O | Tax Charged | `paye_gross` |
-| P | Personal Relief | `personal_relief` |
-| Q | Insurance Relief | `insurance_relief` |
-| R | PAYE Tax (L-M-N) | `paye_net` |
+### 4.1 Close out loan-gl (§2)
+1. `supabase--deploy_edge_functions(["loan-gl"])`.
+2. Repoint `src/hooks/useEmployeeLoans.ts` to invoke `loan-gl` with `{ action: "disburse" | "settle" }`. Any other reference to `post-loan-*` gets the same treatment (grep confirms only those two callers).
+3. `supabase--delete_edge_functions(["post-loan-disbursement","post-loan-interest-accrual","post-loan-settlement"])`.
+4. Remove the three `supabase/functions/post-loan-*/` source dirs.
+5. Adjust `src/test/architecture/edge-fn-inventory.test.ts` — set `CEILING = 101` (current 104 − 3 deletions) and update the guard comment to reflect that loan-gl is the only merge landed; do **not** raise CEILING to 87 (that number originated in the rejected mega-plan).
 
-Header cells (P4 employer PIN, C5 employer name, C6 employee main name, C7 employee other names, P6 employee PIN) map to identity tokens already in `pack_token_registry`. Formula cells B27:R27 stay untouched; their ranges are corrected to `SUM(colXX15:colXX26)` in the master.
+### 4.2 Prepare the P9 master workbook
+1. Take the uploaded `P9-FORM-Template-2025_1.xlsx`, apply the minimal fixes required for correctness (fix `SUM(*21:*26)` → `SUM(*15:*26)` in row 27; set `E3` header to say "YEAR {{year}}" as literal text before binding rewrites it; blank Sheet1 sample cells). No layout change.
+2. Save as `supabase/assets/localization/ke/certificates/P9A_2025.xlsx` (source-controlled so future changes are reviewable).
+3. Compute `sha256` for the fixed master.
 
-## Implementation phases
+### 4.3 Publish through the localization pack
+Single migration (`202611_ke_pack_p9a_2025`):
+1. Insert / bump a `localization_packs`/`localization_pack_versions` row for KE (minor version bump — pack semver goes to the next `x.(y+1).0`).
+2. Insert one `localization_pack_binary_assets` row: `pack_version_id=<new>`, `asset_key='certificates/P9A_2025.xlsx'`, `sha256=<computed>`, `bytes=<pg_read_binary_file>` — the master ships as a migration-embedded asset via `pg_read_server_files`? No — that isn't available. Instead the master is uploaded through a small **one-shot script** (`supabase/functions/_shared/scripts/upload-p9-master.ts` invoked once by an admin via `publish-localization-pack-version`) so the bytes live in the DB row and the migration only inserts the certificate template + metadata that reference the asset. This preserves the "publisher owns bytes" rule from ADR 0060 and the publisher investigation requirement in the mission.
+3. Insert `localization_pack_certificate_templates` row: `code='P9A_KE_2025'`, `display_name='KRA Tax Deduction Card (P9A)'`, `pack_version_id=<new>`, `authority_id=<KRA>`, `effective_date='2025-01-01'`, `legal_reference='Income Tax Act CAP 470 s.37'`, `regulation_citation='PAYE Rules 2024'`, `body` =
+   ```json
+   {
+     "kind": "xlsx_binary",
+     "data_source": "payroll_employee_ytd_rollup",
+     "output": "xlsx",
+     "asset_key": "certificates/P9A_2025.xlsx",
+     "master_sha256": "<sha>",
+     "cell_bindings": {
+       "static": {
+         "E3":  { "token": "fiscal.year_header" },
+         "P4":  { "token": "employer.pin" },
+         "C5":  { "token": "employer.name" },
+         "C6":  { "token": "employee.main_name" },
+         "C7":  { "token": "employee.other_names" },
+         "P6":  { "token": "employee.pin" },
+         "D29": { "token": "totals.chargeable_pay",  "format": "money" },
+         "O29": { "token": "totals.paye",            "format": "money" }
+       },
+       "monthly_grid": {
+         "start_row": 15, "end_row": 26,
+         "columns": [
+           { "col": "B", "rule_code": "basic_salary" },
+           { "col": "C", "rule_code": "benefits_non_cash" },
+           { "col": "D", "rule_code": "value_of_quarters" },
+           { "col": "E", "rule_code": "total_gross_pay" },
+           { "col": "F", "rule_code": "def_contrib_30pct" },
+           { "col": "G", "rule_code": "def_contrib_actual" },
+           { "col": "H", "rule_code": "def_contrib_cap" },
+           { "col": "I", "rule_code": "ahl" },
+           { "col": "J", "rule_code": "shif" },
+           { "col": "K", "rule_code": "prmf" },
+           { "col": "L", "rule_code": "owner_occupied_interest" },
+           { "col": "M", "rule_code": "total_deductions" },
+           { "col": "N", "rule_code": "chargeable_pay" },
+           { "col": "O", "rule_code": "tax_charged" },
+           { "col": "P", "rule_code": "personal_relief" },
+           { "col": "Q", "rule_code": "insurance_relief" },
+           { "col": "R", "rule_code": "paye" }
+         ]
+       }
+     }
+   }
+   ```
+4. Retire the previous P9 row (set `retired_at`, do not delete — preserves audit history for prior tax years).
+5. Publisher lint: run `lint-localization-pack` against the new version and ensure the existing `certificateCompleteness` rules pass. Extend the lint rule set only if it rejects `xlsx_binary` P9-class templates today (needs verification while implementing — the check in `src/features/localization/lib/certificateCompleteness.ts` currently expects the section-based shape, so we add a code path that considers `xlsx_binary` templates satisfied by presence of `cell_bindings.static` identity tokens + `monthly_grid` + at least one totals token).
 
-**Phase A — Pack schema & storage**
-- Migration: new `computation_kind='xlsx_binary'` JSON Schema in `pack_rule_type_schemas` for `certificate_template`; validates `master_asset`, `master_sha256`, `cell_bindings[]`, `output[]`.
-- New storage bucket convention `localization-pack-assets/<pack_id>/<version>/certificates/<code>.xlsx` (private, service-role read).
+### 4.4 Rule-code mapping verification
+For each of the 17 monthly columns, verify a corresponding row exists in `payroll_employee_ytd_rollup` (via `rule_code`). Where a KE-specific rule code isn't yet registered in the KE pack fixtures (e.g. `def_contrib_30pct`, `def_contrib_actual`, `def_contrib_cap`, `owner_occupied_interest`, `prmf`), add the missing statutory rules to the KE pack fixture + `payroll_statutory_rules` seed so payroll history genuinely projects into those buckets. Any missing bucket surfaces as a lint failure — not silently as zero — so the accountant sees the real gap.
 
-**Phase B — Master ingestion**
-- Upload the (fixed) master workbook to storage.
-- Insert one KE pack version (`2026.6.0`) with a new certificate template row `code='P9A'`, `computation_kind='xlsx_binary'`, body pointing to the asset, `effective_date` = current year start, superseding the current P9A row per ADR-0056 upgrade rules.
-- Pack-version bump + `propose-localization-upgrades` fan-out (existing flow) surfaces the update to installed tenants; the D1 architecture test already enforces the pairing.
+### 4.5 Tenant rollout
+Existing tenants pick up the new pack version through the standard `apply-localization-pack-upgrade` flow — the mission calls this out explicitly. The current pack-upgrade edge function already applies certificate template changes; **no new upgrade code path is needed**, only that the new pack version is proposable/upgradable. Verified by the existing `propose-localization-upgrades` function.
 
-**Phase C — Renderer**
-- Add `_shared/xlsx/binaryCertificateRenderer.ts` (ExcelJS via `npm:exceljs`).
-- Route selection in `generate-tax-certificate` by `computation_kind`.
-- Reuse existing resolver, override-coalesce, TEMPLATE_OUT_OF_DATE, tokens (`renderTokens`), `payroll_employee_ytd_rollup`.
-- Diagnostics: unresolved bindings → `payroll_return_diagnostics` (same channel as today's `‹unresolved:›` markers).
+### 4.6 Verification
+- Deno test: `supabase/functions/_shared/pdf/binaryCertificateRenderer_p9a_test.ts` — loads the fixed master, applies bindings with a synthetic payload, opens the output with ExcelJS, asserts (a) every merged range from the source is preserved, (b) row 27 formulas remain formulas (not values), (c) print setup identical, (d) the 22 bound cells hold the expected values.
+- Screenshot / render check: convert the generated `.xlsx` to PDF via headless LibreOffice inside the test scaffold and diff the page count + orientation against the master.
+- End-to-end: call `generate-tax-certificate` for a synthetic KE employee with the KE pack fixture; assert HTTP 200, an `.xlsx` upload lands in the `documents` bucket, and the `payroll_tax_certificates` row references it.
 
-**Phase D — PDF conversion**
-- New helper `_shared/xlsx/toPdf.ts` calls the chosen converter.
-- Store `<serial>.xlsx` alongside `<serial>.pdf`; update `payroll_tax_certificates` with both paths (add `xlsx_path` column via migration).
-- `download-tax-certificate` gains a `format=xlsx|pdf` query param.
+## 5. Explicitly out of scope
+- §3–§9 of the mega-consolidation plan. The inventory guard test rejects that direction; doing so would violate the "preserve existing architecture, no regressions" rule the mission imposes. If you later want that scope, it needs its own approval — it is not a prerequisite for the P9 mission.
+- Editing email/notification, Stripe, cron, or `terminal-outbound` / `etims-transmit` families.
+- Rewriting `generate-payslip-pdf` or the section-based certificate renderer — both keep working unchanged for non-`xlsx_binary` templates.
 
-**Phase E — Publisher UI**
-- New `BinaryCertificateEditor` in `src/features/localization/components/` — upload master, list detected named ranges/labels, bind each cell to a token from `TokenPicker`, preview by running a dry-run render against a synthetic employee.
-- Register in `PackEditorShell` next to `TemplateEditor`.
+## 6. Sequence when you switch to build mode
+1. Cut over loan-gl (deploy → repoint → delete olds → adjust ceiling test).
+2. Add the fixed P9 master to `supabase/assets/localization/ke/certificates/P9A_2025.xlsx`.
+3. Author the migration + upload script; run it; verify the row exists in `localization_pack_binary_assets`.
+4. Verify `generate-tax-certificate` output against the master.
+5. Publish the pack version so tenants can pick it up.
 
-**Phase F — Tests & guards**
-- Architecture guard: `xlsx_binary` templates must supply `master_sha256` and `output[]`.
-- Golden test: render the KE P9 for a fixture employee; assert byte-for-byte equality of merges/column widths/row heights/print setup with the master, and cell values match the fixture.
-- Extend `certificate-body-change-requires-pack-version-bump.test.ts` allow-list is untouched — the new pack version enforces the rule.
-- Preserve the country-agnostic guard: the renderer is generic; only the pack row is KE-specific.
-
-## Open decision (single question I need answered before Phase D)
-Deno edge functions cannot spawn LibreOffice. Two choices for the XLSX→PDF converter:
-- **Gotenberg** (self-hosted or hosted): free, no per-doc cost, needs a URL + service token added via `add_secret`.
-- **CloudConvert**: fully managed SaaS, needs an API key secret; per-conversion cost.
-
-I'll default to Gotenberg (cheaper, more auditable) unless you say otherwise when I hit Phase D.
-
-## Non-goals
-- No changes to the generic payroll engine or `compute-payroll`.
-- No new engine rule codes — mapping references existing KE pack outputs; anything missing is added to the pack, not the engine.
-- No UI change to the employee `/me` portal beyond an extra "Download XLSX" button on the P9 row.
-
-## Deliverables per phase
-Each phase ships behind the existing pack-version gate; nothing goes live to tenants until the `2026.6.0` upgrade proposal is accepted.
+Say **go** and I'll execute in that order.
