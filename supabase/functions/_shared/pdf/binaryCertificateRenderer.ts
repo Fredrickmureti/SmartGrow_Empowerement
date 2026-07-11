@@ -57,7 +57,21 @@ export interface AssetFetcher {
   (assetKey: string): Promise<Uint8Array>;
 }
 
+function resolveDerived(path: string, ctx: BinaryCertificateContext): unknown {
+  // Small, explicit registry of derived tokens produced by the pack
+  // authoring layer (not stored on the context object).
+  switch (path) {
+    case "header.title_with_year":
+      return `P9 TAX DEDUCTION CARD YEAR ${ctx.fiscal_year}`;
+    case "header.year":
+      return String(ctx.fiscal_year);
+    default:
+      return null;
+  }
+}
+
 function resolveToken(token: string, ctx: BinaryCertificateContext): unknown {
+  if (token.startsWith("header.")) return resolveDerived(token, ctx);
   const parts = token.split(".");
   let cur: any = ctx;
   for (const p of parts) {
@@ -72,6 +86,61 @@ function coerceForCell(v: unknown): string | number | Nullish {
   if (typeof v === "number") return v;
   if (typeof v === "boolean") return v ? "YES" : "NO";
   return String(v);
+}
+
+/**
+ * Normalise the two authoring shapes for `cell_bindings` into the
+ * canonical `{ static, monthly_grid }` form the writer loop expects.
+ *
+ * Editor / migration shape (array):
+ *   [ { cell:"P4", kind:"token"|"derived", source:"employer.tax_pin" }, ... ]
+ * Canonical shape (object):
+ *   { static: { "P4": { token:"employer.tax_pin" } }, monthly_grid: {...} }
+ *
+ * Also accepts `monthly_grid.columns[].column` as an alias for `.col`.
+ */
+function normaliseBindings(raw: any): XlsxCellBindingSpec {
+  if (!raw || typeof raw !== "object") return {};
+  const out: XlsxCellBindingSpec = {};
+
+  if (Array.isArray(raw)) {
+    const staticMap: Record<string, { token: string; format?: string }> = {};
+    for (const b of raw) {
+      if (!b || typeof b !== "object") continue;
+      const addr = String(b.cell ?? b.address ?? "").trim();
+      const src = String(b.token ?? b.source ?? "").trim();
+      if (!addr || !src) continue;
+      staticMap[addr] = { token: src, format: b.format };
+    }
+    if (Object.keys(staticMap).length) out.static = staticMap;
+    return out;
+  }
+
+  if (raw.static && typeof raw.static === "object") out.static = raw.static;
+  if (Array.isArray(raw.cells)) {
+    const merged: Record<string, { token: string; format?: string }> = { ...(out.static ?? {}) };
+    for (const b of raw.cells) {
+      const addr = String(b.cell ?? b.address ?? "").trim();
+      const src = String(b.token ?? b.source ?? "").trim();
+      if (addr && src) merged[addr] = { token: src, format: b.format };
+    }
+    if (Object.keys(merged).length) out.static = merged;
+  }
+  if (raw.monthly_grid) {
+    const g = raw.monthly_grid;
+    out.monthly_grid = {
+      start_row: Number(g.start_row),
+      end_row: Number(g.end_row),
+      columns: Array.isArray(g.columns)
+        ? g.columns.map((c: any) => ({
+            col: String(c.col ?? c.column ?? "").trim(),
+            rule_code: c.rule_code,
+            token: c.token,
+          })).filter((c: any) => c.col)
+        : [],
+    };
+  }
+  return out;
 }
 
 export async function renderBinaryCertificateXlsx(
@@ -94,9 +163,8 @@ export async function renderBinaryCertificateXlsx(
   const ws = wb.worksheets[0];
   if (!ws) throw new Error("binaryCertificateRenderer: master workbook has no sheets");
 
-  const bindings = body.cell_bindings ?? {};
+  const bindings = normaliseBindings(body.cell_bindings);
 
-  // Static single-cell bindings
   const staticMap = bindings.static ?? {};
   for (const [addr, spec] of Object.entries(staticMap)) {
     const val = resolveToken(spec.token, ctx);
@@ -104,10 +172,8 @@ export async function renderBinaryCertificateXlsx(
     cell.value = coerceForCell(val);
   }
 
-  // Monthly grid — rows are months 1..12 laid out from start_row..end_row
   const grid = bindings.monthly_grid;
-  if (grid && Array.isArray(grid.columns)) {
-    // Aggregate monthly rows into a lookup: month -> rule_code -> amount
+  if (grid && Array.isArray(grid.columns) && grid.start_row && grid.end_row) {
     const byMonth = new Map<number, Map<string, number>>();
     for (const r of ctx.monthly ?? []) {
       const m = Number(r.month);
@@ -119,12 +185,13 @@ export async function renderBinaryCertificateXlsx(
       if (row > grid.end_row) break;
       const monthMap = byMonth.get(month) ?? new Map<string, number>();
       for (const col of grid.columns) {
-        if (!col.rule_code) continue;
+        if (!col.col || !col.rule_code) continue;
         const amount = monthMap.get(col.rule_code) ?? 0;
         ws.getCell(`${col.col}${row}`).value = amount;
       }
     }
   }
+
 
   const out = await wb.xlsx.writeBuffer();
   return new Uint8Array(out as ArrayBuffer);
