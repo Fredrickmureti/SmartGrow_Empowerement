@@ -55,6 +55,22 @@ export interface ReturnRun {
   csv_path: string | null;
   pdf_path: string | null;
   gov_file_path: string | null;
+  /**
+   * Canonical artifact list emitted by `generate-statutory-return`. Each entry
+   * corresponds to one pack-declared output format (see ADR — pack-declared
+   * exports). Prefer this over the legacy {csv,pdf,gov_file}_path columns,
+   * which are read-mirrors kept for one release.
+   */
+  artifacts: Array<{
+    format: string;
+    path: string;
+    mime: string;
+    ext: string;
+    size?: number;
+    role: "primary" | "human_readable" | "audit" | "portal";
+    generated_at: string;
+    label?: string;
+  }>;
   serial_number: string;
   status:
     | "draft"
