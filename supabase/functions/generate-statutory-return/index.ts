@@ -796,6 +796,7 @@ Deno.serve(async (req) => {
         csv_path: csvPath,
         pdf_path: pdfPath,
         gov_file_path: govFilePath,
+        artifacts,
         serial_number: serial,
         status: "generated",
         generated_by: userId,
@@ -804,7 +805,7 @@ Deno.serve(async (req) => {
         amends_run_id: priorRunId,
         idempotency_key,
       })
-      .select("id, serial_number, csv_path, pdf_path, gov_file_path, period_start, period_end, template_code, status, payload, reconciliation_status")
+      .select("id, serial_number, csv_path, pdf_path, gov_file_path, artifacts, period_start, period_end, template_code, status, payload, reconciliation_status")
       .single();
     if (insErr) {
       return businessError(
