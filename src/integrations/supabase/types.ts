@@ -17317,6 +17317,36 @@ export type Database = {
           },
         ]
       }
+      format_registry: {
+        Row: {
+          created_at: string
+          ext: string
+          format: string
+          label: string
+          mime: string
+          role_hint: string
+          writer: string
+        }
+        Insert: {
+          created_at?: string
+          ext: string
+          format: string
+          label: string
+          mime: string
+          role_hint: string
+          writer: string
+        }
+        Update: {
+          created_at?: string
+          ext?: string
+          format?: string
+          label?: string
+          mime?: string
+          role_hint?: string
+          writer?: string
+        }
+        Relationships: []
+      }
       fx_revaluation_lines: {
         Row: {
           account_id: string
@@ -22335,6 +22365,7 @@ export type Database = {
           layout: string
           legacy_unvalidated: boolean
           legal_reference: string | null
+          outputs: Json | null
           pack_id: string | null
           pack_version_id: string | null
           period: string
@@ -22360,6 +22391,7 @@ export type Database = {
           layout?: string
           legacy_unvalidated?: boolean
           legal_reference?: string | null
+          outputs?: Json | null
           pack_id?: string | null
           pack_version_id?: string | null
           period?: string
@@ -22385,6 +22417,7 @@ export type Database = {
           layout?: string
           legacy_unvalidated?: boolean
           legal_reference?: string | null
+          outputs?: Json | null
           pack_id?: string | null
           pack_version_id?: string | null
           period?: string
@@ -22820,6 +22853,7 @@ export type Database = {
           id: string
           legal_reference: string | null
           output: string
+          outputs: Json | null
           pack_id: string | null
           pack_version_id: string | null
           period: string
@@ -22848,6 +22882,7 @@ export type Database = {
           id?: string
           legal_reference?: string | null
           output?: string
+          outputs?: Json | null
           pack_id?: string | null
           pack_version_id?: string | null
           period?: string
@@ -22876,6 +22911,7 @@ export type Database = {
           id?: string
           legal_reference?: string | null
           output?: string
+          outputs?: Json | null
           pack_id?: string | null
           pack_version_id?: string | null
           period?: string
@@ -29970,6 +30006,7 @@ export type Database = {
           amends_run_id: string | null
           approved_at: string | null
           approver_id: string | null
+          artifacts: Json
           authority_ack_payload: Json | null
           branch_id: string | null
           business_id: string
@@ -30014,6 +30051,7 @@ export type Database = {
           amends_run_id?: string | null
           approved_at?: string | null
           approver_id?: string | null
+          artifacts?: Json
           authority_ack_payload?: Json | null
           branch_id?: string | null
           business_id: string
@@ -30058,6 +30096,7 @@ export type Database = {
           amends_run_id?: string | null
           approved_at?: string | null
           approver_id?: string | null
+          artifacts?: Json
           authority_ack_payload?: Json | null
           branch_id?: string | null
           business_id?: string
@@ -66446,6 +66485,7 @@ export type Database = {
           amends_run_id: string | null
           approved_at: string | null
           approver_id: string | null
+          artifacts: Json
           authority_ack_payload: Json | null
           branch_id: string | null
           business_id: string
