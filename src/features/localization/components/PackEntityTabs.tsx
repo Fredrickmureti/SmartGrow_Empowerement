@@ -615,6 +615,7 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
                 acknowledgement_spec: editing.acknowledgement_spec ?? null,
                 api_endpoint_spec: editing.api_endpoint_spec ?? null,
                 approval_required: !!editing.approval_required,
+                outputs: (editing as any).outputs ?? null,
               } : undefined,
             }}
             onCancel={() => setEditing(null)}
@@ -652,6 +653,7 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
                 revision_notes: editing.revision_notes ?? null,
                 issued_to: editing.issued_to ?? "employee",
                 approval_required: !!editing.approval_required,
+                outputs: (editing as any).outputs ?? null,
               } : undefined,
             }}
             onCancel={() => setEditing(null)}
