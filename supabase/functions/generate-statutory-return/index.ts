@@ -660,6 +660,17 @@ Deno.serve(async (req) => {
             );
           }
           govFilePath = path;
+          const govFormat =
+            out.extension === "gov.xlsx" ? "gov_xlsx" :
+            out.extension === "gov.xml"  ? "gov_xml"  : "gov_csv";
+          pushArtifact({
+            format: govFormat,
+            path,
+            mime: out.contentType,
+            ext: out.extension,
+            size: out.bytes.byteLength,
+            role: "portal",
+          });
         }
       } catch (e: any) {
         // Surface the pack-format error to the caller rather than silently
