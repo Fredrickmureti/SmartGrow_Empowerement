@@ -336,8 +336,8 @@ export function useEmployeeLoans() {
 
   const settleLoan = async (id: string) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
-    const { data, error } = await (supabase as any).functions.invoke("post-loan-settlement", {
-      body: { loan_id: id },
+    const { data, error } = await (supabase as any).functions.invoke("loan-gl", {
+      body: { action: "settle", loan_id: id },
     });
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
