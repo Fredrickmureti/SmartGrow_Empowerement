@@ -477,6 +477,8 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
           "acknowledgement_spec", "api_endpoint_spec", "approval_required",
           // Certificate-specific first-class metadata (ADR 0060).
           "revision_notes", "issued_to",
+          // Pack-declared exports (ADR 0060 v2026.5.0 — migration 20260711232041).
+          "outputs",
         ]) {
           if (k in input.metadata) patch[k] = (input.metadata as any)[k];
         }
