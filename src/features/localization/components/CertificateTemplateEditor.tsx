@@ -359,6 +359,18 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
           </Card>
         )}
 
+        {/* Pack-declared exports (ADR 0060 v2026.5.0). Publishers pick the
+            set of files this certificate emits at generation time. The
+            trigger `assert_outputs_formats_registered` blocks unknown
+            formats at save time so the whitelist here is authoritative. */}
+        {editMetadata && (
+          <OutputsCard
+            value={meta.outputs}
+            onChange={(next) => setMeta({ ...meta, outputs: next })}
+            surface="certificate"
+          />
+        )}
+
         {/* Sections */}
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
