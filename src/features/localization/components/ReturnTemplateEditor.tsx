@@ -73,6 +73,8 @@ export type ReturnTemplateMetadata = {
   acknowledgement_spec: Record<string, any> | null;
   api_endpoint_spec: Record<string, any> | null;
   approval_required: boolean;
+  /** Pack-declared exports (ADR 0060 v2026.5.0 — migration 20260711232041). */
+  outputs: Array<{ format: string; role?: string; label?: string | null; filename?: string | null }> | null;
 };
 
 function defaultMetadata(): ReturnTemplateMetadata {
@@ -88,6 +90,7 @@ function defaultMetadata(): ReturnTemplateMetadata {
     acknowledgement_spec: null,
     api_endpoint_spec: null,
     approval_required: false,
+    outputs: null,
   };
 }
 
@@ -114,6 +117,7 @@ function normalizeMetadata(input: Partial<ReturnTemplateMetadata> | null | undef
       ? input.api_endpoint_spec as Record<string, any>
       : null,
     approval_required: !!input.approval_required,
+    outputs: Array.isArray(input.outputs) ? input.outputs : null,
   };
 }
 
