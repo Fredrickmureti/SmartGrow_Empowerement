@@ -626,6 +626,7 @@ Deno.serve(async (req) => {
           );
         }
       pdfPath = path;
+      pushArtifact({ format: "pdf", path, mime: "application/pdf", ext: "pdf", size: pdfBytes.byteLength, role: "human_readable" });
     }
 
     // P1.2: Government-portal-import file (iTax bulk CSV, URA PAYE CSV, etc.)
