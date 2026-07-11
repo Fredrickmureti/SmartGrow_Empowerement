@@ -692,7 +692,7 @@ Deno.serve(async (req) => {
     // active run already exists, we return it unchanged (idempotent GET).
     const { data: existing } = await admin
       .from("payroll_return_runs")
-      .select("id, serial_number, csv_path, pdf_path, gov_file_path, period_start, period_end, template_code, status, payload, reconciliation_status")
+      .select("id, serial_number, csv_path, pdf_path, gov_file_path, artifacts, period_start, period_end, template_code, status, payload, reconciliation_status")
       .eq("business_id", body.business_id)
       .eq("template_code", template.code)
       .eq("period_start", body.period_start)
