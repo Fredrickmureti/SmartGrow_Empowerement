@@ -45,6 +45,8 @@ describe("payroll architecture guard", () => {
         "supabase/functions/reverse-payroll " +
         "supabase/functions/post-loan-disbursement " +
         "supabase/functions/post-loan-settlement " +
+        "supabase/functions/loan-gl " +
+        "supabase/functions/_shared/loan-gl " +
         "supabase/functions/generate-statutory-return " +
         "supabase/functions/_shared/returnTemplateSchema.ts " +
         "supabase/functions/_shared/certificateSections.ts " +
