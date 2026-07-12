@@ -1,4 +1,4 @@
-// @ts-nocheck — Deno runtime
+/* Browser mirror of supabase/functions/_shared/monthlyMatrix.ts. Keep in sync. */
 /**
  * monthlyMatrix — pivots the country-agnostic monthly rule-code stream
  * (`payroll_employee_monthly_breakdown` output) into a semantic 12-row
