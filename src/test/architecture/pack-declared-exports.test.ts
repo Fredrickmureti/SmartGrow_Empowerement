@@ -40,11 +40,11 @@ describe("statutory return artifacts registry", () => {
     const src = read("src/components/payroll/ReturnsTab.tsx");
     // The artifact-driven loop must exist…
     expect(src).toMatch(/arts\.map\(\(a\)/);
-    // …and must include a legacy fallback so pre-migration rows still work.
-    expect(src).toMatch(/legacyFallback/);
-    // Old hardcoded disabled-on-r.csv_path button is gone.
-    const csvButtons = src.match(/disabled=\{!r\.csv_path\}/g) ?? [];
-    expect(csvButtons.length).toBe(0);
+    // Legacy scalars were dropped 2026-07-12 — the UI must not mention them.
+    expect(src).not.toMatch(/r\.csv_path/);
+    expect(src).not.toMatch(/r\.pdf_path/);
+    expect(src).not.toMatch(/r\.gov_file_path/);
+    expect(src).not.toMatch(/legacyFallback/);
   });
 });
 
