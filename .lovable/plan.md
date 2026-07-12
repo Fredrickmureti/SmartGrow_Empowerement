@@ -32,9 +32,11 @@ Inspected files, not just tests. Findings:
 - Comment drift resolved.
 
 ### Step 2 — Phase C: Kenya P9 v10 template
-- Author P9 as a v3 template in the KE localization pack: `paper_format`, `page_master`, `document` AST using the semantic nodes (`IdentityStrip`, `Matrix`, `LegalNotice`, `SignatureStrip`, etc.).
-- Bump KE pack to v10; ship through `usePackUpgradeProposals` (no forced migration).
-- Add golden-PDF baseline test in `src/test/localization/`.
+### Step 2 — Phase C: Kenya P9 v10 template — DONE
+- Extended both certificate-template validators (`enforce_certificate_template_structure` and `assert_certificate_template_body_valid`) to recognize `schema_version: 3` bodies; registered a `certificate_template.v3` schema in `pack_rule_type_schemas`.
+- Replaced the KE P9 template body with the v3 AST (identity strip, matrix A–O with column groups, end-of-year summary, KRA legal notice, signature strip). Statutory content unchanged.
+- Published `localization_packs` KE version `10.1.0` so tenants receive the v3 P9 through `usePackUpgradeProposals`.
+- TODO: golden-PDF baseline test in `src/test/localization/` (deferred to a follow-up alongside the AST producer's golden fixtures).
 
 ### Step 3 — Phase D: Publisher workbench for v3
 - Extend `TemplateEditor` with the v3 canvas (semantic nodes), page-master editor, paper-format editor.
