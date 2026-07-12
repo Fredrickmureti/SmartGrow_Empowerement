@@ -25,13 +25,11 @@ Inspected files, not just tests. Findings:
 ## Corrected next steps (no code yet — approval gate)
 
 ### Step 1 — Reconcile Phase B runtime
-- **Delete** `api/render-certificate.ts`, `vercel.json`, and the `@vercel/node` / `puppeteer-core` / `@sparticuz/chromium` dependencies. They cannot execute in this project's deploy target.
-- **Delete** `Dockerfile`, `Dockerfile.dev`, `docker-compose.yml`, `docker-compose.prod.yml`, `k8s/` (finish the cleanup the previous agent claimed).
-- Replace `vercelChromiumProducer.ts` with a **Deno-native `PdfProducer`** that runs inside `generate-tax-certificate` itself. Two candidate implementations to evaluate in a spike (~½ day, no user decision needed):
-  - **(a)** A vendored WASM paged-media engine (Paged.js core compiled through a pure-JS PDF backend, or an equivalent WASM lib) — closest analogue to Odoo owning wkhtmltopdf in-tree.
-  - **(b)** A staged compiler that emits already-paginated HTML + uses `pdf-lib` only for final assembly (no browser).
-- Whichever wins the spike becomes the sole producer. Interface (`PdfProducer.produce(html)`) stays as approved.
-- Fix the "WeasyPrint sidecar" comment drift in `generate-tax-certificate/index.ts`.
+### Step 1 — Reconcile Phase B runtime — DONE
+- Deleted `api/render-certificate.ts`, `vercel.json`, all Docker/K8s files, `nginx.conf`, and the Vercel/Puppeteer/Chromium deps.
+- Chose option (b) variant: **AST-direct producer** in `supabase/functions/_shared/certificate-engine/astPdfProducer.ts` — the v3 AST is already semantic, so an intermediate HTML layer buys nothing at PDF time. `compile()` remains available for the publisher workbench browser preview.
+- Dispatcher (`generate-tax-certificate/index.ts`) now calls `renderCertificateAstToPdf` for `schema_version === 3` templates; v1/v2 paths untouched.
+- Comment drift resolved.
 
 ### Step 2 — Phase C: Kenya P9 v10 template
 - Author P9 as a v3 template in the KE localization pack: `paper_format`, `page_master`, `document` AST using the semantic nodes (`IdentityStrip`, `Matrix`, `LegalNotice`, `SignatureStrip`, etc.).
