@@ -97,6 +97,12 @@ export interface TableBlock {
   group_by?: string;         // e.g. "month_index"
   filter?: { key: string; in: string[] }; // e.g. rule_code ∈ set
   aggregate?: "sum";         // aggregation for group_by cells
+  amount_field?: "employee_amount" | "employer_amount" | "taxable_amount";
+  derived_columns?: Array<{
+    key: string;
+    expr: "sum" | "sub" | "min" | "max" | "pct";
+    args: Array<string | number>;
+  }>;
   footer?: {
     label: string;
     aggregate?: "sum";       // per-column sum
