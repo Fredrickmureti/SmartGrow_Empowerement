@@ -797,11 +797,22 @@ Deno.serve(async (req) => {
             bytes = xlsxBytes;
             ext = "xlsx";
             mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-          } else if (decl.format === "pdf") {
-            if (!pdfBytes) pdfBytes = await renderPdf();
-            bytes = pdfBytes;
-            ext = "pdf";
-            mime = "application/pdf";
+          } else if (decl.format === "pdf" || decl.format === "html") {
+            if (v3) {
+              // v3 audited artifact = compiled HTML; the browser produces
+              // the vector PDF on download/print.
+              if (!htmlBytes) htmlBytes = renderHtml();
+              bytes = htmlBytes;
+              ext = "html";
+              mime = "text/html; charset=utf-8";
+              producedFormat = "html";
+            } else {
+              if (!pdfBytes) pdfBytes = await renderPdf();
+              bytes = pdfBytes;
+              ext = "pdf";
+              mime = "application/pdf";
+              producedFormat = "pdf";
+            }
           } else {
             // Unknown/unsupported writer for certificates. The trigger on
             // pack save should have caught this, but we defensively skip
