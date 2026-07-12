@@ -329,9 +329,28 @@ function pathGet(obj: any, path: string): unknown {
   return path.split(".").reduce((a, k) => (a == null ? a : a[k]), obj);
 }
 
-function resolveDataSource(ctx: Ctx, name: string): any[] {
+function resolveDataSource(ctx: Ctx, name: string, block?: TableBlock): any[] {
   switch (name) {
     case "monthly_breakdown": return ctx.payload.monthly ?? [];
+    case "monthly_matrix": {
+      // Pivot the country-agnostic rule-code stream into a semantic
+      // 12-row matrix keyed by rule_code, then apply pack-authored
+      // derived columns (see _shared/monthlyMatrix.ts). This is the
+      // dataset templates bind against when they want KRA-style
+      // A/B/C/D/E1/… columns without knowing rule codes.
+      const cols = block?.columns ?? [];
+      const derived = (block?.derived_columns ?? []) as DerivedColumn[];
+      const derivedKeys = new Set(derived.map((d) => d.key));
+      const ruleCodes = cols
+        .map((c) => c.key)
+        .filter((k) => k && k !== "month_index" && !derivedKeys.has(k));
+      const matrix = pivotToMonthlyMatrix(
+        (ctx.payload.monthly ?? []) as MonthlyRuleCodeRow[],
+        ruleCodes,
+        block?.amount_field ?? "employee_amount",
+      );
+      return applyDerivedColumns(matrix, derived);
+    }
     case "ytd_rows": return ctx.payload.ytdRows ?? [];
     case "employee": return [ctx.payload.employee];
     case "employer": return [ctx.employer];
