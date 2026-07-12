@@ -590,9 +590,8 @@ Deno.serve(async (req) => {
           // already logged above via TOKEN_UNRESOLVED insert
         }
 
-        // STATUTORY PAPER PIN — annual employee tax certificates (P9 in
-        // Kenya, equivalent forms elsewhere) are filed and audited at A4.
-        // Orientation is template-owned (KRA P9 is landscape); tenant
+        // STATUTORY PAPER PIN — annual employee tax certificates are filed
+        // and audited at A4. Orientation is template-owned; tenant
         // print policies cannot override either dimension.
         const _tplPage = (packTemplate as any)?.body?.page ?? {};
         const _tplLandscape =

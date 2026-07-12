@@ -338,7 +338,7 @@ function resolveDataSource(ctx: Ctx, name: string, block?: TableBlock): any[] {
       // Pivot the country-agnostic rule-code stream into a semantic
       // 12-row matrix keyed by rule_code, then apply pack-authored
       // derived columns (see _shared/monthlyMatrix.ts). This is the
-      // dataset templates bind against when they want KRA-style
+      // dataset templates bind against when they want statutory
       // A/B/C/D/E1/… columns without knowing rule codes.
       const cols = block?.columns ?? [];
       const derived = (block?.derived_columns ?? []) as DerivedColumn[];

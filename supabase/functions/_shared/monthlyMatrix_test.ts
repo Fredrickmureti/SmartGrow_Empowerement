@@ -19,7 +19,7 @@ Deno.test("pivotToMonthlyMatrix — 12 months, seeded zeros, code sums", () => {
   assertEquals(m[11].basic_salary, 0);
 });
 
-Deno.test("applyDerivedColumns — KRA E1/E3/J/K/O style formulas", () => {
+Deno.test("applyDerivedColumns — statutory certificate derived-column formulas", () => {
   const rows = [{
     month_index: 1,
     basic_salary: 100000,
