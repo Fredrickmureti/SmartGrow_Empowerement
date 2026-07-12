@@ -51,3 +51,8 @@ export class UnwiredPdfProducer implements PdfProducer {
 
 export { compile } from "./compile.ts";
 export * from "./types.ts";
+
+// AST-direct producer (Deno-native, colocated). Preferred over the
+// HTML→PDF path until a WASM paged-media engine ships.
+export { renderCertificateAstToPdf } from "./astPdfProducer.ts";
+export type { AstRenderOptions } from "./astPdfProducer.ts";
