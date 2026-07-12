@@ -15,6 +15,11 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { renderCertificatePdf } from "../_shared/pdf/certificateRenderer.ts";
+import {
+  renderCertificate as renderCertificateV3,
+  UnwiredPdfProducer,
+  type CertificateTemplateV3,
+} from "../_shared/certificate-engine/engine.ts";
 import { renderCertificateXlsx } from "../_shared/xlsx/certificateXlsxRenderer.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody, toSummaryRows } from "../_shared/renderTemplateBody.ts";
@@ -73,7 +78,13 @@ async function sha256Hex(value: unknown): Promise<string> {
 }
 
 function isV2BlockTemplate(template: any): boolean {
-  return Number(template?.body?.schema_version ?? 1) >= 2 && Array.isArray(template?.body?.blocks);
+  const v = Number(template?.body?.schema_version ?? 1);
+  return v === 2 && Array.isArray(template?.body?.blocks);
+}
+
+function isV3EngineTemplate(template: any): boolean {
+  return Number(template?.body?.schema_version ?? 1) >= 3
+    && Array.isArray(template?.body?.document);
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -641,7 +652,64 @@ Deno.serve(async (req) => {
         let pdfBytes: Uint8Array | null = null;
         let xlsxBytes: Uint8Array | null = null;
 
+        const enginePayload = {
+          employee: {
+            id: emp.id,
+            full_name: payload.employee.full_name,
+            employee_number: payload.employee.employee_number,
+            tax_pin: payload.employee.tax_pin,
+            national_id: payload.employee.national_id,
+            position: payload.employee.position,
+            department: payload.employee.department,
+            hire_date: (emp as any).hire_date ?? null,
+            exit_date: (emp as any).termination_date ?? null,
+          },
+          employer: {
+            name: branding?.name ?? "",
+            tax_pin: (branding as any)?.tax_pin ?? "",
+            address: (branding as any)?.address ?? "",
+            tax_office: (branding as any)?.tax_office ?? "",
+            phone: (branding as any)?.phone ?? "",
+            email: (branding as any)?.email ?? "",
+          },
+          fiscal_year: body.fiscal_year,
+          period_label: `1 Jan ${body.fiscal_year} - 31 Dec ${body.fiscal_year}`,
+          currency: orgCurrency,
+          monthly: monthlyRows,
+          ytdRows: rows.map((r) => ({
+            rule_code: r.rule_code,
+            category: r.category,
+            employee_amount: Number(r.employee_amount) || 0,
+            employer_amount: Number(r.employer_amount) || 0,
+            taxable_amount: Number(r.taxable_amount) || 0,
+          })),
+          totals,
+          serial_number: serial,
+          generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+        };
+
         const renderPdf = async () => {
+          // Certificate Engine v3 dispatch — pack authors a paged-media
+          // document AST (see supabase/functions/_shared/certificate-engine).
+          // Producer is not yet wired (Phase B follow-up); until then a
+          // v3 template surfaces a clear, structured business error so
+          // packs can migrate templates without waiting on runtime.
+          if (isV3EngineTemplate(template)) {
+            const v3Template = {
+              schema_version: 3,
+              code: template.code,
+              display_name: template.display_name,
+              paper_format: (template.body as any).paper_format,
+              page_master: (template.body as any).page_master,
+              document: (template.body as any).document,
+            } as CertificateTemplateV3;
+            const { bytes } = await renderCertificateV3(
+              v3Template,
+              enginePayload as unknown as Record<string, unknown>,
+              { currency: orgCurrency, producer: new UnwiredPdfProducer() },
+            );
+            return bytes;
+          }
           return await renderCertificatePdf(
           {
             code: template.code,
@@ -652,41 +720,7 @@ Deno.serve(async (req) => {
             authority_name: authorityName,
             body: template.body as any,
           },
-          {
-            employee: {
-              id: emp.id,
-              full_name: payload.employee.full_name,
-              employee_number: payload.employee.employee_number,
-              tax_pin: payload.employee.tax_pin,
-              national_id: payload.employee.national_id,
-              position: payload.employee.position,
-              department: payload.employee.department,
-              hire_date: (emp as any).hire_date ?? null,
-              exit_date: (emp as any).termination_date ?? null,
-            },
-            employer: {
-              name: branding?.name ?? "",
-              tax_pin: (branding as any)?.tax_pin ?? "",
-              address: (branding as any)?.address ?? "",
-              tax_office: (branding as any)?.tax_office ?? "",
-              phone: (branding as any)?.phone ?? "",
-              email: (branding as any)?.email ?? "",
-            },
-            fiscal_year: body.fiscal_year,
-            period_label: `1 Jan ${body.fiscal_year} - 31 Dec ${body.fiscal_year}`,
-            currency: orgCurrency,
-            monthly: monthlyRows,
-            ytdRows: rows.map((r) => ({
-              rule_code: r.rule_code,
-              category: r.category,
-              employee_amount: Number(r.employee_amount) || 0,
-              employer_amount: Number(r.employer_amount) || 0,
-              taxable_amount: Number(r.taxable_amount) || 0,
-            })),
-            totals,
-            serial_number: serial,
-            generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
-          },
+          enginePayload as any,
           { branding: branding ?? null },
           );
         };
