@@ -1,8 +1,0 @@
-# AccrualFlow Kubernetes Namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: accrualflow
-  labels:
-    app.kubernetes.io/name: accrualflow
-    app.kubernetes.io/component: namespace
