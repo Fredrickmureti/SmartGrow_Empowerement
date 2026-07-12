@@ -899,7 +899,7 @@ Deno.serve(async (req) => {
         payload: {
           template_code: template.code,
           serial_number: serial,
-          has_gov_file: !!govFilePath,
+          has_gov_file: artifacts.some((a) => a.role === "portal" || /^gov_/.test(a.format)),
           reconciliation_status: reconciliationStatus,
         },
       });
