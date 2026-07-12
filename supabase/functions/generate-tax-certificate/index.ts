@@ -15,6 +15,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { renderCertificatePdf } from "../_shared/pdf/certificateRenderer.ts";
+import { renderCertificateXlsx } from "../_shared/xlsx/certificateXlsxRenderer.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody, toSummaryRows } from "../_shared/renderTemplateBody.ts";
 import { type MonthlyRow } from "../_shared/certificateSections.ts";
