@@ -125,18 +125,20 @@ h3.ce-h { font-size: 10pt; margin: 6pt 0 3pt 0; font-weight: 700; }
 .ce-matrix tfoot { display: table-footer-group; }
 .ce-matrix th, .ce-matrix td {
   border: 0.5pt solid #555;
-  padding: 2pt 3pt;
-  font-size: 7.5pt;
+  padding: 1.5pt 2.5pt;
+  font-size: 7pt;
   vertical-align: middle;
   word-break: break-word;
   overflow-wrap: anywhere;
   hyphens: auto;
 }
-.ce-matrix thead th { background: #e9e9e9; font-weight: 700; text-align: center; line-height: 1.15; }
-.ce-matrix thead th.ce-group { background: #dcdcdc; text-transform: uppercase; letter-spacing: 0.02em; font-size: 7pt; }
+.ce-matrix thead th { background: #e9e9e9; font-weight: 700; text-align: center; line-height: 1.15; word-break: normal; overflow-wrap: normal; }
+.ce-matrix thead th.ce-group { background: #dcdcdc; text-transform: uppercase; letter-spacing: 0.02em; font-size: 6.5pt; }
 .ce-matrix thead th.ce-unit { background: #f2f2f2; font-weight: 500; font-style: italic; color: #444; }
 .ce-matrix thead th.ce-letter { background: #f2f2f2; font-weight: 700; }
 .ce-matrix tfoot td { background: #ededed; font-weight: 700; }
+/* Numeric cells never wrap: statutory grids must keep each value on one line. */
+.ce-matrix td.num, .ce-matrix tfoot td.num { white-space: nowrap; font-size: 6.5pt; word-break: normal; overflow-wrap: normal; }
 .ce-matrix .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ce-matrix .ctr { text-align: center; }
 .ce-matrix .lft { text-align: left; }
