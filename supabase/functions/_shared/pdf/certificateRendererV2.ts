@@ -658,7 +658,7 @@ function drawTable(ctx: Ctx, b: TableBlock) {
   const cols: ResolvedColumn[] = b.columns.map((c, i) => ({ ...c, _width: widths[i] }));
 
   // Resolve rows: raw source → filter → group_by aggregate → materialise cells.
-  const raw = resolveDataSource(ctx, b.data_source);
+  const raw = resolveDataSource(ctx, b.data_source, b);
   const filtered = b.filter
     ? raw.filter((r: any) => new Set(b.filter!.in).has(String(r[b.filter!.key])))
     : raw;
