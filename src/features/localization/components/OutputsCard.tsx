@@ -38,7 +38,7 @@ interface Props {
   surface: "certificate" | "return";
 }
 
-const CERT_TYPICAL = new Set(["pdf", "xlsx_binary"]);
+const CERT_TYPICAL = new Set(["pdf", "xlsx"]);
 const RETURN_TYPICAL = new Set(["csv", "pdf", "gov_csv", "gov_xlsx", "gov_xml"]);
 
 export function OutputsCard({ value, onChange, surface }: Props) {

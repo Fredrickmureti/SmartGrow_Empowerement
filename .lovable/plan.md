@@ -1,54 +1,85 @@
-## What a P9 actually is
 
-The uploaded PDF and XLSX confirm it: KRA's P9 is a **fixed, one-page regulatory form** — an 18-column grid (A-R), 12 monthly rows, YTD totals row, and a footer of legal notes. The XLSX is literally the KRA-published master with sample data typed into it. KRA requires the PDF; the XLSX is a convenience for auditors/employees who want to edit.
+# Certificate architecture: audit, decide, complete
 
-## What we currently have (two incompatible paths)
+## 1. What I found in the codebase (verified, not claimed)
 
-1. **`certificate_template_v2` structured path** (ADR 0060) — `body.sections[]` with typed section kinds (`employer_header`, `monthly_breakdown`, `ytd_table`, `totals`, `statutory_footnote`, …), rendered to PDF by `_shared/pdf/certificateRenderer.ts` + `_shared/certificateSections.ts`. Country-agnostic, pack-versioned, schema-validated at write time, publish-gated. This is the ADR-blessed enterprise path.
+Two certificate architectures currently coexist end-to-end. Both are wired, both can render, and the edge function branches on `template.body.kind`.
 
-2. **`xlsx_binary` overlay path** — `_shared/pdf/binaryCertificateRenderer.ts` loads a KRA master workbook stored in `localization_pack_binary_assets.bytes` and overwrites cells via ExcelJS. Emits **XLSX only** (never PDF). Requires SHA-256 hydration, private bucket, admin ingest function, CDN fallbacks. KE-only special case.
+**A. v2 structured (ADR-0060, "Odoo-shaped")**
+- Schema `certificate_template_v2` registered in `pack_rule_type_schemas`.
+- DB trigger `enforce_certificate_template_structure` + `trg_assert_certificate_template_body_valid` enforce the section contract at write time (migration `20260710214142`).
+- Runtime structural refusal in `supabase/functions/generate-tax-certificate/index.ts` (lines 229–283) rejects any non-binary template missing `employer_header` / `employee_header` / `signature_block` / a data section — with a Deno unit test (`render_refusal_test.ts`) mirroring the branch.
+- Renderers: `supabase/functions/_shared/pdf/certificateRenderer.ts` (804 loc, PDF) and `_shared/xlsx/certificateXlsxRenderer.ts` (361 loc, editable XLSX). Both consume the **same** `body.sections[]` + resolved payload — no divergent projection.
+- Format registry gained `xlsx` writer (migration `20260712020735`) so a template can declare `outputs: [pdf, xlsx]` and both are produced from one section tree.
+- Publisher UI: `CertificateTemplateEditor`, `CertificatePreviewPane`, `OutputsCard`, `TemplateFieldInspector`, token registry gate — publisher-driven, no code needed to add a country.
+- Legal metadata (`authority_id`, `legal_reference`, `regulation_citation`, `effective_date`, `issued_to`) is first-class on `localization_pack_certificate_templates`; publish-time lint blocks packs missing it.
 
-The bug you saw (KRA PIN missing, P9 failing) originates in path 2, which we've been patching with more infrastructure (hydrate function, bucket, RLS) instead of asking whether it should exist.
+**B. Legacy binary-workbook overlay ("xlsx_binary")**
+- `body.kind === "xlsx_binary"` → `binaryCertificateRenderer.ts` (220 loc, ExcelJS) opens a master workbook and stamps cells.
+- Master bytes live in `localization_pack_binary_assets` (migration `20260710213828`), fetched inline / from Storage / from Lovable CDN via `LOVABLE_ASSETS_ORIGIN`.
+- Dedicated `hydrate-localization-binary-asset` edge fn + admin-only `localization-assets` bucket (migration `20260712015253`).
+- Kenya master pointer still present at `src/assets/localization/ke/KRA_P9_Master_2025.xlsx.asset.json`.
+- Structural refusal is **explicitly bypassed** for `xlsx_binary` (line 244) — so a binary template can bypass every content check.
+- UI still surfaces it as a typical certificate format (`OutputsCard: CERT_TYPICAL = {"pdf","xlsx_binary"}`, `TaxCertificates.tsx`, `ReturnsTab.tsx`).
 
-## How Odoo does it (l10n_ke_hr_payroll, l10n_be_281, l10n_fr_dads)
+## 2. Odoo comparison (independent reasoning)
 
-- One **data source** per statutory doc (payroll declaration model), computed from payslips.
-- **PDF** rendered from a QWeb template checked into the localization module — pixel-close to the regulator's form, git-versioned with the code.
-- **Editable XLSX** rendered by `report_xlsx` from the same declaration model, laying out the same grid in a spreadsheet.
-- No shipped binary master workbook. No runtime binary fetch. Both outputs are deterministic functions of `(pack version, employee YTD)`.
+Odoo's localization modules (`l10n_*_hr_payroll`, incl. Kenya) generate statutory certificates from **QWeb XML templates** rendered to PDF via wkhtmltopdf. There is **no binary master-workbook overlay infrastructure** in Odoo core or the Kenya module. Editable spreadsheet exports, when they exist, come from `report_xlsx` / the Spreadsheet module and are generated from structured data — never by overlaying a government-shipped .xlsx. Government logos are optional PNGs referenced by the QWeb template. Machine-format government files (CSV/XML) are a **Returns** concern, not a **Certificate** concern. Adding a new country is a pack-content exercise (new QWeb + Python data model), never a platform change.
 
-## The decision
+**Conclusion:** the v2 architecture already matches the Odoo shape. The binary-workbook path is a Lovable-only invention with no enterprise precedent, it defeats every ADR-0060 gate (schema, tokens, lint, structural refusal), and it does not scale — each new country would need its own government workbook uploaded, SHA-pinned, hydrated, and cell-mapped by a developer. Retire it.
 
-Adopt the Odoo model, aligned to our ADR-0060 architecture:
+## 3. Output strategy (Odoo-aligned)
 
-**PDF is authoritative, structured, and pack-versioned.** Rendered by the existing `certificate_template_v2` engine. The KE P9 template gets a section list that mirrors the KRA form pixel-close (header band with PIN cells, 12-row monthly grid with columns A–O, YTD totals row, personal/insurance relief note, statutory footnote citing Income Tax Act CAP 470 §37, signature block).
+- **Certificates** (issued to an individual): **PDF is authoritative**. An optional **editable XLSX twin** rendered from the *same* v2 sections is acceptable (Odoo's `report_xlsx` model) and already implemented. No CSV, no XML — those are filing formats.
+- **Statutory Returns** (employer-level bulk filings): keep CSV/XML/gov_xlsx paths. Out of scope for this work.
+- **Reports** (analytics/exports): unaffected.
+- Drop the "government master workbook" concept from Certificates entirely.
 
-**XLSX is the editable twin, rendered from the same sections + data.** New `_shared/xlsx/certificateXlsxRenderer.ts` that consumes the same `sections[]` array and YTD payload the PDF renderer uses, and writes the equivalent grid via ExcelJS. Cell formulas (`=SUM(...)`) are emitted for the totals row so it stays "editable" in the Odoo sense. Same audit trail, same pack version, no binary asset.
+## 4. Plan of work
 
-**Retire `xlsx_binary`.** Remove `binaryCertificateRenderer.ts`, the `xlsx_binary` branches in `generate-tax-certificate/index.ts`, the master-workbook fetcher chain, and the localization-assets hydration surface introduced this session. Migrate the current KE P9 pack row from `body.kind = "xlsx_binary"` to a v2 sectioned template in the same migration.
+### Phase A — Verify (read-only, no blockers surfaced yet)
+Grep call-sites to confirm nothing outside the listed files depends on `xlsx_binary` semantics; audit tests, pack seeds, and publisher docs for the same. Produce a short "removal blast radius" list before touching code.
 
-This collapses two paths into one, deletes the KE-only special case, kills the CDN/SHA/bucket ceremony, and gives you PDF + XLSX from a single deterministic source — exactly the parity ADR 0060 set out to achieve.
+### Phase B — Retire the binary-workbook path
+1. Delete edge code: `binaryCertificateRenderer.ts`; strip the `xlsx_binary` branch (and the entire `renderBinary()` / asset-fetcher block) from `generate-tax-certificate/index.ts`; remove the `xlsx_binary` bypass in the structural refusal — every template goes through the v2 gate.
+2. Delete the `hydrate-localization-binary-asset` edge function.
+3. DB migration:
+   - Drop `xlsx_binary` from `format_registry_writer_check` and from `format_registry` (writer + row).
+   - Drop table `localization_pack_binary_assets` (empty in this env — will verify).
+   - Drop the `localization-assets` storage bucket + its policies.
+   - Add a `CHECK (body ? 'sections')` guard so future inserts cannot reintroduce `kind: xlsx_binary`.
+4. UI: remove `xlsx_binary` from `OutputsCard.CERT_TYPICAL`, `TaxCertificates.tsx`, `ReturnsTab.tsx`, and the pack-declared-exports architecture test.
+5. Delete `src/assets/localization/ke/KRA_P9_Master_2025.xlsx.asset.json` and the CDN asset behind it (`lovable-assets delete`).
 
-## Scope of implementation
+### Phase C — Complete the v2 P9 / P9A / Certificate of Service content
+1. Seed / correct the Kenya pack rows in a data migration so `P9`, `P9A`, `CERT_OF_SERVICE` v2 bodies are the canonical shipped versions, with full legal metadata (KRA authority, CAP 470 §37, effective 2025-01-01) and `outputs: [{format:"pdf",role:"primary"},{format:"xlsx",role:"editable"}]`.
+2. Extend `certificateRenderer.ts` to reproduce the official KRA P9 grid **layout** (12 monthly rows × the 10 statutory columns from ADR-0060) using the existing `monthly_breakdown` section — no new section types unless a real gap appears. Add a KRA masthead band + statutory footnote as pack-provided strings, not hard-coded.
+3. Mirror the same in `certificateXlsxRenderer.ts` (already section-driven; verify column widths, `=SUM()` totals, print area, A4 landscape).
+4. **Blocker:** the official KRA P9 PDF/XLSX the user promised are not attached to this task. Before finalizing layout constants I need those files (or explicit confirmation to proceed from the columns/structure encoded in ADR-0060). I'll pause Phase C step 2 for that.
 
-1. **XLSX twin renderer** — `supabase/functions/_shared/xlsx/certificateXlsxRenderer.ts`. Handles each v2 section kind, mirrors the PDF layout, emits SUM formulas on the totals row for monthly grids.
-2. **generate-tax-certificate** — replace the `isBinary` branch with a single path that renders PDF from `certificateRenderer.ts` and, when the template's `outputs[]` requests `xlsx`, renders XLSX from the twin renderer. Same section input for both.
-3. **Kenya P9 template** — migration rewriting `localization_pack_certificate_templates` row for `KE_P9` (and `KE_P9A`) as `certificate_template_v2` with sections that reproduce the KRA layout: employer_header (name + PIN), employee_header (main name, other names, PIN), fiscal_period_band, monthly_breakdown with 15 columns matching KRA cols A–O, totals row, relief_summary (personal + insurance), statutory_footnote (CAP 470 §37 + the numbered notes on the KRA form). Bump pack version; publish lint gate passes because legal metadata is already set from prior work.
-4. **Retire xlsx_binary** — delete `binaryCertificateRenderer.ts`, remove `xlsx_binary` branches from `generate-tax-certificate/index.ts`, drop `hydrate-localization-binary-asset` and the `localization-assets` bucket + RLS. Keep `localization_pack_binary_assets` the table (still used for fonts/logos if any) but no P9 row references it.
-5. **Column parity for `monthly_breakdown`** — extend the section schema to allow the P9's grouped column headers (e.g. the E/E1/E2/E3 sub-header for Defined Contribution Retirement Scheme). Small additive change to `pack_rule_type_schemas.certificate_template_v2`; existing simpler templates keep working.
-6. **Tests** — golden PDF test for the new KE_P9 (compare rendered PDF's text extraction against the KRA form's canonical column headers and 12 month labels), XLSX snapshot test asserting cell coordinates match the KRA grid, `certificateRenderer-parity` test extended to cover the new PDF/XLSX pair.
+### Phase D — Publisher experience
+- Verify `CertificateTemplateEditor` blocks save on missing legal metadata + unresolved tokens + missing required sections (already implemented — confirm end-to-end).
+- Confirm the section palette exposes exactly the ADR-0060 whitelist and nothing else.
+- Add a "Publish check" line item explicitly for certificate templates in the publish gate output.
+- Document the publisher flow for adding a new country's certificate in `docs/adr/0060-certificate-template-parity.md` (appendix).
 
-## Explicitly out of scope
+### Phase E — End-to-end verification
+- Run Deno tests: `render_refusal_test.ts`, `certificateRenderer_golden_test.ts` (and update golden if the P9 layout changes).
+- Vitest architecture tests: `pack-declared-exports.test.ts` (update expectations), any `xlsx_binary` references.
+- `tsgo` typecheck; `bun run build`.
+- Playwright: sign in, navigate HR → Payroll → Tax Certificates, generate a P9 for a seeded employee, download PDF + XLSX, screenshot both.
 
-- Pixel-identical background overlay (embedding the KRA PDF as a background and printing values on top). Odoo doesn't do this either; a faithful re-draw is what regulators accept and what our audit story requires.
-- NSSF voluntary contribution column — separate work per prior turn.
-- Other country certs (P9A stays in scope because it's a P9 variant; IRP5/Lohnsteuerbescheinigung stay untouched).
+### Phase F — Documentation
+- Update ADR-0060: add a "Rejected alternatives" section documenting the binary-workbook retirement + Odoo comparison.
+- Add an ADR-0061 "Retire binary certificate workbook overlay" that references the removal migration.
+- Update `docs/manuals/hr-payroll/10-payroll-documents.md`.
 
-## Risks
+## 5. Technical notes
 
-- **Visual acceptance by KRA**: a re-drawn P9 must be visually recognisable. Mitigation: golden PDF review before shipping; we can screenshot compare against the uploaded KRA PDF and iterate on section geometry until they match.
-- **Backward compatibility**: any already-issued P9 rendered via `xlsx_binary` stays intact — the `payroll_tax_certificates` row keeps its rendered artifact path. Only new issuances use the v2 path. Regeneration is opt-in through the standard `pack_upgrade_proposals` flow.
+- The binary-workbook path was the **only** production dependency on `localization_pack_binary_assets`, `hydrate-localization-binary-asset`, and the `localization-assets` bucket — I'll re-verify with `rg` in Phase A before dropping.
+- The v2 PDF and XLSX renderers already share `body.sections[]` and the resolved payload built by `resolveCertificateYtd` + `buildProjectedEmployeeMap` — that's the single canonical projection ADR-0060 requires; nothing to unify.
+- KRA logo/seal: I'll **not** ship a government logo asset (matches Odoo). Employer branding (already resolved via `getOrganizationBranding`) stays.
 
-## Ask before I build
+## 6. Open question (needs an answer before Phase C step 2)
 
-Confirm this direction (retire `xlsx_binary`, unify on the v2 sectioned renderer with a new XLSX twin) so I can execute the migration + renderer changes in one coherent pass. If instead you want to keep the master-workbook approach for regulatory-fidelity reasons, say so and I'll instead invest in making it emit PDF via LibreOffice headless conversion — but I'd argue that's a step away from Odoo's model, not toward it.
+The official KRA P9 PDF and Excel weren't attached to the task. I can either (a) wait for them and match the exact grid pixel-for-pixel, or (b) proceed from the 10-column contract already documented in ADR-0060 and iterate once the files arrive. I'll ask before starting layout work.
