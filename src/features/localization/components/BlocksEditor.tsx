@@ -33,7 +33,9 @@ export type Block =
   | { type: "paragraph";      text: string; align?: "left" | "center" | "right"; emphasis?: "regular" | "italic" | "bold" | "muted" }
   | { type: "field_grid";     title?: string; columns?: 1|2|3|4; data_source?: string; fields: Array<{ key: string; label: string; format?: ValueFormat; emphasis?: "primary"|"regular" }> }
   | { type: "table";          title?: string; data_source: string; group_by?: string;
+                              amount_field?: "employee_amount" | "employer_amount" | "taxable_amount";
                               columns: Array<{ key: string; header: string; width?: string; align?: "left"|"right"|"center"; format?: ValueFormat }>;
+                              derived_columns?: Array<{ key: string; expr: "sum"|"sub"|"min"|"max"|"pct"; args: Array<string | number> }>;
                               footer?: { label: string; aggregate?: "sum"; include_columns?: string[] };
                               options?: { striped?: boolean; padding?: number; wrap?: boolean; repeat_header?: boolean; line_height?: number; header_bg?: boolean } }
   | { type: "notes";          title?: string; paragraphs: string[]; emphasis?: "regular"|"italic"; border?: boolean }
@@ -290,13 +292,22 @@ function TablePanel({ block, onPatch }: { block: Extract<Block,{type:"table"}>; 
 
   return (
     <div className="space-y-2">
-      <div className="grid gap-2 md:grid-cols-[1fr_160px_140px]">
+      <div className="grid gap-2 md:grid-cols-[1fr_160px_160px_140px]">
         <Input className="h-8 text-xs" value={block.title ?? ""} onChange={(e) => onPatch({ title: e.target.value || undefined })} placeholder="Table title (optional)" />
         <Select value={block.data_source} onValueChange={(v) => onPatch({ data_source: v })}>
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="monthly_matrix">monthly_matrix</SelectItem>
             <SelectItem value="monthly_breakdown">monthly_breakdown</SelectItem>
             <SelectItem value="ytd_rows">ytd_rows</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={block.amount_field ?? "employee_amount"} onValueChange={(v) => onPatch({ amount_field: v })}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="employee_amount">employee_amount</SelectItem>
+            <SelectItem value="employer_amount">employer_amount</SelectItem>
+            <SelectItem value="taxable_amount">taxable_amount</SelectItem>
           </SelectContent>
         </Select>
         <Input className="h-8 text-xs" value={block.group_by ?? ""} onChange={(e) => onPatch({ group_by: e.target.value || undefined })} placeholder="group_by (e.g. month_index)" />
@@ -334,6 +345,14 @@ function TablePanel({ block, onPatch }: { block: Extract<Block,{type:"table"}>; 
         ))}
       </div>
 
+      {block.data_source === "monthly_matrix" && (
+        <DerivedColumnsPanel
+          derived={block.derived_columns ?? []}
+          onChange={(dc) => onPatch({ derived_columns: dc.length ? dc : undefined })}
+        />
+      )}
+
+
       <div className="grid gap-2 md:grid-cols-2 rounded border p-2 bg-muted/20">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground md:col-span-2">Footer (totals) row</div>
         <Input className="h-7 text-[11px]" placeholder="Footer label (e.g. YTD Total)" value={footer?.label ?? ""} onChange={(e) => onPatch({ footer: e.target.value ? { ...(footer ?? {}), label: e.target.value, aggregate: "sum" } : undefined })} />
@@ -349,6 +368,59 @@ function TablePanel({ block, onPatch }: { block: Extract<Block,{type:"table"}>; 
     </div>
   );
 }
+
+type DerivedExpr = "sum" | "sub" | "min" | "max" | "pct";
+type DerivedRow = { key: string; expr: DerivedExpr; args: Array<string | number> };
+
+function DerivedColumnsPanel({
+  derived, onChange,
+}: {
+  derived: DerivedRow[];
+  onChange: (next: DerivedRow[]) => void;
+}) {
+  const patch = (i: number, p: Partial<DerivedRow>) =>
+    onChange(derived.map((d, idx) => idx === i ? { ...d, ...p } : d));
+  const add = () =>
+    onChange([...derived, { key: "", expr: "sum", args: [] }]);
+  const rm = (i: number) => onChange(derived.filter((_, idx) => idx !== i));
+  // Args edited as a comma-separated string; numeric literals detected, everything else kept as column-key strings.
+  const argsToText = (args: Array<string | number>) => args.map(String).join(", ");
+  const textToArgs = (t: string): Array<string | number> =>
+    t.split(",").map(s => s.trim()).filter(Boolean).map(s => {
+      const n = Number(s);
+      return Number.isFinite(n) && /^-?\d+(\.\d+)?$/.test(s) ? n : s;
+    });
+  return (
+    <div className="space-y-1 rounded border p-2 bg-muted/20">
+      <div className="flex items-center justify-between">
+        <div>
+          <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Derived columns</Label>
+          <div className="text-[10px] text-muted-foreground">
+            Order matters — later formulas may reference earlier keys. Args are matrix column keys or numeric literals (comma-separated).
+          </div>
+        </div>
+        <Button size="sm" variant="ghost" onClick={add}><Plus className="h-3.5 w-3.5 mr-1" /> Add formula</Button>
+      </div>
+      {derived.map((d, i) => (
+        <div key={i} className="grid gap-1 md:grid-cols-[1.2fr_100px_2fr_28px]">
+          <Input className="h-7 text-[11px]" placeholder="key (e.g. chargeable_pay)" value={d.key} onChange={(e) => patch(i, { key: e.target.value })} />
+          <Select value={d.expr} onValueChange={(v) => patch(i, { expr: v as DerivedExpr })}>
+            <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(["sum","sub","min","max","pct"] as DerivedExpr[]).map(x =>
+                <SelectItem key={x} value={x}>{x}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Input className="h-7 text-[11px]" placeholder="args, e.g. basic_salary, 0.30" value={argsToText(d.args)} onChange={(e) => patch(i, { args: textToArgs(e.target.value) })} />
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => rm(i)}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 
 function NotesPanel({ block, onPatch }: { block: Extract<Block,{type:"notes"}>; onPatch: (p: any) => void }) {
   const paras = block.paragraphs ?? [""];
