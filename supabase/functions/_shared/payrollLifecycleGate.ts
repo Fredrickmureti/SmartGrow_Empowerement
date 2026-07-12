@@ -29,8 +29,9 @@ const OK: GateResult = { ok: true };
 
 /**
  * All payroll runs that touch (organization_id, business_id) in fiscal year
- * `fy` must be `approved`, `posted`, or `paid`. Draft/failed/reversed runs
- * mean the YTD rollup would silently misreport the certificate.
+ * `fy` must have crossed the legal finalisation event:
+ * `payroll_runs.approved_at IS NOT NULL`. Payment and GL posting remain peer
+ * workflows and must not gate statutory documents.
  */
 export async function requireApprovedRunsForYear(
   admin: SupabaseAdmin,
@@ -40,12 +41,12 @@ export async function requireApprovedRunsForYear(
   const end = `${args.fy}-12-31`;
   const { data, error } = await admin
     .from("payroll_runs")
-    .select("id, status, pay_period_start, pay_period_end")
+    .select("id, status, approved_at, pay_period_start, pay_period_end")
     .eq("organization_id", args.organization_id)
     .eq("business_id", args.business_id)
     .gte("pay_period_start", start)
     .lte("pay_period_end", end)
-    .not("status", "in", "(approved,posted,paid,closed)");
+    .is("approved_at", null);
   if (error) {
     return {
       ok: false,
@@ -60,7 +61,7 @@ export async function requireApprovedRunsForYear(
       ok: false,
       code: "PAYROLL_RUNS_NOT_APPROVED",
       message:
-        `Fiscal year ${args.fy} still has payroll runs that are not approved. ` +
+        `Fiscal year ${args.fy} still has payroll runs that have not been approved. ` +
         `Statutory documents can only be issued from a frozen payroll history.`,
       recovery:
         "Approve or reverse the pending runs, then regenerate. Go to Payroll → Runs and complete any Draft or Processing entries.",
