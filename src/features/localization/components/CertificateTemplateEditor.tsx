@@ -179,6 +179,10 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   });
   const [dataSource] = useState<"payroll_employee_ytd">("payroll_employee_ytd");
   const [footerNote, setFooterNote] = useState<string>(() => String(initial.body?.footer_note ?? ""));
+  const [orientation, setOrientation] = useState<"portrait" | "landscape">(
+    () => (String((initial.body as any)?.page?.orientation ?? "portrait").toLowerCase() === "landscape"
+      ? "landscape" : "portrait"),
+  );
   const [layout, setLayout] = useState<string>(initial.layout ?? "standard");
   const [notes, setNotes] = useState<string>(initial.notes ?? "");
   const [busy, setBusy] = useState(false);
@@ -189,7 +193,8 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     data_source: dataSource,
     sections,
     footer_note: footerNote || undefined,
-  }), [sections, footerNote, dataSource]);
+    page: { size: "a4", orientation },
+  }), [sections, footerNote, dataSource, orientation]);
 
   const completenessRule = useMemo(
     () => resolveCompletenessRule(initial.template_code),
