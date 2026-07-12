@@ -1,18 +1,24 @@
 /**
- * CertificatePreviewPane — WYSIWYG PDF preview for the certificate
- * editor. Uses the same section-based `renderCertificatePdf` that runs
- * server-side, so publishers see the exact PDF the tenant will
- * receive. Debounced (300 ms) on every body change; renderer chunk is
- * lazy-loaded so it doesn't hit the main bundle.
+ * CertificatePreviewPane — WYSIWYG preview for the certificate editor.
  *
- * The renderer is browser-safe (pdf-lib only) and shipped in
- * `src/features/localization/lib/pdf/`. See the parity test.
+ * Renders the v3 AST through the SAME `compile()` → HTML + CSS Paged Media
+ * → paged.js pipeline used to produce the filed PDF, so publishers see
+ * exactly what a tenant will file. The "Save as PDF" action prints the
+ * paginated document through the browser's native print engine (vector
+ * output, KRA-accurate).
  */
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, FileText, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { FileText, AlertTriangle, Printer } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { KE_CERTIFICATE_PREVIEW_PAYLOAD, buildPreviewTemplate } from "../lib/fixtures/kePayrollFixture";
+import {
+  CertificateHtmlSurface,
+  type CertificateHtmlSurfaceHandle,
+} from "./CertificateHtmlSurface";
+import { KE_P9_V3_PREVIEW_PAYLOAD } from "../lib/fixtures/keP9V3Fixture";
+import type { CertificateTemplateV3 } from "../lib/engine/types";
 
 interface Props {
   templateCode: string;
@@ -25,54 +31,68 @@ interface Props {
   } | null;
 }
 
-export function CertificatePreviewPane({ templateCode, displayName, body, meta }: Props) {
-  const [url, setUrl] = useState<string | null>(null);
+function isV3Body(body: any): boolean {
+  return body && Number(body.schema_version) >= 3 && Array.isArray(body.document);
+}
+
+export function CertificatePreviewPane({ templateCode, displayName, body }: Props) {
+  const surfaceRef = useRef<CertificateHtmlSurfaceHandle>(null);
   const [error, setError] = useState<string | null>(null);
-  const [rendering, setRendering] = useState(false);
-  const lastUrl = useRef<string | null>(null);
+  const [unresolved, setUnresolved] = useState<string[]>([]);
 
-  useEffect(() => {
-    const handle = window.setTimeout(async () => {
-      setRendering(true);
-      setError(null);
-      try {
-        const { renderCertificatePdf } = await import("../lib/pdf/certificateRenderer.dispatch");
-        const tpl = buildPreviewTemplate(
-          templateCode,
-          displayName || templateCode,
-          body,
-          meta,
-        );
-        const bytes = await renderCertificatePdf(tpl, KE_CERTIFICATE_PREVIEW_PAYLOAD);
-        const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
-        const next = URL.createObjectURL(blob);
-        if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
-        lastUrl.current = next;
-        setUrl(next);
-      } catch (e: any) {
-        setError(e?.message ?? String(e));
-      } finally {
-        setRendering(false);
-      }
-    }, 300);
-    return () => window.clearTimeout(handle);
-    // Re-render on every body/meta/name change.
-  }, [templateCode, displayName, body, meta]);
+  if (!isV3Body(body)) {
+    return (
+      <Card className="h-full flex flex-col">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileText className="h-4 w-4" /> Live preview
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1">
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              This template is not yet on the Engine v3 document model. Switch
+              the schema to “Engine AST v3” to author and preview it with the
+              new renderer.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  useEffect(() => {
-    return () => {
-      if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
-    };
-  }, []);
+  const b = body as any;
+  const template: CertificateTemplateV3 = {
+    schema_version: 3,
+    code: templateCode,
+    display_name: displayName || templateCode,
+    paper_format: b.paper_format,
+    page_master: b.page_master,
+    document: b.document,
+  };
 
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
         <CardTitle className="text-sm flex items-center gap-2">
-          <FileText className="h-4 w-4" />
-          Live preview
+          <FileText className="h-4 w-4" /> Live preview
         </CardTitle>
-        {rendering && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+        <div className="flex items-center gap-2">
+          {unresolved.length > 0 && (
+            <Badge variant="destructive" className="text-[10px]">
+              {unresolved.length} unresolved binding{unresolved.length > 1 ? "s" : ""}
+            </Badge>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => surfaceRef.current?.print()}
+          >
+            <Printer className="h-3.5 w-3.5 mr-1" /> Save as PDF
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="flex-1 p-2">
         {error ? (
@@ -80,18 +100,20 @@ export function CertificatePreviewPane({ templateCode, displayName, body, meta }
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs break-all">{error}</AlertDescription>
           </Alert>
-        ) : url ? (
-          <iframe
-            title="Certificate PDF preview"
-            src={url}
-            className="w-full h-[820px] rounded border bg-white"
-          />
         ) : (
-          <div className="text-xs text-muted-foreground p-4">Rendering preview…</div>
+          <CertificateHtmlSurface
+            ref={surfaceRef}
+            template={template}
+            payload={KE_P9_V3_PREVIEW_PAYLOAD}
+            currency="KES"
+            onError={setError}
+            onUnresolved={setUnresolved}
+          />
         )}
         <div className="text-[10px] text-muted-foreground pt-2">
-          Rendered against a synthetic KE payroll fixture. The tenant will
-          see the same layout, populated with their own payroll data.
+          Rendered against a synthetic KE payroll fixture through the same
+          engine that produces the filed PDF. The tenant sees this exact
+          layout populated with their own payroll data.
         </div>
       </CardContent>
     </Card>

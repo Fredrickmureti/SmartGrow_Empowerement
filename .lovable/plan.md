@@ -1,55 +1,78 @@
+# Fix statutory document publishing: collapse to one HTML-based engine + WYSIWYG editor
 
-# Certificate Engine v3 — Verification & Corrected Plan
+## Verdict (why the P9 looks broken)
 
-## Verification of previous agent's claims
+The certificate stack carries **three renderer generations at once** and the KRA P9 has been rewritten between them ~8 times in one day (all `20260712*` migrations). That churn is the credit-burn you saw.
 
-Inspected files, not just tests. Findings:
+- **v1** `certificateRenderer.ts`, **v2** `certificateRendererV2.ts`, **v3** `certificate-engine/`.
+- Your P9 today renders through **v2 (pdf-lib), portrait-cramped** — 17 columns hand-drawn with `drawCell`, which **truncates** headers (`…`) and cannot wrap, cannot stack the `Kshs.` units row or the A–O letter row, cannot nest E→E1/E2/E3. No amount of tuning fixes this; pdf-lib is a low-level *drawing* library, the wrong tool for a statutory grid.
+- The **right renderer already exists**: v3 `compile.ts` turns the country-agnostic AST into **HTML + CSS Paged Media** (real tables: colspan groups, wrapping, landscape, repeating headers) and already has a passing P9 blueprint test. But its HTML is thrown away — the PDF is re-drawn in pdf-lib (`astPdfProducer.ts`). So **preview ≠ output** by design, and neither matches the form.
 
-| Claim | Reality |
-|---|---|
-| Phase A engine core shipped (`_shared/certificate-engine/`) | **True.** `types.ts` (206L), `compile.ts` (291L), `engine.ts` (53L), `resolver.ts` (124L) exist. One unit test (`src/test/localization/certificate-engine.compile.test.ts`). Country-agnostic, matches approved design. |
-| Phase B dispatcher wired for `schema_version === 3` | **True.** `generate-tax-certificate/index.ts` L699–714 branches to `renderCertificateV3` when `isV3EngineTemplate(template)`; v1/v2 paths intact. |
-| `api/render-certificate.ts` Vercel function + `vercel.json` | **File exists**, deps installed (`@sparticuz/chromium`, `puppeteer-core`, `@vercel/node`). **But not deployable as-is** — this project's runtime target is Cloudflare Workers (`.wrangler/deploy/config.json`, TanStack Start worker SSR), not Vercel. The Vercel function is orphaned: nothing in the app's actual deploy pipeline builds or serves it. |
-| "Docker, Kubernetes and external rendering infrastructure have been removed" | **False.** `Dockerfile`, `Dockerfile.dev`, `docker-compose.yml`, `docker-compose.prod.yml`, and the full `k8s/` tree are all still present. |
-| Producer wiring | Producer module is `vercelChromiumProducer.ts`, but the dispatcher's inline comment (L695) still says "self-hosted WeasyPrint sidecar". Comment drift — signals the runtime decision was made hastily and not reconciled across the codebase. |
-| Phase C — Kenya P9 v10 pack template | **Not started.** No `schema_version: 3` template anywhere in the KE pack. |
-| Phase D — publisher workbench for v3 AST | **Not started.** `TemplateEditor` still emits v1/v2 blocks only. |
-| Phase E/F — deprecation & removal of v1/v2 | **Not started** (correctly — depends on C/D). |
+This mirrors how Odoo/SAP/Workday work (one declarative layout + one render engine, preview == output, engine never knows "P9"). You built the correct core, then refused to render from it. We stop building on the pdf-lib path and make the compiled HTML the single source of truth.
 
-## Architectural issues to correct before continuing
+## Decisions (from your answers)
+- **Render client-side in the browser** from the compiled HTML → preview and filed document are identical by construction, no external infra.
+- **Collapse to v3 only** — delete v1 + v2 renderers/editors and the pdf-lib AST producer.
+- **Structured WYSIWYG editor + live preview** replacing the JSON textareas.
 
-1. **Runtime mismatch.** A Vercel serverless function is not part of this app's deployment. Either the whole app moves to Vercel (large, unrelated migration), or the renderer runtime is hosted where the rest of the backend already runs. Given `generate-tax-certificate` is a Supabase Edge Function (Deno on Deno Deploy infra), the natural in-tree location for the renderer is **the same Supabase Edge Function boundary**, not a foreign Vercel endpoint. This matches Odoo's principle (the platform owns its rendering runtime, colocated with the app) without introducing a second deploy target.
-2. **Headless Chromium as the engine choice was made without approval.** Approved Phase 3 explicitly says the engine internals are an implementation decision for Phase B, and lists both "bundled headless renderer" and "WASM paged-media library" as options. Chromium/Puppeteer inside a Supabase Edge Function is not viable (no binary hosting, Deno runtime, cold-start size limits). A **WASM paged-media library** (e.g. a Paged.js-derived engine or a pure-Deno paged-HTML→PDF pipeline) is the only option that keeps the renderer inside the existing edge boundary.
-3. **Orphaned infra files.** `Dockerfile*`, `docker-compose*`, `k8s/` contradict the "internal to the ERP" positioning and add noise; the previous agent claimed to have removed them.
+## Architecture after this change
 
-## Corrected next steps (no code yet — approval gate)
+```text
+ pack AST (country-agnostic)         ── authored in WYSIWYG editor, stored on template.body (schema_version 3)
+        │
+   compile() ── AST → HTML + CSS Paged Media   (ONE layout source, shared by preview AND output)
+        │
+   paged.js in an <iframe>  ── faithful pagination, landscape, grouped headers, wrapping
+        │
+   browser print pipeline ── the PDF artifact (vector text, KRA-accurate)
+        │
+   slim edge fn ── resolves payload (server, RLS-safe) + stores bytes, serial, issued-row, supersede, diagnostics
+```
 
-### Step 1 — Reconcile Phase B runtime
-### Step 1 — Reconcile Phase B runtime — DONE
-- Deleted `api/render-certificate.ts`, `vercel.json`, all Docker/K8s files, `nginx.conf`, and the Vercel/Puppeteer/Chromium deps.
-- Chose option (b) variant: **AST-direct producer** in `supabase/functions/_shared/certificate-engine/astPdfProducer.ts` — the v3 AST is already semantic, so an intermediate HTML layer buys nothing at PDF time. `compile()` remains available for the publisher workbench browser preview.
-- Dispatcher (`generate-tax-certificate/index.ts`) now calls `renderCertificateAstToPdf` for `schema_version === 3` templates; v1/v2 paths untouched.
-- Comment drift resolved.
+The engine stays country-agnostic: P9 layout lives entirely in the KE pack row, never in code.
 
-### Step 2 — Phase C: Kenya P9 v10 template
-### Step 2 — Phase C: Kenya P9 v10 template — DONE
-- Extended both certificate-template validators (`enforce_certificate_template_structure` and `assert_certificate_template_body_valid`) to recognize `schema_version: 3` bodies; registered a `certificate_template.v3` schema in `pack_rule_type_schemas`.
-- Replaced the KE P9 template body with the v3 AST (identity strip, matrix A–O with column groups, end-of-year summary, KRA legal notice, signature strip). Statutory content unchanged.
-- Published `localization_packs` KE version `10.1.0` so tenants receive the v3 P9 through `usePackUpgradeProposals`.
-- TODO: golden-PDF baseline test in `src/test/localization/` (deferred to a follow-up alongside the AST producer's golden fixtures).
+## Work plan
 
-### Step 3 — Phase D: Publisher workbench for v3
-### Step 3 — Phase D: Publisher workbench for v3 — IN PROGRESS
-- `CertificateTemplateEditor` schema toggle is now a 3-way select: Legacy sections / Block AST v2 / Engine AST v3.
-- New `CertificateV3Editor` component provides: structured paper-format editor (size, orientation, margins, header/footer bands), JSON authoring for `page_master.header/footer`, JSON authoring for `document`, a client-side mirror of both DB validators (identity_strip + matrix + signature_strip invariants), and a "Seed from Kenya P9 v10" button.
-- Save is gated on the same rules the server enforces at write time — no way to author a v3 body that the DB will reject.
-- TODO (next iteration): visual drag-and-drop canvas + browser-side engine preview (needs the AST producer bundled for the browser).
-- Live preview panel calls the **same engine** compiled for the browser (engine module is Deno/browser-isomorphic by design — no hand-copied mirror).
+### 1. Make compiled HTML the single renderer (client-side)
+- Promote `certificate-engine/compile.ts` to a browser-safe shared module (it is pure string building; strip Deno-only bits).
+- Add **paged.js** as a dependency. New `CertificateHtmlSurface` renders `compile()` output in a sandboxed iframe with paged.js — used by both the editor preview and the issue/download flow.
+- Rewrite `CertificatePreviewPane` to use this surface instead of the pdf-lib dispatch, so preview is exactly the filed layout.
+- Wire the artifact-producing "download/print/issue" actions to the same paged HTML via the browser print-to-PDF pipeline (extends the existing `src/services/printing` pattern to an HTML surface).
 
-### Step 4 — Phases E & F
-- Diagnostics warning on v1/v2 templates once a v3 equivalent exists in the same pack.
-- Delete `certificateRendererV2.ts` (Deno + browser mirror) and the parity test once no active pack ships `schema_version < 3`.
+### 2. Extend the AST just enough for statutory grids (stays generic)
+`compile.ts` today renders only a group row + header row. To express the KRA form generically (no country logic), add:
+- Multi-row matrix headers: per-column optional `sub_header` (the A–O letters) and `unit` caption (the `Kshs.` row), plus nested `column_groups` with sub-column spans (E over E1/E2/E3).
+- A pack-authored totals/footer row and a `legal_notice` block for the "IMPORTANT / To be completed by employer" text.
+These are generic column/row primitives; any country can use them.
 
-## Deliverable of this turn
-- This verification + corrected plan.
-- **No code changes.** Approval gate before Step 1.
+### 3. Migrate templates to v3 and delete the old paths
+- New migration: rewrite KE **P9**, **ln**, **CERT_OF_SERVICE** to `schema_version: 3` landscape AST (A–O columns, E1/E2/E3 group, units + letter rows, employer/employee identity strip, KRA masthead in `page_master`, legal notice, signature strip). This is pack data only.
+- Update `pack_rule_type_schemas` + the body validators (`enforce_certificate_template_structure`, `assert_certificate_template_body_valid`) to accept **only v3**.
+- Delete: `certificateRendererV2.ts` (both mirrors), `certificateRenderer.ts` v1 path, `astPdfProducer.ts`, `BlocksEditor.tsx`, the section-palette code in `CertificateTemplateEditor`, and the now-dead eslint rules/tests (`no-payslip-lines-in-certificates` stays; `certificateRendererV2_test`, golden tests re-pointed to compile()).
+- Keep `assertStatutoryPaper` (now allows `a4` + `a4-landscape`) as a guard on the template's `paper_format`.
+
+### 4. Rebuild the editor as a structured WYSIWYG designer
+Replace JSON textareas in `CertificateV3Editor` with:
+- Paper format controls (already structured — keep).
+- Page-master header/footer node builder.
+- Document node builder: add/reorder/remove `heading`, `rich_text`, `identity_strip`, `matrix`, `legal_notice`, `signature_strip`.
+- A real **matrix column/group builder** (add columns, set header/sub-header/unit/format/align/width, define column groups) — this is the piece that makes it feel like Odoo/SAP.
+- Live preview pane bound to the same `compile()` HTML, so authoring is truly WYSIWYG.
+- Binding picker reusing `TokenPicker`/`TokenRegistryEditor` so data paths are chosen, not typed.
+
+### 5. Server lifecycle (keep audit, drop server rendering)
+- `generate-tax-certificate` becomes: resolve payload + template server-side (unchanged data assembly, RLS, idempotency checks) and return them to the client for rendering; a companion path accepts the client-rendered bytes to store in `documents`, assign serial, write/supersede the issued row, and log diagnostics.
+- Batch issuance renders per employee in a loop with progress (same per-record model Odoo uses).
+
+## Technical notes / risks
+- **Byte capture**: faithful vector HTML→PDF in-browser uses paged.js layout + the browser print engine; issuance is an admin/loop-driven action (documents produced at issue time, then downloadable from storage). No headless service needed.
+- **Determinism**: stored certs are versioned/superseded rows, so per-render byte stability is not required (matches current behaviour of creating a new issued row on regenerate).
+- **Migration safety**: template rewrites are pack-data migrations; no `.git`/schema-reserved changes. The old renderers are deleted only after the v3 templates validate and preview correctly.
+- This ends the multi-generation thrash: after this, there is exactly one layout language, one render path, one editor.
+
+## Suggested build order
+1. compile() browser module + paged.js preview surface (proves the look on the existing P9 test data).
+2. AST/compile extensions for multi-row headers + groups.
+3. KE P9 v3 template migration + validator lockdown.
+4. WYSIWYG editor rebuild.
+5. Server lifecycle slim-down + delete v1/v2/pdf-lib paths + test/eslint cleanup.

@@ -1,20 +1,11 @@
-// @ts-nocheck — Deno runtime
 /**
- * Certificate Engine v3 — typed AST for statutory certificates.
+ * Certificate Engine v3 — typed AST (browser mirror of
+ * supabase/functions/_shared/certificate-engine/types.ts). Keep in sync.
  *
  * Country-agnostic paged-media semantics. Localization packs author
  * documents in terms of these nodes; the engine compiles them to
- * deterministic HTML + CSS Paged Media, then hands the result to a
- * pluggable PDF producer.
- *
- * Design rules (see docs/adr/0060-* redesign):
- *   1. No node encodes a country, statute, or form name.
- *   2. Every user-visible string is pack-authored and lives on the node.
- *   3. Every data value is a `Binding` resolved from the payload; the
- *      renderer never guesses.
- *   4. Layout is expressed in paged-media terms (page, header/footer
- *      band, section, matrix with repeat-header) — not in visual
- *      primitives like "y-cursor" or "spacer".
+ * deterministic HTML + CSS Paged Media which is rendered client-side
+ * (paged.js) for both the editor preview and the filed PDF.
  */
 
 // ── Paper format & page master ────────────────────────────────────────
@@ -38,14 +29,13 @@ export interface PaperFormat {
 
 /** Page master = header/footer bands rendered on every page. */
 export interface PageMaster {
-  code: string;                 // stable pack-scoped id
+  code: string;
   header?: Node[];
   footer?: Node[];
 }
 
 // ── Bindings ──────────────────────────────────────────────────────────
 
-/** A value in a node is either a literal or a binding into the payload. */
 export type Value = LiteralValue | Binding;
 
 export interface LiteralValue {
@@ -57,9 +47,7 @@ export interface Binding {
   kind: "binding";
   /** Dotted path into the resolved payload, e.g. "employer.tax_pin". */
   path: string;
-  /** Optional formatter applied by the resolver. */
   format?: ValueFormat;
-  /** Rendered when the resolved value is null/undefined/empty. */
   fallback?: string;
 }
 
@@ -94,7 +82,6 @@ export interface HeadingNode {
 
 export interface RichTextNode {
   type: "rich_text";
-  /** Paragraphs; each paragraph is a list of inline runs. */
   paragraphs: Array<Array<{ text: Value; emphasis?: "bold" | "italic" | "muted" }>>;
   align?: "left" | "center" | "right";
 }
@@ -106,7 +93,6 @@ export interface KeyValueNode {
   emphasis?: "primary" | "regular";
 }
 
-/** Two-column identity strip: employer on the left, employee on the right. */
 export interface IdentityStripNode {
   type: "identity_strip";
   left_title?: Value;
@@ -115,21 +101,26 @@ export interface IdentityStripNode {
   right: KeyValueNode[];
 }
 
-/** Semantic grouping. May carry a title, does not force a page break. */
 export interface SectionNode {
   type: "section";
   title?: Value;
   children: Node[];
-  /** Try to keep the whole section on one page. Engine best-effort. */
   keep_together?: boolean;
 }
 
 export interface MatrixColumn {
-  key: string;                   // stable column id used by data + footer
+  key: string;
   header: Value;
-  /** Optional secondary caption on its own header row (e.g. KRA letters A..O). */
+  /**
+   * Optional secondary caption rendered on its own header row beneath
+   * `header` — e.g. the KRA column letters A..O. Generic: any pack can
+   * use it for a two-line column identity.
+   */
   sub_header?: Value;
-  /** Optional unit caption on its own header row (e.g. "Kshs."). */
+  /**
+   * Optional unit caption rendered on its own header row (e.g. "Kshs.").
+   * Country-agnostic; the pack authors the literal text.
+   */
   unit?: Value;
   align?: "left" | "right" | "center";
   format?: ValueFormat;
@@ -141,21 +132,17 @@ export interface MatrixColumn {
 
 export interface MatrixFooter {
   label: Value;
-  /** Columns that receive a per-column sum. Others are blank. */
   sum_columns: string[];
 }
 
 export interface MatrixNode {
   type: "matrix";
   title?: Value;
-  /** Path to an array of row objects in the payload. */
   rows_binding: string;
   columns: MatrixColumn[];
-  /** Repeat the header row after every page break. */
   repeat_header?: boolean;
-  /** Optional footer with per-column totals. */
   footer?: MatrixFooter;
-  /** Optional group headers above the columns (declared for engine layout). */
+  /** Optional group headers above the columns. */
   column_groups?: Array<{ label: Value; span: number }>;
 }
 
@@ -183,7 +170,6 @@ export interface SpacerNode {
 
 export interface ImageNode {
   type: "image";
-  /** Base64 data URL. Pack-supplied; engine has no country knowledge. */
   data_url: string;
   width_mm?: number;
   height_mm?: number;
@@ -201,10 +187,4 @@ export interface CertificateTemplateV3 {
   document: Node[];
 }
 
-/**
- * Fully-resolved payload passed to the engine. The dispatcher assembles
- * this from the existing YTD rollup + employee/employer projections.
- * The engine treats it as opaque JSON — every access goes through a
- * `Binding.path`.
- */
 export type CertificatePayload = Record<string, unknown>;

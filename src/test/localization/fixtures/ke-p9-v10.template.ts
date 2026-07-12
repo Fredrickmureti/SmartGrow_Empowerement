@@ -54,25 +54,26 @@ const identity: Node = {
   ],
 };
 
+const kshs = lit("Kshs.");
 const matrixColumns = [
-  { key: "month",  header: lit("Month"),          width: 22,      align: "left"  as const, format: "month_short" as const },
-  { key: "col_a",  header: lit("A"),              align: "right" as const, format: "number" as const, group: "identity" },
-  { key: "col_b",  header: lit("B"),              align: "right" as const, format: "number" as const },
-  { key: "col_c",  header: lit("C"),              align: "right" as const, format: "number" as const },
-  { key: "col_d",  header: lit("D"),              align: "right" as const, format: "number" as const },
-  { key: "col_e1", header: lit("E1"),             align: "right" as const, format: "number" as const, group: "retirement" },
-  { key: "col_e2", header: lit("E2"),             align: "right" as const, format: "number" as const, group: "retirement" },
-  { key: "col_e3", header: lit("E3"),             align: "right" as const, format: "number" as const, group: "retirement" },
-  { key: "col_f",  header: lit("F"),              align: "right" as const, format: "number" as const },
-  { key: "col_g",  header: lit("G"),              align: "right" as const, format: "number" as const },
-  { key: "col_h",  header: lit("H"),              align: "right" as const, format: "number" as const },
-  { key: "col_i",  header: lit("I"),              align: "right" as const, format: "number" as const },
-  { key: "col_j",  header: lit("J"),              align: "right" as const, format: "number" as const },
-  { key: "col_k",  header: lit("K"),              align: "right" as const, format: "number" as const },
-  { key: "col_l",  header: lit("L"),              align: "right" as const, format: "number" as const },
-  { key: "col_m",  header: lit("M"),              align: "right" as const, format: "number" as const },
-  { key: "col_n",  header: lit("N"),              align: "right" as const, format: "number" as const },
-  { key: "col_o",  header: lit("O"),              align: "right" as const, format: "number" as const },
+  { key: "month",  header: lit("Month"),              sub_header: lit(""),   width: 18, align: "left"  as const, format: "month_short" as const },
+  { key: "col_a",  header: lit("Basic Salary"),       sub_header: lit("A"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_b",  header: lit("Benefits — Non-Cash"),sub_header: lit("B"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_c",  header: lit("Value of Quarters"),  sub_header: lit("C"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_d",  header: lit("Total Gross Pay"),    sub_header: lit("D"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_e1", header: lit("30% of A"),           sub_header: lit("E1"), unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_e2", header: lit("Actual"),             sub_header: lit("E2"), unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_e3", header: lit("Fixed 30,000 p.m"),   sub_header: lit("E3"), unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_f",  header: lit("AHL"),                sub_header: lit("F"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_g",  header: lit("SHIF"),               sub_header: lit("G"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_h",  header: lit("PRMF"),               sub_header: lit("H"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_i",  header: lit("Owner-Occupied Interest"), sub_header: lit("I"), unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_j",  header: lit("Total Deductions"),   sub_header: lit("J"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_k",  header: lit("Chargeable Pay"),     sub_header: lit("K"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_l",  header: lit("Tax Charged"),        sub_header: lit("L"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_m",  header: lit("Personal Relief"),    sub_header: lit("M"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_n",  header: lit("Insurance Relief"),   sub_header: lit("N"),  unit: kshs, align: "right" as const, format: "number" as const },
+  { key: "col_o",  header: lit("PAYE Tax"),           sub_header: lit("O"),  unit: kshs, align: "right" as const, format: "number" as const },
 ];
 
 const matrix: Node = {
@@ -107,8 +108,8 @@ export const KE_P9_V10_TEMPLATE: CertificateTemplateV3 = {
   paper_format: {
     size: "A4",
     orientation: "landscape",
-    margin_top: 12, margin_right: 10, margin_bottom: 12, margin_left: 10,
-    header_height: 14, footer_height: 10,
+    margin_top: 26, margin_right: 10, margin_bottom: 14, margin_left: 10,
+    header_height: 22, footer_height: 10,
   },
   page_master: {
     code: "ke.p9.page_master.v10",

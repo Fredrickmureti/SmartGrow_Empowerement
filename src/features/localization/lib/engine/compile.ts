@@ -1,12 +1,12 @@
-// @ts-nocheck — Deno runtime
 /**
- * Certificate Engine v3 — AST → HTML + CSS Paged Media compiler.
+ * Certificate Engine v3 — AST → HTML + CSS Paged Media compiler
+ * (browser mirror of supabase/functions/_shared/certificate-engine/compile.ts).
  *
- * Deterministic: same (template, payload) always produces byte-identical
- * output. No timestamps, no random ids. Emits a single self-contained
- * HTML document with an inline stylesheet using CSS Paged Media rules
- * (@page, page-break-*, running headers/footers). The PDF producer
- * (Phase B decision) rasterises this HTML.
+ * Deterministic: same (template, payload) always produces the same HTML.
+ * The output is a single self-contained HTML document with an inline
+ * stylesheet using CSS Paged Media rules (@page, running headers/footers,
+ * break-inside). paged.js renders it identically in the editor preview
+ * and when producing the filed PDF — so preview == output by construction.
  */
 import type {
   CertificatePayload,
@@ -17,11 +17,10 @@ import type {
   LegalNoticeNode,
   MatrixNode,
   Node,
-  PageMaster,
   PaperFormat,
   SectionNode,
   SignatureStripNode,
-} from "./types.ts";
+} from "./types";
 import {
   createContext,
   formatValue,
@@ -29,12 +28,11 @@ import {
   resolveValue,
   sumColumn,
   type ResolveContext,
-} from "./resolver.ts";
+} from "./resolver";
 
 export interface CompileResult {
   html: string;
   css: string;
-  /** Payload paths that were bound but resolved to null/undefined. */
   unresolved: string[];
 }
 
@@ -91,49 +89,68 @@ function buildCss(pf: PaperFormat): string {
 }
 html, body { margin: 0; padding: 0; }
 body {
-  font-family: "Helvetica", "Arial", sans-serif;
+  font-family: "Helvetica Neue", "Helvetica", "Arial", sans-serif;
   font-size: 9pt;
   color: #111;
   line-height: 1.35;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
-.page-header { position: running(pageHeader); height: ${pf.header_height}mm; }
-.page-footer { position: running(pageFooter); height: ${pf.footer_height}mm; font-size: 8pt; color: #444; }
+.page-header { position: running(pageHeader); }
+.page-footer { position: running(pageFooter); font-size: 8pt; color: #444; }
 .document { }
-h1.ce-h { font-size: 14pt; margin: 0 0 6pt 0; font-weight: 700; }
-h2.ce-h { font-size: 11pt; margin: 10pt 0 4pt 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
-h3.ce-h { font-size: 10pt; margin: 8pt 0 3pt 0; font-weight: 700; }
+h1.ce-h { font-size: 13pt; margin: 0 0 3pt 0; font-weight: 700; letter-spacing: 0.01em; }
+h2.ce-h { font-size: 11pt; margin: 3pt 0 3pt 0; font-weight: 700; letter-spacing: 0.02em; }
+h3.ce-h { font-size: 10pt; margin: 6pt 0 3pt 0; font-weight: 700; }
 .ce-align-left   { text-align: left; }
 .ce-align-center { text-align: center; }
 .ce-align-right  { text-align: right; }
 .ce-section { margin-bottom: 8pt; }
 .ce-section-title { font-size: 10pt; font-weight: 700; margin: 6pt 0 3pt 0; border-bottom: 0.5pt solid #333; padding-bottom: 1pt; }
-.ce-keep-together { page-break-inside: avoid; break-inside: avoid; }
+.ce-keep-together { break-inside: avoid; page-break-inside: avoid; }
 .ce-kv { display: flex; gap: 6pt; margin: 1pt 0; }
-.ce-kv-label { color: #555; min-width: 40mm; }
+.ce-kv-label { color: #555; min-width: 34mm; }
 .ce-kv-value { color: #111; font-weight: 500; }
 .ce-kv-primary .ce-kv-value { font-weight: 700; }
-.ce-identity { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin: 4pt 0 8pt 0; }
-.ce-identity-col-title { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 2pt; border-bottom: 0.5pt solid #333; padding-bottom: 1pt; }
+.ce-identity { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin: 4pt 0 8pt 0; }
+.ce-identity-col-title { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2pt; border-bottom: 0.5pt solid #333; padding-bottom: 1pt; }
 .ce-para { margin: 3pt 0; }
 .ce-em-bold { font-weight: 700; }
 .ce-em-italic { font-style: italic; }
 .ce-em-muted { color: #555; }
 .ce-matrix-wrap { margin: 4pt 0 8pt 0; }
 .ce-matrix-title { font-size: 10pt; font-weight: 700; margin-bottom: 2pt; }
-.ce-matrix { width: 100%; border-collapse: collapse; table-layout: auto; }
+.ce-matrix { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ce-matrix thead { display: table-header-group; }
 .ce-matrix tfoot { display: table-footer-group; }
-.ce-matrix th, .ce-matrix td { border: 0.4pt solid #666; padding: 2.5pt 4pt; font-size: 8.5pt; vertical-align: middle; }
-.ce-matrix thead th { background: #eee; font-weight: 700; }
-.ce-matrix tfoot td { background: #f4f4f4; font-weight: 700; }
+.ce-matrix th, .ce-matrix td {
+  border: 0.5pt solid #555;
+  padding: 1.5pt 2.5pt;
+  font-size: 7pt;
+  vertical-align: middle;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.ce-matrix thead th { background: #e9e9e9; font-weight: 700; text-align: center; line-height: 1.15; word-break: normal; overflow-wrap: normal; }
+.ce-matrix thead th.ce-group { background: #dcdcdc; text-transform: uppercase; letter-spacing: 0.02em; font-size: 6.5pt; }
+.ce-matrix thead th.ce-unit { background: #f2f2f2; font-weight: 500; font-style: italic; color: #444; }
+.ce-matrix thead th.ce-letter { background: #f2f2f2; font-weight: 700; }
+.ce-matrix tfoot td { background: #ededed; font-weight: 700; }
+/* Numeric cells never wrap: statutory grids must keep each value on one line. */
+.ce-matrix td.num, .ce-matrix tfoot td.num { white-space: nowrap; font-size: 6.5pt; word-break: normal; overflow-wrap: normal; letter-spacing: -0.1pt; }
+.ce-matrix tfoot td.num { font-size: 5.5pt; letter-spacing: -0.2pt; }
 .ce-matrix .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ce-matrix .ctr { text-align: center; }
-.ce-legal { margin: 8pt 0; padding: 5pt 6pt; }
+.ce-matrix .lft { text-align: left; }
+.ce-matrix tbody tr:nth-child(even) td { background: #fbfbfb; }
+.ce-legal { margin: 8pt 0; padding: 5pt 7pt; break-inside: avoid; }
 .ce-legal.bordered { border: 0.5pt solid #333; }
-.ce-legal-title { font-weight: 700; margin-bottom: 3pt; text-transform: uppercase; letter-spacing: 0.02em; }
-.ce-signature { display: grid; gap: 8mm; margin-top: 14pt; page-break-inside: avoid; }
-.ce-signature-slot { border-top: 0.5pt solid #111; padding-top: 3pt; font-size: 8.5pt; }
-.ce-signature-sub { color: #555; }
+.ce-legal-title { font-weight: 700; margin-bottom: 3pt; text-transform: uppercase; letter-spacing: 0.03em; text-decoration: underline; }
+.ce-legal .ce-para { margin: 2pt 0; }
+.ce-signature { display: grid; gap: 10mm; margin-top: 16pt; break-inside: avoid; page-break-inside: avoid; }
+.ce-signature-slot { border-top: 0.5pt solid #111; padding-top: 3pt; font-size: 8.5pt; font-weight: 600; }
+.ce-signature-sub { color: #555; font-weight: 400; margin-top: 1pt; }
 .ce-image { display: block; }
 .ce-image.center { margin: 0 auto; }
 .ce-image.right  { margin-left: auto; }
@@ -154,19 +171,16 @@ function renderNode(node: Node, ctx: ResolveContext): string {
     case "signature_strip": return renderSignature(node, ctx);
     case "spacer":          return `<div style="height:${node.size_mm}mm"></div>`;
     case "image":           return renderImage(node);
-    default: {
-      const _exhaustive: never = node;
-      return "";
-    }
+    default:                return "";
   }
 }
 
-function renderHeading(n: Extract<Node, {type:"heading"}>, ctx: ResolveContext) {
+function renderHeading(n: Extract<Node, { type: "heading" }>, ctx: ResolveContext) {
   const tag = `h${n.level}`;
   return `<${tag} class="ce-h ce-align-${n.align ?? "left"}">${esc(resolveValue(n.text, ctx))}</${tag}>`;
 }
 
-function renderRichText(n: Extract<Node, {type:"rich_text"}>, ctx: ResolveContext) {
+function renderRichText(n: Extract<Node, { type: "rich_text" }>, ctx: ResolveContext) {
   const align = `ce-align-${n.align ?? "left"}`;
   return n.paragraphs.map((runs) => {
     const inner = runs.map((r) => {
@@ -209,13 +223,11 @@ function renderMatrix(n: MatrixNode, ctx: ResolveContext): string {
   }).join("")}</colgroup>`;
 
   const groupRow = n.column_groups?.length
-    ? `<tr>${n.column_groups.map((g) => `<th colspan="${g.span}" class="ctr">${esc(resolveValue(g.label, ctx))}</th>`).join("")}</tr>`
+    ? `<tr>${n.column_groups.map((g) => `<th colspan="${g.span}" class="ce-group">${esc(resolveValue(g.label, ctx))}</th>`).join("")}</tr>`
     : "";
 
-  const headRow = `<tr>${n.columns.map((c) => {
-    const align = c.align ? ` class="${alignClass(c.align)}"` : "";
-    return `<th${align}>${esc(resolveValue(c.header, ctx))}</th>`;
-  }).join("")}</tr>`;
+  const headRow = `<tr>${n.columns.map((c) =>
+    `<th class="${alignClass(c.align ?? "center")}">${esc(resolveValue(c.header, ctx))}</th>`).join("")}</tr>`;
 
   const hasUnit = n.columns.some((c) => c.unit);
   const unitRow = hasUnit
@@ -286,7 +298,7 @@ function renderImage(n: ImageNode): string {
 // ── Utilities ─────────────────────────────────────────────────────────
 
 function alignClass(a?: "left" | "right" | "center"): string {
-  return a === "right" ? "num" : a === "center" ? "ctr" : "";
+  return a === "right" ? "num" : a === "center" ? "ctr" : "lft";
 }
 
 function mmToPx(mm: number): number {
