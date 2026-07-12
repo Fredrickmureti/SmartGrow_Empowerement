@@ -34,7 +34,7 @@ export type Block =
   | { type: "field_grid";     title?: string; columns?: 1|2|3|4; data_source?: string; fields: Array<{ key: string; label: string; format?: ValueFormat; emphasis?: "primary"|"regular" }> }
   | { type: "table";          title?: string; data_source: string; group_by?: string;
                               amount_field?: "employee_amount" | "employer_amount" | "taxable_amount";
-                              columns: Array<{ key: string; header: string; width?: string; align?: "left"|"right"|"center"; format?: ValueFormat }>;
+                              columns: Array<{ key: string; header: string; source_key?: string; rule_code?: string; width?: string; align?: "left"|"right"|"center"; format?: ValueFormat }>;
                               derived_columns?: Array<{ key: string; expr: "sum"|"sub"|"min"|"max"|"pct"; args: Array<string | number> }>;
                               footer?: { label: string; aggregate?: "sum"; include_columns?: string[] };
                               options?: { striped?: boolean; padding?: number; wrap?: boolean; repeat_header?: boolean; line_height?: number; header_bg?: boolean } }
@@ -319,8 +319,9 @@ function TablePanel({ block, onPatch }: { block: Extract<Block,{type:"table"}>; 
           <Button size="sm" variant="ghost" onClick={addCol}><Plus className="h-3.5 w-3.5 mr-1" /> Add column</Button>
         </div>
         {cols.map((c, i) => (
-          <div key={i} className="grid gap-1 md:grid-cols-[1fr_1.4fr_80px_90px_100px_28px]">
+          <div key={i} className="grid gap-1 md:grid-cols-[1fr_1fr_1.4fr_80px_90px_100px_28px]">
             <Input className="h-7 text-[11px]" placeholder="key" value={c.key} onChange={(e) => pc(i, { key: e.target.value })} />
+            <Input className="h-7 text-[11px]" placeholder="source rule code" value={c.source_key ?? c.rule_code ?? ""} onChange={(e) => pc(i, { source_key: e.target.value || undefined, rule_code: undefined })} />
             <Input className="h-7 text-[11px]" placeholder="Header" value={c.header} onChange={(e) => pc(i, { header: e.target.value })} />
             <Input className="h-7 text-[11px]" placeholder="1fr" value={c.width ?? ""} onChange={(e) => pc(i, { width: e.target.value || undefined })} />
             <Select value={c.align ?? "left"} onValueChange={(v) => pc(i, { align: v })}>

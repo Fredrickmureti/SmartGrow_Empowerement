@@ -45,6 +45,15 @@ Deno.serve(async (req) => {
       return errorResponse("BAD_REQUEST", "Only published versions can be promoted", 400);
     }
 
+    // Keep pack catalog labels aligned with the promoted/current version.
+    // Tenant activation still happens below on installed_localization_packs,
+    // but the pack header/list should not keep showing an old catalog version.
+    const { error: packVersionErr } = await sb
+      .from("localization_packs")
+      .update({ version: tgt.version })
+      .eq("id", pack_id);
+    if (packVersionErr) return errorResponse("INTERNAL", packVersionErr.message, 500);
+
     let installs: any[] = [];
     if (scope === "all_tenants") {
       // Phase 5: pack publisher (or platform admin) may fan out to every

@@ -42,8 +42,8 @@ const EMPLOYER_KINDS = new Set(["employer_contribution", "statutory_employer"]);
 
 // ── Structural contract for certificate & return template bodies ────
 // (ADR 0060 v2026.4.0). A pack cannot be published if any statutory
-// document template ships with a legacy blocks-only body, missing
-// identity/signature sections, or missing legal metadata.
+// document template ships with a malformed legacy sections body or malformed
+// v2 blocks body, missing identity/signature structure, or missing legal metadata.
 // Baseline sections required for EVERY certificate regardless of
 // doc-class. Doc-class specific rules (P9 needs the 12-month grid, P10
 // needs employer totals + statutory footnote, etc.) come from the
@@ -64,18 +64,31 @@ function validateMetadata(label: string, code: string, row: any, errs: string[])
   }
 }
 
-/**
- * Certificates render as PDFs with a section-based layout; every one must
- * carry employer/employee/signature identity + at least one data section.
- */
+/** Certificates may render from legacy sections[] or v2 blocks[]. */
 function validateCertificateStructure(row: any): string[] {
   const errs: string[] = [];
   const code = row.code ?? row.rule_code ?? "(unknown)";
   const label = `certificate template "${code}"`;
   const body = row.body ?? {};
   const sections = Array.isArray(body?.sections) ? body.sections : [];
-  if (sections.length === 0) {
-    errs.push(`${label}: body.sections is empty — legacy blocks-only templates are no longer publishable.`);
+  const blocks = Array.isArray(body?.blocks) ? body.blocks : [];
+  if (Number(body?.schema_version ?? 1) >= 2 && blocks.length > 0) {
+    const hasEmployer = blocks.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employer");
+    const hasEmployee = blocks.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employee");
+    const hasSignature = blocks.some((b: any) => b?.type === "signature_block");
+    const hasData = blocks.some((b: any) => b?.type === "table" && ["monthly_breakdown", "monthly_matrix", "ytd_rows"].includes(String(b?.data_source ?? "")));
+    if (!hasEmployer) errs.push(`${label}: v2 blocks missing employer field_grid.`);
+    if (!hasEmployee) errs.push(`${label}: v2 blocks missing employee field_grid.`);
+    if (!hasSignature) errs.push(`${label}: v2 blocks missing signature_block.`);
+    if (!hasData) errs.push(`${label}: v2 blocks must include at least one table bound to monthly_breakdown, monthly_matrix, or ytd_rows.`);
+    const completeness = checkCertificateCompleteness(String(code), body);
+    if (!completeness.ok) {
+      errs.push(
+        `${label}: ${completeness.rule.label} is missing required section(s): ${completeness.missing.join(", ")}.`,
+      );
+    }
+  } else if (sections.length === 0) {
+    errs.push(`${label}: body.sections or body.blocks must be non-empty.`);
   } else {
     const types = new Set<string>(sections.map((s: any) => String(s?.type ?? "")));
     for (const need of REQUIRED_IDENTITY_SECTIONS) {

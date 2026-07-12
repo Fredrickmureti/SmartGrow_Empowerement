@@ -327,6 +327,15 @@ Deno.serve(async (req) => {
       return errorResponse("INTERNAL", insErr.message, 500);
     }
 
+    // Keep the catalog/header version in sync with the latest published
+    // snapshot. Tenant truth remains installed_localization_packs.pack_version,
+    // but stale catalog labels make the UI look as if promotion failed.
+    const { error: packVersionErr } = await sb
+      .from("localization_packs")
+      .update({ version })
+      .eq("id", pack_id);
+    if (packVersionErr) return errorResponse("INTERNAL", packVersionErr.message, 500);
+
     // Fan-out proposals — guarded by the new UNIQUE constraint so
     // re-publishing the same version is idempotent at the proposal layer.
     let proposals_created = 0;

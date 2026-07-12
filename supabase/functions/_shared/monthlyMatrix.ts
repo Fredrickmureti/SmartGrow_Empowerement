@@ -5,7 +5,7 @@
  * matrix keyed by rule_code, and applies pack-authored derived columns.
  *
  * This is the ADR-0060 addendum contract: country packs describe the
- * columns they want (e.g. KRA columns A–O), and the platform pivots the
+ * columns they want (e.g. statutory certificate columns A–O), and the platform pivots the
  * data. Templates never need to know rule codes explicitly — they bind
  * layout columns to matrix keys. Derived columns are declared alongside
  * the table block via a tiny expression DSL evaluated here, keeping
@@ -16,7 +16,7 @@
  *   { key: "pension_30pct_of_basic", expr: "pct", args: ["basic_salary", 0.30] }
  *   { key: "pension_statutory_cap", expr: "min", args: ["pension_30pct_of_basic", "pension_contribution_actual", 30000] }
  *   { key: "total_relief_deductions", expr: "sum", args: ["pension_statutory_cap","ahl_employee","shif_employee","prmf_employee","mortgage_interest_relief_base"] }
- *   { key: "paye_net", expr: "sub", args: ["paye_gross", "personal_relief", "insurance_relief"] }
+ *   { key: "net_tax", expr: "sub", args: ["gross_tax", "personal_relief", "insurance_relief"] }
  *
  * Args are either matrix column keys (looked up per-row) or numeric
  * literals. Unknown keys resolve to 0. Order of `derived[]` matters —

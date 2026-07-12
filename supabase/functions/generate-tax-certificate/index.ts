@@ -64,7 +64,17 @@ interface RollupRow {
 }
 
 const STORAGE_BUCKET = "documents";
-const CERTIFICATE_RENDERER_VERSION = "certificate-renderer-v2-template-page-2026-07-12";
+const CERTIFICATE_RENDERER_VERSION = "certificate-renderer-v2-block-matrix-2026-07-12.2";
+
+async function sha256Hex(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(value ?? null));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function isV2BlockTemplate(template: any): boolean {
+  return Number(template?.body?.schema_version ?? 1) >= 2 && Array.isArray(template?.body?.blocks);
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -231,21 +241,32 @@ Deno.serve(async (req) => {
       overrideVersion = override.override_version;
     }
 
-    // ADR 0060 v2026.4.0 — Structural refusal. If the resolved template
-    // (pack OR tenant override) is missing the section contract, refuse
-    // to render instead of silently falling back to the legacy
-    // generic-column layout. This guarantees no P9/P9A/CERT_OF_SERVICE
-    // can ever be issued without identity headers, a data section, and
-    // a signature block.
+    const templateBodyHash = await sha256Hex(template.body ?? {});
+
+    // ADR 0060 v2026.4.0 — Structural refusal. V2 block templates are
+    // authoritative when present; legacy sections[] is validated only for
+    // pre-v2 templates so stale compatibility sections cannot keep driving
+    // a migrated pack's runtime behavior.
     {
-      const sec = Array.isArray(template?.body?.sections) ? template.body.sections : [];
-      const types = new Set<string>(sec.map((s: any) => String(s?.type ?? "")));
+      const isV2 = isV2BlockTemplate(template);
+      const nodes = isV2 ? (template.body.blocks ?? []) : (Array.isArray(template?.body?.sections) ? template.body.sections : []);
+      const types = new Set<string>(nodes.map((s: any) => String(s?.type ?? "")));
       const missing: string[] = [];
-      for (const need of ["employer_header", "employee_header", "signature_block"]) {
-        if (!types.has(need)) missing.push(need);
+      if (isV2) {
+        const hasEmployer = nodes.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employer");
+        const hasEmployee = nodes.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employee");
+        if (!hasEmployer) missing.push("employer field_grid");
+        if (!hasEmployee) missing.push("employee field_grid");
+        if (!types.has("signature_block")) missing.push("signature_block");
+      } else {
+        for (const need of ["employer_header", "employee_header", "signature_block"]) {
+          if (!types.has(need)) missing.push(need);
+        }
       }
-      const hasData = ["monthly_breakdown", "ytd_table", "totals"].some((d) => types.has(d));
-      if (sec.length === 0 || missing.length > 0 || !hasData) {
+      const hasData = isV2
+        ? nodes.some((b: any) => b?.type === "table" && ["monthly_breakdown", "monthly_matrix", "ytd_rows"].includes(String(b?.data_source ?? "")))
+        : ["monthly_breakdown", "ytd_table", "totals"].some((d) => types.has(d));
+      if (nodes.length === 0 || missing.length > 0 || !hasData) {
         // Best-effort diagnostic so the Publisher Health panel can surface
         // packs whose templates are being refused in the field.
         try {
@@ -259,6 +280,7 @@ Deno.serve(async (req) => {
               template_code: template.code,
               template_source: templateSource,
               pack_id: template.pack_id ?? null,
+              contract: isV2 ? "blocks" : "sections",
               sections_present: Array.from(types),
               missing_identity_sections: missing,
               has_data_section: hasData,
@@ -273,6 +295,7 @@ Deno.serve(async (req) => {
           {
             template_code: template.code,
             template_source: templateSource,
+            contract: isV2 ? "blocks" : "sections",
             sections_present: Array.from(types),
             missing_identity_sections: missing,
             has_data_section: hasData,
@@ -386,6 +409,7 @@ Deno.serve(async (req) => {
             const needsRerender =
               (existing as any).stale === true ||
               existingPayload.certificate_renderer_version !== CERTIFICATE_RENDERER_VERSION ||
+              existingPayload.template_body_hash !== templateBodyHash ||
               existingPage.orientation !== expectedPage.orientation ||
               existingPage.size !== expectedPage.size;
 
@@ -440,6 +464,7 @@ Deno.serve(async (req) => {
           template_pack_id: template.pack_id,
           template_source: templateSource,
           template_version: packTemplate.updated_at,
+          template_body_hash: templateBodyHash,
           template_page: normalizeTemplatePage(template.body),
           certificate_renderer_version: CERTIFICATE_RENDERER_VERSION,
           override_version: overrideVersion,
@@ -535,14 +560,20 @@ Deno.serve(async (req) => {
               (Array.isArray(b.derived_columns) ? b.derived_columns : [])
                 .map((d: any) => String(d?.key ?? "")).filter(Boolean),
             );
+            const derivedArgs = (Array.isArray(b.derived_columns) ? b.derived_columns : [])
+              .flatMap((d: any) => Array.isArray(d?.args) ? d.args : [])
+              .filter((a: any) => typeof a === "string")
+              .map((a: string) => a)
+              .filter((k: string) => k && k !== "month_index" && !derivedKeys.has(k));
             const fromCols = Array.isArray(b.columns)
               ? (b.columns as any[])
-                  .map((c) => String(c?.key ?? ""))
+                  .map((c) => String(c?.source_key ?? c?.rule_code ?? c?.key ?? ""))
                   .filter((k) => k && k !== "month_index" && !derivedKeys.has(k))
               : [];
-            return fromCols;
+            const explicit = Array.isArray(b.rule_codes) ? b.rule_codes.map((k: any) => String(k)).filter(Boolean) : [];
+            return [...fromCols, ...derivedArgs, ...explicit];
           });
-        const allMonthlyRuleCodes = [...codesFromSections, ...codesFromBlocks];
+        const allMonthlyRuleCodes = isV2BlockTemplate(template) ? codesFromBlocks : [...codesFromSections, ...codesFromBlocks];
         if (allMonthlyRuleCodes.length) {
           const { data: monthly } = await admin.rpc("payroll_employee_monthly_breakdown", {
             p_year: body.fiscal_year,
@@ -559,9 +590,8 @@ Deno.serve(async (req) => {
           // already logged above via TOKEN_UNRESOLVED insert
         }
 
-        // STATUTORY PAPER PIN — annual employee tax certificates (P9 in
-        // Kenya, equivalent forms elsewhere) are filed and audited at A4.
-        // Orientation is template-owned (KRA P9 is landscape); tenant
+        // STATUTORY PAPER PIN — annual employee tax certificates are filed
+        // and audited at A4. Orientation is template-owned; tenant
         // print policies cannot override either dimension.
         const _tplPage = (packTemplate as any)?.body?.page ?? {};
         const _tplLandscape =

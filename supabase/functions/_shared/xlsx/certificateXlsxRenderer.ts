@@ -18,6 +18,12 @@
 import ExcelJS from "npm:exceljs@4.4.0";
 import type { CertificatePayload, CertificateTemplate } from "../pdf/certificateRenderer.ts";
 import type { MonthlyRow } from "../certificateSections.ts";
+import {
+  applyDerivedColumns,
+  pivotToMonthlyMatrix,
+  type DerivedColumn,
+  type MonthlyRuleCodeRow,
+} from "../monthlyMatrix.ts";
 
 const MONTH_LABELS = [
   "January","February","March","April","May","June",
@@ -51,6 +57,45 @@ function normaliseMonthlyColumns(spec: any): MonthlyColSpec[] {
           format: c.format,
         }))
     .filter((c) => c.key) as MonthlyColSpec[];
+}
+
+function valueAt(obj: any, path: string): unknown {
+  return path.split(".").reduce((a, k) => (a == null ? a : a[k]), obj);
+}
+
+function blockRows(block: any, payload: CertificatePayload): any[] {
+  const dataSource = String(block?.data_source ?? "");
+  if (dataSource === "monthly_matrix") {
+    const cols = Array.isArray(block?.columns) ? block.columns : [];
+    const derived = (Array.isArray(block?.derived_columns) ? block.derived_columns : []) as DerivedColumn[];
+    const derivedKeys = new Set(derived.map((d) => d.key));
+    const ruleCodes = Array.from(new Set([
+      ...cols
+        .map((c: any) => String(c.source_key ?? c.rule_code ?? c.key ?? ""))
+        .filter((k: string) => k && k !== "month_index" && !derivedKeys.has(k)),
+      ...derived.flatMap((d: any) => (Array.isArray(d.args) ? d.args : [])
+        .filter((a: any) => typeof a === "string")
+        .map((a: string) => a)
+        .filter((k: string) => k && k !== "month_index" && !derivedKeys.has(k))),
+      ...((block?.rule_codes ?? []) as any[]).map((k) => String(k)).filter(Boolean),
+    ]));
+    const matrix = pivotToMonthlyMatrix(
+      (payload.monthly ?? []) as MonthlyRuleCodeRow[],
+      ruleCodes,
+      block?.amount_field ?? "employee_amount",
+    );
+    for (const row of matrix) {
+      for (const c of cols) {
+        const sourceKey = String(c.source_key ?? c.rule_code ?? c.key ?? "");
+        const displayKey = String(c.key ?? "");
+        if (sourceKey && displayKey && sourceKey !== displayKey) row[displayKey] = Number(row[sourceKey]) || 0;
+      }
+    }
+    return applyDerivedColumns(matrix, derived);
+  }
+  if (dataSource === "monthly_breakdown") return payload.monthly ?? [];
+  if (dataSource === "ytd_rows") return payload.ytdRows ?? [];
+  return ((payload as any)[dataSource] ?? []) as any[];
 }
 
 const MONEY_FMT = "#,##0.00;(#,##0.00);-";
@@ -99,6 +144,14 @@ export async function renderCertificateXlsx(
   }
   row += 1;
 
+  if (Number((template.body as any)?.schema_version ?? 1) >= 2 && Array.isArray((template.body as any)?.blocks)) {
+    row = writeBlocks(ws, row, (template.body as any).blocks, payload, template);
+    ws.getColumn(1).width = 22;
+    for (let i = 2; i <= 18; i++) ws.getColumn(i).width = 14;
+    const out = await wb.xlsx.writeBuffer();
+    return new Uint8Array(out as ArrayBuffer);
+  }
+
   const sections = template.body?.sections ?? [];
   for (const raw of sections) {
     const type = String(raw?.type ?? "").trim();
@@ -142,6 +195,127 @@ export async function renderCertificateXlsx(
 
   const out = await wb.xlsx.writeBuffer();
   return new Uint8Array(out as ArrayBuffer);
+}
+
+function writeBlocks(ws: any, startRow: number, blocks: any[], payload: CertificatePayload, template: CertificateTemplate): number {
+  let row = startRow;
+  for (const block of blocks ?? []) {
+    switch (block?.type) {
+      case "field_grid":
+        row = writeFieldGridBlock(ws, row, block, payload);
+        break;
+      case "table":
+        row = writeTableBlock(ws, row, block, payload);
+        break;
+      case "notes":
+        row = writeNotesBlock(ws, row, block);
+        break;
+      case "signature_block":
+        row = writeSignatureBlock(ws, row);
+        break;
+      case "heading":
+        row = sectionLabel(ws, row, String(block.text ?? ""));
+        break;
+      case "paragraph":
+        ws.getCell(`A${row}`).value = String(block.text ?? "");
+        ws.getCell(`A${row}`).alignment = { wrapText: true, vertical: "top" };
+        ws.mergeCells(`A${row}:G${row}`);
+        row += 1;
+        break;
+      default:
+        break;
+    }
+    row += 1;
+  }
+  if ((template.body as any)?.footer_note) row = writeFootnote(ws, row, { body: (template.body as any).footer_note }, template);
+  return row;
+}
+
+function writeFieldGridBlock(ws: any, startRow: number, block: any, payload: CertificatePayload): number {
+  const sourceName = String(block?.data_source ?? "employee");
+  const source = sourceName === "employer" ? payload.employer
+    : sourceName === "employee" ? payload.employee
+    : sourceName === "totals" ? payload.totals
+    : (payload as any)[sourceName] ?? {};
+  let row = sectionLabel(ws, startRow, String(block?.title ?? sourceName).toUpperCase());
+  const fields = Array.isArray(block?.fields) ? block.fields : [];
+  for (const f of fields) {
+    const value = valueAt(source, String(f?.key ?? ""));
+    if (value === null || value === undefined || String(value).trim() === "") continue;
+    ws.getCell(`A${row}`).value = String(f?.label ?? f?.key ?? "");
+    ws.getCell(`A${row}`).font = { size: 7, color: { argb: "FF666B78" } };
+    ws.getCell(`B${row}`).value = String(value);
+    ws.getCell(`B${row}`).font = { size: 10, bold: f?.emphasis === "primary" };
+    ws.mergeCells(`B${row}:D${row}`);
+    row += 1;
+  }
+  return row;
+}
+
+function writeTableBlock(ws: any, startRow: number, block: any, payload: CertificatePayload): number {
+  let row = sectionLabel(ws, startRow, String(block?.title ?? "Table").toUpperCase());
+  const cols = Array.isArray(block?.columns) ? block.columns : [];
+  if (!cols.length) return row;
+  cols.forEach((c: any, i: number) => {
+    const cell = ws.getCell(`${colLetter(i)}${row}`);
+    cell.value = String(c?.header ?? c?.key ?? "");
+    cell.font = { bold: true, size: 8 };
+    cell.alignment = { horizontal: i === 0 ? "left" : "right", vertical: "middle", wrapText: true };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F7" } };
+    cell.border = { bottom: { style: "thin", color: { argb: "FF555A66" } } };
+  });
+  row += 1;
+  const firstDataRow = row;
+  const totals: Record<string, number> = {};
+  for (const r of blockRows(block, payload)) {
+    cols.forEach((c: any, i: number) => {
+      const key = String(c?.key ?? "");
+      const cell = ws.getCell(`${colLetter(i)}${row}`);
+      if (key === "month_index") {
+        const month = Number(valueAt(r, key));
+        cell.value = Number.isFinite(month) && month >= 1 && month <= 12 ? MONTH_LABELS[month - 1] : valueAt(r, key) as any;
+        cell.alignment = { horizontal: "left" };
+      } else {
+        const n = Number(valueAt(r, key) ?? 0);
+        totals[key] = (totals[key] ?? 0) + (Number.isFinite(n) ? n : 0);
+        cell.value = Number.isFinite(n) ? n : String(valueAt(r, key) ?? "");
+        cell.numFmt = MONEY_FMT;
+        cell.alignment = { horizontal: "right" };
+      }
+      cell.font = { size: 9 };
+    });
+    row += 1;
+  }
+  const lastDataRow = row - 1;
+  if (block?.footer) {
+    ws.getCell(`A${row}`).value = String(block.footer.label ?? "TOTAL");
+    ws.getCell(`A${row}`).font = { bold: true, size: 9 };
+    cols.forEach((c: any, i: number) => {
+      if (i === 0) return;
+      const letter = colLetter(i);
+      const cell = ws.getCell(`${letter}${row}`);
+      cell.value = { formula: `SUM(${letter}${firstDataRow}:${letter}${lastDataRow})`, result: totals[String(c?.key ?? "")] ?? 0 };
+      cell.numFmt = MONEY_FMT;
+      cell.font = { bold: true, size: 9 };
+      cell.alignment = { horizontal: "right" };
+      cell.border = { top: { style: "medium", color: { argb: "FF555A66" } } };
+    });
+    row += 1;
+  }
+  return row;
+}
+
+function writeNotesBlock(ws: any, startRow: number, block: any): number {
+  let row = sectionLabel(ws, startRow, String(block?.title ?? "NOTES").toUpperCase());
+  for (const p of Array.isArray(block?.paragraphs) ? block.paragraphs : []) {
+    ws.getCell(`A${row}`).value = String(p ?? "");
+    ws.getCell(`A${row}`).font = { size: 8, color: { argb: "FF555A66" } };
+    ws.getCell(`A${row}`).alignment = { wrapText: true, vertical: "top" };
+    ws.mergeCells(`A${row}:G${row}`);
+    ws.getRow(row).height = Math.min(100, 14 + Math.floor(String(p ?? "").length / 90) * 12);
+    row += 1;
+  }
+  return row;
 }
 
 // ── Section writers ──────────────────────────────────────────────────
