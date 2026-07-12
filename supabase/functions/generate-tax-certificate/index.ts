@@ -64,6 +64,7 @@ interface RollupRow {
 }
 
 const STORAGE_BUCKET = "documents";
+const CERTIFICATE_RENDERER_VERSION = "certificate-renderer-v2-template-page-2026-07-12";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -100,6 +101,14 @@ function makeSerial(orgId: string, employeeId: string, fiscalYear: number, code:
   const stamp = Date.now().toString(36).toUpperCase();
   const suffix = employeeId.slice(0, 8).toUpperCase();
   return `${code}-${fiscalYear}-${suffix}-${stamp}`;
+}
+
+function normalizeTemplatePage(body: any) {
+  const page = body?.page ?? {};
+  const orientation = String(page.orientation ?? "portrait").toLowerCase() === "landscape"
+    ? "landscape"
+    : "portrait";
+  return { size: "a4", orientation };
 }
 
 Deno.serve(async (req) => {
@@ -362,7 +371,7 @@ Deno.serve(async (req) => {
         if (!body.regenerate) {
           const { data: existing } = await admin
             .from("payroll_tax_certificates")
-            .select("id, serial_number, artifacts, fiscal_year, employee_id, template_code, status, batch_id")
+            .select("id, serial_number, artifacts, fiscal_year, employee_id, template_code, status, batch_id, stale, payload")
             .eq("organization_id", body.organization_id)
             .eq("business_id", body.business_id)
             .eq("employee_id", emp.id)
@@ -371,8 +380,29 @@ Deno.serve(async (req) => {
             .eq("status", "issued")
             .maybeSingle();
           if (existing) {
-            skipped.push({ ...existing, reason: "already_issued" });
-            continue;
+            const expectedPage = normalizeTemplatePage(template.body);
+            const existingPayload = (existing as any).payload ?? {};
+            const existingPage = normalizeTemplatePage({ page: existingPayload.template_page });
+            const needsRerender =
+              (existing as any).stale === true ||
+              existingPayload.certificate_renderer_version !== CERTIFICATE_RENDERER_VERSION ||
+              existingPage.orientation !== expectedPage.orientation ||
+              existingPage.size !== expectedPage.size;
+
+            if (!needsRerender) {
+              skipped.push({ ...existing, reason: "already_issued" });
+              continue;
+            }
+
+            await admin
+              .from("payroll_tax_certificates")
+              .update({
+                status: "superseded",
+                stale: true,
+                stale_reason: (existing as any).stale ? (existing as any).stale_reason ?? "stale_regenerated" : "renderer_or_template_changed",
+                stale_at: new Date().toISOString(),
+              })
+              .eq("id", (existing as any).id);
           }
         }
 
@@ -410,6 +440,8 @@ Deno.serve(async (req) => {
           template_pack_id: template.pack_id,
           template_source: templateSource,
           template_version: packTemplate.updated_at,
+          template_page: normalizeTemplatePage(template.body),
+          certificate_renderer_version: CERTIFICATE_RENDERER_VERSION,
           override_version: overrideVersion,
           fiscal_year: body.fiscal_year,
           generated_at: new Date().toISOString(),
