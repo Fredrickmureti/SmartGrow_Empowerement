@@ -692,9 +692,10 @@ Deno.serve(async (req) => {
         const renderPdf = async () => {
           // Certificate Engine v3 dispatch — pack authors a paged-media
           // document AST (see supabase/functions/_shared/certificate-engine).
-          // Producer is not yet wired (Phase B follow-up); until then a
-          // v3 template surfaces a clear, structured business error so
-          // packs can migrate templates without waiting on runtime.
+          // The producer is our self-hosted WeasyPrint sidecar
+          // (see infra/cert-renderer/). If CERT_RENDERER_URL and
+          // CERT_RENDERER_SIGNING_SECRET are unset, fall back to the
+          // stub producer which surfaces a clear, structured error.
           if (isV3EngineTemplate(template)) {
             const v3Template = {
               schema_version: 3,
@@ -704,10 +705,11 @@ Deno.serve(async (req) => {
               page_master: (template.body as any).page_master,
               document: (template.body as any).document,
             } as CertificateTemplateV3;
+            const producer = v3ProducerFromEnv() ?? new UnwiredPdfProducer();
             const { bytes } = await renderCertificateV3(
               v3Template,
               enginePayload as unknown as Record<string, unknown>,
-              { currency: orgCurrency, producer: new UnwiredPdfProducer() },
+              { currency: orgCurrency, producer },
             );
             return bytes;
           }
