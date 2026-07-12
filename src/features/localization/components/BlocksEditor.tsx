@@ -369,6 +369,59 @@ function TablePanel({ block, onPatch }: { block: Extract<Block,{type:"table"}>; 
   );
 }
 
+type DerivedExpr = "sum" | "sub" | "min" | "max" | "pct";
+type DerivedRow = { key: string; expr: DerivedExpr; args: Array<string | number> };
+
+function DerivedColumnsPanel({
+  derived, onChange,
+}: {
+  derived: DerivedRow[];
+  onChange: (next: DerivedRow[]) => void;
+}) {
+  const patch = (i: number, p: Partial<DerivedRow>) =>
+    onChange(derived.map((d, idx) => idx === i ? { ...d, ...p } : d));
+  const add = () =>
+    onChange([...derived, { key: "", expr: "sum", args: [] }]);
+  const rm = (i: number) => onChange(derived.filter((_, idx) => idx !== i));
+  // Args edited as a comma-separated string; numeric literals detected, everything else kept as column-key strings.
+  const argsToText = (args: Array<string | number>) => args.map(String).join(", ");
+  const textToArgs = (t: string): Array<string | number> =>
+    t.split(",").map(s => s.trim()).filter(Boolean).map(s => {
+      const n = Number(s);
+      return Number.isFinite(n) && /^-?\d+(\.\d+)?$/.test(s) ? n : s;
+    });
+  return (
+    <div className="space-y-1 rounded border p-2 bg-muted/20">
+      <div className="flex items-center justify-between">
+        <div>
+          <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Derived columns</Label>
+          <div className="text-[10px] text-muted-foreground">
+            Order matters — later formulas may reference earlier keys. Args are matrix column keys or numeric literals (comma-separated).
+          </div>
+        </div>
+        <Button size="sm" variant="ghost" onClick={add}><Plus className="h-3.5 w-3.5 mr-1" /> Add formula</Button>
+      </div>
+      {derived.map((d, i) => (
+        <div key={i} className="grid gap-1 md:grid-cols-[1.2fr_100px_2fr_28px]">
+          <Input className="h-7 text-[11px]" placeholder="key (e.g. chargeable_pay)" value={d.key} onChange={(e) => patch(i, { key: e.target.value })} />
+          <Select value={d.expr} onValueChange={(v) => patch(i, { expr: v as DerivedExpr })}>
+            <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(["sum","sub","min","max","pct"] as DerivedExpr[]).map(x =>
+                <SelectItem key={x} value={x}>{x}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Input className="h-7 text-[11px]" placeholder="args, e.g. basic_salary, 0.30" value={argsToText(d.args)} onChange={(e) => patch(i, { args: textToArgs(e.target.value) })} />
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => rm(i)}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
 function NotesPanel({ block, onPatch }: { block: Extract<Block,{type:"notes"}>; onPatch: (p: any) => void }) {
   const paras = block.paragraphs ?? [""];
   const setP = (i: number, v: string) => onPatch({ paragraphs: paras.map((p, idx) => idx === i ? v : p) });
