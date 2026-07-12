@@ -179,6 +179,10 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   });
   const [dataSource] = useState<"payroll_employee_ytd">("payroll_employee_ytd");
   const [footerNote, setFooterNote] = useState<string>(() => String(initial.body?.footer_note ?? ""));
+  const [orientation, setOrientation] = useState<"portrait" | "landscape">(
+    () => (String((initial.body as any)?.page?.orientation ?? "portrait").toLowerCase() === "landscape"
+      ? "landscape" : "portrait"),
+  );
   const [layout, setLayout] = useState<string>(initial.layout ?? "standard");
   const [notes, setNotes] = useState<string>(initial.notes ?? "");
   const [busy, setBusy] = useState(false);
@@ -189,7 +193,8 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     data_source: dataSource,
     sections,
     footer_note: footerNote || undefined,
-  }), [sections, footerNote, dataSource]);
+    page: { size: "a4", orientation },
+  }), [sections, footerNote, dataSource, orientation]);
 
   const completenessRule = useMemo(
     () => resolveCompletenessRule(initial.template_code),
@@ -355,6 +360,19 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                   onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })}
                 />
                 <Label className="text-xs">Requires approval before issuance</Label>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">Page orientation</Label>
+                <Select value={orientation} onValueChange={(v) => setOrientation(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="portrait">A4 portrait</SelectItem>
+                    <SelectItem value="landscape">A4 landscape (wide monthly grids: KE P9, GH P.A.Y.E.)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="text-[10px] text-muted-foreground">
+                  Statutory authority owns the paper: KRA's P9 template is landscape. Change only when the regulator's form is.
+                </div>
               </div>
             </CardContent>
           </Card>

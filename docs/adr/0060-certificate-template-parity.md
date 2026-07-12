@@ -137,3 +137,30 @@ row.
   — sits inside the ADR 0056 P2.b deferred track; the constraints
   there already anticipate this shape.
 
+## Addendum 2026-07-12 — Page orientation is template-owned
+
+The initial cut of the renderer hardcoded A4 portrait. KRA's official P9
+form is A4 landscape, and once the monthly-breakdown grid grew to 18
+columns (Month + A, B, C, D, E1, E2, E3, F, G, H, I, J, K, L, M, N, O)
+the portrait width (~511pt of content) forced column headers to overprint
+each other. Odoo's `l10n_ke` P9 report solves the same problem by
+attaching a landscape `paperformat_id` to that specific QWeb report.
+
+**Decision.** Page orientation is a template-level property, not a
+renderer constant:
+
+- `certificate_template_v2` body grows an optional
+  `page: { size: "a4", orientation: "portrait"|"landscape" }` — default
+  portrait, backwards compatible.
+- Both renderers (Deno server + browser preview) derive layout via an
+  identical `computeLayout(template)` helper; the parity test enforces
+  that they never diverge.
+- `assertStatutoryPaper` accepts `"a4"` and `"a4-landscape"`; the caller
+  in `generate-tax-certificate` derives which from
+  `body.page.orientation` and pins accordingly — tenant print policies
+  still cannot override.
+- Publisher editor exposes a portrait/landscape select in the legal-
+  metadata panel; the live preview flips immediately.
+- KE P9 and P9A are now landscape. Every other certificate stays
+  portrait.
+

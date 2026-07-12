@@ -35,13 +35,19 @@ describe("certificateRenderer — browser/Deno parity", () => {
     expect(browserCases).toEqual(denoCases);
   });
 
-  it("both files use identical layout constants", () => {
-    const grab = (src: string, name: string) => {
-      const m = src.match(new RegExp(`const ${name}[^;]+`));
+  it("both files derive layout via an identical computeLayout(template) helper", () => {
+    // Layout is now template-driven (portrait vs landscape) instead of a
+    // module constant. Both renderers must derive it the same way — a
+    // divergence would silently ship a P9 that fits KRA's official
+    // template on the server but overflows in the publisher preview.
+    const grab = (src: string) => {
+      const m = src.match(/export function computeLayout[\s\S]*?\n\}/);
       return m?.[0].replace(/\s+/g, " ").trim();
     };
-    for (const name of ["MARGIN", "PAGE_W", "PAGE_H", "CONTENT_W"]) {
-      expect(grab(browser, name)).toBe(grab(deno, name));
-    }
+    const d = grab(deno);
+    const b = grab(browser);
+    expect(d, "Deno computeLayout not found").toBeTruthy();
+    expect(b, "Browser computeLayout not found").toBeTruthy();
+    expect(b).toBe(d);
   });
 });

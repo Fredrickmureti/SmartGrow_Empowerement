@@ -44,8 +44,13 @@ describe("certificate-template-v2-schema", () => {
       "src/features/localization/components/CertificateTemplateEditor.tsx",
       "utf8",
     );
+    // Only look inside the SECTION_TYPES declaration — INCLUDE_OPTIONS
+    // and other value:"…" objects (page orientation, etc.) live nearby
+    // and would otherwise get picked up.
+    const sectionsBlock = /SECTION_TYPES\s*=\s*\[([\s\S]*?)\n\]/.exec(editor);
+    expect(sectionsBlock, "SECTION_TYPES block not found in editor").toBeTruthy();
     const editorTypes = Array.from(
-      editor.matchAll(/\{\s*value:\s*"([a-z_]+)"/g),
+      sectionsBlock![1].matchAll(/\{\s*value:\s*"([a-z_]+)"/g),
     ).map((m) => m[1]);
     expect(editorTypes.length).toBeGreaterThan(4);
 

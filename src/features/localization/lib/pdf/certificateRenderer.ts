@@ -101,13 +101,23 @@ export interface RenderOptions {
   branding?: OrganizationBrandingLite | null;
 }
 
-// ── Layout constants (identical to Deno copy) ───────────────────────
+// ── Layout (identical to Deno copy) ─────────────────────────────────
+//
+// See Deno-side comment. Landscape is opted into by
+// `body.page.orientation = "landscape"` on the template.
 
 const MM = 72 / 25.4;
-const PAGE_W = 210 * MM;
-const PAGE_H = 297 * MM;
-const MARGIN = 42;
-const CONTENT_W = PAGE_W - MARGIN * 2;
+
+export function computeLayout(template: CertificateTemplate): {
+  PAGE_W: number; PAGE_H: number; MARGIN: number; CONTENT_W: number;
+} {
+  const page = (template.body as any)?.page ?? {};
+  const landscape = String(page.orientation ?? "portrait").toLowerCase() === "landscape";
+  const PAGE_W = (landscape ? 297 : 210) * MM;
+  const PAGE_H = (landscape ? 210 : 297) * MM;
+  const MARGIN = 42;
+  return { PAGE_W, PAGE_H, MARGIN, CONTENT_W: PAGE_W - MARGIN * 2 };
+}
 
 const COL = {
   text: rgb(0.08, 0.08, 0.12),
@@ -166,6 +176,7 @@ export async function renderCertificatePdf(
     page: null as any, y: 0, pageNum: 0,
     template, payload,
     branding: opts.branding ?? null,
+    ...computeLayout(template),
   };
 
   const employer = {
@@ -214,22 +225,26 @@ interface DrawCtx {
   template: CertificateTemplate;
   payload: CertificatePayload;
   branding: OrganizationBrandingLite | null;
+  PAGE_W: number;
+  PAGE_H: number;
+  MARGIN: number;
+  CONTENT_W: number;
 }
 
 function startPage(ctx: DrawCtx): void {
-  ctx.page = ctx.doc.addPage([PAGE_W, PAGE_H]);
+  ctx.page = ctx.doc.addPage([ctx.PAGE_W, ctx.PAGE_H]);
   ctx.pageNum += 1;
-  ctx.y = PAGE_H - MARGIN;
+  ctx.y = ctx.PAGE_H - ctx.MARGIN;
 }
 
 function ensureSpace(ctx: DrawCtx, needed: number): void {
-  if (ctx.y - needed < MARGIN + 30) startPage(ctx);
+  if (ctx.y - needed < ctx.MARGIN + 30) startPage(ctx);
 }
 
 function safe(s: unknown): string { return winansiSafe(s ?? ""); }
 
 function drawMasthead(ctx: DrawCtx, employer: any): void {
-  const cx = MARGIN + CONTENT_W / 2;
+  const cx = ctx.MARGIN + ctx.CONTENT_W / 2;
   const orgName = safe(employer.name || "").toUpperCase();
   if (orgName) {
     const w = ctx.fontBold.widthOfTextAtSize(orgName, 10);
@@ -268,7 +283,7 @@ function drawMasthead(ctx: DrawCtx, employer: any): void {
 
   ctx.y -= 6;
   ctx.page.drawLine({
-    start: { x: MARGIN, y: ctx.y }, end: { x: MARGIN + CONTENT_W, y: ctx.y },
+    start: { x: ctx.MARGIN, y: ctx.y }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: ctx.y },
     thickness: 1, color: COL.ruleStrong,
   });
   ctx.y -= 14;
@@ -277,12 +292,12 @@ function drawMasthead(ctx: DrawCtx, employer: any): void {
 function drawSectionLabel(ctx: DrawCtx, type: string, override?: string): void {
   const label = safe(override || SECTION_LABELS[type] || type).toUpperCase();
   ctx.page.drawText(label, {
-    x: MARGIN, y: ctx.y - SIZE.sectionLabel,
+    x: ctx.MARGIN, y: ctx.y - SIZE.sectionLabel,
     size: SIZE.sectionLabel, font: ctx.fontBold, color: COL.muted,
   });
   ctx.y -= SIZE.sectionLabel + 3;
   ctx.page.drawLine({
-    start: { x: MARGIN, y: ctx.y }, end: { x: MARGIN + CONTENT_W, y: ctx.y },
+    start: { x: ctx.MARGIN, y: ctx.y }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: ctx.y },
     thickness: 0.4, color: COL.rule,
   });
   ctx.y -= 8;
@@ -304,7 +319,7 @@ function drawIdentityGrid(
   ctx: DrawCtx,
   entries: Array<{ key: string; value: string }>,
 ): void {
-  const colW = CONTENT_W / 2;
+  const colW = ctx.CONTENT_W / 2;
   const cellPadX = 4;
   const rowH = 22;
   const filtered = entries.filter((e) => e.value && e.value.trim());
@@ -313,7 +328,7 @@ function drawIdentityGrid(
     const yRow = ctx.y;
     for (let col = 0; col < 2 && i + col < filtered.length; col++) {
       const e = filtered[i + col];
-      const x = MARGIN + col * colW;
+      const x = ctx.MARGIN + col * colW;
       ctx.page.drawText(safe(humanKey(e.key)).toUpperCase(), {
         x: x + cellPadX, y: yRow - SIZE.identityLabel,
         size: SIZE.identityLabel, font: ctx.fontRegular, color: COL.muted,
@@ -364,7 +379,7 @@ function drawFiscalPeriodSection(ctx: DrawCtx, spec: CertificateSectionSpec): vo
   drawSectionLabel(ctx, "fiscal_period_band", spec.title);
   const label = safe(ctx.payload.period_label ?? `Fiscal Year ${ctx.payload.fiscal_year}`);
   ctx.page.drawText(label, {
-    x: MARGIN + 4, y: ctx.y - SIZE.identityValue,
+    x: ctx.MARGIN + 4, y: ctx.y - SIZE.identityValue,
     size: SIZE.identityValue, font: ctx.fontBold, color: COL.text,
   });
   ctx.y -= SIZE.identityValue + 12;
@@ -380,19 +395,19 @@ function drawMonthlyBreakdown(ctx: DrawCtx, spec: CertificateSectionSpec): void 
   if (cols.length === 0) { drawEmpty(ctx, "No monthly columns defined."); return; }
 
   const monthColW = 40;
-  const dataW = CONTENT_W - monthColW;
+  const dataW = ctx.CONTENT_W - monthColW;
   const cellW = dataW / cols.length;
   const headerH = 20;
   ensureSpace(ctx, headerH + 14 * 13 + 10);
   ctx.page.drawRectangle({
-    x: MARGIN, y: ctx.y - headerH, width: CONTENT_W, height: headerH, color: COL.bandBg,
+    x: ctx.MARGIN, y: ctx.y - headerH, width: ctx.CONTENT_W, height: headerH, color: COL.bandBg,
   });
   ctx.page.drawText("MONTH", {
-    x: MARGIN + 4, y: ctx.y - headerH / 2 - SIZE.tableHeader / 2 + 1,
+    x: ctx.MARGIN + 4, y: ctx.y - headerH / 2 - SIZE.tableHeader / 2 + 1,
     size: SIZE.tableHeader, font: ctx.fontBold, color: COL.text,
   });
   cols.forEach((c: any, i: number) => {
-    const cellX = MARGIN + monthColW + i * cellW;
+    const cellX = ctx.MARGIN + monthColW + i * cellW;
     const label = safe(c.header).toUpperCase();
     const lw = ctx.fontBold.widthOfTextAtSize(label, SIZE.tableHeader);
     const maxLw = cellW - 6;
@@ -407,7 +422,7 @@ function drawMonthlyBreakdown(ctx: DrawCtx, spec: CertificateSectionSpec): void 
   });
   ctx.y -= headerH;
   ctx.page.drawLine({
-    start: { x: MARGIN, y: ctx.y }, end: { x: MARGIN + CONTENT_W, y: ctx.y },
+    start: { x: ctx.MARGIN, y: ctx.y }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: ctx.y },
     thickness: 0.6, color: COL.ruleStrong,
   });
 
@@ -427,14 +442,14 @@ function drawMonthlyBreakdown(ctx: DrawCtx, spec: CertificateSectionSpec): void 
     ensureSpace(ctx, rowH);
     ctx.y -= rowH;
     ctx.page.drawText(MONTH_LABELS[m - 1], {
-      x: MARGIN + 4, y: ctx.y + 3,
+      x: ctx.MARGIN + 4, y: ctx.y + 3,
       size: SIZE.tableCell, font: ctx.fontRegular, color: COL.text,
     });
     const bucket = pivot.get(m) ?? {};
     cols.forEach((c: any, i: number) => {
       const val = Number(bucket[c.key] ?? 0);
       totals[c.key] += val;
-      const cellX = MARGIN + monthColW + i * cellW;
+      const cellX = ctx.MARGIN + monthColW + i * cellW;
       const s = fmtMoney(val);
       const w = ctx.fontRegular.widthOfTextAtSize(s, SIZE.tableCell);
       ctx.page.drawText(s, {
@@ -444,7 +459,7 @@ function drawMonthlyBreakdown(ctx: DrawCtx, spec: CertificateSectionSpec): void 
       });
     });
     ctx.page.drawLine({
-      start: { x: MARGIN, y: ctx.y }, end: { x: MARGIN + CONTENT_W, y: ctx.y },
+      start: { x: ctx.MARGIN, y: ctx.y }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: ctx.y },
       thickness: 0.2, color: COL.rule,
     });
   }
@@ -452,16 +467,16 @@ function drawMonthlyBreakdown(ctx: DrawCtx, spec: CertificateSectionSpec): void 
   ensureSpace(ctx, rowH + 4);
   ctx.y -= 2;
   ctx.page.drawLine({
-    start: { x: MARGIN, y: ctx.y }, end: { x: MARGIN + CONTENT_W, y: ctx.y },
+    start: { x: ctx.MARGIN, y: ctx.y }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: ctx.y },
     thickness: 0.6, color: COL.ruleStrong,
   });
   ctx.y -= rowH;
   ctx.page.drawText("TOTAL", {
-    x: MARGIN + 4, y: ctx.y + 3,
+    x: ctx.MARGIN + 4, y: ctx.y + 3,
     size: SIZE.tableCell, font: ctx.fontBold, color: COL.text,
   });
   cols.forEach((c: any, i: number) => {
-    const cellX = MARGIN + monthColW + i * cellW;
+    const cellX = ctx.MARGIN + monthColW + i * cellW;
     const s = fmtMoney(totals[c.key]);
     const w = ctx.fontBold.widthOfTextAtSize(s, SIZE.tableCell);
     ctx.page.drawText(s, {
@@ -470,11 +485,11 @@ function drawMonthlyBreakdown(ctx: DrawCtx, spec: CertificateSectionSpec): void 
     });
   });
   ctx.page.drawLine({
-    start: { x: MARGIN, y: ctx.y - 1 }, end: { x: MARGIN + CONTENT_W, y: ctx.y - 1 },
+    start: { x: ctx.MARGIN, y: ctx.y - 1 }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: ctx.y - 1 },
     thickness: 0.2, color: COL.rule,
   });
   ctx.page.drawLine({
-    start: { x: MARGIN, y: ctx.y - 3 }, end: { x: MARGIN + CONTENT_W, y: ctx.y - 3 },
+    start: { x: ctx.MARGIN, y: ctx.y - 3 }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: ctx.y - 3 },
     thickness: 0.6, color: COL.ruleStrong,
   });
   ctx.y -= 14;
@@ -491,12 +506,12 @@ function drawYtdTable(ctx: DrawCtx, spec: CertificateSectionSpec): void {
     { key: "employer_amount", header: "Employer", w: 0.15, align: "right" as const },
     { key: "taxable_amount", header: "Taxable", w: 0.15, align: "right" as const },
   ];
-  const widths = cols.map((c) => c.w * CONTENT_W);
+  const widths = cols.map((c) => c.w * ctx.CONTENT_W);
   const headerH = 18;
   ctx.page.drawRectangle({
-    x: MARGIN, y: ctx.y - headerH, width: CONTENT_W, height: headerH, color: COL.bandBg,
+    x: ctx.MARGIN, y: ctx.y - headerH, width: ctx.CONTENT_W, height: headerH, color: COL.bandBg,
   });
-  let cx = MARGIN;
+  let cx = ctx.MARGIN;
   cols.forEach((c, i) => {
     const s = safe(c.header).toUpperCase();
     const w = widths[i];
@@ -510,14 +525,14 @@ function drawYtdTable(ctx: DrawCtx, spec: CertificateSectionSpec): void {
   });
   ctx.y -= headerH;
   ctx.page.drawLine({
-    start: { x: MARGIN, y: ctx.y }, end: { x: MARGIN + CONTENT_W, y: ctx.y },
+    start: { x: ctx.MARGIN, y: ctx.y }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: ctx.y },
     thickness: 0.6, color: COL.ruleStrong,
   });
   const rowH = 14;
   for (const r of rows) {
     ensureSpace(ctx, rowH);
     ctx.y -= rowH;
-    let cx2 = MARGIN;
+    let cx2 = ctx.MARGIN;
     cols.forEach((c, i) => {
       const w = widths[i];
       const raw = (r as any)[c.key];
@@ -531,7 +546,7 @@ function drawYtdTable(ctx: DrawCtx, spec: CertificateSectionSpec): void {
       cx2 += w;
     });
     ctx.page.drawLine({
-      start: { x: MARGIN, y: ctx.y }, end: { x: MARGIN + CONTENT_W, y: ctx.y },
+      start: { x: ctx.MARGIN, y: ctx.y }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: ctx.y },
       thickness: 0.2, color: COL.rule,
     });
   }
@@ -545,14 +560,14 @@ function drawTotalsSection(ctx: DrawCtx, spec: CertificateSectionSpec): void {
     { label: "Total Employer Contributions", value: ctx.payload.totals.employer },
     { label: "Total Taxable Income", value: ctx.payload.totals.taxable },
   ];
-  const colW = CONTENT_W / items.length;
+  const colW = ctx.CONTENT_W / items.length;
   const boxH = 40;
   ensureSpace(ctx, boxH + 8);
   ctx.page.drawRectangle({
-    x: MARGIN, y: ctx.y - boxH, width: CONTENT_W, height: boxH, color: COL.bandBg,
+    x: ctx.MARGIN, y: ctx.y - boxH, width: ctx.CONTENT_W, height: boxH, color: COL.bandBg,
   });
   items.forEach((it, i) => {
-    const x = MARGIN + i * colW;
+    const x = ctx.MARGIN + i * colW;
     const lbl = safe(it.label).toUpperCase();
     ctx.page.drawText(lbl, {
       x: x + 8, y: ctx.y - 12,
@@ -582,11 +597,11 @@ function drawReliefSection(ctx: DrawCtx, spec: CertificateSectionSpec): void {
     const row = ctx.payload.ytdRows.find((r) => r.rule_code === code);
     return { code, amount: Number(row?.employee_amount ?? 0) };
   });
-  const colW = CONTENT_W / entries.length;
+  const colW = ctx.CONTENT_W / entries.length;
   const boxH = 30;
   ensureSpace(ctx, boxH + 8);
   entries.forEach((e, i) => {
-    const x = MARGIN + i * colW;
+    const x = ctx.MARGIN + i * colW;
     ctx.page.drawText(safe(humanKey(e.code)).toUpperCase(), {
       x: x + 4, y: ctx.y - 10,
       size: SIZE.identityLabel, font: ctx.fontRegular, color: COL.muted,
@@ -603,11 +618,11 @@ function drawFootnote(ctx: DrawCtx, spec: CertificateSectionSpec): void {
   const text = safe(spec.body ?? "").trim();
   if (!text) return;
   drawSectionLabel(ctx, "statutory_footnote", spec.title);
-  const wrapped = wrapText(text, ctx.fontRegular, SIZE.footnote, CONTENT_W - 8);
+  const wrapped = wrapText(text, ctx.fontRegular, SIZE.footnote, ctx.CONTENT_W - 8);
   ensureSpace(ctx, wrapped.length * (SIZE.footnote + 3) + 8);
   for (const line of wrapped) {
     ctx.page.drawText(line, {
-      x: MARGIN + 4, y: ctx.y - SIZE.footnote,
+      x: ctx.MARGIN + 4, y: ctx.y - SIZE.footnote,
       size: SIZE.footnote, font: ctx.fontItalic, color: COL.text,
     });
     ctx.y -= SIZE.footnote + 3;
@@ -619,11 +634,11 @@ function drawSignatureBlock(ctx: DrawCtx, spec: CertificateSectionSpec): void {
   drawSectionLabel(ctx, "signature_block", spec.title);
   const entries = spec.include && spec.include.length
     ? spec.include : ["preparer", "date", "employer_stamp"];
-  const colW = CONTENT_W / entries.length;
+  const colW = ctx.CONTENT_W / entries.length;
   const boxH = 46;
   ensureSpace(ctx, boxH + 8);
   entries.forEach((k, i) => {
-    const x = MARGIN + i * colW;
+    const x = ctx.MARGIN + i * colW;
     ctx.page.drawLine({
       start: { x: x + 4, y: ctx.y - 26 },
       end:   { x: x + colW - 12, y: ctx.y - 26 },
@@ -645,25 +660,25 @@ function drawFooterOnAllPages(ctx: DrawCtx): void {
   );
   const serial = ctx.payload.serial_number ? safe(`Serial: ${ctx.payload.serial_number}`) : "";
   pages.forEach((p, idx) => {
-    const y = MARGIN - 12;
+    const y = ctx.MARGIN - 12;
     p.drawLine({
-      start: { x: MARGIN, y: y + 12 }, end: { x: MARGIN + CONTENT_W, y: y + 12 },
+      start: { x: ctx.MARGIN, y: y + 12 }, end: { x: ctx.MARGIN + ctx.CONTENT_W, y: y + 12 },
       thickness: 0.3, color: COL.rule,
     });
     p.drawText(stamp, {
-      x: MARGIN, y, size: SIZE.pageFooter, font: ctx.fontRegular, color: COL.muted,
+      x: ctx.MARGIN, y, size: SIZE.pageFooter, font: ctx.fontRegular, color: COL.muted,
     });
     if (serial) {
       const sw = ctx.fontRegular.widthOfTextAtSize(serial, SIZE.pageFooter);
       p.drawText(serial, {
-        x: MARGIN + CONTENT_W / 2 - sw / 2, y,
+        x: ctx.MARGIN + ctx.CONTENT_W / 2 - sw / 2, y,
         size: SIZE.pageFooter, font: ctx.fontRegular, color: COL.muted,
       });
     }
     const pnum = `Page ${idx + 1} of ${total}`;
     const pw = ctx.fontRegular.widthOfTextAtSize(pnum, SIZE.pageFooter);
     p.drawText(pnum, {
-      x: MARGIN + CONTENT_W - pw, y,
+      x: ctx.MARGIN + ctx.CONTENT_W - pw, y,
       size: SIZE.pageFooter, font: ctx.fontRegular, color: COL.muted,
     });
   });
@@ -679,7 +694,7 @@ function fmtMoney(n: number): string {
 
 function drawEmpty(ctx: DrawCtx, msg: string): void {
   ctx.page.drawText(safe(msg), {
-    x: MARGIN + 4, y: ctx.y - SIZE.tableCell,
+    x: ctx.MARGIN + 4, y: ctx.y - SIZE.tableCell,
     size: SIZE.tableCell, font: ctx.fontItalic, color: COL.muted,
   });
   ctx.y -= SIZE.tableCell + 12;

@@ -501,8 +501,12 @@ Deno.serve(async (req) => {
 
         // STATUTORY PAPER PIN — annual employee tax certificates (P9 in
         // Kenya, equivalent forms elsewhere) are filed and audited at A4.
-        // Tenant print policies cannot override.
-        assertStatutoryPaper("a4");
+        // Orientation is template-owned (KRA P9 is landscape); tenant
+        // print policies cannot override either dimension.
+        const _tplPage = (packTemplate as any)?.body?.page ?? {};
+        const _tplLandscape =
+          String(_tplPage.orientation ?? "portrait").toLowerCase() === "landscape";
+        assertStatutoryPaper(_tplLandscape ? "a4-landscape" : "a4");
 
         // Fetch statutory authority name (if any) for masthead legal citation.
         let authorityName: string | null = null;
