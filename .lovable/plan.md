@@ -39,7 +39,11 @@ Inspected files, not just tests. Findings:
 - TODO: golden-PDF baseline test in `src/test/localization/` (deferred to a follow-up alongside the AST producer's golden fixtures).
 
 ### Step 3 — Phase D: Publisher workbench for v3
-- Extend `TemplateEditor` with the v3 canvas (semantic nodes), page-master editor, paper-format editor.
+### Step 3 — Phase D: Publisher workbench for v3 — IN PROGRESS
+- `CertificateTemplateEditor` schema toggle is now a 3-way select: Legacy sections / Block AST v2 / Engine AST v3.
+- New `CertificateV3Editor` component provides: structured paper-format editor (size, orientation, margins, header/footer bands), JSON authoring for `page_master.header/footer`, JSON authoring for `document`, a client-side mirror of both DB validators (identity_strip + matrix + signature_strip invariants), and a "Seed from Kenya P9 v10" button.
+- Save is gated on the same rules the server enforces at write time — no way to author a v3 body that the DB will reject.
+- TODO (next iteration): visual drag-and-drop canvas + browser-side engine preview (needs the AST producer bundled for the browser).
 - Live preview panel calls the **same engine** compiled for the browser (engine module is Deno/browser-isomorphic by design — no hand-copied mirror).
 
 ### Step 4 — Phases E & F

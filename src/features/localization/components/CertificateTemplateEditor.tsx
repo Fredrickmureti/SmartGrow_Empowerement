@@ -45,6 +45,13 @@ import {
 import { snippetsFor } from "../lib/statutorySnippets";
 import { usePackFormatRegistry } from "../hooks/usePackFormatRegistry";
 import { OutputsCard } from "./OutputsCard";
+import {
+  CertificateV3Editor,
+  defaultV3Body,
+  validateV3Body,
+  type V3Body,
+  type V3Validation,
+} from "./CertificateV3Editor";
 
 const SECTION_TYPES = [
   { value: "employer_header",    label: "Employer header",   help: "Employer name, PIN, address, tax office." },
@@ -175,6 +182,18 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const [meta, setMeta] = useState<CertificateTemplateMetadata>(() => normalizeMetadata(initial.metadata));
   const initialSchemaVersion = Number((initial.body as any)?.schema_version ?? 1);
   const [schemaVersion, setSchemaVersion] = useState<number>(initialSchemaVersion);
+  // v3 authoring surface — separate state, materialized into liveBody
+  // when schemaVersion === 3 (so the DB-side v3 validators run).
+  const [v3Body, setV3Body] = useState<V3Body>(() => {
+    const b = initial.body as any;
+    if (b && Number(b?.schema_version) >= 3 && Array.isArray(b?.document)) {
+      return b as V3Body;
+    }
+    return defaultV3Body(initial.template_code);
+  });
+  const [v3Validation, setV3Validation] = useState<V3Validation>(() =>
+    validateV3Body(v3Body, []),
+  );
   const [sections, setSections] = useState<any[]>(() => {
     const b = initial.body;
     if (b && Array.isArray(b.sections)) return b.sections;
@@ -197,16 +216,20 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const unresolvedRef = useRef<string[]>([]);
   const authoritiesQuery = useStatutoryAuthorities(editMetadata ? packId : null);
 
-  const isV2 = schemaVersion >= 2;
+  const isV3 = schemaVersion >= 3;
+  const isV2 = !isV3 && schemaVersion >= 2;
 
-  const liveBody = useMemo(() => ({
-    schema_version: isV2 ? 2 : undefined,
-    data_source: dataSource,
-    sections,
-    blocks: isV2 ? blocks : undefined,
-    footer_note: footerNote || undefined,
-    page: { size: "a4", orientation },
-  }), [isV2, sections, blocks, footerNote, dataSource, orientation]);
+  const liveBody = useMemo(() => {
+    if (isV3) return v3Body;
+    return {
+      schema_version: isV2 ? 2 : undefined,
+      data_source: dataSource,
+      sections,
+      blocks: isV2 ? blocks : undefined,
+      footer_note: footerNote || undefined,
+      page: { size: "a4", orientation },
+    };
+  }, [isV3, v3Body, isV2, sections, blocks, footerNote, dataSource, orientation]);
 
   const completenessRule = useMemo(
     () => resolveCompletenessRule(initial.template_code),
@@ -236,7 +259,12 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     if (!meta.effective_date) metaErrors.push("Effective date is required");
   }
   const bodyErrors: string[] = [];
-  if (isV2) {
+  if (isV3) {
+    if (!v3Validation.ok) {
+      for (const m of v3Validation.missing) bodyErrors.push(`v3 body missing: ${m}`);
+      for (const p of v3Validation.parseErrors) bodyErrors.push(p);
+    }
+  } else if (isV2) {
     if (blocks.length === 0) bodyErrors.push("Add at least one block to the document");
   } else {
     if (sections.length === 0) bodyErrors.push("Add at least one section");
@@ -414,23 +442,43 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm">Document schema</CardTitle>
-            <div className="flex items-center gap-2 text-xs">
-              <span className={isV2 ? "text-muted-foreground" : "font-medium"}>Legacy sections</span>
-              <Switch
-                checked={isV2}
-                onCheckedChange={(v) => setSchemaVersion(v ? 2 : 1)}
-              />
-              <span className={isV2 ? "font-medium" : "text-muted-foreground"}>Block AST (v2)</span>
-            </div>
+            <Select
+              value={String(schemaVersion >= 3 ? 3 : schemaVersion >= 2 ? 2 : 1)}
+              onValueChange={(v) => setSchemaVersion(Number(v))}
+            >
+              <SelectTrigger className="h-8 w-[220px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Legacy sections</SelectItem>
+                <SelectItem value="2">Block AST (v2)</SelectItem>
+                <SelectItem value="3">Engine AST (v3, country-agnostic)</SelectItem>
+              </SelectContent>
+            </Select>
           </CardHeader>
           <CardContent className="text-[11px] text-muted-foreground">
-            {isV2
-              ? "Blocks drive the PDF renderer. Legacy sections below are retained only for the XLSX twin during transition."
-              : "Legacy section editor. New templates should use the v2 Block AST — flip the switch above."}
+            {isV3
+              ? "Certificate Engine v3 drives the renderer directly. Sections/blocks are hidden — v3 bodies are self-contained."
+              : isV2
+                ? "Blocks drive the PDF renderer. Legacy sections below are retained only for the XLSX twin during transition."
+                : "Legacy section editor. New templates should use the v2 Block AST — or the country-agnostic v3 engine."}
           </CardContent>
         </Card>
 
+        {isV3 && (
+          <CertificateV3Editor
+            templateCode={initial.template_code}
+            body={v3Body}
+            onChange={(next) => {
+              setV3Body(next);
+              setV3Validation(validateV3Body(next, []));
+            }}
+            onValidityChange={setV3Validation}
+          />
+        )}
+
         {isV2 && <BlocksEditor blocks={blocks} onChange={setBlocks} />}
+
+        {!isV3 && (
+          <>
 
         {/* Sections (legacy / XLSX twin) */}
         <Card>
@@ -678,6 +726,8 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
             </div>
           </CardContent>
         </Card>
+        </>
+        )}
 
         {(metaErrors.length > 0 || bodyErrors.length > 0) && (
           <Alert variant="destructive">
