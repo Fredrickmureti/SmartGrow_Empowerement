@@ -554,26 +554,35 @@ Deno.serve(async (req) => {
         let xlsxBytes: Uint8Array | null = null;
 
         const renderBinary = async () => {
-          // Resolve asset URL for this pack version
+          // Resolve asset for this pack/version. Order of preference:
+          //   1. Row scoped to this template's pack_version_id
+          //   2. Latest row for the same pack_id + asset_key
+          // Then resolve the bytes in order:
+          //   a. Inline `bytes` column (canonical; independent of any URL host)
+          //   b. `source_url` scheme:
+          //        - `storage://<bucket>/<path>`   → Supabase Storage download
+          //        - absolute `http(s)://…`         → fetch as-is
+          //        - path-relative (e.g. `/__l5e/…`) → resolved against
+          //          `LOVABLE_ASSETS_ORIGIN` env var (never the edge-function origin)
           const packVersionId = (template as any).pack_version_id
             ?? (packTemplate as any).pack_version_id
             ?? null;
           const assetKey = (template.body as any).asset_key as string;
+          const cols = "source_url, bytes";
           let assetRow: any = null;
           if (packVersionId) {
             const r = await admin
               .from("localization_pack_binary_assets")
-              .select("source_url")
+              .select(cols)
               .eq("pack_version_id", packVersionId)
               .eq("asset_key", assetKey)
               .maybeSingle();
             assetRow = r.data;
           }
           if (!assetRow) {
-            // Fallback: latest asset row matching this pack + asset_key
             const r = await admin
               .from("localization_pack_binary_assets")
-              .select("source_url")
+              .select(cols)
               .eq("pack_id", template.pack_id)
               .eq("asset_key", assetKey)
               .order("created_at", { ascending: false })
@@ -581,15 +590,86 @@ Deno.serve(async (req) => {
               .maybeSingle();
             assetRow = r.data;
           }
-          const sourceUrl = assetRow?.source_url as string | null | undefined;
-          if (!sourceUrl) {
+          if (!assetRow) {
             throw new Error(
               `MASTER_WORKBOOK_MISSING: pack ${template.pack_id ?? "?"} has no binary asset registered for '${assetKey}'. ` +
               `Republish the localization pack version so localization_pack_binary_assets is populated.`,
             );
           }
-          const origin = new URL(req.url).origin;
-          const fetcher = makeUrlAssetFetcher(() => sourceUrl, origin);
+
+          const fetcher = async (): Promise<Uint8Array> => {
+            // (a) inline bytes wins
+            const raw = assetRow.bytes;
+            if (raw) {
+              if (raw instanceof Uint8Array) return raw;
+              if (typeof raw === "string") {
+                // Postgres bytea via PostgREST returns hex `\x…` by default.
+                const hex = raw.startsWith("\\x") ? raw.slice(2) : raw;
+                if (/^[0-9a-fA-F]+$/.test(hex) && hex.length % 2 === 0) {
+                  const out = new Uint8Array(hex.length / 2);
+                  for (let i = 0; i < out.length; i++) {
+                    out[i] = parseInt(hex.substr(i * 2, 2), 16);
+                  }
+                  return out;
+                }
+                // Fall back to base64
+                try {
+                  const bin = atob(raw);
+                  const out = new Uint8Array(bin.length);
+                  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+                  return out;
+                } catch { /* fall through */ }
+              }
+            }
+
+            // (b) URL-based resolution
+            const sourceUrl = assetRow.source_url as string | null | undefined;
+            if (!sourceUrl) {
+              throw new Error(
+                `MASTER_WORKBOOK_UNREACHABLE: pack asset '${assetKey}' has neither inline bytes nor a source_url.`,
+              );
+            }
+
+            // storage://bucket/path
+            if (sourceUrl.startsWith("storage://")) {
+              const rest = sourceUrl.slice("storage://".length);
+              const slash = rest.indexOf("/");
+              if (slash <= 0) {
+                throw new Error(`MASTER_WORKBOOK_UNREACHABLE: malformed storage URL '${sourceUrl}'.`);
+              }
+              const bucket = rest.slice(0, slash);
+              const path = rest.slice(slash + 1);
+              const { data, error } = await admin.storage.from(bucket).download(path);
+              if (error || !data) {
+                throw new Error(
+                  `MASTER_WORKBOOK_UNREACHABLE: storage download failed for '${sourceUrl}': ${error?.message ?? "no data"}`,
+                );
+              }
+              return new Uint8Array(await data.arrayBuffer());
+            }
+
+            let absolute: string = sourceUrl;
+            if (sourceUrl.startsWith("/")) {
+              const originEnv = Deno.env.get("LOVABLE_ASSETS_ORIGIN") ?? "";
+              if (!originEnv) {
+                throw new Error(
+                  `MASTER_WORKBOOK_UNREACHABLE: pack asset '${assetKey}' has a relative source_url ('${sourceUrl}') and LOVABLE_ASSETS_ORIGIN is not configured on this Supabase project. ` +
+                  `Ask your platform administrator to either (1) re-upload the master workbook to this Lovable project so it lives on the reachable CDN, or (2) migrate the asset into the 'documents' storage bucket and set source_url = 'storage://documents/<path>'.`,
+                );
+              }
+              absolute = `${originEnv.replace(/\/$/, "")}${sourceUrl}`;
+            }
+
+            const res = await fetch(absolute);
+            if (!res.ok) {
+              throw new Error(
+                `MASTER_WORKBOOK_UNREACHABLE: fetch ${absolute} → HTTP ${res.status}. ` +
+                `The master workbook for '${assetKey}' cannot be retrieved. Re-upload it to this project or migrate the asset into Supabase Storage.`,
+              );
+            }
+            return new Uint8Array(await res.arrayBuffer());
+          };
+
           return await renderBinaryCertificateXlsx(
             template.body as BinaryCertificateBody,
             {
