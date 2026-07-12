@@ -779,6 +779,61 @@ Deno.serve(async (req) => {
             bytes = xlsxBytes;
             ext = "xlsx";
             mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+          } else if (decl.format === "xlsx") {
+            // Odoo-model editable twin. Consumes the SAME v2 sections
+            // and the SAME resolved payload as the PDF renderer — no
+            // separate data source, no master workbook.
+            if (!xlsxBytes) {
+              xlsxBytes = await renderCertificateXlsx(
+                {
+                  code: template.code,
+                  display_name: template.display_name,
+                  legal_reference: (packTemplate as any).legal_reference ?? null,
+                  regulation_citation: (packTemplate as any).regulation_citation ?? null,
+                  effective_date: (packTemplate as any).effective_date ?? null,
+                  authority_name: authorityName,
+                  body: template.body as any,
+                },
+                {
+                  employee: {
+                    id: emp.id,
+                    full_name: payload.employee.full_name,
+                    employee_number: payload.employee.employee_number,
+                    tax_pin: payload.employee.tax_pin,
+                    national_id: payload.employee.national_id,
+                    position: payload.employee.position,
+                    department: payload.employee.department,
+                    hire_date: (emp as any).hire_date ?? null,
+                    exit_date: (emp as any).termination_date ?? null,
+                  },
+                  employer: {
+                    name: branding?.name ?? "",
+                    tax_pin: (branding as any)?.tax_pin ?? "",
+                    address: (branding as any)?.address ?? "",
+                    tax_office: (branding as any)?.tax_office ?? "",
+                    phone: (branding as any)?.phone ?? "",
+                    email: (branding as any)?.email ?? "",
+                  },
+                  fiscal_year: body.fiscal_year,
+                  period_label: `1 Jan ${body.fiscal_year} - 31 Dec ${body.fiscal_year}`,
+                  currency: orgCurrency,
+                  monthly: monthlyRows,
+                  ytdRows: rows.map((r) => ({
+                    rule_code: r.rule_code,
+                    category: r.category,
+                    employee_amount: Number(r.employee_amount) || 0,
+                    employer_amount: Number(r.employer_amount) || 0,
+                    taxable_amount: Number(r.taxable_amount) || 0,
+                  })),
+                  totals,
+                  serial_number: serial,
+                  generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+                },
+              );
+            }
+            bytes = xlsxBytes;
+            ext = "xlsx";
+            mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
           } else if (decl.format === "pdf") {
             if (!pdfBytes) pdfBytes = await renderPdf();
             bytes = pdfBytes;
