@@ -39,6 +39,12 @@ import {
 import { winansiSafe } from "./winansi.ts";
 import type { OrganizationBranding } from "../branding/index.ts";
 import type { MonthlyRow } from "../certificateSections.ts";
+import {
+  pivotToMonthlyMatrix,
+  applyDerivedColumns,
+  type DerivedColumn,
+  type MonthlyRuleCodeRow,
+} from "../monthlyMatrix.ts";
 
 // ── Block AST ─────────────────────────────────────────────────────────
 
