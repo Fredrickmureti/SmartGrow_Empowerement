@@ -20,7 +20,6 @@ import {
   UnwiredPdfProducer,
   type CertificateTemplateV3,
 } from "../_shared/certificate-engine/engine.ts";
-import { producerFromEnv as v3ProducerFromEnv } from "../_shared/certificate-engine/vercelChromiumProducer.ts";
 import { renderCertificateXlsx } from "../_shared/xlsx/certificateXlsxRenderer.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody, toSummaryRows } from "../_shared/renderTemplateBody.ts";
@@ -692,10 +691,12 @@ Deno.serve(async (req) => {
         const renderPdf = async () => {
           // Certificate Engine v3 dispatch — pack authors a paged-media
           // document AST (see supabase/functions/_shared/certificate-engine).
-          // The producer is our self-hosted WeasyPrint sidecar
-          // (see infra/cert-renderer/). If CERT_RENDERER_URL and
-          // CERT_RENDERER_SIGNING_SECRET are unset, fall back to the
-          // stub producer which surfaces a clear, structured error.
+          // The concrete PdfProducer runtime is being selected in the
+          // Phase-B spike (Deno-native, colocated with this edge function —
+          // no Vercel, Docker, K8s, or third-party API). Until wired, the
+          // stub producer surfaces a clear, structured error so callers
+          // that request v3 templates get an actionable diagnostic
+          // rather than a silent misrender.
           if (isV3EngineTemplate(template)) {
             const v3Template = {
               schema_version: 3,
@@ -705,7 +706,7 @@ Deno.serve(async (req) => {
               page_master: (template.body as any).page_master,
               document: (template.body as any).document,
             } as CertificateTemplateV3;
-            const producer = v3ProducerFromEnv() ?? new UnwiredPdfProducer();
+            const producer = new UnwiredPdfProducer();
             const { bytes } = await renderCertificateV3(
               v3Template,
               enginePayload as unknown as Record<string, unknown>,
