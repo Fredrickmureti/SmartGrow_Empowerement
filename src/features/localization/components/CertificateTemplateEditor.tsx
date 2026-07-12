@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
 import { TokenAwareTextarea } from "./TokenAwareTextarea";
+import { BlocksEditor, type Block } from "./BlocksEditor";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
 import { Checkbox } from "@/components/ui/checkbox";
