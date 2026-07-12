@@ -394,7 +394,7 @@ export function ReturnsTab() {
                                   case "gov_csv": return "Gov CSV";
                                   case "gov_xlsx": return "Gov Excel";
                                   case "gov_xml": return "Gov XML";
-                                  case "xlsx_binary": return "Excel";
+                                  case "xlsx": return "Excel";
                                   case "xml": return "XML";
                                   default: return a.format.toUpperCase();
                                 }
