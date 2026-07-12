@@ -769,7 +769,8 @@ Deno.serve(async (req) => {
 
     // When every employee failed, surface the first failure as a
     // structured business error so the UI can render the real reason
-    // (e.g. MASTER_WORKBOOK_UNREACHABLE) instead of "unexpected error".
+    // (e.g. NO_YTD_DATA / TEMPLATE_STRUCTURAL_INVALID) instead of
+    // "unexpected error".
     if (errors.length && !created.length && !skipped.length) {
       const first = errors[0]?.error ?? "unknown";
       const msg = String(first);
