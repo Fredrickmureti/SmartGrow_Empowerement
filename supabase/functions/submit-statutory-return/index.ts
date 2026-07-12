@@ -123,10 +123,23 @@ Deno.serve(async (req) => {
 
     let payloadBytes: Uint8Array;
     let contentType = apiSpec.content_type ?? "application/json";
-    if (apiSpec.payload_kind === "gov_file" && run.gov_file_path) {
-      const dl = await admin.storage.from("documents").download(run.gov_file_path);
+    // ADR 0060 — the gov filing file now lives in run.artifacts, not the
+    // legacy scalar gov_file_path column (dropped 2026-07-12). Prefer the
+    // artifact whose role is "portal", then any gov_* format.
+    const artifacts: Array<{ format?: string; path?: string; role?: string }> =
+      Array.isArray(run.artifacts) ? run.artifacts : [];
+    const govArtifact =
+      artifacts.find((a) => a?.role === "portal" && typeof a?.path === "string") ??
+      artifacts.find((a) => typeof a?.format === "string" && /^gov_/i.test(a.format) && typeof a?.path === "string") ??
+      null;
+    if (apiSpec.payload_kind === "gov_file" && govArtifact?.path) {
+      const dl = await admin.storage.from("documents").download(govArtifact.path);
       if (dl.error || !dl.data) return json({ error: `gov_file download: ${dl.error?.message}` }, 500);
       payloadBytes = new Uint8Array(await dl.data.arrayBuffer());
+    } else if (apiSpec.payload_kind === "gov_file") {
+      return json({
+        error: "gov_file payload required but no portal-role artifact found on this run",
+      }, 400);
     } else {
       const txt = JSON.stringify(run.payload);
       payloadBytes = new TextEncoder().encode(txt);
