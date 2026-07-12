@@ -668,12 +668,16 @@ function drawTable(ctx: Ctx, b: TableBlock) {
   const totals: Record<string, number> = {};
   const numericKeys = new Set(cols.filter((c) => c.format === "currency" || c.format === "number").map((c) => c.key));
 
-  if (b.group_by) {
+  // `monthly_matrix` and any resolver that already returns pre-pivoted
+  // rows (one bucket per group value) go through the regular non-group
+  // path: rows already have column keys populated. Only the raw
+  // rule-code stream (`monthly_breakdown`) needs the aggregate-by-rule
+  // branch.
+  const isPrePivoted = b.data_source === "monthly_matrix";
+  if (b.group_by && !isPrePivoted) {
     const groupKey = b.group_by;
+    const amountField = b.amount_field ?? "employee_amount";
     const groups = new Map<string, Record<string, any>>();
-    // Determine which column corresponds to the group key so we materialise its label.
-    // For "month_index" specifically, the pack-supplied column should have key === "month_index"
-    // and format "text"; the resolver above already returns integer month_index.
     for (const r of filtered) {
       const gk = String(r[groupKey] ?? "");
       if (!groups.has(gk)) groups.set(gk, { [groupKey]: r[groupKey] });
@@ -682,14 +686,13 @@ function drawTable(ctx: Ctx, b: TableBlock) {
         if (c.key === groupKey) continue;
         if (numericKeys.has(c.key)) {
           if (String(r.rule_code) === c.key) {
-            bucket[c.key] = (Number(bucket[c.key]) || 0) + Number(r.employee_amount ?? 0);
+            bucket[c.key] = (Number(bucket[c.key]) || 0) + Number(r[amountField] ?? 0);
           }
         } else if (bucket[c.key] === undefined) {
           bucket[c.key] = r[c.key];
         }
       }
     }
-    // Keep group order stable — insertion order.
     for (const bucket of groups.values()) {
       const cells = cols.map((c) => {
         const raw = bucket[c.key];
