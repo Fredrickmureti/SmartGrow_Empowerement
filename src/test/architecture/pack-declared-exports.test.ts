@@ -22,7 +22,7 @@ describe("statutory return artifacts registry", () => {
     // silently dropped from the pack-declared exports.
     expect(src).toMatch(/pushArtifact\(\{[^}]*format:\s*["']csv["']/);
     expect(src).toMatch(/pushArtifact\(\{[^}]*format:\s*["']pdf["']/);
-    expect(src).toMatch(/pushArtifact\(\{[^}]*format:\s*govFormat/);
+    expect(src).toMatch(/pushArtifact\(\{[^}]*format:\s*emittedGovFormat/);
     // The insert must carry `artifacts` — not just the legacy scalar columns.
     expect(src).toMatch(/\.insert\(\{[\s\S]{0,2000}artifacts,/);
     // Both select statements must project `artifacts` back to the caller.
