@@ -256,24 +256,41 @@ Deno.serve(async (req) => {
     // pre-v2 templates so stale compatibility sections cannot keep driving
     // a migrated pack's runtime behavior.
     {
-      const isV2 = isV2BlockTemplate(template);
-      const nodes = isV2 ? (template.body.blocks ?? []) : (Array.isArray(template?.body?.sections) ? template.body.sections : []);
+      const isV3 = isV3EngineTemplate(template);
+      const isV2 = !isV3 && isV2BlockTemplate(template);
+      // v3 templates express their contract as a `document` node tree
+      // (heading / identity_strip / matrix / signature_strip / …); v2 uses
+      // `blocks`; pre-v2 uses `sections`. Validate the shape appropriate to
+      // the template's own schema_version so a migrated template isn't
+      // judged against a contract it no longer uses.
+      const nodes = isV3
+        ? (Array.isArray(template?.body?.document) ? template.body.document : [])
+        : isV2
+          ? (template.body.blocks ?? [])
+          : (Array.isArray(template?.body?.sections) ? template.body.sections : []);
       const types = new Set<string>(nodes.map((s: any) => String(s?.type ?? "")));
       const missing: string[] = [];
-      if (isV2) {
+      let hasData: boolean;
+      if (isV3) {
+        // The only hard requirement is a data-bearing node (a matrix or
+        // table). Identity/signature nodes are strongly recommended but the
+        // compiler renders gracefully without them, so they are not fatal.
+        hasData = types.has("matrix") || types.has("table");
+        if (!hasData) missing.push("matrix");
+      } else if (isV2) {
         const hasEmployer = nodes.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employer");
         const hasEmployee = nodes.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employee");
         if (!hasEmployer) missing.push("employer field_grid");
         if (!hasEmployee) missing.push("employee field_grid");
         if (!types.has("signature_block")) missing.push("signature_block");
+        hasData = nodes.some((b: any) => b?.type === "table" && ["monthly_breakdown", "monthly_matrix", "ytd_rows"].includes(String(b?.data_source ?? "")));
       } else {
         for (const need of ["employer_header", "employee_header", "signature_block"]) {
           if (!types.has(need)) missing.push(need);
         }
+        hasData = ["monthly_breakdown", "ytd_table", "totals"].some((d) => types.has(d));
       }
-      const hasData = isV2
-        ? nodes.some((b: any) => b?.type === "table" && ["monthly_breakdown", "monthly_matrix", "ytd_rows"].includes(String(b?.data_source ?? "")))
-        : ["monthly_breakdown", "ytd_table", "totals"].some((d) => types.has(d));
+      const contract = isV3 ? "document" : isV2 ? "blocks" : "sections";
       if (nodes.length === 0 || missing.length > 0 || !hasData) {
         // Best-effort diagnostic so the Publisher Health panel can surface
         // packs whose templates are being refused in the field.
@@ -288,7 +305,7 @@ Deno.serve(async (req) => {
               template_code: template.code,
               template_source: templateSource,
               pack_id: template.pack_id ?? null,
-              contract: isV2 ? "blocks" : "sections",
+              contract,
               sections_present: Array.from(types),
               missing_identity_sections: missing,
               has_data_section: hasData,
@@ -303,7 +320,7 @@ Deno.serve(async (req) => {
           {
             template_code: template.code,
             template_source: templateSource,
-            contract: isV2 ? "blocks" : "sections",
+            contract,
             sections_present: Array.from(types),
             missing_identity_sections: missing,
             has_data_section: hasData,
