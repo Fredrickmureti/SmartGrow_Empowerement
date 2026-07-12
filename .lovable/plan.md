@@ -1,4 +1,39 @@
-## Verification of prior agent's claims (done before planning)
+# Payroll Reporting, Certificates & Returns — Enterprise Alignment
+
+## Status snapshot (2026-07-12)
+
+**Turn 2 executed** the certificate half of the pack-declared exports
+architecture: `payroll_tax_certificates.artifacts jsonb`, per-employee
+dispatch loop over `template.outputs`, lifecycle gate wired into both
+generators, shared `OutputsCard` publisher control + `usePackFormatRegistry`
+hook, and KE pack metadata backfill. Both edge functions redeployed.
+`pack-declared-exports.test.ts` and new `lifecycle-gate-callsites.test.ts`
+are green.
+
+### ✅ Shipped this turn
+
+- **Migration** `20260711234728` — `payroll_tax_certificates.artifacts jsonb NOT NULL DEFAULT '[]'` + one-shot backfill from `pdf_path` / `xlsx_path`.
+- **Generator** `generate-tax-certificate/index.ts` — hardcoded `body.kind==='xlsx_binary'` branch replaced by loop over `template.outputs` (default derived from `body.kind`); lazy renderers for PDF and xlsx_binary; canonical `artifactsList[]` written to `insert`; sharpened error codes (`MASTER_WORKBOOK_MISSING`, `OUTPUT_INCOMPATIBLE`, `NO_ARTIFACTS_PRODUCED`, `CERT_OUTPUT_UNSUPPORTED`); `requireApprovedRunsForYear` gate wired.
+- **Generator** `generate-statutory-return/index.ts` — `requireClosedPeriod` wired after template resolution; gate is advisory when the tenant hasn't operationalised `payroll_periods` (module now returns OK when no row matches) so run-driven customers aren't broken.
+- **Endpoint** `download-tax-certificate` — accepts `artifact_path` alongside `certificate_id` / `pdf_path`; resolves parent row for permission checks; supports optional `filename` override.
+- **Hook** `useTaxCertificates.ts` — `TaxCertificate.artifacts?[]` typed; `downloadTaxCertificate()` accepts `{artifact_path, filename?}` in addition to legacy shapes.
+- **UI** `src/pages/hr/payroll/TaxCertificates.tsx` — one download button per artifact with legacy fallback that mirrors `pdf_path` / `xlsx_path` into artifact shape.
+- **Publisher** shared `OutputsCard.tsx` mounted from `CertificateTemplateEditor.tsx` and `ReturnTemplateEditor.tsx`; format list read from `format_registry` via `usePackFormatRegistry.ts`. `PackEntityTabs.tsx` persists `outputs` through metadata whitelist.
+- **KE pack backfill** — P9 / P9A → `[{xlsx_binary,primary}]`; ANNUAL_EARNINGS_STATEMENT / CERT_OF_SERVICE → `[{pdf,primary}]`; NSSF_RET → `[{gov_xlsx,primary},{csv,audit}]`. `GH_PAYE_EMPLOYEE_ANNUAL` skipped — body still missing `data_source`; content fix pending.
+- **Test** `src/test/payroll/lifecycle-gate-callsites.test.ts` — locks both lifecycle imports + call sites.
+
+### 🚧 Remaining
+
+- **Content fix:** publish a fresh `GH_PAYE_EMPLOYEE_ANNUAL` body with `data_source` + section contract before backfilling its `outputs`.
+- **Runtime verification:** rerun P9 / P9A / AES / NSSF_RET against a KE tenant with an approved FY 2025/2026 run; confirm every declared artifact opens through the signed URL. Logs currently show only boots — no one has exercised the new path yet.
+- **Part F legacy cleanup:** drop `csv_path` / `pdf_path` / `gov_file_path` on `payroll_return_runs` and the `output` scalar on `localization_pack_return_templates` once every reader has migrated to `artifacts`. Certificate scalars stay one more release.
+- **Publisher round-trip test:** load a template with `outputs`, edit via `ReturnTemplateEditor`, save, reload, assert identity.
+
+---
+
+## Turn 1 — verification & plan
+
+### Verification of prior agent's claims (Turn 1)
 
 | Claim | Verdict |
 |---|---|
