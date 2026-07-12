@@ -371,7 +371,7 @@ Deno.serve(async (req) => {
         if (!body.regenerate) {
           const { data: existing } = await admin
             .from("payroll_tax_certificates")
-            .select("id, serial_number, artifacts, fiscal_year, employee_id, template_code, status, batch_id, stale, payload")
+            .select("id, serial_number, artifacts, fiscal_year, employee_id, template_code, status, batch_id, stale, stale_reason, payload")
             .eq("organization_id", body.organization_id)
             .eq("business_id", body.business_id)
             .eq("employee_id", emp.id)
