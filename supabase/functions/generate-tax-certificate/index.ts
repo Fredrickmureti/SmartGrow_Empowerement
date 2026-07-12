@@ -21,7 +21,6 @@ import { type MonthlyRow } from "../_shared/certificateSections.ts";
 import { resolveCertificateYtd } from "../_shared/certificateSourceResolver.ts";
 import {
   renderBinaryCertificateXlsx,
-  makeUrlAssetFetcher,
   type BinaryCertificateBody,
 } from "../_shared/pdf/binaryCertificateRenderer.ts";
 import {
