@@ -292,13 +292,22 @@ function TablePanel({ block, onPatch }: { block: Extract<Block,{type:"table"}>; 
 
   return (
     <div className="space-y-2">
-      <div className="grid gap-2 md:grid-cols-[1fr_160px_140px]">
+      <div className="grid gap-2 md:grid-cols-[1fr_160px_160px_140px]">
         <Input className="h-8 text-xs" value={block.title ?? ""} onChange={(e) => onPatch({ title: e.target.value || undefined })} placeholder="Table title (optional)" />
         <Select value={block.data_source} onValueChange={(v) => onPatch({ data_source: v })}>
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="monthly_matrix">monthly_matrix</SelectItem>
             <SelectItem value="monthly_breakdown">monthly_breakdown</SelectItem>
             <SelectItem value="ytd_rows">ytd_rows</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={block.amount_field ?? "employee_amount"} onValueChange={(v) => onPatch({ amount_field: v })}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="employee_amount">employee_amount</SelectItem>
+            <SelectItem value="employer_amount">employer_amount</SelectItem>
+            <SelectItem value="taxable_amount">taxable_amount</SelectItem>
           </SelectContent>
         </Select>
         <Input className="h-8 text-xs" value={block.group_by ?? ""} onChange={(e) => onPatch({ group_by: e.target.value || undefined })} placeholder="group_by (e.g. month_index)" />
