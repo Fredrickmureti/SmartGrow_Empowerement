@@ -1,4 +1,4 @@
-// @ts-nocheck — Deno runtime
+/* Browser mirror of supabase/functions/_shared/pdf/certificateRendererV2.ts. Keep in sync. */
 /**
  * certificateRendererV2 — country-agnostic block-primitive certificate
  * renderer.
