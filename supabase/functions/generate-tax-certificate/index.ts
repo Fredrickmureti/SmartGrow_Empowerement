@@ -648,6 +648,7 @@ Deno.serve(async (req) => {
         // same v2 sections + same resolved payload ⇒ same bytes.
         let pdfBytes: Uint8Array | null = null;
         let xlsxBytes: Uint8Array | null = null;
+        let htmlBytes: Uint8Array | null = null;
 
         const enginePayload = {
           employee: {
