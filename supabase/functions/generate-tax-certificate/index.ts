@@ -685,33 +685,34 @@ Deno.serve(async (req) => {
           generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
         };
 
+        // Certificate Engine v3: the audited artifact is the compiled
+        // HTML (CSS Paged Media). It is byte-identical to what the
+        // publisher sees in the editor preview AND to what the tenant
+        // materialises to a vector PDF client-side (paged.js + browser
+        // print). This is the single render path — no pdf-lib redraw, so
+        // "preview === output" holds by construction. Legacy (pre-v3)
+        // templates still fall back to the block/section pdf-lib renderer
+        // until their pack rows are migrated to a v3 document AST.
+        const v3 = isV3EngineTemplate(template);
+
+        const renderHtml = (): Uint8Array => {
+          const v3Template = {
+            schema_version: 3,
+            code: template.code,
+            display_name: template.display_name,
+            paper_format: (template.body as any).paper_format,
+            page_master: (template.body as any).page_master,
+            document: (template.body as any).document,
+          } as CertificateTemplateV3;
+          const { html } = compileCertificateHtml(
+            v3Template,
+            enginePayload as unknown as Record<string, unknown>,
+            { currency: orgCurrency },
+          );
+          return new TextEncoder().encode(html);
+        };
+
         const renderPdf = async () => {
-          // Certificate Engine v3 dispatch — pack authors a paged-media
-          // document AST (see supabase/functions/_shared/certificate-engine).
-          // The concrete PdfProducer runtime is being selected in the
-          // Phase-B spike (Deno-native, colocated with this edge function —
-          // no Vercel, Docker, K8s, or third-party API). Until wired, the
-          // stub producer surfaces a clear, structured error so callers
-          // that request v3 templates get an actionable diagnostic
-          // rather than a silent misrender.
-          if (isV3EngineTemplate(template)) {
-            const v3Template = {
-              schema_version: 3,
-              code: template.code,
-              display_name: template.display_name,
-              paper_format: (template.body as any).paper_format,
-              page_master: (template.body as any).page_master,
-              document: (template.body as any).document,
-            } as CertificateTemplateV3;
-            // Deno-native AST → PDF producer (Phase B, colocated).
-            // Bypasses HTML compile — the AST is already semantic.
-            const { bytes } = await renderCertificateAstToPdf(
-              v3Template,
-              enginePayload as unknown as Record<string, unknown>,
-              { currency: orgCurrency },
-            );
-            return bytes;
-          }
           return await renderCertificatePdf(
           {
             code: template.code,
