@@ -217,6 +217,18 @@ function renderMatrix(n: MatrixNode, ctx: ResolveContext): string {
     return `<th${align}>${esc(resolveValue(c.header, ctx))}</th>`;
   }).join("")}</tr>`;
 
+  const hasUnit = n.columns.some((c) => c.unit);
+  const unitRow = hasUnit
+    ? `<tr>${n.columns.map((c) =>
+        `<th class="ce-unit ${alignClass(c.align ?? "center")}">${c.unit ? esc(resolveValue(c.unit, ctx)) : ""}</th>`).join("")}</tr>`
+    : "";
+
+  const hasSub = n.columns.some((c) => c.sub_header);
+  const subRow = hasSub
+    ? `<tr>${n.columns.map((c) =>
+        `<th class="ce-letter ${alignClass(c.align ?? "center")}">${c.sub_header ? esc(resolveValue(c.sub_header, ctx)) : ""}</th>`).join("")}</tr>`
+    : "";
+
   const bodyRows = rows.map((row) => {
     return `<tr>${n.columns.map((c) => {
       const cellRaw = (row as any)[c.key];
@@ -243,7 +255,7 @@ function renderMatrix(n: MatrixNode, ctx: ResolveContext): string {
     footRow = `<tr>${cells}</tr>`;
   }
 
-  const thead = `<thead>${groupRow}${headRow}</thead>`;
+  const thead = `<thead>${groupRow}${headRow}${unitRow}${subRow}</thead>`;
   const tfoot = footRow ? `<tfoot>${footRow}</tfoot>` : "";
   return `<div class="ce-matrix-wrap">${title}<table class="ce-matrix">${colgroup}${thead}<tbody>${bodyRows}</tbody>${tfoot}</table></div>`;
 }
