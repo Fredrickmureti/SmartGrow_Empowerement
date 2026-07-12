@@ -27,6 +27,7 @@ import {
 import {
   requireApprovedRunsForYear,
 } from "../_shared/payrollLifecycleGate.ts";
+import { buildProjectedEmployeeMap } from "../_shared/employeeStatutoryProjection.ts";
 
 // Canonical artifact shape aligned with `payroll_tax_certificates.artifacts`
 // and `payroll_return_runs.artifacts` (see migration 20260711232041 +
