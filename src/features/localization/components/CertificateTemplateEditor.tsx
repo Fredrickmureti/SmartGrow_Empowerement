@@ -173,9 +173,16 @@ interface Props {
 export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCancel }: Props) {
   const editMetadata = mode === "admin" && initial.metadata !== undefined;
   const [meta, setMeta] = useState<CertificateTemplateMetadata>(() => normalizeMetadata(initial.metadata));
+  const initialSchemaVersion = Number((initial.body as any)?.schema_version ?? 1);
+  const [schemaVersion, setSchemaVersion] = useState<number>(initialSchemaVersion);
   const [sections, setSections] = useState<any[]>(() => {
     const b = initial.body;
     if (b && Array.isArray(b.sections)) return b.sections;
+    return [];
+  });
+  const [blocks, setBlocks] = useState<Block[]>(() => {
+    const b = initial.body as any;
+    if (b && Array.isArray(b.blocks)) return b.blocks as Block[];
     return [];
   });
   const [dataSource] = useState<"payroll_employee_ytd">("payroll_employee_ytd");
@@ -190,12 +197,16 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const unresolvedRef = useRef<string[]>([]);
   const authoritiesQuery = useStatutoryAuthorities(editMetadata ? packId : null);
 
+  const isV2 = schemaVersion >= 2;
+
   const liveBody = useMemo(() => ({
+    schema_version: isV2 ? 2 : undefined,
     data_source: dataSource,
     sections,
+    blocks: isV2 ? blocks : undefined,
     footer_note: footerNote || undefined,
     page: { size: "a4", orientation },
-  }), [sections, footerNote, dataSource, orientation]);
+  }), [isV2, sections, blocks, footerNote, dataSource, orientation]);
 
   const completenessRule = useMemo(
     () => resolveCompletenessRule(initial.template_code),
