@@ -1,4 +1,4 @@
-/* Browser mirror of supabase/functions/_shared/pdf/certificateRendererV2.ts. Auto-mirrored — keep in sync. */
+/* Browser mirror of supabase/functions/_shared/pdf/certificateRendererV2.ts. Keep in sync. */
 /**
  * certificateRendererV2 — country-agnostic block-primitive certificate
  * renderer.
@@ -39,6 +39,12 @@ import {
 import { winansiSafe } from "./winansi";
 import type { OrganizationBranding } from "./_types";
 import type { MonthlyRow } from "./_types";
+import {
+  pivotToMonthlyMatrix,
+  applyDerivedColumns,
+  type DerivedColumn,
+  type MonthlyRuleCodeRow,
+} from "./_monthlyMatrix";
 
 // ── Block AST ─────────────────────────────────────────────────────────
 
@@ -97,6 +103,12 @@ export interface TableBlock {
   group_by?: string;         // e.g. "month_index"
   filter?: { key: string; in: string[] }; // e.g. rule_code ∈ set
   aggregate?: "sum";         // aggregation for group_by cells
+  amount_field?: "employee_amount" | "employer_amount" | "taxable_amount";
+  derived_columns?: Array<{
+    key: string;
+    expr: "sum" | "sub" | "min" | "max" | "pct";
+    args: Array<string | number>;
+  }>;
   footer?: {
     label: string;
     aggregate?: "sum";       // per-column sum
@@ -317,9 +329,28 @@ function pathGet(obj: any, path: string): unknown {
   return path.split(".").reduce((a, k) => (a == null ? a : a[k]), obj);
 }
 
-function resolveDataSource(ctx: Ctx, name: string): any[] {
+function resolveDataSource(ctx: Ctx, name: string, block?: TableBlock): any[] {
   switch (name) {
     case "monthly_breakdown": return ctx.payload.monthly ?? [];
+    case "monthly_matrix": {
+      // Pivot the country-agnostic rule-code stream into a semantic
+      // 12-row matrix keyed by rule_code, then apply pack-authored
+      // derived columns (see _shared/monthlyMatrix.ts). This is the
+      // dataset templates bind against when they want KRA-style
+      // A/B/C/D/E1/… columns without knowing rule codes.
+      const cols = block?.columns ?? [];
+      const derived = (block?.derived_columns ?? []) as DerivedColumn[];
+      const derivedKeys = new Set(derived.map((d) => d.key));
+      const ruleCodes = cols
+        .map((c) => c.key)
+        .filter((k) => k && k !== "month_index" && !derivedKeys.has(k));
+      const matrix = pivotToMonthlyMatrix(
+        (ctx.payload.monthly ?? []) as MonthlyRuleCodeRow[],
+        ruleCodes,
+        block?.amount_field ?? "employee_amount",
+      );
+      return applyDerivedColumns(matrix, derived);
+    }
     case "ytd_rows": return ctx.payload.ytdRows ?? [];
     case "employee": return [ctx.payload.employee];
     case "employer": return [ctx.employer];
@@ -501,27 +532,49 @@ function drawFieldGrid(ctx: Ctx, b: FieldGridBlock) {
   if (entries.length === 0) return;
 
   const colW = ctx.CONTENT_W / ncols;
-  const rowH = 22;
   const cellPadX = 4;
+  const labelH = FONT_SIZE.fieldLabel;
+  const gapAboveValue = 2;
+  const gapBetweenLines = 1;
+  const rowBottomPad = 4;
+  // Measure per-cell: wrap value to up to 2 lines, then ellipsis-clip line 2.
+  const cellsPerRow: Array<Array<{ label: string; lines: string[]; vFont: PDFFont; vSize: number }>> = [];
   for (let i = 0; i < entries.length; i += ncols) {
-    ensureSpace(ctx, rowH);
-    const yRow = ctx.y;
+    const row: Array<{ label: string; lines: string[]; vFont: PDFFont; vSize: number }> = [];
     for (let c = 0; c < ncols && i + c < entries.length; c++) {
       const e = entries[i + c];
-      const x = ctx.MARGIN + c * colW;
-      ctx.page.drawText(s(e.label).toUpperCase(), {
-        x: x + cellPadX, y: yRow - FONT_SIZE.fieldLabel,
-        size: FONT_SIZE.fieldLabel, font: ctx.fontRegular, color: COL.muted,
-      });
       const primary = e.emphasis === "primary";
       const vFont = primary ? ctx.fontBold : ctx.fontRegular;
       const vSize = primary ? FONT_SIZE.fieldValuePrimary : FONT_SIZE.fieldValue;
-      // Truncate to cell width (label:value grids don't wrap; use notes/paragraph if you need wrap).
-      const val = clip(s(e.val), vFont, vSize, colW - cellPadX * 2);
-      ctx.page.drawText(val, {
-        x: x + cellPadX, y: yRow - FONT_SIZE.fieldLabel - vSize - 2,
-        size: vSize, font: vFont, color: COL.text,
+      let lines = wrapToWidth(s(e.val), vFont, vSize, colW - cellPadX * 2);
+      if (lines.length > 2) {
+        lines = [lines[0], clip(lines.slice(1).join(" "), vFont, vSize, colW - cellPadX * 2)];
+      }
+      row.push({ label: e.label, lines, vFont, vSize });
+    }
+    cellsPerRow.push(row);
+  }
+  for (const row of cellsPerRow) {
+    const rowValueSize = row[0]?.vSize ?? FONT_SIZE.fieldValue;
+    const maxLines = row.reduce((m, cell) => Math.max(m, cell.lines.length), 1);
+    const rowH = labelH + gapAboveValue + maxLines * rowValueSize + (maxLines - 1) * gapBetweenLines + rowBottomPad;
+    ensureSpace(ctx, rowH);
+    const yRow = ctx.y;
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      const x = ctx.MARGIN + c * colW;
+      ctx.page.drawText(s(cell.label).toUpperCase(), {
+        x: x + cellPadX, y: yRow - labelH,
+        size: labelH, font: ctx.fontRegular, color: COL.muted,
       });
+      let ly = yRow - labelH - gapAboveValue - cell.vSize;
+      for (const line of cell.lines) {
+        ctx.page.drawText(line, {
+          x: x + cellPadX, y: ly,
+          size: cell.vSize, font: cell.vFont, color: COL.text,
+        });
+        ly -= cell.vSize + gapBetweenLines;
+      }
     }
     ctx.y -= rowH;
   }
@@ -627,7 +680,7 @@ function drawTable(ctx: Ctx, b: TableBlock) {
   const cols: ResolvedColumn[] = b.columns.map((c, i) => ({ ...c, _width: widths[i] }));
 
   // Resolve rows: raw source → filter → group_by aggregate → materialise cells.
-  const raw = resolveDataSource(ctx, b.data_source);
+  const raw = resolveDataSource(ctx, b.data_source, b);
   const filtered = b.filter
     ? raw.filter((r: any) => new Set(b.filter!.in).has(String(r[b.filter!.key])))
     : raw;
@@ -637,12 +690,16 @@ function drawTable(ctx: Ctx, b: TableBlock) {
   const totals: Record<string, number> = {};
   const numericKeys = new Set(cols.filter((c) => c.format === "currency" || c.format === "number").map((c) => c.key));
 
-  if (b.group_by) {
+  // `monthly_matrix` and any resolver that already returns pre-pivoted
+  // rows (one bucket per group value) go through the regular non-group
+  // path: rows already have column keys populated. Only the raw
+  // rule-code stream (`monthly_breakdown`) needs the aggregate-by-rule
+  // branch.
+  const isPrePivoted = b.data_source === "monthly_matrix";
+  if (b.group_by && !isPrePivoted) {
     const groupKey = b.group_by;
+    const amountField = b.amount_field ?? "employee_amount";
     const groups = new Map<string, Record<string, any>>();
-    // Determine which column corresponds to the group key so we materialise its label.
-    // For "month_index" specifically, the pack-supplied column should have key === "month_index"
-    // and format "text"; the resolver above already returns integer month_index.
     for (const r of filtered) {
       const gk = String(r[groupKey] ?? "");
       if (!groups.has(gk)) groups.set(gk, { [groupKey]: r[groupKey] });
@@ -651,14 +708,13 @@ function drawTable(ctx: Ctx, b: TableBlock) {
         if (c.key === groupKey) continue;
         if (numericKeys.has(c.key)) {
           if (String(r.rule_code) === c.key) {
-            bucket[c.key] = (Number(bucket[c.key]) || 0) + Number(r.employee_amount ?? 0);
+            bucket[c.key] = (Number(bucket[c.key]) || 0) + Number(r[amountField] ?? 0);
           }
         } else if (bucket[c.key] === undefined) {
           bucket[c.key] = r[c.key];
         }
       }
     }
-    // Keep group order stable — insertion order.
     for (const bucket of groups.values()) {
       const cells = cols.map((c) => {
         const raw = bucket[c.key];
