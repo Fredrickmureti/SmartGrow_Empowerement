@@ -726,6 +726,8 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
             </div>
           </CardContent>
         </Card>
+        </>
+        )}
 
         {(metaErrors.length > 0 || bodyErrors.length > 0) && (
           <Alert variant="destructive">
