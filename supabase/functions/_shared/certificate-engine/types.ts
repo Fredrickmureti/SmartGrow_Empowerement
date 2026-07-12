@@ -127,6 +127,10 @@ export interface SectionNode {
 export interface MatrixColumn {
   key: string;                   // stable column id used by data + footer
   header: Value;
+  /** Optional secondary caption on its own header row (e.g. KRA letters A..O). */
+  sub_header?: Value;
+  /** Optional unit caption on its own header row (e.g. "Kshs."). */
+  unit?: Value;
   align?: "left" | "right" | "center";
   format?: ValueFormat;
   /** Width hint: fixed mm, "auto", or a fraction weight like "1fr". */
