@@ -1,153 +1,45 @@
-# Payroll Reporting, Certificates & Returns — Enterprise Alignment
+## What just happened
 
-## Status snapshot (2026-07-12)
+The recent payroll-localization refactor exposed three separate backend mismatches:
 
-**Turn 2 executed** the certificate half of the pack-declared exports
-architecture: `payroll_tax_certificates.artifacts jsonb`, per-employee
-dispatch loop over `template.outputs`, lifecycle gate wired into both
-generators, shared `OutputsCard` publisher control + `usePackFormatRegistry`
-hook, and KE pack metadata backfill. Both edge functions redeployed.
-`pack-declared-exports.test.ts` and new `lifecycle-gate-callsites.test.ts`
-are green.
+1. **Payroll run create is not idempotent enough.** The first click reaches the server and creates the run, but the client sometimes receives/normalizes the response as a connectivity failure. A retry then collides with existing payroll uniqueness rules (`payroll_number` or regular-period unique index), so the UI shows an error even though the run exists after reload.
+2. **Approval is succeeding server-side, then the UI is retrying/stale.** The run is already `approved`; a second approval attempt correctly fails with “status approved and cannot be approved,” but the UI presents that as an approval failure instead of treating it as an idempotent success.
+3. **Statutory return generation is querying the wrong payroll-period column names.** The shared lifecycle gate reads `payroll_periods.period_start/period_end`, but the live table has `start_date/end_date`, causing the 500: “Could not verify payroll period status.”
+4. **Tax certificate generation still reads legacy certificate scalar fields.** `generate-tax-certificate` selects/inserts `pdf_path`/`xlsx_path`; `pdf_path` still exists, but `xlsx_path` may not, and this path was not fully migrated to artifact-first behavior. It also has weak client parsing, so the UI collapses useful function payloads into “unexpected error.”
 
-### ✅ Shipped this turn
+## Implementation plan
 
-- **Migration** `20260711234728` — `payroll_tax_certificates.artifacts jsonb NOT NULL DEFAULT '[]'` + one-shot backfill from `pdf_path` / `xlsx_path`.
-- **Generator** `generate-tax-certificate/index.ts` — hardcoded `body.kind==='xlsx_binary'` branch replaced by loop over `template.outputs` (default derived from `body.kind`); lazy renderers for PDF and xlsx_binary; canonical `artifactsList[]` written to `insert`; sharpened error codes (`MASTER_WORKBOOK_MISSING`, `OUTPUT_INCOMPATIBLE`, `NO_ARTIFACTS_PRODUCED`, `CERT_OUTPUT_UNSUPPORTED`); `requireApprovedRunsForYear` gate wired.
-- **Generator** `generate-statutory-return/index.ts` — `requireClosedPeriod` wired after template resolution; gate is advisory when the tenant hasn't operationalised `payroll_periods` (module now returns OK when no row matches) so run-driven customers aren't broken.
-- **Endpoint** `download-tax-certificate` — accepts `artifact_path` alongside `certificate_id` / `pdf_path`; resolves parent row for permission checks; supports optional `filename` override.
-- **Hook** `useTaxCertificates.ts` — `TaxCertificate.artifacts?[]` typed; `downloadTaxCertificate()` accepts `{artifact_path, filename?}` in addition to legacy shapes.
-- **UI** `src/pages/hr/payroll/TaxCertificates.tsx` — one download button per artifact with legacy fallback that mirrors `pdf_path` / `xlsx_path` into artifact shape.
-- **Publisher** shared `OutputsCard.tsx` mounted from `CertificateTemplateEditor.tsx` and `ReturnTemplateEditor.tsx`; format list read from `format_registry` via `usePackFormatRegistry.ts`. `PackEntityTabs.tsx` persists `outputs` through metadata whitelist.
-- **KE pack backfill** — P9 / P9A → `[{xlsx_binary,primary}]`; ANNUAL_EARNINGS_STATEMENT / CERT_OF_SERVICE → `[{pdf,primary}]`; NSSF_RET → `[{gov_xlsx,primary},{csv,audit}]`. `GH_PAYE_EMPLOYEE_ANNUAL` skipped — body still missing `data_source`; content fix pending.
-- **Test** `src/test/payroll/lifecycle-gate-callsites.test.ts` — locks both lifecycle imports + call sites.
+### 1. Make payroll creation idempotent and retry-safe
+- Update `supabase/functions/compute-payroll/index.ts` so payroll numbering is allocated at insert time from a collision-safe database function rather than `MAX()+1` before insert.
+- Add an idempotent period check immediately before insert and again when unique-constraint errors occur:
+  - If a regular run already exists for the same organization, business, and period, return a structured `REGULAR_RUN_EXISTS` response with the existing run instead of throwing a generic 500.
+  - If a duplicate payroll number is hit, retry allocation a small bounded number of times rather than failing the entire run.
+- Add a migration to replace `public.get_next_payroll_number(_org_id)` with an advisory-lock or sequence-backed implementation so concurrent requests cannot both pick `PAY-0001`.
 
-### ✅ Closed on 2026-07-12
+### 2. Make approval idempotent from the user’s perspective
+- Update `public.approve_payroll_run(p_run_id)` so if the run is already `approved`, it returns the approved run instead of raising an exception.
+- Keep refusals for truly invalid states such as `posted`, `paid`, `reversed`, `deleted`, etc.
+- Update `src/hooks/usePayroll.ts` to refresh runs after approve and avoid showing failure copy when the approved state is already reached.
 
-- **Content fix — `GH_PAYE_EMPLOYEE_ANNUAL`**: body patched with `data_source='payroll_employee_ytd'`; `outputs=[{pdf,primary}]` backfilled; revision note stamped. All KE + GH pack templates now carry the new metadata.
-- **Publisher round-trip test** — `src/test/architecture/pack-outputs-publisher-roundtrip.test.ts` locks: (a) `OutputsCard` imports on both editors, (b) `value={meta.outputs}` binding, (c) `PackEntityTabs` metadata whitelist + save patch include `outputs`, (d) `OutputsCard` collapses empty arrays to `null` for legacy-fallback contract. Green under vitest.
-- **Part F legacy cleanup — completed end-to-end** (all four sub-tasks):
-  1. **Return templates backfilled** — every row in `localization_pack_return_templates` now has a populated `outputs` jsonb (nine rows migrated from the `output` scalar: csv→primary, pdf→primary, both→csv+pdf, gov_*→primary).
-  2. **Generator refactored** — `generate-statutory-return` now dispatches exclusively off `template.outputs[]`. The `template.output` scalar branches (`csv|both`, `pdf|both`, `gov_*`) were removed. Writer selects role/format per pack-declared entry. Stopped writing `csv_path` / `pdf_path` / `gov_file_path` scalars and stripped them from every projection.
-  3. **Submitter refactored** — `submit-statutory-return` now resolves the gov filing file via `run.artifacts` (portal role first, then any `gov_*` format) instead of reading `run.gov_file_path`. Returns a clear 400 when a `gov_file` payload is requested but no portal artifact exists.
-  4. **Frontend cleaned** — `useStatutoryReturns` dropped `csv_path` / `pdf_path` / `gov_file_path` from the `ReturnRun` type + normaliser and the `output` scalar from `ReturnTemplate` (replaced with `outputs: Array<{format,role,label,filename}>`). `ReturnsTab` removed the legacy fallback block; artifacts is now the sole source of truth. `PackEntityTabs` CreateTemplateDialog writes `outputs=[{format,role:'primary'}]` on create.
-  5. **Test guard updated** — `pack-declared-exports.test.ts` now asserts the UI does NOT reference `r.csv_path` / `r.pdf_path` / `r.gov_file_path` / `legacyFallback` (regression fence pointing the other way).
-  6. **Migration `20260712001621`** dropped `payroll_return_runs.{csv_path,pdf_path,gov_file_path}` and `localization_pack_return_templates.output`.
+### 3. Fix statutory return lifecycle gate
+- Update `supabase/functions/_shared/payrollLifecycleGate.ts` to use the live `payroll_periods.start_date/end_date` columns.
+- Keep the existing behavior that absence of a period row is advisory and does not block generation.
+- Verify `generate-statutory-return` still gates on approved payroll runs and then emits `payroll_return_runs.artifacts` only.
 
-### ⚠️ Post-cleanup deploy gate
+### 4. Finish certificate artifact migration
+- Update `supabase/functions/generate-tax-certificate/index.ts` to stop selecting/inserting legacy `pdf_path`/`xlsx_path` fields and rely on `artifacts` as the canonical output list.
+- If a PDF is produced, keep `pdf_path` populated only while the DB column still exists for backward compatibility; do not require it for success.
+- Remove references to `xlsx_path` unless the live schema confirms it exists.
+- Update `src/hooks/payroll/useTaxCertificates.ts` to parse structured edge-function error payloads the same way statutory returns do, so users see the actual reason instead of “unexpected error.”
 
-`supabase--deploy_edge_functions` for `generate-statutory-return` and
-`submit-statutory-return` failed with `SUPABASE_MAX_FUNCTIONS_REACHED`.
-The migration already dropped the legacy scalar columns, so the previously-
-deployed function versions (which still write `csv_path` / `pdf_path` /
-`gov_file_path`) will 500 on every invocation until the new revisions ship.
+### 5. Add regression guards
+- Add/adjust architecture tests to lock:
+  - `payrollLifecycleGate` uses `start_date/end_date`, not nonexistent `period_start/period_end` on `payroll_periods`.
+  - `generate-tax-certificate` does not depend on dropped/non-canonical certificate scalar fields.
+  - Payroll approval treats already-approved as idempotent.
+  - Payroll creation handles unique collisions as structured, recoverable responses.
 
-**Action required:** bump the project's edge-function quota (or delete
-unused functions) and redeploy these two. All code and tests for the new
-revision are already on `main`; deploy is the only outstanding step.
-
-### 🚧 Still open (needs a real tenant, not code)
-
-- **Runtime verification:** rerun P9 / P9A / AES / NSSF_RET against a KE tenant with an approved FY 2025/2026 run after the deploy above succeeds; confirm every declared artifact opens through the signed URL. This can only be executed from an actual browser session against a live tenant.
-
----
-
-## Turn 1 — verification & plan
-
-### Verification of prior agent's claims (Turn 1)
-
-| Claim | Verdict |
-|---|---|
-| Migration `20260711232041` adds `format_registry`, `outputs jsonb`, `payroll_return_runs.artifacts`, validation trigger, backfill | ✅ Real. Structure, GRANTs, RLS, backfill and trigger all correct. |
-| `generate-statutory-return` emits canonical `artifacts[]` | ✅ Real. `pushArtifact()` fires on CSV, PDF and gov-file branches; `.insert` and both `.select` projections include `artifacts`. |
-| `useStatutoryReturns` normalises `artifacts` | ✅ Real. Types + `normalizeReturnArtifactPath` mapping present. |
-| `ReturnsTab` renders one download per artifact w/ legacy fallback | ✅ Real. Loop + legacy fallback, no hardcoded CSV/PDF button. |
-| `_shared/payrollLifecycleGate.ts` shipped | ✅ File exists, module is production-shape — **but NOT imported by either generator yet.** |
-| Arch test `pack-declared-exports.test.ts` green | ✅ File exists with the four assertions. |
-| P9/P9A pack templates + binary assets present | ✅ Both rows exist; `body.kind='xlsx_binary'` and `localization_pack_binary_assets` rows registered (P9 by pack_id, P9A by pack_version_id). |
-| Publisher editors updated for `outputs` | ❌ Editors exist but do not read/write the new `outputs jsonb`. |
-| `payroll_tax_certificates.artifacts` column | ❌ Not created. Certs still on `pdf_path` / `xlsx_path` scalars. |
-| KE pack templates carry `outputs` metadata | ❌ All rows have `outputs = NULL`. |
-
-Prior work is genuine and can be built on — no rollback needed.
-
-## Root-cause hypothesis for P9 / P9A / AES failures
-
-- **P9 / P9A** (`body.kind = 'xlsx_binary'`) skip the structural refusal, so the 422s users see must come from the xlsx branch: either the `pack_version_id`-scoped asset lookup missing (P9 has one asset row but only under `pack_id`, not the current `pack_version_id`) or the binary renderer throwing. Runtime edge-function log inspection is required before patching — no blind fix.
-- **Annual Earnings Statement** has full sections but `pack_id = NULL` (unpacked template) and no `outputs`, so it falls through to `renderCertificatePdf`. Likely failure is inside that renderer against the current AES body, or a downstream token/monthly-breakdown RPC call. Confirm via logs before touching code.
-- **Cert of Service works** because it has the section contract *and* the renderer path exercised by every prior release.
-
-Fix strategy is architectural (loop `template.outputs`, dispatch per format), not per-template patch.
-
-## Plan
-
-### Step 1 — Diagnose the live P9/P9A/AES 500/422 (read-only)
-
-- Pull recent `generate-tax-certificate` edge-function logs (`supabase--edge_function_logs`) filtering by `error`, `TEMPLATE_STRUCTURAL_INVALID`, `master workbook`, `renderCertificatePdf`, `xlsx`.
-- Query `payroll_diagnostics` for `code IN ('TEMPLATE_STRUCTURAL_INVALID','TOKEN_UNRESOLVED')` in the last 24h.
-- Record the actual failure signature for each of P9, P9A, AES. Only *then* select the fix branch (asset lookup vs. renderer vs. template body).
-
-### Step 2 — Certificates: artifacts column + loop `outputs`
-
-Migration (single file):
-
-- `ALTER TABLE payroll_tax_certificates ADD COLUMN artifacts jsonb NOT NULL DEFAULT '[]'`
-- Backfill from `pdf_path` / `xlsx_path` mirroring the returns backfill.
-- Comment marks `pdf_path` / `xlsx_path` as deprecated read-mirrors.
-
-`generate-tax-certificate/index.ts` refactor:
-
-- Resolve `outputs` = `template.outputs ?? [{format: kind==='xlsx_binary' ? 'xlsx_binary' : 'pdf', role:'primary'}]`.
-- Loop `outputs`, dispatch each entry to `renderCertificatePdf` or `renderBinaryCertificateXlsx`; upload; append to a local `artifacts[]` with `{format,path,mime,ext,size,role,generated_at}`.
-- Insert `artifacts` alongside legacy `pdf_path`/`xlsx_path` (both populated for one release).
-- Fix the P9 asset lookup to also match by `pack_id + asset_key` fallback (already partially there — extend to log which branch matched).
-
-Frontend:
-
-- `src/hooks/payroll/useTaxCertificates.ts`: add `artifacts` to the `TaxCertificate` type; normalise like returns.
-- Tax certificates surface (inside `PayrollWorkspace` — no dedicated `TaxCertificatesTab.tsx`; consumer to be located during Step 1): render one download button per artifact with a legacy fallback identical to `ReturnsTab`.
-- `download-tax-certificate` accepts an `artifact_path` alternative to the `format` scalar so multi-artifact rows can address any file.
-
-### Step 3 — Wire `payrollLifecycleGate` into both generators
-
-- `generate-tax-certificate`: call `requireApprovedRunsForYear` right after body validation (replaces the ad-hoc count block currently at lines 320-347). Map failure to `businessError(422, code, message, recovery, details)`.
-- `generate-statutory-return`: call `requireClosedPeriod` after template resolution, before writers run.
-- New test `src/test/payroll/lifecycle-gate-callsites.test.ts` greps both files for the imports + call sites so the gate cannot be silently removed.
-
-### Step 4 — Publisher editors author `outputs`
-
-- New `src/hooks/localization/usePackFormatRegistry.ts` — public-read query against `format_registry`, cached.
-- `CertificateTemplateEditor.tsx` and `ReturnTemplateEditor.tsx`: add an "Outputs" section (multi-select of formats + per-entry `label` / `filename` / `role`). Persist to `outputs jsonb`. Trigger already blocks unknown formats — editor just projects the whitelist.
-- New test locks in that the editor writes the `outputs` field and that the round-trip preserves it.
-
-### Step 5 — KE pack backfill (data migration via `supabase--insert`)
-
-- `NSSF_RET` → `[{format:'gov_xlsx',role:'primary'},{format:'csv',role:'audit'}]`
-- `P9`, `P9A` → `[{format:'xlsx_binary',role:'primary'}]`
-- `ANNUAL_EARNINGS_STATEMENT`, `CERT_OF_SERVICE`, `GH_PAYE_EMPLOYEE_ANNUAL` → `[{format:'pdf',role:'primary'}]`
-- No pack version bump — metadata only.
-
-### Step 6 — Runtime verification
-
-For a chosen KE tenant with an approved FY 2025/2026 run:
-
-- Regenerate P9, P9A, AES and Cert of Service via the actual edge function. Assert the response payload lists the expected artifacts and that signed downloads open in the browser.
-- Regenerate NSSF Monthly return; assert `run.artifacts` contains both `gov_xlsx` (primary) and `csv` (audit).
-- Log evidence into the plan's status snapshot for the hand-off.
-
-### Step 7 — Legacy cleanup (Part F, gated on verification)
-
-- Grep for `csv_path`, `pdf_path`, `gov_file_path`, `xlsx_path` readers. Migrate any remaining reader (`ReturnRunHistoryDrawer`, `record-return-filing`, download edge functions) onto `artifacts`.
-- Migration drops `csv_path` / `pdf_path` / `gov_file_path` from `payroll_return_runs` and the `output` scalar on `localization_pack_return_templates`. `pdf_path` / `xlsx_path` on `payroll_tax_certificates` stay for one more release because tenant history depends on them.
-
-### Step 8 — Edge function deploys & tests
-
-- Deploy `generate-tax-certificate` and `generate-statutory-return`.
-- Run vitest (`pack-declared-exports.test.ts`, new lifecycle-gate test, new publisher editor test).
-- Run Deno tests for both edge functions.
-
-## Technical details
-
-- Every new artifact row obeys the shape `{format,path,mime,ext,size?,sha256?,role,generated_at}` — enforced structurally by the trigger `assert_outputs_formats_registered` on templates and by TypeScript in the hooks.
-- Renderer contract: dispatch is `writer` column from `format_registry`, not a hardcoded switch — adding a new writer means one INSERT into `format_registry` plus one branch in `_shared/pdf/…` / `_shared/govFileWriter.ts`.
-- Enterprise parity references: Odoo `report.report_action.report_type`, SAP `HR_FORMS`, Workday "Output Profile", Oracle BI Publisher output types. All four decouple template from format list — this plan lands the same decoupling.
+### 6. Deploy and verify
+- Apply the database migration.
+- Deploy `compute-payroll`, `generate-statutory-return`, and `generate-tax-certificate`.
+- Use recent logs and direct edge-function calls where possible to verify the failures move from 500/generic to structured outcomes, and that generation works against the approved April run.
