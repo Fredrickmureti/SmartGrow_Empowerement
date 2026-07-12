@@ -532,27 +532,49 @@ function drawFieldGrid(ctx: Ctx, b: FieldGridBlock) {
   if (entries.length === 0) return;
 
   const colW = ctx.CONTENT_W / ncols;
-  const rowH = 22;
   const cellPadX = 4;
+  const labelH = FONT_SIZE.fieldLabel;
+  const gapAboveValue = 2;
+  const gapBetweenLines = 1;
+  const rowBottomPad = 4;
+  // Measure per-cell: wrap value to up to 2 lines, then ellipsis-clip line 2.
+  const cellsPerRow: Array<Array<{ label: string; lines: string[]; vFont: PDFFont; vSize: number }>> = [];
   for (let i = 0; i < entries.length; i += ncols) {
-    ensureSpace(ctx, rowH);
-    const yRow = ctx.y;
+    const row: Array<{ label: string; lines: string[]; vFont: PDFFont; vSize: number }> = [];
     for (let c = 0; c < ncols && i + c < entries.length; c++) {
       const e = entries[i + c];
-      const x = ctx.MARGIN + c * colW;
-      ctx.page.drawText(s(e.label).toUpperCase(), {
-        x: x + cellPadX, y: yRow - FONT_SIZE.fieldLabel,
-        size: FONT_SIZE.fieldLabel, font: ctx.fontRegular, color: COL.muted,
-      });
       const primary = e.emphasis === "primary";
       const vFont = primary ? ctx.fontBold : ctx.fontRegular;
       const vSize = primary ? FONT_SIZE.fieldValuePrimary : FONT_SIZE.fieldValue;
-      // Truncate to cell width (label:value grids don't wrap; use notes/paragraph if you need wrap).
-      const val = clip(s(e.val), vFont, vSize, colW - cellPadX * 2);
-      ctx.page.drawText(val, {
-        x: x + cellPadX, y: yRow - FONT_SIZE.fieldLabel - vSize - 2,
-        size: vSize, font: vFont, color: COL.text,
+      let lines = wrapToWidth(s(e.val), vFont, vSize, colW - cellPadX * 2);
+      if (lines.length > 2) {
+        lines = [lines[0], clip(lines.slice(1).join(" "), vFont, vSize, colW - cellPadX * 2)];
+      }
+      row.push({ label: e.label, lines, vFont, vSize });
+    }
+    cellsPerRow.push(row);
+  }
+  for (const row of cellsPerRow) {
+    const rowValueSize = row[0]?.vSize ?? FONT_SIZE.fieldValue;
+    const maxLines = row.reduce((m, cell) => Math.max(m, cell.lines.length), 1);
+    const rowH = labelH + gapAboveValue + maxLines * rowValueSize + (maxLines - 1) * gapBetweenLines + rowBottomPad;
+    ensureSpace(ctx, rowH);
+    const yRow = ctx.y;
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      const x = ctx.MARGIN + c * colW;
+      ctx.page.drawText(s(cell.label).toUpperCase(), {
+        x: x + cellPadX, y: yRow - labelH,
+        size: labelH, font: ctx.fontRegular, color: COL.muted,
       });
+      let ly = yRow - labelH - gapAboveValue - cell.vSize;
+      for (const line of cell.lines) {
+        ctx.page.drawText(line, {
+          x: x + cellPadX, y: ly,
+          size: cell.vSize, font: cell.vFont, color: COL.text,
+        });
+        ly -= cell.vSize + gapBetweenLines;
+      }
     }
     ctx.y -= rowH;
   }
