@@ -374,31 +374,13 @@ export function ReturnsTab() {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2 flex-wrap">
                             {(() => {
-                              // Pack-declared exports land in `r.artifacts`.
-                              // Older rows only have the legacy scalar
-                              // columns; project them into the same shape so
-                              // the UI has one code path.
-                              const legacyFallback: ReturnRun["artifacts"] = [];
-                              if ((!r.artifacts || r.artifacts.length === 0)) {
-                                if (r.csv_path) legacyFallback.push({ format: "csv", path: r.csv_path, mime: "text/csv", ext: "csv", role: "audit", generated_at: r.generated_at });
-                                if (r.pdf_path) legacyFallback.push({ format: "pdf", path: r.pdf_path, mime: "application/pdf", ext: "pdf", role: "human_readable", generated_at: r.generated_at });
-                                if (r.gov_file_path) {
-                                  const ext = r.gov_file_path.split(".").slice(-2).join(".");
-                                  const isXlsx = ext.endsWith("xlsx");
-                                  const isXml = ext.endsWith("xml");
-                                  legacyFallback.push({
-                                    format: isXlsx ? "gov_xlsx" : isXml ? "gov_xml" : "gov_csv",
-                                    path: r.gov_file_path,
-                                    mime: isXlsx
-                                      ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                      : isXml ? "application/xml" : "text/csv",
-                                    ext: isXlsx ? "gov.xlsx" : isXml ? "gov.xml" : "gov.csv",
-                                    role: "portal",
-                                    generated_at: r.generated_at,
-                                  });
-                                }
-                              }
-                              const arts = (r.artifacts && r.artifacts.length ? r.artifacts : legacyFallback);
+                              // ADR 0060 — artifacts is the sole source of
+                              // truth for a run's files. Legacy scalar
+                              // columns (csv_path/pdf_path/gov_file_path)
+                              // were dropped 2026-07-12; the backfill
+                              // migration seeded artifacts on every prior
+                              // row, so no fallback path is needed.
+                              const arts = r.artifacts ?? [];
                               if (!arts.length) {
                                 return (
                                   <span className="text-xs text-muted-foreground">No artifacts</span>
