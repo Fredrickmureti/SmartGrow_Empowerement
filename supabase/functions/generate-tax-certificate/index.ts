@@ -886,11 +886,40 @@ Deno.serve(async (req) => {
       }
     }
 
+    // When every employee failed, surface the first failure as a
+    // structured business error so the UI can render the real reason
+    // (e.g. MASTER_WORKBOOK_UNREACHABLE) instead of "unexpected error".
+    if (errors.length && !created.length && !skipped.length) {
+      const first = errors[0]?.error ?? "unknown";
+      const msg = String(first);
+      const codeMatch = msg.match(/^([A-Z_][A-Z0-9_]+):/);
+      const code = codeMatch ? codeMatch[1] : "CERT_GENERATE_FAILED";
+      return businessError(
+        500,
+        code,
+        `Certificate generation failed for every requested employee. First error: ${msg}`,
+        code === "MASTER_WORKBOOK_UNREACHABLE"
+          ? "The master workbook backing this certificate template is not reachable from the server. Ask your platform administrator to re-upload the pack's binary asset, or migrate it into Supabase Storage."
+          : "Review the error detail and address the underlying data or configuration issue, then retry generation.",
+        { template_code: template.code, batch_id: batchId, errors },
+      );
+    }
     return jsonResponse(
       { created, skipped, errors, template_code: template.code, batch_id: batchId },
-      errors.length && !created.length && !skipped.length ? 500 : 200,
+      200,
     );
   } catch (e: any) {
-    return jsonResponse({ error: e?.message ?? String(e) }, 500);
+    const msg = e?.message ?? String(e);
+    const codeMatch = msg.match(/^([A-Z_][A-Z0-9_]+):/);
+    const code = codeMatch ? codeMatch[1] : "CERT_GENERATE_UNEXPECTED";
+    return jsonResponse(
+      {
+        error: code,
+        code,
+        message: msg,
+        recovery: "Check the edge-function logs for the full stack trace and address the underlying error.",
+      },
+      500,
+    );
   }
 });
