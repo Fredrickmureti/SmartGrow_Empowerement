@@ -31,8 +31,9 @@ describe("Statutory workflows depend on Approval, not Payment (plan §Phase 2)",
 
   it("generate-tax-certificate gates on payroll_runs.approved_at (Phase 5g)", () => {
     const src = read("supabase/functions/generate-tax-certificate/index.ts");
-    expect(src).toMatch(/\.not\(["']approved_at["'],\s*["']is["'],\s*null\)/);
-    expect(src).toContain("NO_APPROVED_PAYROLL_RUNS");
+    const gate = read("supabase/functions/_shared/payrollLifecycleGate.ts");
+    expect(src).toContain("requireApprovedRunsForYear");
+    expect(gate).toMatch(/\.is\(["']approved_at["'],\s*null\)/);
     expect(src).toContain("businessError");
     expect(src).not.toMatch(/\.eq\(["']status["'],\s*["']paid["']\)/);
   });
@@ -46,10 +47,10 @@ describe("Statutory workflows depend on Approval, not Payment (plan §Phase 2)",
 
 describe("Compliance RPC signatures (plan §Phase 5g)", () => {
   it("generate-tax-certificate calls payroll_employee_ytd_rollup with the canonical arg names", () => {
-    const src = read("supabase/functions/generate-tax-certificate/index.ts");
-    expect(src).toMatch(/rpc\(["']payroll_employee_ytd_rollup["']/);
-    expect(src).toMatch(/p_year:\s*body\.fiscal_year/);
-    expect(src).toMatch(/p_employee_id:\s*emp\.id/);
+    const src = read("supabase/functions/_shared/certificateSourceResolver.ts");
+    expect(src).toMatch(/rpc\(\s*["']payroll_employee_ytd_rollup["']/);
+    expect(src).toMatch(/p_year:\s*fiscalYear/);
+    expect(src).toMatch(/p_employee_id:\s*employeeId/);
   });
 
   it("RemittanceOperatorDashboard calls payroll_remittance_dashboard(p_organization_id, p_business_id)", () => {

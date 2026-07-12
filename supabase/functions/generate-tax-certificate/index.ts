@@ -370,7 +370,7 @@ Deno.serve(async (req) => {
         if (!body.regenerate) {
           const { data: existing } = await admin
             .from("payroll_tax_certificates")
-            .select("id, serial_number, pdf_path, fiscal_year, employee_id, template_code, status")
+            .select("id, serial_number, artifacts, fiscal_year, employee_id, template_code, status, batch_id")
             .eq("organization_id", body.organization_id)
             .eq("business_id", body.business_id)
             .eq("employee_id", emp.id)
@@ -686,7 +686,6 @@ Deno.serve(async (req) => {
         const basePath = `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${serial}`;
         const artifactsList: CertificateArtifact[] = [];
         let pdfPath: string | null = null;
-        let xlsxPath: string | null = null;
 
         for (const decl of declaredOutputs) {
           let bytes: Uint8Array;
@@ -752,7 +751,6 @@ Deno.serve(async (req) => {
           });
 
           if (decl.format === "pdf") pdfPath = storagePath;
-          if (decl.format === "xlsx_binary") xlsxPath = storagePath;
         }
 
         if (artifactsList.length === 0) {
@@ -792,8 +790,9 @@ Deno.serve(async (req) => {
             template_pack_id: template.pack_id,
             fiscal_year: body.fiscal_year,
             payload,
+            // Backward-compatibility mirror only. `artifacts` is canonical;
+            // xlsx files are intentionally not written to legacy scalars.
             pdf_path: pdfPath,
-            xlsx_path: xlsxPath,
             artifacts: artifactsList,
             serial_number: serial,
             status: "issued",
@@ -801,7 +800,7 @@ Deno.serve(async (req) => {
             batch_id: batchId,
             provenance,
           })
-          .select("id, serial_number, pdf_path, xlsx_path, artifacts, fiscal_year, employee_id, template_code, status, batch_id")
+          .select("id, serial_number, artifacts, fiscal_year, employee_id, template_code, status, batch_id")
           .single();
         if (insErr) throw new Error(insErr.message);
         created.push(inserted);

@@ -222,7 +222,11 @@ export function usePayroll() {
       }
     }
 
-    toast.success(`Payroll ${data.payroll_run?.payroll_number || ""} created with ${data.employee_count} employees`);
+    if (data?.reused) {
+      toast.info(`Payroll ${data.payroll_run?.payroll_number || ""} already exists for this period`);
+    } else {
+      toast.success(`Payroll ${data.payroll_run?.payroll_number || ""} created with ${data.employee_count} employees`);
+    }
     await fetchPayrollRuns();
     return data.payroll_run;
   };
@@ -245,7 +249,15 @@ export function usePayroll() {
       p_run_id: payrollRunId,
     } as any);
 
-    if (error) throw error;
+    if (error) {
+      const msg = String((error as any)?.message ?? "").toLowerCase();
+      if (msg.includes("status approved") && msg.includes("cannot be approved")) {
+        await fetchPayrollRuns();
+        toast.info("Payroll was already approved");
+        return;
+      }
+      throw error;
+    }
 
     logAction({
       action: "approved",

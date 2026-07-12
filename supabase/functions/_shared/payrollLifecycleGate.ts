@@ -29,8 +29,9 @@ const OK: GateResult = { ok: true };
 
 /**
  * All payroll runs that touch (organization_id, business_id) in fiscal year
- * `fy` must be `approved`, `posted`, or `paid`. Draft/failed/reversed runs
- * mean the YTD rollup would silently misreport the certificate.
+ * `fy` must have crossed the legal finalisation event:
+ * `payroll_runs.approved_at IS NOT NULL`. Payment and GL posting remain peer
+ * workflows and must not gate statutory documents.
  */
 export async function requireApprovedRunsForYear(
   admin: SupabaseAdmin,
@@ -40,12 +41,12 @@ export async function requireApprovedRunsForYear(
   const end = `${args.fy}-12-31`;
   const { data, error } = await admin
     .from("payroll_runs")
-    .select("id, status, period_start, period_end")
+    .select("id, status, approved_at, pay_period_start, pay_period_end")
     .eq("organization_id", args.organization_id)
     .eq("business_id", args.business_id)
-    .gte("period_start", start)
-    .lte("period_end", end)
-    .not("status", "in", "(approved,posted,paid,closed)");
+    .gte("pay_period_start", start)
+    .lte("pay_period_end", end)
+    .is("approved_at", null);
   if (error) {
     return {
       ok: false,
@@ -60,7 +61,7 @@ export async function requireApprovedRunsForYear(
       ok: false,
       code: "PAYROLL_RUNS_NOT_APPROVED",
       message:
-        `Fiscal year ${args.fy} still has payroll runs that are not approved. ` +
+        `Fiscal year ${args.fy} still has payroll runs that have not been approved. ` +
         `Statutory documents can only be issued from a frozen payroll history.`,
       recovery:
         "Approve or reverse the pending runs, then regenerate. Go to Payroll → Runs and complete any Draft or Processing entries.",
@@ -82,12 +83,12 @@ export async function requireClosedPeriod(
 ): Promise<GateResult> {
   const { data, error } = await admin
     .from("payroll_periods")
-    .select("id, status, period_start, period_end")
+    .select("id, status, start_date, end_date")
     .eq("organization_id", args.organization_id)
     .eq("business_id", args.business_id)
-    .lte("period_start", args.period_start)
-    .gte("period_end", args.period_end)
-    .order("period_end", { ascending: false })
+    .lte("start_date", args.period_start)
+    .gte("end_date", args.period_end)
+    .order("end_date", { ascending: false })
     .limit(1);
   if (error) {
     return {
@@ -112,7 +113,7 @@ export async function requireClosedPeriod(
     return {
       ok: false,
       code: "PAYROLL_PERIOD_NOT_CLOSED",
-      message: `Payroll period ${row.period_start} → ${row.period_end} is ${status}; it must be closed before filing artifacts can be produced.`,
+      message: `Payroll period ${row.start_date} → ${row.end_date} is ${status}; it must be closed before filing artifacts can be produced.`,
       recovery: "Close the payroll period in Payroll → Periods, then regenerate.",
       details: { period_id: row.id, status },
     };

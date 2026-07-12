@@ -28354,6 +28354,24 @@ export type Database = {
           },
         ]
       }
+      payroll_number_sequences: {
+        Row: {
+          next_number: number
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          next_number?: number
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          next_number?: number
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payroll_payment_batch_items: {
         Row: {
           amount: number
