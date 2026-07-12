@@ -24,6 +24,7 @@ import {
   type SourceContext,
 } from "../_shared/returnSourceResolver.ts";
 import { requireClosedPeriod } from "../_shared/payrollLifecycleGate.ts";
+import { buildProjectedEmployeeMap } from "../_shared/employeeStatutoryProjection.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
