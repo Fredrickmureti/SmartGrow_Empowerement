@@ -17,7 +17,7 @@ import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { renderCertificatePdf } from "../_shared/pdf/certificateRenderer.ts";
 import {
   renderCertificate as renderCertificateV3,
-  UnwiredPdfProducer,
+  renderCertificateAstToPdf,
   type CertificateTemplateV3,
 } from "../_shared/certificate-engine/engine.ts";
 import { renderCertificateXlsx } from "../_shared/xlsx/certificateXlsxRenderer.ts";
@@ -706,11 +706,12 @@ Deno.serve(async (req) => {
               page_master: (template.body as any).page_master,
               document: (template.body as any).document,
             } as CertificateTemplateV3;
-            const producer = new UnwiredPdfProducer();
-            const { bytes } = await renderCertificateV3(
+            // Deno-native AST → PDF producer (Phase B, colocated).
+            // Bypasses HTML compile — the AST is already semantic.
+            const { bytes } = await renderCertificateAstToPdf(
               v3Template,
               enginePayload as unknown as Record<string, unknown>,
-              { currency: orgCurrency, producer },
+              { currency: orgCurrency },
             );
             return bytes;
           }
