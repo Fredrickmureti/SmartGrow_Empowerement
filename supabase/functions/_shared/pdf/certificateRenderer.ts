@@ -167,7 +167,14 @@ export async function renderCertificatePdf(
   payload: CertificatePayload,
   opts: RenderOptions = {},
 ): Promise<Uint8Array> {
+  // Dispatch to the block-primitive renderer (v2) when the pack template
+  // opts in via body.schema_version = 2. Legacy templates fall through to
+  // the section-typed renderer below.
+  if (Number((template.body as any)?.schema_version) >= 2) {
+    return await renderCertificatePdfV2(template as any, payload as any, opts);
+  }
   const doc = await PDFDocument.create();
+
   const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontItalic = await doc.embedFont(StandardFonts.HelveticaOblique);
