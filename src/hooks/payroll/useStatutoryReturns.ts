@@ -11,8 +11,8 @@ export interface ReturnTemplate {
   description: string | null;
   authority_name: string | null;
   period: "monthly" | "quarterly" | "annual";
-  /** Effective output: override wins over pack. */
-  output: "csv" | "pdf" | "both";
+  /** Pack-declared exports (ADR 0060). Never null after 2026-07-12 backfill. */
+  outputs: Array<{ format: string; role?: string; label?: string | null; filename?: string | null }>;
   /** Effective body: override wins over pack. */
   body: any;
   /** Effective due_day: override wins over pack. */
@@ -38,7 +38,7 @@ export interface ReturnTemplate {
   override_stale: boolean;
   /** Which operational fields the tenant has overridden. */
   overridden_fields: Array<
-    "body" | "submission_channel" | "submission_format" | "output" | "due_day" | "due_month_offset"
+    "body" | "submission_channel" | "submission_format" | "due_day" | "due_month_offset"
   >;
 }
 
@@ -52,14 +52,11 @@ export interface ReturnRun {
   period_start: string;
   period_end: string;
   payload: any;
-  csv_path: string | null;
-  pdf_path: string | null;
-  gov_file_path: string | null;
   /**
-   * Canonical artifact list emitted by `generate-statutory-return`. Each entry
-   * corresponds to one pack-declared output format (see ADR — pack-declared
-   * exports). Prefer this over the legacy {csv,pdf,gov_file}_path columns,
-   * which are read-mirrors kept for one release.
+   * Canonical artifact list emitted by `generate-statutory-return`. Each
+   * entry corresponds to one pack-declared output format (see ADR 0060).
+   * The legacy {csv,pdf,gov_file}_path scalar columns were dropped on
+   * 2026-07-12; this is now the single source of truth for a run's files.
    */
   artifacts: Array<{
     format: string;
@@ -171,7 +168,7 @@ export function useReturnTemplates() {
           .from("localization_pack_return_templates")
           .select(
             "id, pack_id, code, display_name, description, authority_name, authority_id, " +
-              "period, output, body, due_day, due_month_offset, sort_order, updated_at, " +
+              "period, outputs, body, due_day, due_month_offset, sort_order, updated_at, " +
               "legal_reference, effective_date, sunset_date, submission_channel, submission_format, " +
               "approval_required",
           )
@@ -180,7 +177,7 @@ export function useReturnTemplates() {
         (supabase as any)
           .from("payroll_return_template_overrides")
           .select(
-            "template_code, body, submission_channel, submission_format, output, " +
+            "template_code, body, submission_channel, submission_format, " +
               "due_day, due_month_offset, base_template_updated_at, override_version",
           )
           .eq("organization_id", orgId!)
@@ -199,7 +196,6 @@ export function useReturnTemplates() {
           body: p.body,
           submission_channel: p.submission_channel ?? null,
           submission_format: p.submission_format ?? null,
-          output: p.output,
           due_day: p.due_day,
           due_month_offset: p.due_month_offset,
         };
@@ -207,7 +203,6 @@ export function useReturnTemplates() {
           if (ov.body != null) { eff.body = ov.body; overridden.push("body"); }
           if (ov.submission_channel != null) { eff.submission_channel = ov.submission_channel; overridden.push("submission_channel"); }
           if (ov.submission_format != null) { eff.submission_format = ov.submission_format; overridden.push("submission_format"); }
-          if (ov.output != null) { eff.output = ov.output; overridden.push("output"); }
           if (ov.due_day != null) { eff.due_day = ov.due_day; overridden.push("due_day"); }
           if (ov.due_month_offset != null) { eff.due_month_offset = ov.due_month_offset; overridden.push("due_month_offset"); }
         }
@@ -225,7 +220,7 @@ export function useReturnTemplates() {
           authority_name: p.authority_name,
           authority_id: p.authority_id ?? null,
           period: p.period,
-          output: eff.output,
+          outputs: Array.isArray(p.outputs) ? p.outputs : [],
           body: eff.body,
           due_day: eff.due_day,
           due_month_offset: eff.due_month_offset,
@@ -300,9 +295,6 @@ export function useReturnRuns(params: { templateCode?: string; year?: number }) 
       if (error) throw error;
       return ((data ?? []) as ReturnRun[]).map((run) => ({
         ...run,
-        csv_path: run.csv_path ? normalizeReturnArtifactPath(run.csv_path) : run.csv_path,
-        pdf_path: run.pdf_path ? normalizeReturnArtifactPath(run.pdf_path) : run.pdf_path,
-        gov_file_path: run.gov_file_path ? normalizeReturnArtifactPath(run.gov_file_path) : run.gov_file_path,
         artifacts: Array.isArray((run as any).artifacts)
           ? (run as any).artifacts.map((a: any) => ({
               ...a,
