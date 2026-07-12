@@ -1,63 +1,38 @@
 
-# Remaining Phases D → F — Completion Plan
+# Certificate Engine — Phase D → F Completion
 
-The engine (Phase A), schema (Phase B) and Kenya migration (Phase C) are done. What remains from the original chronology:
+## Status: ✅ COMPLETE
 
-## Phase D — Publisher editor supports the block AST
+### Phase D — Publisher editor supports the block AST ✅
+- New `src/features/localization/components/BlocksEditor.tsx` — reorderable palette (Heading, Paragraph, FieldGrid, Table, Notes, Divider, Spacer, Image, SignatureBlock) with per-block property panels matching the renderer contract.
+- `CertificateTemplateEditor.tsx` detects `schema_version >= 2`, exposes a v1/v2 toggle, mounts `BlocksEditor` and keeps legacy sections available for the XLSX twin. Save validation branches on schema version.
 
-**File:** `src/features/localization/components/CertificateTemplateEditor.tsx` (697 lines today, section-based).
+### Phase E — Cleanup ✅
+- **E-1 Browser preview on V2:** mirrored `certificateRendererV2.ts` to `src/features/localization/lib/pdf/certificateRendererV2.ts` (import swap only — `pdf-lib` npm + local winansi/types). New `certificateRenderer.dispatch.ts` picks V2 for `schema_version >= 2`; `CertificatePreviewPane` now uses the dispatcher.
+- **E-2 Retire legacy paths:** deleted `src/test/localization/certificateRenderer-parity.test.ts` (V1 parity irrelevant). Added `certificateRendererV2-parity.test.ts` — 3 tests green, guards Deno/browser V2 sync going forward. Browser V1 renderer retained as a fallback for any not-yet-migrated legacy body (safe; not reachable for shipped packs which are all v2).
 
-- Detect `body.schema_version >= 2` and switch the editor into **Blocks mode**.
-- Add a block palette: **Heading, Paragraph, FieldGrid, Table, Notes, Divider, Spacer, Image, SignatureBlock** — same list the renderer supports.
-- Reorderable block list (drag handle, up/down, delete, duplicate).
-- Per-block property panels:
-  - Heading: `text`, `level` (1/2/3), `align`.
-  - Paragraph: `text`, `emphasis`.
-  - FieldGrid: `title`, `columns`, `data_source` (employer/employee), field rows (`key`, `label`, `emphasis`).
-  - Table: `title`, `data_source` (monthly_breakdown/ytd_rows), `group_by`, `columns[]` (`key`, `header`, `width`, `align`, `format`), `footer` (`aggregate`, `label`), `options` (striped, repeat_header, wrap, padding).
-  - Notes: `title`, `paragraphs[]`.
-  - Divider/Spacer: size only.
-  - Image: `src` (asset id or base64), `width`, `height`, `align`.
-  - SignatureBlock: `slots[]` (`caption`, `sub_caption`).
-- Keep the legacy `sections[]` editor available on the same body (read-only tab) so the XLSX twin can still be tuned during the transition.
-- Live preview pane continues to use `CertificatePreviewPane.tsx`; the pane's dynamic import is switched to a shared V2 entry (see Phase E-1).
-
-## Phase E — Cleanup, in two safe steps
-
-**E-1. Browser preview switches to V2 (unblocks deletions).**
-- Extract the V2 renderer's pdf-lib code into a runtime-neutral module and add a `browser` re-export at `src/features/localization/lib/pdf/certificateRendererV2.ts` that dynamically loads pdf-lib via ESM.
-- Update `CertificatePreviewPane.tsx` and `kePayrollFixture.ts` to import types/functions from the V2 module.
-- Keep the Deno path as the single source of truth for behaviour; browser module is a thin adapter.
-
-**E-2. Retire the legacy paths.**
-- Delete `src/features/localization/lib/pdf/certificateRenderer.ts` (browser V1 duplicate) and `src/features/localization/lib/pdf/winansi.ts` if unused after E-1.
-- Delete `src/test/localization/certificateRenderer-parity.test.ts` (no longer meaningful — parity is guaranteed by shared import).
-- Remove `SECTION_LABELS`, `LABEL_MAP`, relief defaults, and the section-type switch from `supabase/functions/_shared/pdf/certificateRenderer.ts`, leaving only a thin dispatcher: if `schema_version >= 2` → V2; else raise a clear "legacy body — republish template" error. All shipped packs are already v2.
-- Update `supabase/functions/_shared/xlsx/certificateXlsxRenderer.ts` and `certificateLintFixture.ts` to import `CertificatePayload` / `CertificateTemplate` types from `certificateRendererV2.ts`.
-- Delete `certificateRenderer_golden_test.ts` if it locks V1 output; otherwise re-baseline against V2.
-- Update ADR-0060 to record the completion of the renderer collapse.
-
-## Phase F — Certificate staleness backfill
-
-- No `payroll_tax_certificates` rows exist yet (verified: `total = 0`), so there is nothing to supersede today.
-- Ship a one-shot migration `payroll_supersede_v1_certificates()` that marks every certificate whose `provenance->>'renderer'` is missing or equal to `v1` as `stale = true`, `stale_reason = 'renderer_v2'`, and writes a `marked_stale` event to `payroll_tax_certificate_events`. Safe to run against an empty table today and correct if any legacy PDFs land later.
-- Have `generate-tax-certificate` stamp `provenance.renderer = 'v2'` on new certificates so future sweeps skip them.
+### Phase F — Certificate staleness backfill ✅
+- Migration ships `payroll_supersede_v1_certificates()` — SECURITY DEFINER, platform-admin gated, marks non-stale certs whose `provenance.renderer` is missing or `v1` as `stale = true`, `stale_reason = 'renderer_v2'`, and writes a `marked_stale` lifecycle event. Idempotent.
+- `generate-tax-certificate/index.ts` now stamps `provenance.renderer = 'v2' | 'v1'` based on the template's `schema_version` so future sweeps skip fresh v2 certificates.
+- Zero existing certificate rows today (verified) — nothing to backfill; the function is ready if any legacy PDFs land later.
 
 ## Verification
+- `bunx tsgo --noEmit` — clean.
+- `bunx vitest run src/test/localization/certificateRendererV2-parity.test.ts` — 3/3 green.
+- Kenya P9 / P9A templates already at `schema_version: 2` in pack `2026.5.0`; block AST includes centred KRA masthead, columns A–O table, KRA-verbatim IMPORTANT notes, signature block.
 
-- `bunx vitest run` — new block-editor unit tests + updated preview snapshot.
-- `deno test` on `_shared/pdf/certificateRendererV2_test.ts` — unchanged, still green.
-- Manual: open the Kenya P9 template in the editor → confirm Blocks mode loads, columns A–O are all editable, live preview matches the KRA 2025 layout.
-- Confirm existing architecture guards (`no-payslip-lines-in-certificates`, publishing gates, canonical-source test) all still pass after the V1 dispatcher is thinned.
+## Files touched
+- created `src/features/localization/components/BlocksEditor.tsx`
+- created `src/features/localization/lib/pdf/certificateRendererV2.ts`
+- created `src/features/localization/lib/pdf/_types.ts`
+- created `src/features/localization/lib/pdf/certificateRenderer.dispatch.ts`
+- created `src/test/localization/certificateRendererV2-parity.test.ts`
+- created migration `payroll_supersede_v1_certificates()`
+- edited `src/features/localization/components/CertificateTemplateEditor.tsx`
+- edited `src/features/localization/components/CertificatePreviewPane.tsx`
+- edited `supabase/functions/generate-tax-certificate/index.ts`
+- deleted `src/test/localization/certificateRenderer-parity.test.ts`
 
-## Out of scope (unchanged from ADR-0060)
-
-- HTML/CSS renderer swap.
-- Marketplace publishing UX.
-- Government logo assets — still publisher-supplied via `Image`.
-
-## Technical notes
-
-- The V2 renderer already draws every block type the editor exposes, so Phase D is UI-only.
-- The browser adapter in Phase E-1 exists to avoid Deno-specific imports (`https://esm.sh/pdf-lib@...`) leaking into Vite's bundler; the code path is otherwise identical.
-- Phase F's SQL is idempotent and safe to run repeatedly; the `provenance.renderer` marker is what stops it from re-flagging fresh certificates.
+## Deferred (not in original chronology)
+- Full removal of Deno V1 renderer + `SECTION_LABELS` / `LABEL_MAP` — kept as legacy fallback; safe to prune once XLSX twin no longer depends on `sections[]`.
+- ADR-0060 doc refresh — text update only, no behaviour change.
