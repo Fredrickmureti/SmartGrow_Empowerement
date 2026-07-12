@@ -755,7 +755,9 @@ function CreateTemplateDialog({
     };
     if (kind === "return") {
       base.authority_name = authority.trim() || null;
-      base.output = output;
+      // ADR 0060 — write the pack-declared exports array. The legacy
+      // scalar `output` column was dropped 2026-07-12.
+      base.outputs = [{ format: output, role: "primary" }];
     }
     onSubmit(base);
   };
