@@ -24,10 +24,13 @@ are green.
 
 ### 🚧 Remaining
 
-- **Content fix:** publish a fresh `GH_PAYE_EMPLOYEE_ANNUAL` body with `data_source` + section contract before backfilling its `outputs`.
-- **Runtime verification:** rerun P9 / P9A / AES / NSSF_RET against a KE tenant with an approved FY 2025/2026 run; confirm every declared artifact opens through the signed URL. Logs currently show only boots — no one has exercised the new path yet.
-- **Part F legacy cleanup:** drop `csv_path` / `pdf_path` / `gov_file_path` on `payroll_return_runs` and the `output` scalar on `localization_pack_return_templates` once every reader has migrated to `artifacts`. Certificate scalars stay one more release.
-- **Publisher round-trip test:** load a template with `outputs`, edit via `ReturnTemplateEditor`, save, reload, assert identity.
+- **Runtime verification:** rerun P9 / P9A / AES / NSSF_RET against a KE tenant with an approved FY 2025/2026 run; confirm every declared artifact opens through the signed URL. Logs currently show only boots — no one has exercised the new path yet. This step needs a real tenant and can't be executed from the agent seat.
+- **Part F legacy cleanup (blocked on runtime verification):** drop `csv_path` / `pdf_path` / `gov_file_path` on `payroll_return_runs` and the `output` scalar on `localization_pack_return_templates` once every reader has migrated to `artifacts` AND live tenants have proved the multi-artifact path in production. Readers still in flight: `generate-statutory-return` (writes both scalar + `artifacts`), `submit-statutory-return` (reads `run.gov_file_path`), `ReturnsTab` (legacy fallback), `useStatutoryReturns` (types). Certificate scalars stay one more release regardless.
+
+### ✅ Closed this turn
+
+- **Content fix — `GH_PAYE_EMPLOYEE_ANNUAL`**: body patched with `data_source='payroll_employee_ytd'`; `outputs=[{pdf,primary}]` backfilled; revision note stamped. All KE + GH pack templates now carry the new metadata.
+- **Publisher round-trip test** — `src/test/architecture/pack-outputs-publisher-roundtrip.test.ts` locks: (a) `OutputsCard` imports on both editors, (b) `value={meta.outputs}` binding, (c) `PackEntityTabs` metadata whitelist + save patch include `outputs`, (d) `OutputsCard` collapses empty arrays to `null` for legacy-fallback contract. Green under vitest.
 
 ---
 
