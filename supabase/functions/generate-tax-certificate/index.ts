@@ -704,6 +704,48 @@ Deno.serve(async (req) => {
           generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
         };
 
+        // v3 data assembly: pivot the raw monthly rule-code stream into the
+        // semantic matrix rows the template binds to (e.g. `p9.months`),
+        // applying the pack's derived columns. The country's tax math lives
+        // entirely in the pack-authored matrix node — this code is generic.
+        if (isV3EngineTemplate(template)) {
+          const doc = Array.isArray((template.body as any).document)
+            ? (template.body as any).document
+            : [];
+          const matrixNode = doc.find((n: any) => n?.type === "matrix");
+          if (matrixNode) {
+            const codes = collectMatrixRuleCodes(matrixNode);
+            let v3Monthly: any[] = [];
+            if (codes.length) {
+              const { data: mm } = await admin.rpc("payroll_employee_monthly_breakdown", {
+                p_year: body.fiscal_year,
+                p_employee_id: emp.id,
+                p_rule_codes: codes,
+              });
+              v3Monthly = (mm ?? []) as any[];
+            }
+            const matrixRows = buildMatrixRows(v3Monthly, matrixNode);
+            // Bind the rows at the template's rows_binding path (dot path).
+            const bindingPath = String(matrixNode.rows_binding ?? "matrix.rows");
+            const parts = bindingPath.split(".");
+            let cursor: any = enginePayload as any;
+            for (let i = 0; i < parts.length - 1; i++) {
+              if (typeof cursor[parts[i]] !== "object" || cursor[parts[i]] == null) {
+                cursor[parts[i]] = {};
+              }
+              cursor = cursor[parts[i]];
+            }
+            cursor[parts[parts.length - 1]] = matrixRows;
+            // Summary totals the template binds (Col. K / Col. O).
+            (enginePayload as any).totals = {
+              ...(enginePayload as any).totals,
+              chargeable_pay: sumMatrixColumn(matrixRows, "chargeable_pay"),
+              paye: sumMatrixColumn(matrixRows, "paye_net"),
+            };
+          }
+        }
+
+
         // Certificate Engine v3: the audited artifact is the compiled
         // HTML (CSS Paged Media). It is byte-identical to what the
         // publisher sees in the editor preview AND to what the tenant
