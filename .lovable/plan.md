@@ -1,111 +1,129 @@
-## Root cause (verified in code)
 
-The V2 redesign the previous agent claimed **is** wired: `certificateRenderer.ts:173` dispatches templates with `body.schema_version >= 2` to `certificateRendererV2.ts` (1,025 LOC), and both the edge and browser paths share the same block AST. It's honestly country-agnostic — no `PAYE`/`P9`/`SHIF` tokens leak into renderer code (only doc-comment mentions).
+# Certificate Rendering Engine — Audit & Enterprise Redesign
 
-So the ugly P9 is **not** because the redesign was skipped. The output is bad because the V2 engine itself is a **coordinate-drawing block layouter built on pdf-lib**. It cannot deliver statutory-grade layout no matter how many block primitives we add. What it lacks (and cannot cheaply gain):
+## Phase 1 — Independent Audit (verified against code)
 
-- No real inline text shaper — wrapping is measured char-by-char against pdf-lib's `widthOfTextAtSize`, so KE P9's dense column headers ("Chargeable Pay", "Tax Charged", "Personal Relief") wrap vertically or overlap.
-- No CSS-grade box model — padding/margin/border collapsing, min/max content sizing, and table auto-layout are hand-rolled and incomplete, hence the cramped columns.
-- No `thead` repeat, no `page-break-inside: avoid`, no widow/orphan control — the 12-row monthly matrix breaks at arbitrary y-coordinates.
-- No typography scale, no baseline grid — whitespace looks report-like because it is arithmetic, not typographic.
-- Publisher edits blocks in a bespoke JSON editor — DX has no relationship to how anyone else in the industry authors statutory forms.
+Files inspected:
+- `supabase/functions/_shared/pdf/certificateRendererV2.ts` (1,025 lines)
+- `src/features/localization/lib/pdf/certificateRendererV2.ts` (1,025 lines — hand-mirrored copy of the Deno file, kept in sync by a parity test)
+- `supabase/functions/_shared/pdf/certificateRenderer.ts` (v1, 831 lines, still live for `schema_version < 2`)
+- `supabase/functions/generate-tax-certificate/index.ts` (dispatcher + payload assembly)
+- `supabase/functions/_shared/pdf/PdfBuilder.ts` + `components/` + `themes/accountantMono.ts` (shared invoice/payslip builder — not used by certificates)
+- `src/features/localization/lib/pdf/certificateRenderer.dispatch.ts`
+- `docs/adr/0060-*`, `docs/printing-pipeline.md`
 
-Rebuilding these primitives inside pdf-lib is re-implementing a browser layout engine badly. That's the architectural bottleneck.
+Verified facts:
 
-## Industry evidence
+1. **Two parallel renderers, hand-copied.** The V2 renderer exists twice (Deno edge + browser preview), kept aligned only by `certificateRendererV2-parity.test.ts` comparing switch-case labels. Any layout fix must be written twice and stay byte-identical modulo imports.
+2. **pdf-lib is the layout engine.** The renderer manually tracks a y-cursor, measures glyph widths via `StandardFonts` + `winansiSafe`, and hand-computes column widths, wrapping, page breaks, and header repetition. There is no real layout engine — every visual defect (overlap, cramped columns, broken hierarchy) is a bug in ~1,000 lines of imperative geometry code.
+3. **Block AST is layout-primitive, not document-semantic.** `Block` union = Heading / Paragraph / FieldGrid / Table / Notes / Divider / Spacer / Image / SignatureBlock. It has no notion of page master, header/footer band, running totals, columnar sections, or paged-media flow. Packs cannot express KRA P9's actual structure (declaration header band, two-column employer/employee identity strip, wide monthly matrix with per-column footer sums, legal notes footer, signature strip) without the renderer bolting on more primitives — which is exactly what ADR-0060 has been doing repeatedly.
+4. **Renderer is not swappable.** `generate-tax-certificate/index.ts` imports `renderCertificatePdf` directly from `_shared/pdf/certificateRenderer.ts`, which itself branches to V2 by `schema_version`. There is no `PdfRenderer` interface — the "abstraction" is a file import.
+5. **Shared `PdfBuilder` / themes / components exist but certificates don't use them.** `PdfBuilder`, `accountantMono`, `LineItemsTable`, `BrandedHeader`, `TotalsBlock` are the canonical builder for invoices/payslips (see `docs/printing-pipeline.md`). Certificates re-implement all of it. That is why payslips look consistent and certificates don't.
+6. **Template body is JSON blocks stored in `localization_pack_certificate_templates.body`.** Publishers author it through `TemplateEditor` (form-based, not visual). There is no preview against the actual renderer beyond a browser mirror; no golden-PDF workflow for publishers.
+7. **Upgrade path exists.** `usePackUpgradeProposals` + pack versioning are real and functional. Migration for a new pack version is a solved problem.
 
-- **Odoo** (`l10n_ke`, `l10n_za`, `l10n_us`): QWeb (HTML+XML) → wkhtmltopdf. Country packs are HTML template files.
-- **ERPNext / Navari CSF_KE** (ships the actual Kenya P9): Frappe Print Format (Jinja HTML) → wkhtmltopdf.
-- **Oracle HCM**: RTF → XSL-FO → PDF (BI Publisher).
-- **SAP / Workday**: legacy proprietary form painters (SmartForms, Adobe Forms, BIRT). Even SAP is migrating new statutory forms to Adobe Forms flow subforms.
+## Phase 2 — Root Cause
 
-Dominant modern pattern for new statutory-compliance tooling: **flow-layout HTML/CSS rendered by a browser/paged-media engine**. Every peer that ships Kenya P9 today uses this pattern.
+The Kenya P9 output is bad **not because the V2 primitives are wrong**, but because:
 
-## Verdict: replace, don't evolve
+- The renderer is a **hand-rolled imperative layout engine** on top of pdf-lib. Real paged-media layout (measured columns, avoid-break regions, repeated table headers with running totals, keep-with-next, page-master headers/footers, precise typography) is an entire discipline; ~1,000 lines of ad-hoc y-cursor code cannot deliver it.
+- The **block AST does not match statutory-form semantics**. KRA P9 (and every peer statutory form: SARS IRP5, IRS W-2, HMRC P60, URA, GRA, TRA) is a **paged report** with page masters, banded regions, and a wide matrix — none of which are first-class in the current AST. Publishers work around it by stuffing everything into `table` + `field_grid` primitives, so hierarchy collapses.
+- **Two-file drift.** Every fix costs 2× effort and diverges over time. This has already led to layout regressions.
+- **No feedback loop for publishers.** Editing a JSON block and hoping the imperative renderer draws it correctly is not an authoring model. Odoo publishers edit a QWeb XML template and see the exact same engine's output.
 
-Evolving V2 means re-implementing CSS paged-media on pdf-lib for the next several years. Replacing it is a smaller, bounded piece of work and matches how every serious ERP renders statutory documents. **Recommendation: replace the pdf-lib block engine with an HTML/CSS + paged-media pipeline.**
+Conclusion: continuing to add primitives and geometry code to V2 is the wrong direction. **Replace the engine.**
 
-## Recommended architecture
+## Phase 3 — Enterprise Redesign (Odoo pattern, internal)
 
-```text
-Localization pack (HTML template)          Renderer (country-agnostic)
-─────────────────────────────────          ────────────────────────────
-kra_p9.html.hbs   ← Handlebars over HTML   PdfRenderer.render(templateHtml, data)
-kra_p9.css        ← Print CSS, @page,        1. Handlebars compile → HTML string
-                    thead repeat, grid       2. POST to renderer service
-kra_p9.schema.json← Data contract           3. Service runs WeasyPrint (Python)
-kra_p9.assets/    ← Optional images/         → returns PDF bytes
-                    QR (publisher-supplied) 4. Edge fn streams to caller / storage
+Odoo's architectural principles (not implementation):
+
+- Reports are **templates in a markup language** (QWeb XML) owned by the localization module, not by the platform.
+- The **rendering engine is generic paged-media** (Odoo calls `wkhtmltopdf`; newer builds swap to a paged-HTML engine). The platform owns the engine; countries never touch it.
+- Every report has a **paper format** (page size, margins, header/footer height) that is data, not code.
+- Header/footer bands are separate templates rendered on every page by the engine — the report body just flows.
+- Publishers add a new certificate by publishing a **template file** + **paper format** + **data mapping**; no platform release.
+
+Applied here — **the platform owns a country-agnostic paged-HTML renderer; localization packs own templates.**
+
+### Responsibilities
+
+| Layer | Owns |
+|---|---|
+| **Platform** | Paged-HTML rendering engine; paper-format primitives; token/data resolver; page-master (header/footer band) runtime; PDF byte production; storage & lifecycle (unchanged) |
+| **Localization pack** | Certificate template (markup), page master (header/footer markup), paper format, all labels/legal text/signature captions, monthly-matrix column definitions, i18n strings |
+| **Publisher** | Authors templates in a visual editor that emits the markup; previews against the real engine; ships as pack version |
+| **Rendering subsystem** | Pure function `(template, pageMaster, paperFormat, data) → PDF bytes`. No country knowledge. No pdf-lib geometry. Single implementation, single call site. |
+
+### New template model (pack-owned)
+
+```
+certificate_template.body = {
+  schema_version: 3,
+  paper_format: { size: "A4", orientation, margins, header_height, footer_height },
+  page_master_ref: "ke.p9.page_master.v10",     // header/footer band template
+  document: <markup AST>,                        // typed nodes, not raw HTML
+  data_bindings: { … tokens → payload paths }
+}
 ```
 
-**Engine choice: WeasyPrint (Python) in a small Fly.io/Cloud Run container.**
+`<markup AST>` node types are paged-media semantic, not visual primitives:
+`Page`, `Band` (header/footer/body), `Section`, `IdentityStrip` (2-col employer/employee), `LegalNotice`, `SignatureStrip`, `Matrix` (wide table with column groups, per-column footers, repeat-header, keep-together), `KeyValue`, `Heading`, `RichText`, `Spacer`, `Image`. Publishers never see raw HTML/CSS.
 
-Why WeasyPrint over Chromium/Puppeteer:
-- Purpose-built for CSS Paged Media Level 3 (`@page`, running headers, page counters, footnotes, `break-inside`, `thead` repeat). Chromium's paged-media support is weaker and quirkier.
-- ~120 MB container vs ~600 MB Chromium; cold start <2 s.
-- No JS execution surface → smaller supply-chain footprint for a signed statutory doc.
-- Deterministic output (fonts pinned in container) → golden-file tests keep working.
-- wkhtmltopdf is deprecated; we skip it.
+### Rendering subsystem (single engine, internal)
 
-Why not run in Supabase Edge Functions: Deno cannot run Chromium or WeasyPrint. Rendering moves to a dedicated microservice; edge fns become thin orchestrators that fetch data, compile the template, POST to the renderer, and persist the PDF. This is exactly Odoo's split (`ir.actions.report` orchestrator + wkhtmltopdf worker).
+- **One engine, one call site.** `renderCertificate({template, pageMaster, paperFormat, data}) → Uint8Array`. Lives in `_shared/certificate-engine/`. Called only by `generate-tax-certificate`. Browser preview calls the **same engine** compiled for the browser (no hand-copied mirror).
+- **Engine internals** are a paged-HTML pipeline: AST → deterministic HTML+CSS (using CSS Paged Media: `@page`, `page-break-*`, `position: running()`, `element()`) → PDF. The engine is a Deno module; whether it invokes a bundled headless renderer or a WASM paged-media library is an **implementation detail decided in the implementation phase**, not now. The interface is stable regardless.
+- **No third-party APIs.** Engine is internal to the ERP, same as Odoo owns its rendering.
+- **pdf-lib retained only for post-processing** (merging, metadata, signing) — not for layout.
 
-**Renderer's public API — country-agnostic:**
-```ts
-POST /render
-{ templateHtml: string, css: string, data: object, assets?: {name, bytes}[], options?: {format, margins} }
-→ 200 application/pdf
-```
-The renderer never sees the words "P9", "PAYE", or "KRA". It sees HTML and CSS.
+### Publisher experience
 
-**Publisher DX:** the certificate template editor becomes a two-pane HTML/CSS editor with a live preview iframe (the same WeasyPrint service, called with sample data). The block-primitive JSON editor and its bespoke React preview are retired.
+- Visual template editor in the pack workbench emits the typed AST (never raw markup).
+- Live preview panel renders through the actual engine (WASM build) with sample payload.
+- Publisher-supplied page master (logo, seal, QR) uploaded as pack asset; engine treats it generically.
+- Golden-PDF test per template baked into pack CI.
 
-## Migration impact
+### What gets deleted (once migration completes)
 
-- **Rendering path**: `renderCertificatePdfV2` (edge + browser copies) deleted. `certificateRenderer.ts` becomes a 40-line orchestrator that calls the renderer service. `PdfBuilder.ts`, `components/`, `themes/`, `winansi.ts` retired.
-- **Schema**: `certificate_templates.body` gains `schema_version = 3` = `{ html, css, data_contract, assets[] }`. Legacy v1/v2 templates still render via a compatibility shim (kept for 1 release, then removed) so installed tenants don't break mid-upgrade.
-- **KE pack v10**: rewrite `kra_p9` as `kra_p9.html.hbs` + `kra_p9.css` matching the uploaded KRA PDF/XLSX blueprint (information hierarchy, monthly matrix, totals row, declaration + signature block, no government logo). Version bump propagates via existing `apply-localization-pack-upgrade` flow.
-- **Publisher UI**: `BlocksEditor.tsx`, `PreviewPanel.tsx` block branch, `CertificateTemplateEditor.tsx` v2 branch replaced with `HtmlTemplateEditor` (Monaco for HTML + CSS, live preview via renderer service).
-- **Tests**: `certificateRendererV2_test.ts`, `certificateRenderer_golden_test.ts` replaced with golden-PDF tests that hash the WeasyPrint output for a fixed data fixture per pack.
-- **Infra**: one new service (`services/pdf-renderer/`, Python + WeasyPrint + FastAPI), deployed to Fly.io or Cloud Run. New secret `PDF_RENDERER_URL` + shared HMAC signing key.
-- **Data**: no user-data migration. Payroll history untouched. Existing v2 templates in the DB keep working via shim until packs are upgraded.
+- `supabase/functions/_shared/pdf/certificateRendererV2.ts` and `certificateRenderer.ts`
+- `src/features/localization/lib/pdf/certificateRenderer*.ts` (browser mirror)
+- `certificateRendererV2-parity.test.ts` (no longer needed — one engine)
+- Ad-hoc winansi + font-metrics code inside the renderer
 
-## Files/modules affected
+## Phase 4 — Publisher Experience
 
-Deleted after cutover:
-- `supabase/functions/_shared/pdf/certificateRendererV2.ts`
-- `supabase/functions/_shared/pdf/PdfBuilder.ts`
-- `supabase/functions/_shared/pdf/components/**`
-- `supabase/functions/_shared/pdf/themes/**`
-- `supabase/functions/_shared/pdf/winansi.ts`
-- `supabase/functions/_shared/pdf/certificateRendererV2_test.ts`
-- `src/features/localization/lib/pdf/certificateRendererV2.ts`
-- `src/features/localization/lib/pdf/_monthlyMatrix.ts`
-- `src/features/localization/components/BlocksEditor.tsx`
+Publishers author packs through the existing pack workbench, extended with:
 
-Rewritten:
-- `supabase/functions/_shared/pdf/certificateRenderer.ts` → orchestrator that POSTs to renderer service
-- `supabase/functions/generate-tax-certificate/index.ts` → adopt v3 dispatch; keep v2 shim for one release
-- `src/features/localization/components/CertificateTemplateEditor.tsx` → v3 branch
-- `src/features/localization/components/PreviewPanel.tsx` → iframe backed by renderer service
-- `src/features/localization/lib/certificateCompleteness.ts` → v3 checks
+1. **Template canvas** — drag/drop of the semantic node types listed above; property inspector for each node (labels, bindings, formatting).
+2. **Page master editor** — separate document for header/footer band, referenced by templates.
+3. **Paper format editor** — size, orientation, margins, band heights.
+4. **Token binding picker** — reuses `pack_token_registry`; resolver already exists.
+5. **Live preview** — same engine, sample payload, side-by-side with the canvas.
+6. **Golden PDF** — publisher pins an approved PDF at pack-version publish; CI diff blocks regressions.
 
-New:
-- `services/pdf-renderer/` (FastAPI + WeasyPrint + Handlebars-python, Dockerfile, HMAC verify)
-- `supabase/functions/_shared/pdf/renderViaService.ts` (fetch + HMAC sign)
-- `src/features/localization/components/HtmlTemplateEditor.tsx` (Monaco panes + preview)
-- KE pack v10: `packs/ke/certificates/kra_p9.html.hbs`, `kra_p9.css`, `kra_p9.sample.json`
-- New migration adding `schema_version = 3` support + v10 upgrade seed
+No platform code change is required to add a new country. Adding a new node type is a rare platform release, governed by ADR.
 
-DB migration:
-- Add `body.schema_version = 3` shape validation to `publish-localization-pack-version`
-- Seed KE pack v10 rows via `install-localization-pack` upgrade path
+## Phase 5 — Migration Strategy
 
-## Stop here for approval
+- **schema_version 3 = new engine.** V1 and V2 keep rendering unchanged until every active pack has migrated. `generate-tax-certificate` dispatches on `schema_version`.
+- **Kenya pack v10** = first v3 template (P9), published through the existing `usePackUpgradeProposals` upgrade flow. Tenants get an upgrade proposal; nothing is force-migrated.
+- **Deprecation window** (one pack cycle): v2 renderers stay in tree, marked deprecated, flagged in `payroll_diagnostics`.
+- **Removal**: once no active pack version references schema_version < 3, delete the v1/v2 renderers, the browser mirror, and the parity test.
+- **Provenance & lifecycle** (ADR-0036 Addendum) unchanged — engine swap is invisible to the ledger.
 
-I will not start implementation until you approve:
-1. Replace (not evolve) the pdf-lib block engine.
-2. WeasyPrint microservice as the renderer.
-3. HTML+CSS+Handlebars as the publisher authoring format.
-4. Retire the block-primitive V2 engine after a one-release compatibility shim.
+## Phased Implementation Plan (for approval)
 
-If any of these four are wrong, tell me which and I'll revise.
+- **Phase A — Engine core.** New `_shared/certificate-engine/` module: typed AST, resolver, paged-HTML compiler, engine entry point, unit tests. No integration yet.
+- **Phase B — Dispatcher wiring.** `generate-tax-certificate` recognises `schema_version: 3` and calls the new engine; v1/v2 paths untouched. Feature-flagged.
+- **Phase C — Kenya P9 v10 template.** Author the P9 as a v3 template + page master + paper format inside the KE pack. Golden-PDF baseline. Ship through the normal upgrade proposal flow.
+- **Phase D — Publisher workbench.** Extend `TemplateEditor` with the canvas, page-master editor, paper-format editor, live preview using the same engine.
+- **Phase E — Deprecate v1/v2.** Diagnostics warning; docs updated; parity test removed once no pack < v3 is active.
+- **Phase F — Delete legacy renderers** and the hand-copied browser mirror.
+
+Nothing under `PdfBuilder` / invoices / payslips is touched.
+
+## Deliverables in this phase
+
+- This audit + redesign document.
+- No code changes.
+- Approval gate before Phase A begins.
