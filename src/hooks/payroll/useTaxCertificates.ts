@@ -207,6 +207,44 @@ type GenerateTaxCertificateResult = {
   errors: any[];
 };
 
+async function readFunctionErrorPayload(error: unknown): Promise<any | null> {
+  const response = (error as any)?.context;
+  if (!response || typeof response !== "object") return null;
+
+  try {
+    const readable = typeof response.clone === "function" ? response.clone() : response;
+    const contentType = response.headers?.get?.("content-type") ?? "";
+    if (contentType.includes("application/json") && typeof readable.json === "function") {
+      return await readable.json();
+    }
+    if (typeof readable.text === "function") {
+      const text = await readable.text();
+      if (!text) return null;
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { message: text };
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function taxCertificateGenerationError(error: unknown, payload: any) {
+  const message = payload?.message ?? payload?.error;
+  if (message) {
+    const err: any = new Error(String(message));
+    err.code = payload?.code;
+    err.payload = payload;
+    err.cause = error;
+    return err;
+  }
+  return error;
+}
+
 export function useGenerateTaxCertificate() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -226,8 +264,19 @@ export function useGenerateTaxCertificate() {
           ...input,
         },
       });
-      if (error) throw error;
-      if ((data as any)?.error && !(data as any)?.created?.length) throw new Error((data as any).error);
+      if (error) {
+        const payload = await readFunctionErrorPayload(error);
+        throw taxCertificateGenerationError(error, payload);
+      }
+      if ((data as any)?.error && !(data as any)?.created?.length) throw taxCertificateGenerationError(new Error((data as any).error), data);
+      if (Array.isArray((data as any)?.errors) && (data as any).errors.length > 0 && !(data as any)?.created?.length) {
+        const first = (data as any).errors[0];
+        throw taxCertificateGenerationError(new Error(first?.error ?? "Tax certificate generation failed"), {
+          error: first?.error ?? "Tax certificate generation failed",
+          errors: (data as any).errors,
+          skipped: (data as any).skipped ?? [],
+        });
+      }
       return data as GenerateTaxCertificateResult;
     },
     onSuccess: () => {

@@ -40,11 +40,11 @@ export async function requireApprovedRunsForYear(
   const end = `${args.fy}-12-31`;
   const { data, error } = await admin
     .from("payroll_runs")
-    .select("id, status, period_start, period_end")
+    .select("id, status, pay_period_start, pay_period_end")
     .eq("organization_id", args.organization_id)
     .eq("business_id", args.business_id)
-    .gte("period_start", start)
-    .lte("period_end", end)
+    .gte("pay_period_start", start)
+    .lte("pay_period_end", end)
     .not("status", "in", "(approved,posted,paid,closed)");
   if (error) {
     return {
@@ -82,12 +82,12 @@ export async function requireClosedPeriod(
 ): Promise<GateResult> {
   const { data, error } = await admin
     .from("payroll_periods")
-    .select("id, status, period_start, period_end")
+    .select("id, status, start_date, end_date")
     .eq("organization_id", args.organization_id)
     .eq("business_id", args.business_id)
-    .lte("period_start", args.period_start)
-    .gte("period_end", args.period_end)
-    .order("period_end", { ascending: false })
+    .lte("start_date", args.period_start)
+    .gte("end_date", args.period_end)
+    .order("end_date", { ascending: false })
     .limit(1);
   if (error) {
     return {
@@ -112,7 +112,7 @@ export async function requireClosedPeriod(
     return {
       ok: false,
       code: "PAYROLL_PERIOD_NOT_CLOSED",
-      message: `Payroll period ${row.period_start} → ${row.period_end} is ${status}; it must be closed before filing artifacts can be produced.`,
+      message: `Payroll period ${row.start_date} → ${row.end_date} is ${status}; it must be closed before filing artifacts can be produced.`,
       recovery: "Close the payroll period in Payroll → Periods, then regenerate.",
       details: { period_id: row.id, status },
     };

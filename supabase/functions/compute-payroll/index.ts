@@ -39,6 +39,20 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function isDuplicatePayrollNumber(error: any) {
+  const text = `${error?.code ?? ""} ${error?.message ?? ""} ${error?.details ?? ""}`.toLowerCase();
+  return text.includes("23505") && text.includes("payroll_number");
+}
+
+function isDuplicateRegularPeriod(error: any) {
+  const text = `${error?.code ?? ""} ${error?.message ?? ""} ${error?.details ?? ""}`.toLowerCase();
+  return text.includes("23505") && (
+    text.includes("idx_payroll_runs_unique_regular_period") ||
+    text.includes("pay_period_start") ||
+    text.includes("pay_period_end")
+  );
+}
+
 interface VariableEarnings {
   employee_id: string;
   overtime_pay?: number;
@@ -981,7 +995,7 @@ Deno.serve(async (req) => {
       if (runType === "regular") {
         const { data: existingRegular } = await supabaseAdmin
           .from("payroll_runs")
-          .select("id, payroll_number, status")
+          .select("*")
           .eq("organization_id", organization_id)
           .eq("business_id", business_id || null)
           .eq("pay_period_start", pay_period_start)
@@ -993,7 +1007,11 @@ Deno.serve(async (req) => {
         if (existingRegular) {
           return new Response(JSON.stringify({
             code: "REGULAR_RUN_EXISTS",
-            error: `A regular payroll run already exists for this period (${existingRegular.payroll_number}, status: ${existingRegular.status}).`,
+            message: `A regular payroll run already exists for this period (${existingRegular.payroll_number}, status: ${existingRegular.status}).`,
+            payroll_run: existingRegular,
+            employee_count: existingRegular.employee_count ?? 0,
+            warnings: [],
+            reused: true,
             existing_run_id: existingRegular.id,
             existing_payroll_number: existingRegular.payroll_number,
             existing_status: existingRegular.status,
@@ -1003,7 +1021,7 @@ Deno.serve(async (req) => {
               "create_correction_run",
             ],
           }), {
-            status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
       }
@@ -3845,9 +3863,7 @@ Deno.serve(async (req) => {
 
 
     // ─── Insert payroll run (generic totals only) ───
-    const { data: payrollRun, error: prError } = await supabaseAdmin
-      .from("payroll_runs")
-      .insert({
+    const payrollRunInsert = () => ({
         organization_id,
         business_id: business_id || null,
         payroll_number: finalPayrollNumber,
@@ -3868,9 +3884,57 @@ Deno.serve(async (req) => {
         period_id: resolvedPeriodId,
         run_type_policy_snapshot: runTypePolicy,
 
-      })
-      .select()
-      .single();
+      });
+
+    let payrollRun: any = null;
+    let prError: any = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const result = await supabaseAdmin
+        .from("payroll_runs")
+        .insert(payrollRunInsert())
+        .select()
+        .single();
+      payrollRun = result.data;
+      prError = result.error;
+      if (!prError) break;
+      if (isDuplicatePayrollNumber(prError)) {
+        const { data: nextNumber, error: numErr } = await supabaseAdmin.rpc("get_next_payroll_number", {
+          _org_id: organization_id,
+        });
+        if (numErr) throw numErr;
+        finalPayrollNumber = nextNumber || `PAY-${Date.now()}`;
+        continue;
+      }
+      if (isDuplicateRegularPeriod(prError) && runType === "regular") {
+        const { data: existingRegular } = await supabaseAdmin
+          .from("payroll_runs")
+          .select("*")
+          .eq("organization_id", organization_id)
+          .eq("business_id", business_id || null)
+          .eq("pay_period_start", pay_period_start)
+          .eq("pay_period_end", pay_period_end)
+          .eq("run_type", "regular")
+          .neq("status", "deleted")
+          .maybeSingle();
+        if (existingRegular) {
+          return new Response(JSON.stringify({
+            code: "REGULAR_RUN_EXISTS",
+            message: `A regular payroll run already exists for this period (${existingRegular.payroll_number}, status: ${existingRegular.status}).`,
+            payroll_run: existingRegular,
+            employee_count: existingRegular.employee_count ?? 0,
+            warnings: [],
+            reused: true,
+            existing_run_id: existingRegular.id,
+            existing_payroll_number: existingRegular.payroll_number,
+            existing_status: existingRegular.status,
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+      break;
+    }
 
     if (prError) throw prError;
 
