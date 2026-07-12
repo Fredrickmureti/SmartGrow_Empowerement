@@ -35,7 +35,7 @@ export { theme, type Theme } from "./themes/accountantMono.ts";
  */
 export function assertStatutoryPaper(
   received: string | undefined | null,
-  allowed: readonly string[] = ["a4"],
+  allowed: readonly string[] = ["a4", "a4-landscape"],
 ): void {
   const normalized = (received ?? "a4").toLowerCase();
   if (!allowed.includes(normalized)) {
