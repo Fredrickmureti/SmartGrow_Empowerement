@@ -446,13 +446,19 @@ Deno.serve(async (req) => {
           fiscal_year: body.fiscal_year,
           generated_at: new Date().toISOString(),
           employee: {
+            // Payload contract (ADR-0060 addendum): every certificate
+            // template can rely on these keys existing. Missing source
+            // fields resolve to "" so field_grid `.filter(val.trim())`
+            // hides them cleanly instead of silently dropping the row.
             id: emp.id,
             full_name: `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim(),
-            employee_number: emp.employee_number,
-            tax_pin: emp.tax_pin,
-            national_id: emp.national_id,
-            position: (emp as any).job_position?.name ?? null,
-            department: (emp as any).department?.name ?? null,
+            employee_number: emp.employee_number ?? "",
+            tax_pin: emp.tax_pin ?? "",
+            national_id: emp.national_id ?? "",
+            position: (emp as any).job_position?.name ?? (emp as any).job_title ?? "",
+            department: (emp as any).department?.name ?? "",
+            hire_date: (emp as any).hire_date ?? "",
+            termination_date: (emp as any).termination_date ?? "",
           },
           rollup: rows,
           totals,
