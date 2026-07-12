@@ -89,6 +89,8 @@ export interface FieldGridBlock {
 export interface TableColumn {
   key: string;
   header: string;
+  source_key?: string;             // optional raw rule_code feeding this display column
+  rule_code?: string;              // alias for source_key used by older pack JSON
   width?: "auto" | number | string; // number = pt, "1fr" / "2fr", "auto"
   align?: "left" | "right" | "center";
   format?: ValueFormat;
@@ -341,14 +343,30 @@ function resolveDataSource(ctx: Ctx, name: string, block?: TableBlock): any[] {
       const cols = block?.columns ?? [];
       const derived = (block?.derived_columns ?? []) as DerivedColumn[];
       const derivedKeys = new Set(derived.map((d) => d.key));
-      const ruleCodes = cols
-        .map((c) => c.key)
-        .filter((k) => k && k !== "month_index" && !derivedKeys.has(k));
+      const ruleCodes = Array.from(new Set([
+        ...cols
+          .map((c: any) => String(c.source_key ?? c.rule_code ?? c.key ?? ""))
+          .filter((k) => k && k !== "month_index" && !derivedKeys.has(k)),
+        ...derived.flatMap((d: any) => (Array.isArray(d.args) ? d.args : [])
+          .filter((a: any) => typeof a === "string")
+          .map((a: string) => a)
+          .filter((k: string) => k && k !== "month_index" && !derivedKeys.has(k))),
+        ...((block as any)?.rule_codes ?? []).map((k: any) => String(k)).filter(Boolean),
+      ]));
       const matrix = pivotToMonthlyMatrix(
         (ctx.payload.monthly ?? []) as MonthlyRuleCodeRow[],
         ruleCodes,
         block?.amount_field ?? "employee_amount",
       );
+      for (const row of matrix) {
+        for (const c of cols as any[]) {
+          const sourceKey = String(c.source_key ?? c.rule_code ?? c.key ?? "");
+          const displayKey = String(c.key ?? "");
+          if (sourceKey && displayKey && sourceKey !== displayKey) {
+            row[displayKey] = Number(row[sourceKey]) || 0;
+          }
+        }
+      }
       return applyDerivedColumns(matrix, derived);
     }
     case "ytd_rows": return ctx.payload.ytdRows ?? [];
