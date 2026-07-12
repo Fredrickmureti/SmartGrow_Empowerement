@@ -450,23 +450,46 @@ export function useCertificateSubmissions(certificateIds: string[]) {
   });
 }
 
+function isHtmlTarget(path?: string | null, fmt?: string | null): boolean {
+  return fmt === "html" || (typeof path === "string" && /\.html?$/i.test(path));
+}
+
 export async function downloadTaxCertificate(
   certificate:
-    | Pick<TaxCertificate, "id" | "pdf_path"> | string
-    | { artifact_path: string; filename?: string },
+    | (Pick<TaxCertificate, "id" | "pdf_path"> & { artifacts?: TaxCertificate["artifacts"] })
+    | string
+    | { artifact_path: string; filename?: string; format?: string },
   format: "pdf" | "xlsx" = "pdf",
 ) {
   let body: Record<string, unknown>;
+  let htmlTarget = false;
+
   if (typeof certificate === "string") {
     body = { pdf_path: certificate, format };
   } else if ("artifact_path" in certificate) {
+    htmlTarget = isHtmlTarget(certificate.artifact_path, certificate.format);
     body = {
       artifact_path: certificate.artifact_path,
       filename: certificate.filename,
     };
   } else {
-    body = { certificate_id: certificate.id, format };
+    // Certificate row. v3 certificates carry no server PDF — their
+    // human-readable artifact is the compiled HTML, which the browser
+    // materialises to a vector PDF via the print pipeline. Prefer that
+    // artifact over the (now-null) pdf_path scalar.
+    const arts = Array.isArray(certificate.artifacts) ? certificate.artifacts : [];
+    const htmlArt =
+      format !== "xlsx"
+        ? arts.find((a) => isHtmlTarget(a?.path, a?.format))
+        : undefined;
+    if (htmlArt?.path) {
+      htmlTarget = true;
+      body = { artifact_path: htmlArt.path };
+    } else {
+      body = { certificate_id: certificate.id, format };
+    }
   }
+
   const { data, error } = await supabase.functions.invoke("download-tax-certificate", { body });
   if (error || !(data as any)?.signedUrl) {
     const { toast } = await import("sonner");
@@ -474,6 +497,20 @@ export async function downloadTaxCertificate(
     toast.error(`Could not download certificate: ${message}`);
     throw error ?? new Error(message);
   }
+
+  if (htmlTarget) {
+    // Fetch the compiled HTML and paginate → print client-side.
+    const res = await fetch((data as any).signedUrl);
+    const html = await res.text();
+    const { printCertificateHtml } = await import(
+      "@/features/localization/lib/printCertificateHtml"
+    );
+    printCertificateHtml(html, {
+      title: (data as any).filename ?? "Tax certificate",
+    });
+    return;
+  }
+
   const a = document.createElement("a");
   a.href = (data as any).signedUrl;
   a.rel = "noopener";
@@ -483,3 +520,4 @@ export async function downloadTaxCertificate(
   a.click();
   a.remove();
 }
+
