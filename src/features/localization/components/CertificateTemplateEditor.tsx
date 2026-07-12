@@ -236,11 +236,15 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     if (!meta.effective_date) metaErrors.push("Effective date is required");
   }
   const bodyErrors: string[] = [];
-  if (sections.length === 0) bodyErrors.push("Add at least one section");
-  if (missingRequired.length) {
-    bodyErrors.push(
-      `${completenessRule.label} is missing required section(s): ${missingRequired.join(", ")}`,
-    );
+  if (isV2) {
+    if (blocks.length === 0) bodyErrors.push("Add at least one block to the document");
+  } else {
+    if (sections.length === 0) bodyErrors.push("Add at least one section");
+    if (missingRequired.length) {
+      bodyErrors.push(
+        `${completenessRule.label} is missing required section(s): ${missingRequired.join(", ")}`,
+      );
+    }
   }
 
   const canSave = () =>
