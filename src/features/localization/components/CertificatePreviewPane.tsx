@@ -36,7 +36,7 @@ export function CertificatePreviewPane({ templateCode, displayName, body, meta }
       setRendering(true);
       setError(null);
       try {
-        const { renderCertificatePdf } = await import("../lib/pdf/certificateRenderer");
+        const { renderCertificatePdf } = await import("../lib/pdf/certificateRenderer.dispatch");
         const tpl = buildPreviewTemplate(
           templateCode,
           displayName || templateCode,

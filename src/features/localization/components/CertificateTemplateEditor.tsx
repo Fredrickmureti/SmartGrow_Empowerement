@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
 import { TokenAwareTextarea } from "./TokenAwareTextarea";
+import { BlocksEditor, type Block } from "./BlocksEditor";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -172,9 +173,16 @@ interface Props {
 export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCancel }: Props) {
   const editMetadata = mode === "admin" && initial.metadata !== undefined;
   const [meta, setMeta] = useState<CertificateTemplateMetadata>(() => normalizeMetadata(initial.metadata));
+  const initialSchemaVersion = Number((initial.body as any)?.schema_version ?? 1);
+  const [schemaVersion, setSchemaVersion] = useState<number>(initialSchemaVersion);
   const [sections, setSections] = useState<any[]>(() => {
     const b = initial.body;
     if (b && Array.isArray(b.sections)) return b.sections;
+    return [];
+  });
+  const [blocks, setBlocks] = useState<Block[]>(() => {
+    const b = initial.body as any;
+    if (b && Array.isArray(b.blocks)) return b.blocks as Block[];
     return [];
   });
   const [dataSource] = useState<"payroll_employee_ytd">("payroll_employee_ytd");
@@ -189,12 +197,16 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const unresolvedRef = useRef<string[]>([]);
   const authoritiesQuery = useStatutoryAuthorities(editMetadata ? packId : null);
 
+  const isV2 = schemaVersion >= 2;
+
   const liveBody = useMemo(() => ({
+    schema_version: isV2 ? 2 : undefined,
     data_source: dataSource,
     sections,
+    blocks: isV2 ? blocks : undefined,
     footer_note: footerNote || undefined,
     page: { size: "a4", orientation },
-  }), [sections, footerNote, dataSource, orientation]);
+  }), [isV2, sections, blocks, footerNote, dataSource, orientation]);
 
   const completenessRule = useMemo(
     () => resolveCompletenessRule(initial.template_code),
@@ -224,11 +236,15 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     if (!meta.effective_date) metaErrors.push("Effective date is required");
   }
   const bodyErrors: string[] = [];
-  if (sections.length === 0) bodyErrors.push("Add at least one section");
-  if (missingRequired.length) {
-    bodyErrors.push(
-      `${completenessRule.label} is missing required section(s): ${missingRequired.join(", ")}`,
-    );
+  if (isV2) {
+    if (blocks.length === 0) bodyErrors.push("Add at least one block to the document");
+  } else {
+    if (sections.length === 0) bodyErrors.push("Add at least one section");
+    if (missingRequired.length) {
+      bodyErrors.push(
+        `${completenessRule.label} is missing required section(s): ${missingRequired.join(", ")}`,
+      );
+    }
   }
 
   const canSave = () =>
@@ -390,12 +406,38 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
           />
         )}
 
-        {/* Sections */}
+        {/* Schema-version toggle. Templates using the block AST
+            (`schema_version: 2`) get the new BlocksEditor; legacy
+            templates keep the sections editor. Publishers can upgrade
+            an existing template to v2 which pre-populates blocks from
+            the current sections (empty until authored). */}
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-sm">Document schema</CardTitle>
+            <div className="flex items-center gap-2 text-xs">
+              <span className={isV2 ? "text-muted-foreground" : "font-medium"}>Legacy sections</span>
+              <Switch
+                checked={isV2}
+                onCheckedChange={(v) => setSchemaVersion(v ? 2 : 1)}
+              />
+              <span className={isV2 ? "font-medium" : "text-muted-foreground"}>Block AST (v2)</span>
+            </div>
+          </CardHeader>
+          <CardContent className="text-[11px] text-muted-foreground">
+            {isV2
+              ? "Blocks drive the PDF renderer. Legacy sections below are retained only for the XLSX twin during transition."
+              : "Legacy section editor. New templates should use the v2 Block AST — flip the switch above."}
+          </CardContent>
+        </Card>
+
+        {isV2 && <BlocksEditor blocks={blocks} onChange={setBlocks} />}
+
+        {/* Sections (legacy / XLSX twin) */}
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
               <Building2 className="h-4 w-4" />
-              Sections
+              {isV2 ? "Sections (legacy · XLSX twin)" : "Sections"}
             </CardTitle>
             <div className="flex items-center gap-1">
               <Select onValueChange={(v) => addSection(v)}>
