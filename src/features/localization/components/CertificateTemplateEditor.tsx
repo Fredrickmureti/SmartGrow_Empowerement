@@ -361,6 +361,19 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                 />
                 <Label className="text-xs">Requires approval before issuance</Label>
               </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">Page orientation</Label>
+                <Select value={orientation} onValueChange={(v) => setOrientation(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="portrait">A4 portrait</SelectItem>
+                    <SelectItem value="landscape">A4 landscape (wide monthly grids: KE P9, GH P.A.Y.E.)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="text-[10px] text-muted-foreground">
+                  Statutory authority owns the paper: KRA's P9 template is landscape. Change only when the regulator's form is.
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
