@@ -97,13 +97,26 @@ export interface RenderOptions {
   branding?: OrganizationBranding | null;
 }
 
-// ── Layout constants ───────────────────────────────────────────────
+// ── Layout ─────────────────────────────────────────────────────────
+//
+// Certificates default to A4 portrait. Templates whose monthly grid
+// exceeds ~10 columns (KE P9/P9A, GH P.A.Y.E.) declare
+// `body.page.orientation = "landscape"` — parallel to Odoo's per-report
+// `paperformat_id`. Landscape swaps to 297×210 mm, giving ~840pt of
+// usable width instead of ~511pt.
 
 const MM = 72 / 25.4;
-const ctx.PAGE_W = 210 * MM; // A4 portrait
-const ctx.PAGE_H = 297 * MM;
-const ctx.MARGIN = 42;
-const ctx.CONTENT_W = ctx.PAGE_W - ctx.MARGIN * 2;
+
+export function computeLayout(template: CertificateTemplate): {
+  PAGE_W: number; PAGE_H: number; MARGIN: number; CONTENT_W: number;
+} {
+  const page = (template.body as any)?.page ?? {};
+  const landscape = String(page.orientation ?? "portrait").toLowerCase() === "landscape";
+  const PAGE_W = (landscape ? 297 : 210) * MM;
+  const PAGE_H = (landscape ? 210 : 297) * MM;
+  const MARGIN = 42;
+  return { PAGE_W, PAGE_H, MARGIN, CONTENT_W: PAGE_W - MARGIN * 2 };
+}
 
 const COL = {
   text: rgb(0.08, 0.08, 0.12),
