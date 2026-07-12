@@ -35,16 +35,16 @@ import {
   PDFFont,
   StandardFonts,
   rgb,
-} from "https://esm.sh/pdf-lib@1.17.1";
-import { winansiSafe } from "./winansi.ts";
-import type { OrganizationBranding } from "../branding/index.ts";
-import type { MonthlyRow } from "../certificateSections.ts";
+} from "pdf-lib";
+import { winansiSafe } from "./winansi";
+import type { OrganizationBranding } from "./_types";
+import type { MonthlyRow } from "./_types";
 import {
   pivotToMonthlyMatrix,
   applyDerivedColumns,
   type DerivedColumn,
   type MonthlyRuleCodeRow,
-} from "../monthlyMatrix.ts";
+} from "./_monthlyMatrix";
 
 // ── Block AST ─────────────────────────────────────────────────────────
 
