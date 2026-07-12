@@ -635,6 +635,8 @@ export default function TaxCertificates() {
                               key={`${a.path ?? a.format}-${i}`}
                               variant="ghost"
                               size="sm"
+                              disabled={!!c.stale}
+                              title={c.stale ? "Regenerate this certificate before downloading the current file" : undefined}
                               onClick={() =>
                                 a.path && a.format !== "pdf" && a.format !== "xlsx"
                                   ? downloadTaxCertificate({ artifact_path: a.path })
