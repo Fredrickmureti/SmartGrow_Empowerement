@@ -914,9 +914,11 @@ Deno.serve(async (req) => {
               // staleness sweep (`payroll_supersede_v1_certificates`)
               // can skip certificates already produced by V2.
               renderer:
-                Number((template.body as any)?.schema_version ?? 1) >= 2
-                  ? "v2"
-                  : "v1",
+                isV3EngineTemplate(template)
+                  ? "v3-html"
+                  : Number((template.body as any)?.schema_version ?? 1) >= 2
+                    ? "v2"
+                    : "v1",
             },
           })
           .select("id, serial_number, artifacts, fiscal_year, employee_id, template_code, status, batch_id")
