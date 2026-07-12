@@ -66,7 +66,7 @@ interface RollupRow {
 }
 
 const STORAGE_BUCKET = "documents";
-const CERTIFICATE_RENDERER_VERSION = "certificate-renderer-v2-block-matrix-2026-07-12.2";
+const CERTIFICATE_RENDERER_VERSION = "certificate-engine-v3-html-2026-07-12.1";
 
 async function sha256Hex(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(value ?? null));
