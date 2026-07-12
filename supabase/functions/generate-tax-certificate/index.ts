@@ -302,26 +302,22 @@ Deno.serve(async (req) => {
     // the employee context so templates can address `employee.<type>`
     // uniformly. `tax_pin` is kept as an alias for the KRA_PIN identifier
     // to preserve the pre-existing payload shape consumed by templates.
+    // Country-agnostic projection via the shared helper (single writer,
+    // arch-test locked with generate-statutory-return). Uppercased aliases
+    // + tax-identifier aliasing (tax_pin / tax_id / tin) are applied
+    // uniformly so pack authors' addressing convention doesn't matter.
     const employeeIdList = employees.map((e: any) => e.id);
     const { data: idRows } = await admin
       .from("employee_statutory_identifiers")
       .select("employee_id, identifier_type, identifier_value")
       .in("employee_id", employeeIdList);
-    const idsByEmp = new Map<string, Record<string, string>>();
-    for (const r of (idRows ?? []) as any[]) {
-      const m = idsByEmp.get(r.employee_id) ?? {};
-      m[r.identifier_type] = r.identifier_value;
-      idsByEmp.set(r.employee_id, m);
-    }
-    for (const emp of employees as any[]) {
-      const ids = idsByEmp.get(emp.id) ?? {};
-      for (const [k, v] of Object.entries(ids)) {
-        if (k in emp) continue;
-        (emp as any)[k] = v ?? null;
-      }
-      if (!(emp as any).tax_pin) {
-        (emp as any).tax_pin = ids.KRA_PIN ?? ids.TAX_PIN ?? ids.TIN ?? null;
-      }
+    const projectedById = buildProjectedEmployeeMap(employees as any[], (idRows ?? []) as any[]);
+    // Overwrite the working employee rows with their projected copies so
+    // downstream code (`emp.tax_pin`, `emp.KRA_PIN`, …) sees the same
+    // context every other generator sees.
+    for (let i = 0; i < employees.length; i++) {
+      const proj = projectedById.get((employees[i] as any).id);
+      if (proj) (employees as any[])[i] = proj;
     }
 
     const branding = await getOrganizationBranding(admin, body.organization_id, body.business_id);
