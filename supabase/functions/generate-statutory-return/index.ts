@@ -525,14 +525,11 @@ Deno.serve(async (req) => {
     // so the organization_id MUST be the first path segment. Anything else fails
     // the signed-URL check with a misleading 400 "Object not found".
     const basePath = `${body.organization_id}/payroll/statutory-returns/${body.period_end.slice(0, 4)}/${template.code}/${serial}`;
-    let csvPath: string | null = null;
-    let pdfPath: string | null = null;
-    let govFilePath: string | null = null;
-
-    // Canonical artifact registry — pack-declared exports land here. Legacy
-    // {csv,pdf,gov_file}_path columns remain populated for one release as
-    // read-mirrors so existing tenants and UIs continue to work while
-    // callers migrate to `artifacts`.
+    // Canonical artifact registry — pack-declared exports land here. The
+    // legacy {csv,pdf,gov_file}_path columns were dropped in migration
+    // 20260712 once every reader migrated to `artifacts`. Dispatch is now
+    // driven exclusively by `template.outputs[]` (ADR 0060 / migration
+    // 20260711232041) — no more `template.output` scalar branches.
     type Artifact = {
       format: string;
       path: string;
@@ -546,7 +543,24 @@ Deno.serve(async (req) => {
     const pushArtifact = (a: Omit<Artifact, "generated_at">) =>
       artifacts.push({ ...a, generated_at: new Date().toISOString() });
 
-    if (template.output === "csv" || template.output === "both") {
+    // Resolve the pack-declared output list. Every template row now carries
+    // a non-empty `outputs` array (backfilled 2026-07-12). We defensively
+    // fall back to `[{format:'csv',role:'primary'}]` so any future INSERT
+    // that forgets to set outputs still produces something audit-able,
+    // rather than silently emitting zero files.
+    const declaredOutputs: Array<{ format: string; role?: string; label?: string | null; filename?: string | null }> =
+      Array.isArray((template as any).outputs) && (template as any).outputs.length
+        ? ((template as any).outputs as any[])
+        : [{ format: "csv", role: "primary" }];
+    const declaredFormats = new Set(declaredOutputs.map((o) => String(o.format)));
+    const wantCsv = declaredFormats.has("csv");
+    const wantPdf = declaredFormats.has("pdf");
+    const govFormat: "gov_csv" | "gov_xlsx" | "gov_xml" | null =
+      declaredFormats.has("gov_xlsx") ? "gov_xlsx" :
+      declaredFormats.has("gov_xml")  ? "gov_xml"  :
+      declaredFormats.has("gov_csv")  ? "gov_csv"  : null;
+
+    if (wantCsv) {
       const header = columns.map((c) => csvEscape(c.label ?? c.key)).join(",");
       const rowsCsv = projected.map((r) => columns.map((c) => csvEscape(r[c.key])).join(",")).join("\n");
       const totalsLine = totalsKeys.length
@@ -566,11 +580,11 @@ Deno.serve(async (req) => {
           { template_code: body.template_code, period_start: body.period_start, period_end: body.period_end, detail: upload.error.message },
         );
       }
-      csvPath = path;
-      pushArtifact({ format: "csv", path, mime: "text/csv", ext: "csv", size: csv.length, role: "audit" });
+      const csvRole = (declaredOutputs.find((o) => o.format === "csv")?.role as Artifact["role"]) ?? "audit";
+      pushArtifact({ format: "csv", path, mime: "text/csv", ext: "csv", size: csv.length, role: csvRole });
     }
 
-    if (template.output === "pdf" || template.output === "both") {
+    if (wantPdf) {
       // STATUTORY PAPER PIN — locked to A4 by issuing tax authority
       // (KRA, URA, TRA, etc.). Filing portals reject anything else.
       // Do NOT consult `document_print_policies` here; statutory
@@ -653,14 +667,15 @@ Deno.serve(async (req) => {
             { template_code: body.template_code, period_start: body.period_start, period_end: body.period_end, detail: upload.error.message },
           );
         }
-      pdfPath = path;
-      pushArtifact({ format: "pdf", path, mime: "application/pdf", ext: "pdf", size: pdfBytes.byteLength, role: "human_readable" });
+      const pdfRole = (declaredOutputs.find((o) => o.format === "pdf")?.role as Artifact["role"]) ?? "human_readable";
+      pushArtifact({ format: "pdf", path, mime: "application/pdf", ext: "pdf", size: pdfBytes.byteLength, role: pdfRole });
     }
 
     // P1.2: Government-portal-import file (iTax bulk CSV, URA PAYE CSV, etc.)
-    // Driven by `template.submission_format`. Country-agnostic — no branches.
+    // Driven by `template.submission_format` and gated on the pack-declared
+    // outputs. Country-agnostic — no branches.
     const subFmt = (template as any).submission_format as GovFileSubmissionFormat | null;
-    const isGovOutput = template.output === "gov_csv" || template.output === "gov_xlsx" || template.output === "gov_xml";
+    const isGovOutput = govFormat !== null;
     if (subFmt || isGovOutput) {
       try {
         const govRows = employeeIds
@@ -687,17 +702,17 @@ Deno.serve(async (req) => {
               { template_code: body.template_code, period_start: body.period_start, period_end: body.period_end, detail: upload.error.message },
             );
           }
-          govFilePath = path;
-          const govFormat =
+          const emittedGovFormat =
             out.extension === "gov.xlsx" ? "gov_xlsx" :
             out.extension === "gov.xml"  ? "gov_xml"  : "gov_csv";
+          const govRole = (declaredOutputs.find((o) => o.format === emittedGovFormat)?.role as Artifact["role"]) ?? "portal";
           pushArtifact({
-            format: govFormat,
+            format: emittedGovFormat,
             path,
             mime: out.contentType,
             ext: out.extension,
             size: out.bytes.byteLength,
-            role: "portal",
+            role: govRole,
           });
         }
       } catch (e: any) {
@@ -720,7 +735,7 @@ Deno.serve(async (req) => {
     // active run already exists, we return it unchanged (idempotent GET).
     const { data: existing } = await admin
       .from("payroll_return_runs")
-      .select("id, serial_number, csv_path, pdf_path, gov_file_path, artifacts, period_start, period_end, template_code, status, payload, reconciliation_status")
+      .select("id, serial_number, artifacts, period_start, period_end, template_code, status, payload, reconciliation_status")
       .eq("business_id", body.business_id)
       .eq("template_code", template.code)
       .eq("period_start", body.period_start)
@@ -821,9 +836,6 @@ Deno.serve(async (req) => {
         period_start: body.period_start,
         period_end: body.period_end,
         payload,
-        csv_path: csvPath,
-        pdf_path: pdfPath,
-        gov_file_path: govFilePath,
         artifacts,
         serial_number: serial,
         status: "generated",
@@ -833,7 +845,7 @@ Deno.serve(async (req) => {
         amends_run_id: priorRunId,
         idempotency_key,
       })
-      .select("id, serial_number, csv_path, pdf_path, gov_file_path, artifacts, period_start, period_end, template_code, status, payload, reconciliation_status")
+      .select("id, serial_number, artifacts, period_start, period_end, template_code, status, payload, reconciliation_status")
       .single();
     if (insErr) {
       return businessError(
