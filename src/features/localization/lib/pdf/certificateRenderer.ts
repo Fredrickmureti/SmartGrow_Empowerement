@@ -224,6 +224,10 @@ interface DrawCtx {
   template: CertificateTemplate;
   payload: CertificatePayload;
   branding: OrganizationBrandingLite | null;
+  PAGE_W: number;
+  PAGE_H: number;
+  MARGIN: number;
+  CONTENT_W: number;
 }
 
 function startPage(ctx: DrawCtx): void {
