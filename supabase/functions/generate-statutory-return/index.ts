@@ -24,6 +24,7 @@ import {
   type SourceContext,
 } from "../_shared/returnSourceResolver.ts";
 import { requireClosedPeriod } from "../_shared/payrollLifecycleGate.ts";
+import { buildProjectedEmployeeMap } from "../_shared/employeeStatutoryProjection.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -373,28 +374,12 @@ Deno.serve(async (req) => {
       .in("employee_id", employeeIds);
     if (idErr) return jsonResponse({ error: `employee_statutory_identifiers: ${idErr.message}` }, 500);
 
-    const idsByEmp = new Map<string, Record<string, string>>();
-    for (const r of (ids ?? [])) {
-      const m = idsByEmp.get(r.employee_id) ?? {};
-      m[r.identifier_type] = r.identifier_value;
-      idsByEmp.set(r.employee_id, m);
-    }
-    // Country-agnostic projection: spread every (identifier_type,
-    // identifier_value) pair the pack registered for this employee onto
-    // the context object. Return templates address them as
-    // `employee.<identifier_type>` regardless of country.
-    const empById = new Map<string, any>(
-      (employees ?? []).map((e: any) => {
-        const m = idsByEmp.get(e.id) ?? {};
-        const projected: Record<string, any> = { ...e };
-        for (const [identifierType, value] of Object.entries(m)) {
-          // Don't let pack-registered identifiers shadow system columns.
-          if (identifierType in projected) continue;
-          projected[identifierType] = value ?? null;
-        }
-        return [e.id, projected];
-      }),
-    );
+    // Country-agnostic projection via the shared helper (single writer,
+    // arch-test locked). Uppercased aliases and tax-identifier aliasing
+    // are applied uniformly with the certificate generator so a template
+    // addressing `employee.tax_pin`, `employee.TAX_PIN`, `employee.tax_id`
+    // or `employee.tin` all resolve identically.
+    const empById = buildProjectedEmployeeMap(employees as any[], (ids ?? []) as any[]);
 
     // 4) Aggregate per employee — primary sums (employee/employer/taxable
     //    over filters.rule_codes), the per-rule breakdown demanded by the
