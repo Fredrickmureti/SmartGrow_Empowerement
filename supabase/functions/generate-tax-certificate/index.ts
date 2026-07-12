@@ -20,7 +20,6 @@ import {
   UnwiredPdfProducer,
   type CertificateTemplateV3,
 } from "../_shared/certificate-engine/engine.ts";
-import { producerFromEnv as v3ProducerFromEnv } from "../_shared/certificate-engine/vercelChromiumProducer.ts";
 import { renderCertificateXlsx } from "../_shared/xlsx/certificateXlsxRenderer.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody, toSummaryRows } from "../_shared/renderTemplateBody.ts";
