@@ -101,13 +101,23 @@ export interface RenderOptions {
   branding?: OrganizationBrandingLite | null;
 }
 
-// ── Layout constants (identical to Deno copy) ───────────────────────
+// ── Layout (identical to Deno copy) ─────────────────────────────────
+//
+// See Deno-side comment. Landscape is opted into by
+// `body.page.orientation = "landscape"` on the template.
 
 const MM = 72 / 25.4;
-const ctx.PAGE_W = 210 * MM;
-const ctx.PAGE_H = 297 * MM;
-const ctx.MARGIN = 42;
-const ctx.CONTENT_W = ctx.PAGE_W - ctx.MARGIN * 2;
+
+export function computeLayout(template: CertificateTemplate): {
+  PAGE_W: number; PAGE_H: number; MARGIN: number; CONTENT_W: number;
+} {
+  const page = (template.body as any)?.page ?? {};
+  const landscape = String(page.orientation ?? "portrait").toLowerCase() === "landscape";
+  const PAGE_W = (landscape ? 297 : 210) * MM;
+  const PAGE_H = (landscape ? 210 : 297) * MM;
+  const MARGIN = 42;
+  return { PAGE_W, PAGE_H, MARGIN, CONTENT_W: PAGE_W - MARGIN * 2 };
+}
 
 const COL = {
   text: rgb(0.08, 0.08, 0.12),
