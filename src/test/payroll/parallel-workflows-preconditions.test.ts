@@ -48,7 +48,7 @@ describe("Statutory workflows depend on Approval, not Payment (plan §Phase 2)",
 describe("Compliance RPC signatures (plan §Phase 5g)", () => {
   it("generate-tax-certificate calls payroll_employee_ytd_rollup with the canonical arg names", () => {
     const src = read("supabase/functions/_shared/certificateSourceResolver.ts");
-    expect(src).toMatch(/rpc\(["']payroll_employee_ytd_rollup["']/);
+    expect(src).toMatch(/rpc\(\s*["']payroll_employee_ytd_rollup["']/);
     expect(src).toMatch(/p_year:\s*fiscalYear/);
     expect(src).toMatch(/p_employee_id:\s*employeeId/);
   });
