@@ -132,6 +132,7 @@ export function checkCertificateCompleteness(
   body: unknown,
 ): CompletenessResult {
   const rule = resolveCompletenessRule(templateCode);
+  const isV2Blocks = Number((body as any)?.schema_version ?? 1) >= 2 && Array.isArray((body as any)?.blocks);
   const sections = Array.isArray((body as any)?.sections)
     ? (body as any).sections
     : [];
@@ -140,6 +141,18 @@ export function checkCertificateCompleteness(
       .map((s: any) => String(s?.type ?? "").trim())
       .filter(Boolean),
   );
+  if (isV2Blocks) {
+    for (const b of (body as any).blocks) {
+      const type = String(b?.type ?? "").trim();
+      if (type === "field_grid" && String(b?.data_source ?? "") === "employer") present.add("employer_header");
+      if (type === "field_grid" && String(b?.data_source ?? "") === "employee") present.add("employee_header");
+      if (type === "table" && ["monthly_breakdown", "monthly_matrix"].includes(String(b?.data_source ?? ""))) present.add("monthly_breakdown");
+      if (type === "table" && String(b?.data_source ?? "") === "ytd_rows") present.add("ytd_table");
+      if (type === "notes") present.add("statutory_footnote");
+      if (type === "signature_block") present.add("signature_block");
+    }
+    if (present.has("monthly_breakdown") || present.has("ytd_table")) present.add("totals");
+  }
   const missing = rule.requiredSections.filter((t) => !present.has(t));
   return { rule, missing, ok: missing.length === 0 };
 }
