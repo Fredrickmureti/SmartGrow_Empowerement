@@ -33,7 +33,9 @@ export type Block =
   | { type: "paragraph";      text: string; align?: "left" | "center" | "right"; emphasis?: "regular" | "italic" | "bold" | "muted" }
   | { type: "field_grid";     title?: string; columns?: 1|2|3|4; data_source?: string; fields: Array<{ key: string; label: string; format?: ValueFormat; emphasis?: "primary"|"regular" }> }
   | { type: "table";          title?: string; data_source: string; group_by?: string;
+                              amount_field?: "employee_amount" | "employer_amount" | "taxable_amount";
                               columns: Array<{ key: string; header: string; width?: string; align?: "left"|"right"|"center"; format?: ValueFormat }>;
+                              derived_columns?: Array<{ key: string; expr: "sum"|"sub"|"min"|"max"|"pct"; args: Array<string | number> }>;
                               footer?: { label: string; aggregate?: "sum"; include_columns?: string[] };
                               options?: { striped?: boolean; padding?: number; wrap?: boolean; repeat_header?: boolean; line_height?: number; header_bg?: boolean } }
   | { type: "notes";          title?: string; paragraphs: string[]; emphasis?: "regular"|"italic"; border?: boolean }
