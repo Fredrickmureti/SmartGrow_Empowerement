@@ -846,17 +846,21 @@ Deno.serve(async (req) => {
           }
 
           artifactsList.push({
-            format: decl.format,
+            format: producedFormat,
             path: storagePath,
             mime,
             ext,
             size: bytes.byteLength,
-            role: decl.role ?? (decl.format === "pdf" ? "human_readable" : "primary"),
+            role: decl.role ?? (producedFormat === "xlsx" ? "primary" : "human_readable"),
             generated_at: new Date().toISOString(),
             label: decl.label ?? null,
           });
 
-          if (decl.format === "pdf") pdfPath = storagePath;
+          // `pdf_path` is a legacy scalar mirror. For v3 (HTML) certificates
+          // there is no server PDF; the artifact list is canonical and the
+          // client renders the PDF on demand, so leave the mirror null.
+          if (producedFormat === "pdf") pdfPath = storagePath;
+
         }
 
         if (artifactsList.length === 0) {
