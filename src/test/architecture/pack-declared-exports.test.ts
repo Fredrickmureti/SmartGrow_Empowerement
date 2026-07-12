@@ -56,7 +56,13 @@ describe("format_registry integrity", () => {
     for (const w of ["gov_csv", "gov_xlsx", "gov_xml"]) {
       expect(gov).toContain(`"${w}"`);
     }
-    const bin = read("supabase/functions/_shared/pdf/binaryCertificateRenderer.ts");
-    expect(bin).toContain("xlsx_binary");
+    // Certificate renderers: structured PDF + editable XLSX twin, both
+    // consuming the same certificate_template_v2 sections. The legacy
+    // xlsx_binary path (binary-workbook overlay) was retired 2026-07-12
+    // — see ADR 0061.
+    const pdf = read("supabase/functions/_shared/pdf/certificateRenderer.ts");
+    expect(pdf).toContain("renderCertificatePdf");
+    const xlsx = read("supabase/functions/_shared/xlsx/certificateXlsxRenderer.ts");
+    expect(xlsx).toContain("renderCertificateXlsx");
   });
 });
