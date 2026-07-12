@@ -737,6 +737,11 @@ Deno.serve(async (req) => {
           let bytes: Uint8Array;
           let ext: string;
           let mime: string;
+          // The produced format can differ from the *declared* format: a
+          // pack that declares `pdf` on a v3 template is served the
+          // compiled HTML (the tenant materialises the vector PDF in the
+          // browser). Everything downstream keys off `producedFormat`.
+          let producedFormat: string = decl.format;
           if (decl.format === "xlsx") {
             // Odoo-model editable twin. Consumes the SAME v2 sections
             // and the SAME resolved payload as the PDF renderer — no
