@@ -345,6 +345,14 @@ function TablePanel({ block, onPatch }: { block: Extract<Block,{type:"table"}>; 
         ))}
       </div>
 
+      {block.data_source === "monthly_matrix" && (
+        <DerivedColumnsPanel
+          derived={block.derived_columns ?? []}
+          onChange={(dc) => onPatch({ derived_columns: dc.length ? dc : undefined })}
+        />
+      )}
+
+
       <div className="grid gap-2 md:grid-cols-2 rounded border p-2 bg-muted/20">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground md:col-span-2">Footer (totals) row</div>
         <Input className="h-7 text-[11px]" placeholder="Footer label (e.g. YTD Total)" value={footer?.label ?? ""} onChange={(e) => onPatch({ footer: e.target.value ? { ...(footer ?? {}), label: e.target.value, aggregate: "sum" } : undefined })} />
