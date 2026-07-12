@@ -614,7 +614,7 @@ export default function TaxCertificates() {
                                 ? { format: "pdf", path: c.pdf_path, role: "human_readable" }
                                 : null,
                               (c as any).xlsx_path
-                                ? { format: "xlsx_binary", path: (c as any).xlsx_path, role: "primary" }
+                                ? { format: "xlsx", path: (c as any).xlsx_path, role: "human_readable" }
                                 : null,
                             ].filter(Boolean) as Array<any>);
                         if (!arts.length) {
@@ -623,7 +623,7 @@ export default function TaxCertificates() {
                         return arts.map((a, i) => {
                           const label = a.label ?? (
                             a.format === "pdf" ? "PDF" :
-                            a.format === "xlsx_binary" ? "Excel" :
+                            a.format === "xlsx" ? "Excel" :
                             a.format === "gov_xlsx" ? "Gov Excel" :
                             a.format === "gov_xml" ? "Gov XML" :
                             a.format === "gov_csv" ? "Gov CSV" :
@@ -636,9 +636,9 @@ export default function TaxCertificates() {
                               variant="ghost"
                               size="sm"
                               onClick={() =>
-                                a.path && a.format !== "pdf" && a.format !== "xlsx_binary"
+                                a.path && a.format !== "pdf" && a.format !== "xlsx"
                                   ? downloadTaxCertificate({ artifact_path: a.path })
-                                  : a.format === "xlsx_binary"
+                                  : a.format === "xlsx"
                                   ? downloadTaxCertificate(c, "xlsx")
                                   : downloadTaxCertificate(c)
                               }
