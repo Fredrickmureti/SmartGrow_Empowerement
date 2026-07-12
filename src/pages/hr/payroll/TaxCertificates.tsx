@@ -623,6 +623,7 @@ export default function TaxCertificates() {
                         return arts.map((a, i) => {
                           const label = a.label ?? (
                             a.format === "pdf" ? "PDF" :
+                            a.format === "html" ? "PDF" :
                             a.format === "xlsx" ? "Excel" :
                             a.format === "gov_xlsx" ? "Gov Excel" :
                             a.format === "gov_xml" ? "Gov XML" :
@@ -638,13 +639,16 @@ export default function TaxCertificates() {
                               disabled={!!c.stale}
                               title={c.stale ? "Regenerate this certificate before downloading the current file" : undefined}
                               onClick={() =>
-                                a.path && a.format !== "pdf" && a.format !== "xlsx"
+                                a.format === "html"
+                                  ? downloadTaxCertificate({ artifact_path: a.path, format: "html" })
+                                  : a.path && a.format !== "pdf" && a.format !== "xlsx"
                                   ? downloadTaxCertificate({ artifact_path: a.path })
                                   : a.format === "xlsx"
                                   ? downloadTaxCertificate(c, "xlsx")
                                   : downloadTaxCertificate(c)
                               }
                             >
+
                               <Download className="h-4 w-4 mr-1" />
                               {label}
                             </Button>
