@@ -499,14 +499,20 @@ Deno.serve(async (req) => {
         const sectionsSpec = (template.body && Array.isArray((template.body as any).sections))
           ? (template.body as any).sections as any[]
           : [];
+        // ADR-0060 addendum: v2 templates express monthly grids as
+        // TableBlocks with data_source in {"monthly_breakdown","monthly_matrix"}.
+        // We collect rule codes from both legacy sections[] and blocks[]
+        // so the RPC returns everything the renderer will bind against.
+        const blocksSpec = (template.body && Array.isArray((template.body as any).blocks))
+          ? (template.body as any).blocks as any[]
+          : [];
 
         // Pull monthly rows once for every rule_code referenced by any
-        // monthly_breakdown section.
+        // monthly_breakdown/monthly_matrix section or block.
         let monthlyRows: MonthlyRow[] = [];
-        const allMonthlyRuleCodes = sectionsSpec
+        const codesFromSections = sectionsSpec
           .filter((s: any) => s?.type === "monthly_breakdown")
           .flatMap((s: any) => {
-            // Support both `rule_codes:[…]` and `columns:[{key}]` authoring shapes.
             const fromCodes = Array.isArray(s.rule_codes) ? s.rule_codes as string[] : [];
             const fromCols = Array.isArray(s.columns)
               ? (s.columns as any[])
@@ -515,6 +521,22 @@ Deno.serve(async (req) => {
               : [];
             return [...fromCodes, ...fromCols];
           });
+        const codesFromBlocks = blocksSpec
+          .filter((b: any) => b?.type === "table"
+            && (b.data_source === "monthly_breakdown" || b.data_source === "monthly_matrix"))
+          .flatMap((b: any) => {
+            const derivedKeys = new Set(
+              (Array.isArray(b.derived_columns) ? b.derived_columns : [])
+                .map((d: any) => String(d?.key ?? "")).filter(Boolean),
+            );
+            const fromCols = Array.isArray(b.columns)
+              ? (b.columns as any[])
+                  .map((c) => String(c?.key ?? ""))
+                  .filter((k) => k && k !== "month_index" && !derivedKeys.has(k))
+              : [];
+            return fromCols;
+          });
+        const allMonthlyRuleCodes = [...codesFromSections, ...codesFromBlocks];
         if (allMonthlyRuleCodes.length) {
           const { data: monthly } = await admin.rpc("payroll_employee_monthly_breakdown", {
             p_year: body.fiscal_year,
