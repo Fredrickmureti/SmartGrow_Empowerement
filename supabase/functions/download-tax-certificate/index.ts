@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
     let query = admin
       .from("payroll_tax_certificates")
-      .select("id, organization_id, business_id, employee_id, pdf_path, xlsx_path, artifacts, serial_number, status")
+      .select("id, organization_id, business_id, employee_id, pdf_path, xlsx_path, artifacts, serial_number, status, stale, stale_reason")
       .limit(1);
     if (certificateId) {
       query = query.eq("id", certificateId);
@@ -63,6 +63,12 @@ Deno.serve(async (req) => {
     const { data: cert, error: certErr } = await query.maybeSingle();
     if (certErr) return jsonResponse({ error: `failed to load certificate: ${certErr.message}` }, 500);
     if (!cert) return jsonResponse({ error: "certificate not found" }, 404);
+    if ((cert as any).stale === true) {
+      return jsonResponse({
+        error: "This certificate file is stale. Regenerate the certificate to download the current A4 landscape version.",
+        stale_reason: (cert as any).stale_reason ?? null,
+      }, 409);
+    }
 
     // Path resolution order:
     //  1) explicit `artifact_path` (canonical, from `artifacts[].path`)
