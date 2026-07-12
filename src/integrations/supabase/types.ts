@@ -22852,7 +22852,6 @@ export type Database = {
           effective_date: string
           id: string
           legal_reference: string | null
-          output: string
           outputs: Json | null
           pack_id: string | null
           pack_version_id: string | null
@@ -22881,7 +22880,6 @@ export type Database = {
           effective_date?: string
           id?: string
           legal_reference?: string | null
-          output?: string
           outputs?: Json | null
           pack_id?: string | null
           pack_version_id?: string | null
@@ -22910,7 +22908,6 @@ export type Database = {
           effective_date?: string
           id?: string
           legal_reference?: string | null
-          output?: string
           outputs?: Json | null
           pack_id?: string | null
           pack_version_id?: string | null
@@ -30011,18 +30008,15 @@ export type Database = {
           branch_id: string | null
           business_id: string
           created_at: string
-          csv_path: string | null
           failure_reason: string | null
           filed_at: string | null
           filed_reference: string | null
           generated_at: string
           generated_by: string | null
-          gov_file_path: string | null
           id: string
           idempotency_key: string
           organization_id: string
           payload: Json
-          pdf_path: string | null
           period_end: string
           period_start: string
           portal_receipt_path: string | null
@@ -30056,18 +30050,15 @@ export type Database = {
           branch_id?: string | null
           business_id: string
           created_at?: string
-          csv_path?: string | null
           failure_reason?: string | null
           filed_at?: string | null
           filed_reference?: string | null
           generated_at?: string
           generated_by?: string | null
-          gov_file_path?: string | null
           id?: string
           idempotency_key: string
           organization_id: string
           payload?: Json
-          pdf_path?: string | null
           period_end: string
           period_start: string
           portal_receipt_path?: string | null
@@ -30101,18 +30092,15 @@ export type Database = {
           branch_id?: string | null
           business_id?: string
           created_at?: string
-          csv_path?: string | null
           failure_reason?: string | null
           filed_at?: string | null
           filed_reference?: string | null
           generated_at?: string
           generated_by?: string | null
-          gov_file_path?: string | null
           id?: string
           idempotency_key?: string
           organization_id?: string
           payload?: Json
-          pdf_path?: string | null
           period_end?: string
           period_start?: string
           portal_receipt_path?: string | null
@@ -66493,18 +66481,15 @@ export type Database = {
           branch_id: string | null
           business_id: string
           created_at: string
-          csv_path: string | null
           failure_reason: string | null
           filed_at: string | null
           filed_reference: string | null
           generated_at: string
           generated_by: string | null
-          gov_file_path: string | null
           id: string
           idempotency_key: string
           organization_id: string
           payload: Json
-          pdf_path: string | null
           period_end: string
           period_start: string
           portal_receipt_path: string | null

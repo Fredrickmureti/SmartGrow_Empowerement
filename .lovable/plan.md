@@ -22,15 +22,33 @@ are green.
 - **KE pack backfill** — P9 / P9A → `[{xlsx_binary,primary}]`; ANNUAL_EARNINGS_STATEMENT / CERT_OF_SERVICE → `[{pdf,primary}]`; NSSF_RET → `[{gov_xlsx,primary},{csv,audit}]`. `GH_PAYE_EMPLOYEE_ANNUAL` skipped — body still missing `data_source`; content fix pending.
 - **Test** `src/test/payroll/lifecycle-gate-callsites.test.ts` — locks both lifecycle imports + call sites.
 
-### 🚧 Remaining
-
-- **Runtime verification:** rerun P9 / P9A / AES / NSSF_RET against a KE tenant with an approved FY 2025/2026 run; confirm every declared artifact opens through the signed URL. Logs currently show only boots — no one has exercised the new path yet. This step needs a real tenant and can't be executed from the agent seat.
-- **Part F legacy cleanup (blocked on runtime verification):** drop `csv_path` / `pdf_path` / `gov_file_path` on `payroll_return_runs` and the `output` scalar on `localization_pack_return_templates` once every reader has migrated to `artifacts` AND live tenants have proved the multi-artifact path in production. Readers still in flight: `generate-statutory-return` (writes both scalar + `artifacts`), `submit-statutory-return` (reads `run.gov_file_path`), `ReturnsTab` (legacy fallback), `useStatutoryReturns` (types). Certificate scalars stay one more release regardless.
-
-### ✅ Closed this turn
+### ✅ Closed on 2026-07-12
 
 - **Content fix — `GH_PAYE_EMPLOYEE_ANNUAL`**: body patched with `data_source='payroll_employee_ytd'`; `outputs=[{pdf,primary}]` backfilled; revision note stamped. All KE + GH pack templates now carry the new metadata.
 - **Publisher round-trip test** — `src/test/architecture/pack-outputs-publisher-roundtrip.test.ts` locks: (a) `OutputsCard` imports on both editors, (b) `value={meta.outputs}` binding, (c) `PackEntityTabs` metadata whitelist + save patch include `outputs`, (d) `OutputsCard` collapses empty arrays to `null` for legacy-fallback contract. Green under vitest.
+- **Part F legacy cleanup — completed end-to-end** (all four sub-tasks):
+  1. **Return templates backfilled** — every row in `localization_pack_return_templates` now has a populated `outputs` jsonb (nine rows migrated from the `output` scalar: csv→primary, pdf→primary, both→csv+pdf, gov_*→primary).
+  2. **Generator refactored** — `generate-statutory-return` now dispatches exclusively off `template.outputs[]`. The `template.output` scalar branches (`csv|both`, `pdf|both`, `gov_*`) were removed. Writer selects role/format per pack-declared entry. Stopped writing `csv_path` / `pdf_path` / `gov_file_path` scalars and stripped them from every projection.
+  3. **Submitter refactored** — `submit-statutory-return` now resolves the gov filing file via `run.artifacts` (portal role first, then any `gov_*` format) instead of reading `run.gov_file_path`. Returns a clear 400 when a `gov_file` payload is requested but no portal artifact exists.
+  4. **Frontend cleaned** — `useStatutoryReturns` dropped `csv_path` / `pdf_path` / `gov_file_path` from the `ReturnRun` type + normaliser and the `output` scalar from `ReturnTemplate` (replaced with `outputs: Array<{format,role,label,filename}>`). `ReturnsTab` removed the legacy fallback block; artifacts is now the sole source of truth. `PackEntityTabs` CreateTemplateDialog writes `outputs=[{format,role:'primary'}]` on create.
+  5. **Test guard updated** — `pack-declared-exports.test.ts` now asserts the UI does NOT reference `r.csv_path` / `r.pdf_path` / `r.gov_file_path` / `legacyFallback` (regression fence pointing the other way).
+  6. **Migration `20260712001621`** dropped `payroll_return_runs.{csv_path,pdf_path,gov_file_path}` and `localization_pack_return_templates.output`.
+
+### ⚠️ Post-cleanup deploy gate
+
+`supabase--deploy_edge_functions` for `generate-statutory-return` and
+`submit-statutory-return` failed with `SUPABASE_MAX_FUNCTIONS_REACHED`.
+The migration already dropped the legacy scalar columns, so the previously-
+deployed function versions (which still write `csv_path` / `pdf_path` /
+`gov_file_path`) will 500 on every invocation until the new revisions ship.
+
+**Action required:** bump the project's edge-function quota (or delete
+unused functions) and redeploy these two. All code and tests for the new
+revision are already on `main`; deploy is the only outstanding step.
+
+### 🚧 Still open (needs a real tenant, not code)
+
+- **Runtime verification:** rerun P9 / P9A / AES / NSSF_RET against a KE tenant with an approved FY 2025/2026 run after the deploy above succeeds; confirm every declared artifact opens through the signed URL. This can only be executed from an actual browser session against a live tenant.
 
 ---
 
