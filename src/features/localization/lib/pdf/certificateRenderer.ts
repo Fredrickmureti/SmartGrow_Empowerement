@@ -176,6 +176,7 @@ export async function renderCertificatePdf(
     page: null as any, y: 0, pageNum: 0,
     template, payload,
     branding: opts.branding ?? null,
+    ...computeLayout(template),
   };
 
   const employer = {
