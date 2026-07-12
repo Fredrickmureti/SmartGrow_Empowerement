@@ -66495,6 +66495,7 @@ export type Database = {
         Args: { _run_id: string }
         Returns: boolean
       }
+      payroll_supersede_v1_certificates: { Args: never; Returns: number }
       payroll_validate_post_mappings: {
         Args: { p_run_id: string }
         Returns: {
