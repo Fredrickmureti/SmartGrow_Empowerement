@@ -108,8 +108,8 @@ export const KE_P9_V10_TEMPLATE: CertificateTemplateV3 = {
   paper_format: {
     size: "A4",
     orientation: "landscape",
-    margin_top: 12, margin_right: 10, margin_bottom: 12, margin_left: 10,
-    header_height: 14, footer_height: 10,
+    margin_top: 26, margin_right: 10, margin_bottom: 14, margin_left: 10,
+    header_height: 22, footer_height: 10,
   },
   page_master: {
     code: "ke.p9.page_master.v10",
