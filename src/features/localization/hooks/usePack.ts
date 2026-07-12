@@ -181,6 +181,7 @@ export function usePublishPackVersion() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["pack-versions", vars.pack_id] });
       qc.invalidateQueries({ queryKey: ["localization-pack", vars.pack_id] });
+      qc.invalidateQueries({ queryKey: ["localization-packs"] });
       qc.invalidateQueries({ queryKey: ["pack-upgrade-proposals"] });
       qc.invalidateQueries({ queryKey: ["pack-audit-log"] });
     },
@@ -269,6 +270,8 @@ export function usePromotePackVersion() {
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["installed-localization-packs"] });
+      qc.invalidateQueries({ queryKey: ["localization-pack", vars.pack_id] });
+      qc.invalidateQueries({ queryKey: ["localization-packs"] });
       qc.invalidateQueries({ queryKey: ["pack-versions", vars.pack_id] });
       qc.invalidateQueries({ queryKey: ["pack-upgrade-proposals"] });
     },
