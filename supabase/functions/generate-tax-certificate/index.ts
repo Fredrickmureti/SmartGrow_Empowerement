@@ -16,7 +16,6 @@ import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGe
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { renderCertificatePdf } from "../_shared/pdf/certificateRenderer.ts";
 import {
-  renderCertificate as renderCertificateV3,
   renderCertificateAstToPdf,
   type CertificateTemplateV3,
 } from "../_shared/certificate-engine/engine.ts";
