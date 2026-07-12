@@ -181,6 +181,7 @@ export async function renderCertificatePdf(
     template,
     payload,
     branding: opts.branding ?? null,
+    ...computeLayout(template),
   };
 
   // Merge employer identity from branding (takes precedence) with payload employer.
