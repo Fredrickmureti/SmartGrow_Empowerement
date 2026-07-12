@@ -139,7 +139,7 @@ h3.ce-h { font-size: 10pt; margin: 6pt 0 3pt 0; font-weight: 700; }
 .ce-matrix tfoot td { background: #ededed; font-weight: 700; }
 /* Numeric cells never wrap: statutory grids must keep each value on one line. */
 .ce-matrix td.num, .ce-matrix tfoot td.num { white-space: nowrap; font-size: 6.5pt; word-break: normal; overflow-wrap: normal; letter-spacing: -0.1pt; }
-.ce-matrix tfoot td.num { font-size: 6pt; letter-spacing: -0.2pt; }
+.ce-matrix tfoot td.num { font-size: 5.5pt; letter-spacing: -0.2pt; }
 .ce-matrix .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ce-matrix .ctr { text-align: center; }
 .ce-matrix .lft { text-align: left; }
