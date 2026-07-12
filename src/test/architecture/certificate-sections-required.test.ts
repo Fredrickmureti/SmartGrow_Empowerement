@@ -2,8 +2,8 @@
  * ADR-0060 v2026.4.0 — Structural contract for certificate templates.
  *
  * Every seeded row in `localization_pack_certificate_templates` must
- * carry a `body.sections[]` array containing, at minimum, the identity
- * headers, one data section, and a signature block. This test walks
+ * carry either legacy `body.sections[]` or v2 `body.blocks[]` containing,
+ * at minimum, identity, data, and signature structure. This test walks
  * every migration and asserts that the *final* seeded shape of each
  * `code` complies — regressions here would let a pack ship the
  * legacy "P9A Low Income" stub that fell back to the generic
@@ -65,7 +65,8 @@ describe("certificate-sections-required", () => {
     );
     expect(linter).toMatch(/validateCertificateStructure/);
     expect(linter).toMatch(/REQUIRED_IDENTITY_SECTIONS/);
-    expect(linter).toMatch(/legacy blocks-only templates are no longer publishable/);
+    expect(linter).toMatch(/v2 blocks missing employer field_grid/);
+    expect(linter).toMatch(/monthly_matrix/);
   });
 
   it("generate-tax-certificate refuses to render structurally invalid templates", () => {
