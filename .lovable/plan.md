@@ -1,52 +1,139 @@
-## Problem
 
-The certificate PDF renderer is hardcoded to **A4 portrait** (`PAGE_W = 210mm`, `CONTENT_W ≈ 511pt`). The KRA P9 monthly breakdown has 18 columns (Month + A, B, C, D, E1, E2, E3, F, G, H, I, J, K, L, M, N, O), leaving ~28pt per column — column headers wrap and overprint each other.
+# Certificate Engine — Architecture Audit & Redesign
 
-Both the official KRA P9 and Odoo's `l10n_ke` P9 report render in **A4 landscape** for this exact reason. Wide monthly-breakdown certificates need landscape; simple certificates (Certificate of Service, Annual Earnings Statement) stay portrait.
+## Part 1 — Audit findings
 
-## Decision
+I read both renderers (`supabase/functions/_shared/pdf/certificateRenderer.ts`, 822 lines; `src/features/localization/lib/pdf/certificateRenderer.ts`, 714 lines) and the surrounding schema/migration/parity work. The renderer is the root cause of the "unreadable P9". Landscape mode is not enough — the engine itself is not enterprise-grade.
 
-Make page orientation a **template-level property** (like Odoo's `paperformat_id` on each QWeb report), not a global renderer constant. P9/P9A opt into landscape; every other certificate stays portrait.
+### What is architecturally wrong
 
-## Changes
+1. **The renderer knows what a P9 is.** The top-level `switch (type)` enumerates domain concepts: `employer_header`, `employee_header`, `monthly_breakdown`, `ytd_table`, `totals`, `relief_summary`, `statutory_footnote`, `signature_block`. Every new country either fits these buckets or the platform must ship code. That is exactly the coupling Odoo avoids (QWeb templates own the layout; the report engine owns primitives).
 
-### 1. Renderer (both files — parity test enforces this)
-`supabase/functions/_shared/pdf/certificateRenderer.ts` and `src/features/localization/lib/pdf/certificateRenderer.ts`:
+2. **English + KE-flavoured labels are hardcoded in the renderer**, not the pack:
+   - `SECTION_LABELS` ("MONTHLY BREAKDOWN", "YEAR-TO-DATE TOTALS", "STATUTORY RELIEF", …).
+   - `LABEL_MAP` ("Tax PIN", "Tax Office", "National ID", "Employee No." — KE/UK terminology).
+   - `drawTotalsSection` hardcodes "Total Employee Deductions / Employer Contributions / Taxable Income" and reads only `payload.totals.{employee,employer,taxable}` — publishers cannot define their own totals.
+   - `drawReliefSection` defaults to `["personal_relief", "insurance_relief"]` — Kenya-specific rule codes inside the platform renderer.
 
-- Replace the module-level `PAGE_W` / `PAGE_H` / `CONTENT_W` constants with a per-render `layout` object derived from `template.body.page` (default `{ size: "a4", orientation: "portrait" }`).
-- When `orientation === "landscape"`, swap width/height (`PAGE_W = 297mm`, `PAGE_H = 210mm`).
-- Thread `layout` through the render context so `addPage`, section drawers, page-footer, and totals all read from it instead of module constants.
-- Update the parity-test `grab()` helper target: constants become `computeLayout(...)` — adjust `certificateRenderer-parity.test.ts` to compare the helper signature instead of raw constants.
+3. **The table primitive is not a real table.** It's coordinate math:
+   - Column widths = `CONTENT_W / N` (equal split). Publishers cannot set fixed/fraction/auto widths.
+   - No wrapping. `truncateToWidth` ellipsises values; header labels get **shrunk to as low as 6pt** to fit — this is what produces the "text over text" the user sees. It's not a KRA P9 problem; every wide table degrades this way.
+   - No cell padding config; padding is `+4` sprinkled inline.
+   - No repeated header when a table spills to page 2. `ensureSpace` starts a new page mid-row and the header vanishes.
+   - No zebra rows, no vertical rules, no per-column format spec (currency vs date vs count vs text).
+   - The monthly totals row is bespoke code, not a generic "footer row" concept.
 
-### 2. Statutory paper guard
-`supabase/functions/_shared/pdf/index.ts`:
-- Widen the default `assertStatutoryPaper` allowlist for certificates to accept `"a4"` and `"a4-landscape"`. KRA's own P9 template is landscape, so landscape is compliant.
-- Caller passes the resolved orientation-qualified string.
+4. **Legal wording lives in one place per section (`spec.body`) and only for the footnote.** The pack cannot declare declarations, IMPORTANT notices, filing instructions, or multi-paragraph legal blocks anywhere else. Notes are not a first-class block.
 
-### 3. Schema — `certificate_template_v2`
-Migration to extend the schema stored in `pack_rule_type_schemas`:
-- Add optional `page` object at the body root: `{ size: enum["a4"], orientation: enum["portrait","landscape"] }`, default portrait.
-- Backwards compatible: existing templates without `page` render portrait exactly as today.
+5. **Two hand-maintained renderers.** Deno-side and browser-side are kept in lockstep by a regex parity test comparing stringified `computeLayout`. Every future change has to be applied twice; the parity check only catches gross drift.
 
-### 4. Kenya P9 / P9A templates
-Migration updating `localization_pack_certificate_templates` for `P9` and `P9A`:
-- Set `body.page = { size: "a4", orientation: "landscape" }`.
-- No other body changes — the 18-column monthly grid stays as-is; it just gets ~840pt of usable width instead of ~511pt (~44pt per column), which is what KRA's own template uses.
+6. **No document primitives.** There is no `Heading`, `Paragraph`, `FieldGrid`, `Table`, `Notes`, `Divider`, `Spacer`, `Image`, `SignatureBlock` — just section-typed procedures. This is the opposite of the ADR-0060 intent.
 
-### 5. Publisher editor
-`CertificateTemplateEditor.tsx`: add a small "Page" control (portrait/landscape radio) in the legal-metadata panel, writing to `body.page.orientation`. The live preview pane already re-renders on every body change, so publishers see the orientation flip immediately.
+7. **Country assets.** No government logo is hardcoded today (good), but there is also no `Image` primitive, so a publisher who *does* want to add one has no way to do so.
 
-### 6. Docs
-Append a short "Page orientation" section to `docs/adr/0060-certificate-template-parity.md` noting that orientation is template-owned metadata, parallel to Odoo's `paperformat_id`.
+8. **Statutory paper guard** is fine (allowlist widened for a4-landscape); that piece can stay.
+
+### What is architecturally right and should be kept
+
+- `computeLayout(template)` deriving page size/orientation from `body.page` (Odoo `paperformat_id` parallel). Keep.
+- `body.sections[]` as the pack-authored spine of the document. Keep — but redefine section types as *primitives*, not domain nouns.
+- `assertStatutoryPaper` + `a4` / `a4-landscape` allowlist. Keep.
+- Structured XLSX twin renderer already width-agnostic. No change needed.
+
+### Verdict
+
+Landscape mode makes P9 marginally readable but does not solve the underlying design flaw. Every future country will re-hit the same wall (wide tables, different totals nomenclature, different relief semantics, different legal boilerplate). **The renderer must be replaced with a block-primitive engine before more countries land.**
+
+## Part 2 — Target architecture (Odoo-aligned)
+
+**Split responsibilities cleanly:**
+
+| Layer | Owns |
+|---|---|
+| Platform renderer | Page setup, fonts, block primitives, table layout engine, page-break/repeat-header, footer/pagination, i18n plumbing. **No section-type switch. No country strings.** |
+| Localization pack | Document AST: which blocks appear, in what order, with what labels, columns, widths, formats, legal text, signature captions, optional images. |
+| Data resolver | Named data sources (`employee`, `employer`, `monthly_breakdown`, `ytd_rows`, `custom_query`) that the pack references by name — pack never writes SQL. |
+
+### Block primitives (the only types the renderer knows)
+
+```text
+Page              page-level metadata (already exists via body.page)
+Heading           text, level 1/2/3, alignment
+Paragraph         text (supports inline bold/italic via light markup)
+FieldGrid         N-column label:value grid; auto-hides empty rows
+Table             columns[{ key, header, width, align, format }],
+                  data_source, rows|group_by, footer_row, options
+                  { striped, repeat_header, wrap, padding }
+Notes             heading + rich paragraphs (IMPORTANT, declarations,
+                  filing instructions) — pack-authored, versioned
+Divider / Spacer  layout rhythm
+Image             optional publisher-supplied (logo, seal); base64 or
+                  pack-relative asset id
+SignatureBlock    N slots with configurable captions + optional date
+```
+
+Column `format` values: `currency` (uses `payload.currency`), `number`, `percent`, `date`, `text`. `width`: `"auto"`, `"1fr"`, `"2fr"`, or a pt/mm literal.
+
+### What moves out of the renderer into the pack
+
+- All section titles ("MONTHLY BREAKDOWN", "STATUTORY RELIEF", "SIGNATURES", …).
+- All field labels ("Tax PIN", "Tax Office", "National ID", …).
+- All totals labels and which totals to show.
+- Relief codes and their captions.
+- The footnote / declaration text and any other legal block.
+- Column headers on the monthly table (A, B, C… in KE; different in every country).
+- Signature captions.
+
+### Table layout engine (the piece that fixes "text over text")
+
+- Measure header + every cell, compute per-column intrinsic width, then distribute:
+  1. Fixed-width columns first,
+  2. `Nfr` columns share the remainder,
+  3. `auto` shrinks to intrinsic width, up to a min.
+- Wrap cell text to multiple lines with configurable `padding` and `line_height`; row height = max wrapped height across cells.
+- Repeat header row after each page break; draw a "continued" marker on continuations.
+- Optional footer row (totals) is a first-class row type with its own font weight and top rule.
+- Alignment per column (`left | right | center`); numeric columns right-align by default.
+
+This alone resolves the P9 legibility problem for every country simultaneously.
+
+### One renderer, two runtimes
+
+Collapse to a single source module and re-export it for both Deno and the browser via a thin platform-specific adapter that only handles font embedding. The parity regex test is replaced by a shared import — divergence becomes structurally impossible.
+
+## Part 3 — Implementation phases
+
+**Phase A — Renderer rewrite (platform, no country code).** Land the new primitive engine behind a `body.schema_version: 2` flag. Ship: block AST types, table layout engine with wrapping + repeated headers + fitted widths, `Notes`/`Image`/`Signature`/`FieldGrid` primitives, currency/date/percent format registry, single-source renderer with Deno + browser adapters, unit tests per primitive (width fitting, wrap, page-break, repeat header, empty-data, RTL-safe).
+
+**Phase B — Schema v2.** Extend `pack_rule_type_schemas` for `certificate_template_v2` with the primitive block schema, keep v1 accepted for backward compat, add a lint that flags v1 templates as deprecated.
+
+**Phase C — Pack migration.** Rewrite KE `P9` and `P9A` templates as v2 documents: proper column definitions with authored headers ("A – Basic Salary", "B – Benefits", …, "M – Chargeable Pay"), authored totals, authored relief captions, authored "IMPORTANT" notes block quoting the KRA wording, landscape page. No renderer changes needed to add South Africa `IRP5`, Ghana `P.A.Y.E.`, etc. — each is a pack-only change.
+
+**Phase D — Publisher editor.** `CertificateTemplateEditor.tsx` gets a block-based editor (add/reorder/edit blocks) with a live preview using the same renderer. Legal notes get a rich-text field.
+
+**Phase E — Cleanup.** Delete the section-type switch, the KE-flavoured `LABEL_MAP`/`SECTION_LABELS`/relief defaults, the parity regex test, and the browser-only `certificateRenderer.ts` duplicate. Update ADR-0060 to describe the primitive engine; add ADR entry for the v1→v2 template migration.
+
+**Phase F — Regeneration + supersede.** Bulk-supersede existing PDFs generated by v1 renderer (mark `stale=true` with `stale_reason='renderer_v2'`) so `download-tax-certificate` prompts users to regenerate — the mechanism already exists.
+
+## Part 4 — Fork worth flagging (does not block the plan)
+
+There are two credible ways to build the primitive engine:
+
+1. **Stay on pdf-lib with a hand-written block/table layout engine.** No new infra, full control, more code to maintain. Recommended for now — matches current deployment shape (edge functions).
+2. **Switch to HTML + CSS rendering** (headless browser or `@react-pdf/renderer`). This is closer to Odoo's QWeb→wkhtmltopdf pipeline; you get real CSS tables, `thead` repeat, and rich text for free — but it requires shipping a headless renderer in the Supabase edge runtime, which is nontrivial.
+
+Recommendation: **Option 1** for this cycle; revisit Option 2 in a separate ADR once the primitive AST is stable (the AST is the same either way, only the drawing backend differs).
 
 ## Out of scope
 
-- A3 or Letter support (no known statutory requirement).
-- Per-section column-width tuning — the landscape width alone resolves the cramping; fine-tuning can wait until we see a real regeneration.
-- Editable-XLSX twin: already width-agnostic (Excel columns auto-fit), no change needed.
+- HTML/CSS renderer swap (separate ADR).
+- Public pack marketplace, semantic diff, simulator — already deferred by ADR-0056.
+- Government logo assets — remain publisher-supplied via `Image` primitive.
 
 ## Verification
 
-- Regenerate a Kenya P9 in the preview pane and confirm all 18 column headers render on one row without overlap.
-- Run `certificateRenderer-parity.test.ts` and `certificate-template-v2-schema.test.ts`.
-- Confirm Certificate of Service and Annual Earnings Statement still render portrait (no regressions on narrow templates).
+- Regenerate KE P9 (landscape, 18 cols) and confirm: all headers render on one row unshrunken; long employer names wrap; header repeats on page 2 if the run spans it; totals row aligned; declaration/IMPORTANT block reads correctly.
+- Regenerate Certificate of Service (narrow, portrait): unchanged layout, no regressions.
+- Add a synthetic 25-column pack fixture and confirm the renderer degrades gracefully (auto column widths + wrapping, no overprint).
+- New per-primitive unit tests + one country-agnostic golden test replacing the parity regex test.
+- Existing pgTAP payslip-immutability country-agnostic scan continues to pass (renderer touches no payslip code).
