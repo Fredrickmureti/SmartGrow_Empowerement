@@ -333,6 +333,13 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
           Word/Excel-style command surface publishers expect on a
           design-driven page. */}
       <div className="flex items-center gap-1 border-b bg-card/70 px-3 py-1.5">
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">
+          <Undo2 className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">
+          <Redo2 className="h-3.5 w-3.5" />
+        </Button>
+        <div className="mx-1 h-4 w-px bg-border" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-7 gap-1">
