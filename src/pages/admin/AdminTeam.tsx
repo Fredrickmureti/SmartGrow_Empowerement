@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { usePlatformTeam, PlatformAdmin, PlatformInvitation } from "@/hooks/usePlatformTeam";
 import { usePlatformGroups } from "@/hooks/usePlatformGroups";
 import { usePlatformPermissions } from "@/hooks/usePlatformPermissions";
@@ -10,11 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { UserPlus, Shield, ShieldCheck, ShieldAlert, MoreVertical, UserMinus, RefreshCw, Globe, Clock, X, Send } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,21 +30,12 @@ const roleIcon: Record<string, any> = {
 };
 
 export default function AdminTeam() {
-  const { admins, invitations, isLoading, fetchTeam, inviteAdmin, cancelInvitation, resendInvitation, deactivateAdmin, reactivateAdmin, updateAdminRole, updateAdminGroups } = usePlatformTeam();
+  const navigate = useNavigate();
+  const { admins, invitations, isLoading, fetchTeam, cancelInvitation, resendInvitation, deactivateAdmin, reactivateAdmin, updateAdminRole, updateAdminGroups } = usePlatformTeam();
   const { groups, fetchGroups } = usePlatformGroups();
   const { isOwner, hasPerm, refresh: refreshPerms } = usePlatformPermissions();
-  const { scopes: allScopes, fetchScopes, updateScopes } = useCountryScopes();
+  const { scopes: allScopes, fetchScopes } = useCountryScopes();
   const { countries } = useCountries();
-
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "operator">("operator");
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
-
-  // Country scope editing
-  const [scopeEditAdmin, setScopeEditAdmin] = useState<PlatformAdmin | null>(null);
-  const [editCountries, setEditCountries] = useState<string[]>([]);
 
   useEffect(() => {
     fetchTeam();
@@ -55,28 +43,8 @@ export default function AdminTeam() {
     fetchScopes();
   }, []);
 
-  const handleInvite = async () => {
-    if (!inviteEmail) return;
-    await inviteAdmin(inviteEmail, inviteRole, selectedGroups, selectedCountries);
-    setInviteOpen(false);
-    setInviteEmail("");
-    setInviteRole("operator");
-    setSelectedGroups([]);
-    setSelectedCountries([]);
-  };
-
-  const handleSaveScopes = async () => {
-    if (!scopeEditAdmin) return;
-    await updateScopes(scopeEditAdmin.id, editCountries);
-    setScopeEditAdmin(null);
-    fetchScopes();
-  };
-
-  const openScopeEditor = (admin: PlatformAdmin) => {
-    const adminScopes = allScopes.filter(s => s.admin_id === admin.id).map(s => s.country_code);
-    setEditCountries(adminScopes);
-    setScopeEditAdmin(admin);
-  };
+  const openScopeEditor = (admin: PlatformAdmin) =>
+    navigate(`/admin-management/team/${admin.id}/edit`);
 
   const canManageTeam = isOwner || hasPerm("team.manage");
   const activeAdmins = admins.filter(a => a.is_active);
@@ -103,79 +71,9 @@ export default function AdminTeam() {
               <OwnershipTransferDialog admins={admins} onComplete={() => { fetchTeam(); refreshPerms(); }} />
             )}
             {canManageTeam && (
-              <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-                <DialogTrigger asChild>
-                  <Button><UserPlus className="h-4 w-4 mr-2" /> Invite Member</Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[85vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Invite Team Member</DialogTitle>
-                    <DialogDescription>Add a new platform administrator or operator</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input id="email" type="email" placeholder="team@example.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Role</Label>
-                      <Select value={inviteRole} onValueChange={(v: "admin" | "operator") => setInviteRole(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin — Can manage groups and invite operators</SelectItem>
-                          <SelectItem value="operator">Operator — Scoped access via groups</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Assign Groups</Label>
-                      <div className="space-y-2 max-h-36 overflow-y-auto border rounded-md p-3">
-                        {groups.map(g => (
-                          <div key={g.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`group-${g.id}`}
-                              checked={selectedGroups.includes(g.id)}
-                              onCheckedChange={checked => {
-                                setSelectedGroups(prev =>
-                                  checked ? [...prev, g.id] : prev.filter(id => id !== g.id)
-                                );
-                              }}
-                            />
-                            <label htmlFor={`group-${g.id}`} className="text-sm">{g.name}</label>
-                            {g.is_system && <Badge variant="outline" className="text-[10px]">System</Badge>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {inviteRole === "operator" && (
-                      <div className="space-y-2">
-                        <Label>Country Scopes (optional)</Label>
-                        <p className="text-xs text-muted-foreground">Restrict this operator to specific countries. Leave empty for no access until scopes are assigned.</p>
-                        <div className="space-y-2 max-h-36 overflow-y-auto border rounded-md p-3">
-                          {countries.map(c => (
-                            <div key={c.code} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`country-${c.code}`}
-                                checked={selectedCountries.includes(c.code)}
-                                onCheckedChange={checked => {
-                                  setSelectedCountries(prev =>
-                                    checked ? [...prev, c.code] : prev.filter(code => code !== c.code)
-                                  );
-                                }}
-                              />
-                              <label htmlFor={`country-${c.code}`} className="text-sm">{c.name}</label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
-                    <Button onClick={handleInvite} disabled={!inviteEmail}>Send Invitation</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <Button onClick={() => navigate("/admin-management/team/invite")}>
+                <UserPlus className="h-4 w-4 mr-2" /> Invite Member
+              </Button>
             )}
           </div>
         </div>
@@ -285,42 +183,6 @@ export default function AdminTeam() {
           </>
         )}
 
-        {/* Country Scope Editor Dialog */}
-        {scopeEditAdmin && (
-          <Dialog open onOpenChange={() => setScopeEditAdmin(null)}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Globe className="h-4 w-4" />
-                  Country Scopes — {scopeEditAdmin.full_name || scopeEditAdmin.email}
-                </DialogTitle>
-                <DialogDescription>
-                  Assign countries this operator can access. Operators with no countries assigned will have restricted access.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-md p-3">
-                {countries.map(c => (
-                  <div key={c.code} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`scope-${c.code}`}
-                      checked={editCountries.includes(c.code)}
-                      onCheckedChange={checked => {
-                        setEditCountries(prev =>
-                          checked ? [...prev, c.code] : prev.filter(code => code !== c.code)
-                        );
-                      }}
-                    />
-                    <label htmlFor={`scope-${c.code}`} className="text-sm">{c.name}</label>
-                  </div>
-                ))}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setScopeEditAdmin(null)}>Cancel</Button>
-                <Button onClick={handleSaveScopes}>Save Scopes</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
       </div>
     </>
   );
