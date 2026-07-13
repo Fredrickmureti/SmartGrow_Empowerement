@@ -144,20 +144,32 @@ Phase-by-phase, each phase is independently shippable.
 - **Phase 5.5** — Entitlement Overrides, Demo Video Library, Auth Email
   Template viewers migrated to workspaces / peek sheets. Publish Pack
   Version wizard shipped (`/localization-packs/$id/publish`).
+  Install-Pack-on-tenant wizard shipped
+  (`/admin-management/organizations/$id/localization/install`),
+  entered from the Localization tab on the org workspace; the
+  `install-localization-pack` edge function accepts platform-admin
+  on-behalf-of callers.
+  Confirm-shape overlays (SuspendOrganization, ScheduleDeletion,
+  DeleteUser, OwnershipTransfer) converted from `Dialog` to
+  `AlertDialog` so they classify as the confirm-dialog pattern.
 - **Phase 6** — Lint guard `local/no-dialog-crud-in-admin` scoped to
-  `src/{pages,components}/admin/**` at error level. New form-bearing
-  Dialog/Sheet in those trees fails the lint step. Overlays that are
-  legitimately inline (settings tabs, provider connections, MFA setup,
-  bank/mpesa/exchange-rate/AI/data-reset/storage-monitor/dashboard
-  chrome) opt out via `// ADMIN-DIALOG-EXEMPT: <reason>`.
+  `src/{pages,components}/admin/**` at error level, **enforced**
+  (all custom ESLint rules converted to ESM `export default` so the
+  flat config loads cleanly). New form-bearing Dialog/Sheet in those
+  trees fails the lint step. Overlays that are legitimately inline
+  (settings tabs, provider connections, MFA setup, bank/mpesa/
+  exchange-rate/AI/data-reset/storage-monitor/dashboard chrome, the
+  inline AI email-assistant prompt surface) opt out via
+  `// ADMIN-DIALOG-EXEMPT: <reason>` or
+  `{/* ADMIN-DIALOG-EXEMPT: <reason> */}` immediately above the
+  overlay opening tag.
 
 ## Deferred
 
-- Install Pack on tenant wizard requires the
-  `install-localization-pack` edge function to accept
-  `on_behalf_of_organization_id`; migration tracked separately. Until
-  then, tenants install their own packs from the tenant Localization
-  settings surface.
+- Generic Email Templates preview dialog in
+  `components/admin/email/EmailTemplatesTab.tsx` remains a `Dialog`
+  today. It contains no form controls (lint-clean); migrating it to
+  `AdminPeekShell` is a follow-up polish item, not a rule violation.
 
 ## Non-goals
 
