@@ -25,7 +25,8 @@ import {
 import { format, differenceInDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAdminCurrency } from "@/hooks/useAdminCurrency";
-import { MultiStepDeleteDialog } from "@/components/admin/MultiStepDeleteDialog";
+// MultiStepDeleteDialog retired — Delete Organization is now the wizard route
+// /admin-management/organizations/:id/delete (see docs/design-system/audit/platform-admin.md).
 // OrganizationDetailsDialog removed — the "View details" action navigates to
 // the /admin-management/organizations/:id workspace page (see
 // docs/design-system/audit/platform-admin.md).
