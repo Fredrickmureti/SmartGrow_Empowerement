@@ -165,14 +165,6 @@ export default tseslint.config(
       "supabase/functions/generate-statutory-return/**/*.ts",
       "supabase/functions/generate-localization-statutory-document/**/*.ts",
     ],
-    plugins: {
-      local: {
-        rules: {
-          "no-literal-rule-codes-in-engines": noLiteralRuleCodesInEngines,
-          "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
-        },
-      },
-    },
     rules: {
       "local/no-literal-rule-codes-in-engines": "error",
     },
@@ -184,13 +176,6 @@ export default tseslint.config(
       "supabase/functions/generate-tax-certificate/**/*.ts",
       "supabase/functions/_shared/certificate*.ts",
     ],
-    plugins: {
-      local: {
-        rules: {
-          "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
-        },
-      },
-    },
     rules: {
       "local/no-payslip-lines-in-certificates": "error",
     },
@@ -204,13 +189,6 @@ export default tseslint.config(
       "src/pages/admin/**/*.{ts,tsx}",
       "src/components/admin/**/*.{ts,tsx}",
     ],
-    plugins: {
-      local: {
-        rules: {
-          "no-dialog-crud-in-admin": noDialogCrudInAdmin,
-        },
-      },
-    },
     rules: {
       "local/no-dialog-crud-in-admin": "error",
     },
