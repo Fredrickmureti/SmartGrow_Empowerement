@@ -649,12 +649,8 @@ Deno.serve(async (req) => {
         // HTML (CSS Paged Media). It is byte-identical to what the
         // publisher sees in the editor preview AND to what the tenant
         // materialises to a vector PDF client-side (paged.js + browser
-        // print). This is the single render path — no pdf-lib redraw, so
-        // "preview === output" holds by construction. Legacy (pre-v3)
-        // templates still fall back to the block/section pdf-lib renderer
-        // until their pack rows are migrated to a v3 document AST.
-        const v3 = isV3EngineTemplate(template);
-
+        // print). This is the ONLY render path — the pdf-lib renderers
+        // have been retired; "preview === output" holds by construction.
         const renderHtml = (): Uint8Array => {
           const v3Template = {
             schema_version: 3,
@@ -672,22 +668,6 @@ Deno.serve(async (req) => {
           return new TextEncoder().encode(html);
         };
 
-        const renderPdf = async () => {
-          return await renderCertificatePdf(
-          {
-            code: template.code,
-            display_name: template.display_name,
-            legal_reference: (packTemplate as any).legal_reference ?? null,
-            regulation_citation: (packTemplate as any).regulation_citation ?? null,
-            effective_date: (packTemplate as any).effective_date ?? null,
-            authority_name: authorityName,
-            body: template.body as any,
-          },
-          enginePayload as any,
-          { branding: branding ?? null },
-          );
-        };
-
         const basePath = `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${serial}`;
         const artifactsList: CertificateArtifact[] = [];
         let pdfPath: string | null = null;
@@ -701,81 +681,17 @@ Deno.serve(async (req) => {
           // compiled HTML (the tenant materialises the vector PDF in the
           // browser). Everything downstream keys off `producedFormat`.
           let producedFormat: string = decl.format;
-          if (decl.format === "xlsx") {
-            // Odoo-model editable twin. Consumes the SAME v2 sections
-            // and the SAME resolved payload as the PDF renderer — no
-            // separate data source, no master workbook.
-            if (!xlsxBytes) {
-              xlsxBytes = await renderCertificateXlsx(
-                {
-                  code: template.code,
-                  display_name: template.display_name,
-                  legal_reference: (packTemplate as any).legal_reference ?? null,
-                  regulation_citation: (packTemplate as any).regulation_citation ?? null,
-                  effective_date: (packTemplate as any).effective_date ?? null,
-                  authority_name: authorityName,
-                  body: template.body as any,
-                },
-                {
-                  employee: {
-                    id: emp.id,
-                    full_name: payload.employee.full_name,
-                    employee_number: payload.employee.employee_number,
-                    tax_pin: payload.employee.tax_pin,
-                    national_id: payload.employee.national_id,
-                    position: payload.employee.position,
-                    department: payload.employee.department,
-                    hire_date: (emp as any).hire_date ?? null,
-                    exit_date: (emp as any).termination_date ?? null,
-                  },
-                  employer: {
-                    name: branding?.name ?? "",
-                    tax_pin: (branding as any)?.tax_pin ?? "",
-                    address: (branding as any)?.address ?? "",
-                    tax_office: (branding as any)?.tax_office ?? "",
-                    phone: (branding as any)?.phone ?? "",
-                    email: (branding as any)?.email ?? "",
-                  },
-                  fiscal_year: body.fiscal_year,
-                  period_label: `1 Jan ${body.fiscal_year} - 31 Dec ${body.fiscal_year}`,
-                  currency: orgCurrency,
-                  monthly: monthlyRows,
-                  ytdRows: rows.map((r) => ({
-                    rule_code: r.rule_code,
-                    category: r.category,
-                    employee_amount: Number(r.employee_amount) || 0,
-                    employer_amount: Number(r.employer_amount) || 0,
-                    taxable_amount: Number(r.taxable_amount) || 0,
-                  })),
-                  totals,
-                  serial_number: serial,
-                  generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
-                },
-              );
-            }
-            bytes = xlsxBytes;
-            ext = "xlsx";
-            mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-          } else if (decl.format === "pdf" || decl.format === "html") {
-            if (v3) {
-              // v3 audited artifact = compiled HTML; the browser produces
-              // the vector PDF on download/print.
-              if (!htmlBytes) htmlBytes = renderHtml();
-              bytes = htmlBytes;
-              ext = "html";
-              mime = "text/html; charset=utf-8";
-              producedFormat = "html";
-            } else {
-              if (!pdfBytes) pdfBytes = await renderPdf();
-              bytes = pdfBytes;
-              ext = "pdf";
-              mime = "application/pdf";
-              producedFormat = "pdf";
-            }
+          if (decl.format === "pdf" || decl.format === "html") {
+            if (!htmlBytes) htmlBytes = renderHtml();
+            bytes = htmlBytes;
+            ext = "html";
+            mime = "text/html; charset=utf-8";
+            producedFormat = "html";
           } else {
-            // Unknown/unsupported writer for certificates. The trigger on
-            // pack save should have caught this, but we defensively skip
-            // and record a diagnostic so publishers see it.
+            // xlsx and any other declared format have no v3 renderer yet.
+            // (The pdf-lib-backed xlsx renderer was retired alongside the
+            // certificate PDF renderer.) Record a diagnostic so publishers
+            // see it and skip.
             try {
               await admin.from("payroll_diagnostics").insert({
                 organization_id: body.organization_id,
@@ -784,12 +700,13 @@ Deno.serve(async (req) => {
                 surface: "certificate",
                 severity: "error",
                 code: "CERT_OUTPUT_UNSUPPORTED",
-                message: `Certificate output format '${decl.format}' has no renderer.`,
+                message: `Certificate output format '${decl.format}' has no v3 renderer.`,
                 details: { format: decl.format, template_code: template.code },
               });
             } catch { /* diagnostics best-effort */ }
             continue;
           }
+
 
           const storagePath = decl.filename
             ? `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${decl.filename}`
