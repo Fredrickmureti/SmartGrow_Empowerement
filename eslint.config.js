@@ -18,6 +18,7 @@ import noDocumentPrintShadowPath from "./eslint-rules/no-document-print-shadow-p
 import noRawZplOutsidePrinting from "./eslint-rules/no-raw-zpl-outside-printing.js";
 import noDirectEmployeesBranchWrite from "./eslint-rules/no-direct-employees-branch-write.js";
 import noPayslipLinesInCertificates from "./eslint-rules/no-payslip-lines-in-certificates.js";
+import noDialogCrudInAdmin from "./eslint-rules/no-dialog-crud-in-admin.js";
 
 
 export default tseslint.config(
