@@ -120,6 +120,7 @@ import {
 
   AdminPlanBuilder,
   AdminAppCatalog,
+  AdminAppCatalogEditPage,
   AdminPayments,
   AdminAuditLog,
   HardwareOpsPage,
