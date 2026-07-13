@@ -14,10 +14,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Loader2, Play, Mail, UserPlus, Clock, AlertTriangle, CreditCard } from "lucide-react";
+import { Zap, Loader2, Play, Mail, UserPlus, Clock, AlertTriangle, CreditCard, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { Json } from "@/integrations/supabase/types";
-import { AutomationSettingsDialog } from "./AutomationSettingsDialog";
+import { useNavigate } from "react-router-dom";
 import { normalizeError } from "@/services/resilience";
 
 interface AutomationRule {
@@ -56,6 +56,7 @@ const triggerLabels: Record<string, string> = {
 
 export function EmailAutomationsTab() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [automations, setAutomations] = useState<AutomationRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -217,10 +218,13 @@ export function EmailAutomationsTab() {
                     />
                   </TableCell>
                   <TableCell className="text-right">
-                    <AutomationSettingsDialog 
-                      rule={rule} 
-                      onUpdate={fetchAutomations} 
-                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => navigate(`/admin-management/email-center/automations/${rule.id}`)}
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
