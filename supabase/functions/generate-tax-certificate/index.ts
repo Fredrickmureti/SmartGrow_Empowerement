@@ -506,78 +506,10 @@ Deno.serve(async (req) => {
           } catch { /* never break rendering on diagnostics */ }
         }
 
-        // ADR 0060 v2026.4.0 — the legacy baseSummary triad
-        // (deductions / employer contributions / taxable income) was a
-        // payslip concept masquerading as a statutory footer. Totals
-        // now come exclusively from the template's `totals` section
-        // via renderCertificateSections. The structural refusal above
-        // guarantees a `totals` section is always present, so
-        // sections.totalsRows will not be empty.
-
-        // ADR-0060 Wave 8 — Dedicated certificate renderer.
-        // The template's `body.sections[]` (already validated by the
-        // `certificate_template_v2` schema trigger) is rendered by
-        // `renderCertificatePdf`, which draws each section as its own
-        // visual band (identity, period, monthly grid, totals, relief,
-        // footnote, signature). We no longer flatten sections into the
-        // generic report PDF — that path collapsed identity + signature
-        // bands into a tiny bottom summary strip and produced the
-        // "shallow document" tenants complained about.
-        const sectionsSpec = (template.body && Array.isArray((template.body as any).sections))
-          ? (template.body as any).sections as any[]
-          : [];
-        // ADR-0060 addendum: v2 templates express monthly grids as
-        // TableBlocks with data_source in {"monthly_breakdown","monthly_matrix"}.
-        // We collect rule codes from both legacy sections[] and blocks[]
-        // so the RPC returns everything the renderer will bind against.
-        const blocksSpec = (template.body && Array.isArray((template.body as any).blocks))
-          ? (template.body as any).blocks as any[]
-          : [];
-
-        // Pull monthly rows once for every rule_code referenced by any
-        // monthly_breakdown/monthly_matrix section or block.
+        // v3 rule-code collection happens later, inside the matrix-node
+        // walk (see `collectMatrixRuleCodes`). No pre-fetch here.
         let monthlyRows: MonthlyRow[] = [];
-        const codesFromSections = sectionsSpec
-          .filter((s: any) => s?.type === "monthly_breakdown")
-          .flatMap((s: any) => {
-            const fromCodes = Array.isArray(s.rule_codes) ? s.rule_codes as string[] : [];
-            const fromCols = Array.isArray(s.columns)
-              ? (s.columns as any[])
-                  .map((c) => typeof c === "string" ? c : String(c?.key ?? c?.rule_code ?? ""))
-                  .filter(Boolean)
-              : [];
-            return [...fromCodes, ...fromCols];
-          });
-        const codesFromBlocks = blocksSpec
-          .filter((b: any) => b?.type === "table"
-            && (b.data_source === "monthly_breakdown" || b.data_source === "monthly_matrix"))
-          .flatMap((b: any) => {
-            const derivedKeys = new Set(
-              (Array.isArray(b.derived_columns) ? b.derived_columns : [])
-                .map((d: any) => String(d?.key ?? "")).filter(Boolean),
-            );
-            const derivedArgs = (Array.isArray(b.derived_columns) ? b.derived_columns : [])
-              .flatMap((d: any) => Array.isArray(d?.args) ? d.args : [])
-              .filter((a: any) => typeof a === "string")
-              .map((a: string) => a)
-              .filter((k: string) => k && k !== "month_index" && !derivedKeys.has(k));
-            const fromCols = Array.isArray(b.columns)
-              ? (b.columns as any[])
-                  .map((c) => String(c?.source_key ?? c?.rule_code ?? c?.key ?? ""))
-                  .filter((k) => k && k !== "month_index" && !derivedKeys.has(k))
-              : [];
-            const explicit = Array.isArray(b.rule_codes) ? b.rule_codes.map((k: any) => String(k)).filter(Boolean) : [];
-            return [...fromCols, ...derivedArgs, ...explicit];
-          });
-        const allMonthlyRuleCodes = isV2BlockTemplate(template) ? codesFromBlocks : [...codesFromSections, ...codesFromBlocks];
-        if (allMonthlyRuleCodes.length) {
-          const { data: monthly } = await admin.rpc("payroll_employee_monthly_breakdown", {
-            p_year: body.fiscal_year,
-            p_employee_id: emp.id,
-            p_rule_codes: Array.from(new Set(allMonthlyRuleCodes)),
-          });
-          monthlyRows = (monthly ?? []) as MonthlyRow[];
-        }
+
 
         // Record any unresolved footer-note tokens as diagnostics but
         // never surface them into the rendered PDF (the dedicated
