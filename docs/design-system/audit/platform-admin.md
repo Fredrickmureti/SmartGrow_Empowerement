@@ -164,15 +164,30 @@ Phase-by-phase, each phase is independently shippable.
   `{/* ADMIN-DIALOG-EXEMPT: <reason> */}` immediately above the
   overlay opening tag.
 
-## Deferred
+## Phase 7 — admin console onto `PlatformShell`
 
-- **Phase 7 — admin console onto `PlatformShell`.** The four-pattern rule
-  is fully honored (workspace / wizard / peek / confirm). What remains
-  is the structural migration off `AdminDashboardLayout` /
-  `PlatformAdminAppLayout` onto the shared `PlatformShell` + per-workspace
-  `nav.ts` described in `docs/design-system.md`. That work is planned
-  page-group by page-group (Organizations & Users → Plans/Apps/Features
-  → Localization → Email/Demo/Team/Groups → Settings/Infra/Audit).
+Phase 7 is the structural migration off ad-hoc admin layouts onto the
+same shell contract tenant apps use. It ships in slices:
+
+- **Phase 7.1 — nav data model unified (shipped 2026-07-13).** The
+  admin nav lives at `src/apps/platform-admin/nav.ts` as
+  `PLATFORM_ADMIN_NAV: AdminWorkspaceNav` — same `groups → items`
+  shape as tenant `WorkspaceNav`. `PlatformAdminAppLayout` accepts
+  `nav` as a prop, matching `PlatformShell(app, nav, children)`; the
+  layout threads it through `AdminDashboardLayout` →
+  `AdminSidebar` / `AdminSidebarBody` / `AdminTopBar`. The legacy
+  `src/components/admin/shell/adminNav.ts` remains as a thin
+  backward-compat re-export.
+- **Phase 7.2 — visual shell alignment (planned).** Replace
+  `AdminDashboardLayout` with a shared shell primitive extracted
+  from `PlatformShell` (rail-less, no install/subscription gates,
+  since admin is a persona rather than an installable app). The
+  `nav` prop plumbed in 7.1 is the seam that lets this land without
+  touching page-level code.
+- **Phase 7.3 — page-group opt-in (planned).** Migrate admin page
+  groups onto the new shell in the sequence Organizations & Users →
+  Plans/Apps/Features → Localization → Email/Demo/Team/Groups →
+  Settings/Infra/Audit. Each group is independently shippable.
 
 ## Non-goals
 
@@ -183,10 +198,16 @@ Phase-by-phase, each phase is independently shippable.
 
 ## Change log
 
+- **Phase 7.1 (2026-07-13).** Admin nav data model unified with
+  tenant `WorkspaceNav`. Canonical source moved to
+  `src/apps/platform-admin/nav.ts`; `PlatformAdminAppLayout` now
+  accepts `nav` as a prop and threads it through the sidebar/topbar,
+  matching the `PlatformShell(app, nav, children)` contract.
 - **Phase 6.1 (2026-07-13).** Closed the last four-pattern tactical gaps:
   Organizations row peek (`?peek=<orgId>`), App Catalog edit workspace
   (`/app-catalog/$id/edit`) alongside the existing inline row toggles,
   Feature Catalog read peek (`?featurePeek=<featureId>`), and the
   Generic Email Templates preview migrated from `Dialog` to
   `DocumentPeekShell` (`?templatePreview=<templateId>`).
+
 
