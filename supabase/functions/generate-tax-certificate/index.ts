@@ -73,11 +73,9 @@ async function sha256Hex(value: unknown): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function isV2BlockTemplate(template: any): boolean {
-  const v = Number(template?.body?.schema_version ?? 1);
-  return v === 2 && Array.isArray(template?.body?.blocks);
-}
-
+// Certificate templates are v3-only since the pdf-lib renderers were retired
+// (DB validator `assert_certificate_template_body_valid` enforces
+// schema_version >= 3). These helpers remain as thin readability aids.
 function isV3EngineTemplate(template: any): boolean {
   return Number(template?.body?.schema_version ?? 1) >= 3
     && Array.isArray(template?.body?.document);
