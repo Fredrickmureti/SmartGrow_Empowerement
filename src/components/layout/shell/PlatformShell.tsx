@@ -145,51 +145,50 @@ function PlatformShellBody({
   setMobileNavOpen,
   children,
 }: PlatformShellBodyProps) {
-  // Page-level opt-in (via useRequestFullWidth) overrides the shell default.
-  const pageFullWidth = useFullWidthRequested();
-  const effectiveFullWidth = fullWidth || pageFullWidth;
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <AppRail currentApp={app} />
-      <WorkspaceSidebar app={app} nav={nav} />
-
-      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="w-80 p-0 flex flex-col">
+    <WorkspaceShellFrame
+      sidebar={
+        <>
+          <AppRail currentApp={app} />
+          <WorkspaceSidebar app={app} nav={nav} />
+        </>
+      }
+      mobileSidebar={
+        <>
           <MobileAppSwitcher currentApp={app} onNavigate={() => setMobileNavOpen(false)} />
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <SidebarBody app={app} nav={nav} onNavigate={() => setMobileNavOpen(false)} defaultExpandAll />
+            <SidebarBody
+              app={app}
+              nav={nav}
+              onNavigate={() => setMobileNavOpen(false)}
+              defaultExpandAll
+            />
           </div>
-        </SheetContent>
-      </Sheet>
-
-      <div className="flex flex-1 flex-col min-w-0">
+        </>
+      }
+      topBar={
         <WorkspaceTopBar
           app={app}
           nav={nav}
           onOpenMobileNav={() => setMobileNavOpen(true)}
         />
-        <SubscriptionStatusBanner />
-
-        <main className="flex-1 overflow-auto">
-          <div
-            className={cn(
-              "mx-auto w-full",
-              !effectiveFullWidth && "max-w-6xl",
-              !noPadding &&
-                (effectiveFullWidth
-                  ? "px-4 sm:px-6 lg:px-10 2xl:px-16 py-4"
-                  : "px-4 sm:px-6 lg:px-8 py-4"),
-            )}
-          >
-            {!app.internalOnly && <SubscriptionReadOnlyBanner />}
-            {!app.internalOnly && !app.isPlatform && (
-              <AppTrialBanner appId={app.id} appName={app.name} />
-            )}
-            {children ?? <Outlet />}
-          </div>
-        </main>
-      </div>
-    </div>
+      }
+      aboveContent={<SubscriptionStatusBanner />}
+      insideContent={
+        <>
+          {!app.internalOnly && <SubscriptionReadOnlyBanner />}
+          {!app.internalOnly && !app.isPlatform && (
+            <AppTrialBanner appId={app.id} appName={app.name} />
+          )}
+        </>
+      }
+      fullWidth={fullWidth}
+      noPadding={noPadding}
+      mobileNavOpen={mobileNavOpen}
+      onMobileNavOpenChange={setMobileNavOpen}
+    >
+      {children ?? <Outlet />}
+    </WorkspaceShellFrame>
   );
 }
 
