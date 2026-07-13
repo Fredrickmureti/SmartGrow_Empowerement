@@ -116,6 +116,7 @@ import {
   AdminInfrastructure,
   AdminOrganizationDetail,
   AdminOrganizationSubscription,
+  AdminOrganizationDelete,
 
   AdminPlanBuilder,
   AdminAppCatalog,
