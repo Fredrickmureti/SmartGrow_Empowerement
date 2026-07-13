@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   AlertTriangle, Loader2, ShieldCheck, Plus, Layers, Type as TypeIcon, Table as TableIcon,
-  Layout as LayoutIcon, Palette,
+  Layout as LayoutIcon, Palette, Undo2, Redo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
