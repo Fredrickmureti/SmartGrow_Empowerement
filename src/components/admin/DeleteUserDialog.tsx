@@ -74,19 +74,19 @@ export function DeleteUserDialog({ open, onOpenChange, user, onDeleted }: Props)
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-destructive">
+    <AlertDialog open={open} onOpenChange={handleClose}>
+      <AlertDialogContent className="max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
             Permanently delete user
-          </DialogTitle>
-          <DialogDescription>
+          </AlertDialogTitle>
+          <AlertDialogDescription>
             This action cannot be undone. The user, their profile, role
             memberships, and any organizations they own will be permanently
             removed.
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
 
         {user && (
           <Alert variant="destructive">
@@ -113,7 +113,7 @@ export function DeleteUserDialog({ open, onOpenChange, user, onDeleted }: Props)
           />
         </div>
 
-        <DialogFooter className="gap-2">
+        <AlertDialogFooter className="gap-2">
           <Button
             variant="outline"
             onClick={() => handleClose(false)}
@@ -135,8 +135,8 @@ export function DeleteUserDialog({ open, onOpenChange, user, onDeleted }: Props)
               "Delete user permanently"
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
