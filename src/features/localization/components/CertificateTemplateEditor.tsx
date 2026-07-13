@@ -238,8 +238,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
       ...v3Body,
       document: [...(v3Body.document ?? []), (V3_NEW_NODE as any)(type)],
     };
-    setV3Body(next);
-    setV3Validation(validateV3Body(next, []));
+    commitBody(next);
     // Select the newly inserted node.
     handleSelectNode(`doc.${(next.document?.length ?? 1) - 1}`);
   };
