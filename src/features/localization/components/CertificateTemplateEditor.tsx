@@ -506,7 +506,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                 <CertificateV3Editor
                   templateCode={initial.template_code}
                   body={v3Body}
-                  onChange={(next) => { setV3Body(next); setV3Validation(validateV3Body(next, [])); }}
+                  onChange={(next) => commitBody(next)}
                   onValidityChange={setV3Validation}
                   selectedNodeId={selectedNodeId}
                   onSelectNode={(id) => setSelectedNodeId(id)}
