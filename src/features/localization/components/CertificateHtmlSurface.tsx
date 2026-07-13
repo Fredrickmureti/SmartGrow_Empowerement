@@ -392,7 +392,7 @@ export const CertificateHtmlSurface = forwardRef<CertificateHtmlSurfaceHandle, P
         } else if (d.kind === "editText") {
           onEditText?.(d.nodeId as string, d.editableKind as any, String(d.text ?? ""));
         } else if (d.kind === "insertAfter") {
-          onInsertAfter?.(d.nodeId as string);
+          onInsertAfter?.(d.nodeId as string, d.nodeType as string | undefined);
         }
       };
       window.addEventListener("message", handler);
