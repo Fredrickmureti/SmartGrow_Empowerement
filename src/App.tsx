@@ -704,6 +704,7 @@ const App = () => (
                               <Route path="plan-builder/features/new" element={<LazyRoute module="Create Feature"><AdminFeatureCreatePage /></LazyRoute>} />
                               <Route path="plan-builder/features/:id/edit" element={<LazyRoute module="Edit Feature"><AdminFeatureEditPage /></LazyRoute>} />
                               <Route path="app-catalog" element={<LazyRoute module="App Catalog"><AdminAppCatalog /></LazyRoute>} />
+                              <Route path="app-catalog/:id/edit" element={<LazyRoute module="Edit App"><AdminAppCatalogEditPage /></LazyRoute>} />
                               <Route path="payments" element={<LazyRoute module="Payments"><AdminPayments /></LazyRoute>} />
                               <Route path="audit-log" element={<LazyRoute module="Audit Log"><AdminAuditLog /></LazyRoute>} />
                               <Route path="hardware-ops" element={<LazyRoute module="Hardware Ops"><HardwareOpsPage /></LazyRoute>} />
