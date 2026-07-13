@@ -374,9 +374,19 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="mx-1 h-4 w-px bg-border" />
-        <Button variant="ghost" size="sm" className="h-7 gap-1" disabled title="Theme editor coming next">
-          <Palette className="h-3.5 w-3.5" /> Theme
-        </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 gap-1" title="Edit pack theme tokens">
+              <Palette className="h-3.5 w-3.5" /> Theme
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" side="bottom" className="p-0 w-auto">
+            <ThemeInspector
+              value={(v3Body as any).theme as Theme | undefined}
+              onChange={(nextTheme) => commitBody({ ...v3Body, theme: nextTheme } as V3Body)}
+            />
+          </PopoverContent>
+        </Popover>
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           <Layers className="h-3.5 w-3.5" /> {documentNodes.length} nodes
         </div>
