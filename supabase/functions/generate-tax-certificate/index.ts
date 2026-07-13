@@ -786,15 +786,8 @@ Deno.serve(async (req) => {
             batch_id: batchId,
             provenance: {
               ...provenance,
-              // ADR-0060 Phase F: stamp the renderer version so the
-              // staleness sweep (`payroll_supersede_v1_certificates`)
-              // can skip certificates already produced by V2.
-              renderer:
-                isV3EngineTemplate(template)
-                  ? "v3-html"
-                  : Number((template.body as any)?.schema_version ?? 1) >= 2
-                    ? "v2"
-                    : "v1",
+              // v3-only renderer stack (pdf-lib retired).
+              renderer: "v3-html",
             },
           })
           .select("id, serial_number, artifacts, fiscal_year, employee_id, template_code, status, batch_id")
