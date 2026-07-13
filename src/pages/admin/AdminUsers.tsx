@@ -31,8 +31,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { UserDetailsDialog } from "@/components/admin/UserDetailsDialog";
+import { AdminUserPeekSheet } from "@/components/admin/AdminUserPeekSheet";
 import { DeleteUserDialog } from "@/components/admin/DeleteUserDialog";
+import { usePeekParam } from "@/design-system";
 
 interface UserWithOrgs {
   id: string;
