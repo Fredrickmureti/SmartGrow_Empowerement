@@ -595,9 +595,13 @@ export default function AdminOrganizations() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleViewDetails(org)}>
+                                    <DropdownMenuItem onClick={() => handleQuickLook(org)}>
                                       <Eye className="mr-2 h-4 w-4" />
-                                      View Details
+                                      Quick look
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleViewDetails(org)}>
+                                      <Building2 className="mr-2 h-4 w-4" />
+                                      Open workspace
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleManageSubscription(org)}>
                                       <CreditCard className="mr-2 h-4 w-4" />
