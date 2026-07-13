@@ -314,7 +314,7 @@ export default function AdminDemoRequests() {
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); }}>
                                     <MessageSquare className="h-3.5 w-3.5 mr-2" /> View Details
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setComposeFor(request); }}>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openReply(request); }}>
                                     <Mail className="h-3.5 w-3.5 mr-2" /> Send Email
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
@@ -372,7 +372,7 @@ export default function AdminDemoRequests() {
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); }}>
                                   <MessageSquare className="h-3.5 w-3.5 mr-2" /> View Details
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setComposeFor(request); }}>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openReply(request); }}>
                                   <Mail className="h-3.5 w-3.5 mr-2" /> Send Email
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -424,7 +424,7 @@ export default function AdminDemoRequests() {
           onStatusChange={(status) => {
             updateStatusMutation.mutate({ id: selectedRequest.id, status });
           }}
-          onComposeEmail={() => setComposeFor(selectedRequest)}
+          onComposeEmail={() => openReply(selectedRequest)}
         />
       )}
 
