@@ -61,7 +61,7 @@ interface Props {
   /** Publisher committed an inline text edit via double-click WYSIWYG. */
   onEditText?: (nodeId: string, editableKind: "heading" | "rich_text", text: string) => void;
   /** Publisher clicked the "+" gutter under a top-level node. */
-  onInsertAfter?: (nodeId: string) => void;
+  onInsertAfter?: (nodeId: string, nodeType?: string) => void;
 }
 
 function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): string {
