@@ -7,6 +7,7 @@ import { normalizeError } from "@/services/resilience";
  */
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -27,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, ShieldCheck } from "lucide-react";
+import { Loader2, Package, ShieldCheck, Pencil } from "lucide-react";
 import { getAppById } from "@/lib/apps/registry";
 
 interface PlatformApp {
