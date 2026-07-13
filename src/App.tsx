@@ -134,6 +134,8 @@ import {
   AdminPlanEditPage,
   AdminFeatureCreatePage,
   AdminFeatureEditPage,
+  AdminLocalizationPackCreatePage,
+  AdminLocalizationPackDetailPage,
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
@@ -666,6 +668,8 @@ const App = () => (
                               <Route path="email-center" element={<LazyRoute module="Email Center"><AdminEmailCenter /></LazyRoute>} />
                               <Route path="demo-requests" element={<LazyRoute module="Demo Requests"><AdminDemoRequests /></LazyRoute>} />
                               <Route path="localization-packs" element={<LazyRoute module="Localization Packs"><AdminLocalizationPacks /></LazyRoute>} />
+                              <Route path="localization-packs/new" element={<LazyRoute module="Create Localization Pack"><AdminLocalizationPackCreatePage /></LazyRoute>} />
+                              <Route path="localization-packs/:id" element={<LazyRoute module="Localization Pack"><AdminLocalizationPackDetailPage /></LazyRoute>} />
                               <Route path="localization-packs/:packId/certificates/:templateId/edit" element={<LazyRoute module="Certificate Template Editor"><AdminLocalizationCertificateEdit /></LazyRoute>} />
                               <Route path="infrastructure" element={<LazyRoute module="Infrastructure"><AdminInfrastructure /></LazyRoute>} />
                               <Route path="plan-builder" element={<LazyRoute module="Plan Builder"><AdminPlanBuilder /></LazyRoute>} />

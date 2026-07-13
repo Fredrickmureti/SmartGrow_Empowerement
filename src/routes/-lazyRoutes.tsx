@@ -31,6 +31,8 @@ export const AdminPlanCreatePage = lazy(() => import("@/pages/admin/plan-builder
 export const AdminPlanEditPage = lazy(() => import("@/pages/admin/plan-builder/AdminPlanEditPage"));
 export const AdminFeatureCreatePage = lazy(() => import("@/pages/admin/plan-builder/AdminFeatureCreatePage"));
 export const AdminFeatureEditPage = lazy(() => import("@/pages/admin/plan-builder/AdminFeatureEditPage"));
+export const AdminLocalizationPackCreatePage = lazy(() => import("@/pages/admin/localization/AdminLocalizationPackCreatePage"));
+export const AdminLocalizationPackDetailPage = lazy(() => import("@/pages/admin/localization/AdminLocalizationPackDetailPage"));
 export const Studio = lazy(() => import("@/pages/Studio"));
 export const Compliance = lazy(() => import("@/pages/Compliance"));
 export const FiscalComplianceWorkspace = lazy(() => import("@/pages/FiscalComplianceWorkspace"));
