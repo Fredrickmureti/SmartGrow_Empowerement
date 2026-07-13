@@ -46,22 +46,49 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-    let query = admin
-      .from("payroll_tax_certificates")
-      .select("id, organization_id, business_id, employee_id, pdf_path, xlsx_path, artifacts, serial_number, status, stale, stale_reason")
-      .limit(1);
+
+    // Resolve the parent certificate row. We deliberately avoid PostgREST's
+    // `.contains` on the `artifacts` jsonb array — the encoded literal has
+    // occasionally been rejected by PostgREST as "invalid input syntax for
+    // type json" for paths with unescaped characters. Fetching by
+    // organization_id (parsed from the path prefix `<org>/payroll/...`) and
+    // matching in JS is exact, cheap and robust.
+    let cert: any = null;
+    let certErrMsg: string | null = null;
     if (certificateId) {
-      query = query.eq("id", certificateId);
+      const r = await admin
+        .from("payroll_tax_certificates")
+        .select("id, organization_id, business_id, employee_id, pdf_path, xlsx_path, artifacts, serial_number, status, stale, stale_reason")
+        .eq("id", certificateId)
+        .maybeSingle();
+      cert = r.data;
+      certErrMsg = r.error?.message ?? null;
     } else if (pdfPath) {
-      query = query.eq("pdf_path", pdfPath);
+      const r = await admin
+        .from("payroll_tax_certificates")
+        .select("id, organization_id, business_id, employee_id, pdf_path, xlsx_path, artifacts, serial_number, status, stale, stale_reason")
+        .eq("pdf_path", pdfPath)
+        .maybeSingle();
+      cert = r.data;
+      certErrMsg = r.error?.message ?? null;
     } else if (artifactPath) {
-      // Resolve the parent certificate row via any artifact path so the
-      // permission check + lifecycle ledger still apply.
-      query = query.contains("artifacts", [{ path: artifactPath }] as any);
+      const orgId = artifactPath.split("/")[0] ?? "";
+      if (!orgId) {
+        return jsonResponse({ error: "artifact_path is malformed" }, 400);
+      }
+      const r = await admin
+        .from("payroll_tax_certificates")
+        .select("id, organization_id, business_id, employee_id, pdf_path, xlsx_path, artifacts, serial_number, status, stale, stale_reason")
+        .eq("organization_id", orgId);
+      certErrMsg = r.error?.message ?? null;
+      if (!certErrMsg) {
+        cert = (r.data ?? []).find((row: any) =>
+          Array.isArray(row.artifacts) && row.artifacts.some((a: any) => a?.path === artifactPath)
+        ) ?? null;
+      }
     }
 
-    const { data: cert, error: certErr } = await query.maybeSingle();
-    if (certErr) return jsonResponse({ error: `failed to load certificate: ${certErr.message}` }, 500);
+    if (certErrMsg) return jsonResponse({ error: `failed to load certificate: ${certErrMsg}` }, 500);
     if (!cert) return jsonResponse({ error: "certificate not found" }, 404);
     if ((cert as any).stale === true) {
       return jsonResponse({
