@@ -30,7 +30,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertTriangle, Loader2, ShieldCheck, Plus, Layers, Type as TypeIcon, Table as TableIcon,
-  Layout as LayoutIcon, Palette, Undo2, Redo2,
+  Layout as LayoutIcon, Palette, Undo2, Redo2, ListTree,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
@@ -376,34 +376,20 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         <div className="mx-1 h-4 w-px bg-border" />
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 gap-1" title="Edit pack theme tokens">
-              <Palette className="h-3.5 w-3.5" /> Theme
+            <Button variant="ghost" size="sm" className="h-7 gap-1" title="Document outline">
+              <ListTree className="h-3.5 w-3.5" /> Outline
+              <span className="ml-1 text-[10px] text-muted-foreground">{documentNodes.length}</span>
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" side="bottom" className="p-0 w-auto">
-            <ThemeInspector
-              value={(v3Body as any).theme as Theme | undefined}
-              onChange={(nextTheme) => commitBody({ ...v3Body, theme: nextTheme } as V3Body)}
-            />
-          </PopoverContent>
-        </Popover>
-        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-          <Layers className="h-3.5 w-3.5" /> {documentNodes.length} nodes
-        </div>
-      </div>
-
-      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 gap-0 p-3">
-        {/* Outline — flat top-level tree, click to select. */}
-        <ResizablePanel defaultSize={18} minSize={12} maxSize={30}>
-          <div className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
+          <PopoverContent align="start" side="bottom" className="p-0 w-80">
             <div className="border-b px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Outline
             </div>
-            <ScrollArea className="h-[calc(100%-2.25rem)]">
+            <ScrollArea className="max-h-[420px]">
               <div className="p-1 text-sm">
                 {documentNodes.length === 0 && (
                   <div className="px-2 py-3 text-xs text-muted-foreground">
-                    Empty document. Use <span className="font-medium">Insert</span> above to add your first node.
+                    Empty document. Use <span className="font-medium">Insert</span> to add your first node.
                   </div>
                 )}
                 {documentNodes.map((n) => {
@@ -426,13 +412,30 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                 })}
               </div>
             </ScrollArea>
-          </div>
-        </ResizablePanel>
+          </PopoverContent>
+        </Popover>
+        <div className="mx-1 h-4 w-px bg-border" />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 gap-1" title="Edit pack theme tokens">
+              <Palette className="h-3.5 w-3.5" /> Theme
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" side="bottom" className="p-0 w-auto">
+            <ThemeInspector
+              value={(v3Body as any).theme as Theme | undefined}
+              onChange={(nextTheme) => commitBody({ ...v3Body, theme: nextTheme } as V3Body)}
+            />
+          </PopoverContent>
+        </Popover>
+        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+          <Layers className="h-3.5 w-3.5" /> {documentNodes.length} nodes
+        </div>
+      </div>
 
-        <ResizableHandle withHandle className="mx-2" />
-
+      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 gap-0 p-3">
         {/* Canvas — the rendered document is the source of truth. */}
-        <ResizablePanel defaultSize={45} minSize={30}>
+        <ResizablePanel defaultSize={60} minSize={35}>
           <div className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
             <CertificatePreviewPane
               templateCode={initial.template_code}
@@ -451,7 +454,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         <ResizableHandle withHandle className="mx-2" />
 
         {/* Inspector — legal metadata + structured node editors. */}
-        <ResizablePanel defaultSize={37} minSize={25}>
+        <ResizablePanel defaultSize={40} minSize={25}>
           <div ref={inspectorScrollRef} className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
             <ScrollArea className="h-full">
               <div className="space-y-4 p-3">
