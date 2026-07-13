@@ -668,6 +668,15 @@ export default function AdminOrganizations() {
         organization={selectedOrg}
         onSuccess={fetchOrganizations}
       />
+
+      {/* Row peek (?peek=<orgId>) — read-mostly quick look */}
+      <OrganizationPeekSheet
+        open={!!peekId}
+        onOpenChange={(open) => !open && setPeekId(null)}
+        organization={
+          peekId ? organizations.find((o) => o.id === peekId) ?? null : null
+        }
+      />
     </>
   );
 }
