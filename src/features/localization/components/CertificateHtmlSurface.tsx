@@ -164,7 +164,7 @@ export const CertificateHtmlSurface = forwardRef<CertificateHtmlSurfaceHandle, P
           win.print();
         }
       },
-      getHtml: () => compiled ?? "",
+      getHtml: () => compiled.html ?? "",
     }), [compiled]);
 
     return (
