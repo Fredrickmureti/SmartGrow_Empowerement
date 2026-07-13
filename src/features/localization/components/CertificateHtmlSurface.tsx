@@ -73,6 +73,8 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
     [data-ce-node] { cursor: pointer; position: relative; }
     [data-ce-node]:hover { outline: 1px dashed #2563eb; outline-offset: 2px; }
     [data-ce-node].ce-selected { outline: 2px solid #2563eb; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
+    [data-ce-node].ce-editing { outline: 2px solid #f59e0b !important; outline-offset: 2px; background: rgba(254, 243, 199, 0.35); cursor: text; }
+    [data-ce-node][data-ce-editable] { cursor: text; }
     /* Top-level (doc.N) direct-manipulation affordances. */
     [data-ce-node^="doc."][draggable="true"] { }
     [data-ce-node^="doc."].ce-drag-over { outline: 2px dashed #16a34a; outline-offset: 4px; }
@@ -92,11 +94,26 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
     }
     .ce-actionbar button:hover { background: rgba(255,255,255,0.2); }
     .ce-actionbar .ce-handle { cursor: grab; padding: 3px 5px; opacity: 0.85; }
+    /* Insert-below gutter — appears on hover between top-level nodes. */
+    .ce-insertbar {
+      position: absolute; left: 0; right: 0; bottom: -10px; height: 12px;
+      display: none; align-items: center; justify-content: center;
+      z-index: 9998; pointer-events: auto;
+    }
+    [data-ce-node^="doc."]:hover > .ce-insertbar { display: flex; }
+    .ce-insertbar .ce-insert-btn {
+      appearance: none; border: 0; padding: 0; width: 22px; height: 22px;
+      border-radius: 50%; background: #16a34a; color: #fff; cursor: pointer;
+      font: 700 14px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+    .ce-insertbar .ce-insert-btn:hover { background: #15803d; }
   `;
   const bridgeJs = `
     (function(){
       var selected = ${JSON.stringify(selectedNodeId)};
       var dragFrom = null;
+      var editingEl = null;
       function paint(){
         try {
           document.querySelectorAll('[data-ce-node].ce-selected').forEach(function(el){ el.classList.remove('ce-selected'); });
@@ -120,10 +137,30 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
               '<button data-act="moveDown" title="Move down">▼</button>' +
               '<button data-act="duplicate" title="Duplicate">⧉</button>' +
               '<button data-act="delete" title="Delete">✕</button>';
-            // Actions bubble to the shared listener below.
             el.appendChild(bar);
+            // Insert-below gutter — a hover-only "+" between blocks so a
+            // publisher can add a node exactly where they want it, without
+            // reaching for the toolbar.
+            var ins = document.createElement('div');
+            ins.className = 'ce-insertbar';
+            ins.setAttribute('contenteditable', 'false');
+            ins.innerHTML = '<button class="ce-insert-btn" data-act="insertAfter" title="Insert node below">+</button>';
+            el.appendChild(ins);
           });
         } catch(e){}
+      }
+      function finishEdit(commit){
+        if (!editingEl) return;
+        var host = editingEl.closest('[data-ce-node]');
+        var id = host && host.getAttribute('data-ce-node');
+        var kind = host && host.getAttribute('data-ce-editable');
+        var text = editingEl.innerText.replace(/\\s+$/,'');
+        editingEl.removeAttribute('contenteditable');
+        host && host.classList.remove('ce-editing');
+        editingEl = null;
+        if (commit && id && kind) {
+          try { parent.postMessage({ source: 'ce-surface', kind: 'editText', nodeId: id, editableKind: kind, text: text }, '*'); } catch(e){}
+        }
       }
       // Native drag reorder on top-level nodes.
       document.addEventListener('dragstart', function(ev){
@@ -154,14 +191,47 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
         dragFrom = null;
       });
       document.addEventListener('dragend', function(){ dragFrom = null; });
+      // Double-click on an editable node → make the inner text element
+      // contenteditable in place. This is the true WYSIWYG loop: what the
+      // publisher sees IS the AST literal.
+      document.addEventListener('dblclick', function(ev){
+        var host = ev.target && ev.target.closest ? ev.target.closest('[data-ce-node][data-ce-editable]') : null;
+        if (!host) return;
+        var inner = host.querySelector('h1,h2,h3,h4,h5,h6,p');
+        if (!inner) return;
+        ev.preventDefault();
+        finishEdit(false);
+        editingEl = inner;
+        inner.setAttribute('contenteditable', 'true');
+        host.classList.add('ce-editing');
+        inner.focus();
+        // Select all text so overtype replaces the placeholder cleanly.
+        try {
+          var r = document.createRange(); r.selectNodeContents(inner);
+          var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        } catch(e){}
+      });
+      document.addEventListener('keydown', function(ev){
+        if (!editingEl) return;
+        if (ev.key === 'Escape') { ev.preventDefault(); finishEdit(false); }
+        else if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); finishEdit(true); }
+      });
+      document.addEventListener('blur', function(){ if (editingEl) finishEdit(true); }, true);
       document.addEventListener('click', function(ev){
-        // Action-bar buttons take precedence over the generic select handler.
-        var btn = ev.target && ev.target.closest ? ev.target.closest('.ce-actionbar button[data-act]') : null;
+        // Ignore clicks that happen while an inline edit is active — they
+        // just move the caret inside the contenteditable region.
+        if (editingEl && editingEl.contains(ev.target)) return;
+        // Action-bar / insert-bar buttons take precedence.
+        var btn = ev.target && ev.target.closest ? ev.target.closest('[data-act]') : null;
         if (btn) {
           ev.preventDefault(); ev.stopPropagation();
           var host = btn.closest('[data-ce-node]');
           var id = host && host.getAttribute('data-ce-node');
           var act = btn.getAttribute('data-act');
+          if (id && act === 'insertAfter') {
+            try { parent.postMessage({ source: 'ce-surface', kind: 'insertAfter', nodeId: id }, '*'); } catch(e){}
+            return;
+          }
           if (id && act) { try { parent.postMessage({ source: 'ce-surface', kind: 'action', nodeId: id, action: act }, '*'); } catch(e){} }
           return;
         }
