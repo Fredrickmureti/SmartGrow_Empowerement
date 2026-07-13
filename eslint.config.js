@@ -195,4 +195,24 @@ export default tseslint.config(
       "local/no-payslip-lines-in-certificates": "error",
     },
   },
+  // Platform Admin four-pattern rule (Phase 6) — forbid form-bearing
+  // Dialog/Sheet under src/{pages,components}/admin/**. Real CRUD lives
+  // on workspace routes; read-mostly quick looks on DocumentPeekShell;
+  // confirmations on AlertDialog. See docs/design-system/audit/platform-admin.md.
+  {
+    files: [
+      "src/pages/admin/**/*.{ts,tsx}",
+      "src/components/admin/**/*.{ts,tsx}",
+    ],
+    plugins: {
+      local: {
+        rules: {
+          "no-dialog-crud-in-admin": noDialogCrudInAdmin,
+        },
+      },
+    },
+    rules: {
+      "local/no-dialog-crud-in-admin": "error",
+    },
+  },
 );
