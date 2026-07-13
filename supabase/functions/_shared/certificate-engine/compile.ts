@@ -123,9 +123,21 @@ h3.ce-h { font-size: 10pt; margin: 8pt 0 3pt 0; font-weight: 700; }
 .ce-matrix { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ce-matrix thead { display: table-header-group; }
 .ce-matrix tfoot { display: table-footer-group; }
-.ce-matrix th, .ce-matrix td { border: 0.4pt solid #666; padding: 2pt 3pt; font-size: 8pt; vertical-align: middle; word-break: break-word; overflow-wrap: anywhere; }
-.ce-matrix thead th { background: #eee; font-weight: 700; font-size: 7.5pt; line-height: 1.15; }
-.ce-matrix tfoot td { background: #f4f4f4; font-weight: 700; }
+.ce-matrix th, .ce-matrix td {
+  border: 0.5pt solid #555;
+  padding: 1.5pt 2.5pt;
+  font-size: 7pt;
+  vertical-align: middle;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.ce-matrix thead th { background: #e9e9e9; font-weight: 700; text-align: center; line-height: 1.15; word-break: normal; overflow-wrap: normal; }
+.ce-matrix thead th.ce-unit { background: #f2f2f2; font-weight: 500; font-style: italic; color: #444; }
+.ce-matrix thead th.ce-letter { background: #f2f2f2; font-weight: 700; }
+.ce-matrix tfoot td { background: #ededed; font-weight: 700; }
+.ce-matrix td.num, .ce-matrix tfoot td.num { white-space: nowrap; font-size: 6.5pt; word-break: normal; overflow-wrap: normal; letter-spacing: -0.1pt; }
+.ce-matrix tfoot td.num { font-size: 5.5pt; letter-spacing: -0.2pt; }
 .ce-matrix .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ce-matrix .ctr { text-align: center; }
 .ce-legal { margin: 8pt 0; padding: 5pt 6pt; }
