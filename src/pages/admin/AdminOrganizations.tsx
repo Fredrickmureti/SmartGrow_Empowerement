@@ -29,7 +29,8 @@ import { MultiStepDeleteDialog } from "@/components/admin/MultiStepDeleteDialog"
 // OrganizationDetailsDialog removed — the "View details" action navigates to
 // the /admin-management/organizations/:id workspace page (see
 // docs/design-system/audit/platform-admin.md).
-import { ManageSubscriptionDialog } from "@/components/admin/ManageSubscriptionDialog";
+// ManageSubscriptionDialog retired — Manage Subscription now routes to the
+// /admin-management/organizations/:id/subscription workspace page.
 import { SuspendOrganizationDialog } from "@/components/admin/SuspendOrganizationDialog";
 import { ScheduleDeletionDialog } from "@/components/admin/ScheduleDeletionDialog";
 import { normalizeError } from "@/services/resilience";
@@ -75,7 +76,6 @@ export default function AdminOrganizations() {
   const [countryFilter, setCountryFilter] = useState<string>("all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
-  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [scheduleDeleteDialogOpen, setScheduleDeleteDialogOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithStats | null>(null);
@@ -206,8 +206,7 @@ export default function AdminOrganizations() {
   };
 
   const handleManageSubscription = (org: OrganizationWithStats) => {
-    setSelectedOrg(org);
-    setSubscriptionDialogOpen(true);
+    navigate(`/admin-management/organizations/${org.id}/subscription`);
   };
 
   const handleOpenDelete = (org: OrganizationWithStats) => {
@@ -682,13 +681,7 @@ export default function AdminOrganizations() {
       />
 
 
-      {/* Manage Subscription Dialog */}
-      <ManageSubscriptionDialog
-        open={subscriptionDialogOpen}
-        onOpenChange={setSubscriptionDialogOpen}
-        organization={selectedOrg}
-        onSuccess={fetchOrganizations}
-      />
+
 
       {/* Suspend Organization Dialog */}
       <SuspendOrganizationDialog
