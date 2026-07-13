@@ -125,6 +125,56 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const unresolvedRef = useRef<string[]>([]);
   const authoritiesQuery = useStatutoryAuthorities(editMetadata ? packId : null);
 
+  // ── Undo / redo history ────────────────────────────────────────────────
+  // Every AST mutation goes through `commitBody(next)` which snapshots the
+  // previous body onto the past stack and clears future. `undo` / `redo`
+  // walk that stack. Bounded at 100 entries — enough for a full authoring
+  // session, cheap in memory.
+  const historyRef = useRef<{ past: V3Body[]; future: V3Body[] }>({ past: [], future: [] });
+  const [, forceRender] = useState(0);
+  const commitBody = (next: V3Body) => {
+    historyRef.current.past.push(v3Body);
+    if (historyRef.current.past.length > 100) historyRef.current.past.shift();
+    historyRef.current.future = [];
+    setV3Body(next);
+    setV3Validation(validateV3Body(next, []));
+    forceRender((n) => n + 1);
+  };
+  const canUndo = historyRef.current.past.length > 0;
+  const canRedo = historyRef.current.future.length > 0;
+  const undo = () => {
+    const prev = historyRef.current.past.pop();
+    if (!prev) return;
+    historyRef.current.future.push(v3Body);
+    setV3Body(prev);
+    setV3Validation(validateV3Body(prev, []));
+    forceRender((n) => n + 1);
+  };
+  const redo = () => {
+    const next = historyRef.current.future.pop();
+    if (!next) return;
+    historyRef.current.past.push(v3Body);
+    setV3Body(next);
+    setV3Validation(validateV3Body(next, []));
+    forceRender((n) => n + 1);
+  };
+  // Keyboard shortcuts — Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z (or Cmd/Ctrl+Y).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      // Skip when the user is typing in a field — undo there is native.
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((key === "z" && e.shiftKey) || key === "y") { e.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v3Body]);
+
   const liveBody = v3Body;
 
   const metaErrors: string[] = [];
