@@ -125,7 +125,7 @@ export function GridDesigner({ node, onChange }: { node: any; onChange: (n: any)
   const removeCol = (i: number) => {
     // Also trim any header/footer cells whose span would now overflow.
     // (Cells stay; layout clamps span.) Simplest: just drop the column.
-    if (!confirm(`Remove column "${cols[i]?.id}"? Any header/footer cells will be shifted left.`)) return;
+    if (!confirm(`Remove column "${cols[i]?.id}"? Any header/footer cells will move over.`)) return;
     set({ columns: cols.filter((_, idx) => idx !== i) });
   };
 
