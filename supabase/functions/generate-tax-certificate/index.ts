@@ -248,83 +248,57 @@ Deno.serve(async (req) => {
 
     const templateBodyHash = await sha256Hex(template.body ?? {});
 
-    // ADR 0060 v2026.4.0 — Structural refusal. V2 block templates are
-    // authoritative when present; legacy sections[] is validated only for
-    // pre-v2 templates so stale compatibility sections cannot keep driving
-    // a migrated pack's runtime behavior.
+    // Structural refusal — v3 templates only.
+    // Legacy v1/v2 renderers were retired; the DB trigger
+    // `assert_certificate_template_body_valid` rejects any body with
+    // schema_version < 3. We still validate the v3 shape here so the runtime
+    // surfaces a clean TEMPLATE_STRUCTURAL_INVALID instead of exploding
+    // inside the compiler on a malformed document tree.
     {
-      const isV3 = isV3EngineTemplate(template);
-      const isV2 = !isV3 && isV2BlockTemplate(template);
-      // v3 templates express their contract as a `document` node tree
-      // (heading / identity_strip / matrix / signature_strip / …); v2 uses
-      // `blocks`; pre-v2 uses `sections`. Validate the shape appropriate to
-      // the template's own schema_version so a migrated template isn't
-      // judged against a contract it no longer uses.
-      const nodes = isV3
-        ? (Array.isArray(template?.body?.document) ? template.body.document : [])
-        : isV2
-          ? (template.body.blocks ?? [])
-          : (Array.isArray(template?.body?.sections) ? template.body.sections : []);
-      const types = new Set<string>(nodes.map((s: any) => String(s?.type ?? "")));
-      const missing: string[] = [];
-      let hasData: boolean;
-      if (isV3) {
-        // The only hard requirement is a data-bearing node (a matrix or
-        // table). Identity/signature nodes are strongly recommended but the
-        // compiler renders gracefully without them, so they are not fatal.
-        hasData = types.has("matrix") || types.has("table");
-        if (!hasData) missing.push("matrix");
-      } else if (isV2) {
-        const hasEmployer = nodes.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employer");
-        const hasEmployee = nodes.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employee");
-        if (!hasEmployer) missing.push("employer field_grid");
-        if (!hasEmployee) missing.push("employee field_grid");
-        if (!types.has("signature_block")) missing.push("signature_block");
-        hasData = nodes.some((b: any) => b?.type === "table" && ["monthly_breakdown", "monthly_matrix", "ytd_rows"].includes(String(b?.data_source ?? "")));
-      } else {
-        for (const need of ["employer_header", "employee_header", "signature_block"]) {
-          if (!types.has(need)) missing.push(need);
-        }
-        hasData = ["monthly_breakdown", "ytd_table", "totals"].some((d) => types.has(d));
+      if (!isV3EngineTemplate(template)) {
+        return businessError(
+          422,
+          "TEMPLATE_STRUCTURAL_INVALID",
+          `Certificate template "${template.code}" is not a v3 engine template. The pdf-lib v1/v2 renderers have been retired.`,
+          "Republish the localization pack with this template authored as a v3 document AST (paper_format + page_master + document nodes).",
+          { template_code: template.code, template_source: templateSource },
+        );
       }
-      const contract = isV3 ? "document" : isV2 ? "blocks" : "sections";
-      if (nodes.length === 0 || missing.length > 0 || !hasData) {
-        // Best-effort diagnostic so the Publisher Health panel can surface
-        // packs whose templates are being refused in the field.
+      const nodes: any[] = Array.isArray(template?.body?.document) ? template.body.document : [];
+      const types = new Set<string>(nodes.map((s: any) => String(s?.type ?? "")));
+      const hasData = types.has("matrix") || types.has("table");
+      if (nodes.length === 0 || !hasData) {
         try {
           await admin.from("payroll_diagnostics").insert({
             organization_id: body.organization_id,
             business_id: body.business_id,
             severity: "error",
             code: "TEMPLATE_STRUCTURAL_INVALID",
-            message: `Certificate template "${template.code}" refused: missing section contract`,
+            message: `Certificate template "${template.code}" refused: v3 document missing a data-bearing node (matrix or table)`,
             details: {
               template_code: template.code,
               template_source: templateSource,
               pack_id: template.pack_id ?? null,
-              contract,
-              sections_present: Array.from(types),
-              missing_identity_sections: missing,
-              has_data_section: hasData,
+              contract: "document",
+              nodes_present: Array.from(types),
             },
           });
         } catch { /* diagnostics best-effort */ }
         return businessError(
           422,
           "TEMPLATE_STRUCTURAL_INVALID",
-          `Certificate template "${template.code}" cannot be rendered: its body is missing the required section contract (identity headers, data section, and signature block). This template ships as a legacy stub and must be refreshed at the pack level before it can be issued.`,
-          "Ask your platform administrator to publish the latest localization pack version that ships this certificate with a full section layout.",
+          `Certificate template "${template.code}" cannot be rendered: its v3 document has no matrix/table node to carry the payroll data.`,
+          "Ask your platform administrator to publish a version of this template that includes a matrix node bound to the resolved payload.",
           {
             template_code: template.code,
             template_source: templateSource,
-            contract,
-            sections_present: Array.from(types),
-            missing_identity_sections: missing,
-            has_data_section: hasData,
+            contract: "document",
+            nodes_present: Array.from(types),
           },
         );
       }
     }
+
 
     // Resolve employees
     // Wave 1.1: position/department resolved via FK joins (legacy text cols dropped)
