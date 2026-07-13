@@ -62,10 +62,9 @@ export default function AdminLocalizationPackDetailPage() {
           }
           docNumber={`v${pack.version}`}
           status={
-            <StatusBadge
-              status={pack.is_published ? "success" : "muted"}
-              label={pack.is_published ? "Published" : "Draft"}
-            />
+            <StatusBadge tone={pack.is_published ? "success" : "neutral"}>
+              {pack.is_published ? "Published" : "Draft"}
+            </StatusBadge>
           }
           meta={
             <>
