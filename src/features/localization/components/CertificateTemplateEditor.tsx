@@ -27,6 +27,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertTriangle, Loader2, ShieldCheck, Plus, Layers, Type as TypeIcon, Table as TableIcon,
   Layout as LayoutIcon, Palette, Undo2, Redo2,
@@ -34,8 +35,10 @@ import {
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
+import { ThemeInspector } from "./ThemeInspector";
 import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
+import type { Theme } from "../lib/engine/types";
 import { OutputsCard } from "./OutputsCard";
 import {
   CertificateV3Editor,
