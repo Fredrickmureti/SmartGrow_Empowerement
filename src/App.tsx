@@ -116,6 +116,7 @@ import {
   AdminInfrastructure,
   AdminOrganizationDetail,
   AdminOrganizationSubscription,
+  AdminOrganizationDelete,
 
   AdminPlanBuilder,
   AdminAppCatalog,
@@ -648,6 +649,7 @@ const App = () => (
                               <Route path="organizations" element={<LazyRoute module="Organizations"><AdminOrganizations /></LazyRoute>} />
                               <Route path="organizations/:id" element={<LazyRoute module="Organization Detail"><AdminOrganizationDetail /></LazyRoute>} />
                               <Route path="organizations/:id/subscription" element={<LazyRoute module="Manage Subscription"><AdminOrganizationSubscription /></LazyRoute>} />
+                              <Route path="organizations/:id/delete" element={<LazyRoute module="Delete Organization"><AdminOrganizationDelete /></LazyRoute>} />
                               <Route path="users" element={<LazyRoute module="Users"><AdminUsers /></LazyRoute>} />
                               <Route path="invoices" element={<LazyRoute module="Invoices"><AdminInvoices /></LazyRoute>} />
                               <Route path="analytics" element={<LazyRoute module="Analytics"><AdminAnalytics /></LazyRoute>} />

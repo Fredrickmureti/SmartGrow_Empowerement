@@ -25,7 +25,8 @@ import {
 import { format, differenceInDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAdminCurrency } from "@/hooks/useAdminCurrency";
-import { MultiStepDeleteDialog } from "@/components/admin/MultiStepDeleteDialog";
+// MultiStepDeleteDialog retired — Delete Organization is now the wizard route
+// /admin-management/organizations/:id/delete (see docs/design-system/audit/platform-admin.md).
 // OrganizationDetailsDialog removed — the "View details" action navigates to
 // the /admin-management/organizations/:id workspace page (see
 // docs/design-system/audit/platform-admin.md).
@@ -74,12 +75,9 @@ export default function AdminOrganizations() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [scheduleDeleteDialogOpen, setScheduleDeleteDialogOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithStats | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const { formatCurrency } = useAdminCurrency();
   const { countryScopes, isGlobalAccess, hasCountryScope } = usePlatformPermissions();
@@ -165,42 +163,6 @@ export default function AdminOrganizations() {
     fetchOrganizations();
   }, []);
 
-  const handleDeleteOrg = async () => {
-    if (!selectedOrg) return;
-    
-    setIsDeleting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("clear-org-data", {
-        body: {
-          organization_id: selectedOrg.id,
-          mode: "delete_organization",
-          confirmation_token: `DELETE-${selectedOrg.id}`,
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.ok && !data?.success) {
-        throw new Error(data?.error || "Organization deletion failed");
-      }
-      
-      toast({
-        title: "Organization deleted",
-        description: `${selectedOrg.name} and its tenant data have been permanently removed.`,
-      });
-      
-      fetchOrganizations();
-    } catch (error: any) {
-      console.error("Error deleting organization:", error);
-      toast({
-        title: "Error deleting organization",
-        description: normalizeError(error).message || "Could not delete. It may have related data.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   const handleViewDetails = (org: OrganizationWithStats) => {
     navigate(`/admin-management/organizations/${org.id}`);
   };
@@ -210,8 +172,7 @@ export default function AdminOrganizations() {
   };
 
   const handleOpenDelete = (org: OrganizationWithStats) => {
-    setSelectedOrg(org);
-    setDeleteDialogOpen(true);
+    navigate(`/admin-management/organizations/${org.id}/delete`);
   };
 
   const handleSuspendOrg = (org: OrganizationWithStats) => {
@@ -670,15 +631,9 @@ export default function AdminOrganizations() {
         </Card>
       </div>
 
-      {/* Multi-Step Delete Dialog */}
-      <MultiStepDeleteDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        entityName={selectedOrg?.name || ""}
-        entityType="Organization"
-        onConfirm={handleDeleteOrg}
-        isDeleting={isDeleting}
-      />
+      {/* Delete Organization moved to wizard route /admin-management/organizations/:id/delete */}
+
+
 
 
 

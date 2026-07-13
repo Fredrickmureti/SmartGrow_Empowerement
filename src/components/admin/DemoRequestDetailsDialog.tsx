@@ -1,15 +1,15 @@
 // @ts-nocheck - Admin tables not in auto-generated types
+/**
+ * DemoRequestPeekSheet — read-mostly peek for the Demo Requests list.
+ * Replaces the legacy DemoRequestDetailsDialog per
+ * docs/design-system/audit/platform-admin.md.
+ * The old export name is kept as an alias so existing imports keep working.
+ */
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DocumentPeekShell } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -103,19 +103,20 @@ export function DemoRequestDetailsDialog({
   const status = statusConfig[request.status] || statusConfig.pending;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <DialogTitle className="text-xl">{request.full_name}</DialogTitle>
-              <DialogDescription>Demo request details</DialogDescription>
-            </div>
-            <Badge variant={status.variant}>{status.label}</Badge>
+    <DocumentPeekShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        <div className="flex items-center justify-between gap-3 min-w-0">
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold">{request.full_name}</p>
+            <p className="text-xs text-muted-foreground">Demo request details</p>
           </div>
-        </DialogHeader>
-
-        <div className="space-y-6">
+          <Badge variant={status.variant}>{status.label}</Badge>
+        </div>
+      }
+    >
+      <div className="space-y-6 p-1">
           {/* Contact Information */}
           <div className="space-y-3">
             <h4 className="font-medium text-sm text-muted-foreground">Contact Information</h4>
@@ -295,8 +296,10 @@ export function DemoRequestDetailsDialog({
               )}
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DocumentPeekShell>
   );
 }
+
+// Backwards-compatible alias for the peek sheet.
+export { DemoRequestDetailsDialog as DemoRequestPeekSheet };

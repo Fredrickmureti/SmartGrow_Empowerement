@@ -31,8 +31,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { UserDetailsDialog } from "@/components/admin/UserDetailsDialog";
+import { AdminUserPeekSheet } from "@/components/admin/AdminUserPeekSheet";
 import { DeleteUserDialog } from "@/components/admin/DeleteUserDialog";
+import { usePeekParam } from "@/design-system";
 
 interface UserWithOrgs {
   id: string;
@@ -52,14 +53,12 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<UserWithOrgs[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserWithOrgs | null>(null);
+  const [peekId, setPeekId] = usePeekParam();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserWithOrgs | null>(null);
 
   const handleViewDetails = (user: UserWithOrgs) => {
-    setSelectedUser(user);
-    setDetailsDialogOpen(true);
+    setPeekId(user.user_id);
   };
   const handleDeleteUser = (user: UserWithOrgs) => {
     setUserToDelete(user);
@@ -395,11 +394,11 @@ export default function AdminUsers() {
         </Card>
       </div>
 
-      {/* User Details Dialog */}
-      <UserDetailsDialog
-        open={detailsDialogOpen}
-        onOpenChange={setDetailsDialogOpen}
-        user={selectedUser}
+      {/* User details peek sheet (?peek=<user_id>) */}
+      <AdminUserPeekSheet
+        open={!!peekId}
+        onOpenChange={(open) => !open && setPeekId(null)}
+        user={peekId ? users.find((u) => u.user_id === peekId) ?? null : null}
       />
 
       {/* Delete User Dialog */}
