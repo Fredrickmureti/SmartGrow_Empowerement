@@ -14,6 +14,7 @@
  * before touching the DB so corruption can't enter via the UI.
  */
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -433,6 +434,7 @@ function RulesTab({ mode, packId }: { mode: EditorMode; packId: string }) {
 
 function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode: EditorMode; packId: string; table: string; label: string; embedded?: boolean }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: rows, isLoading } = useQuery({
     queryKey: ["pack-templates", table, packId],
     queryFn: async () => {
@@ -557,7 +559,27 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
               <div className="text-xs text-muted-foreground"><code>{r.code}</code></div>
             </div>
             <div className="flex items-center gap-1">
-              <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                title="Edit"
+                onClick={() => {
+                  // Certificate authoring runs on a dedicated full-page
+                  // route (Phase 2.1) — publishers deserve the whole
+                  // viewport, not a right-side drawer. Returns still open
+                  // in the Sheet until they migrate to the same pattern.
+                  if (
+                    mode === "admin" &&
+                    table === "localization_pack_certificate_templates"
+                  ) {
+                    navigate(
+                      `/admin-management/localization-packs/${packId}/certificates/${r.id}/edit`,
+                    );
+                    return;
+                  }
+                  setEditing(r);
+                }}
+              >
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
               <Button

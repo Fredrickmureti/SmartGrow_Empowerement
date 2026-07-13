@@ -23,7 +23,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Loader2, ShieldCheck } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertTriangle, Loader2, ShieldCheck, Plus, Layers, Type as TypeIcon, Table as TableIcon,
+  Layout as LayoutIcon, Palette,
+} from "lucide-react";
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
@@ -173,11 +180,115 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     });
   };
 
+  // Toolbar Insert: append a new node to `document`. Uses the same
+  // `newNode` factory the inline `+ Add node…` control uses, so every
+  // primitive stays in one place (CertificateV3Editor).
+  const insertNode = (type: string) => {
+    const next: V3Body = {
+      ...v3Body,
+      document: [...(v3Body.document ?? []), (V3_NEW_NODE as any)(type)],
+    };
+    setV3Body(next);
+    setV3Validation(validateV3Body(next, []));
+    // Select the newly inserted node.
+    handleSelectNode(`doc.${(next.document?.length ?? 1) - 1}`);
+  };
+
+  // Outline pane — flat list of top-level document nodes. Click to select
+  // (drives the same `data-ce-node` bridge the Canvas uses).
+  const documentNodes: Array<{ id: string; type: string; label: string }> = useMemo(() => {
+    return (v3Body.document ?? []).map((n: any, i: number) => ({
+      id: `doc.${i}`,
+      type: String(n?.type ?? "?"),
+      label: outlineLabelForNode(n),
+    }));
+  }, [v3Body.document]);
+
   return (
     <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
+      {/* Top toolbar ribbon — Insert / Structure / Theme. This is the
+          Word/Excel-style command surface publishers expect on a
+          design-driven page. */}
+      <div className="flex items-center gap-1 border-b bg-card/70 px-3 py-1.5">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 gap-1">
+              <Plus className="h-3.5 w-3.5" /> Insert
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Text</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => insertNode("heading")}><TypeIcon className="mr-2 h-3.5 w-3.5" /> Heading</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertNode("rich_text")}><TypeIcon className="mr-2 h-3.5 w-3.5" /> Paragraph</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertNode("list")}>List</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Fields</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => insertNode("label_fill")}>Label + fill</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertNode("field_row")}>Field row</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertNode("key_value")}>Key / value</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Layout</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => insertNode("grid")}><TableIcon className="mr-2 h-3.5 w-3.5" /> Table (grid)</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertNode("columns")}><LayoutIcon className="mr-2 h-3.5 w-3.5" /> Columns region</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertNode("section")}>Section group</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertNode("spacer")}>Spacer</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertNode("page_break")}>Page break</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Statutory</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => insertNode("legal_notice")}>Legal notice</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertNode("signature_strip")}>Signature strip</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div className="mx-1 h-4 w-px bg-border" />
+        <Button variant="ghost" size="sm" className="h-7 gap-1" disabled title="Theme editor coming next">
+          <Palette className="h-3.5 w-3.5" /> Theme
+        </Button>
+        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+          <Layers className="h-3.5 w-3.5" /> {documentNodes.length} nodes
+        </div>
+      </div>
+
       <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 gap-0 p-3">
+        {/* Outline — flat top-level tree, click to select. */}
+        <ResizablePanel defaultSize={18} minSize={12} maxSize={30}>
+          <div className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
+            <div className="border-b px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Outline
+            </div>
+            <ScrollArea className="h-[calc(100%-2.25rem)]">
+              <div className="p-1 text-sm">
+                {documentNodes.length === 0 && (
+                  <div className="px-2 py-3 text-xs text-muted-foreground">
+                    Empty document. Use <span className="font-medium">Insert</span> above to add your first node.
+                  </div>
+                )}
+                {documentNodes.map((n) => {
+                  const active = selectedNodeId === n.id;
+                  return (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => handleSelectNode(n.id)}
+                      className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition-colors ${
+                        active ? "bg-primary/10 text-foreground" : "hover:bg-muted"
+                      }`}
+                    >
+                      <span className="inline-block w-14 shrink-0 text-[10px] uppercase text-muted-foreground">
+                        {n.type}
+                      </span>
+                      <span className="truncate">{n.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle className="mx-2" />
+
         {/* Canvas — the rendered document is the source of truth. */}
-        <ResizablePanel defaultSize={55} minSize={30}>
+        <ResizablePanel defaultSize={45} minSize={30}>
           <div className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
             <CertificatePreviewPane
               templateCode={initial.template_code}
@@ -192,7 +303,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         <ResizableHandle withHandle className="mx-2" />
 
         {/* Inspector — legal metadata + structured node editors. */}
-        <ResizablePanel defaultSize={45} minSize={25}>
+        <ResizablePanel defaultSize={37} minSize={25}>
           <div ref={inspectorScrollRef} className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
             <ScrollArea className="h-full">
               <div className="space-y-4 p-3">
@@ -300,3 +411,26 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     </div>
   );
 }
+
+// Best-effort label for outline entries — pulls the first literal we can
+// find inside the node so publishers see "Heading — Payroll year" rather
+// than "heading".
+function outlineLabelForNode(n: any): string {
+  if (!n) return "—";
+  const seek = (v: any): string | null => {
+    if (!v || typeof v !== "object") return null;
+    if (v.kind === "literal" && v.value != null) return String(v.value).slice(0, 60);
+    for (const k of Object.keys(v)) {
+      const r = seek(v[k]);
+      if (r) return r;
+    }
+    return null;
+  };
+  const label = seek(n);
+  return label ?? (n.type ?? "—");
+}
+
+// Factory shared with the inline "+ Add node…" control in CertificateV3Editor.
+// Kept as a local re-export so we don't leak the entire module through
+// the barrel. The editor only needs it for the toolbar Insert menu.
+import { newNode as V3_NEW_NODE } from "./CertificateV3Editor";

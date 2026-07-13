@@ -112,6 +112,7 @@ import {
   AdminEmailCenter,
   AdminDemoRequests,
   AdminLocalizationPacks,
+  AdminLocalizationCertificateEdit,
   AdminInfrastructure,
   AdminOrganizationDetail,
 
@@ -653,6 +654,7 @@ const App = () => (
                               <Route path="email-center" element={<LazyRoute module="Email Center"><AdminEmailCenter /></LazyRoute>} />
                               <Route path="demo-requests" element={<LazyRoute module="Demo Requests"><AdminDemoRequests /></LazyRoute>} />
                               <Route path="localization-packs" element={<LazyRoute module="Localization Packs"><AdminLocalizationPacks /></LazyRoute>} />
+                              <Route path="localization-packs/:packId/certificates/:templateId/edit" element={<LazyRoute module="Certificate Template Editor"><AdminLocalizationCertificateEdit /></LazyRoute>} />
                               <Route path="infrastructure" element={<LazyRoute module="Infrastructure"><AdminInfrastructure /></LazyRoute>} />
                               <Route path="plan-builder" element={<LazyRoute module="Plan Builder"><AdminPlanBuilder /></LazyRoute>} />
                               <Route path="app-catalog" element={<LazyRoute module="App Catalog"><AdminAppCatalog /></LazyRoute>} />
