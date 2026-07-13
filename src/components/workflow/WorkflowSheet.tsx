@@ -24,13 +24,17 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-export type WorkflowSheetSize = "md" | "lg" | "xl" | "2xl";
+export type WorkflowSheetSize = "md" | "lg" | "xl" | "2xl" | "full";
 
 const SIZE_CLASSES: Record<WorkflowSheetSize, string> = {
   md: "w-full sm:!max-w-2xl",
   lg: "w-full sm:!max-w-3xl",
   xl: "w-full sm:!max-w-4xl",
   "2xl": "w-full sm:!max-w-5xl",
+  // Full-viewport surface for design-driven editors (certificate WYSIWYG,
+  // return templates) — a right-side drawer split three ways is not an
+  // acceptable UX for statutory documents. Mimics a dedicated page.
+  full: "w-screen !max-w-none sm:!max-w-none",
 };
 
 export interface WorkflowSheetProps {

@@ -62,12 +62,20 @@ export function compile(
   const ctx = createContext(payload, opts);
   const theme = mergeTheme(template.theme);
   const css = buildCss(template.paper_format, theme);
-  const body = template.document.map((n) => renderNode(n, ctx)).join("\n");
+  // Wrap every top-level document/page-master node with a `data-ce-node`
+  // marker so the editor's live preview can attribute clicks back to the
+  // AST index (WYSIWYG click-to-select bridge). Purely structural — the
+  // marker div carries no styling and does not affect layout.
+  const wrap = (nodes: Node[], scope: string) =>
+    nodes.map((n, i) =>
+      `<div data-ce-node="${scope}.${i}" data-ce-type="${(n as any).type}">${renderNode(n, ctx)}</div>`,
+    ).join("\n");
+  const body = wrap(template.document, "doc");
   const header = template.page_master?.header
-    ? `<div class="page-header">${template.page_master.header.map((n) => renderNode(n, ctx)).join("\n")}</div>`
+    ? `<div class="page-header">${wrap(template.page_master.header, "hdr")}</div>`
     : "";
   const footer = template.page_master?.footer
-    ? `<div class="page-footer">${template.page_master.footer.map((n) => renderNode(n, ctx)).join("\n")}</div>`
+    ? `<div class="page-footer">${wrap(template.page_master.footer, "ftr")}</div>`
     : "";
 
   const html =

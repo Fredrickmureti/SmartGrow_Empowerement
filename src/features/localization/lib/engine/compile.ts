@@ -61,12 +61,20 @@ export function compile(
   const ctx = createContext(payload, opts);
   const theme = mergeTheme(template.theme);
   const css = buildCss(template.paper_format, theme);
-  const body = template.document.map((n) => renderNode(n, ctx)).join("\n");
+  // Wrap every top-level document/page-master node with a `data-ce-node`
+  // marker so the editor's live preview can attribute clicks back to the
+  // AST index (WYSIWYG click-to-select bridge). Purely structural — the
+  // marker div carries no styling and does not affect layout.
+  const wrap = (nodes: Node[], scope: string) =>
+    nodes.map((n, i) =>
+      `<div data-ce-node="${scope}.${i}" data-ce-type="${(n as any).type}">${renderNode(n, ctx)}</div>`,
+    ).join("\n");
+  const body = wrap(template.document, "doc");
   const header = template.page_master?.header
-    ? `<div class="page-header">${template.page_master.header.map((n) => renderNode(n, ctx)).join("\n")}</div>`
+    ? `<div class="page-header">${wrap(template.page_master.header, "hdr")}</div>`
     : "";
   const footer = template.page_master?.footer
-    ? `<div class="page-footer">${template.page_master.footer.map((n) => renderNode(n, ctx)).join("\n")}</div>`
+    ? `<div class="page-footer">${wrap(template.page_master.footer, "ftr")}</div>`
     : "";
 
   const html =
@@ -470,15 +478,16 @@ function renderFooterRow(
     const variant = cell.variant ?? "plain";
     let rendered = "";
     let numeric = false;
-    if (isSumOf(cell.content)) {
-      const col = grid.columns.find((c) => c.id === cell.content.column_id);
-      const key = col?.bind_key ?? cell.content.column_id;
+    const content: any = cell.content;
+    if (isSumOf(content)) {
+      const col = grid.columns.find((c) => c.id === content.column_id);
+      const key = col?.bind_key ?? content.column_id;
       const total = sumColumn(dataRows, key);
-      const fmt = cell.content.format ?? col?.format ?? "number";
+      const fmt = content.format ?? col?.format ?? "number";
       rendered = formatValue(total, fmt, ctx);
       numeric = true;
     } else {
-      rendered = resolveValue(cell.content, ctx);
+      rendered = resolveValue(cell.content as any, ctx);
     }
     const alignSrc = cell.align ?? (numeric ? "right" : "left");
     const cls = [alignClass(alignSrc), numeric ? "num" : "", `ce-h-${variant}`].filter(Boolean).join(" ");

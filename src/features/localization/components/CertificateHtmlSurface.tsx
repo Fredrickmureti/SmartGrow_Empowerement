@@ -32,23 +32,73 @@ interface Props {
   /** Called with binding paths that resolved to empty, for diagnostics UI. */
   onUnresolved?: (paths: string[]) => void;
   onError?: (message: string | null) => void;
+  /**
+   * WYSIWYG click-to-select bridge. Fires when a publisher clicks any
+   * `[data-ce-node]` element in the rendered document. The `nodeId` is
+   * the stable path-based id emitted by compile() (`doc.<index>`,
+   * `hdr.<index>`, `ftr.<index>`). Selected nodeId is highlighted with
+   * a ring overlay inside the iframe.
+   */
+  onSelectNode?: (nodeId: string, type: string) => void;
+  /** Currently-selected nodeId (drives the highlight ring). */
+  selectedNodeId?: string | null;
 }
 
-function buildFrameHtml(compiledHtml: string): string {
-  // Inject the paged.js polyfill and a light viewport frame so the
-  // paginated pages sit on a neutral backdrop like a real PDF viewer.
+function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): string {
+  // Inject the paged.js polyfill, a light viewport frame, and the
+  // click-to-select bridge script. The bridge relays clicks on any
+  // `[data-ce-node]` up to the parent editor via postMessage, and
+  // paints a ring around the currently-selected node so the publisher
+  // sees exactly what they're editing.
   const frameCss = `
     body { background: #525659; margin: 0; }
     .pagedjs_pages { padding: 12px 0; }
     .pagedjs_page { background: #fff; margin: 10px auto; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+    [data-ce-node] { cursor: pointer; position: relative; }
+    [data-ce-node]:hover { outline: 1px dashed #2563eb; outline-offset: 2px; }
+    [data-ce-node].ce-selected { outline: 2px solid #2563eb; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
   `;
-  return compiledHtml
-    .replace("</head>", `<style>${frameCss}</style><script src="${pagedPolyfillUrl}"></script></head>`);
+  const bridgeJs = `
+    (function(){
+      var selected = ${JSON.stringify(selectedNodeId)};
+      function paint(){
+        try {
+          document.querySelectorAll('[data-ce-node].ce-selected').forEach(function(el){ el.classList.remove('ce-selected'); });
+          if (selected) {
+            document.querySelectorAll('[data-ce-node="'+selected+'"]').forEach(function(el){ el.classList.add('ce-selected'); });
+          }
+        } catch(e){}
+      }
+      document.addEventListener('click', function(ev){
+        var el = ev.target && ev.target.closest ? ev.target.closest('[data-ce-node]') : null;
+        if (!el) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        var id = el.getAttribute('data-ce-node');
+        var type = el.getAttribute('data-ce-type');
+        selected = id;
+        paint();
+        try { parent.postMessage({ source: 'ce-surface', kind: 'select', nodeId: id, nodeType: type }, '*'); } catch(e){}
+      }, true);
+      window.addEventListener('message', function(ev){
+        var d = ev.data;
+        if (!d || d.target !== 'ce-surface') return;
+        if (d.kind === 'select') { selected = d.nodeId || null; paint(); }
+      });
+      // Paint after paged.js has laid out (fires 'pagedjs' event) or on load.
+      window.addEventListener('load', function(){ setTimeout(paint, 400); });
+      document.addEventListener('pagedjs:pagerendered', function(){ setTimeout(paint, 50); });
+    })();
+  `;
+  return compiledHtml.replace(
+    "</head>",
+    `<style>${frameCss}</style><script src="${pagedPolyfillUrl}"></script><script>${bridgeJs}</script></head>`,
+  );
 }
 
 export const CertificateHtmlSurface = forwardRef<CertificateHtmlSurfaceHandle, Props>(
   function CertificateHtmlSurface(
-    { template, payload, currency, className, onUnresolved, onError },
+    { template, payload, currency, className, onUnresolved, onError, onSelectNode, selectedNodeId },
     ref,
   ) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -68,8 +118,29 @@ export const CertificateHtmlSurface = forwardRef<CertificateHtmlSurfaceHandle, P
     }, [template, payload, currency]);
 
     useEffect(() => {
-      if (compiled) setSrcDoc(buildFrameHtml(compiled));
+      if (compiled) setSrcDoc(buildFrameHtml(compiled, selectedNodeId ?? null));
+      // Only re-generate srcDoc when the compiled body changes; selection
+      // updates are relayed via postMessage to avoid re-paginating.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [compiled]);
+
+    // Relay selection changes into the iframe without reloading it.
+    useEffect(() => {
+      const win = iframeRef.current?.contentWindow;
+      if (!win) return;
+      try { win.postMessage({ target: "ce-surface", kind: "select", nodeId: selectedNodeId ?? null }, "*"); } catch { /* noop */ }
+    }, [selectedNodeId]);
+
+    // Listen for click-select messages from the iframe and forward.
+    useEffect(() => {
+      const handler = (ev: MessageEvent) => {
+        const d = ev.data;
+        if (!d || d.source !== "ce-surface" || d.kind !== "select") return;
+        onSelectNode?.(d.nodeId as string, d.nodeType as string);
+      };
+      window.addEventListener("message", handler);
+      return () => window.removeEventListener("message", handler);
+    }, [onSelectNode]);
 
     useImperativeHandle(ref, () => ({
       print: () => {
