@@ -13,6 +13,7 @@ export const AdminLocalizationPacks = lazy(() => import("@/pages/admin/AdminLoca
 export const AdminLocalizationCertificateEdit = lazy(() => import("@/pages/admin/AdminLocalizationCertificateEdit"));
 export const AdminInfrastructure = lazy(() => import("@/pages/admin/AdminInfrastructure"));
 export const AdminOrganizationDetail = lazy(() => import("@/pages/admin/AdminOrganizationDetail"));
+export const AdminOrganizationSubscription = lazy(() => import("@/pages/admin/AdminOrganizationSubscription"));
 export const AdminPlanBuilder = lazy(() => import("@/pages/admin/AdminPlanBuilder"));
 export const AdminAppCatalog = lazy(() => import("@/pages/admin/AdminAppCatalog"));
 export const AdminPayments = lazy(() => import("@/pages/admin/AdminPayments"));
