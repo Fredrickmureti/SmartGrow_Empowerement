@@ -53,25 +53,11 @@ const categoryLabels: Record<string, string> = {
 
 export function EmailTemplatesTab() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showEditor, setShowEditor] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    template_key: "",
-    name: "",
-    description: "",
-    subject: "",
-    html_body: "",
-    text_body: "",
-    variables: "",
-    category: "general",
-  });
 
   useEffect(() => {
     fetchTemplates();
@@ -100,84 +86,11 @@ export function EmailTemplatesTab() {
   };
 
   const handleCreate = () => {
-    setEditingTemplate(null);
-    setFormData({
-      template_key: "",
-      name: "",
-      description: "",
-      subject: "",
-      html_body: "",
-      text_body: "",
-      variables: "",
-      category: "general",
-    });
-    setShowEditor(true);
+    navigate("/admin-management/email-center/templates/new");
   };
 
   const handleEdit = (template: EmailTemplate) => {
-    setEditingTemplate(template);
-    setFormData({
-      template_key: template.template_key,
-      name: template.name,
-      description: template.description || "",
-      subject: template.subject,
-      html_body: template.html_body,
-      text_body: template.text_body || "",
-      variables: template.variables.join(", "),
-      category: template.category,
-    });
-    setShowEditor(true);
-  };
-
-  const handleSave = async () => {
-    if (!formData.template_key || !formData.name || !formData.subject || !formData.html_body) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const templateData = {
-        template_key: formData.template_key,
-        name: formData.name,
-        description: formData.description || null,
-        subject: formData.subject,
-        html_body: formData.html_body,
-        text_body: formData.text_body || null,
-        variables: formData.variables.split(",").map(v => v.trim()).filter(Boolean),
-        category: formData.category,
-      };
-
-      if (editingTemplate) {
-        const { error } = await supabase
-          .from("platform_email_templates")
-          .update(templateData)
-          .eq("id", editingTemplate.id);
-        if (error) throw error;
-        toast({ title: "Template updated" });
-      } else {
-        const { error } = await supabase
-          .from("platform_email_templates")
-          .insert(templateData);
-        if (error) throw error;
-        toast({ title: "Template created" });
-      }
-
-      setShowEditor(false);
-      fetchTemplates();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message || "Failed to save template",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    navigate(`/admin-management/email-center/templates/${template.id}/edit`);
   };
 
   const handleDelete = async (id: string) => {
