@@ -50,7 +50,7 @@ export default tseslint.config(
           "no-raw-zpl-outside-printing": noRawZplOutsidePrinting,
           "no-direct-employees-branch-write": noDirectEmployeesBranchWrite,
           "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
-
+          "no-dialog-crud-in-admin": noDialogCrudInAdmin,
         },
       },
     },
