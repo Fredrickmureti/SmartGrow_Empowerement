@@ -1,4 +1,3 @@
-import { normalizeError } from "@/services/resilience";
 /**
  * AdminLocalizationPacks — platform/admin entry point for localization-pack
  * maintenance. The actual editing surface (rules, templates, version
@@ -8,31 +7,21 @@ import { normalizeError } from "@/services/resilience";
  * This page owns ONLY platform-admin concerns:
  *   - country-scoped pack listing
  *   - install-count stats
- *   - "Create pack" + publish-toggle (admin-privileged shortcuts)
- *   - opening the shared shell scoped to the chosen pack
+ *   - "Create pack" (routes to workspace) + publish-toggle
+ *   - opening the shared shell scoped to the chosen pack (routes to workspace)
  */
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { adminFrom } from "@/lib/adminClient";
 import { usePlatformPermissions } from "@/hooks/usePlatformPermissions";
 import { useCountries } from "@/hooks/useCountries";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Globe, Plus, Loader2, Package, Pencil } from "lucide-react";
-import { PackEditorShell } from "@/features/localization";
 
 interface LocalizationPack {
   id: string;
@@ -76,16 +65,18 @@ function useInstallStats() {
 }
 
 export default function AdminLocalizationPacks() {
+  const navigate = useNavigate();
   const { countries } = useCountries();
   const { data: packs, isLoading } = usePacks();
   const { data: installStats } = useInstallStats();
   const { countryScopes, isGlobalAccess } = usePlatformPermissions();
 
-  const [selectedPack, setSelectedPack] = useState<LocalizationPack | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
-
   const countryMap = useMemo(() => new Map(countries.map((c) => [c.code, c.name])), [countries]);
   const filtered = (packs ?? []).filter((p) => isGlobalAccess || countryScopes.includes(p.country_code));
+
+  const openCreate = () => navigate("/admin-management/localization-packs/new");
+  const openEdit = (pack: LocalizationPack) =>
+    navigate(`/admin-management/localization-packs/${pack.id}`);
 
   return (
     <>
@@ -100,7 +91,7 @@ export default function AdminLocalizationPacks() {
               Country-specific fiscal &amp; payroll configuration. Edits open the shared schema-validated editor.
             </p>
           </div>
-          <Button onClick={() => setShowCreate(true)} size="sm">
+          <Button onClick={openCreate} size="sm">
             <Plus className="h-3.5 w-3.5 mr-1.5" />Create pack
           </Button>
         </div>
@@ -121,7 +112,7 @@ export default function AdminLocalizationPacks() {
               <Package className="h-10 w-10 text-muted-foreground mb-3" />
               <h3 className="text-sm font-medium">No localization packs yet</h3>
               <p className="text-xs text-muted-foreground mb-4">Create your first pack to start configuring country defaults.</p>
-              <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Button size="sm" onClick={openCreate}>
                 <Plus className="h-3.5 w-3.5 mr-1.5" />Create pack
               </Button>
             </CardContent>
@@ -151,7 +142,7 @@ export default function AdminLocalizationPacks() {
                     </span>
                     <div className="flex items-center gap-2">
                       <PublishToggle pack={p} />
-                      <Button size="sm" variant="outline" onClick={() => setSelectedPack(p)}>
+                      <Button size="sm" variant="outline" onClick={() => openEdit(p)}>
                         <Pencil className="h-3.5 w-3.5 mr-1" />Edit
                       </Button>
                     </div>
@@ -162,26 +153,6 @@ export default function AdminLocalizationPacks() {
           </div>
         )}
       </div>
-
-      {showCreate && (
-        <CreatePackDialog countries={countries} onClose={() => setShowCreate(false)} />
-      )}
-
-      <Sheet open={!!selectedPack} onOpenChange={(o) => !o && setSelectedPack(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-[1100px] sm:w-[95vw] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              {selectedPack?.name} <Badge variant="outline" className="ml-1">v{selectedPack?.version}</Badge>
-            </SheetTitle>
-          </SheetHeader>
-          {selectedPack && (
-            <div className="mt-4">
-              <PackEditorShell mode="admin" packId={selectedPack.id} />
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
     </>
   );
 }
@@ -213,85 +184,4 @@ function PublishToggle({ pack }: { pack: LocalizationPack }) {
     setBusy(false);
   };
   return <Switch checked={pack.is_published} onCheckedChange={toggle} disabled={busy} />;
-}
-
-function CreatePackDialog({
-  countries,
-  onClose,
-}: {
-  countries: { code: string; name: string; currency: string }[];
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const [countryCode, setCountryCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [version, setVersion] = useState("1.0.0");
-  const [busy, setBusy] = useState(false);
-
-  const handleSubmit = async () => {
-    if (!countryCode || !name) return;
-    setBusy(true);
-    const { error } = await adminFrom("localization_packs").insert({
-      country_code: countryCode,
-      name,
-      description: description || null,
-      version,
-      is_active: true,
-      is_published: false,
-    });
-    if (error) toast.error(`Failed: ${normalizeError(error).message}`);
-    else {
-      toast.success("Localization pack created");
-      queryClient.invalidateQueries({ queryKey: ["admin-localization-packs"] });
-      onClose();
-    }
-    setBusy(false);
-  };
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Create localization pack</DialogTitle>
-          <DialogDescription>New country-specific fiscal configuration pack.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Country *</Label>
-            <Select value={countryCode} onValueChange={(v) => {
-              setCountryCode(v);
-              const c = countries.find((x) => x.code === v);
-              if (c && !name) setName(`${c.name} Fiscal Localization`);
-            }}>
-              <SelectTrigger><SelectValue placeholder="Select country" /></SelectTrigger>
-              <SelectContent>
-                {countries.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>{c.name} ({c.currency})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Pack name *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Initial version</Label>
-            <Input value={version} onChange={(e) => setVersion(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={busy || !countryCode || !name}>
-            {busy && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Create pack
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
 }

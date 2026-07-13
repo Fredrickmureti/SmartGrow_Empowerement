@@ -128,6 +128,14 @@ import {
   AdminGroups,
   AdminGroupCreatePage,
   AdminGroupEditPage,
+  AdminTeamInvitePage,
+  AdminTeamMemberEditPage,
+  AdminPlanCreatePage,
+  AdminPlanEditPage,
+  AdminFeatureCreatePage,
+  AdminFeatureEditPage,
+  AdminLocalizationPackCreatePage,
+  AdminLocalizationPackDetailPage,
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
@@ -660,14 +668,22 @@ const App = () => (
                               <Route path="email-center" element={<LazyRoute module="Email Center"><AdminEmailCenter /></LazyRoute>} />
                               <Route path="demo-requests" element={<LazyRoute module="Demo Requests"><AdminDemoRequests /></LazyRoute>} />
                               <Route path="localization-packs" element={<LazyRoute module="Localization Packs"><AdminLocalizationPacks /></LazyRoute>} />
+                              <Route path="localization-packs/new" element={<LazyRoute module="Create Localization Pack"><AdminLocalizationPackCreatePage /></LazyRoute>} />
+                              <Route path="localization-packs/:id" element={<LazyRoute module="Localization Pack"><AdminLocalizationPackDetailPage /></LazyRoute>} />
                               <Route path="localization-packs/:packId/certificates/:templateId/edit" element={<LazyRoute module="Certificate Template Editor"><AdminLocalizationCertificateEdit /></LazyRoute>} />
                               <Route path="infrastructure" element={<LazyRoute module="Infrastructure"><AdminInfrastructure /></LazyRoute>} />
                               <Route path="plan-builder" element={<LazyRoute module="Plan Builder"><AdminPlanBuilder /></LazyRoute>} />
+                              <Route path="plan-builder/plans/new" element={<LazyRoute module="Create Plan"><AdminPlanCreatePage /></LazyRoute>} />
+                              <Route path="plan-builder/plans/:id/edit" element={<LazyRoute module="Edit Plan"><AdminPlanEditPage /></LazyRoute>} />
+                              <Route path="plan-builder/features/new" element={<LazyRoute module="Create Feature"><AdminFeatureCreatePage /></LazyRoute>} />
+                              <Route path="plan-builder/features/:id/edit" element={<LazyRoute module="Edit Feature"><AdminFeatureEditPage /></LazyRoute>} />
                               <Route path="app-catalog" element={<LazyRoute module="App Catalog"><AdminAppCatalog /></LazyRoute>} />
                               <Route path="payments" element={<LazyRoute module="Payments"><AdminPayments /></LazyRoute>} />
                               <Route path="audit-log" element={<LazyRoute module="Audit Log"><AdminAuditLog /></LazyRoute>} />
                               <Route path="hardware-ops" element={<LazyRoute module="Hardware Ops"><HardwareOpsPage /></LazyRoute>} />
                               <Route path="team" element={<LazyRoute module="Team"><AdminTeam /></LazyRoute>} />
+                              <Route path="team/invite" element={<LazyRoute module="Invite Team Member"><AdminTeamInvitePage /></LazyRoute>} />
+                              <Route path="team/:id/edit" element={<LazyRoute module="Edit Team Member"><AdminTeamMemberEditPage /></LazyRoute>} />
                               <Route path="groups" element={<LazyRoute module="Groups"><AdminGroups /></LazyRoute>} />
                               <Route path="groups/new" element={<LazyRoute module="Create Group"><AdminGroupCreatePage /></LazyRoute>} />
                               <Route path="groups/:id/edit" element={<LazyRoute module="Edit Group"><AdminGroupEditPage /></LazyRoute>} />
