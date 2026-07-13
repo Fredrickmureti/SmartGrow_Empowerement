@@ -45,7 +45,7 @@ function isV3Body(body: any): boolean {
   return body && Number(body.schema_version) >= 3 && Array.isArray(body.document);
 }
 
-export function CertificatePreviewPane({ templateCode, displayName, body, selectedNodeId, onSelectNode, onNodeAction, onReorder }: Props) {
+export function CertificatePreviewPane({ templateCode, displayName, body, selectedNodeId, onSelectNode, onNodeAction, onReorder, onEditText, onInsertAfter }: Props) {
   const surfaceRef = useRef<CertificateHtmlSurfaceHandle>(null);
   const [error, setError] = useState<string | null>(null);
   const [unresolved, setUnresolved] = useState<string[]>([]);
