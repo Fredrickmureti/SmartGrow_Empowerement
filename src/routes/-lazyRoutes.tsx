@@ -23,6 +23,8 @@ export const HardwareOpsPage = lazy(() => import("@/pages/admin/HardwareOpsPage"
 export const AdminMfaSetup = lazy(() => import("@/pages/admin/AdminMfaSetup"));
 export const AdminTeam = lazy(() => import("@/pages/admin/AdminTeam"));
 export const AdminGroups = lazy(() => import("@/pages/admin/AdminGroups"));
+export const AdminGroupCreatePage = lazy(() => import("@/pages/admin/groups/AdminGroupCreatePage"));
+export const AdminGroupEditPage = lazy(() => import("@/pages/admin/groups/AdminGroupEditPage"));
 export const Studio = lazy(() => import("@/pages/Studio"));
 export const Compliance = lazy(() => import("@/pages/Compliance"));
 export const FiscalComplianceWorkspace = lazy(() => import("@/pages/FiscalComplianceWorkspace"));
