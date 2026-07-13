@@ -120,11 +120,11 @@ h3.ce-h { font-size: 10pt; margin: 8pt 0 3pt 0; font-weight: 700; }
 .ce-em-muted { color: #555; }
 .ce-matrix-wrap { margin: 4pt 0 8pt 0; }
 .ce-matrix-title { font-size: 10pt; font-weight: 700; margin-bottom: 2pt; }
-.ce-matrix { width: 100%; border-collapse: collapse; table-layout: auto; }
+.ce-matrix { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ce-matrix thead { display: table-header-group; }
 .ce-matrix tfoot { display: table-footer-group; }
-.ce-matrix th, .ce-matrix td { border: 0.4pt solid #666; padding: 2.5pt 4pt; font-size: 8.5pt; vertical-align: middle; }
-.ce-matrix thead th { background: #eee; font-weight: 700; }
+.ce-matrix th, .ce-matrix td { border: 0.4pt solid #666; padding: 2pt 3pt; font-size: 8pt; vertical-align: middle; word-break: break-word; overflow-wrap: anywhere; }
+.ce-matrix thead th { background: #eee; font-weight: 700; font-size: 7.5pt; line-height: 1.15; }
 .ce-matrix tfoot td { background: #f4f4f4; font-weight: 700; }
 .ce-matrix .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ce-matrix .ctr { text-align: center; }
