@@ -420,6 +420,7 @@ export default function AdminOrganizationDetail() {
               <TabsTrigger value="usage" className="text-xs sm:text-sm px-3 py-1.5">Usage</TabsTrigger>
               <TabsTrigger value="activity" className="text-xs sm:text-sm px-3 py-1.5">Activity</TabsTrigger>
               <TabsTrigger value="timeline" className="text-xs sm:text-sm px-3 py-1.5">Timeline</TabsTrigger>
+              <TabsTrigger value="localization" className="text-xs sm:text-sm px-3 py-1.5">Localization</TabsTrigger>
               <TabsTrigger value="deletion" className="text-xs sm:text-sm px-3 py-1.5">Deletion</TabsTrigger>
             </TabsList>
           </div>
