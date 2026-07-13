@@ -4,7 +4,7 @@
  * Used only as the "Seed from example" starter in the publisher editor.
  * Deliberately generic — no jurisdiction, statute, regulator or currency
  * knowledge. All country/statutory content lives in country-specific packs
- * (`keP9.ts`, future `ghGRA.ts`, `usW2.ts`, …). The engine + editor must
+ * (per-jurisdiction pack files under `templates/`). The engine + editor must
  * stay ignorant of any specific filing.
  */
 import type { CertificateTemplateV3 } from "../types";
