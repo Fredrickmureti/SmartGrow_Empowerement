@@ -685,7 +685,12 @@ Deno.serve(async (req) => {
             if (!htmlBytes) htmlBytes = renderHtml();
             bytes = htmlBytes;
             ext = "html";
-            mime = "text/html; charset=utf-8";
+            // The bucket's allowed_mime_types whitelist does not include
+            // text/html, so we store the compiled HTML audit artifact under
+            // the closest allowed textual MIME (text/plain; utf-8). The
+            // artifact record still carries the true ext ("html") so the
+            // client renderer (paged.js) treats the body as HTML.
+            mime = "text/plain; charset=utf-8";
             producedFormat = "html";
           } else {
             // xlsx and any other declared format have no v3 renderer yet.
