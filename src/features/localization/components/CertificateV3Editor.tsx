@@ -94,7 +94,7 @@ export function defaultV3Body(templateCode: string): V3Body {
 // bound to employer.* + employee.*, a signature_strip or a label_fill
 // block containing a "Signature" caption, and a grid). This keeps the
 // validator from false-negatively rejecting v4-only templates such as
-// the canonical KE P9.
+// the canonical statutory template shipped by a localization pack.
 
 export interface V3Validation {
   ok: boolean;
