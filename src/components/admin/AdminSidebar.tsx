@@ -58,7 +58,7 @@ export function AdminSidebar({ nav = PLATFORM_ADMIN_NAV }: AdminSidebarProps = {
       )}
     >
       <div className="relative flex-1 flex flex-col min-h-0">
-        <AdminSidebarBody collapsed={collapsed} />
+        <AdminSidebarBody nav={nav} collapsed={collapsed} />
         <Button
           variant="ghost"
           size="icon"
