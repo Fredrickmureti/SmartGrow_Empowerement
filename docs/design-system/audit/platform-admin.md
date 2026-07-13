@@ -213,8 +213,19 @@ same shell contract tenant apps use. It ships in slices:
 
 ## Change log
 
+- **Phase 7.3 (2026-07-13).** Retired the deprecated
+  `AdminDashboardLayout` alias. `AdminLayoutRoute` (mount point for
+  all `/admin-management/*` routes) and `AdminProfile` now compose on
+  `PlatformAdminAppLayout` directly, so the entire admin console
+  renders on the shared `WorkspaceShellFrame`. Deleted
+  `src/components/admin/AdminDashboardLayout.tsx`.
 - **Phase 7.2 (2026-07-13).** Extracted `WorkspaceShellFrame`
   (`src/components/layout/shell/WorkspaceShellFrame.tsx`) as the
+  shared chrome primitive. `PlatformShell` and
+  `PlatformAdminAppLayout` both compose on it, so admin and tenant
+  render identical sidebar/topbar/mobile-Sheet/content-wrapper
+  behavior. `AdminDashboardLayout` reduced to a `@deprecated`
+  re-export of `PlatformAdminAppLayout` pending Phase 7.3.
   shared chrome primitive. `PlatformShell` and
   `PlatformAdminAppLayout` both compose on it, so admin and tenant
   render identical sidebar/topbar/mobile-Sheet/content-wrapper
