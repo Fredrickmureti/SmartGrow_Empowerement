@@ -75,12 +75,9 @@ export default function AdminOrganizations() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [scheduleDeleteDialogOpen, setScheduleDeleteDialogOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithStats | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const { formatCurrency } = useAdminCurrency();
   const { countryScopes, isGlobalAccess, hasCountryScope } = usePlatformPermissions();
