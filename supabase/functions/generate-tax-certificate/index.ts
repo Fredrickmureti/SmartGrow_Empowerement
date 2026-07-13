@@ -18,7 +18,7 @@ import { compile as compileCertificateHtml } from "../_shared/certificate-engine
 import { buildMatrixRows, collectMatrixRuleCodes, sumMatrixColumn } from "../_shared/certificateMatrix.ts";
 import { type CertificateTemplateV3 } from "../_shared/certificate-engine/types.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
-import { renderTemplateBody, toSummaryRows } from "../_shared/renderTemplateBody.ts";
+import { renderTemplateBody } from "../_shared/renderTemplateBody.ts";
 import { type MonthlyRow } from "../_shared/certificateSections.ts";
 import { resolveCertificateYtd } from "../_shared/certificateSourceResolver.ts";
 import {
