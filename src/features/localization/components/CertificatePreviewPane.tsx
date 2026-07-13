@@ -38,7 +38,7 @@ interface Props {
   onReorder?: (fromIndex: number, toIndex: number) => void;
   /** Inline WYSIWYG text-commit and gutter-insert callbacks. */
   onEditText?: (nodeId: string, editableKind: "heading" | "rich_text", text: string) => void;
-  onInsertAfter?: (nodeId: string) => void;
+  onInsertAfter?: (nodeId: string, nodeType?: string) => void;
 }
 
 function isV3Body(body: any): boolean {
