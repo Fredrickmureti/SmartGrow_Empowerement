@@ -1,26 +1,9 @@
 // @ts-nocheck - Admin tables not in auto-generated types
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -58,23 +41,12 @@ const CATEGORIES = [
   { value: "extras", label: "Extras" },
 ];
 
-const EMPTY_FORM = {
-  feature_key: "",
-  label: "",
-  category: "core",
-  description: "",
-  sort_order: 0,
-};
-
 export function FeatureCatalogSettings() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [features, setFeatures] = useState<CatalogFeature[]>([]);
   const [planCounts, setPlanCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingFeature, setEditingFeature] = useState<CatalogFeature | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -106,62 +78,10 @@ export function FeatureCatalogSettings() {
     }
   };
 
-  const openCreate = () => {
-    setEditingFeature(null);
-    setForm({ ...EMPTY_FORM, sort_order: features.length });
-    setDialogOpen(true);
-  };
-
-  const openEdit = (feature: CatalogFeature) => {
-    setEditingFeature(feature);
-    setForm({
-      feature_key: feature.feature_key,
-      label: feature.label,
-      category: feature.category,
-      description: feature.description || "",
-      sort_order: feature.sort_order,
-    });
-    setDialogOpen(true);
-  };
-
-  const handleSave = async () => {
-    if (!form.feature_key || !form.label) {
-      toast({ title: "Validation error", description: "Key and label are required.", variant: "destructive" });
-      return;
-    }
-    setIsSaving(true);
-    try {
-      if (editingFeature) {
-        const { error } = await (supabase.from as any)("platform_feature_catalog")
-          .update({
-            label: form.label,
-            category: form.category,
-            description: form.description || null,
-            sort_order: form.sort_order,
-          })
-          .eq("id", editingFeature.id);
-        if (error) throw error;
-        toast({ title: "Feature updated" });
-      } else {
-        const { error } = await (supabase.from as any)("platform_feature_catalog")
-          .insert({
-            feature_key: form.feature_key,
-            label: form.label,
-            category: form.category,
-            description: form.description || null,
-            sort_order: form.sort_order,
-          });
-        if (error) throw error;
-        toast({ title: "Feature created" });
-      }
-      setDialogOpen(false);
-      await fetchData();
-    } catch (error: any) {
-      toast({ title: "Error", description: normalizeError(error).message, variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const openCreate = () =>
+    navigate("/admin-management/plan-builder/features/new");
+  const openEdit = (feature: CatalogFeature) =>
+    navigate(`/admin-management/plan-builder/features/${feature.id}/edit`);
 
   const handleDelete = async (feature: CatalogFeature) => {
     if (!confirm(`Delete feature "${feature.label}"? This will also remove it from all plan configurations.`)) return;
@@ -269,81 +189,6 @@ export function FeatureCatalogSettings() {
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingFeature ? "Edit Feature" : "Add Feature"}</DialogTitle>
-            <DialogDescription>
-              {editingFeature
-                ? "Update feature details. The feature key cannot be changed."
-                : "Define a new feature for the platform catalog."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-xs">Feature Key</Label>
-              <Input
-                placeholder="e.g. recurring_invoices"
-                value={form.feature_key}
-                onChange={(e) => setForm({ ...form, feature_key: e.target.value })}
-                disabled={!!editingFeature}
-                className="mt-1 font-mono text-sm"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Display Label</Label>
-              <Input
-                placeholder="e.g. Recurring Invoices"
-                value={form.label}
-                onChange={(e) => setForm({ ...form, label: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Category</Label>
-              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Description</Label>
-              <Textarea
-                placeholder="Optional description"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="mt-1"
-                rows={2}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Sort Order</Label>
-              <Input
-                type="number"
-                value={form.sort_order}
-                onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })}
-                className="mt-1 w-24"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {editingFeature ? "Update" : "Create"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
