@@ -1,15 +1,15 @@
 // @ts-nocheck - Admin tables not in auto-generated types
+/**
+ * DemoRequestPeekSheet — read-mostly peek for the Demo Requests list.
+ * Replaces the legacy DemoRequestDetailsDialog per
+ * docs/design-system/audit/platform-admin.md.
+ * The old export name is kept as an alias so existing imports keep working.
+ */
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DocumentPeekShell } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
