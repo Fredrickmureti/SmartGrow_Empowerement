@@ -32,7 +32,8 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { extractTokens } from "../_shared/validateAgainstSchema.ts";
 import { checkCertificateCompleteness } from "../_shared/certificateCompleteness.ts";
-import { renderCertificatePdf } from "../_shared/pdf/certificateRenderer.ts";
+import { compile as compileCertificateHtml } from "../_shared/certificate-engine/compile.ts";
+import { type CertificateTemplateV3 } from "../_shared/certificate-engine/types.ts";
 import { buildLintFixture, byteFloorFor } from "../_shared/certificateLintFixture.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
