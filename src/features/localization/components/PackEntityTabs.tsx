@@ -434,6 +434,7 @@ function RulesTab({ mode, packId }: { mode: EditorMode; packId: string }) {
 
 function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode: EditorMode; packId: string; table: string; label: string; embedded?: boolean }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: rows, isLoading } = useQuery({
     queryKey: ["pack-templates", table, packId],
     queryFn: async () => {
