@@ -15,6 +15,7 @@ export const AdminInfrastructure = lazy(() => import("@/pages/admin/AdminInfrast
 export const AdminOrganizationDetail = lazy(() => import("@/pages/admin/AdminOrganizationDetail"));
 export const AdminOrgEntitlementOverrideCreatePage = lazy(() => import("@/pages/admin/organizations/AdminOrgEntitlementOverrideCreatePage"));
 export const AdminOrgEntitlementOverrideEditPage = lazy(() => import("@/pages/admin/organizations/AdminOrgEntitlementOverrideEditPage"));
+export const AdminOrgLocalizationInstallPage = lazy(() => import("@/pages/admin/organizations/AdminOrgLocalizationInstallPage"));
 export const AdminDemoVideoCreatePage = lazy(() => import("@/pages/admin/settings/AdminDemoVideoCreatePage"));
 export const AdminDemoVideoEditPage = lazy(() => import("@/pages/admin/settings/AdminDemoVideoEditPage"));
 export const AdminLocalizationPackPublishPage = lazy(() => import("@/pages/admin/localization/AdminLocalizationPackPublishPage"));
