@@ -1,113 +1,95 @@
-# Certificate Publishing — Architecture Audit + WYSIWYG Editor Track
 
-Two-phase engagement. Phase 1 is a verification audit (no assumptions from the previous agent are trusted). Phase 2 is the corrective build: kill the "everything opens in a right-side sheet with 3 cramped columns" UX and give publishers a real visual designer.
+# Certificate Publishing Architecture — Audit & Continuation Plan
 
-The country-agnostic invariant is non-negotiable and already partially enforced by tests — we extend it, we don't relax it.
+## 0. Missing inputs
 
----
+You referenced two attachments (`System_Gen.pdf`, `Original-p9-Template.pdf`) but nothing is mounted at `/mnt/user-uploads/` this turn. I can proceed on the architectural work without them, but for step **3 (KRA structural diff)** to be meaningful I need the two PDFs re-attached. Please drop them on the next message.
 
-## Phase 1 — Verification audit (read-only)
+## 1. Verified state of the previous agent's work
 
-Deliverable: a short audit note committed to `docs/audit/certificate-publishing-2026-07.md` recording, per claim, "verified / partial / not landed / regressed", with file:line evidence.
+I walked the actual code, not the handoff notes. What is genuinely landed:
 
-Claims to verify from the previous agent:
+- **Engine is country-agnostic.** `src/features/localization/lib/engine/types.ts` and `compile.ts` know nothing about P9/PAYE/KRA/Kenya. The regression test `src/test/localization/certificate-editor.country-agnostic.test.ts` scans the editor + grid designer + example template for forbidden tokens and passes. Schema v4 (grid / list / label_fill / field_row / columns / page_break / theme) is real.
+- **Dedicated full-page route exists.** `/_admin/localization-packs/:packId/certificates/:templateId/edit` is wired via `AdminLocalizationCertificateEdit.tsx` and mounted from `PackEntityTabs`. The Sheet drawer no longer opens for admin-mode certificate editing.
+- **3-pane workspace exists.** `CertificateTemplateEditor` renders Outline · Canvas · Inspector with a top ribbon whose Insert menu appends every v4 primitive; clicks on the paged.js canvas round-trip a `data-ce-node` id back to the inspector.
+- **Renderer parity.** Browser `compile.ts` is described as a mirror of `supabase/functions/_shared/certificate-engine/compile.ts` — same AST types, same node visitors. Playwright smoke to prove byte-parity is NOT written yet.
 
-1. **v4 engine primitives** (`grid`, `list`, `label_fill`, `field_row`, `columns`, `page_break`) actually compile in both `src/features/localization/lib/engine/compile.ts` and the Deno mirror `supabase/functions/_shared/certificate-engine/compile.ts`, and the two files are byte-identical apart from the documented preamble.
-2. **Country-agnostic invariant** — scan engine + editor + GridDesigner + genericExample for the forbidden token list. Confirm the arch test actually fails when a token is introduced (mutate locally, run test, revert).
-3. **`data-ce-node` click-to-select bridge** — verify it is emitted by `compile()`, that `CertificateHtmlSurface` installs the postMessage listener, and that the editor actually scrolls/highlights on click. Not just present in code — works end-to-end in the running app.
-4. **Validator rewrite** — v4-only bodies validate; legacy v3 still validates; a body mixing v3+v4 nodes validates.
-5. **KE P9 template** (`templates/keP9.ts`) — compare structurally against `Original-p9-Template.pdf`: 4-row header stack, letter column A–O, `Kshs.` unit row, sub-instructions on E1/E2/E3, IMPORTANT + Attach two-column block, A4 landscape, Times body / black rules / no zebra. Record deltas — do not fix in Phase 1.
-6. **Editor "full-viewport 3-pane" claim** — confirm whether certificate edit still opens inside `WorkflowSheet` (right-hand drawer) or is genuinely a full page. Based on `LocalizationFormShell` + `PackEntityTabs` this is almost certainly still a sheet; the audit must state so plainly.
-7. **Tests** — run `bun test` for the localization + certificate-engine suites and record pass/fail. Do not treat the previous agent's claim of "127 passing" as evidence.
+What is claimed but incomplete or fragile:
 
-Audit output drives Phase 2 scope. If any Phase-1 claim is a regression (e.g. tokens leaked back in), it is fixed as a Phase-2 P0.
+- **Editor is still form-shaped.** Every node's UI is a stack of Inputs / Selects / Textareas in the right pane. Clicks on the canvas scroll a form card into view. This is a big step up from the drawer, but it is not the InDesign / Word / report-designer model the brief asks for (no direct manipulation on the canvas, no drag-reorder, no resize handles on grid columns, no cell merge UI, no marquee selection).
+- **Only certificates got the treatment.** Return templates, rules, tokens, bank exports, garnishments, statutory authorities, pack requirements, publisher governance still open in the right-side `WorkflowSheet`. The "dedicated workspace" principle is not yet a module-wide pattern.
+- **No structural diff against KRA P9.** The follow-up item 2.3 was not started.
+- **No Playwright smoke** proving `compile()` browser ↔ edge output equivalence (item 2.4).
+- **Legacy surfaces still shipping:** `BlocksEditor.tsx`, `TemplateEditor.tsx`, `_shared/certificateSections.ts`, `_shared/certificateMatrix.ts`, `_shared/renderTemplateBody.ts` — v2 code paths that the "one AST, one renderer" principle says must go.
+- **`generate-tax-certificate/index.ts`** still enforces the legacy `sections[]` contract in its refusal branch (`render_refusal_test.ts` locks it in). The v3/v4 document is authored on `body.document`, not `body.sections`, so the edge function has to be reworked or the two contracts reconciled before v4 packs can be filed for real.
 
----
+## 2. Architectural verdict
 
-## Phase 2 — Corrective build
+The **foundation is sound**: AST is generic, renderer is generic, packs own presentation, dedicated route exists, WYSIWYG selection loop works. Do **not** rip and replace.
 
-### 2.1 Kill the right-side sheet for localization editing (P0)
+The **experience is not yet enterprise-grade**: it's a form-per-node inspector next to a preview, not a document designer. And the pattern is applied to one entity out of eight in the Localization module.
 
-The user's core complaint: every add/edit opens a `WorkflowSheet` drawer that crams "legal metadata + inputs + outputs" into three columns. This is wrong for certificates and wrong across all localization entities.
+Plan is therefore: keep the AST & renderer, replace the inspector-as-form with a direct-manipulation canvas, decommission the legacy v2 surfaces, extend the dedicated-workspace pattern to the rest of the module, and prove parity end-to-end.
 
-- Introduce dedicated routes under `/localization/packs/$packId/…`:
-  - `certificates/new`, `certificates/$templateId/edit`
-  - `returns/new`, `returns/$templateId/edit`
-  - `rules/…`, `tokens/…`, `authorities/…`, `garnishments/…`, `bank-exports/…`, `requirements/…`, `governance/…`
-- Each route is a full page with its own `head()` metadata, breadcrumbs, save/publish action bar pinned to the top, and a "Back to pack" link.
-- `PackEntityTabs` rows become links (row click = navigate) instead of "open sheet" handlers. Bulk actions stay on the tab.
-- `LocalizationFormShell` / `WorkflowSheet` usages inside localization are removed for edit surfaces; the shell may survive only for genuinely small confirm-style flows (e.g. "duplicate version").
-- Save contract, dirty-state guard, permission checks, and audit-log writes are preserved.
+## 3. Phased plan
 
-### 2.2 Certificate Designer — real WYSIWYG (P0, the headline)
+### Phase A — Close the previous agent's loop (1–2 turns)
 
-Replace the current three-Card `CertificateV3Editor` with a **Designer** page whose layout is:
+A1. **compile.ts parity test.** Add a Playwright/Vitest smoke that runs the shared fixture through the browser `compile()` and the edge `compile.ts`, snapshots the HTML+CSS, and fails on drift. This is the load-bearing invariant of the whole architecture; it must be enforced by CI, not by code review.
+A2. **KRA P9 structural diff.** Once you re-attach the two PDFs, produce a written diff (sections present/missing, column groupings, header stack depth, footer totals, signature block, legal notice placement, typography register) and file it as `docs/adr/0061-certificate-p9-parity-audit.md`. Feed the gaps into Phase B as concrete AST or theme requirements — **not** as renderer changes.
+A3. **Reconcile `generate-tax-certificate`.** Drop the `sections[]` refusal branch, accept `body.document` (v3/v4), keep the "must render something" gate. Update `render_refusal_test.ts`. Without this, published v4 packs cannot actually file.
 
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  Toolbar: Insert ▾  Table ▾  Text ▾  Layout ▾  Theme ▾  Undo Redo  │  ← top ribbon (Word/Excel feel)
-├────────────┬───────────────────────────────────────┬────────────────┤
-│  Outline   │                                       │  Inspector     │
-│  (tree of  │       Canvas — live paged.js          │  (context-     │
-│   nodes,   │       rendering at true paper size,   │   sensitive:   │
-│   drag to  │       zoom + fit-width, rulers,       │   node props,  │
-│   reorder) │       drop targets, cell selection)   │   theme,       │
-│            │                                       │   bindings)    │
-└────────────┴───────────────────────────────────────┴────────────────┘
-│  Bottom: Diagnostics · Tokens used · Validation · Sample data ▾     │
+### Phase B — Turn the inspector into a document designer (3–5 turns)
+
+Goal: the canvas is the primary editing surface; the right pane becomes a properties panel for the *selected* thing, not the whole document.
+
+B1. **Direct manipulation on the canvas.** Selection outlines, drag-to-reorder top-level nodes, drag handles at section edges to insert Spacers, delete/duplicate affordances on hover. Implement as an overlay layer on top of the paged.js rendering keyed by `data-ce-node`.
+B2. **Grid designer in place.** Replace the standalone `GridDesigner.tsx` modal with in-canvas column resize handles, right-click → merge/split cells, header-row add/remove buttons on the grid frame. Cell content still authored in the properties pane; structure edited on the canvas.
+B3. **Properties pane, not form pane.** Right pane shows only the selected node's properties + its bindings; no more scrolling through every node's form. Legal metadata moves to a dedicated "Template" tab in the pane (still on the same page).
+B4. **Bindings picker.** A first-class token picker driven by `pack_token_registry`, with search, type filter, and inline "insert as {{token}}" — replaces free-text dotted paths in the inspector.
+B5. **Decommission v2.** Delete `BlocksEditor.tsx`, `TemplateEditor.tsx`, `_shared/certificateSections.ts`, `_shared/certificateMatrix.ts`, `_shared/renderTemplateBody.ts`, `certificateCompleteness.ts` (v2 shape). Migrate any remaining callers to v3/v4. One AST, one renderer, one editor — enforce with a lint rule that forbids imports of the deleted modules.
+
+### Phase C — Generalise the workspace pattern (2–3 turns)
+
+C1. **Dedicated routes for every editable localization entity:**
 ```
+/admin-management/localization-packs/:packId/returns/:id/edit
+/admin-management/localization-packs/:packId/rules/:id/edit
+/admin-management/localization-packs/:packId/tokens/:id/edit
+/admin-management/localization-packs/:packId/bank-exports/:id/edit
+/admin-management/localization-packs/:packId/garnishments/:id/edit
+/admin-management/localization-packs/:packId/authorities/:id/edit
+/admin-management/localization-packs/:packId/requirements/:id/edit
+```
+Each opens a full-viewport editor with the same page-header contract as the certificate route. `PackEntityTabs` becomes a navigator, not a mounter of drawer editors.
+C2. **Return templates** get the same 3-pane treatment (they already use a v3-ish AST via `ReturnTemplateEditor` + `ReturnPreviewPane` — align them on the same shell components rather than duplicating).
+C3. **Rules / tokens / authorities** keep structured-form editors (they *are* configuration, not documents) but move out of the drawer into the dedicated route with a proper header, breadcrumb, and Save/Publish action bar.
 
-Key behaviours:
+### Phase D — Publisher productivity polish (1–2 turns)
 
-- **Direct manipulation on the canvas.** Click any node → selected (already partially wired via `data-ce-node`). Drag handles on `grid` columns resize widths in mm on the ruler. Right-click a cell → merge right / merge down / split / insert row above/below / set variant (label · unit · letter · note · total).
-- **Excel-like grid designer.** Keep `GridDesigner` engine, but present it as the canvas cells themselves (not a separate strip below). Column ruler, row gutter, band labels ("Header", "Data", "Footer") in the gutter. Cell inspector on the right shows `bind_key`, `format`, `align`, `nowrap`, variant, sum-of.
-- **Insert menu** (Word-like): Heading · Paragraph · Field row · Label + fill · List · Table (grid) with a rows×cols picker · Columns region · Legal notice · Signature strip · Spacer · Page break · Image.
-- **Bindings picker** is a searchable dropdown over `pack_token_registry` (existing hook), shown inline in the inspector — no free-text JSON.
-- **Theme panel** edits the pack-owned `Theme` (fonts, rule weight, header shade, letter shade, zebra, heading case, numeric tracking) with live preview. No hard-coded aesthetics in the compiler — invariant preserved.
-- **Sample data.** Load a fixture from `pack_test_fixtures` (or an ad-hoc JSON) so the canvas shows real values, not tokens. Toggle "Show tokens / Show values".
-- **Zoom, fit-width, rulers, page navigator** (for multi-page docs — `page_break`).
-- **Validation surfaced inline** — errors from the validator badge the offending outline node and canvas node.
-- **Country-agnostic guard extended** to the new Designer files (add to the existing arch test's scan list).
+D1. **Version compare as a page** (`/…/compare?from=vX&to=vY`) using the existing `PackDiffView` / `VersionCompareCard`, not a modal.
+D2. **Pack Health** as a persistent left rail on the pack workspace, not a panel that appears/disappears.
+D3. **Simulator entry point** on every editable entity ("Preview against fixture…") — cheap wire-up to what Phase P2.c of ADR-0056 will fully build.
 
-Non-goals for this iteration: freehand drawing, arbitrary absolute positioning, image editing. The Designer stays structured — publishers assemble typed primitives, they don't draw pixels. That's what keeps the engine renderable server-side (Phase D of the memory doc, still deferred).
+### Phase E — Guardrails (continuous)
 
-### 2.3 KE P9 template correction pass (P1)
+- Country-agnostic scan is already in place — extend it to the new files added in B/C.
+- Add an ESLint rule `no-localization-drawer-editor` forbidding new `<WorkflowSheet>` usage under `src/features/localization/**`.
+- ADR: `0061-certificate-publishing-studio.md` documenting the "AST-owned by pack, direct-manipulation canvas, dedicated workspace" decision so future agents don't retreat to the drawer pattern.
 
-Only after the Designer lands and using the audit deltas from Phase 1.6, adjust `templates/keP9.ts` so its **structure** matches the KRA original: column count, header row stack, letter row (A–O), `Kshs.` unit row, sub-instructions under E1/E2/E3, the two-column IMPORTANT + Attach footer, A4 landscape, statutory-form theme. No pixel-perfect chase. Any change must be expressible purely as v4 AST + Theme — if it isn't, the Designer is missing a primitive and we add the primitive to the engine (both mirrors) rather than special-casing keP9.
+## 4. Non-goals in this pass
 
-### 2.4 Tests + guardrails
+- Pixel-perfect KRA P9 reproduction. We fix the *architecture* so the KE pack **can** be authored to match; the pack content itself is a separate slice.
+- Marketplace / 4-eyes review / semantic diff / full simulator — those are ADR-0056 P2 deferred tracks; touched only where Phase C/D benefits them incidentally.
+- Additional country packs. Explicitly out of scope until the studio is done.
 
-- Extend `certificate-engine.compile.test.ts`:
-  - v4 grid with colspan+rowspan+footer sum_of renders expected HTML shape.
-  - `data-ce-node` present on every top-level node type.
-  - Theme CSS variables emitted for every documented token.
-- Extend country-agnostic scan to the new Designer directory.
-- Add architecture test: no localization edit page is mounted via `WorkflowSheet` (regex over the routes directory).
-- Playwright smoke: open KE P9 in the Designer, click a cell, confirm inspector opens with the correct node id; change a theme token; confirm canvas updates.
+## 5. Technical notes (for the engineer, not the PM)
 
----
+- `compile.ts` lives in **two** places (`src/features/localization/lib/engine/` and `supabase/functions/_shared/certificate-engine/`). Any AST change needs a synchronous edit to both plus the Phase A1 parity test. Do not let them drift.
+- v3 → v4 is additive; keep both node types allowed in `validateV3Body` (already the case). Do not force-migrate stored bodies.
+- The paged.js canvas already emits `data-ce-node="doc.<i>"` markers. Reuse those for the direct-manipulation overlay in B1 rather than inventing a parallel selector system.
+- `PackEntityTabs.tsx` is 882 lines and is where the drawer-based editors are mounted; expect that to become mostly a `<Link>` list after Phase C.
 
-## Sequencing
+## 6. First action if you approve
 
-1. Phase 1 audit note (single doc, ~1 day of tool time). No code changes.
-2. Route scaffold for dedicated localization pages + move certificate edit off the sheet (unblocks the UX complaint immediately, even before the Designer lands).
-3. Designer canvas + outline + inspector + insert menu, wired to existing `compile()` and `GridDesigner` internals.
-4. KE P9 structural pass.
-5. Tests + guardrails + Playwright smoke.
-
-Every step preserves the invariant: **the engine never learns about P9, KRA, PAYE, or any country**. The Designer is a country-agnostic authoring tool; KE P9 is just the first non-trivial pack template it produces.
-
-## Technical notes
-
-- Router: TanStack Start file-based routes under `src/routes/localization.packs.$packId.certificates.$templateId.edit.tsx` etc. Each route has `head()` with a unique title/description.
-- Data loading: `context.queryClient.ensureQueryData(queryOptions)` in the loader, `useSuspenseQuery` in the component. No `useEffect`+`fetch`.
-- Auth: `_authenticated` layout for all localization pages; publisher grants enforced via existing `pack_publisher_grants` capability check inside the loader-called server function.
-- Save: existing server functions in `supabase/functions/…` are reused; only the client mount changes. Validator remains authoritative (`validate-localization-payload`).
-- Undo/redo in the Designer is client-only (in-memory command stack); persistence still goes through the same save contract, so pack versioning + `pack_audit_log` are unaffected.
-- No changes to `PdfBuilder` / accountantMono / server-side rendering pipeline. Certificate PDF path (paged.js today, Cloudflare Browser Rendering later — ADR/memory Phase D) is out of scope for this track.
-
-## Out of scope (explicitly deferred)
-
-- Phase D server-side PDF producer.
-- P2.a dependency graph, P2.b semantic diff, P2.c simulator, P2.d 4-eyes review (ADR 0056).
-- Additional country packs (Ghana, Uganda, US W-2, UK P60). The Designer must be able to author them; shipping them is a follow-on.
+Re-attach the two PDFs and I will start with **A1 (parity test)** and **A3 (edge function contract)** in parallel — both are load-bearing and neither depends on the PDFs. The PDF-driven **A2 (structural diff)** runs alongside as soon as the files are available.
