@@ -185,10 +185,13 @@ export function FeatureCatalogSettings() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(feature)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPeekId(feature.id)} title="Quick look">
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(feature)} title="Edit">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(feature)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(feature)} title="Delete">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -207,6 +210,24 @@ export function FeatureCatalogSettings() {
           )}
         </CardContent>
       </Card>
+
+      {/* Read-mostly peek (?featurePeek=<featureId>) */}
+      <FeaturePeekSheet
+        open={!!peekId}
+        onOpenChange={(open) => !open && setPeekId(null)}
+        feature={
+          peekId
+            ? (features.find((f) => f.id === peekId) as FeaturePeekEntry) ?? null
+            : null
+        }
+        categoryLabel={
+          peekId
+            ? getCategoryLabel(
+                features.find((f) => f.id === peekId)?.category || "",
+              )
+            : ""
+        }
+      />
     </>
   );
 }
