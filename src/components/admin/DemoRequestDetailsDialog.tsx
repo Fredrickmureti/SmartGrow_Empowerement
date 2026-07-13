@@ -296,8 +296,10 @@ export function DemoRequestDetailsDialog({
               )}
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DocumentPeekShell>
   );
 }
+
+// Backwards-compatible alias for the peek sheet.
+export { DemoRequestDetailsDialog as DemoRequestPeekSheet };
