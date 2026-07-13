@@ -20,8 +20,11 @@ import { GENERIC_EXAMPLE_TEMPLATE } from "../../features/localization/lib/engine
 
 const FORBIDDEN = [
   "paye", "nhif", "shif", "nssf", "housing_levy", "ahl", "nita",
-  "kra", " p9", "p9.", "irp5", "w-2", "w2", "p60", "sdl", "kenya",
+  "kra", "irp5", "p60", "sdl", "kenya",
+  // Wrapped in slashes to match as a whole "word" via regex below to avoid
+  // tailwind-class collisions like `w-20` matching `w-2`.
 ];
+const FORBIDDEN_WORD = ["p9", "p9a", "w-2", "w2"];
 
 describe("certificate editor — country-agnostic invariant", () => {
   it("editor + grid designer + generic example contain no country tokens", () => {
@@ -33,6 +36,10 @@ describe("certificate editor — country-agnostic invariant", () => {
     const src = files.map((f) => readFileSync(resolve(__dirname, "../../../", f), "utf8")).join("\n").toLowerCase();
     for (const t of FORBIDDEN) {
       expect(src.includes(t), `country token "${t}" leaked into editor source`).toBe(false);
+    }
+    for (const t of FORBIDDEN_WORD) {
+      const re = new RegExp(`\\b${t.replace(/[-]/g, "\\-")}\\b`);
+      expect(re.test(src), `country token "${t}" (word-bounded) leaked into editor source`).toBe(false);
     }
   });
 });
