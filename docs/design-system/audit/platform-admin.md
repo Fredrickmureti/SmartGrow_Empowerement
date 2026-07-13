@@ -41,6 +41,8 @@ Organizations (`/admin-management/organizations`)
 - Multi-step Delete — **wizard** `/organizations/$id/delete`
 - Schedule Deletion — **confirm dialog** (date + confirm)
 - Ownership Transfer — **confirm dialog** launched from workspace
+- Add / Edit Entitlement Override — **workspace** `/organizations/$id/entitlements/{new,$overrideId/edit}`
+- Remove Entitlement Override — **confirm dialog**
 
 Users (`/admin-management/users`)
 - View User — **workspace** `/users/$id`
