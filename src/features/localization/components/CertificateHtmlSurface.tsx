@@ -104,7 +104,8 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
       display: none; align-items: center; justify-content: center;
       z-index: 9998; pointer-events: auto;
     }
-    [data-ce-node^="doc."]:hover > .ce-insertbar { display: flex; }
+    [data-ce-node^="doc."]:hover > .ce-insertbar,
+    [data-ce-node^="doc."] > .ce-insertbar.ce-open { display: flex; }
     .ce-insertbar .ce-insert-btn {
       appearance: none; border: 0; padding: 0; width: 22px; height: 22px;
       border-radius: 50%; background: #16a34a; color: #fff; cursor: pointer;
@@ -112,6 +113,27 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
       box-shadow: 0 2px 6px rgba(0,0,0,0.25);
     }
     .ce-insertbar .ce-insert-btn:hover { background: #15803d; }
+    /* Popover palette rendered when publisher clicks "+". */
+    .ce-insert-menu {
+      position: absolute; left: 50%; top: 20px; transform: translateX(-50%);
+      display: none; z-index: 10000; min-width: 200px;
+      background: #ffffff; color: #111827; border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25); border: 1px solid #e5e7eb;
+      padding: 4px;
+      font: 500 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .ce-insertbar.ce-open .ce-insert-menu { display: block; }
+    .ce-insert-menu .ce-insert-group {
+      padding: 4px 8px 2px; font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.04em; color: #6b7280;
+    }
+    .ce-insert-menu button.ce-insert-item {
+      display: block; width: 100%; text-align: left;
+      appearance: none; background: transparent; border: 0;
+      padding: 5px 8px; border-radius: 4px; cursor: pointer;
+      font: inherit; color: inherit;
+    }
+    .ce-insert-menu button.ce-insert-item:hover { background: #f3f4f6; }
   `;
   const bridgeJs = `
     (function(){
