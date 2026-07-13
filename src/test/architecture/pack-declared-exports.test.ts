@@ -56,13 +56,34 @@ describe("format_registry integrity", () => {
     for (const w of ["gov_csv", "gov_xlsx", "gov_xml"]) {
       expect(gov).toContain(`"${w}"`);
     }
-    // Certificate renderers: structured PDF + editable XLSX twin, both
-    // consuming the same certificate_template_v2 sections. The legacy
-    // xlsx_binary path (binary-workbook overlay) was retired 2026-07-12
-    // — see ADR 0061.
-    const pdf = read("supabase/functions/_shared/pdf/certificateRenderer.ts");
-    expect(pdf).toContain("renderCertificatePdf");
-    const xlsx = read("supabase/functions/_shared/xlsx/certificateXlsxRenderer.ts");
-    expect(xlsx).toContain("renderCertificateXlsx");
+  });
+});
+
+describe("legacy certificate renderers are retired", () => {
+  // The v1/v2 pdf-lib certificate renderers were deleted 2026-07-13 and
+  // the DB validator now rejects any template with schema_version < 3.
+  // This guard fails if any of those files re-appear on disk, or if the
+  // edge function grows a new pdf-lib call site for certificates.
+  const forbiddenFiles = [
+    "src/features/localization/lib/pdf/certificateRenderer.ts",
+    "src/features/localization/lib/pdf/certificateRenderer.dispatch.ts",
+    "src/features/localization/lib/pdf/certificateRendererV2.ts",
+    "supabase/functions/_shared/pdf/certificateRenderer.ts",
+    "supabase/functions/_shared/pdf/certificateRendererV2.ts",
+    "supabase/functions/_shared/xlsx/certificateXlsxRenderer.ts",
+  ];
+  it("none of the retired renderer files exist on disk", () => {
+    for (const rel of forbiddenFiles) {
+      let missing = false;
+      try { readFileSync(resolve(__dirname, "../../../", rel), "utf8"); }
+      catch { missing = true; }
+      expect(missing, `${rel} must stay deleted`).toBe(true);
+    }
+  });
+  it("generate-tax-certificate no longer imports pdf-lib certificate renderers", () => {
+    const src = read("supabase/functions/generate-tax-certificate/index.ts");
+    expect(src).not.toMatch(/renderCertificatePdf\b/);
+    expect(src).not.toMatch(/renderCertificateXlsx\b/);
+    expect(src).not.toMatch(/pdf\/certificateRenderer/);
   });
 });
