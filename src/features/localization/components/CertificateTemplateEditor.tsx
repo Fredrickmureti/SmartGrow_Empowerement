@@ -12,7 +12,7 @@
  * Mounted from `PackEntityTabs`. Save contract mirrors ReturnTemplateEditor
  * so PackEntityTabs can persist metadata columns uniformly.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   AlertTriangle, Loader2, ShieldCheck, Plus, Layers, Type as TypeIcon, Table as TableIcon,
-  Layout as LayoutIcon, Palette,
+  Layout as LayoutIcon, Palette, Undo2, Redo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
@@ -125,6 +125,56 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const unresolvedRef = useRef<string[]>([]);
   const authoritiesQuery = useStatutoryAuthorities(editMetadata ? packId : null);
 
+  // ── Undo / redo history ────────────────────────────────────────────────
+  // Every AST mutation goes through `commitBody(next)` which snapshots the
+  // previous body onto the past stack and clears future. `undo` / `redo`
+  // walk that stack. Bounded at 100 entries — enough for a full authoring
+  // session, cheap in memory.
+  const historyRef = useRef<{ past: V3Body[]; future: V3Body[] }>({ past: [], future: [] });
+  const [, forceRender] = useState(0);
+  const commitBody = (next: V3Body) => {
+    historyRef.current.past.push(v3Body);
+    if (historyRef.current.past.length > 100) historyRef.current.past.shift();
+    historyRef.current.future = [];
+    setV3Body(next);
+    setV3Validation(validateV3Body(next, []));
+    forceRender((n) => n + 1);
+  };
+  const canUndo = historyRef.current.past.length > 0;
+  const canRedo = historyRef.current.future.length > 0;
+  const undo = () => {
+    const prev = historyRef.current.past.pop();
+    if (!prev) return;
+    historyRef.current.future.push(v3Body);
+    setV3Body(prev);
+    setV3Validation(validateV3Body(prev, []));
+    forceRender((n) => n + 1);
+  };
+  const redo = () => {
+    const next = historyRef.current.future.pop();
+    if (!next) return;
+    historyRef.current.past.push(v3Body);
+    setV3Body(next);
+    setV3Validation(validateV3Body(next, []));
+    forceRender((n) => n + 1);
+  };
+  // Keyboard shortcuts — Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z (or Cmd/Ctrl+Y).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      // Skip when the user is typing in a field — undo there is native.
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((key === "z" && e.shiftKey) || key === "y") { e.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v3Body]);
+
   const liveBody = v3Body;
 
   const metaErrors: string[] = [];
@@ -188,8 +238,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
       ...v3Body,
       document: [...(v3Body.document ?? []), (V3_NEW_NODE as any)(type)],
     };
-    setV3Body(next);
-    setV3Validation(validateV3Body(next, []));
+    commitBody(next);
     // Select the newly inserted node.
     handleSelectNode(`doc.${(next.document?.length ?? 1) - 1}`);
   };
@@ -199,8 +248,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   // Undo/history/validation stay single-sourced.
   const commitDocument = (nextDoc: any[], focusIndex?: number) => {
     const next: V3Body = { ...v3Body, document: nextDoc };
-    setV3Body(next);
-    setV3Validation(validateV3Body(next, []));
+    commitBody(next);
     if (focusIndex != null && focusIndex >= 0 && focusIndex < nextDoc.length) {
       handleSelectNode(`doc.${focusIndex}`);
     } else {
@@ -237,6 +285,37 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     doc.splice(to, 0, moved);
     commitDocument(doc, to);
   };
+  // Inline WYSIWYG text edit — publisher double-clicked a heading or
+  // rich-text paragraph literal in the canvas and committed a new value.
+  // We update the AST literal in place, preserving all other structure.
+  const handleEditText = (nodeId: string, kind: "heading" | "rich_text", text: string) => {
+    const idx = parseDocIndex(nodeId);
+    if (idx == null) return;
+    const doc = [...(v3Body.document ?? [])];
+    const node: any = JSON.parse(JSON.stringify(doc[idx]));
+    if (kind === "heading" && node?.text?.kind === "literal") {
+      node.text = { kind: "literal", value: text };
+    } else if (kind === "rich_text" && Array.isArray(node?.paragraphs)
+        && node.paragraphs.length === 1 && Array.isArray(node.paragraphs[0])
+        && node.paragraphs[0].length === 1 && node.paragraphs[0][0]?.text?.kind === "literal") {
+      node.paragraphs = [[{ text: { kind: "literal", value: text } }]];
+    } else {
+      return; // not an editable literal shape — reject silently
+    }
+    doc[idx] = node;
+    commitDocument(doc, idx);
+  };
+  // Publisher clicked the "+" gutter under a top-level node — insert a
+  // fresh paragraph after it and immediately select the new node.
+  const handleInsertAfter = (nodeId: string) => {
+    const idx = parseDocIndex(nodeId);
+    if (idx == null) return;
+    const doc = [...(v3Body.document ?? [])];
+    doc.splice(idx + 1, 0, (V3_NEW_NODE as any)("rich_text"));
+    commitDocument(doc, idx + 1);
+  };
+
+
 
   // Outline pane — flat list of top-level document nodes. Click to select
   // (drives the same `data-ce-node` bridge the Canvas uses).
@@ -254,6 +333,13 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
           Word/Excel-style command surface publishers expect on a
           design-driven page. */}
       <div className="flex items-center gap-1 border-b bg-card/70 px-3 py-1.5">
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">
+          <Undo2 className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">
+          <Redo2 className="h-3.5 w-3.5" />
+        </Button>
+        <div className="mx-1 h-4 w-px bg-border" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-7 gap-1">
@@ -342,6 +428,8 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
               onSelectNode={(id) => handleSelectNode(id)}
               onNodeAction={handleNodeAction}
               onReorder={handleReorder}
+              onEditText={handleEditText}
+              onInsertAfter={handleInsertAfter}
             />
           </div>
         </ResizablePanel>
@@ -418,7 +506,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                 <CertificateV3Editor
                   templateCode={initial.template_code}
                   body={v3Body}
-                  onChange={(next) => { setV3Body(next); setV3Validation(validateV3Body(next, [])); }}
+                  onChange={(next) => commitBody(next)}
                   onValidityChange={setV3Validation}
                   selectedNodeId={selectedNodeId}
                   onSelectNode={(id) => setSelectedNodeId(id)}

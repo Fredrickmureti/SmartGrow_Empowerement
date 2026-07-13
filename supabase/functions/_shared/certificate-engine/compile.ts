@@ -66,9 +66,22 @@ export function compile(
   // marker so the editor's live preview can attribute clicks back to the
   // AST index (WYSIWYG click-to-select bridge). Purely structural — the
   // marker div carries no styling and does not affect layout.
+  //
+  // Additionally, mark nodes whose text is a pure literal (no bindings)
+  // as `data-ce-editable="<type>"` — the iframe bridge lets a publisher
+  // double-click to edit that text inline. Bindings are left untouched
+  // because inline-editing a bound value would silently detach it from
+  // its payload path.
+  const editableFlag = (n: any): string => {
+    if (n?.type === "heading" && n?.text?.kind === "literal") return ` data-ce-editable="heading"`;
+    if (n?.type === "rich_text" && Array.isArray(n?.paragraphs) && n.paragraphs.length === 1
+        && Array.isArray(n.paragraphs[0]) && n.paragraphs[0].length === 1
+        && n.paragraphs[0][0]?.text?.kind === "literal") return ` data-ce-editable="rich_text"`;
+    return "";
+  };
   const wrap = (nodes: Node[], scope: string) =>
     nodes.map((n, i) =>
-      `<div data-ce-node="${scope}.${i}" data-ce-type="${(n as any).type}">${renderNode(n, ctx)}</div>`,
+      `<div data-ce-node="${scope}.${i}" data-ce-type="${(n as any).type}"${editableFlag(n)}>${renderNode(n, ctx)}</div>`,
     ).join("\n");
   const body = wrap(template.document, "doc");
   const header = template.page_master?.header
