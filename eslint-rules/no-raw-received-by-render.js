@@ -12,7 +12,7 @@
  * Allowed locations:
  *   - src/lib/recipientName.ts            (the resolver itself)
  *   - src/lib/looksLikeUUID.ts            (back-compat shim)
- *   - **/__tests__/** and **/test/**      (fixtures may construct raw objects)
+ *   - __tests__ and test/ directories    (fixtures may construct raw objects)
  */
 
 const ALLOW_PATH_FRAGMENTS = [
