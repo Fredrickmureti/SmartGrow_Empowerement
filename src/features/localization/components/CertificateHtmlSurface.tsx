@@ -280,12 +280,26 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
           var host = btn.closest('[data-ce-node]');
           var id = host && host.getAttribute('data-ce-node');
           var act = btn.getAttribute('data-act');
-          if (id && act === 'insertAfter') {
-            try { parent.postMessage({ source: 'ce-surface', kind: 'insertAfter', nodeId: id }, '*'); } catch(e){}
+          if (act === 'insertToggle') {
+            var bar = btn.closest('.ce-insertbar');
+            var wasOpen = bar && bar.classList.contains('ce-open');
+            closeAllInsertMenus();
+            if (bar && !wasOpen) bar.classList.add('ce-open');
+            return;
+          }
+          if (act === 'insertPick') {
+            var t = btn.getAttribute('data-type');
+            closeAllInsertMenus();
+            if (id && t) {
+              try { parent.postMessage({ source: 'ce-surface', kind: 'insertAfter', nodeId: id, nodeType: t }, '*'); } catch(e){}
+            }
             return;
           }
           if (id && act) { try { parent.postMessage({ source: 'ce-surface', kind: 'action', nodeId: id, action: act }, '*'); } catch(e){} }
           return;
+        }
+        // Click outside a menu closes it.
+        closeAllInsertMenus();
         }
         var el = ev.target && ev.target.closest ? ev.target.closest('[data-ce-node]') : null;
         if (!el) return;
