@@ -208,6 +208,13 @@ same shell contract tenant apps use. It ships in slices:
 
 ## Change log
 
+- **Phase 7.2 (2026-07-13).** Extracted `WorkspaceShellFrame`
+  (`src/components/layout/shell/WorkspaceShellFrame.tsx`) as the
+  shared chrome primitive. `PlatformShell` and
+  `PlatformAdminAppLayout` both compose on it, so admin and tenant
+  render identical sidebar/topbar/mobile-Sheet/content-wrapper
+  behavior. `AdminDashboardLayout` reduced to a `@deprecated`
+  re-export of `PlatformAdminAppLayout` pending Phase 7.3.
 - **Phase 7.1 (2026-07-13).** Admin nav data model unified with
   tenant `WorkspaceNav`. Canonical source moved to
   `src/apps/platform-admin/nav.ts`; `PlatformAdminAppLayout` now
@@ -217,12 +224,8 @@ same shell contract tenant apps use. It ships in slices:
   Organizations row peek (`?peek=<orgId>`), App Catalog edit workspace
   (`/app-catalog/$id/edit`) alongside the existing inline row toggles,
   Feature Catalog read peek (`?featurePeek=<featureId>`), and the
-## Change log
-
-- **Phase 7.2 (2026-07-13).** Extracted `WorkspaceShellFrame` as the
-  shared chrome primitive; `PlatformShell` and `PlatformAdminAppLayout`
-  both compose on it. `AdminDashboardLayout` reduced to a deprecated
-  re-export.
+  Generic Email Templates preview migrated from `Dialog` to
   `DocumentPeekShell` (`?templatePreview=<templateId>`).
+
 
 
