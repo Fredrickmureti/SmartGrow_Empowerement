@@ -12,7 +12,7 @@ import { normalizeError } from "@/services/resilience";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { AdminDashboardLayout } from "@/components/admin/AdminDashboardLayout";
+import { PlatformAdminAppLayout } from "@/apps/platform-admin/PlatformAdminAppLayout";
 import {
   Card,
   CardContent,
