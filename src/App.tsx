@@ -126,6 +126,8 @@ import {
   AdminMfaSetup,
   AdminTeam,
   AdminGroups,
+  AdminGroupCreatePage,
+  AdminGroupEditPage,
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
