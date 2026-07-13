@@ -285,6 +285,34 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     doc.splice(to, 0, moved);
     commitDocument(doc, to);
   };
+  // Inline WYSIWYG text edit — publisher double-clicked a heading or
+  // rich-text paragraph literal in the canvas and committed a new value.
+  // We update the AST literal in place, preserving all other structure.
+  const handleEditText = (nodeId: string, kind: "heading" | "rich_text", text: string) => {
+    const idx = parseDocIndex(nodeId);
+    if (idx == null) return;
+    const doc = [...(v3Body.document ?? [])];
+    const node: any = JSON.parse(JSON.stringify(doc[idx]));
+    if (kind === "heading" && node?.text?.kind === "literal") {
+      node.text = { kind: "literal", value: text };
+    } else if (kind === "rich_text" && Array.isArray(node?.paragraphs)
+        && node.paragraphs.length === 1 && Array.isArray(node.paragraphs[0])
+        && node.paragraphs[0].length === 1 && node.paragraphs[0][0]?.text?.kind === "literal") {
+      node.paragraphs = [[{ text: { kind: "literal", value: text } }]];
+    } else {
+      return; // not an editable literal shape — reject silently
+    }
+    doc[idx] = node;
+    commitDocument(doc, idx);
+  };
+  // Publisher clicked the "+" gutter under a top-level node — insert a
+  // fresh paragraph after it and immediately select the new node.
+  const handleInsertAfter = (nodeId: string) => {
+    const idx = parseDocIndex(nodeId);
+    if (idx == null) return;
+    const doc = [...(v3Body.document ?? [])];
+    doc.splice(idx + 1, 0, (V3_NEW_NODE as any)("rich_text"));
+    commitDocument(doc, idx + 1);
 
   // Outline pane — flat list of top-level document nodes. Click to select
   // (drives the same `data-ce-node` bridge the Canvas uses).
