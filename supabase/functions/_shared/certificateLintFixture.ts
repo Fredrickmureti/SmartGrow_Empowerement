@@ -10,9 +10,12 @@
  * `ytdRows` from the template's own rules so the fixture works for any
  * pack.
  */
-import type { CertificatePayload } from "./pdf/certificateRenderer.ts";
+// Inline fixture type — the pdf-lib CertificatePayload type was retired
+// along with the legacy renderers; this fixture only needs to satisfy the
+// v3 compile() consumer, which reads it as a loose Record.
+export type CertificateLintPayload = Record<string, unknown>;
 
-export function buildLintFixture(ruleCodes: string[]): CertificatePayload {
+export function buildLintFixture(ruleCodes: string[]): CertificateLintPayload {
   const monthly = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     basic_pay: 120_000,
