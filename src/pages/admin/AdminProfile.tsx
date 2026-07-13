@@ -243,6 +243,6 @@ export default function AdminProfile() {
           </TabsContent>
         </Tabs>
       </div>
-    </AdminDashboardLayout>
+    </PlatformAdminAppLayout>
   );
 }
