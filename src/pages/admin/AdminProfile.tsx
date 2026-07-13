@@ -12,7 +12,7 @@ import { normalizeError } from "@/services/resilience";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { AdminDashboardLayout } from "@/components/admin/AdminDashboardLayout";
+import { PlatformAdminAppLayout } from "@/apps/platform-admin/PlatformAdminAppLayout";
 import {
   Card,
   CardContent,
@@ -104,7 +104,7 @@ export default function AdminProfile() {
     .toUpperCase();
 
   return (
-    <AdminDashboardLayout>
+    <PlatformAdminAppLayout>
       <div className="p-3 sm:p-6 lg:p-8 max-w-3xl space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">My profile</h1>
@@ -243,6 +243,6 @@ export default function AdminProfile() {
           </TabsContent>
         </Tabs>
       </div>
-    </AdminDashboardLayout>
+    </PlatformAdminAppLayout>
   );
 }

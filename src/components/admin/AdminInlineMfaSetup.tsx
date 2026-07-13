@@ -1,7 +1,7 @@
 /**
  * AdminInlineMfaSetup
  * Renders MFA enrollment inline within AdminProtectedRoute.
- * No navigation, no AdminDashboardLayout, no business providers.
+ * No navigation, no PlatformAdminAppLayout, no business providers.
  * This is a standalone centered UI that handles the full TOTP flow.
  */
 
