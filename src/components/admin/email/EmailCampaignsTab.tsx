@@ -15,7 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Eye, Loader2, Megaphone, Clock, CheckCircle, Users } from "lucide-react";
 import { format } from "date-fns";
-import { NewCampaignDialog } from "./NewCampaignDialog";
+import { useNavigate } from "react-router-dom";
 
 interface Campaign {
   id: string;
@@ -42,9 +42,9 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 
 export function EmailCampaignsTab() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showNewCampaignDialog, setShowNewCampaignDialog] = useState(false);
 
   useEffect(() => {
     fetchCampaigns();
@@ -93,7 +93,7 @@ export function EmailCampaignsTab() {
                 Schedule and track email broadcasts to your users
               </CardDescription>
             </div>
-            <Button onClick={() => setShowNewCampaignDialog(true)}>
+            <Button onClick={() => navigate("/admin-management/email-center/campaigns/new")}>
               <Plus className="h-4 w-4 mr-2" />
               New Campaign
             </Button>
@@ -179,12 +179,6 @@ export function EmailCampaignsTab() {
         )}
       </CardContent>
     </Card>
-
-    <NewCampaignDialog
-      open={showNewCampaignDialog}
-      onOpenChange={setShowNewCampaignDialog}
-      onSuccess={fetchCampaigns}
-    />
   </>
   );
 }
