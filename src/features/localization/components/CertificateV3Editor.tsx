@@ -47,7 +47,7 @@ export interface V3Body {
 
 type Value = { kind: "literal"; value: string | number } | { kind: "binding"; path: string; format?: string; fallback?: string };
 
-const VALUE_FORMATS = ["text", "number", "currency", "percent", "date", "month_short"];
+export const VALUE_FORMATS = ["text", "number", "currency", "percent", "date", "month_short"];
 const NODE_TYPES = [
   { value: "heading", label: "Heading" },
   { value: "rich_text", label: "Rich text / paragraph" },
@@ -102,7 +102,7 @@ export function validateV3Body(body: Partial<V3Body>, parseErrors: string[] = []
 
 // ── Value editor ─────────────────────────────────────────────────────────
 
-function ValueEditor({ value, onChange, placeholder }: {
+export function ValueEditor({ value, onChange, placeholder }: {
   value: Value | undefined;
   onChange: (v: Value) => void;
   placeholder?: string;
