@@ -123,6 +123,8 @@ export function CertificatePreviewPane({ templateCode, displayName, body, select
             onSelectNode={onSelectNode}
             onNodeAction={onNodeAction}
             onReorder={onReorder}
+            onEditText={onEditText}
+            onInsertAfter={onInsertAfter}
           />
         )}
         <div className="text-[10px] text-muted-foreground pt-2">
