@@ -394,11 +394,11 @@ export default function AdminUsers() {
         </Card>
       </div>
 
-      {/* User Details Dialog */}
-      <UserDetailsDialog
-        open={detailsDialogOpen}
-        onOpenChange={setDetailsDialogOpen}
-        user={selectedUser}
+      {/* User details peek sheet (?peek=<user_id>) */}
+      <AdminUserPeekSheet
+        open={!!peekId}
+        onOpenChange={(open) => !open && setPeekId(null)}
+        user={peekId ? users.find((u) => u.user_id === peekId) ?? null : null}
       />
 
       {/* Delete User Dialog */}
