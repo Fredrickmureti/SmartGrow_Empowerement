@@ -10,6 +10,7 @@ export const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
 export const AdminEmailCenter = lazy(() => import("@/pages/admin/AdminEmailCenter"));
 export const AdminDemoRequests = lazy(() => import("@/pages/admin/AdminDemoRequests"));
 export const AdminLocalizationPacks = lazy(() => import("@/pages/admin/AdminLocalizationPacks"));
+export const AdminLocalizationCertificateEdit = lazy(() => import("@/pages/admin/AdminLocalizationCertificateEdit"));
 export const AdminInfrastructure = lazy(() => import("@/pages/admin/AdminInfrastructure"));
 export const AdminOrganizationDetail = lazy(() => import("@/pages/admin/AdminOrganizationDetail"));
 export const AdminPlanBuilder = lazy(() => import("@/pages/admin/AdminPlanBuilder"));
