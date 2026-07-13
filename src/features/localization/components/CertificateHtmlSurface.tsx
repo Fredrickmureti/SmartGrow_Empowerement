@@ -104,25 +104,39 @@ export const CertificateHtmlSurface = forwardRef<CertificateHtmlSurfaceHandle, P
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [srcDoc, setSrcDoc] = useState<string>("");
 
-    const compiled = useMemo(() => {
+    // Serialize inputs to a stable key so parent re-renders that create
+    // new object literals for `template`/`payload` don't retrigger compile
+    // (which would loop when compile fires setState via onError/onUnresolved).
+    const inputsKey = useMemo(
+      () => JSON.stringify({ template, payload, currency }),
+      [template, payload, currency],
+    );
+
+    const compiled = useMemo<{ html: string | null; unresolved: string[]; error: string | null }>(() => {
       try {
         const result = compile(template, payload, { currency });
-        onError?.(null);
-        onUnresolved?.(result.unresolved);
-        return result.html;
+        return { html: result.html, unresolved: result.unresolved, error: null };
       } catch (e: any) {
-        onError?.(e?.message ?? String(e));
-        return null;
+        return { html: null, unresolved: [], error: e?.message ?? String(e) };
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [template, payload, currency]);
+    }, [inputsKey]);
+
+    // Report compile diagnostics in an effect — never during render — so
+    // parent setState cannot re-enter the render pass and cause React's
+    // "Maximum update depth exceeded" loop.
+    useEffect(() => {
+      onError?.(compiled.error);
+      onUnresolved?.(compiled.unresolved);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [compiled]);
 
     useEffect(() => {
-      if (compiled) setSrcDoc(buildFrameHtml(compiled, selectedNodeId ?? null));
+      if (compiled.html) setSrcDoc(buildFrameHtml(compiled.html, selectedNodeId ?? null));
       // Only re-generate srcDoc when the compiled body changes; selection
       // updates are relayed via postMessage to avoid re-paginating.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [compiled]);
+    }, [compiled.html]);
 
     // Relay selection changes into the iframe without reloading it.
     useEffect(() => {
@@ -150,7 +164,7 @@ export const CertificateHtmlSurface = forwardRef<CertificateHtmlSurfaceHandle, P
           win.print();
         }
       },
-      getHtml: () => compiled ?? "",
+      getHtml: () => compiled.html ?? "",
     }), [compiled]);
 
     return (
