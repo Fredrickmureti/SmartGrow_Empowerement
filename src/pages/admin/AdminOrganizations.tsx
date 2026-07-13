@@ -80,6 +80,7 @@ export default function AdminOrganizations() {
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [scheduleDeleteDialogOpen, setScheduleDeleteDialogOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithStats | null>(null);
+  const [peekId, setPeekId] = usePeekParam();
   const { toast } = useToast();
   const { formatCurrency } = useAdminCurrency();
   const { countryScopes, isGlobalAccess, hasCountryScope } = usePlatformPermissions();
