@@ -13,6 +13,7 @@
  * so PackEntityTabs can persist metadata columns uniformly.
  */
 import { useMemo, useRef, useState } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -109,6 +110,10 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const [v3Validation, setV3Validation] = useState<V3Validation>(() => validateV3Body(v3Body, []));
   const [notes, setNotes] = useState<string>(initial.notes ?? "");
   const [busy, setBusy] = useState(false);
+  // WYSIWYG selection: nodeId comes back from a click in the preview canvas
+  // (`doc.<i>` / `hdr.<i>` / `ftr.<i>`). It scrolls the matching inspector
+  // into view and highlights it — the preview and the editor stay in sync.
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const unresolvedRef = useRef<string[]>([]);
   const authoritiesQuery = useStatutoryAuthorities(editMetadata ? packId : null);
 
@@ -149,111 +154,141 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     }
   };
 
+  // Full-viewport 3-pane layout: Canvas (live rendered document, source
+  // of truth) · Inspector (structured node editors + legal metadata) ·
+  // Diagnostics (field inspector for unresolved bindings). Clicking any
+  // node in the Canvas selects it here and scrolls the matching editor
+  // card into view — the WYSIWYG loop the previous drawer-based UI could
+  // not deliver.
+  const inspectorScrollRef = useRef<HTMLDivElement>(null);
+  // Auto-scroll: when selection changes, find `[data-ce-editor-node="<id>"]`
+  // in the inspector column and scroll it into view.
+  const handleSelectNode = (nodeId: string) => {
+    setSelectedNodeId(nodeId);
+    // defer to next frame so state has propagated
+    requestAnimationFrame(() => {
+      const el = inspectorScrollRef.current?.querySelector(`[data-ce-editor-node="${nodeId}"]`) as HTMLElement | null;
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="space-y-4">
-        {editMetadata && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" /> Legal metadata
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Statutory authority *</Label>
-                <Select value={meta.authority_id ?? ""} onValueChange={(v) => setMeta({ ...meta, authority_id: v || null })}>
-                  <SelectTrigger><SelectValue placeholder="Select authority…" /></SelectTrigger>
-                  <SelectContent>
-                    {(authoritiesQuery.data ?? []).map((a: any) => (
-                      <SelectItem key={a.id} value={a.id}>{a.display_name} ({a.code})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Issued to</Label>
-                <Select value={meta.issued_to} onValueChange={(v) => setMeta({ ...meta, issued_to: v as any })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="employee">Employee</SelectItem>
-                    <SelectItem value="employer">Employer</SelectItem>
-                    <SelectItem value="both">Both</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <Label className="text-xs">Legal reference *</Label>
-                <Input value={meta.legal_reference ?? ""} onChange={(e) => setMeta({ ...meta, legal_reference: e.target.value || null })} placeholder="Income Tax Act, CAP 470" />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <Label className="text-xs">Regulation citation</Label>
-                <Input value={meta.regulation_citation ?? ""} onChange={(e) => setMeta({ ...meta, regulation_citation: e.target.value || null })} placeholder="Section 37 — Deduction of tax from emoluments" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Effective date *</Label>
-                <Input type="date" value={meta.effective_date ?? ""} onChange={(e) => setMeta({ ...meta, effective_date: e.target.value || null })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Sunset date</Label>
-                <Input type="date" value={meta.sunset_date ?? ""} onChange={(e) => setMeta({ ...meta, sunset_date: e.target.value || null })} />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <Label className="text-xs">Revision notes</Label>
-                <Textarea rows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
-              </div>
-              <div className="flex items-center gap-2 md:col-span-2">
-                <Switch checked={meta.approval_required} onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })} />
-                <Label className="text-xs">Requires approval before issuance</Label>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+    <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
+      <div className="grid flex-1 min-h-0 gap-3 p-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        {/* Canvas — the rendered document is the source of truth. */}
+        <div className="min-h-0 overflow-hidden rounded-lg border bg-card">
+          <CertificatePreviewPane
+            templateCode={initial.template_code}
+            displayName={initial.template_code}
+            body={liveBody}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={(id) => handleSelectNode(id)}
+          />
+        </div>
 
-        {editMetadata && (
-          <OutputsCard value={meta.outputs} onChange={(next) => setMeta({ ...meta, outputs: next })} surface="certificate" />
-        )}
+        {/* Inspector — legal metadata + structured node editors. */}
+        <div ref={inspectorScrollRef} className="min-h-0 overflow-hidden rounded-lg border bg-card">
+          <ScrollArea className="h-full">
+            <div className="space-y-4 p-3">
+              {editMetadata && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4" /> Legal metadata
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Statutory authority *</Label>
+                      <Select value={meta.authority_id ?? ""} onValueChange={(v) => setMeta({ ...meta, authority_id: v || null })}>
+                        <SelectTrigger><SelectValue placeholder="Select authority…" /></SelectTrigger>
+                        <SelectContent>
+                          {(authoritiesQuery.data ?? []).map((a: any) => (
+                            <SelectItem key={a.id} value={a.id}>{a.display_name} ({a.code})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Issued to</Label>
+                      <Select value={meta.issued_to} onValueChange={(v) => setMeta({ ...meta, issued_to: v as any })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="employee">Employee</SelectItem>
+                          <SelectItem value="employer">Employer</SelectItem>
+                          <SelectItem value="both">Both</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label className="text-xs">Legal reference *</Label>
+                      <Input value={meta.legal_reference ?? ""} onChange={(e) => setMeta({ ...meta, legal_reference: e.target.value || null })} placeholder="e.g. Income Tax Act, section…" />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label className="text-xs">Regulation citation</Label>
+                      <Input value={meta.regulation_citation ?? ""} onChange={(e) => setMeta({ ...meta, regulation_citation: e.target.value || null })} placeholder="e.g. Section 37 — deduction of tax from emoluments" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Effective date *</Label>
+                      <Input type="date" value={meta.effective_date ?? ""} onChange={(e) => setMeta({ ...meta, effective_date: e.target.value || null })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Sunset date</Label>
+                      <Input type="date" value={meta.sunset_date ?? ""} onChange={(e) => setMeta({ ...meta, sunset_date: e.target.value || null })} />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label className="text-xs">Revision notes</Label>
+                      <Textarea rows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
+                    </div>
+                    <div className="flex items-center gap-2 md:col-span-2">
+                      <Switch checked={meta.approval_required} onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })} />
+                      <Label className="text-xs">Requires approval before issuance</Label>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-        <CertificateV3Editor
-          templateCode={initial.template_code}
-          body={v3Body}
-          onChange={(next) => { setV3Body(next); setV3Validation(validateV3Body(next, [])); }}
-          onValidityChange={setV3Validation}
-        />
+              {editMetadata && (
+                <OutputsCard value={meta.outputs} onChange={(next) => setMeta({ ...meta, outputs: next })} surface="certificate" />
+              )}
 
-        {(metaErrors.length > 0 || bodyErrors.length > 0) && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Save is blocked</AlertTitle>
-            <AlertDescription>
-              <ul className="list-disc pl-5 text-xs">
-                {[...metaErrors, ...bodyErrors].map((e, i) => <li key={i}>{e}</li>)}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        )}
+              <CertificateV3Editor
+                templateCode={initial.template_code}
+                body={v3Body}
+                onChange={(next) => { setV3Body(next); setV3Validation(validateV3Body(next, [])); }}
+                onValidityChange={setV3Validation}
+                selectedNodeId={selectedNodeId}
+                onSelectNode={(id) => setSelectedNodeId(id)}
+              />
 
-        <div className="flex justify-end gap-2">
-          {onCancel && <Button variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>}
-          <Button onClick={doSave} disabled={busy || !canSave()}>
-            {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />} Save template
-          </Button>
+              <TemplateFieldInspector
+                packId={packId}
+                body={liveBody}
+                onValidityChange={({ unresolved }) => { unresolvedRef.current = unresolved; }}
+              />
+
+              {(metaErrors.length > 0 || bodyErrors.length > 0) && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Save is blocked</AlertTitle>
+                  <AlertDescription>
+                    <ul className="list-disc pl-5 text-xs">
+                      {[...metaErrors, ...bodyErrors].map((e, i) => <li key={i}>{e}</li>)}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </ScrollArea>
         </div>
       </div>
 
-      <div className="hidden xl:block">
-        <CertificatePreviewPane templateCode={initial.template_code} displayName={initial.template_code} body={liveBody} />
-      </div>
-
-      <div className="space-y-3">
-        <TemplateFieldInspector
-          packId={packId}
-          body={liveBody}
-          onValidityChange={({ unresolved }) => { unresolvedRef.current = unresolved; }}
-        />
-        <div className="xl:hidden">
-          <CertificatePreviewPane templateCode={initial.template_code} displayName={initial.template_code} body={liveBody} />
-        </div>
+      {/* Action bar */}
+      <div className="flex items-center justify-end gap-2 border-t bg-background px-3 py-2">
+        {onCancel && <Button variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>}
+        <Button onClick={doSave} disabled={busy || !canSave()}>
+          {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />} Save template
+        </Button>
       </div>
     </div>
   );

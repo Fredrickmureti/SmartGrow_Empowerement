@@ -17,8 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   AlertTriangle, FileCode2, Sparkles, Plus, Trash2, ArrowUp, ArrowDown, Link2, Type,
 } from "lucide-react";
-import { KE_P9_V3_TEMPLATE } from "../lib/engine/templates/keP9";
 import { GridDesigner } from "./GridDesigner";
+import { GENERIC_EXAMPLE_TEMPLATE } from "../lib/engine/templates/genericExample";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -81,7 +81,20 @@ export function defaultV3Body(templateCode: string): V3Body {
   };
 }
 
-// ── Validation (mirror of DB validators) ─────────────────────────────────
+// ── Validation (semantic — v3 legacy + v4 primitives) ───────────────────
+//
+// A statutory certificate template is saveable when the AST contains the
+// three *semantic roles* every filing needs:
+//   1. an identity block that binds employer AND employee facts
+//   2. a signature area
+//   3. a tabular data block (monthly grid, ledger, etc.)
+//
+// These roles can be satisfied by v3 legacy primitives (identity_strip /
+// signature_strip / matrix) OR by v4 primitives (label_fill/field_row
+// bound to employer.* + employee.*, a signature_strip or a label_fill
+// block containing a "Signature" caption, and a grid). This keeps the
+// validator from false-negatively rejecting v4-only templates such as
+// the canonical KE P9.
 
 export interface V3Validation {
   ok: boolean;
@@ -89,15 +102,63 @@ export interface V3Validation {
   parseErrors: string[];
 }
 
+function collectNodes(nodes: any[], out: any[] = []): any[] {
+  for (const n of nodes ?? []) {
+    if (!n || typeof n !== "object") continue;
+    out.push(n);
+    if (Array.isArray(n.children)) collectNodes(n.children, out);
+    if (Array.isArray(n.column_children)) {
+      for (const col of n.column_children) collectNodes(col, out);
+    }
+    if (Array.isArray(n.fields)) collectNodes(n.fields, out);
+    if (n.items && Array.isArray(n.items)) {
+      // list items may recurse via `children` sublists
+      for (const it of n.items) if (it?.children) collectNodes([it.children], out);
+    }
+  }
+  return out;
+}
+
+function bindingPathsIn(v: any, acc: string[] = []): string[] {
+  if (!v || typeof v !== "object") return acc;
+  if (v.kind === "binding" && typeof v.path === "string") acc.push(v.path);
+  for (const k of Object.keys(v)) bindingPathsIn(v[k], acc);
+  return acc;
+}
+
 export function validateV3Body(body: Partial<V3Body>, parseErrors: string[] = []): V3Validation {
   const missing: string[] = [];
   if (!body.paper_format) missing.push("paper_format");
   const doc = Array.isArray(body.document) ? body.document : [];
   if (doc.length === 0) missing.push("non-empty document");
-  const hasType = (t: string) => doc.some((n: any) => n && typeof n === "object" && n.type === t);
-  if (!hasType("identity_strip")) missing.push("identity_strip node");
-  if (!hasType("signature_strip")) missing.push("signature_strip node");
-  if (!hasType("matrix")) missing.push("matrix node");
+
+  const all = collectNodes(doc);
+  const hasType = (t: string) => all.some((n) => n?.type === t);
+
+  // Identity role — legacy identity_strip OR any label_fill/field_row/kv
+  // that binds to BOTH employer.* and employee.*.
+  const allBindings = bindingPathsIn(doc);
+  const bindsEmployer = allBindings.some((p) => p.startsWith("employer."));
+  const bindsEmployee = allBindings.some((p) => p.startsWith("employee."));
+  const hasIdentity = hasType("identity_strip") || (bindsEmployer && bindsEmployee);
+  if (!hasIdentity) missing.push("identity block (identity_strip or employer+employee bindings)");
+
+  // Signature role — legacy signature_strip OR any node whose text
+  // contains "Signature"/"Signed" (pack-authored caption).
+  const literalsIn = (v: any, acc: string[] = []): string[] => {
+    if (!v || typeof v !== "object") return acc;
+    if (v.kind === "literal" && v.value != null) acc.push(String(v.value));
+    for (const k of Object.keys(v)) literalsIn(v[k], acc);
+    return acc;
+  };
+  const literals = literalsIn(doc).join(" ").toLowerCase();
+  const hasSignature = hasType("signature_strip") || /\bsign(ed|ature)?\b/.test(literals);
+  if (!hasSignature) missing.push("signature block (signature_strip or a caption containing 'Signature')");
+
+  // Tabular role — legacy matrix OR v4 grid.
+  const hasTable = hasType("matrix") || hasType("grid");
+  if (!hasTable) missing.push("tabular data block (matrix or grid)");
+
   return { ok: missing.length === 0 && parseErrors.length === 0, missing, parseErrors };
 }
 
@@ -153,10 +214,14 @@ export function ValueEditor({ value, onChange, placeholder }: {
 
 // ── Node list editor (used for document, page header/footer, section) ─────
 
-function NodeListEditor({ nodes, onChange, allow }: {
+function NodeListEditor({ nodes, onChange, allow, scope, selectedNodeId, onSelectNode }: {
   nodes: any[];
   onChange: (next: any[]) => void;
   allow?: string[];
+  /** WYSIWYG scope prefix so cards match `data-ce-node` ids from compile(). */
+  scope?: string;
+  selectedNodeId?: string | null;
+  onSelectNode?: (id: string) => void;
 }) {
   const types = allow ? NODE_TYPES.filter((t) => allow.includes(t.value)) : NODE_TYPES;
   const add = (type: string) => onChange([...(nodes ?? []), newNode(type)]);
@@ -170,19 +235,29 @@ function NodeListEditor({ nodes, onChange, allow }: {
   };
   return (
     <div className="space-y-2">
-      {(nodes ?? []).map((n, i) => (
-        <div key={i} className="rounded-md border p-2 space-y-2 bg-card">
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant="outline" className="text-[10px]">{n?.type ?? "?"}</Badge>
-            <div className="flex items-center gap-0.5">
-              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => move(i, -1)} disabled={i === 0}><ArrowUp className="h-3.5 w-3.5" /></Button>
-              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => move(i, 1)} disabled={i === nodes.length - 1}><ArrowDown className="h-3.5 w-3.5" /></Button>
-              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => remove(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
+      {(nodes ?? []).map((n, i) => {
+        const nodeId = scope ? `${scope}.${i}` : undefined;
+        const isSelected = nodeId && selectedNodeId === nodeId;
+        return (
+          <div
+            key={i}
+            data-ce-editor-node={nodeId}
+            className={`rounded-md border p-2 space-y-2 bg-card transition-colors ${isSelected ? "ring-2 ring-primary border-primary" : ""}`}
+            onFocus={() => nodeId && onSelectNode?.(nodeId)}
+            tabIndex={-1}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <Badge variant="outline" className="text-[10px]">{n?.type ?? "?"}</Badge>
+              <div className="flex items-center gap-0.5">
+                <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => move(i, -1)} disabled={i === 0}><ArrowUp className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => move(i, 1)} disabled={i === nodes.length - 1}><ArrowDown className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => remove(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
+              </div>
             </div>
+            <NodeEditor node={n} onChange={(next) => patch(i, next)} />
           </div>
-          <NodeEditor node={n} onChange={(next) => patch(i, next)} />
-        </div>
-      ))}
+        );
+      })}
       <Select onValueChange={add}>
         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="+ Add node…" /></SelectTrigger>
         <SelectContent>
@@ -506,7 +581,7 @@ function GridEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
         </div>
         <div>
           <Label className="text-[10px]">Data rows — bind (array path)</Label>
-          <Input className="h-7 text-xs font-mono" value={dataRows.bind ?? ""} onChange={(e) => set({ data_rows: { ...dataRows, bind: e.target.value } })} placeholder="e.g. p9.months" />
+          <Input className="h-7 text-xs font-mono" value={dataRows.bind ?? ""} onChange={(e) => set({ data_rows: { ...dataRows, bind: e.target.value } })} placeholder="e.g. rows.items" />
         </div>
         <div>
           <Label className="text-[10px]">Border</Label>
@@ -729,7 +804,7 @@ function MatrixEditor({ node, onChange }: { node: any; onChange: (n: any) => voi
       <div className="grid grid-cols-2 gap-2">
         <div>
           <Label className="text-[10px]">Rows binding (array path)</Label>
-          <Input className="h-7 text-xs font-mono" value={node.rows_binding ?? ""} onChange={(e) => set({ rows_binding: e.target.value })} placeholder="e.g. p9.months" />
+          <Input className="h-7 text-xs font-mono" value={node.rows_binding ?? ""} onChange={(e) => set({ rows_binding: e.target.value })} placeholder="e.g. rows.items" />
         </div>
         <div>
           <Label className="text-[10px]">Title</Label>
@@ -819,9 +894,13 @@ interface Props {
   body: V3Body;
   onChange: (next: V3Body) => void;
   onValidityChange?: (v: V3Validation) => void;
+  /** Currently-selected node id from the WYSIWYG canvas. */
+  selectedNodeId?: string | null;
+  /** Fired when the publisher focuses a node card in the editor. */
+  onSelectNode?: (nodeId: string) => void;
 }
 
-export function CertificateV3Editor({ templateCode, body, onChange, onValidityChange }: Props) {
+export function CertificateV3Editor({ templateCode, body, onChange, onValidityChange, selectedNodeId, onSelectNode }: Props) {
   const paper = body.paper_format;
   const patchPaper = (patch: Partial<PaperFormat>) => onChange({ ...body, paper_format: { ...paper, ...patch } });
   const pm = body.page_master ?? { code: `${templateCode.toLowerCase()}.page_master.v1`, header: [], footer: [] };
@@ -833,14 +912,14 @@ export function CertificateV3Editor({ templateCode, body, onChange, onValidityCh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [body]);
 
-  const seedFromKeP9 = () => onChange({
-    schema_version: KE_P9_V3_TEMPLATE.schema_version,
+  const seedFromExample = () => onChange({
+    schema_version: GENERIC_EXAMPLE_TEMPLATE.schema_version,
     code: templateCode,
-    display_name: KE_P9_V3_TEMPLATE.display_name,
-    paper_format: { ...KE_P9_V3_TEMPLATE.paper_format },
-    page_master: JSON.parse(JSON.stringify(KE_P9_V3_TEMPLATE.page_master)),
-    document: JSON.parse(JSON.stringify(KE_P9_V3_TEMPLATE.document)),
-    theme: KE_P9_V3_TEMPLATE.theme ? JSON.parse(JSON.stringify(KE_P9_V3_TEMPLATE.theme)) : undefined,
+    display_name: GENERIC_EXAMPLE_TEMPLATE.display_name,
+    paper_format: { ...GENERIC_EXAMPLE_TEMPLATE.paper_format },
+    page_master: JSON.parse(JSON.stringify(GENERIC_EXAMPLE_TEMPLATE.page_master)),
+    document: JSON.parse(JSON.stringify(GENERIC_EXAMPLE_TEMPLATE.document)),
+    theme: GENERIC_EXAMPLE_TEMPLATE.theme ? JSON.parse(JSON.stringify(GENERIC_EXAMPLE_TEMPLATE.theme)) : undefined,
   });
 
   return (
@@ -848,8 +927,8 @@ export function CertificateV3Editor({ templateCode, body, onChange, onValidityCh
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-sm flex items-center gap-2"><FileCode2 className="h-4 w-4" /> Paper format</CardTitle>
-          <Button type="button" size="sm" variant="outline" onClick={seedFromKeP9}>
-            <Sparkles className="h-3.5 w-3.5 mr-1" /> Seed from Kenya P9
+          <Button type="button" size="sm" variant="outline" onClick={seedFromExample}>
+            <Sparkles className="h-3.5 w-3.5 mr-1" /> Seed from example template
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-4">
@@ -899,14 +978,28 @@ export function CertificateV3Editor({ templateCode, body, onChange, onValidityCh
         <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-sm">Document</CardTitle>
           <div className="flex flex-wrap gap-1">
-            {["identity_strip", "matrix", "signature_strip"].map((t) => {
-              const present = Array.isArray(body.document) && body.document.some((n: any) => n?.type === t);
-              return <Badge key={t} variant={present ? "outline" : "destructive"} className="text-[10px]">{present ? "✓" : "missing"} {t}</Badge>;
+            {[
+              { key: "identity", label: "identity" },
+              { key: "table", label: "table" },
+              { key: "signature", label: "signature" },
+            ].map((r) => {
+              const present = r.key === "identity"
+                ? validation.missing.every((m) => !m.startsWith("identity"))
+                : r.key === "signature"
+                  ? validation.missing.every((m) => !m.startsWith("signature"))
+                  : validation.missing.every((m) => !m.startsWith("tabular"));
+              return <Badge key={r.key} variant={present ? "outline" : "destructive"} className="text-[10px]">{present ? "✓" : "missing"} {r.label}</Badge>;
             })}
           </div>
         </CardHeader>
         <CardContent>
-          <NodeListEditor nodes={body.document ?? []} onChange={(document) => onChange({ ...body, document })} />
+          <NodeListEditor
+            nodes={body.document ?? []}
+            onChange={(document) => onChange({ ...body, document })}
+            scope="doc"
+            selectedNodeId={selectedNodeId}
+            onSelectNode={onSelectNode}
+          />
         </CardContent>
       </Card>
 

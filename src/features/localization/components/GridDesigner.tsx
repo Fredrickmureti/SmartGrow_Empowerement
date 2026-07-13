@@ -275,7 +275,7 @@ export function GridDesigner({ node, onChange }: { node: any; onChange: (n: any)
             className="h-7 text-xs font-mono"
             value={dataRows.bind ?? ""}
             onChange={(e) => set({ data_rows: { ...dataRows, bind: e.target.value } })}
-            placeholder="e.g. p9.months"
+            placeholder="e.g. rows.items"
           />
         </div>
         <div>

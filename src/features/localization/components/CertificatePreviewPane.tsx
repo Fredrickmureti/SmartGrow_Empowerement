@@ -29,13 +29,17 @@ interface Props {
     regulation_citation?: string | null;
     effective_date?: string | null;
   } | null;
+  /** Currently-selected AST node id (`doc.<i>`, `hdr.<i>`, `ftr.<i>`). */
+  selectedNodeId?: string | null;
+  /** Fired when a publisher clicks a node in the rendered document. */
+  onSelectNode?: (nodeId: string, type: string) => void;
 }
 
 function isV3Body(body: any): boolean {
   return body && Number(body.schema_version) >= 3 && Array.isArray(body.document);
 }
 
-export function CertificatePreviewPane({ templateCode, displayName, body }: Props) {
+export function CertificatePreviewPane({ templateCode, displayName, body, selectedNodeId, onSelectNode }: Props) {
   const surfaceRef = useRef<CertificateHtmlSurfaceHandle>(null);
   const [error, setError] = useState<string | null>(null);
   const [unresolved, setUnresolved] = useState<string[]>([]);
@@ -109,12 +113,13 @@ export function CertificatePreviewPane({ templateCode, displayName, body }: Prop
             currency="KES"
             onError={setError}
             onUnresolved={setUnresolved}
+            selectedNodeId={selectedNodeId ?? null}
+            onSelectNode={onSelectNode}
           />
         )}
         <div className="text-[10px] text-muted-foreground pt-2">
-          Rendered against a synthetic KE payroll fixture through the same
-          engine that produces the filed PDF. The tenant sees this exact
-          layout populated with their own payroll data.
+          Click any element in the preview to jump to its editor on the right —
+          the rendered document is the source of truth for what you're editing.
         </div>
       </CardContent>
     </Card>
