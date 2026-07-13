@@ -327,11 +327,15 @@ export const CertificateHtmlSurface = forwardRef<CertificateHtmlSurfaceHandle, P
           const from = parseTopLevelIndex(d.from as string);
           const to = parseTopLevelIndex(d.to as string);
           if (from != null && to != null && from !== to) onReorder?.(from, to);
+        } else if (d.kind === "editText") {
+          onEditText?.(d.nodeId as string, d.editableKind as any, String(d.text ?? ""));
+        } else if (d.kind === "insertAfter") {
+          onInsertAfter?.(d.nodeId as string);
         }
       };
       window.addEventListener("message", handler);
       return () => window.removeEventListener("message", handler);
-    }, [onSelectNode, onNodeAction, onReorder]);
+    }, [onSelectNode, onNodeAction, onReorder, onEditText, onInsertAfter]);
 
     useImperativeHandle(ref, () => ({
       print: () => {
