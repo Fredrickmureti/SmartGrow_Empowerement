@@ -21,11 +21,16 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
+import { PLATFORM_ADMIN_NAV, type AdminWorkspaceNav } from "@/apps/platform-admin/nav";
 import { AdminSidebarBody } from "./shell/AdminSidebarBody";
 
 const STORAGE_KEY = "lov:admin-sidebar:collapsed";
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  nav?: AdminWorkspaceNav;
+}
+
+export function AdminSidebar({ nav = PLATFORM_ADMIN_NAV }: AdminSidebarProps = {}) {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(STORAGE_KEY) === "1";
