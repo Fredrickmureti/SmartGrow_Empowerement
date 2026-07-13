@@ -1,20 +1,12 @@
 // @ts-nocheck - Admin tables not in auto-generated types
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeEmailHtml } from "@/lib/sanitizeEmailHtml";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -24,9 +16,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Eye, Loader2, FileText } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, Loader2, FileText, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { normalizeError } from "@/services/resilience";
+import { DocumentPeekShell } from "@/design-system";
 
 interface EmailTemplate {
   id: string;
@@ -54,10 +47,25 @@ const categoryLabels: Record<string, string> = {
 export function EmailTemplatesTab() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
+
+  const previewId = searchParams.get("templatePreview");
+  const setPreviewId = useCallback(
+    (id: string | null) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (id) next.set("templatePreview", id);
+          else next.delete("templatePreview");
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   useEffect(() => {
     fetchTemplates();
@@ -113,11 +121,6 @@ export function EmailTemplatesTab() {
     }
   };
 
-  const handlePreview = (template: EmailTemplate) => {
-    setPreviewTemplate(template);
-    setShowPreview(true);
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -125,6 +128,10 @@ export function EmailTemplatesTab() {
       </div>
     );
   }
+
+  const previewTemplate = previewId
+    ? templates.find((t) => t.id === previewId) ?? null
+    : null;
 
   return (
     <>
@@ -202,7 +209,8 @@ export function EmailTemplatesTab() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handlePreview(template)}
+                          onClick={() => setPreviewId(template.id)}
+                          title="Preview"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -210,6 +218,7 @@ export function EmailTemplatesTab() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleEdit(template)}
+                          title="Edit"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -217,6 +226,7 @@ export function EmailTemplatesTab() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDelete(template.id)}
+                          title="Delete"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -230,43 +240,81 @@ export function EmailTemplatesTab() {
         </CardContent>
       </Card>
 
-      {/* Preview Dialog */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>{previewTemplate?.name}</DialogTitle>
-            <DialogDescription>{previewTemplate?.description}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-muted-foreground">Subject</Label>
-              <p className="font-medium">{previewTemplate?.subject}</p>
-            </div>
-            <div>
-              <Label className="text-muted-foreground">Variables</Label>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {previewTemplate?.variables.map((v) => (
-                  <Badge key={v} variant="secondary">
-                    {"{{" + v + "}}"}
-                  </Badge>
-                ))}
+      {/* Preview peek (?templatePreview=<templateId>) — read-mostly per
+          docs/design-system/audit/platform-admin.md. */}
+      <DocumentPeekShell
+        open={!!previewTemplate}
+        onOpenChange={(open) => !open && setPreviewId(null)}
+        title={
+          previewTemplate ? (
+            <div className="min-w-0">
+              <div className="text-base font-semibold truncate">
+                {previewTemplate.name}
               </div>
+              {previewTemplate.description && (
+                <p className="text-xs text-muted-foreground truncate">
+                  {previewTemplate.description}
+                </p>
+              )}
+            </div>
+          ) : (
+            "Template preview"
+          )
+        }
+        extraHeaderActions={
+          previewTemplate && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setPreviewId(null);
+                handleEdit(previewTemplate);
+              }}
+            >
+              <Pencil className="mr-1.5 h-4 w-4" />
+              Edit
+            </Button>
+          )
+        }
+      >
+        {previewTemplate && (
+          <div className="space-y-4 p-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline">
+                {categoryLabels[previewTemplate.category] || previewTemplate.category}
+              </Badge>
+              <Badge variant="secondary" className="font-mono text-[10px]">
+                {previewTemplate.template_key}
+              </Badge>
             </div>
             <div>
-              <Label className="text-muted-foreground">Preview</Label>
-              <div 
-                className="border rounded-lg p-4 bg-white mt-2 overflow-auto max-h-[40vh]"
-                dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(previewTemplate?.html_body || "") }}
+              <Label className="text-muted-foreground text-xs">Subject</Label>
+              <p className="font-medium mt-1">{previewTemplate.subject}</p>
+            </div>
+            {previewTemplate.variables.length > 0 && (
+              <div>
+                <Label className="text-muted-foreground text-xs">Variables</Label>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {previewTemplate.variables.map((v) => (
+                    <Badge key={v} variant="secondary">
+                      {"{{" + v + "}}"}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <Label className="text-muted-foreground text-xs">Preview</Label>
+              <div
+                className="border rounded-lg p-4 bg-white mt-2 overflow-auto max-h-[60vh]"
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeEmailHtml(previewTemplate.html_body || ""),
+                }}
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </DocumentPeekShell>
     </>
   );
 }
