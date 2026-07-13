@@ -1,78 +1,121 @@
-# Fix statutory document publishing: collapse to one HTML-based engine + WYSIWYG editor
+## Audit summary — what the previous agent actually shipped
 
-## Verdict (why the P9 looks broken)
+I traced Publisher → template body → renderer → PDF and compared it against the two attached PDFs. Here is the verified state, not the claimed state.
 
-The certificate stack carries **three renderer generations at once** and the KRA P9 has been rewritten between them ~8 times in one day (all `20260712*` migrations). That churn is the credit-burn you saw.
+**Architecturally sound (keep):**
+- `src/features/localization/lib/engine/{types,compile,resolver}.ts` + its Deno mirror in `supabase/functions/_shared/certificate-engine/` — a genuine country-agnostic AST (paper format, page master, matrix with column groups / sub-headers / units / derived columns, identity strip, legal notice, signature strip). The engine file has zero references to Kenya, KRA, P9, PAYE, SHIF, etc. This is the correct Odoo-style separation.
+- `compile()` → HTML + CSS Paged Media, rendered by paged.js inside an isolated iframe in both `CertificateHtmlSurface.tsx` (editor preview) and `printCertificateHtml.ts` (tenant download). Preview == filed document by construction. This is the right pipeline.
+- `KE_P9_V3_TEMPLATE` in `engine/templates/keP9.ts` — country knowledge lives entirely here, referenced by the DB seed and the editor "Seed from Kenya P9" action.
+- DB migration `20260712172321…` registers the v3 JSON schema and the validator recognises `schema_version=3` bodies. The `P9` row in `localization_pack_certificate_templates` is on v3.
 
-- **v1** `certificateRenderer.ts`, **v2** `certificateRendererV2.ts`, **v3** `certificate-engine/`.
-- Your P9 today renders through **v2 (pdf-lib), portrait-cramped** — 17 columns hand-drawn with `drawCell`, which **truncates** headers (`…`) and cannot wrap, cannot stack the `Kshs.` units row or the A–O letter row, cannot nest E→E1/E2/E3. No amount of tuning fixes this; pdf-lib is a low-level *drawing* library, the wrong tool for a statutory grid.
-- The **right renderer already exists**: v3 `compile.ts` turns the country-agnostic AST into **HTML + CSS Paged Media** (real tables: colspan groups, wrapping, landscape, repeating headers) and already has a passing P9 blueprint test. But its HTML is thrown away — the PDF is re-drawn in pdf-lib (`astPdfProducer.ts`). So **preview ≠ output** by design, and neither matches the form.
+**Broken / incomplete (this is why `Our_System_Generated.pdf` looks like a report, not a form):**
 
-This mirrors how Odoo/SAP/Workday work (one declarative layout + one render engine, preview == output, engine never knows "P9"). You built the correct core, then refused to render from it. We stop building on the pdf-lib path and make the compiled HTML the single source of truth.
+1. **The rollout is 1 of 5 templates.** DB inspection:
 
-## Decisions (from your answers)
-- **Render client-side in the browser** from the compiled HTML → preview and filed document are identical by construction, no external infra.
-- **Collapse to v3 only** — delete v1 + v2 renderers/editors and the pdf-lib AST producer.
-- **Structured WYSIWYG editor + live preview** replacing the JSON textareas.
+   ```text
+   P9                            → schema_version 3   (v3 engine)   ✅
+   P9A                           → schema_version 2   (pdf-lib v2)  ❌  ← the user's PDF
+   CERT_OF_SERVICE               → schema_version 2   (pdf-lib v2)  ❌
+   GH_PAYE_EMPLOYEE_ANNUAL       → no schema_version  (pdf-lib v1)  ❌
+   ANNUAL_EARNINGS_STATEMENT     → no schema_version  (pdf-lib v1)  ❌
+   ```
 
-## Architecture after this change
+   The attached "Our System Generated" is `P9A`, which never went through the new engine — it is drawn by `certificateRendererV2.ts` (pdf-lib, 1025 lines). The overlapping headers ("MONT/H", "NON-CAS/H BENEFIT", "PENSION/NSSF" colliding with "DEDUCTIBLE CAP"), cramped columns, no KRA masthead, no `APPENDIX 2A`, no legal notice — these are the exact `drawCell`/truncation failures the `mem://features/certificate-rendering` memory file forbids re-introducing.
+
+2. **The forbidden legacy renderers are still live.** `certificateRenderer.ts` (v1, 714 lines), `certificateRendererV2.ts` (v2, 1025 lines), and their Deno twins are the fallback for any template with `schema_version < 3`. `generate-tax-certificate/index.ts:777` still calls `renderCertificatePdf(...)` for the whole non-v3 population. As long as they exist they will be re-used and re-fixed.
+
+3. **No headless HTML→PDF producer is wired.** `certificate-engine/engine.ts` defines a `PdfProducer` interface but ships `UnwiredPdfProducer` that throws. For v3, the server stores compiled HTML and the *browser* rasterises via paged.js. This is fine for a signed-in user clicking Download, but breaks: email attachments, `generate-statutory-return` bundles, scheduled filings, KRA portal uploads that require a real PDF. Statutory paper is A4-pinned but the produced bytes are `text/html`.
+
+4. **Editor is functional but not enterprise-grade.** `CertificateV3Editor.tsx` (556 lines) exposes only the 9 primitives with basic scalar controls. No visual node reordering surface beyond up/down buttons, no column-group inspector wired to the matrix, no page-master WYSIWYG, no token picker on ValueEditor (paths are typed free-hand into an Input), no rich-text run editor beyond a plain textarea, no unresolved-binding jump-to-node. Publishers can technically author a v3 body, but only if they already know the payload shape.
+
+5. **XLSX renderer is a parallel stack.** `certificateXlsxRenderer.ts` reads v2 `sections/blocks` directly. When a v3 template declares `xlsx` output the code path silently falls back to nothing usable.
+
+## Decision
+
+Do NOT redesign the v3 engine — it is correct. The failure mode is that the previous agent stopped after one template and left every other certificate on the "bad design" pdf-lib path. Finish the rollout, then delete the legacy stack so it cannot regress, then close the two real architectural gaps (headless producer, editor ergonomics).
+
+## Plan
+
+### Step 1 — Migrate every remaining certificate template to v3
+
+Data migration only (no engine change). For each pack row currently on `sections`/`blocks`:
+
+- Rewrite the body as a `schema_version: 3` AST following the KE P9 template pattern: `paper_format` (statutory A4 / A4-landscape), `page_master` (masthead + running footer), `document` (identity_strip, matrix with `column_groups` + `sub_header` + `unit` + `derived_columns`, `legal_notice`, `signature_strip`).
+- Templates to migrate: **P9A** (Kenya low-income, KRA masthead + Appendix 2A + full column A–O grid matching `Original-p9-Template.pdf`), **CERT_OF_SERVICE**, **GH_PAYE_EMPLOYEE_ANNUAL** (Ghana), **ANNUAL_EARNINGS_STATEMENT**.
+- Verify each migrated template renders through `CertificateHtmlSurface` against its country's fixture with zero unresolved bindings.
+- Add a `pack_audit_log` row per migration; keep the previous v2 body in the audit payload so publishers can compare.
+
+Success gate: `select count(*) from localization_pack_certificate_templates where (body->>'schema_version')::int < 3` returns 0.
+
+### Step 2 — Retire the pdf-lib renderers (irreversible)
+
+Once step 1 is verified:
+
+- Delete `src/features/localization/lib/pdf/{certificateRenderer.ts, certificateRendererV2.ts, certificateRenderer.dispatch.ts, winansi.ts}` and their Deno twins under `supabase/functions/_shared/pdf/`.
+- Delete `certificateXlsxRenderer.ts`'s v2/sections branches; rewrite it as a thin v3 consumer that walks the AST (identity_strip → header rows, matrix → sheet with column groups, totals → footer band). Same input (`CertificateTemplateV3`, resolved payload) as `compile()`.
+- Remove `renderCertificatePdf` from `generate-tax-certificate/index.ts` and the `isV3EngineTemplate` fork — v3 becomes the single path.
+- Tighten the DB trigger `assert_certificate_template_body_valid` to reject any new insert/update with `schema_version < 3`. Add an architecture guard test that fails if the pdf-lib files reappear (mirror of the "no country-named functions" test).
+
+### Step 3 — Ship a headless HTML→PDF producer
+
+`generate-tax-certificate` and `generate-statutory-return` must be able to emit real `application/pdf` bytes without a browser. Wire a `PdfProducer` implementation:
+
+- Preferred: call a small, dedicated Deno-friendly service (Chromium headless in a Cloudflare Browser / Playwright container, or a Puppeteer worker) — the compiled HTML is self-contained so any headless-chrome endpoint works. Configure via a `PDF_RENDERER_URL` secret so the platform is portable.
+- Producer contract stays `produce(html) → Uint8Array`; the AST/compile layer does not learn about the runtime.
+- Storage: keep both artifacts — `certificate.html` (audited source) and `certificate.pdf` (rasterised twin). Downloads default to PDF; the HTML remains the canonical audit artifact so preview == filed still holds bit-for-bit.
+- `assertStatutoryPaper` continues to run — the producer never chooses paper.
+
+### Step 4 — Upgrade the publisher editor for enterprise authoring
+
+Keep the `CertificateV3Editor` shape, replace weak controls:
+
+- Token picker on every `ValueEditor` — reads `pack_token_registry` for the certificate's country/pack and offers dotted paths with type hints instead of free-text.
+- Matrix inspector: dedicated panel for columns (add / delete / drag-reorder), column groups (label + span, auto-validated against column count), derived columns (`sum/sub/min/max/pct` DSL with an argument autocomplete drawn from other matrix keys), footer sum picker.
+- Page-master editor: separate header/footer canvas with the same node palette as the body.
+- Live diagnostics panel: unresolved bindings, schema violations, and derived-column arg errors, each with "jump to node".
+- Structural node reorder via drag-and-drop (dnd-kit, already in the app).
+- Delete the last remaining legacy palette entry points in `BlocksEditor.tsx` and `TemplateEditor.tsx` so publishers cannot open a v2 authoring surface.
+
+### Step 5 — Regression + verification
+
+- Golden fixture test per country: compile each migrated template against its fixture, snapshot the HTML, snapshot the PDF page count + text layer, fail on any diff.
+- Visual QA: render `P9A`, `CERT_OF_SERVICE`, and both v3 templates side-by-side with the official reference PDFs; iterate on paper-format margins and column widths in the *pack body only* (no engine changes) until each looks like a professionally published form. Attach before/after screenshots to the pack_audit_log entries.
+- Architecture guards:
+  - Existing test in `mem://features/certificate-rendering` scope: pdf-lib forbidden — extend to fail if any file under `src/features/localization/lib/pdf/` or `supabase/functions/_shared/pdf/` re-appears.
+  - New test: every row in `localization_pack_certificate_templates` must be `schema_version >= 3`.
+
+## Technical details
+
+### File map
+
+- **Keep, no change:** `engine/{types,compile,resolver}.ts` (and Deno twins), `CertificateHtmlSurface.tsx`, `CertificatePreviewPane.tsx`, `printCertificateHtml.ts`, `_monthlyMatrix.ts`.
+- **Rewrite:** `certificateXlsxRenderer.ts` (v3-only), `generate-tax-certificate/index.ts` (drop the fork), `CertificateV3Editor.tsx` (richer controls), `certificate-engine/engine.ts` (real producer).
+- **Delete:** `certificateRenderer.ts`, `certificateRendererV2.ts`, `certificateRenderer.dispatch.ts`, `winansi.ts`, `_shared/pdf/certificateRenderer*.ts`, associated parity tests.
+- **New:** `certificate-engine/pdfProducer.ts` (headless HTTP producer), `supabase/functions/_shared/pdf-renderer-client.ts`, migration files for each template rewrite, one migration tightening the validator.
+
+### Data-flow after this plan
 
 ```text
- pack AST (country-agnostic)         ── authored in WYSIWYG editor, stored on template.body (schema_version 3)
+Publisher edits v3 AST (CertificateV3Editor)
         │
-   compile() ── AST → HTML + CSS Paged Media   (ONE layout source, shared by preview AND output)
+        ▼
+localization_pack_certificate_templates.body  (schema_version = 3, validated)
         │
-   paged.js in an <iframe>  ── faithful pagination, landscape, grouped headers, wrapping
+        ▼
+generate-tax-certificate
+        │  compile(template, payload)  ← engine.ts, country-agnostic
+        ▼
+        HTML + CSS Paged Media          (stored as .html, audit artifact)
         │
-   browser print pipeline ── the PDF artifact (vector text, KRA-accurate)
-        │
-   slim edge fn ── resolves payload (server, RLS-safe) + stores bytes, serial, issued-row, supersede, diagnostics
+        ├── PdfProducer.produce(html) → PDF bytes  (stored as .pdf, filed)
+        └── XlsxRenderer.produce(ast)  → XLSX      (Odoo-style editable twin)
+
+Editor preview and tenant download both re-render the same HTML through paged.js
+→ preview === filed PDF, bit-for-bit.
 ```
 
-The engine stays country-agnostic: P9 layout lives entirely in the KE pack row, never in code.
+### Non-goals
 
-## Work plan
-
-### 1. Make compiled HTML the single renderer (client-side)
-- Promote `certificate-engine/compile.ts` to a browser-safe shared module (it is pure string building; strip Deno-only bits).
-- Add **paged.js** as a dependency. New `CertificateHtmlSurface` renders `compile()` output in a sandboxed iframe with paged.js — used by both the editor preview and the issue/download flow.
-- Rewrite `CertificatePreviewPane` to use this surface instead of the pdf-lib dispatch, so preview is exactly the filed layout.
-- Wire the artifact-producing "download/print/issue" actions to the same paged HTML via the browser print-to-PDF pipeline (extends the existing `src/services/printing` pattern to an HTML surface).
-
-### 2. Extend the AST just enough for statutory grids (stays generic)
-`compile.ts` today renders only a group row + header row. To express the KRA form generically (no country logic), add:
-- Multi-row matrix headers: per-column optional `sub_header` (the A–O letters) and `unit` caption (the `Kshs.` row), plus nested `column_groups` with sub-column spans (E over E1/E2/E3).
-- A pack-authored totals/footer row and a `legal_notice` block for the "IMPORTANT / To be completed by employer" text.
-These are generic column/row primitives; any country can use them.
-
-### 3. Migrate templates to v3 and delete the old paths
-- New migration: rewrite KE **P9**, **ln**, **CERT_OF_SERVICE** to `schema_version: 3` landscape AST (A–O columns, E1/E2/E3 group, units + letter rows, employer/employee identity strip, KRA masthead in `page_master`, legal notice, signature strip). This is pack data only.
-- Update `pack_rule_type_schemas` + the body validators (`enforce_certificate_template_structure`, `assert_certificate_template_body_valid`) to accept **only v3**.
-- Delete: `certificateRendererV2.ts` (both mirrors), `certificateRenderer.ts` v1 path, `astPdfProducer.ts`, `BlocksEditor.tsx`, the section-palette code in `CertificateTemplateEditor`, and the now-dead eslint rules/tests (`no-payslip-lines-in-certificates` stays; `certificateRendererV2_test`, golden tests re-pointed to compile()).
-- Keep `assertStatutoryPaper` (now allows `a4` + `a4-landscape`) as a guard on the template's `paper_format`.
-
-### 4. Rebuild the editor as a structured WYSIWYG designer
-Replace JSON textareas in `CertificateV3Editor` with:
-- Paper format controls (already structured — keep).
-- Page-master header/footer node builder.
-- Document node builder: add/reorder/remove `heading`, `rich_text`, `identity_strip`, `matrix`, `legal_notice`, `signature_strip`.
-- A real **matrix column/group builder** (add columns, set header/sub-header/unit/format/align/width, define column groups) — this is the piece that makes it feel like Odoo/SAP.
-- Live preview pane bound to the same `compile()` HTML, so authoring is truly WYSIWYG.
-- Binding picker reusing `TokenPicker`/`TokenRegistryEditor` so data paths are chosen, not typed.
-
-### 5. Server lifecycle (keep audit, drop server rendering)
-- `generate-tax-certificate` becomes: resolve payload + template server-side (unchanged data assembly, RLS, idempotency checks) and return them to the client for rendering; a companion path accepts the client-rendered bytes to store in `documents`, assign serial, write/supersede the issued row, and log diagnostics.
-- Batch issuance renders per employee in a loop with progress (same per-record model Odoo uses).
-
-## Technical notes / risks
-- **Byte capture**: faithful vector HTML→PDF in-browser uses paged.js layout + the browser print engine; issuance is an admin/loop-driven action (documents produced at issue time, then downloadable from storage). No headless service needed.
-- **Determinism**: stored certs are versioned/superseded rows, so per-render byte stability is not required (matches current behaviour of creating a new issued row on regenerate).
-- **Migration safety**: template rewrites are pack-data migrations; no `.git`/schema-reserved changes. The old renderers are deleted only after the v3 templates validate and preview correctly.
-- This ends the multi-generation thrash: after this, there is exactly one layout language, one render path, one editor.
-
-## Suggested build order
-1. compile() browser module + paged.js preview surface (proves the look on the existing P9 test data).
-2. AST/compile extensions for multi-row headers + groups.
-3. KE P9 v3 template migration + validator lockdown.
-4. WYSIWYG editor rebuild.
-5. Server lifecycle slim-down + delete v1/v2/pdf-lib paths + test/eslint cleanup.
+- No pixel-perfect reproduction of the KRA template — the plan targets *information architecture parity* (masthead, Appendix marker, grouped columns A–O, legal notice, signature strip) authored inside the pack, not hard-coded margins.
+- No engine-side country code, ever. Any country-shaped test that leaks into `engine/` fails the architecture guard.
+- Backwards compatibility with `schema_version < 3` is intentionally dropped — the codebase has no production tenants on those templates, and preserving them re-introduces the pdf-lib stack we are deleting.
