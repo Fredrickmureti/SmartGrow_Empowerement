@@ -17,7 +17,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { Lock, LayoutGrid, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { AppLayoutProvider, useFullWidthRequested } from "@/contexts/AppLayoutContext";
+import { AppLayoutProvider } from "@/contexts/AppLayoutContext";
 import { BrandedLoader } from "@/components/common/BrandedLoader";
 import { AppLandingPage } from "@/components/apps/AppLandingPage";
 import { SubscriptionStatusBanner } from "@/components/subscription/SubscriptionStatusBanner";
@@ -30,10 +30,10 @@ import { useRequireActiveBusiness } from "@/hooks/useRequireActiveBusiness";
 import { useSession } from "@/contexts/SessionContext";
 import type { AppDefinition } from "@/lib/apps/types";
 
-import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { AppRail } from "./AppRail";
 import { WorkspaceSidebar, SidebarBody } from "./WorkspaceSidebar";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
+import { WorkspaceShellFrame } from "./WorkspaceShellFrame";
 import type { WorkspaceNav } from "./types";
 
 interface PlatformShellProps {
