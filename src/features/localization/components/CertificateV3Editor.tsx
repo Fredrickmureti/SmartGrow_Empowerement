@@ -268,7 +268,7 @@ function NodeListEditor({ nodes, onChange, allow, scope, selectedNodeId, onSelec
   );
 }
 
-function newNode(type: string): any {
+export function newNode(type: string): any {
   switch (type) {
     case "heading": return { type: "heading", level: 2, align: "left", text: { kind: "literal", value: "Heading" } };
     case "rich_text": return { type: "rich_text", align: "left", paragraphs: [[{ text: { kind: "literal", value: "Text" } }]] };
