@@ -36,12 +36,13 @@ export interface PaperFormat {
 }
 
 export interface V3Body {
-  schema_version: 3;
+  schema_version: 3 | 4;
   code?: string;
   display_name?: string;
   paper_format: PaperFormat;
   page_master?: { code?: string; header?: any[]; footer?: any[] };
   document: any[];
+  theme?: Record<string, unknown>;
 }
 
 type Value = { kind: "literal"; value: string | number } | { kind: "binding"; path: string; format?: string; fallback?: string };
@@ -51,17 +52,23 @@ const NODE_TYPES = [
   { value: "heading", label: "Heading" },
   { value: "rich_text", label: "Rich text / paragraph" },
   { value: "key_value", label: "Key / value" },
-  { value: "identity_strip", label: "Identity strip (two columns)" },
-  { value: "matrix", label: "Matrix (table)" },
+  { value: "identity_strip", label: "Identity strip (two columns) — legacy" },
+  { value: "matrix", label: "Matrix (table) — legacy" },
+  { value: "grid", label: "Grid (cell-level table)" },
+  { value: "list", label: "List (numbered / bulleted)" },
+  { value: "label_fill", label: "Label + fill-in value" },
+  { value: "field_row", label: "Field row (inline label-fill group)" },
+  { value: "columns", label: "Columns (multi-column region)" },
   { value: "legal_notice", label: "Legal notice" },
   { value: "signature_strip", label: "Signature strip" },
   { value: "section", label: "Section (group)" },
   { value: "spacer", label: "Spacer" },
+  { value: "page_break", label: "Page break" },
 ];
 
 export function defaultV3Body(templateCode: string): V3Body {
   return {
-    schema_version: 3,
+    schema_version: 4,
     code: templateCode,
     paper_format: {
       size: "A4", orientation: "portrait",
@@ -192,6 +199,12 @@ function newNode(type: string): any {
     case "key_value": return { type: "key_value", label: { kind: "literal", value: "Label" }, value: { kind: "binding", path: "" } };
     case "identity_strip": return { type: "identity_strip", left_title: { kind: "literal", value: "Left" }, right_title: { kind: "literal", value: "Right" }, left: [], right: [] };
     case "matrix": return { type: "matrix", title: { kind: "literal", value: "Table" }, rows_binding: "", repeat_header: true, columns: [], column_groups: [], footer: null };
+    case "grid": return { type: "grid", columns: [], header_rows: [], data_rows: { bind: "" }, footer_rows: [], repeat_header: true, border: "all", zebra: "none" };
+    case "list": return { type: "list", marker: "decimal", compact: true, items: [{ text: { kind: "literal", value: "Item" } }] };
+    case "label_fill": return { type: "label_fill", label: { kind: "literal", value: "Label" }, value: { kind: "binding", path: "" }, rule: "dotted" };
+    case "field_row": return { type: "field_row", gap_mm: 6, fields: [] };
+    case "columns": return { type: "columns", count: 2, gap_mm: 6, column_children: [[], []] };
+    case "page_break": return { type: "page_break" };
     case "legal_notice": return { type: "legal_notice", title: { kind: "literal", value: "Notice" }, border: true, paragraphs: [{ kind: "literal", value: "…" }] };
     case "signature_strip": return { type: "signature_strip", slots: [{ caption: { kind: "literal", value: "Signature" } }] };
     case "section": return { type: "section", title: { kind: "literal", value: "Section" }, keep_together: true, children: [] };
@@ -454,12 +467,13 @@ export function CertificateV3Editor({ templateCode, body, onChange, onValidityCh
   }, [body]);
 
   const seedFromKeP9 = () => onChange({
-    schema_version: 3,
+    schema_version: KE_P9_V3_TEMPLATE.schema_version,
     code: templateCode,
     display_name: KE_P9_V3_TEMPLATE.display_name,
     paper_format: { ...KE_P9_V3_TEMPLATE.paper_format },
     page_master: JSON.parse(JSON.stringify(KE_P9_V3_TEMPLATE.page_master)),
     document: JSON.parse(JSON.stringify(KE_P9_V3_TEMPLATE.document)),
+    theme: KE_P9_V3_TEMPLATE.theme ? JSON.parse(JSON.stringify(KE_P9_V3_TEMPLATE.theme)) : undefined,
   });
 
   return (

@@ -1,10 +1,7 @@
 // @ts-nocheck — Deno runtime
 /**
- * Certificate Engine v3 — payload resolver.
- *
- * Resolves `Value` (literal or binding) against a `CertificatePayload`,
- * applies formatting, and records unresolved paths so the caller can
- * emit `payroll_diagnostics` entries just like the v1/v2 renderers.
+ * Certificate Engine v3 — payload resolver (browser mirror of
+ * supabase/functions/_shared/certificate-engine/resolver.ts). Keep in sync.
  */
 import type { Binding, CertificatePayload, Value, ValueFormat } from "./types.ts";
 
@@ -17,7 +14,6 @@ export interface ResolveContext {
   payload: CertificatePayload;
   currency?: string;
   locale?: string;
-  /** Populated with dotted paths that resolved to null/undefined. */
   unresolved: Set<string>;
 }
 
@@ -33,7 +29,6 @@ export function createContext(
   };
 }
 
-/** Dotted-path read with array-index support (`rows.0.employee_amount`). */
 export function readPath(obj: unknown, path: string): unknown {
   if (!path) return obj;
   const parts = path.split(".");
@@ -72,9 +67,9 @@ export function readRows(path: string, ctx: ResolveContext): Array<Record<string
 export function formatValue(raw: unknown, fmt: ValueFormat, ctx: ResolveContext): string {
   switch (fmt) {
     case "number":
-      return formatNumber(raw, 2, ctx.locale);
+      return formatNumber(raw, 2, ctx.locale ?? "en-US");
     case "currency": {
-      const n = formatNumber(raw, 2, ctx.locale);
+      const n = formatNumber(raw, 2, ctx.locale ?? "en-US");
       return ctx.currency ? `${ctx.currency} ${n}` : n;
     }
     case "percent": {
@@ -110,7 +105,6 @@ function formatDate(raw: unknown): string {
   return String(raw ?? "");
 }
 
-/** Sum a numeric column from `rows` — used by MatrixFooter. */
 export function sumColumn(
   rows: Array<Record<string, unknown>>,
   key: string,
