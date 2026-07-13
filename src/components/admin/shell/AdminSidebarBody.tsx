@@ -20,9 +20,10 @@ import {
 interface Props {
   collapsed?: boolean;
   onNavigate?: () => void;
+  nav?: AdminWorkspaceNav;
 }
 
-function Item({ item, collapsed, onNavigate }: { item: AdminNavItem; collapsed: boolean; onNavigate?: () => void }) {
+function Item({ item, collapsed, onNavigate }: { item: AdminWorkspaceNavItem; collapsed: boolean; onNavigate?: () => void }) {
   const Icon = item.icon;
   return (
     <NavLink
@@ -46,7 +47,7 @@ function Item({ item, collapsed, onNavigate }: { item: AdminNavItem; collapsed: 
   );
 }
 
-export function AdminSidebarBody({ collapsed = false, onNavigate }: Props) {
+export function AdminSidebarBody({ collapsed = false, onNavigate, nav = PLATFORM_ADMIN_NAV }: Props) {
   const { hasAnyPerm, isOwner } = usePlatformPermissions();
   const { organizations } = useOrganization();
   const { signOut } = useAuth();
@@ -54,7 +55,7 @@ export function AdminSidebarBody({ collapsed = false, onNavigate }: Props) {
   // "Sign out" footer instead of the tenant "Back to App" link.
   const hasTenantWorkspace = organizations.length > 0;
 
-  const visibleGroups = ADMIN_NAV.map((g) => ({
+  const visibleGroups = nav.groups.map((g) => ({
     ...g,
     items: g.items.filter((i) => {
       if (!i.permissions?.length) return true;
