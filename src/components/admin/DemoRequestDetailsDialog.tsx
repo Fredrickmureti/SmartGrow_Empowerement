@@ -103,19 +103,20 @@ export function DemoRequestDetailsDialog({
   const status = statusConfig[request.status] || statusConfig.pending;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <DialogTitle className="text-xl">{request.full_name}</DialogTitle>
-              <DialogDescription>Demo request details</DialogDescription>
-            </div>
-            <Badge variant={status.variant}>{status.label}</Badge>
+    <DocumentPeekShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        <div className="flex items-center justify-between gap-3 min-w-0">
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold">{request.full_name}</p>
+            <p className="text-xs text-muted-foreground">Demo request details</p>
           </div>
-        </DialogHeader>
-
-        <div className="space-y-6">
+          <Badge variant={status.variant}>{status.label}</Badge>
+        </div>
+      }
+    >
+      <div className="space-y-6 p-1">
           {/* Contact Information */}
           <div className="space-y-3">
             <h4 className="font-medium text-sm text-muted-foreground">Contact Information</h4>
