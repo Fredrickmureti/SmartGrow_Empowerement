@@ -420,6 +420,7 @@ export default function AdminOrganizationDetail() {
               <TabsTrigger value="usage" className="text-xs sm:text-sm px-3 py-1.5">Usage</TabsTrigger>
               <TabsTrigger value="activity" className="text-xs sm:text-sm px-3 py-1.5">Activity</TabsTrigger>
               <TabsTrigger value="timeline" className="text-xs sm:text-sm px-3 py-1.5">Timeline</TabsTrigger>
+              <TabsTrigger value="localization" className="text-xs sm:text-sm px-3 py-1.5">Localization</TabsTrigger>
               <TabsTrigger value="deletion" className="text-xs sm:text-sm px-3 py-1.5">Deletion</TabsTrigger>
             </TabsList>
           </div>
@@ -590,6 +591,32 @@ export default function AdminOrganizationDetail() {
 
           <TabsContent value="deletion">
             <DeletionJobsPanel organizationId={org.id} />
+          </TabsContent>
+
+          {/* LOCALIZATION TAB */}
+          <TabsContent value="localization">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  Localization
+                </CardTitle>
+                <CardDescription>
+                  Install a localization pack on any Company inside this
+                  organization. Runs the same seed transaction tenants use,
+                  under a platform-admin on-behalf-of session.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  onClick={() =>
+                    navigate(`/admin-management/organizations/${org.id}/localization/install`)
+                  }
+                >
+                  Install pack on tenant…
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* MEMBERS TAB */}

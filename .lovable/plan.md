@@ -57,13 +57,12 @@ Launched from the pack detail workspace "Publish new version" action; commit cal
 **2b. Install Pack on tenant wizard** at `/admin-management/organizations/$id/localization/install`:
 
 ```text
-Step 1: Choose pack + version
-Step 2: Country/currency confirmation
-Step 3: Conflict resolution (existing installed pack differences)
-Step 4: Confirm & install (writes installed_localization_packs)
+Step 1: Choose company (business) within the organization
+Step 2: Choose pack + surface conflict with the currently-installed pack
+Step 3: Confirm & install (typed confirmation, force_reseed, ack skeleton)
 ```
 
-Entry point added on the Organization workspace subscription/localization section.
+Entry point added on the Organization workspace under a new **Localization** tab. The `install-localization-pack` edge function was extended to allow platform admins to install on behalf of any organization — when the caller lacks a `user_roles` row for the target org, the function checks `is_platform_admin` before refusing. No schema changes.
 
 ### Step 3 — Phase 6 lint guard
 

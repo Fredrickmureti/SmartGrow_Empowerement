@@ -144,6 +144,7 @@ import {
   AdminDemoRequestReplyPage,
   AdminOrgEntitlementOverrideCreatePage,
   AdminOrgEntitlementOverrideEditPage,
+  AdminOrgLocalizationInstallPage,
   AdminDemoVideoCreatePage,
   AdminDemoVideoEditPage,
   AdminLocalizationPackPublishPage,
@@ -673,6 +674,8 @@ const App = () => (
                               <Route path="organizations/:id/delete" element={<LazyRoute module="Delete Organization"><AdminOrganizationDelete /></LazyRoute>} />
                               <Route path="organizations/:id/entitlements/new" element={<LazyRoute module="Add Entitlement Override"><AdminOrgEntitlementOverrideCreatePage /></LazyRoute>} />
                               <Route path="organizations/:id/entitlements/:overrideId/edit" element={<LazyRoute module="Edit Entitlement Override"><AdminOrgEntitlementOverrideEditPage /></LazyRoute>} />
+                              <Route path="organizations/:id/localization/install" element={<LazyRoute module="Install Localization Pack"><AdminOrgLocalizationInstallPage /></LazyRoute>} />
+
                               <Route path="users" element={<LazyRoute module="Users"><AdminUsers /></LazyRoute>} />
                               <Route path="invoices" element={<LazyRoute module="Invoices"><AdminInvoices /></LazyRoute>} />
                               <Route path="analytics" element={<LazyRoute module="Analytics"><AdminAnalytics /></LazyRoute>} />
