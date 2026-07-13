@@ -194,6 +194,50 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     handleSelectNode(`doc.${(next.document?.length ?? 1) - 1}`);
   };
 
+  // Direct-manipulation mutations dispatched from the Canvas.
+  // The Canvas is a render surface only; every AST change lives here so
+  // Undo/history/validation stay single-sourced.
+  const commitDocument = (nextDoc: any[], focusIndex?: number) => {
+    const next: V3Body = { ...v3Body, document: nextDoc };
+    setV3Body(next);
+    setV3Validation(validateV3Body(next, []));
+    if (focusIndex != null && focusIndex >= 0 && focusIndex < nextDoc.length) {
+      handleSelectNode(`doc.${focusIndex}`);
+    } else {
+      setSelectedNodeId(null);
+    }
+  };
+  const parseDocIndex = (nodeId: string) => {
+    const m = /^doc\.(\d+)$/.exec(nodeId);
+    return m ? Number(m[1]) : null;
+  };
+  const handleNodeAction = (nodeId: string, action: "moveUp" | "moveDown" | "duplicate" | "delete") => {
+    const idx = parseDocIndex(nodeId);
+    const doc = [...(v3Body.document ?? [])];
+    if (idx == null || idx < 0 || idx >= doc.length) return;
+    if (action === "delete") {
+      doc.splice(idx, 1);
+      commitDocument(doc, Math.min(idx, doc.length - 1));
+    } else if (action === "duplicate") {
+      const copy = JSON.parse(JSON.stringify(doc[idx]));
+      doc.splice(idx + 1, 0, copy);
+      commitDocument(doc, idx + 1);
+    } else if (action === "moveUp" && idx > 0) {
+      [doc[idx - 1], doc[idx]] = [doc[idx], doc[idx - 1]];
+      commitDocument(doc, idx - 1);
+    } else if (action === "moveDown" && idx < doc.length - 1) {
+      [doc[idx + 1], doc[idx]] = [doc[idx], doc[idx + 1]];
+      commitDocument(doc, idx + 1);
+    }
+  };
+  const handleReorder = (from: number, to: number) => {
+    const doc = [...(v3Body.document ?? [])];
+    if (from < 0 || from >= doc.length || to < 0 || to >= doc.length) return;
+    const [moved] = doc.splice(from, 1);
+    doc.splice(to, 0, moved);
+    commitDocument(doc, to);
+  };
+
   // Outline pane — flat list of top-level document nodes. Click to select
   // (drives the same `data-ce-node` bridge the Canvas uses).
   const documentNodes: Array<{ id: string; type: string; label: string }> = useMemo(() => {
@@ -296,6 +340,8 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
               body={liveBody}
               selectedNodeId={selectedNodeId}
               onSelectNode={(id) => handleSelectNode(id)}
+              onNodeAction={handleNodeAction}
+              onReorder={handleReorder}
             />
           </div>
         </ResizablePanel>

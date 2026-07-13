@@ -33,13 +33,16 @@ interface Props {
   selectedNodeId?: string | null;
   /** Fired when a publisher clicks a node in the rendered document. */
   onSelectNode?: (nodeId: string, type: string) => void;
+  /** Direct-manipulation on top-level document nodes (see CertificateHtmlSurface). */
+  onNodeAction?: (nodeId: string, action: "moveUp" | "moveDown" | "duplicate" | "delete") => void;
+  onReorder?: (fromIndex: number, toIndex: number) => void;
 }
 
 function isV3Body(body: any): boolean {
   return body && Number(body.schema_version) >= 3 && Array.isArray(body.document);
 }
 
-export function CertificatePreviewPane({ templateCode, displayName, body, selectedNodeId, onSelectNode }: Props) {
+export function CertificatePreviewPane({ templateCode, displayName, body, selectedNodeId, onSelectNode, onNodeAction, onReorder }: Props) {
   const surfaceRef = useRef<CertificateHtmlSurfaceHandle>(null);
   const [error, setError] = useState<string | null>(null);
   const [unresolved, setUnresolved] = useState<string[]>([]);
@@ -115,6 +118,8 @@ export function CertificatePreviewPane({ templateCode, displayName, body, select
             onUnresolved={setUnresolved}
             selectedNodeId={selectedNodeId ?? null}
             onSelectNode={onSelectNode}
+            onNodeAction={onNodeAction}
+            onReorder={onReorder}
           />
         )}
         <div className="text-[10px] text-muted-foreground pt-2">
