@@ -151,6 +151,7 @@ export default function AdminAppCatalog() {
               <TableHead className="text-center">Signup</TableHead>
               <TableHead className="text-center">Core</TableHead>
               <TableHead className="text-center">Order</TableHead>
+              <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
