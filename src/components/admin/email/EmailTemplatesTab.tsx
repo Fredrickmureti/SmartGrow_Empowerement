@@ -1,12 +1,11 @@
 // @ts-nocheck - Admin tables not in auto-generated types
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeEmailHtml } from "@/lib/sanitizeEmailHtml";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -16,13 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -61,25 +53,11 @@ const categoryLabels: Record<string, string> = {
 
 export function EmailTemplatesTab() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showEditor, setShowEditor] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    template_key: "",
-    name: "",
-    description: "",
-    subject: "",
-    html_body: "",
-    text_body: "",
-    variables: "",
-    category: "general",
-  });
 
   useEffect(() => {
     fetchTemplates();
@@ -108,84 +86,11 @@ export function EmailTemplatesTab() {
   };
 
   const handleCreate = () => {
-    setEditingTemplate(null);
-    setFormData({
-      template_key: "",
-      name: "",
-      description: "",
-      subject: "",
-      html_body: "",
-      text_body: "",
-      variables: "",
-      category: "general",
-    });
-    setShowEditor(true);
+    navigate("/admin-management/email-center/templates/new");
   };
 
   const handleEdit = (template: EmailTemplate) => {
-    setEditingTemplate(template);
-    setFormData({
-      template_key: template.template_key,
-      name: template.name,
-      description: template.description || "",
-      subject: template.subject,
-      html_body: template.html_body,
-      text_body: template.text_body || "",
-      variables: template.variables.join(", "),
-      category: template.category,
-    });
-    setShowEditor(true);
-  };
-
-  const handleSave = async () => {
-    if (!formData.template_key || !formData.name || !formData.subject || !formData.html_body) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const templateData = {
-        template_key: formData.template_key,
-        name: formData.name,
-        description: formData.description || null,
-        subject: formData.subject,
-        html_body: formData.html_body,
-        text_body: formData.text_body || null,
-        variables: formData.variables.split(",").map(v => v.trim()).filter(Boolean),
-        category: formData.category,
-      };
-
-      if (editingTemplate) {
-        const { error } = await supabase
-          .from("platform_email_templates")
-          .update(templateData)
-          .eq("id", editingTemplate.id);
-        if (error) throw error;
-        toast({ title: "Template updated" });
-      } else {
-        const { error } = await supabase
-          .from("platform_email_templates")
-          .insert(templateData);
-        if (error) throw error;
-        toast({ title: "Template created" });
-      }
-
-      setShowEditor(false);
-      fetchTemplates();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message || "Failed to save template",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    navigate(`/admin-management/email-center/templates/${template.id}/edit`);
   };
 
   const handleDelete = async (id: string) => {
@@ -324,127 +229,6 @@ export function EmailTemplatesTab() {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Editor Dialog */}
-      <Dialog open={showEditor} onOpenChange={setShowEditor}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingTemplate ? "Edit Template" : "Create Template"}
-            </DialogTitle>
-            <DialogDescription>
-              Create reusable email templates with variable placeholders
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="template_key">Template Key *</Label>
-                <Input
-                  id="template_key"
-                  placeholder="e.g., welcome_new_user"
-                  value={formData.template_key}
-                  onChange={(e) => setFormData({ ...formData, template_key: e.target.value })}
-                  disabled={!!editingTemplate}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(v) => setFormData({ ...formData, category: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="welcome">Welcome</SelectItem>
-                    <SelectItem value="reengagement">Re-engagement</SelectItem>
-                    <SelectItem value="announcement">Announcement</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
-                    <SelectItem value="general">General</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                placeholder="Template display name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                placeholder="Brief description of when to use this template"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="subject">Subject *</Label>
-              <Input
-                id="subject"
-                placeholder="Email subject line (use {{variable}} for placeholders)"
-                value={formData.subject}
-                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="variables">Variables</Label>
-              <Input
-                id="variables"
-                placeholder="user_name, platform_name, login_url"
-                value={formData.variables}
-                onChange={(e) => setFormData({ ...formData, variables: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                Comma-separated list of variable names (without curly braces)
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="html_body">HTML Body *</Label>
-              <Textarea
-                id="html_body"
-                placeholder="<div>Your HTML email content...</div>"
-                value={formData.html_body}
-                onChange={(e) => setFormData({ ...formData, html_body: e.target.value })}
-                rows={12}
-                className="font-mono text-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="text_body">Plain Text Body (optional)</Label>
-              <Textarea
-                id="text_body"
-                placeholder="Plain text version for email clients that don't support HTML"
-                value={formData.text_body}
-                onChange={(e) => setFormData({ ...formData, text_body: e.target.value })}
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditor(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Template"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>

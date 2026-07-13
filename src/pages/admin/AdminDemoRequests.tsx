@@ -45,7 +45,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { DemoRequestDetailsDialog } from "@/components/admin/DemoRequestDetailsDialog";
-import { ComposeEmailDialog } from "@/components/admin/email/ComposeEmailDialog";
+import { useNavigate } from "react-router-dom";
 import { normalizeError } from "@/services/resilience";
 
 interface DemoRequest {
@@ -73,10 +73,12 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 export default function AdminDemoRequests() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedRequest, setSelectedRequest] = useState<DemoRequest | null>(null);
-  const [composeFor, setComposeFor] = useState<DemoRequest | null>(null);
+  const openReply = (request: DemoRequest) =>
+    navigate(`/admin-management/demo-requests/${request.id}/reply`);
 
   const { data: requests, isLoading, refetch } = useQuery({
     queryKey: ["demo-requests", statusFilter],
@@ -312,7 +314,7 @@ export default function AdminDemoRequests() {
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); }}>
                                     <MessageSquare className="h-3.5 w-3.5 mr-2" /> View Details
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setComposeFor(request); }}>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openReply(request); }}>
                                     <Mail className="h-3.5 w-3.5 mr-2" /> Send Email
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
@@ -370,7 +372,7 @@ export default function AdminDemoRequests() {
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); }}>
                                   <MessageSquare className="h-3.5 w-3.5 mr-2" /> View Details
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setComposeFor(request); }}>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openReply(request); }}>
                                   <Mail className="h-3.5 w-3.5 mr-2" /> Send Email
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -422,35 +424,7 @@ export default function AdminDemoRequests() {
           onStatusChange={(status) => {
             updateStatusMutation.mutate({ id: selectedRequest.id, status });
           }}
-          onComposeEmail={() => setComposeFor(selectedRequest)}
-        />
-      )}
-
-      {composeFor && (
-        <ComposeEmailDialog
-          open={!!composeFor}
-          onOpenChange={(open) => !open && setComposeFor(null)}
-          defaultTo={composeFor.email}
-          defaultSubject={`Re: Your AccrualFlow Demo Request${composeFor.company_name ? ` — ${composeFor.company_name}` : ""}`}
-          defaultBody={`Hi ${composeFor.full_name.split(" ")[0] || "there"},\n\nThanks for requesting a demo of AccrualFlow${composeFor.company_name ? ` for ${composeFor.company_name}` : ""}. I'd love to set up a time to walk you through the platform.\n\n${composeFor.message ? `You mentioned:\n"${composeFor.message}"\n\n` : ""}A few times that work on my side — let me know which suits you best, or feel free to suggest another slot.\n\nBest,\nThe AccrualFlow Team`}
-          lockTo
-          title={`Email ${composeFor.full_name}`}
-          description="Reply directly without leaving the platform. Attachments and AI assist are supported."
-          logMetadata={{
-            source: "demo_request",
-            demo_request_id: composeFor.id,
-            recipient_name: composeFor.full_name,
-            company_name: composeFor.company_name,
-          }}
-          onSent={() => {
-            // Auto-mark as contacted if still pending
-            if (composeFor.status === "pending") {
-              updateStatusMutation.mutate({ id: composeFor.id, status: "contacted" });
-            } else {
-              queryClient.invalidateQueries({ queryKey: ["demo-requests"] });
-            }
-            setComposeFor(null);
-          }}
+          onComposeEmail={() => openReply(selectedRequest)}
         />
       )}
     </>

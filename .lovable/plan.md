@@ -98,3 +98,20 @@ Each phase: build workspace(s) → point list page to `navigate()` → delete re
 ## Suggested starting point
 
 Phase 2A (Groups) — smallest surface, exercises the full workspace → route → registry → delete-dialog loop end-to-end, and de-risks the pattern before touching Team, Localization, or Email Center.
+
+## Status log
+
+- Phase 2A Groups — done.
+- Phase 2B Team — done (invite + member edit).
+- Phase 3 Plan Builder / App Catalog / Feature Catalog — done.
+- Phase 4 Localization Packs — workspace + create done; publish/install wizards deferred.
+- **Phase 5 Email Center + Demo Requests — done.** New workspaces:
+  `email-center/compose`, `email-center/campaigns/new`,
+  `email-center/templates/{new,:id/edit}`, `email-center/automations/:id`,
+  `demo-requests/:id/reply`. Deleted: `ComposeEmailDialog.tsx`,
+  `NewCampaignDialog.tsx`, `AutomationSettingsDialog.tsx`; removed the
+  editor Dialog block from `EmailTemplatesTab.tsx` (preview Dialog kept
+  as peek). Architecture guard `single-email-dialog.test.ts` allow-list
+  updated to drop the deleted ComposeEmailDialog entry.
+- Phase 6 ESLint enforcement rule — pending.
+- Deferred wizards: Localization pack Publish version, Localization pack Install on tenant.

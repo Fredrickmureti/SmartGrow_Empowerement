@@ -68,7 +68,6 @@ describe("single email dialog invariant", () => {
     // → send-document-email. send-email is reserved for system notifications
     // and admin/platform broadcasts (allowlisted below).
     const ALLOWLIST_INVOKERS = new Set([
-      "src/components/admin/email/ComposeEmailDialog.tsx",
       "src/components/admin/email/ComposeEmailTab.tsx",
     ]);
     const out = execSync(

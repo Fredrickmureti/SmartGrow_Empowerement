@@ -33,6 +33,12 @@ export const AdminFeatureCreatePage = lazy(() => import("@/pages/admin/plan-buil
 export const AdminFeatureEditPage = lazy(() => import("@/pages/admin/plan-builder/AdminFeatureEditPage"));
 export const AdminLocalizationPackCreatePage = lazy(() => import("@/pages/admin/localization/AdminLocalizationPackCreatePage"));
 export const AdminLocalizationPackDetailPage = lazy(() => import("@/pages/admin/localization/AdminLocalizationPackDetailPage"));
+export const AdminEmailComposePage = lazy(() => import("@/pages/admin/email-center/AdminEmailComposePage"));
+export const AdminEmailCampaignCreatePage = lazy(() => import("@/pages/admin/email-center/AdminEmailCampaignCreatePage"));
+export const AdminEmailTemplateCreatePage = lazy(() => import("@/pages/admin/email-center/AdminEmailTemplateCreatePage"));
+export const AdminEmailTemplateEditPage = lazy(() => import("@/pages/admin/email-center/AdminEmailTemplateEditPage"));
+export const AdminEmailAutomationEditPage = lazy(() => import("@/pages/admin/email-center/AdminEmailAutomationEditPage"));
+export const AdminDemoRequestReplyPage = lazy(() => import("@/pages/admin/demo-requests/AdminDemoRequestReplyPage"));
 export const Studio = lazy(() => import("@/pages/Studio"));
 export const Compliance = lazy(() => import("@/pages/Compliance"));
 export const FiscalComplianceWorkspace = lazy(() => import("@/pages/FiscalComplianceWorkspace"));
