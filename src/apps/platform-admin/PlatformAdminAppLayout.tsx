@@ -1,23 +1,31 @@
 /**
  * PlatformAdminAppLayout — the admin persona's counterpart to
- * `PlatformAppLayout`. See `docs/design-system/audit/platform-admin.md`.
+ * `PlatformShell`. See `docs/design-system/audit/platform-admin.md`
+ * and `docs/design-system.md`.
  *
- * Today it delegates to `AdminDashboardLayout` so the sidebar, topbar,
- * and auth/MFA gates stay bit-identical to the rest of the admin
- * console. Newly migrated admin pages import this layout instead of
- * reaching for `AdminDashboardLayout` directly — that indirection is
- * what will let us swap in a fully consolidated shell in a later phase
- * without touching every page.
+ * Signature mirrors `PlatformShell(app, nav, children)` — admin is a
+ * persona rather than an installable app, so there is no `AppRail`
+ * or install/subscription gating, but the `nav` contract is the
+ * same shape as tenant apps supply (`WorkspaceNav`). This is the
+ * Phase-7 structural handle: swapping the visual shell later is a
+ * matter of changing what this component renders, without touching
+ * page-level code or the nav data source.
  */
 import type { ReactNode } from "react";
 import { AdminDashboardLayout } from "@/components/admin/AdminDashboardLayout";
+import { PLATFORM_ADMIN_NAV, type AdminWorkspaceNav } from "./nav";
 
 interface PlatformAdminAppLayoutProps {
   children: ReactNode;
+  /** Workspace navigation config. Defaults to `PLATFORM_ADMIN_NAV`. */
+  nav?: AdminWorkspaceNav;
 }
 
-export function PlatformAdminAppLayout({ children }: PlatformAdminAppLayoutProps) {
-  return <AdminDashboardLayout>{children}</AdminDashboardLayout>;
+export function PlatformAdminAppLayout({
+  children,
+  nav = PLATFORM_ADMIN_NAV,
+}: PlatformAdminAppLayoutProps) {
+  return <AdminDashboardLayout nav={nav}>{children}</AdminDashboardLayout>;
 }
 
 export default PlatformAdminAppLayout;

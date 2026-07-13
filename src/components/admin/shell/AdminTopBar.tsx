@@ -12,15 +12,20 @@ import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell"
 import { CountryWorkspaceSelector } from "@/components/admin/CountryWorkspaceSelector";
 import { AdminUserMenu } from "@/components/admin/AdminUserMenu";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { findAdminCrumb } from "./adminNav";
+import {
+  PLATFORM_ADMIN_NAV,
+  findAdminCrumb,
+  type AdminWorkspaceNav,
+} from "@/apps/platform-admin/nav";
 
 interface Props {
   onOpenMobileNav: () => void;
+  nav?: AdminWorkspaceNav;
 }
 
-export function AdminTopBar({ onOpenMobileNav }: Props) {
+export function AdminTopBar({ onOpenMobileNav, nav = PLATFORM_ADMIN_NAV }: Props) {
   const { pathname } = useLocation();
-  const current = findAdminCrumb(pathname);
+  const current = findAdminCrumb(pathname, nav);
 
   const crumbs: { label: string; to?: string }[] = [
     { label: "Admin", to: "/admin-management" },
