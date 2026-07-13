@@ -12,7 +12,7 @@
  */
 
 /** @type {import('eslint').Rule.RuleModule} */
-module.exports = {
+export default {
   meta: {
     type: 'problem',
     docs: { description: 'Forbid direct window.print() outside src/services/printing/pdfUtils.ts.' },

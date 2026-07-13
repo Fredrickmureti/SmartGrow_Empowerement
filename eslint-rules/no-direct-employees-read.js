@@ -9,7 +9,6 @@
  * authoritative source of truth — this lint rule is an editor-time
  * convenience so developers see the violation before commit.
  */
-"use strict";
 
 const ALLOW_LIST = new Set([
   "src/hooks/useEmployees.ts",
@@ -22,7 +21,7 @@ const ALLOW_LIST = new Set([
   "src/test/architecture/employees-lifecycle-writes.test.ts",
 ]);
 
-module.exports = {
+export default {
   meta: {
     type: "problem",
     docs: {

@@ -57,7 +57,7 @@ const LEGACY_HW_TABLE = 'pos_hardware_configs';
 const LEGACY_HW_TABLE_ALLOWED_FILES = [];
 
 /** @type {import('eslint').Rule.RuleModule} */
-module.exports = {
+export default {
   meta: {
     type: 'problem',
     docs: { description: 'Forbid raw hardware IPC and native USB/serial imports in renderer code.' },

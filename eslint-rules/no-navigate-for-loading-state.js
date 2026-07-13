@@ -62,7 +62,7 @@ function objectHasPickerTo(node) {
 }
 
 /** @type {import('eslint').Rule.RuleModule} */
-module.exports = {
+export default {
   meta: {
     type: 'problem',
     docs: {

@@ -22,7 +22,7 @@ function hasExempt(context, node) {
   return before.some((c) => /LOCALIZATION-EXEMPT/.test(c.value));
 }
 
-module.exports = {
+export default {
   meta: {
     type: "problem",
     docs: {

@@ -16,7 +16,6 @@
  *   - console.* calls
  *   - test files (`**__tests__**`, `*.test.ts(x)`, `src/test/**`)
  */
-"use strict";
 
 function isErrorMessageNode(node) {
   if (!node) return false;
@@ -51,7 +50,7 @@ function getToastCalleeName(node) {
   return null;
 }
 
-module.exports = {
+export default {
   meta: {
     type: "problem",
     docs: {
