@@ -45,7 +45,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { DemoRequestDetailsDialog } from "@/components/admin/DemoRequestDetailsDialog";
-import { ComposeEmailDialog } from "@/components/admin/email/ComposeEmailDialog";
+import { useNavigate } from "react-router-dom";
 import { normalizeError } from "@/services/resilience";
 
 interface DemoRequest {
@@ -73,10 +73,12 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 export default function AdminDemoRequests() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedRequest, setSelectedRequest] = useState<DemoRequest | null>(null);
-  const [composeFor, setComposeFor] = useState<DemoRequest | null>(null);
+  const openReply = (request: DemoRequest) =>
+    navigate(`/admin-management/demo-requests/${request.id}/reply`);
 
   const { data: requests, isLoading, refetch } = useQuery({
     queryKey: ["demo-requests", statusFilter],
