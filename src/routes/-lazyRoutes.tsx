@@ -27,6 +27,10 @@ export const AdminGroupCreatePage = lazy(() => import("@/pages/admin/groups/Admi
 export const AdminGroupEditPage = lazy(() => import("@/pages/admin/groups/AdminGroupEditPage"));
 export const AdminTeamInvitePage = lazy(() => import("@/pages/admin/team/AdminTeamInvitePage"));
 export const AdminTeamMemberEditPage = lazy(() => import("@/pages/admin/team/AdminTeamMemberEditPage"));
+export const AdminPlanCreatePage = lazy(() => import("@/pages/admin/plan-builder/AdminPlanCreatePage"));
+export const AdminPlanEditPage = lazy(() => import("@/pages/admin/plan-builder/AdminPlanEditPage"));
+export const AdminFeatureCreatePage = lazy(() => import("@/pages/admin/plan-builder/AdminFeatureCreatePage"));
+export const AdminFeatureEditPage = lazy(() => import("@/pages/admin/plan-builder/AdminFeatureEditPage"));
 export const Studio = lazy(() => import("@/pages/Studio"));
 export const Compliance = lazy(() => import("@/pages/Compliance"));
 export const FiscalComplianceWorkspace = lazy(() => import("@/pages/FiscalComplianceWorkspace"));

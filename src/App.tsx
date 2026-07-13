@@ -130,6 +130,10 @@ import {
   AdminGroupEditPage,
   AdminTeamInvitePage,
   AdminTeamMemberEditPage,
+  AdminPlanCreatePage,
+  AdminPlanEditPage,
+  AdminFeatureCreatePage,
+  AdminFeatureEditPage,
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
@@ -665,6 +669,10 @@ const App = () => (
                               <Route path="localization-packs/:packId/certificates/:templateId/edit" element={<LazyRoute module="Certificate Template Editor"><AdminLocalizationCertificateEdit /></LazyRoute>} />
                               <Route path="infrastructure" element={<LazyRoute module="Infrastructure"><AdminInfrastructure /></LazyRoute>} />
                               <Route path="plan-builder" element={<LazyRoute module="Plan Builder"><AdminPlanBuilder /></LazyRoute>} />
+                              <Route path="plan-builder/plans/new" element={<LazyRoute module="Create Plan"><AdminPlanCreatePage /></LazyRoute>} />
+                              <Route path="plan-builder/plans/:id/edit" element={<LazyRoute module="Edit Plan"><AdminPlanEditPage /></LazyRoute>} />
+                              <Route path="plan-builder/features/new" element={<LazyRoute module="Create Feature"><AdminFeatureCreatePage /></LazyRoute>} />
+                              <Route path="plan-builder/features/:id/edit" element={<LazyRoute module="Edit Feature"><AdminFeatureEditPage /></LazyRoute>} />
                               <Route path="app-catalog" element={<LazyRoute module="App Catalog"><AdminAppCatalog /></LazyRoute>} />
                               <Route path="payments" element={<LazyRoute module="Payments"><AdminPayments /></LazyRoute>} />
                               <Route path="audit-log" element={<LazyRoute module="Audit Log"><AdminAuditLog /></LazyRoute>} />
