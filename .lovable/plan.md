@@ -1,93 +1,96 @@
+# Platform Administration UX Re-architecture
 
-# Document Publishing Platform — Audit + Phase 1
+## 1. Problem, in one line
 
-## Part 1 — Architectural Audit (verdict)
+Platform Admin (`/admin-management/*`) is dialog-and-sheet driven: `AdminOrganizations` opens 5 modal dialogs (Details, Manage Subscription, Suspend, Multi-Step Delete, Schedule Deletion), `AdminUsers` opens Details + Delete dialogs, `AdminTeam` and `AdminGroups` create/edit inside `DialogContent`, `AdminLocalizationPacks` edits a full pack in a 1100px Sheet, `AdminEmailCenter` composes campaigns and templates in dialogs. Meanwhile tenant modules (Sales invoice create, HR department create, Contact create, Purchase order edit) all use dedicated route workspaces built on `@/design-system` primitives (`RecordShell`, `RecordFormShell`, `WizardShell`, `DetailSheet` peeks). The two halves of the ERP feel like different products.
 
-### What is already right (keep)
-- **Country-agnostic AST + HTML/CSS engine** (`src/features/localization/lib/engine/`, mirrored to `supabase/functions/_shared/certificate-engine/`). This is the correct enterprise model: templates are data owned by localization packs; the engine knows only generic primitives (grid, list, label_fill, field_row, columns, rich_text, heading, page_break, signature_strip). Enforced by tests scanning for country tokens.
-- **Paged.js rendering in an isolated iframe** — preview equals filed output by construction. This is the same approach mature ERPs use (SAP Adobe Forms, Oracle BI Publisher, Odoo's QWeb+wkhtmltopdf all converge on "HTML/XSL-FO template → paginated renderer").
-- **Pack-owned Theme tokens** driving CSS custom properties. Presentation belongs to the pack, not the engine.
-- **v3 → v4 primitive enlargement** (grid with colspan/rowspan/footer sum_of, nested lists, label_fill, field_row, columns) — the primitive set is now expressive enough for real statutory forms.
-- **The prior rebuild away from pdf-lib hand-drawing** was correct and must not be undone.
+## 2. First principles: interaction classification
 
-### What is architecturally wrong (fix)
-1. **The editor is a drawer of forms, not a document studio.** Structural authoring, theme, metadata, bindings, mappings, outputs, and validation are all crammed into a side panel. This is the single biggest gap versus SAP/Oracle/Odoo report designers.
-2. **The canvas is read-only.** Publishers must round-trip through the inspector for every change — the exact opposite of how Word/InDesign/Adobe LiveCycle/Oracle BI Publisher's Layout Editor work. There is no selection model in the canvas, no click-to-edit, no drag-to-reorder, no in-canvas resize.
-3. **No canonical selection/command model.** GridDesigner has its own cell-selection state; the outline tree has its own node selection; the canvas has none. There is no single `selection` + `dispatch(command)` reducer, so future features (undo/redo, multi-select, collaborative editing, keyboard shortcuts) have nowhere to hook in.
-4. **No server-side PDF (Phase D still deferred).** Today "PDF" only exists if a human hits browser Print. Email dispatch, bulk export, and e-filing cannot work. The `text/plain` HTML workaround in `generate-tax-certificate` is a smell.
-5. **Entry point is a route to a drawer, not a workspace.** Versioning, publish, diff, preview, health, and edit are scattered — not a first-class workflow like invoice creation.
-6. **Bindings are edited as raw `path` strings** in most inspectors — no token picker in context, no validation of the path against the pack's token registry at edit time. TokenPicker exists but isn't wired into per-node editors uniformly.
+Every Platform Admin business event gets classified into exactly one of four patterns. This becomes the rule going forward — no new dialog-driven CRUD accepted.
 
-### What Phase 1 changes
-Replace the drawer editor with a full-page **Template Studio** built around a true WYSIWYG canvas and a canonical selection/command model. Keep the AST, engine, paged.js preview, and pack registry unchanged — this is a UX/editor-architecture rewrite, not an engine rewrite.
+| Pattern | When to use | Primitive |
+|---|---|---|
+| **Workspace page** (`/admin-management/…/{new,$id,$id/edit}`) | Multi-section entity with lifecycle, relationships, or repeated visits | `RecordShell` + `RecordFormShell` (`mode="create" \| "edit"`) |
+| **Wizard** (own route) | Ordered, gated, multi-step process with a commit at the end | `WizardShell` + `WizardStepper` |
+| **Peek sheet** (`?peek=<id>`) | Read-mostly quick look with 1–2 quick actions and an "Open full page" link | `DocumentPeekShell` |
+| **Confirm dialog** | Single-question destructive/irreversible confirmation, no form fields beyond a typed confirmation token | `AlertDialog` |
 
-Later phases (out of scope for this session, tracked in the roadmap section):
-- **Phase 2:** Unify `field_row` / `label_fill` / ad-hoc field editors into one `field` primitive with a single inspector.
-- **Phase 3:** Server-side PDF via Cloudflare Browser Rendering binding (Phase D of the prior plan), replacing the `text/plain` workaround.
-- **Phase 4:** Promote every localization asset (rules, tax templates, remittance schedules, return templates) from drawers to workspaces with the same shell.
-- **Phase 5:** Collaborative editing / comments / review workflow on templates (Odoo Studio parity).
+Inline edits (a single field on a row) may stay inline. Everything else moves.
 
----
+## 3. Event → pattern map (the actual decisions)
 
-## Part 2 — Phase 1: Template Studio (this session)
+Organizations
+- Create / Edit Organization → **workspace** `/admin-management/organizations/new`, `/…/$id/edit` (replaces inline create + `OrganizationDetailsDialog` for editing)
+- Manage Subscription → **workspace** `/…/$id/subscription` (plan, entitlements, overrides, payment history in tabs; replaces `ManageSubscriptionDialog` + `OrgEntitlementOverrides` modal)
+- Suspend Organization → **confirm dialog** (short reason + confirm) — keep
+- Multi-Step Delete → **wizard route** `/…/$id/delete` (impact review → data export → typed confirm) — this is a workflow, not a modal
+- Schedule Deletion → **confirm dialog** with date — keep
+- Ownership Transfer → **peek sheet** action → confirm dialog
 
-### Route + shell
-- New file-based route: `src/routes/_authenticated/localization/templates/$templateId.tsx` — full page, own head(), auth-gated (safe under `_authenticated`).
-- Three-pane layout, no drawer:
-  - **Left rail (280px, collapsible):** document outline (tree of AST nodes) + template metadata section (code, pack, version, status).
-  - **Center (fluid):** the WYSIWYG canvas — paged.js preview rendered into an iframe, overlaid with an interaction layer (see "Canvas interaction model" below).
-  - **Right inspector (360px, collapsible):** context-sensitive editor for the current selection. When nothing is selected → Theme + Paper editor. When a node is selected → that node's inspector (grid → GridDesigner, list → list inspector, etc. — reuse existing inspector components verbatim).
-- **Top bar:** template name, status badge, version selector, `Preview`, `Validate`, `Save draft`, `Publish version`, `Diff vs published`, overflow menu (Duplicate, Export JSON, Import JSON, History).
-- **Bottom status bar:** validation summary (errors/warnings count from `validateV3Body`), zoom control, page indicator.
-- Existing drawer entry points across the localization module redirect to the new route (one changed entry, all callers follow).
+Users
+- User Details → already have `AdminOrganizationDetail`-style page; make `/admin-management/users/$id` the canonical detail workspace; keep `?peek=$id` on the list via `DocumentPeekShell`
+- Delete User → **confirm dialog** — keep
 
-### Canvas interaction model (the WYSIWYG core)
-The canvas is the single source of interaction; the inspector reflects and refines.
+Team & Groups (platform staff RBAC)
+- Invite Member → **workspace** `/admin-management/team/invite` (role, groups, scopes)
+- Edit Member → **workspace** `/…/team/$id/edit`
+- Create/Edit Group → **workspace** `/admin-management/groups/new`, `/…/groups/$id/edit` (name + permissions matrix is not a dialog job)
+- Delete → **confirm dialog**
 
-- **Selection layer:** an absolutely-positioned overlay `<div>` on top of the paged.js iframe. On every render, the compiler already emits `data-ce-node="doc.<idx>"` / `data-ce-type` markers. A `postMessage` bridge inside the iframe reports bounding rects for every marked node up to the parent, which draws selection boxes and hit targets in the overlay. This is the only new engine-adjacent code; the compiler itself does not change.
-- **Click → select:** clicking anywhere in the canvas resolves to the deepest node under the cursor, sets `selection = { path }`, and scrolls the inspector to that node's editor. Shift-click extends selection (siblings only, Phase 1 scope).
-- **Direct text editing:** for text-bearing nodes (`heading`, `rich_text`, `label_fill.label` literals, cell literals), double-click enters edit mode. The overlay renders a `contentEditable` proxy positioned over the rendered text; commits dispatch a `SetLiteral` command. Bindings (`{ kind: "binding", path }`) are shown as chips and edited via the inline TokenPicker popover, never as raw strings.
-- **Drag-to-reorder:** document-level nodes and list/columns children get drag handles in the overlay. Drop dispatches `MoveNode({ from, to })`.
-- **In-canvas structural ops:**
-  - Grid: column-width drag handles rendered on top of the grid's `<colgroup>` widths; cell click selects the cell; a floating mini-toolbar (Merge →, Split →, Merge ↓, Split ↓, Σ) appears above the selected cell. GridDesigner's logic moves into shared command handlers so both the canvas toolbar and the inspector-side spreadsheet call the same commands.
-  - Insert bar: a `+` gutter between block-level nodes opens a palette (Heading / Paragraph / Grid / List / Field row / Label fill / Columns / Page break / Image / Signature).
-- **Keyboard:** arrows navigate siblings, `Enter` edits, `Esc` exits edit, `Delete` removes node (with confirmation for grids/lists), `Cmd+Z / Cmd+Shift+Z` undo/redo.
-- **Zoom + page navigation:** overlay stays aligned by re-measuring on iframe `resize` and on paged.js `rendered` event.
+Localization
+- Create/Edit Pack → **workspace** `/admin-management/localization-packs/new`, `/…/$id/edit` (already have `AdminLocalizationCertificateEdit` page — extend pattern to packs; drop the 1100px Sheet)
+- Publish Pack Version → **wizard** `/…/$id/publish` (diff → validation → publish)
+- Install Pack on tenant → **wizard** in Organizations workspace
 
-### State + command model (the missing canonical layer)
-- New module `src/features/localization/studio/state.ts` exposes a Zustand store:
-  - `document: DocumentBody` (the v3/v4 AST)
-  - `selection: { path: NodePath | null; cellRange?: GridRange }`
-  - `history: { past: Patch[]; future: Patch[] }`
-  - `dirty: boolean`, `validation: ValidationResult`
-- All mutations go through `dispatch(command)`. Command set for Phase 1:
-  - `SetLiteral`, `SetBinding`, `InsertNode`, `RemoveNode`, `MoveNode`, `UpdateNodeProps`
-  - Grid-specific: `SelectCell`, `MergeCells`, `SplitCell`, `ToggleSumOf`, `ResizeColumn`, `AddHeaderRow`, `AddFooterRow`, `AddDataRow`
-  - Theme: `UpdateTheme`, `UpdatePaperFormat`
-- Every command returns an immer patch → drives undo/redo cheaply and makes future collaborative editing (Yjs) a drop-in.
-- The canvas overlay, the outline tree, GridDesigner, and per-node inspectors all read `selection` and dispatch commands — no component owns mutation state anymore. GridDesigner is refactored to be a thin view over the store (its internal state moves out).
+Plan Builder & App Catalog
+- Create/Edit Plan → **workspace** `/admin-management/plan-builder/new`, `/…/$id/edit` (features, entitlements, app access, pricing tabs)
+- Create/Edit App entry → **workspace** `/…/app-catalog/$id/edit`
+- Feature Catalog entry → **peek** for read, **workspace** for edit
 
-### Preview + save
-- The canvas already renders through `compile()` + paged.js — no change.
-- Debounced (250ms) recompile on every dispatched command.
-- Save writes the AST + theme to the existing template row via the existing hook (`usePublishPackVersion` / draft save path). Publish flow is unchanged; the studio just calls the same mutations.
+Email Center
+- Compose Campaign / New Campaign → **workspace** `/…/email-center/campaigns/new` (audience, template, schedule)
+- Edit Template → **workspace** `/…/email-center/templates/$id/edit`
+- Automation Settings → **workspace** `/…/email-center/automations/$id`
 
-### Non-goals for this session (explicit)
-- No engine changes; no new AST primitives.
-- No server-side PDF (Phase 3).
-- No collapsing of `field_row`/`label_fill` into a single primitive (Phase 2).
-- No changes to rules / tax templates / return templates editors (Phase 4).
-- Drawer editor stays in the code for one release as a fallback (feature-flagged off), then removed.
+Demo Requests
+- Request Details → **peek sheet** (read + status change)
+- Compose reply → **workspace** (reuses email compose workspace with request pre-filled)
 
-### Files touched (approximate)
-- **New:** route file, `studio/state.ts`, `studio/commands.ts`, `studio/CanvasOverlay.tsx`, `studio/canvasBridge.ts` (iframe postMessage), `studio/OutlineTree.tsx`, `studio/InsertPalette.tsx`, `studio/TopBar.tsx`, `studio/InspectorHost.tsx`, `studio/useUndoRedo.ts`, tests under `src/test/localization/studio/`.
-- **Edited:** `CertificateV3Editor.tsx` (becomes an inspector host that delegates to per-node inspectors; loses drawer chrome), `GridDesigner.tsx` (state moves to store, commands go through dispatch), `compile.ts` (already emits `data-ce-node` — verify markers on every leaf including inline label_fill, add missing ones only if a test flags them).
-- **Untouched:** engine types, engine compiler behaviour, paged.js integration, pack registry, publish/version lifecycle, all Deno mirrors, all rendered output.
+Infrastructure / Settings tabs
+- Keep as configuration pages; provider connect flows (`IntegrationProviderManager`, Mpesa env) stay as inline forms — they are configuration, not entity CRUD.
 
-### Success criteria for Phase 1
-- A publisher can build the KE P9 (or any pack template) end-to-end without ever opening the raw JSON editor.
-- Every AST change originates from a `dispatch(command)`; no component mutates `document` directly.
-- Undo/redo works across every editing surface.
-- Preview updates within 300ms of any edit.
-- `certificate-editor.country-agnostic.test.ts` still passes — the studio adds no country tokens.
-- The drawer entry point is gone from primary navigation; deep links resolve to the studio route.
+## 4. Shared foundation to build first
+
+Before migrating individual events, land the substrate so every subsequent migration is a small, mechanical change:
+
+1. **`src/apps/platform-admin/`** — mirror `src/apps/platform/`: `PlatformAdminAppLayout` wrapping `PlatformShell` with `PLATFORM_ADMIN_NAV` derived from `src/lib/admin/registry.ts`. Retire `AdminDashboardLayout` + `AdminSidebar` so admin uses the same shell primitives as tenant apps.
+2. **Admin record scaffolds** — thin re-exports (`AdminRecordPage`, `AdminRecordForm`, `AdminPeekShell`) around `RecordShell` / `RecordFormShell` / `DocumentPeekShell`, so admin pages import from one place and stay visually identical to tenant record pages.
+3. **Route conventions** — every list route supports `?peek=<id>`; every entity has `/new`, `/$id`, `/$id/edit`; wizards live at `/$id/{action}`.
+4. **Lint guard** — new eslint rule `no-dialog-crud-in-admin` flagging `DialogContent`/`SheetContent` inside `src/pages/admin/**` and `src/components/admin/**` that contains form inputs beyond a single confirmation field. Allowlist confirmation dialogs and inline settings dialogs.
+
+## 5. Migration phases
+
+Each phase ships end-to-end (routes registered in `App.tsx` + `src/routes/-lazyRoutes.tsx`, nav entries in the admin registry, old dialog file deleted or reduced to a confirm dialog, no dead imports).
+
+- **Phase 0 — Foundation**: items in §4. No behavior change.
+- **Phase 1 — Organizations**: highest-value surface, most dialogs. Workspaces for create/edit/subscription, wizard for delete, peek for row inspection. Delete `OrganizationDetailsDialog`, `ManageSubscriptionDialog`, `MultiStepDeleteDialog` (folded into wizard route).
+- **Phase 2 — Users + Team + Groups**: workspaces for invite/edit/group management, peeks for row inspection, confirm dialogs only for destructive ops. Delete `UserDetailsDialog` (becomes peek), keep `DeleteUserDialog` as confirm.
+- **Phase 3 — Plan Builder + App Catalog + Feature Catalog**: workspace routes with tabs.
+- **Phase 4 — Localization Packs**: workspace + publish wizard, drop the 1100px Sheet.
+- **Phase 5 — Email Center + Demo Requests**: workspaces for campaigns/templates/automations, peek for demo request row.
+- **Phase 6 — Cleanup**: enable lint rule, delete leftover admin dialogs, docs entry under `docs/design-system/audit/platform-admin.md` documenting the interaction classification so future work stays consistent.
+
+## 6. Non-goals
+
+- No changes to tenant-facing modules (Sales, HR, etc.) — they already follow the pattern.
+- No visual redesign of the admin shell beyond adopting `PlatformShell`.
+- No changes to Supabase schema, RLS, or business logic. Route additions only wrap existing data hooks.
+- Confirmation `AlertDialog` usages remain; only entity-form dialogs/sheets are in scope.
+
+## 7. Technical notes
+
+- Admin routes are still classic `react-router-dom` under `App.tsx` (`/admin-management` → `AdminLayoutRoute`), not TanStack file routes. New workspace/wizard/peek routes register as nested `<Route>` children there and lazy-load via `src/routes/-lazyRoutes.tsx`, matching the existing convention. No migration to `src/routes/` in this project.
+- `PlatformShell` today is imported by tenant `PlatformAppLayout`; it is framework-agnostic and works fine inside the react-router admin subtree.
+- `RecordShell`, `RecordFormShell`, `WizardShell`, `DocumentPeekShell`, `useRecordFormSubmit`, `usePeekParam` are already exported from `@/design-system` — no new primitives required.
+- Command palette (`buildPlatformAdminEntries`) automatically picks up new admin routes once they are added to `src/lib/admin/registry.ts`.
+- Each phase is independently shippable; behavior of unmigrated surfaces is unchanged until their phase.
