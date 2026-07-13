@@ -11,7 +11,11 @@ import { usePlatformPermissions } from "@/hooks/usePlatformPermissions";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 import { signOutAndRedirect } from "@/lib/auth/signOutAndRedirect";
-import { ADMIN_NAV, type AdminNavItem } from "./adminNav";
+import {
+  PLATFORM_ADMIN_NAV,
+  type AdminWorkspaceNav,
+  type AdminWorkspaceNavItem,
+} from "@/apps/platform-admin/nav";
 
 interface Props {
   collapsed?: boolean;
