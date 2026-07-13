@@ -174,6 +174,7 @@ export function AIProviderCard({
                         Add Key
                       </Button>
                     </DialogTrigger>
+                    {/* ADMIN-DIALOG-EXEMPT: Inline AI provider settings toggle — provider connection form is a settings surface, not entity CRUD. */}
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Add API Key for {provider.display_name}</DialogTitle>

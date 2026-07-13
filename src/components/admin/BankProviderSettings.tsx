@@ -267,6 +267,7 @@ export function BankProviderSettings() {
 
       {/* Configuration Dialog */}
       <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
+        {/* ADMIN-DIALOG-EXEMPT: Inline bank provider settings form — provider connection settings surface, not entity CRUD. */}
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Configure {selectedProvider?.provider_name}</DialogTitle>

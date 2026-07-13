@@ -269,6 +269,7 @@ export function AdminAIEmailAssistant({
 
       {/* Generate from Template Dialog */}
       <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+        {/* ADMIN-DIALOG-EXEMPT: Inline AI email-generation assistant — read-write ephemeral prompt surface, not entity CRUD. */}
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Generate Email with AI</DialogTitle>
@@ -346,6 +347,7 @@ export function AdminAIEmailAssistant({
 
       {/* Custom Prompt Dialog */}
       <Dialog open={showCustomDialog} onOpenChange={setShowCustomDialog}>
+        {/* ADMIN-DIALOG-EXEMPT: Inline AI email-generation assistant — read-write ephemeral prompt surface, not entity CRUD. */}
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Custom AI Email</DialogTitle>
@@ -405,6 +407,7 @@ export function AdminAIEmailAssistant({
 
       {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        {/* ADMIN-DIALOG-EXEMPT: Inline AI email-generation assistant — read-write ephemeral prompt surface, not entity CRUD. */}
         <DialogContent className="max-w-3xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>AI Generated Content</DialogTitle>
@@ -437,6 +440,7 @@ export function AdminAIEmailAssistant({
 
       {/* Subject Suggestions Dialog */}
       <Dialog open={showSubjectSuggestions} onOpenChange={setShowSubjectSuggestions}>
+        {/* ADMIN-DIALOG-EXEMPT: Inline AI email-generation assistant — read-write ephemeral prompt surface, not entity CRUD. */}
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Subject Line Suggestions</DialogTitle>
