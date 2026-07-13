@@ -428,6 +428,8 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
               onSelectNode={(id) => handleSelectNode(id)}
               onNodeAction={handleNodeAction}
               onReorder={handleReorder}
+              onEditText={handleEditText}
+              onInsertAfter={handleInsertAfter}
             />
           </div>
         </ResizablePanel>
