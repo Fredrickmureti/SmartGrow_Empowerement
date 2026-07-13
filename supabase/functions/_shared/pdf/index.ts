@@ -20,22 +20,35 @@ export { theme, type Theme } from "./themes/accountantMono.ts";
  * STATUTORY PAPER PIN — runtime guard.
  *
  * Statutory documents (tax certificates, payroll returns, audit certificates,
- * payslips in regulated markets) are required by their issuing authority to
- * be A4 portrait. They MUST NOT be silently re-rendered on thermal or Letter
- * paper just because a tenant set a `document_print_policies` row to do so.
+ * payslips in regulated markets) MUST NOT be silently re-rendered on
+ * thermal or an unrelated size just because a tenant set a
+ * `document_print_policies` row to do so.
  *
  * Generators that emit statutory PDFs call `assertStatutoryPaper(received)`
- * at the top of the render path. If a caller has somehow forced a different
- * format, the helper throws — this is preferable to silently producing a
- * non-compliant filing.
+ * at the top of the render path. If a caller has somehow forced an
+ * unsupported format, the helper throws — this is preferable to silently
+ * producing a non-compliant filing.
  *
- * Pass the *resolved* paper format string (e.g. "a4" | "letter" | "80mm").
- * The default `allowed` set is just A4; pass an explicit list to widen it
- * for jurisdictions that accept Letter (none currently known).
+ * The default allowlist covers the paper sizes/orientations that
+ * regulators around the world currently accept for statutory filings
+ * (A3, A4, US Letter, US Legal, portrait and landscape). Which specific
+ * size is *legal* for a given filing is pack metadata — this helper only
+ * guards against wildly wrong output (e.g. an 80 mm thermal roll).
+ *
+ * Pass the *resolved* paper format string (e.g. "a4", "letter",
+ * "a4-landscape", "80mm"). Pass an explicit list to narrow it further
+ * for a specific pack/renderer.
  */
+export const STATUTORY_PAPER_ALLOWLIST: readonly string[] = [
+  "a3", "a3-landscape",
+  "a4", "a4-landscape",
+  "letter", "letter-landscape",
+  "legal", "legal-landscape",
+];
+
 export function assertStatutoryPaper(
   received: string | undefined | null,
-  allowed: readonly string[] = ["a4", "a4-landscape"],
+  allowed: readonly string[] = STATUTORY_PAPER_ALLOWLIST,
 ): void {
   const normalized = (received ?? "a4").toLowerCase();
   if (!allowed.includes(normalized)) {

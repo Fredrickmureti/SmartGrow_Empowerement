@@ -64,12 +64,13 @@ export function CertificatePreviewPane({ templateCode, displayName, body }: Prop
 
   const b = body as any;
   const template: CertificateTemplateV3 = {
-    schema_version: 3,
+    schema_version: (Number(b.schema_version) === 4 ? 4 : 3),
     code: templateCode,
     display_name: displayName || templateCode,
     paper_format: b.paper_format,
     page_master: b.page_master,
     document: b.document,
+    theme: b.theme,
   };
 
   return (

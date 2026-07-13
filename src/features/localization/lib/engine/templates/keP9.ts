@@ -1,151 +1,414 @@
 /**
- * Canonical Kenya P9 (Tax Deduction Card) — Certificate Engine v3 body.
+ * Kenya P9 (Tax Deduction Card) — Certificate Engine v4 template.
  *
- * Single source of truth for the KRA P9A layout. Referenced by:
- *   • the publisher editor "Seed from Kenya P9" action,
- *   • the live-preview fixture,
- *   • the DB migration that ships the KE pack template (mirrored as JSON).
+ * Country knowledge lives ENTIRELY in this pack-authored data. The engine
+ * (compile.ts) never mentions Kenya, KRA, P9, PAYE, SHIF, NSSF, or AHL.
+ * Every string is a literal on a generic node; every dynamic value is a
+ * `binding` into the payload assembled by `generate-tax-certificate`.
  *
- * Country knowledge lives ENTIRELY in this pack-authored data — the engine
- * (compile.ts) never mentions P9, KRA, or Kenya. Any country can author an
- * equivalent body with the same generic node/column primitives.
+ * Layout blueprint follows KRA Appendix 2A (2025 revision):
+ *   - Header stack with 4 semantic rows: label / unit / letter / sub-instr.
+ *     Only the E column has a `colspan=3` label ("Defined Contribution
+ *     Retirement Scheme"); E1/E2/E3 each get their own letter cell and
+ *     their own sub-instruction cell — a shape that the v3 MatrixNode
+ *     could not express, which is why v4 introduced GridNode.
+ *   - Employer/employee identity as inline "label ......... value"
+ *     fill-in lines (label_fill + field_row), NOT a two-column KV strip.
+ *   - End-of-year totals as label_fill lines beside a "To be completed
+ *     by employer" caption.
+ *   - IMPORTANT + Attach block as a two-column `columns` container
+ *     holding nested numbered lists.
  */
-import type { CertificateTemplateV3, MatrixColumn, Node } from "../types";
+import type {
+  CertificateTemplateV3,
+  FieldRowNode,
+  GridFooterCell,
+  GridHeaderCell,
+  GridNode,
+  Node,
+  Theme,
+} from "../types";
 
 const lit = (v: string | number) => ({ kind: "literal" as const, value: v });
 const bind = (path: string, fallback = "") => ({ kind: "binding" as const, path, fallback });
 const bindFmt = (path: string, format: any, fallback = "") =>
   ({ kind: "binding" as const, path, format, fallback });
 
-const kshs = lit("Kshs.");
-
-const matrixColumns: MatrixColumn[] = [
-  { key: "month",  header: lit("Month"),               sub_header: lit(""),   width: 18, align: "left",  format: "month_short" },
-  { key: "col_a",  header: lit("Basic Salary"),        sub_header: lit("A"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_b",  header: lit("Benefits — Non-Cash"), sub_header: lit("B"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_c",  header: lit("Value of Quarters"),   sub_header: lit("C"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_d",  header: lit("Total Gross Pay"),     sub_header: lit("D"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_e1", header: lit("30% of A"),            sub_header: lit("E1"), unit: kshs, align: "right", format: "number" },
-  { key: "col_e2", header: lit("Actual"),              sub_header: lit("E2"), unit: kshs, align: "right", format: "number" },
-  { key: "col_e3", header: lit("Fixed 30,000 p.m"),    sub_header: lit("E3"), unit: kshs, align: "right", format: "number" },
-  { key: "col_f",  header: lit("AHL"),                 sub_header: lit("F"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_g",  header: lit("SHIF"),                sub_header: lit("G"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_h",  header: lit("PRMF"),                sub_header: lit("H"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_i",  header: lit("Owner-Occupied Interest"), sub_header: lit("I"), unit: kshs, align: "right", format: "number" },
-  { key: "col_j",  header: lit("Total Deductions"),    sub_header: lit("J"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_k",  header: lit("Chargeable Pay"),      sub_header: lit("K"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_l",  header: lit("Tax Charged"),         sub_header: lit("L"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_m",  header: lit("Personal Relief"),     sub_header: lit("M"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_n",  header: lit("Insurance Relief"),    sub_header: lit("N"),  unit: kshs, align: "right", format: "number" },
-  { key: "col_o",  header: lit("PAYE Tax"),            sub_header: lit("O"),  unit: kshs, align: "right", format: "number" },
-];
-
-const matrix: Node = {
-  type: "matrix",
-  title: lit("Monthly Deductions"),
-  rows_binding: "p9.months",
-  repeat_header: true,
-  columns: matrixColumns,
-  column_groups: [
-    { label: lit(""),                                span: 1 }, // Month
-    { label: lit("Earnings"),                        span: 4 }, // A..D
-    { label: lit("Defined Contribution Retirement"), span: 3 }, // E1..E3
-    { label: lit("Statutory Deductions"),            span: 4 }, // F..I
-    { label: lit("Totals"),                          span: 2 }, // J..K
-    { label: lit("Tax"),                             span: 4 }, // L..O
-  ],
-  footer: {
-    label: lit("TOTAL"),
-    sum_columns: [
-      "col_a", "col_b", "col_c", "col_d",
-      "col_e1", "col_e2", "col_e3",
-      "col_f", "col_g", "col_h", "col_i",
-      "col_j", "col_k", "col_l", "col_m", "col_n", "col_o",
-    ],
-  },
+// ── Theme ────────────────────────────────────────────────────────────
+// Statutory-form aesthetic: black rules, no zebra, plain white cells
+// except for the letter/unit header bands, serif body text with a
+// sans-serif heading. Publishers can adjust these per pack.
+const theme: Theme = {
+  body_font: '"Times New Roman", "Nimbus Roman", Times, serif',
+  heading_font: '"Helvetica Neue", "Arial", sans-serif',
+  base_font_size_pt: 8.5,
+  color: "#000",
+  muted_color: "#000",
+  rule_color: "#000",
+  rule_weight_pt: 0.75,
+  header_shade: "none",
+  header_letter_shade: "none",
+  header_unit_shade: "none",
+  header_note_shade: "none",
+  zebra: "none",
+  heading_case: "none",
+  heading_underline: false,
+  grid_font_size_pt: 6.5,
+  grid_number_font_size_pt: 6.5,
+  grid_footer_font_size_pt: 6.5,
+  numeric_letter_spacing: "0",
+  legal_border: false,
+  legal_border_color: "#000",
 };
 
+// ── Monthly Deductions grid ───────────────────────────────────────────
+// Column definitions (data plane).
+const columns: GridNode["columns"] = [
+  { id: "month",  width: "18mm",   align: "left",  format: "month_short", nowrap: true },
+  { id: "col_a",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_b",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_c",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_d",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_e1", width: "1fr",    align: "right", format: "number" },
+  { id: "col_e2", width: "1fr",    align: "right", format: "number" },
+  { id: "col_e3", width: "1fr",    align: "right", format: "number" },
+  { id: "col_f",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_g",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_h",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_i",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_j",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_k",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_l",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_m",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_n",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_o",  width: "1fr",    align: "right", format: "number" },
+];
+
+// Header stack — 4 rows. Cell-level colspan/rowspan mirrors the KRA form.
+//
+// Row 1 (label): MONTH (rowspan 3), Basic Salary (rowspan 2), …
+//                Defined Contribution Retirement Scheme (colspan 3), …
+//                Total Deductions (rowspan 2), …
+// Row 2 (unit):  Kshs. under every column except MONTH.
+// Row 3 (letter): A B C D | E1 E2 E3 | F G H I J K L M N O
+// Row 4 (note):   only under E1/E2/E3 → "30% of A" / "Actual" / "Fixed 30,000 p.m"
+//
+// Note: KRA uses rowspan=3 for MONTH and simple columns because their
+//   letter row spans A/B/C/D above E1/E2/E3. We express that here by
+//   giving MONTH rowspan=3 and every non-E column rowspan=2 on the
+//   label row, then letting the letter row (row 3) fill only cells that
+//   don't already span down from row 1. To keep cell count consistent,
+//   we author 4 explicit rows where the letter row places one cell per
+//   data column and the note row is empty except under E1/E2/E3.
+
+const headerRow_LabelUnit: GridHeaderCell[] = [
+  { content: lit("MONTH"),                    row_span: 4, variant: "label", align: "center" },
+  { content: lit("Basic Salary"),             row_span: 2, variant: "label" },
+  { content: lit("Benefits – Non-Cash"),      row_span: 2, variant: "label" },
+  { content: lit("Value of Quarters"),        row_span: 2, variant: "label" },
+  { content: lit("Total Gross Pay"),          row_span: 2, variant: "label" },
+  { content: lit("Defined Contribution Retirement Scheme"), span: 3, variant: "label" },
+  { content: lit("Affordable Housing Levy (AHL)"), row_span: 2, variant: "label" },
+  { content: lit("Social Health Insurance Fund (SHIF)"), row_span: 2, variant: "label" },
+  { content: lit("Post Retirement Medical Fund (PRMF)"), row_span: 2, variant: "label" },
+  { content: lit("Owner-Occupied Interest"),  row_span: 2, variant: "label" },
+  { content: lit("Total Deductions (Lower of E+F+G+H+I)"), row_span: 2, variant: "label" },
+  { content: lit("Chargeable Pay (D–J)"),     row_span: 2, variant: "label" },
+  { content: lit("Tax Charged"),              row_span: 2, variant: "label" },
+  { content: lit("Personal Relief"),          row_span: 2, variant: "label" },
+  { content: lit("Insurance Relief"),         row_span: 2, variant: "label" },
+  { content: lit("PAYE Tax (L-M-N)"),         row_span: 2, variant: "label" },
+];
+
+// Row 2 — the "Kshs." unit for A, B, C, D and each of E1/E2/E3 (E1/E2/E3
+// appear as three separate cells beneath the merged E label).
+const headerRow_Unit: GridHeaderCell[] = [
+  // MONTH continues via rowspan
+  // Columns A–D continue via rowspan on row 1
+  { content: lit("Kshs."), variant: "unit", align: "center" },
+  { content: lit("Kshs."), variant: "unit", align: "center" },
+  { content: lit("Kshs."), variant: "unit", align: "center" },
+  // Columns F–O continue via rowspan on row 1
+];
+
+// Row 3 — letter row: A B C D | E1 E2 E3 | F G H I J K L M N O
+const headerRow_Letters: GridHeaderCell[] = [
+  // MONTH continues via rowspan
+  { content: lit("A"),  variant: "letter", align: "center" },
+  { content: lit("B"),  variant: "letter", align: "center" },
+  { content: lit("C"),  variant: "letter", align: "center" },
+  { content: lit("D"),  variant: "letter", align: "center" },
+  { content: lit("E1"), variant: "letter", align: "center" },
+  { content: lit("E2"), variant: "letter", align: "center" },
+  { content: lit("E3"), variant: "letter", align: "center" },
+  { content: lit("F"),  variant: "letter", align: "center" },
+  { content: lit("G"),  variant: "letter", align: "center" },
+  { content: lit("H"),  variant: "letter", align: "center" },
+  { content: lit("I"),  variant: "letter", align: "center" },
+  { content: lit("J"),  variant: "letter", align: "center" },
+  { content: lit("K"),  variant: "letter", align: "center" },
+  { content: lit("L"),  variant: "letter", align: "center" },
+  { content: lit("M"),  variant: "letter", align: "center" },
+  { content: lit("N"),  variant: "letter", align: "center" },
+  { content: lit("O"),  variant: "letter", align: "center" },
+];
+
+// Row 4 — sub-instructions row: only cells under E1/E2/E3 carry text.
+const headerRow_Notes: GridHeaderCell[] = [
+  // MONTH continues via rowspan
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit("30% of A"),        variant: "note", align: "center" },
+  { content: lit("Actual"),          variant: "note", align: "center" },
+  { content: lit("Fixed 30,000 p.m"), variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+  { content: lit(""),                variant: "note", align: "center" },
+];
+
+// Footer: TOTAL row summing every numeric column.
+const totalRow: GridFooterCell[] = [
+  { content: lit("TOTAL"), align: "left", variant: "total" },
+  ...(["col_a", "col_b", "col_c", "col_d", "col_e1", "col_e2", "col_e3",
+       "col_f", "col_g", "col_h", "col_i", "col_j", "col_k", "col_l",
+       "col_m", "col_n", "col_o"] as const).map<GridFooterCell>((id) => ({
+    content: { kind: "sum_of" as const, column_id: id, format: "number" as const },
+    align: "right",
+    variant: "total",
+  })),
+];
+
+const grid: GridNode = {
+  type: "grid",
+  columns,
+  header_rows: [headerRow_LabelUnit, headerRow_Unit, headerRow_Letters, headerRow_Notes],
+  data_rows: { bind: "p9.months" },
+  footer_rows: [totalRow],
+  repeat_header: true,
+  border: "all",
+  zebra: "none",
+};
+
+// ── Identity fields (inline label-fill lines) ─────────────────────────
+const identityRow1: FieldRowNode = {
+  type: "field_row",
+  gap_mm: 6,
+  columns: ["1fr", "0.6fr"],
+  fields: [
+    { type: "label_fill", label: lit("Employer's Name"),  value: bind("employer.name"),         rule: "dotted", label_bold: true },
+    { type: "label_fill", label: lit("Employer's PIN"),   value: bind("employer.tax_pin"),      rule: "dotted", label_bold: true, emphasis: "primary" },
+  ],
+};
+const identityRow2: FieldRowNode = {
+  type: "field_row",
+  gap_mm: 6,
+  columns: ["1fr", "0.6fr"],
+  fields: [
+    { type: "label_fill", label: lit("Employee's Main Name"), value: bind("employee.full_name"), rule: "dotted", label_bold: true },
+    { type: "label_fill", label: lit("Employee's PIN"),       value: bind("employee.tax_pin"),   rule: "dotted", label_bold: true, emphasis: "primary" },
+  ],
+};
+const identityRow3: FieldRowNode = {
+  type: "field_row",
+  gap_mm: 6,
+  columns: ["1fr"],
+  fields: [
+    { type: "label_fill", label: lit("Employee's Other Names"), value: bind("employee.other_names"), rule: "dotted", label_bold: true },
+  ],
+};
+
+// ── End-of-year fill-in row ───────────────────────────────────────────
+const endOfYearRow: FieldRowNode = {
+  type: "field_row",
+  gap_mm: 8,
+  columns: ["1fr", "1fr"],
+  fields: [
+    { type: "label_fill", label: lit("TOTAL CHARGEABLE PAY (COL. K)  Kshs."), value: bindFmt("totals.chargeable_pay", "number"), rule: "dotted", label_bold: true, emphasis: "primary" },
+    { type: "label_fill", label: lit("TOTAL TAX (COL. O)  Kshs."),            value: bindFmt("totals.paye", "number"),           rule: "dotted", label_bold: true, emphasis: "primary" },
+  ],
+};
+
+// ── IMPORTANT + Attach two-column notice ──────────────────────────────
+const importantList: Node = {
+  type: "list",
+  marker: "decimal",
+  compact: true,
+  items: [
+    {
+      text: lit("Use P9A"),
+      children: {
+        type: "list",
+        marker: "lower-alpha-paren",
+        compact: true,
+        items: [
+          { text: lit("For all liable employees and where director/employee received Benefits in addition to cash emoluments") },
+          { text: lit("Where an employee is eligible to deduction on owner occupier interest.") },
+          { text: lit("Where an employee contributes to a post retirement medical fund") },
+        ],
+      },
+    },
+    {
+      text: lit(""),
+      children: {
+        type: "list",
+        marker: "lower-alpha-paren",
+        compact: true,
+        items: [
+          { text: lit("Deductible interest in respect of any month prior to December 2024 must not exceed Kshs. 25,000/= and commencing December 2024 must not exceed 30,000/=") },
+          { text: lit("Deductible pension contribution in respect of any month prior to December 2024 must not exceed Kshs. 20,000/= and commencing December 2024 must not exceed 30,000/=") },
+          { text: lit("Deductible contribution to a post retirement medical fund in respect of any month is effective from December 2024, must not exceed Kshs.15,000/=") },
+          { text: lit("Deductible Contribution to the Social Health Insurance Fund (SHIF) and deductions made towards Affordable Housing Levy (AHL) are effective December 2024") },
+          { text: lit("Personal Relief is Kshs. 2,400 per Month or 28,800 per year") },
+          { text: lit("Insurance Relief is 15% of the Premium up to a Maximum of Kshs. 5,000 per month or Kshs. 60,000 per year") },
+        ],
+      },
+    },
+  ],
+};
+
+const attachList: Node = {
+  type: "list",
+  marker: "lower-alpha-paren",
+  compact: true,
+  start: 3, // continues the (c) enumeration from the KRA form
+  items: [
+    {
+      text: lit("Attach"),
+      children: {
+        type: "list",
+        marker: "lower-roman-paren",
+        compact: true,
+        items: [
+          { text: lit("Photostat copy of interest certificate and statement of account from the Financial Institution") },
+          { text: lit("The DECLARATION duly signed by the employee.") },
+        ],
+      },
+    },
+  ],
+};
+
+const importantBlock: Node = {
+  type: "section",
+  keep_together: true,
+  children: [
+    {
+      type: "rich_text",
+      paragraphs: [[{ text: lit("IMPORTANT"), emphasis: "bold" }]],
+    },
+    {
+      type: "columns",
+      count: 2,
+      gap_mm: 8,
+      column_children: [
+        [importantList],
+        [attachList],
+      ],
+    },
+    {
+      type: "rich_text",
+      paragraphs: [[{ text: lit("P9A"), emphasis: "bold" }]],
+    },
+  ],
+};
+
+// ── Template envelope ────────────────────────────────────────────────
 export const KE_P9_V3_TEMPLATE: CertificateTemplateV3 = {
-  schema_version: 3,
+  schema_version: 4,
   code: "P9",
   display_name: "Kenya — Tax Deduction Card (P9)",
+  theme,
   paper_format: {
     size: "A4",
     orientation: "landscape",
-    margin_top: 26, margin_right: 10, margin_bottom: 14, margin_left: 10,
-    header_height: 22, footer_height: 10,
+    margin_top: 14,
+    margin_right: 10,
+    margin_bottom: 10,
+    margin_left: 10,
+    header_height: 22,
+    footer_height: 8,
   },
   page_master: {
-    code: "ke.p9.page_master.v10",
+    code: "ke.p9.page_master.v11",
     header: [
-      { type: "rich_text", align: "right",
-        paragraphs: [[{ text: lit("APPENDIX 2A"), emphasis: "muted" }]] },
-      { type: "heading", level: 1, align: "center",
-        text: lit("KENYA REVENUE AUTHORITY — DOMESTIC TAXES DEPARTMENT") },
-      { type: "heading", level: 2, align: "center",
-        text: lit("TAX DEDUCTION CARD") },
+      {
+        type: "field_row",
+        gap_mm: 8,
+        columns: ["25mm", "1fr", "40mm"],
+        fields: [], // structural placeholder — header layout below via columns
+      },
+      {
+        type: "columns",
+        count: 3,
+        gap_mm: 4,
+        column_children: [
+          [
+            {
+              type: "rich_text",
+              align: "left",
+              paragraphs: [[{ text: lit("APPENDIX 2A"), emphasis: "bold" }]],
+            },
+          ],
+          [
+            { type: "heading", level: 2, align: "center", text: lit("KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT") },
+            { type: "rich_text", align: "center", paragraphs: [[{ text: lit("TAX DEDUCTION CARD"), emphasis: "bold" }]] },
+            {
+              type: "rich_text",
+              align: "center",
+              paragraphs: [[
+                { text: lit("YEAR "), emphasis: "muted" },
+                { text: bind("fiscal_year", "20 ......") },
+              ]],
+            },
+          ],
+          [
+            {
+              type: "rich_text",
+              align: "right",
+              paragraphs: [[{ text: lit("ISO 9001:2015 CERTIFIED"), emphasis: "muted" }]],
+            },
+          ],
+        ],
+      },
     ],
     footer: [
-      { type: "rich_text", align: "center",
+      {
+        type: "rich_text",
+        align: "center",
         paragraphs: [[
           { text: lit("Serial "), emphasis: "muted" },
           { text: bind("serial_number") },
           { text: lit("  ·  Generated "), emphasis: "muted" },
           { text: bind("generated_at") },
-        ]] },
+        ]],
+      },
     ],
   },
   document: [
-    { type: "heading", level: 2, align: "left",
-      text: bindFmt("fiscal_year", "text", "Year of Income") as any },
+    // Identity block: inline label ......... value fill-in lines
+    identityRow1,
+    identityRow2,
+    identityRow3,
+    { type: "spacer", size_mm: 2 },
+    // Monthly deductions grid
+    grid,
+    { type: "spacer", size_mm: 2 },
+    // "To be completed by Employer at end of year" caption + fill-in totals
     {
-      type: "identity_strip",
-      left_title: lit("Employer"),
-      right_title: lit("Employee"),
-      left: [
-        { type: "key_value", label: lit("Name"),       value: bind("employer.name") },
-        { type: "key_value", label: lit("PIN"),        value: bind("employer.tax_pin"), emphasis: "primary" },
-        { type: "key_value", label: lit("Tax Office"), value: bind("employer.tax_office") },
-        { type: "key_value", label: lit("Address"),    value: bind("employer.address") },
-      ],
-      right: [
-        { type: "key_value", label: lit("Main Name"),    value: bind("employee.full_name") },
-        { type: "key_value", label: lit("Other Names"),  value: bind("employee.other_names") },
-        { type: "key_value", label: lit("PIN"),          value: bind("employee.tax_pin"), emphasis: "primary" },
-        { type: "key_value", label: lit("Employee No."), value: bind("employee.employee_number") },
-      ],
+      type: "rich_text",
+      paragraphs: [[{ text: lit("To be completed by Employer at end of year"), emphasis: "italic" }]],
     },
+    endOfYearRow,
     { type: "spacer", size_mm: 3 },
-    matrix,
-    { type: "spacer", size_mm: 3 },
-    {
-      type: "section",
-      title: lit("End-of-Year Summary"),
-      keep_together: true,
-      children: [
-        { type: "key_value", label: lit("Total Chargeable Pay (Col. K)"),
-          value: bindFmt("totals.chargeable_pay", "currency"), emphasis: "primary" },
-        { type: "key_value", label: lit("Total PAYE (Col. O)"),
-          value: bindFmt("totals.paye", "currency"), emphasis: "primary" },
-      ],
-    },
-    {
-      type: "legal_notice",
-      title: lit("Important"),
-      border: true,
-      paragraphs: [
-        lit("Use P9A for all liable employees, including where an employee received benefits in addition to cash emoluments, is eligible for owner-occupier interest relief, or contributes to a Post-Retirement Medical Fund."),
-        lit("From December 2024: deductible interest ≤ 30,000/=; deductible pension contribution ≤ 30,000/=; deductible PRMF contribution ≤ 15,000/=; SHIF and AHL deductions apply."),
-        lit("Personal Relief: Kshs. 2,400 per month (28,800 per year). Insurance Relief: 15% of premium up to Kshs. 5,000 per month (60,000 per year)."),
-      ],
-    },
-    { type: "spacer", size_mm: 4 },
-    {
-      type: "signature_strip",
-      slots: [
-        { caption: lit("Employer Signature"), sub_caption: lit("Name, Designation, Date & Official Stamp") },
-        { caption: lit("Employee Declaration"), sub_caption: lit("Signed by employee — attach with return") },
-      ],
-    },
+    // IMPORTANT + Attach two-column notice with nested numbered lists
+    importantBlock,
   ],
 };
