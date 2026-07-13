@@ -10,14 +10,12 @@
  * Flags any `.update({...branch_id...})` or `.insert({...branch_id...})`
  * whose receiver chain includes `.from("employees")`.
  */
-"use strict";
-
 const ALLOW_LIST = new Set([
   // Server-only admin paths (the DB trigger still protects them).
   // Add narrowly-scoped paths here only when you have a justified reason.
 ]);
 
-module.exports = {
+export default {
   meta: {
     type: "problem",
     docs: {
