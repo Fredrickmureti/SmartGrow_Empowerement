@@ -30,7 +30,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertTriangle, Loader2, ShieldCheck, Plus, Layers, Type as TypeIcon, Table as TableIcon,
-  Layout as LayoutIcon, Palette, Undo2, Redo2,
+  Layout as LayoutIcon, Palette, Undo2, Redo2, ListTree,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
