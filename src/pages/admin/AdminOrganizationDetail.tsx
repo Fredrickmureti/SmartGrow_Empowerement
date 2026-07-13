@@ -11,7 +11,8 @@ import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useAdminCurrency } from "@/hooks/useAdminCurrency";
-import { ManageSubscriptionDialog } from "@/components/admin/ManageSubscriptionDialog";
+// ManageSubscriptionDialog retired — this page now navigates to the
+// /admin-management/organizations/:id/subscription workspace.
 import { SuspendOrganizationDialog } from "@/components/admin/SuspendOrganizationDialog";
 import { OrgEntitlementOverrides } from "@/components/admin/OrgEntitlementOverrides";
 import { CommercialTimeline } from "@/components/admin/CommercialTimeline";
@@ -97,7 +98,7 @@ export default function AdminOrganizationDetail() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
+  
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [expandedBusinesses, setExpandedBusinesses] = useState<Set<string>>(new Set());
 
@@ -322,7 +323,7 @@ export default function AdminOrganizationDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 pl-12 sm:pl-0 flex-shrink-0">
-            <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => setSubscriptionDialogOpen(true)}>
+            <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => navigate(`/admin-management/organizations/${id}/subscription`)}>
               <CreditCard className="h-4 w-4 mr-1.5" />
               <span className="hidden sm:inline">Manage</span> Plan
             </Button>
@@ -543,7 +544,7 @@ export default function AdminOrganizationDetail() {
                       <span className="font-medium">{format(new Date(org.subscription_ends_at), "MMM d, yyyy")}</span>
                     </div>
                   )}
-                  <Button className="w-full mt-2" variant="outline" onClick={() => setSubscriptionDialogOpen(true)}>
+                  <Button className="w-full mt-2" variant="outline" onClick={() => navigate(`/admin-management/organizations/${id}/subscription`)}>
                     Change Plan
                   </Button>
                 </CardContent>
@@ -722,12 +723,7 @@ export default function AdminOrganizationDetail() {
       </div>
 
       {/* Dialogs */}
-      <ManageSubscriptionDialog
-        open={subscriptionDialogOpen}
-        onOpenChange={setSubscriptionDialogOpen}
-        organization={org}
-        onSuccess={fetchAll}
-      />
+
       <SuspendOrganizationDialog
         open={suspendDialogOpen}
         onOpenChange={setSuspendDialogOpen}
