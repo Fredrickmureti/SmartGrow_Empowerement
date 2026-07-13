@@ -1,13 +1,13 @@
 // @ts-nocheck - Admin RPCs not in auto-generated types
 import { useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -122,9 +122,9 @@ export function ScheduleDeletionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent className="max-w-md">
+        <AlertDialogHeader>
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10">
             {isScheduled ? (
               <RotateCcw className="h-6 w-6 text-amber-600" />
@@ -132,12 +132,12 @@ export function ScheduleDeletionDialog({
               <Clock className="h-6 w-6 text-amber-600" />
             )}
           </div>
-          <DialogTitle className="text-center">
+          <AlertDialogTitle className="text-center">
             {isScheduled
               ? "Cancel scheduled deletion"
               : "Schedule deletion"}
-          </DialogTitle>
-          <DialogDescription className="text-center">
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-center">
             {isScheduled ? (
               <>
                 <strong>{organization.name}</strong> is currently scheduled
@@ -155,8 +155,8 @@ export function ScheduleDeletionDialog({
                 until the window elapses, then purged automatically.
               </>
             )}
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
 
         {!isScheduled && (
           <div className="space-y-4 py-2">
@@ -211,7 +211,7 @@ export function ScheduleDeletionDialog({
           </div>
         )}
 
-        <DialogFooter className="flex-col gap-2 sm:flex-row">
+        <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
           <Button
             variant="outline"
             disabled={isSaving}
@@ -246,8 +246,8 @@ export function ScheduleDeletionDialog({
               Schedule deletion in {graceDays} days
             </Button>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
