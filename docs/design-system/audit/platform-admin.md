@@ -192,12 +192,17 @@ same shell contract tenant apps use. It ships in slices:
   `@deprecated` re-export of `PlatformAdminAppLayout`; its three
   remaining direct consumers (AdminProfile, AdminLayoutRoute,
   AdminInlineMfaSetup) work unchanged and will migrate in Phase 7.3.
-- **Phase 7.3 — page-group opt-in (planned).** Retire the deprecated
-  `AdminDashboardLayout` name by migrating the last direct consumers
-  and any remaining admin pages onto `PlatformAdminAppLayout` in the
-  sequence Organizations & Users → Plans/Apps/Features → Localization
-  → Email/Demo/Team/Groups → Settings/Infra/Audit. Each group is
-  independently shippable.
+- **Phase 7.3 — page-group opt-in (shipped 2026-07-13).** The
+  deprecated `AdminDashboardLayout` name is retired. The two remaining
+  direct consumers (`AdminLayoutRoute`, which mounts every
+  `/admin-management/*` route, and `AdminProfile`) now import
+  `PlatformAdminAppLayout` from `@/apps/platform-admin/PlatformAdminAppLayout`
+  directly. `src/components/admin/AdminDashboardLayout.tsx` is deleted.
+  Because `AdminLayoutRoute` is the single mount point for the entire
+  `/admin-management` subtree, every page group (Organizations & Users,
+  Plans/Apps/Features, Localization, Email/Demo/Team/Groups,
+  Settings/Infra/Audit) opts in atomically through that seam — no
+  per-group migration remains.
 
 ## Non-goals
 
