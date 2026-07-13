@@ -13,7 +13,19 @@
  * has no server-only transitive imports.
  */
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { winansiSafe } from "./winansi";
+
+/**
+ * Inline WinAnsi sanitiser — the standalone `./winansi` helper was
+ * retired with the certificate pdf-lib stack; this renderer is the last
+ * remaining pdf-lib consumer (statutory *returns*, not certificates) and
+ * keeps its own copy to stay self-contained.
+ */
+function winansiSafe(input: string): string {
+  // pdf-lib's StandardFonts only encode WinAnsi. Replace anything outside
+  // Latin-1 with an ASCII fallback so text draws cleanly.
+  // eslint-disable-next-line no-control-regex
+  return String(input ?? "").replace(/[^\x00-\xFF]/g, "?");
+}
 
 export interface ReturnSectionSpec {
   type: string;
