@@ -7,6 +7,7 @@ import { normalizeError } from "@/services/resilience";
  */
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -27,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, ShieldCheck } from "lucide-react";
+import { Loader2, Package, ShieldCheck, Pencil } from "lucide-react";
 import { getAppById } from "@/lib/apps/registry";
 
 interface PlatformApp {
@@ -61,6 +63,7 @@ const PLAN_OPTIONS = [
 
 export default function AdminAppCatalog() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["admin-app-catalog"],
@@ -148,6 +151,7 @@ export default function AdminAppCatalog() {
               <TableHead className="text-center">Signup</TableHead>
               <TableHead className="text-center">Core</TableHead>
               <TableHead className="text-center">Order</TableHead>
+              <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -226,6 +230,19 @@ export default function AdminAppCatalog() {
                   </TableCell>
                   <TableCell className="text-center text-sm text-muted-foreground">
                     {app.sort_order}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() =>
+                        navigate(`/admin-management/app-catalog/${app.id}/edit`)
+                      }
+                      title="Edit app"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               );

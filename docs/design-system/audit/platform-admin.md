@@ -166,10 +166,13 @@ Phase-by-phase, each phase is independently shippable.
 
 ## Deferred
 
-- Generic Email Templates preview dialog in
-  `components/admin/email/EmailTemplatesTab.tsx` remains a `Dialog`
-  today. It contains no form controls (lint-clean); migrating it to
-  `AdminPeekShell` is a follow-up polish item, not a rule violation.
+- **Phase 7 — admin console onto `PlatformShell`.** The four-pattern rule
+  is fully honored (workspace / wizard / peek / confirm). What remains
+  is the structural migration off `AdminDashboardLayout` /
+  `PlatformAdminAppLayout` onto the shared `PlatformShell` + per-workspace
+  `nav.ts` described in `docs/design-system.md`. That work is planned
+  page-group by page-group (Organizations & Users → Plans/Apps/Features
+  → Localization → Email/Demo/Team/Groups → Settings/Infra/Audit).
 
 ## Non-goals
 
@@ -177,3 +180,13 @@ Phase-by-phase, each phase is independently shippable.
 - No visual redesign of the admin shell beyond adopting the scaffolds.
 - No schema, RLS, or business-logic changes.
 - Confirmation `AlertDialog` usages remain untouched.
+
+## Change log
+
+- **Phase 6.1 (2026-07-13).** Closed the last four-pattern tactical gaps:
+  Organizations row peek (`?peek=<orgId>`), App Catalog edit workspace
+  (`/app-catalog/$id/edit`) alongside the existing inline row toggles,
+  Feature Catalog read peek (`?featurePeek=<featureId>`), and the
+  Generic Email Templates preview migrated from `Dialog` to
+  `DocumentPeekShell` (`?templatePreview=<templateId>`).
+

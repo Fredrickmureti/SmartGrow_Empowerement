@@ -1,6 +1,6 @@
 // @ts-nocheck - Admin tables not in auto-generated types
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Pencil, Trash2, BookOpen } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, BookOpen, Eye } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
+import { FeaturePeekSheet, type FeaturePeekEntry } from "./FeaturePeekSheet";
 
 interface CatalogFeature {
   id: string;
@@ -44,9 +45,26 @@ const CATEGORIES = [
 export function FeatureCatalogSettings() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [features, setFeatures] = useState<CatalogFeature[]>([]);
   const [planCounts, setPlanCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+
+  const peekId = searchParams.get("featurePeek");
+  const setPeekId = useCallback(
+    (id: string | null) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (id) next.set("featurePeek", id);
+          else next.delete("featurePeek");
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   useEffect(() => {
     fetchData();
@@ -167,10 +185,13 @@ export function FeatureCatalogSettings() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(feature)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPeekId(feature.id)} title="Quick look">
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(feature)} title="Edit">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(feature)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(feature)} title="Delete">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -189,6 +210,24 @@ export function FeatureCatalogSettings() {
           )}
         </CardContent>
       </Card>
+
+      {/* Read-mostly peek (?featurePeek=<featureId>) */}
+      <FeaturePeekSheet
+        open={!!peekId}
+        onOpenChange={(open) => !open && setPeekId(null)}
+        feature={
+          peekId
+            ? (features.find((f) => f.id === peekId) as FeaturePeekEntry) ?? null
+            : null
+        }
+        categoryLabel={
+          peekId
+            ? getCategoryLabel(
+                features.find((f) => f.id === peekId)?.category || "",
+              )
+            : ""
+        }
+      />
     </>
   );
 }

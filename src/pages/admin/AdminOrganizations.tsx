@@ -34,6 +34,8 @@ import { useAdminCurrency } from "@/hooks/useAdminCurrency";
 // /admin-management/organizations/:id/subscription workspace page.
 import { SuspendOrganizationDialog } from "@/components/admin/SuspendOrganizationDialog";
 import { ScheduleDeletionDialog } from "@/components/admin/ScheduleDeletionDialog";
+import { OrganizationPeekSheet } from "@/components/admin/organizations/OrganizationPeekSheet";
+import { usePeekParam } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
 
 interface OrganizationWithStats {
@@ -78,6 +80,7 @@ export default function AdminOrganizations() {
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [scheduleDeleteDialogOpen, setScheduleDeleteDialogOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithStats | null>(null);
+  const [peekId, setPeekId] = usePeekParam();
   const { toast } = useToast();
   const { formatCurrency } = useAdminCurrency();
   const { countryScopes, isGlobalAccess, hasCountryScope } = usePlatformPermissions();
@@ -165,6 +168,10 @@ export default function AdminOrganizations() {
 
   const handleViewDetails = (org: OrganizationWithStats) => {
     navigate(`/admin-management/organizations/${org.id}`);
+  };
+
+  const handleQuickLook = (org: OrganizationWithStats) => {
+    setPeekId(org.id);
   };
 
   const handleManageSubscription = (org: OrganizationWithStats) => {
@@ -426,9 +433,13 @@ export default function AdminOrganizations() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleViewDetails(org)}>
+                                <DropdownMenuItem onClick={() => handleQuickLook(org)}>
                                   <Eye className="mr-2 h-4 w-4" />
-                                  View Details
+                                  Quick look
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleViewDetails(org)}>
+                                  <Building2 className="mr-2 h-4 w-4" />
+                                  Open workspace
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleManageSubscription(org)}>
                                   <CreditCard className="mr-2 h-4 w-4" />
@@ -584,9 +595,13 @@ export default function AdminOrganizations() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleViewDetails(org)}>
+                                    <DropdownMenuItem onClick={() => handleQuickLook(org)}>
                                       <Eye className="mr-2 h-4 w-4" />
-                                      View Details
+                                      Quick look
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleViewDetails(org)}>
+                                      <Building2 className="mr-2 h-4 w-4" />
+                                      Open workspace
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleManageSubscription(org)}>
                                       <CreditCard className="mr-2 h-4 w-4" />
@@ -652,6 +667,15 @@ export default function AdminOrganizations() {
         onOpenChange={setScheduleDeleteDialogOpen}
         organization={selectedOrg}
         onSuccess={fetchOrganizations}
+      />
+
+      {/* Row peek (?peek=<orgId>) — read-mostly quick look */}
+      <OrganizationPeekSheet
+        open={!!peekId}
+        onOpenChange={(open) => !open && setPeekId(null)}
+        organization={
+          peekId ? organizations.find((o) => o.id === peekId) ?? null : null
+        }
       />
     </>
   );
