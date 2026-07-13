@@ -53,14 +53,12 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<UserWithOrgs[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserWithOrgs | null>(null);
+  const [peekId, setPeekId] = usePeekParam();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserWithOrgs | null>(null);
 
   const handleViewDetails = (user: UserWithOrgs) => {
-    setSelectedUser(user);
-    setDetailsDialogOpen(true);
+    setPeekId(user.user_id);
   };
   const handleDeleteUser = (user: UserWithOrgs) => {
     setUserToDelete(user);
