@@ -23,6 +23,7 @@ export const AdminOrganizationSubscription = lazy(() => import("@/pages/admin/Ad
 export const AdminOrganizationDelete = lazy(() => import("@/pages/admin/AdminOrganizationDelete"));
 export const AdminPlanBuilder = lazy(() => import("@/pages/admin/AdminPlanBuilder"));
 export const AdminAppCatalog = lazy(() => import("@/pages/admin/AdminAppCatalog"));
+export const AdminAppCatalogEditPage = lazy(() => import("@/pages/admin/app-catalog/AdminAppCatalogEditPage"));
 export const AdminPayments = lazy(() => import("@/pages/admin/AdminPayments"));
 export const AdminAuditLog = lazy(() => import("@/pages/admin/AdminAuditLog"));
 export const HardwareOpsPage = lazy(() => import("@/pages/admin/HardwareOpsPage"));
