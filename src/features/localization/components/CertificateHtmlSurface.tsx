@@ -58,6 +58,10 @@ interface Props {
    */
   onNodeAction?: (nodeId: string, action: "moveUp" | "moveDown" | "duplicate" | "delete") => void;
   onReorder?: (fromIndex: number, toIndex: number) => void;
+  /** Publisher committed an inline text edit via double-click WYSIWYG. */
+  onEditText?: (nodeId: string, editableKind: "heading" | "rich_text", text: string) => void;
+  /** Publisher clicked the "+" gutter under a top-level node. */
+  onInsertAfter?: (nodeId: string) => void;
 }
 
 function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): string {
