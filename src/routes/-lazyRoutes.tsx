@@ -13,6 +13,11 @@ export const AdminLocalizationPacks = lazy(() => import("@/pages/admin/AdminLoca
 export const AdminLocalizationCertificateEdit = lazy(() => import("@/pages/admin/AdminLocalizationCertificateEdit"));
 export const AdminInfrastructure = lazy(() => import("@/pages/admin/AdminInfrastructure"));
 export const AdminOrganizationDetail = lazy(() => import("@/pages/admin/AdminOrganizationDetail"));
+export const AdminOrgEntitlementOverrideCreatePage = lazy(() => import("@/pages/admin/organizations/AdminOrgEntitlementOverrideCreatePage"));
+export const AdminOrgEntitlementOverrideEditPage = lazy(() => import("@/pages/admin/organizations/AdminOrgEntitlementOverrideEditPage"));
+export const AdminDemoVideoCreatePage = lazy(() => import("@/pages/admin/settings/AdminDemoVideoCreatePage"));
+export const AdminDemoVideoEditPage = lazy(() => import("@/pages/admin/settings/AdminDemoVideoEditPage"));
+export const AdminLocalizationPackPublishPage = lazy(() => import("@/pages/admin/localization/AdminLocalizationPackPublishPage"));
 export const AdminOrganizationSubscription = lazy(() => import("@/pages/admin/AdminOrganizationSubscription"));
 export const AdminOrganizationDelete = lazy(() => import("@/pages/admin/AdminOrganizationDelete"));
 export const AdminPlanBuilder = lazy(() => import("@/pages/admin/AdminPlanBuilder"));
