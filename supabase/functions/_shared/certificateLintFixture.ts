@@ -71,14 +71,15 @@ export function buildLintFixture(ruleCodes: string[]): CertificateLintPayload {
 }
 
 /**
- * Minimum byte floor per doc class. If a rendered certificate PDF falls
- * below this, the template is almost certainly missing sections (empty
- * bodies compress to ~1.5 KB from pdf-lib overhead alone).
+ * Minimum byte floor per doc class. Applied to the compiled v3 HTML output
+ * (the lint gate no longer produces a PDF). A fully rendered certificate
+ * HTML is normally 20–100 KB; anything smaller almost certainly means the
+ * document tree collapsed to a near-empty page.
  */
 export function byteFloorFor(templateCode: string): number {
   const c = String(templateCode ?? "").toUpperCase();
-  if (c.startsWith("P9")) return 6_000;
-  if (c.startsWith("P10")) return 4_000;
-  if (c.startsWith("CERT_OF_SERVICE") || c.startsWith("CERTIFICATE_OF_SERVICE")) return 3_000;
-  return 2_500; // generic floor — a section-based cert is never < 2.5 KB
+  if (c.startsWith("P9")) return 8_000;
+  if (c.startsWith("P10")) return 6_000;
+  if (c.startsWith("CERT_OF_SERVICE") || c.startsWith("CERTIFICATE_OF_SERVICE")) return 4_000;
+  return 3_000;
 }
