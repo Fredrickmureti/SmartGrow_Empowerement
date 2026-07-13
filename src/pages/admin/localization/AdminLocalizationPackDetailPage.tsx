@@ -12,7 +12,7 @@ import { RecordHeader, LoadingState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { adminFrom } from "@/lib/adminClient";
 import { PackEditorShell } from "@/features/localization";
-import { ArrowLeft, Package } from "lucide-react";
+import { ArrowLeft, Package, Rocket } from "lucide-react";
 
 interface LocalizationPack {
   id: string;
@@ -73,14 +73,23 @@ export default function AdminLocalizationPackDetailPage() {
             </>
           }
           actions={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(LIST_PATH)}
-            >
-              <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-              Back to packs
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => navigate(`${LIST_PATH}/${pack.id}/publish`)}
+              >
+                <Rocket className="h-3.5 w-3.5 mr-1.5" />
+                Publish new version
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(LIST_PATH)}
+              >
+                <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+                Back to packs
+              </Button>
+            </div>
           }
         />
       }

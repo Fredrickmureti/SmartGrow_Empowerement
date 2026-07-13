@@ -1,17 +1,29 @@
 // @ts-nocheck
+/**
+ * OrgEntitlementOverrides — list of per-organization entitlement
+ * exceptions. Create/edit route to dedicated workspace pages per the
+ * Platform Admin four-pattern rule. This component owns only the list,
+ * the active toggle, and a confirm-based delete.
+ */
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Shield, Zap, Package, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Plus, Trash2, Shield, Zap, Package, AlertTriangle, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { normalizeError } from "@/services/resilience";
@@ -41,18 +53,10 @@ const OVERRIDE_TYPE_ICONS = {
 };
 
 export function OrgEntitlementOverrides({ organizationId, organizationName }: OrgEntitlementOverridesProps) {
+  const navigate = useNavigate();
   const [overrides, setOverrides] = useState<Override[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [knownKeys, setKnownKeys] = useState<{ features: { key: string; label: string }[]; apps: string[] }>({ features: [], apps: [] });
-  const [useCustomKey, setUseCustomKey] = useState(false);
-  const [newOverride, setNewOverride] = useState({
-    override_type: "feature" as "feature" | "app" | "limit",
-    key: "",
-    override_value: "true",
-    reason: "",
-    expires_at: "",
-  });
+  const [deleteTarget, setDeleteTarget] = useState<Override | null>(null);
 
   const fetchOverrides = async () => {
     setLoading(true);
@@ -65,85 +69,29 @@ export function OrgEntitlementOverrides({ organizationId, organizationName }: Or
     setLoading(false);
   };
 
-  const fetchKnownKeys = async () => {
-    // Fetch feature keys from platform_feature_catalog
-    const { data: featureData } = await (supabase.from as any)("platform_feature_catalog")
-      .select("feature_key, label")
-      .order("label");
-    
-    // Fetch distinct app IDs from plan_app_access
-    const { data: appData } = await (supabase.from as any)("plan_app_access")
-      .select("app_id");
-    
-    const uniqueApps = [...new Set((appData || []).map((a: any) => a.app_id))].sort() as string[];
-    
-    setKnownKeys({
-      features: (featureData || []).map((f: any) => ({ key: f.feature_key, label: f.label })),
-      apps: uniqueApps,
-    });
-  };
-
   useEffect(() => {
     fetchOverrides();
-    fetchKnownKeys();
   }, [organizationId]);
-
-  const handleAdd = async () => {
-    if (!newOverride.key.trim()) {
-      toast.error("Key is required");
-      return;
-    }
-
-    let overrideValue: any;
-    if (newOverride.override_type === "limit") {
-      overrideValue = { value: parseInt(newOverride.override_value, 10) };
-    } else {
-      overrideValue = newOverride.override_value === "false" ? false : true;
-    }
-
-    const { error } = await (supabase.from as any)("org_entitlement_overrides").insert({
-      organization_id: organizationId,
-      override_type: newOverride.override_type,
-      key: newOverride.key.trim(),
-      override_value: overrideValue,
-      reason: newOverride.reason || null,
-      expires_at: newOverride.expires_at || null,
-      granted_by: (await supabase.auth.getUser()).data.user?.id,
-    });
-
-    if (error) {
-      toast.error(normalizeError(error).message);
-    } else {
-      toast.success("Override added");
-      setShowAddDialog(false);
-      setNewOverride({ override_type: "feature", key: "", override_value: "true", reason: "", expires_at: "" });
-      fetchOverrides();
-    }
-  };
 
   const toggleActive = async (id: string, currentActive: boolean) => {
     const { error } = await (supabase.from as any)("org_entitlement_overrides")
       .update({ is_active: !currentActive, updated_at: new Date().toISOString() })
       .eq("id", id);
-
-    if (error) {
-      toast.error(normalizeError(error).message);
-    } else {
-      fetchOverrides();
-    }
+    if (error) toast.error(normalizeError(error).message);
+    else fetchOverrides();
   };
 
-  const deleteOverride = async (id: string) => {
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     const { error } = await (supabase.from as any)("org_entitlement_overrides")
       .delete()
-      .eq("id", id);
-
-    if (error) {
-      toast.error(normalizeError(error).message);
-    } else {
+      .eq("id", deleteTarget.id);
+    if (error) toast.error(normalizeError(error).message);
+    else {
       toast.success("Override removed");
       fetchOverrides();
     }
+    setDeleteTarget(null);
   };
 
   const formatValue = (override: Override) => {
@@ -151,11 +99,13 @@ export function OrgEntitlementOverrides({ organizationId, organizationName }: Or
       const val = override.override_value?.value ?? override.override_value;
       return `Limit: ${val}`;
     }
-    const val = typeof override.override_value === "boolean" 
-      ? override.override_value 
+    const val = typeof override.override_value === "boolean"
+      ? override.override_value
       : String(override.override_value) === "true";
     return val ? "Granted" : "Revoked";
   };
+
+  const basePath = `/admin-management/organizations/${organizationId}/entitlements`;
 
   return (
     <Card>
@@ -169,115 +119,17 @@ export function OrgEntitlementOverrides({ organizationId, organizationName }: Or
             Per-organization entitlement exceptions for {organizationName}
           </CardDescription>
         </div>
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-1" /> Add Override
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Entitlement Override</DialogTitle>
-              <DialogDescription>
-                Grant or revoke a specific feature, app, or limit for this organization.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Override Type</Label>
-                <Select value={newOverride.override_type} onValueChange={(v: any) => setNewOverride(p => ({ ...p, override_type: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="feature">Feature</SelectItem>
-                    <SelectItem value="app">App</SelectItem>
-                    <SelectItem value="limit">Limit</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Key</Label>
-                {newOverride.override_type === "limit" || useCustomKey ? (
-                  <div className="space-y-1">
-                    <Input
-                      placeholder={newOverride.override_type === "feature" ? "e.g., payroll, crm" : newOverride.override_type === "app" ? "e.g., hr, pos" : "e.g., max_users, max_invoices_per_month"}
-                      value={newOverride.key}
-                      onChange={e => setNewOverride(p => ({ ...p, key: e.target.value }))}
-                    />
-                    {newOverride.override_type !== "limit" && (
-                      <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => { setUseCustomKey(false); setNewOverride(p => ({ ...p, key: "" })); }}>
-                        ← Choose from known keys
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <Select value={newOverride.key} onValueChange={(v) => setNewOverride(p => ({ ...p, key: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select a key..." /></SelectTrigger>
-                      <SelectContent>
-                        {newOverride.override_type === "feature" && knownKeys.features.map((f) => (
-                          <SelectItem key={f.key} value={f.key}>
-                            {f.label} <span className="text-muted-foreground ml-1 text-xs">({f.key})</span>
-                          </SelectItem>
-                        ))}
-                        {newOverride.override_type === "app" && knownKeys.apps.map((appId) => (
-                          <SelectItem key={appId} value={appId}>{appId}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setUseCustomKey(true)}>
-                      Enter custom key →
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Value</Label>
-                {newOverride.override_type === "limit" ? (
-                  <Input
-                    type="number"
-                    placeholder="e.g., 500"
-                    value={newOverride.override_value}
-                    onChange={e => setNewOverride(p => ({ ...p, override_value: e.target.value }))}
-                  />
-                ) : (
-                  <Select value={newOverride.override_value} onValueChange={(v) => setNewOverride(p => ({ ...p, override_value: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">Grant Access</SelectItem>
-                      <SelectItem value="false">Revoke Access</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Reason</Label>
-                <Textarea
-                  placeholder="Enterprise deal, temporary unlock, grandfathered, etc."
-                  value={newOverride.reason}
-                  onChange={e => setNewOverride(p => ({ ...p, reason: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Expires At (optional)</Label>
-                <Input
-                  type="datetime-local"
-                  value={newOverride.expires_at}
-                  onChange={e => setNewOverride(p => ({ ...p, expires_at: e.target.value }))}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
-              <Button onClick={handleAdd}>Add Override</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <Button size="sm" onClick={() => navigate(`${basePath}/new`)}>
+          <Plus className="h-4 w-4 mr-1" /> Add override
+        </Button>
       </CardHeader>
       <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : overrides.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No overrides configured. This organization uses plan defaults only.</p>
+          <p className="text-sm text-muted-foreground">
+            No overrides configured. This organization uses plan defaults only.
+          </p>
         ) : (
           <Table>
             <TableHeader>
@@ -288,7 +140,7 @@ export function OrgEntitlementOverrides({ organizationId, organizationName }: Or
                 <TableHead>Reason</TableHead>
                 <TableHead>Expires</TableHead>
                 <TableHead>Active</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="w-24"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -316,9 +168,24 @@ export function OrgEntitlementOverrides({ organizationId, organizationName }: Or
                     <Switch checked={o.is_active} onCheckedChange={() => toggleActive(o.id, o.is_active)} />
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => deleteOverride(o.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigate(`${basePath}/${o.id}/edit`)}
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteTarget(o)}
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -326,6 +193,31 @@ export function OrgEntitlementOverrides({ organizationId, organizationName }: Or
           </Table>
         )}
       </CardContent>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove entitlement override</AlertDialogTitle>
+            <AlertDialogDescription>
+              This organization will fall back to plan defaults for
+              <span className="font-mono mx-1">{deleteTarget?.key}</span>.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

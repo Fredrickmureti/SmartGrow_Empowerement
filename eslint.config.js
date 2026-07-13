@@ -18,6 +18,7 @@ import noDocumentPrintShadowPath from "./eslint-rules/no-document-print-shadow-p
 import noRawZplOutsidePrinting from "./eslint-rules/no-raw-zpl-outside-printing.js";
 import noDirectEmployeesBranchWrite from "./eslint-rules/no-direct-employees-branch-write.js";
 import noPayslipLinesInCertificates from "./eslint-rules/no-payslip-lines-in-certificates.js";
+import noDialogCrudInAdmin from "./eslint-rules/no-dialog-crud-in-admin.js";
 
 
 export default tseslint.config(
@@ -192,6 +193,26 @@ export default tseslint.config(
     },
     rules: {
       "local/no-payslip-lines-in-certificates": "error",
+    },
+  },
+  // Platform Admin four-pattern rule (Phase 6) — forbid form-bearing
+  // Dialog/Sheet under src/{pages,components}/admin/**. Real CRUD lives
+  // on workspace routes; read-mostly quick looks on DocumentPeekShell;
+  // confirmations on AlertDialog. See docs/design-system/audit/platform-admin.md.
+  {
+    files: [
+      "src/pages/admin/**/*.{ts,tsx}",
+      "src/components/admin/**/*.{ts,tsx}",
+    ],
+    plugins: {
+      local: {
+        rules: {
+          "no-dialog-crud-in-admin": noDialogCrudInAdmin,
+        },
+      },
+    },
+    rules: {
+      "local/no-dialog-crud-in-admin": "error",
     },
   },
 );

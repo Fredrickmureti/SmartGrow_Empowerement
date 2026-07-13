@@ -1,19 +1,27 @@
 // @ts-nocheck - Admin tables not in auto-generated types
+/**
+ * AuthEmailTemplates — platform email-template gallery. Preview + HTML
+ * views are read-mostly quick looks and therefore mount inside the
+ * shared admin peek scaffold (`?peek=<template-id>&mode=preview|code`)
+ * instead of raw <Dialog> — per the Platform Admin four-pattern rule
+ * (`docs/design-system/audit/platform-admin.md`).
+ */
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AdminPeekShell } from "@/apps/platform-admin";
 import { toast } from "sonner";
-import { 
-  Copy, 
-  Eye, 
-  ExternalLink, 
-  Mail, 
-  UserPlus, 
-  Wand2, 
-  KeyRound, 
+import {
+  Copy,
+  Eye,
+  ExternalLink,
+  Mail,
+  UserPlus,
+  Wand2,
+  KeyRound,
   AtSign,
   Check,
   Code
@@ -28,10 +36,38 @@ const templateIcons: Record<string, React.ReactNode> = {
   'reset-password': <KeyRound className="h-5 w-5" />,
 };
 
+const PEEK_PARAM = "authEmailPeek";
+const MODE_PARAM = "authEmailMode";
+
 export function AuthEmailTemplates() {
-  const [selectedTemplate, setSelectedTemplate] = useState<AuthEmailTemplate | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
-  const [showCode, setShowCode] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const peekId = params.get(PEEK_PARAM);
+  const mode = (params.get(MODE_PARAM) === "code" ? "code" : "preview") as
+    | "preview"
+    | "code";
+  const selectedTemplate =
+    (peekId && authEmailTemplates.find((t) => t.id === peekId)) || null;
+
+  const openPeek = (template: AuthEmailTemplate, m: "preview" | "code") => {
+    const next = new URLSearchParams(params);
+    next.set(PEEK_PARAM, template.id);
+    next.set(MODE_PARAM, m);
+    setParams(next, { replace: true });
+  };
+
+  const closePeek = () => {
+    const next = new URLSearchParams(params);
+    next.delete(PEEK_PARAM);
+    next.delete(MODE_PARAM);
+    setParams(next, { replace: true });
+  };
+
+  const switchMode = (m: "preview" | "code") => {
+    const next = new URLSearchParams(params);
+    next.set(MODE_PARAM, m);
+    setParams(next, { replace: true });
+  };
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleCopyHtml = async (template: AuthEmailTemplate) => {
@@ -155,10 +191,7 @@ export function AuthEmailTemplates() {
                   variant="outline"
                   size="sm"
                   className="flex-1 min-w-[70px] gap-1 text-xs h-8"
-                  onClick={() => {
-                    setSelectedTemplate(template);
-                    setShowPreview(true);
-                  }}
+                  onClick={() => openPeek(template, "preview")}
                 >
                   <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   Preview
@@ -167,10 +200,7 @@ export function AuthEmailTemplates() {
                   variant="outline"
                   size="sm"
                   className="flex-1 min-w-[70px] gap-1 text-xs h-8"
-                  onClick={() => {
-                    setSelectedTemplate(template);
-                    setShowCode(true);
-                  }}
+                  onClick={() => openPeek(template, "code")}
                 >
                   <Code className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   Code
@@ -198,56 +228,70 @@ export function AuthEmailTemplates() {
         ))}
       </div>
 
-      {/* Preview Dialog */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="w-[95vw] max-w-4xl h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-sm sm:text-base">
-              {selectedTemplate && templateIcons[selectedTemplate.id]}
-              {selectedTemplate?.name} Preview
-            </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
-              This is how the email will appear to recipients
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-hidden rounded-lg border bg-muted/30">
+      {/* Read-mostly quick look — preview + HTML code, kept in the standard admin peek scaffold. */}
+      <AdminPeekShell
+        open={!!selectedTemplate}
+        onOpenChange={(open) => { if (!open) closePeek(); }}
+        title={
+          selectedTemplate ? (
+            <span className="inline-flex items-center gap-2">
+              {templateIcons[selectedTemplate.id]}
+              {selectedTemplate.name}
+            </span>
+          ) : null
+        }
+        description={
+          mode === "code"
+            ? "Copy this HTML and paste it into Supabase."
+            : "This is how the email will appear to recipients."
+        }
+        extraHeaderActions={
+          selectedTemplate ? (
+            <>
+              <Button
+                size="sm"
+                variant={mode === "preview" ? "default" : "outline"}
+                onClick={() => switchMode("preview")}
+              >
+                <Eye className="h-3.5 w-3.5 mr-1" /> Preview
+              </Button>
+              <Button
+                size="sm"
+                variant={mode === "code" ? "default" : "outline"}
+                onClick={() => switchMode("code")}
+              >
+                <Code className="h-3.5 w-3.5 mr-1" /> Code
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleCopyHtml(selectedTemplate)}
+              >
+                <Copy className="h-3.5 w-3.5 mr-1" /> Copy HTML
+              </Button>
+            </>
+          ) : null
+        }
+      >
+        {selectedTemplate && mode === "preview" && (
+          <div className="h-[70vh] overflow-hidden rounded-lg border bg-muted/30">
             <iframe
-              srcDoc={selectedTemplate?.html}
-              className="w-full h-full min-h-[400px] sm:min-h-[500px]"
-              title="Email Preview"
+              srcDoc={selectedTemplate.html}
+              className="w-full h-full"
+              title="Email preview"
               sandbox="allow-same-origin"
             />
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Code Dialog */}
-      <Dialog open={showCode} onOpenChange={setShowCode}>
-        <DialogContent className="w-[95vw] max-w-4xl h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-sm sm:text-base">
-              <Code className="h-4 w-4 sm:h-5 sm:w-5" />
-              {selectedTemplate?.name} HTML Code
-            </DialogTitle>
-            <DialogDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-xs sm:text-sm">Copy this HTML and paste it into Supabase</span>
-              <Button
-                size="sm"
-                className="gap-1.5 self-start sm:self-auto text-xs"
-                onClick={() => selectedTemplate && handleCopyHtml(selectedTemplate)}
-              >
-                <Copy className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                Copy HTML
-              </Button>
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="flex-1 rounded-lg border bg-zinc-950 p-4">
+        )}
+        {selectedTemplate && mode === "code" && (
+          <ScrollArea className="h-[70vh] rounded-lg border bg-zinc-950 p-4">
             <pre className="text-xs text-zinc-300 whitespace-pre-wrap font-mono">
-              {selectedTemplate?.html}
+              {selectedTemplate.html}
             </pre>
           </ScrollArea>
-        </DialogContent>
-      </Dialog>
+        )}
+      </AdminPeekShell>
     </div>
   );
 }
+
