@@ -61,7 +61,7 @@ interface Props {
   /** Publisher committed an inline text edit via double-click WYSIWYG. */
   onEditText?: (nodeId: string, editableKind: "heading" | "rich_text", text: string) => void;
   /** Publisher clicked the "+" gutter under a top-level node. */
-  onInsertAfter?: (nodeId: string) => void;
+  onInsertAfter?: (nodeId: string, nodeType?: string) => void;
 }
 
 function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): string {
@@ -104,7 +104,8 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
       display: none; align-items: center; justify-content: center;
       z-index: 9998; pointer-events: auto;
     }
-    [data-ce-node^="doc."]:hover > .ce-insertbar { display: flex; }
+    [data-ce-node^="doc."]:hover > .ce-insertbar,
+    [data-ce-node^="doc."] > .ce-insertbar.ce-open { display: flex; }
     .ce-insertbar .ce-insert-btn {
       appearance: none; border: 0; padding: 0; width: 22px; height: 22px;
       border-radius: 50%; background: #16a34a; color: #fff; cursor: pointer;
@@ -112,6 +113,27 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
       box-shadow: 0 2px 6px rgba(0,0,0,0.25);
     }
     .ce-insertbar .ce-insert-btn:hover { background: #15803d; }
+    /* Popover palette rendered when publisher clicks "+". */
+    .ce-insert-menu {
+      position: absolute; left: 50%; top: 20px; transform: translateX(-50%);
+      display: none; z-index: 10000; min-width: 200px;
+      background: #ffffff; color: #111827; border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25); border: 1px solid #e5e7eb;
+      padding: 4px;
+      font: 500 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .ce-insertbar.ce-open .ce-insert-menu { display: block; }
+    .ce-insert-menu .ce-insert-group {
+      padding: 4px 8px 2px; font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.04em; color: #6b7280;
+    }
+    .ce-insert-menu button.ce-insert-item {
+      display: block; width: 100%; text-align: left;
+      appearance: none; background: transparent; border: 0;
+      padding: 5px 8px; border-radius: 4px; cursor: pointer;
+      font: inherit; color: inherit;
+    }
+    .ce-insert-menu button.ce-insert-item:hover { background: #f3f4f6; }
   `;
   const bridgeJs = `
     (function(){
@@ -142,14 +164,40 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
               '<button data-act="duplicate" title="Duplicate">⧉</button>' +
               '<button data-act="delete" title="Delete">✕</button>';
             el.appendChild(bar);
-            // Insert-below gutter — a hover-only "+" between blocks so a
-            // publisher can add a node exactly where they want it, without
-            // reaching for the toolbar.
+            // Insert-below gutter — a hover-only "+" between blocks with a
+            // popover palette so a publisher can add any block primitive
+            // exactly where they want it, without reaching for the toolbar.
             var ins = document.createElement('div');
             ins.className = 'ce-insertbar';
             ins.setAttribute('contenteditable', 'false');
-            ins.innerHTML = '<button class="ce-insert-btn" data-act="insertAfter" title="Insert node below">+</button>';
+            ins.innerHTML =
+              '<button class="ce-insert-btn" data-act="insertToggle" title="Insert node below">+</button>' +
+              '<div class="ce-insert-menu" role="menu">' +
+                '<div class="ce-insert-group">Text</div>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="heading">Heading</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="rich_text">Paragraph</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="list">List</button>' +
+                '<div class="ce-insert-group">Fields</div>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="label_fill">Label + fill</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="field_row">Field row</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="key_value">Key / value</button>' +
+                '<div class="ce-insert-group">Layout</div>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="grid">Table (grid)</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="columns">Columns</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="section">Section</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="spacer">Spacer</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="page_break">Page break</button>' +
+                '<div class="ce-insert-group">Statutory</div>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="legal_notice">Legal notice</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="signature_strip">Signature strip</button>' +
+              '</div>';
             el.appendChild(ins);
+          });
+        } catch(e){}
+      }
+      function closeAllInsertMenus(){
+        try { document.querySelectorAll('.ce-insertbar.ce-open').forEach(function(n){ n.classList.remove('ce-open'); }); } catch(e){}
+      }
           });
         } catch(e){}
       }
@@ -232,12 +280,26 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
           var host = btn.closest('[data-ce-node]');
           var id = host && host.getAttribute('data-ce-node');
           var act = btn.getAttribute('data-act');
-          if (id && act === 'insertAfter') {
-            try { parent.postMessage({ source: 'ce-surface', kind: 'insertAfter', nodeId: id }, '*'); } catch(e){}
+          if (act === 'insertToggle') {
+            var bar = btn.closest('.ce-insertbar');
+            var wasOpen = bar && bar.classList.contains('ce-open');
+            closeAllInsertMenus();
+            if (bar && !wasOpen) bar.classList.add('ce-open');
+            return;
+          }
+          if (act === 'insertPick') {
+            var t = btn.getAttribute('data-type');
+            closeAllInsertMenus();
+            if (id && t) {
+              try { parent.postMessage({ source: 'ce-surface', kind: 'insertAfter', nodeId: id, nodeType: t }, '*'); } catch(e){}
+            }
             return;
           }
           if (id && act) { try { parent.postMessage({ source: 'ce-surface', kind: 'action', nodeId: id, action: act }, '*'); } catch(e){} }
           return;
+        }
+        // Click outside a menu closes it.
+        closeAllInsertMenus();
         }
         var el = ev.target && ev.target.closest ? ev.target.closest('[data-ce-node]') : null;
         if (!el) return;
@@ -330,7 +392,7 @@ export const CertificateHtmlSurface = forwardRef<CertificateHtmlSurfaceHandle, P
         } else if (d.kind === "editText") {
           onEditText?.(d.nodeId as string, d.editableKind as any, String(d.text ?? ""));
         } else if (d.kind === "insertAfter") {
-          onInsertAfter?.(d.nodeId as string);
+          onInsertAfter?.(d.nodeId as string, d.nodeType as string | undefined);
         }
       };
       window.addEventListener("message", handler);

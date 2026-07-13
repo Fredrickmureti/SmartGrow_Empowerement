@@ -305,13 +305,14 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     doc[idx] = node;
     commitDocument(doc, idx);
   };
-  // Publisher clicked the "+" gutter under a top-level node — insert a
-  // fresh paragraph after it and immediately select the new node.
-  const handleInsertAfter = (nodeId: string) => {
+  // Publisher clicked a block type in the "+" gutter palette — insert a
+  // fresh node of that type after the source node and immediately select
+  // it. Defaults to `rich_text` when the caller omits a type.
+  const handleInsertAfter = (nodeId: string, nodeType?: string) => {
     const idx = parseDocIndex(nodeId);
     if (idx == null) return;
     const doc = [...(v3Body.document ?? [])];
-    doc.splice(idx + 1, 0, (V3_NEW_NODE as any)("rich_text"));
+    doc.splice(idx + 1, 0, (V3_NEW_NODE as any)(nodeType || "rich_text"));
     commitDocument(doc, idx + 1);
   };
 
