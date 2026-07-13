@@ -18,6 +18,7 @@ import {
   AlertTriangle, FileCode2, Sparkles, Plus, Trash2, ArrowUp, ArrowDown, Link2, Type,
 } from "lucide-react";
 import { KE_P9_V3_TEMPLATE } from "../lib/engine/templates/keP9";
+import { GridDesigner } from "./GridDesigner";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -304,7 +305,7 @@ function NodeEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
     case "columns":
       return <ColumnsEditor node={node} onChange={onChange} />;
     case "grid":
-      return <GridEditor node={node} onChange={onChange} />;
+      return <GridDesigner node={node} onChange={onChange} />;
     default:
       return <div className="text-[11px] text-muted-foreground">No editor for “{node.type}”.</div>;
   }
