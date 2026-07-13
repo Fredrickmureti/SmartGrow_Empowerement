@@ -563,12 +563,9 @@ Deno.serve(async (req) => {
               filename: null,
             }];
 
-        // Render lazily and cache — a pack that declares both `pdf` and
-        // `xlsx` still renders each engine only once. Renderers are pure:
-        // same v2 sections + same resolved payload ⇒ same bytes.
-        let pdfBytes: Uint8Array | null = null;
-        let xlsxBytes: Uint8Array | null = null;
+        // Render lazily and cache — one compile per template.
         let htmlBytes: Uint8Array | null = null;
+
 
         const enginePayload = {
           employee: {
