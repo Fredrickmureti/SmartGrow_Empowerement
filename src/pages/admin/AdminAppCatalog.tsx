@@ -63,6 +63,7 @@ const PLAN_OPTIONS = [
 
 export default function AdminAppCatalog() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["admin-app-catalog"],
