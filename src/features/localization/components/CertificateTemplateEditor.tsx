@@ -175,114 +175,120 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
 
   return (
     <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
-      <div className="grid flex-1 min-h-0 gap-3 p-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 gap-0 p-3">
         {/* Canvas — the rendered document is the source of truth. */}
-        <div className="min-h-0 overflow-hidden rounded-lg border bg-card">
-          <CertificatePreviewPane
-            templateCode={initial.template_code}
-            displayName={initial.template_code}
-            body={liveBody}
-            selectedNodeId={selectedNodeId}
-            onSelectNode={(id) => handleSelectNode(id)}
-          />
-        </div>
+        <ResizablePanel defaultSize={55} minSize={30}>
+          <div className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
+            <CertificatePreviewPane
+              templateCode={initial.template_code}
+              displayName={initial.template_code}
+              body={liveBody}
+              selectedNodeId={selectedNodeId}
+              onSelectNode={(id) => handleSelectNode(id)}
+            />
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle className="mx-2" />
 
         {/* Inspector — legal metadata + structured node editors. */}
-        <div ref={inspectorScrollRef} className="min-h-0 overflow-hidden rounded-lg border bg-card">
-          <ScrollArea className="h-full">
-            <div className="space-y-4 p-3">
-              {editMetadata && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4" /> Legal metadata
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Statutory authority *</Label>
-                      <Select value={meta.authority_id ?? ""} onValueChange={(v) => setMeta({ ...meta, authority_id: v || null })}>
-                        <SelectTrigger><SelectValue placeholder="Select authority…" /></SelectTrigger>
-                        <SelectContent>
-                          {(authoritiesQuery.data ?? []).map((a: any) => (
-                            <SelectItem key={a.id} value={a.id}>{a.display_name} ({a.code})</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Issued to</Label>
-                      <Select value={meta.issued_to} onValueChange={(v) => setMeta({ ...meta, issued_to: v as any })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="employee">Employee</SelectItem>
-                          <SelectItem value="employer">Employer</SelectItem>
-                          <SelectItem value="both">Both</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1 md:col-span-2">
-                      <Label className="text-xs">Legal reference *</Label>
-                      <Input value={meta.legal_reference ?? ""} onChange={(e) => setMeta({ ...meta, legal_reference: e.target.value || null })} placeholder="e.g. Income Tax Act, section…" />
-                    </div>
-                    <div className="space-y-1 md:col-span-2">
-                      <Label className="text-xs">Regulation citation</Label>
-                      <Input value={meta.regulation_citation ?? ""} onChange={(e) => setMeta({ ...meta, regulation_citation: e.target.value || null })} placeholder="e.g. Section 37 — deduction of tax from emoluments" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Effective date *</Label>
-                      <Input type="date" value={meta.effective_date ?? ""} onChange={(e) => setMeta({ ...meta, effective_date: e.target.value || null })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Sunset date</Label>
-                      <Input type="date" value={meta.sunset_date ?? ""} onChange={(e) => setMeta({ ...meta, sunset_date: e.target.value || null })} />
-                    </div>
-                    <div className="space-y-1 md:col-span-2">
-                      <Label className="text-xs">Revision notes</Label>
-                      <Textarea rows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
-                    </div>
-                    <div className="flex items-center gap-2 md:col-span-2">
-                      <Switch checked={meta.approval_required} onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })} />
-                      <Label className="text-xs">Requires approval before issuance</Label>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+        <ResizablePanel defaultSize={45} minSize={25}>
+          <div ref={inspectorScrollRef} className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
+            <ScrollArea className="h-full">
+              <div className="space-y-4 p-3">
+                {editMetadata && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4" /> Legal metadata
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Statutory authority *</Label>
+                        <Select value={meta.authority_id ?? ""} onValueChange={(v) => setMeta({ ...meta, authority_id: v || null })}>
+                          <SelectTrigger><SelectValue placeholder="Select authority…" /></SelectTrigger>
+                          <SelectContent>
+                            {(authoritiesQuery.data ?? []).map((a: any) => (
+                              <SelectItem key={a.id} value={a.id}>{a.display_name} ({a.code})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Issued to</Label>
+                        <Select value={meta.issued_to} onValueChange={(v) => setMeta({ ...meta, issued_to: v as any })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="employee">Employee</SelectItem>
+                            <SelectItem value="employer">Employer</SelectItem>
+                            <SelectItem value="both">Both</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1 md:col-span-2">
+                        <Label className="text-xs">Legal reference *</Label>
+                        <Input value={meta.legal_reference ?? ""} onChange={(e) => setMeta({ ...meta, legal_reference: e.target.value || null })} placeholder="e.g. Income Tax Act, section…" />
+                      </div>
+                      <div className="space-y-1 md:col-span-2">
+                        <Label className="text-xs">Regulation citation</Label>
+                        <Input value={meta.regulation_citation ?? ""} onChange={(e) => setMeta({ ...meta, regulation_citation: e.target.value || null })} placeholder="e.g. Section 37 — deduction of tax from emoluments" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Effective date *</Label>
+                        <Input type="date" value={meta.effective_date ?? ""} onChange={(e) => setMeta({ ...meta, effective_date: e.target.value || null })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Sunset date</Label>
+                        <Input type="date" value={meta.sunset_date ?? ""} onChange={(e) => setMeta({ ...meta, sunset_date: e.target.value || null })} />
+                      </div>
+                      <div className="space-y-1 md:col-span-2">
+                        <Label className="text-xs">Revision notes</Label>
+                        <Textarea rows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
+                      </div>
+                      <div className="flex items-center gap-2 md:col-span-2">
+                        <Switch checked={meta.approval_required} onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })} />
+                        <Label className="text-xs">Requires approval before issuance</Label>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
-              {editMetadata && (
-                <OutputsCard value={meta.outputs} onChange={(next) => setMeta({ ...meta, outputs: next })} surface="certificate" />
-              )}
+                {editMetadata && (
+                  <OutputsCard value={meta.outputs} onChange={(next) => setMeta({ ...meta, outputs: next })} surface="certificate" />
+                )}
 
-              <CertificateV3Editor
-                templateCode={initial.template_code}
-                body={v3Body}
-                onChange={(next) => { setV3Body(next); setV3Validation(validateV3Body(next, [])); }}
-                onValidityChange={setV3Validation}
-                selectedNodeId={selectedNodeId}
-                onSelectNode={(id) => setSelectedNodeId(id)}
-              />
+                <CertificateV3Editor
+                  templateCode={initial.template_code}
+                  body={v3Body}
+                  onChange={(next) => { setV3Body(next); setV3Validation(validateV3Body(next, [])); }}
+                  onValidityChange={setV3Validation}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNode={(id) => setSelectedNodeId(id)}
+                />
 
-              <TemplateFieldInspector
-                packId={packId}
-                body={liveBody}
-                onValidityChange={({ unresolved }) => { unresolvedRef.current = unresolved; }}
-              />
+                <TemplateFieldInspector
+                  packId={packId}
+                  body={liveBody}
+                  onValidityChange={({ unresolved }) => { unresolvedRef.current = unresolved; }}
+                />
 
-              {(metaErrors.length > 0 || bodyErrors.length > 0) && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Save is blocked</AlertTitle>
-                  <AlertDescription>
-                    <ul className="list-disc pl-5 text-xs">
-                      {[...metaErrors, ...bodyErrors].map((e, i) => <li key={i}>{e}</li>)}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          </ScrollArea>
-        </div>
-      </div>
+                {(metaErrors.length > 0 || bodyErrors.length > 0) && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Save is blocked</AlertTitle>
+                    <AlertDescription>
+                      <ul className="list-disc pl-5 text-xs">
+                        {[...metaErrors, ...bodyErrors].map((e, i) => <li key={i}>{e}</li>)}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       {/* Action bar */}
       <div className="flex items-center justify-end gap-2 border-t bg-background px-3 py-2">
