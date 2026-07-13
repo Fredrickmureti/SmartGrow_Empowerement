@@ -26,7 +26,9 @@ import { format, differenceInDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAdminCurrency } from "@/hooks/useAdminCurrency";
 import { MultiStepDeleteDialog } from "@/components/admin/MultiStepDeleteDialog";
-import { OrganizationDetailsDialog } from "@/components/admin/OrganizationDetailsDialog";
+// OrganizationDetailsDialog removed — the "View details" action navigates to
+// the /admin-management/organizations/:id workspace page (see
+// docs/design-system/audit/platform-admin.md).
 import { ManageSubscriptionDialog } from "@/components/admin/ManageSubscriptionDialog";
 import { SuspendOrganizationDialog } from "@/components/admin/SuspendOrganizationDialog";
 import { ScheduleDeletionDialog } from "@/components/admin/ScheduleDeletionDialog";
@@ -72,7 +74,7 @@ export default function AdminOrganizations() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  
   const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [scheduleDeleteDialogOpen, setScheduleDeleteDialogOpen] = useState(false);
@@ -679,12 +681,6 @@ export default function AdminOrganizations() {
         isDeleting={isDeleting}
       />
 
-      {/* Organization Details Dialog */}
-      <OrganizationDetailsDialog
-        open={detailsDialogOpen}
-        onOpenChange={setDetailsDialogOpen}
-        organization={selectedOrg}
-      />
 
       {/* Manage Subscription Dialog */}
       <ManageSubscriptionDialog
