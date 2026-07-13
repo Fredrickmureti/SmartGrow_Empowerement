@@ -265,8 +265,19 @@ Deno.serve(async (req) => {
         );
       }
       const nodes: any[] = Array.isArray(template?.body?.document) ? template.body.document : [];
-      const types = new Set<string>(nodes.map((s: any) => String(s?.type ?? "")));
-      const hasData = types.has("matrix") || types.has("table");
+      const types = new Set<string>();
+      // v4 documents nest data-bearing nodes inside section / columns
+      // wrappers. Walk the tree so `grid` inside a `section` still counts
+      // as a data-bearing node — otherwise every non-flat pack refuses.
+      const walk = (n: any) => {
+        if (!n || typeof n !== "object") return;
+        if (n.type) types.add(String(n.type));
+        if (Array.isArray(n.children)) n.children.forEach(walk);
+        if (Array.isArray(n.column_children)) n.column_children.forEach((col: any) => Array.isArray(col) && col.forEach(walk));
+      };
+      nodes.forEach(walk);
+      // v3: `matrix` / `table`. v4: `grid` (cell-level control, replaces matrix).
+      const hasData = types.has("matrix") || types.has("table") || types.has("grid");
       if (nodes.length === 0 || !hasData) {
         try {
           await admin.from("payroll_diagnostics").insert({
@@ -287,8 +298,8 @@ Deno.serve(async (req) => {
         return businessError(
           422,
           "TEMPLATE_STRUCTURAL_INVALID",
-          `Certificate template "${template.code}" cannot be rendered: its v3 document has no matrix/table node to carry the payroll data.`,
-          "Ask your platform administrator to publish a version of this template that includes a matrix node bound to the resolved payload.",
+          `Certificate template "${template.code}" cannot be rendered: its document has no data-bearing node (grid / matrix / table) to carry the payroll data.`,
+          "Ask your platform administrator to publish a version of this template that includes a grid (v4) or matrix (v3) node bound to the resolved payload.",
           {
             template_code: template.code,
             template_source: templateSource,
