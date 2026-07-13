@@ -313,6 +313,9 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     const doc = [...(v3Body.document ?? [])];
     doc.splice(idx + 1, 0, (V3_NEW_NODE as any)("rich_text"));
     commitDocument(doc, idx + 1);
+  };
+
+
 
   // Outline pane — flat list of top-level document nodes. Click to select
   // (drives the same `data-ce-node` bridge the Canvas uses).
