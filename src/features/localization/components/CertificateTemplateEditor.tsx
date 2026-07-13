@@ -12,7 +12,7 @@
  * Mounted from `PackEntityTabs`. Save contract mirrors ReturnTemplateEditor
  * so PackEntityTabs can persist metadata columns uniformly.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
