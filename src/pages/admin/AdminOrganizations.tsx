@@ -163,42 +163,6 @@ export default function AdminOrganizations() {
     fetchOrganizations();
   }, []);
 
-  const handleDeleteOrg = async () => {
-    if (!selectedOrg) return;
-    
-    setIsDeleting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("clear-org-data", {
-        body: {
-          organization_id: selectedOrg.id,
-          mode: "delete_organization",
-          confirmation_token: `DELETE-${selectedOrg.id}`,
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.ok && !data?.success) {
-        throw new Error(data?.error || "Organization deletion failed");
-      }
-      
-      toast({
-        title: "Organization deleted",
-        description: `${selectedOrg.name} and its tenant data have been permanently removed.`,
-      });
-      
-      fetchOrganizations();
-    } catch (error: any) {
-      console.error("Error deleting organization:", error);
-      toast({
-        title: "Error deleting organization",
-        description: normalizeError(error).message || "Could not delete. It may have related data.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   const handleViewDetails = (org: OrganizationWithStats) => {
     navigate(`/admin-management/organizations/${org.id}`);
   };
@@ -208,8 +172,7 @@ export default function AdminOrganizations() {
   };
 
   const handleOpenDelete = (org: OrganizationWithStats) => {
-    setSelectedOrg(org);
-    setDeleteDialogOpen(true);
+    navigate(`/admin-management/organizations/${org.id}/delete`);
   };
 
   const handleSuspendOrg = (org: OrganizationWithStats) => {
