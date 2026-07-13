@@ -293,9 +293,375 @@ function NodeEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
           <Input type="number" className="h-7 w-20 text-xs" value={node.size_mm ?? 4} onChange={(e) => set({ size_mm: Number(e.target.value) || 0 })} />
         </div>
       );
+    case "page_break":
+      return <div className="text-[10px] text-muted-foreground italic">Forces a new page at this position.</div>;
+    case "list":
+      return <ListEditor node={node} onChange={onChange} />;
+    case "label_fill":
+      return <LabelFillEditor node={node} onChange={onChange} />;
+    case "field_row":
+      return <FieldRowEditor node={node} onChange={onChange} />;
+    case "columns":
+      return <ColumnsEditor node={node} onChange={onChange} />;
+    case "grid":
+      return <GridEditor node={node} onChange={onChange} />;
     default:
       return <div className="text-[11px] text-muted-foreground">No editor for “{node.type}”.</div>;
   }
+}
+
+// ── v4 node editors ──────────────────────────────────────────────────────
+
+const LIST_MARKERS = [
+  "decimal", "decimal-paren", "lower-alpha", "lower-alpha-paren",
+  "upper-alpha", "lower-roman", "lower-roman-paren", "upper-roman",
+  "disc", "circle", "square", "none",
+];
+
+function ListEditor({ node, onChange }: { node: any; onChange: (n: any) => void }) {
+  const items: any[] = node.items ?? [];
+  const set = (patch: any) => onChange({ ...node, ...patch });
+  const patchItem = (i: number, next: any) => { const c = [...items]; c[i] = next; set({ items: c }); };
+  const remove = (i: number) => set({ items: items.filter((_, idx) => idx !== i) });
+  const move = (i: number, dir: -1 | 1) => { const j = i + dir; if (j < 0 || j >= items.length) return; const c = [...items]; [c[i], c[j]] = [c[j], c[i]]; set({ items: c }); };
+  const add = () => set({ items: [...items, { text: { kind: "literal", value: "Item" } }] });
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
+        <div>
+          <Label className="text-[10px]">Marker</Label>
+          <Select value={node.marker ?? "decimal"} onValueChange={(m) => set({ marker: m })}>
+            <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{LIST_MARKERS.map((m) => <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-[10px]">Start</Label>
+          <Input type="number" className="h-7 w-16 text-xs" value={node.start ?? 1} onChange={(e) => set({ start: Number(e.target.value) || 1 })} />
+        </div>
+        <label className="flex items-center gap-1 text-[11px] pt-4">
+          <input type="checkbox" checked={!!node.compact} onChange={(e) => set({ compact: e.target.checked })} /> compact
+        </label>
+      </div>
+      <div className="space-y-1">
+        {items.map((it, i) => (
+          <div key={i} className="flex items-start gap-1">
+            <div className="flex-1 space-y-1">
+              <ValueEditor value={it.text} onChange={(v) => patchItem(i, { ...it, text: v })} placeholder="Item text" />
+              {it.children && (
+                <div className="pl-4 border-l-2 mt-1">
+                  <ListEditor node={it.children} onChange={(next) => patchItem(i, { ...it, children: next })} />
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col">
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => move(i, -1)} disabled={i === 0}><ArrowUp className="h-3 w-3" /></Button>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => move(i, 1)} disabled={i === items.length - 1}><ArrowDown className="h-3 w-3" /></Button>
+              <Button
+                size="sm" variant="ghost" className="h-6 w-6 p-0"
+                title={it.children ? "Remove sublist" : "Add sublist"}
+                onClick={() => patchItem(i, it.children
+                  ? { ...it, children: undefined }
+                  : { ...it, children: { type: "list", marker: "lower-alpha", compact: true, items: [{ text: { kind: "literal", value: "Sub-item" } }] } })}
+              ><Plus className="h-3 w-3" /></Button>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => remove(i)}><Trash2 className="h-3 w-3" /></Button>
+            </div>
+          </div>
+        ))}
+        <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={add}><Plus className="h-3 w-3 mr-1" />Add item</Button>
+      </div>
+    </div>
+  );
+}
+
+const RULE_STYLES = ["dotted", "solid", "dashed", "none"];
+
+function LabelFillEditor({ node, onChange }: { node: any; onChange: (n: any) => void }) {
+  const set = (patch: any) => onChange({ ...node, ...patch });
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <div>
+        <Label className="text-[10px]">Label</Label>
+        <ValueEditor value={node.label} onChange={(v) => set({ label: v })} placeholder="Label" />
+      </div>
+      <div>
+        <Label className="text-[10px]">Value</Label>
+        <ValueEditor value={node.value} onChange={(v) => set({ value: v })} placeholder="Value" />
+      </div>
+      <div>
+        <Label className="text-[10px]">Rule</Label>
+        <Select value={node.rule ?? "dotted"} onValueChange={(r) => set({ rule: r })}>
+          <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+          <SelectContent>{RULE_STYLES.map((r) => <SelectItem key={r} value={r} className="text-xs">{r}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="text-[10px]">Value width</Label>
+        <Input className="h-7 text-xs" value={node.value_width ?? ""}
+          onChange={(e) => { const v = e.target.value; set({ value_width: v === "" ? undefined : (/^\d+$/.test(v) ? Number(v) : v) }); }}
+          placeholder="e.g. 60 (mm) or 1fr" />
+      </div>
+      <label className="flex items-center gap-1 text-[11px]">
+        <input type="checkbox" checked={!!node.label_bold} onChange={(e) => set({ label_bold: e.target.checked })} /> label bold
+      </label>
+    </div>
+  );
+}
+
+function FieldRowEditor({ node, onChange }: { node: any; onChange: (n: any) => void }) {
+  const fields: any[] = node.fields ?? [];
+  const set = (patch: any) => onChange({ ...node, ...patch });
+  const patchField = (i: number, next: any) => { const c = [...fields]; c[i] = next; set({ fields: c }); };
+  const add = () => set({ fields: [...fields, { type: "label_fill", label: { kind: "literal", value: "Label" }, value: { kind: "binding", path: "" }, rule: "dotted" }] });
+  const remove = (i: number) => set({ fields: fields.filter((_, idx) => idx !== i) });
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label className="text-[10px]">Gap (mm)</Label>
+        <Input type="number" className="h-7 w-16 text-xs" value={node.gap_mm ?? 6} onChange={(e) => set({ gap_mm: Number(e.target.value) || 0 })} />
+      </div>
+      <div className="space-y-1">
+        {fields.map((f, i) => (
+          <div key={i} className="rounded border p-2 space-y-1 bg-muted/30">
+            <div className="flex justify-between">
+              <Badge variant="outline" className="text-[10px]">field {i + 1}</Badge>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => remove(i)}><Trash2 className="h-3 w-3" /></Button>
+            </div>
+            <LabelFillEditor node={f} onChange={(next) => patchField(i, next)} />
+          </div>
+        ))}
+        <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={add}><Plus className="h-3 w-3 mr-1" />Add field</Button>
+      </div>
+    </div>
+  );
+}
+
+function ColumnsEditor({ node, onChange }: { node: any; onChange: (n: any) => void }) {
+  const set = (patch: any) => onChange({ ...node, ...patch });
+  const count = Math.max(1, Number(node.count ?? 2));
+  const cc: any[][] = Array.isArray(node.column_children)
+    ? [...node.column_children]
+    : Array.from({ length: count }, () => [] as any[]);
+  while (cc.length < count) cc.push([]);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        <div>
+          <Label className="text-[10px]">Column count</Label>
+          <Input type="number" min={1} max={6} className="h-7 w-16 text-xs" value={count}
+            onChange={(e) => {
+              const n = Math.max(1, Math.min(6, Number(e.target.value) || 1));
+              const next = [...cc];
+              while (next.length < n) next.push([]);
+              next.length = n;
+              set({ count: n, column_children: next });
+            }} />
+        </div>
+        <div>
+          <Label className="text-[10px]">Gap (mm)</Label>
+          <Input type="number" className="h-7 w-16 text-xs" value={node.gap_mm ?? 6} onChange={(e) => set({ gap_mm: Number(e.target.value) || 0 })} />
+        </div>
+      </div>
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}>
+        {cc.slice(0, count).map((children, i) => (
+          <div key={i} className="rounded border p-2 space-y-1">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Column {i + 1}</div>
+            <NodeListEditor
+              nodes={children ?? []}
+              onChange={(next) => { const c = [...cc]; c[i] = next; set({ column_children: c }); }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const CELL_VARIANTS: string[] = ["plain", "label", "unit", "letter", "note", "total"];
+const BORDER_MODES: string[] = ["all", "outer", "none"];
+const ZEBRA_MODES: string[] = ["none", "even", "odd"];
+
+function GridEditor({ node, onChange }: { node: any; onChange: (n: any) => void }) {
+  const set = (patch: any) => onChange({ ...node, ...patch });
+  const cols: any[] = node.columns ?? [];
+  const headerRows: any[][] = node.header_rows ?? [];
+  const footerRows: any[][] = node.footer_rows ?? [];
+  const dataRows = node.data_rows ?? { bind: "" };
+
+  const patchCol = (i: number, next: any) => { const c = [...cols]; c[i] = next; set({ columns: c }); };
+  const addCol = () => set({ columns: [...cols, { id: `col_${cols.length + 1}`, align: "right", format: "number" }] });
+  const removeCol = (i: number) => set({ columns: cols.filter((_, idx) => idx !== i) });
+  const moveCol = (i: number, dir: -1 | 1) => { const j = i + dir; if (j < 0 || j >= cols.length) return; const c = [...cols]; [c[i], c[j]] = [c[j], c[i]]; set({ columns: c }); };
+
+  const setHeaderRows = (next: any[][]) => set({ header_rows: next });
+  const setFooterRows = (next: any[][]) => set({ footer_rows: next });
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-[10px]">Title</Label>
+          <ValueEditor value={node.title} onChange={(v) => set({ title: v })} placeholder="Grid title" />
+        </div>
+        <div>
+          <Label className="text-[10px]">Data rows — bind (array path)</Label>
+          <Input className="h-7 text-xs font-mono" value={dataRows.bind ?? ""} onChange={(e) => set({ data_rows: { ...dataRows, bind: e.target.value } })} placeholder="e.g. p9.months" />
+        </div>
+        <div>
+          <Label className="text-[10px]">Border</Label>
+          <Select value={node.border ?? "all"} onValueChange={(b) => set({ border: b })}>
+            <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{BORDER_MODES.map((b) => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-[10px]">Zebra</Label>
+          <Select value={node.zebra ?? "none"} onValueChange={(z) => set({ zebra: z })}>
+            <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+            <SelectContent>{ZEBRA_MODES.map((z) => <SelectItem key={z} value={z} className="text-xs">{z}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Columns */}
+      <div className="rounded border">
+        <div className="grid grid-cols-[80px_60px_60px_1fr_44px] gap-1 px-1 py-1 text-[9px] uppercase tracking-wide text-muted-foreground border-b">
+          <span>ID</span><span>Align</span><span>Format</span><span>Width · nowrap · bind_key</span><span></span>
+        </div>
+        {cols.map((c, i) => (
+          <div key={i} className="grid grid-cols-[80px_60px_60px_1fr_44px] gap-1 px-1 py-1 items-center border-b last:border-b-0">
+            <Input className="h-7 text-[11px] font-mono" value={c.id ?? ""} onChange={(e) => patchCol(i, { ...c, id: e.target.value })} />
+            <Select value={c.align ?? "right"} onValueChange={(a) => patchCol(i, { ...c, align: a })}>
+              <SelectTrigger className="h-7 text-[10px] px-1"><SelectValue /></SelectTrigger>
+              <SelectContent>{["left", "center", "right"].map((a) => <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={c.format ?? "number"} onValueChange={(f) => patchCol(i, { ...c, format: f })}>
+              <SelectTrigger className="h-7 text-[10px] px-1"><SelectValue /></SelectTrigger>
+              <SelectContent>{VALUE_FORMATS.map((f) => <SelectItem key={f} value={f} className="text-xs">{f}</SelectItem>)}</SelectContent>
+            </Select>
+            <div className="flex gap-1 items-center">
+              <Input className="h-7 w-16 text-[11px]" value={c.width ?? ""}
+                onChange={(e) => { const v = e.target.value; patchCol(i, { ...c, width: v === "" ? undefined : (/^\d+$/.test(v) ? Number(v) : v) }); }}
+                placeholder="w" />
+              <label className="flex items-center gap-1 text-[10px]">
+                <input type="checkbox" checked={!!c.nowrap} onChange={(e) => patchCol(i, { ...c, nowrap: e.target.checked })} /> nowrap
+              </label>
+              <Input className="h-7 flex-1 text-[11px] font-mono" value={c.bind_key ?? ""} onChange={(e) => patchCol(i, { ...c, bind_key: e.target.value || undefined })} placeholder="bind_key (default = id)" />
+            </div>
+            <div className="flex">
+              <Button size="sm" variant="ghost" className="h-6 w-5 p-0" onClick={() => moveCol(i, -1)} disabled={i === 0}><ArrowUp className="h-3 w-3" /></Button>
+              <Button size="sm" variant="ghost" className="h-6 w-5 p-0" onClick={() => moveCol(i, 1)} disabled={i === cols.length - 1}><ArrowDown className="h-3 w-3" /></Button>
+              <Button size="sm" variant="ghost" className="h-6 w-5 p-0 text-destructive" onClick={() => removeCol(i)}><Trash2 className="h-3 w-3" /></Button>
+            </div>
+          </div>
+        ))}
+        <div className="p-1"><Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={addCol}><Plus className="h-3 w-3 mr-1" />Add column</Button></div>
+      </div>
+
+      {/* Header rows */}
+      <HeaderFooterRowsEditor
+        label="Header rows"
+        rows={headerRows}
+        onChange={setHeaderRows}
+        allowSumOf={false}
+      />
+
+      {/* Footer rows */}
+      <HeaderFooterRowsEditor
+        label="Footer rows"
+        rows={footerRows}
+        onChange={setFooterRows}
+        allowSumOf
+        columnIds={cols.map((c: any) => c.id).filter(Boolean)}
+      />
+
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={node.repeat_header !== false} onChange={(e) => set({ repeat_header: e.target.checked })} />
+        Repeat header row on each page
+      </label>
+    </div>
+  );
+}
+
+function HeaderFooterRowsEditor({
+  label, rows, onChange, allowSumOf, columnIds,
+}: {
+  label: string;
+  rows: any[][];
+  onChange: (n: any[][]) => void;
+  allowSumOf: boolean;
+  columnIds?: string[];
+}) {
+  const addRow = () => onChange([...(rows ?? []), []]);
+  const removeRow = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
+  const patchRow = (i: number, next: any[]) => { const c = [...rows]; c[i] = next; onChange(c); };
+  const addCell = (rowIdx: number) => {
+    const cell = { span: 1, content: { kind: "literal", value: "" }, variant: "plain" };
+    patchRow(rowIdx, [...(rows[rowIdx] ?? []), cell]);
+  };
+  const patchCell = (rowIdx: number, cellIdx: number, next: any) => {
+    const row = [...(rows[rowIdx] ?? [])]; row[cellIdx] = next; patchRow(rowIdx, row);
+  };
+  const removeCell = (rowIdx: number, cellIdx: number) =>
+    patchRow(rowIdx, (rows[rowIdx] ?? []).filter((_, idx) => idx !== cellIdx));
+
+  return (
+    <div className="rounded border p-2 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+        <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={addRow}><Plus className="h-3 w-3 mr-1" />Add row</Button>
+      </div>
+      {(rows ?? []).map((row, rowIdx) => (
+        <div key={rowIdx} className="rounded border p-1 space-y-1 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <Badge variant="outline" className="text-[10px]">row {rowIdx + 1}</Badge>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => addCell(rowIdx)}><Plus className="h-3 w-3" /> cell</Button>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => removeRow(rowIdx)}><Trash2 className="h-3 w-3" /></Button>
+            </div>
+          </div>
+          <div className="space-y-1">
+            {(row ?? []).map((cell, cellIdx) => {
+              const isSumOf = cell?.content && typeof cell.content === "object" && cell.content.kind === "sum_of";
+              return (
+                <div key={cellIdx} className="grid grid-cols-[46px_60px_70px_1fr_28px] gap-1 items-center">
+                  <Input type="number" min={1} className="h-7 text-[11px]" value={cell.span ?? 1} onChange={(e) => patchCell(rowIdx, cellIdx, { ...cell, span: Number(e.target.value) || 1 })} title="colspan" />
+                  <Input type="number" min={1} className="h-7 text-[11px]" value={cell.row_span ?? 1} onChange={(e) => patchCell(rowIdx, cellIdx, { ...cell, row_span: Number(e.target.value) || 1 })} title="rowspan" />
+                  <Select value={cell.variant ?? "plain"} onValueChange={(v) => patchCell(rowIdx, cellIdx, { ...cell, variant: v })}>
+                    <SelectTrigger className="h-7 text-[10px] px-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CELL_VARIANTS.map((v) => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {allowSumOf && isSumOf ? (
+                    <div className="flex gap-1 items-center">
+                      <Badge variant="secondary" className="text-[10px]">Σ</Badge>
+                      <Select
+                        value={cell.content.column_id ?? ""}
+                        onValueChange={(id) => patchCell(rowIdx, cellIdx, { ...cell, content: { ...cell.content, kind: "sum_of", column_id: id } })}
+                      >
+                        <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="column" /></SelectTrigger>
+                        <SelectContent>{(columnIds ?? []).map((id) => <SelectItem key={id} value={id} className="text-xs font-mono">{id}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => patchCell(rowIdx, cellIdx, { ...cell, content: { kind: "literal", value: "" } })}>text</Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-1 items-center">
+                      <ValueEditor value={cell.content as any} onChange={(v) => patchCell(rowIdx, cellIdx, { ...cell, content: v })} placeholder="cell content" />
+                      {allowSumOf && (
+                        <Button size="sm" variant="ghost" className="h-6 text-[10px]" title="Convert to sum_of"
+                          onClick={() => patchCell(rowIdx, cellIdx, { ...cell, content: { kind: "sum_of", column_id: (columnIds ?? [])[0] ?? "" } })}
+                        >Σ</Button>
+                      )}
+                    </div>
+                  )}
+                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={() => removeCell(rowIdx, cellIdx)}><Trash2 className="h-3 w-3" /></Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function AlignSelect({ value, onChange }: { value?: string; onChange: (a: string) => void }) {

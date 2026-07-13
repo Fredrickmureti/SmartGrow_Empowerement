@@ -48,13 +48,14 @@ cells (`drawCell`/truncation). The old v1 `certificateRenderer.ts`, v2
 produced crushed/overflowing P9s. pdf-lib is a low-level drawing lib — the
 wrong tool for a statutory grid.
 
-**Editor:** `CertificateV3Editor.tsx` (structured — no raw-JSON textareas). v4
-introduced node types the current editor exposes in the add-node list but
-does not yet ship per-node inspectors for (`grid`, `list`, `label_fill`,
-`field_row`, `columns`, `page_break`) — falls back to "No editor for X." A
-visual designer (spreadsheet-like grid editor, token picker with schema
-autocomplete, rich-text runs, nestable list editor, live paginated preview)
-is Phase C of the ADR audit and will replace `CertificateV3Editor`.
+**Editor:** `CertificateV3Editor.tsx` (structured — no raw-JSON textareas).
+Per-node inspectors ship for all v3 and v4 primitives — `grid` (columns +
+header/footer row stacks with span/rowspan/variant + `sum_of` footer cells),
+`list` (nested, marker-configurable), `label_fill`, `field_row`, `columns`
+(per-column child editors), and `page_break`. A full Excel-like spreadsheet
+designer with drag-resize and live per-node preview is still Phase C's
+end-goal; this editor is the typed intermediate that unblocks pack authoring
+of v4 templates.
 
 **Canonical KE P9 body:** `src/features/localization/lib/engine/templates/keP9.ts`.
 On v4 as of the 2026-07-13 architecture audit. Produces a 4-row header stack
