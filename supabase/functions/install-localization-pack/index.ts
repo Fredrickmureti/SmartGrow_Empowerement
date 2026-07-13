@@ -252,14 +252,30 @@ Deno.serve(async (req) => {
       });
     }
     if (!userRole) {
-      // Distinct code so the frontend can show "Finishing tenant setup…"
-      // rather than a generic permission-denied toast.
-      return err(
-        "AUTH_NO_ROLE_FOR_ORG",
-        "You don't have access to this organization yet. Tenant setup may still be in progress.",
-        403,
-        { user_id: user.id, organization_id: orgId, business_id },
-      );
+      // Platform admins are allowed to install packs on behalf of any tenant
+      // (used by the Platform Administration "Install pack on tenant" wizard).
+      // Everyone else must have a role in the org before installing.
+      const { data: isPlatformAdmin, error: paErr } = await admin
+        .rpc("is_platform_admin", { _user_id: user.id })
+        .single();
+      if (paErr) {
+        return err("LOOKUP_FAILED", `Platform-admin check failed: ${paErr.message}`, 500, {
+          user_id: user.id, organization_id: orgId,
+        });
+      }
+      if (!isPlatformAdmin) {
+        // Distinct code so the frontend can show "Finishing tenant setup…"
+        // rather than a generic permission-denied toast.
+        return err(
+          "AUTH_NO_ROLE_FOR_ORG",
+          "You don't have access to this organization yet. Tenant setup may still be in progress.",
+          403,
+          { user_id: user.id, organization_id: orgId, business_id },
+        );
+      }
+      console.log("[install-localization-pack] platform-admin on-behalf-of install", {
+        actor_user_id: user.id, organization_id: orgId, business_id,
+      });
     }
 
     // Resolve pack_id from country_code if needed
