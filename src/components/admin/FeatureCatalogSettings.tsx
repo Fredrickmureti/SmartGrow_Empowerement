@@ -45,9 +45,26 @@ const CATEGORIES = [
 export function FeatureCatalogSettings() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [features, setFeatures] = useState<CatalogFeature[]>([]);
   const [planCounts, setPlanCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+
+  const peekId = searchParams.get("featurePeek");
+  const setPeekId = useCallback(
+    (id: string | null) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (id) next.set("featurePeek", id);
+          else next.delete("featurePeek");
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   useEffect(() => {
     fetchData();
