@@ -144,6 +144,7 @@ import {
   AdminDemoRequestReplyPage,
   AdminOrgEntitlementOverrideCreatePage,
   AdminOrgEntitlementOverrideEditPage,
+  AdminOrgLocalizationInstallPage,
   AdminDemoVideoCreatePage,
   AdminDemoVideoEditPage,
   AdminLocalizationPackPublishPage,
