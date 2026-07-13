@@ -40,7 +40,7 @@ const ALLOWED_FILES = [
 ];
 
 /** @type {import('eslint').Rule.RuleModule} */
-module.exports = {
+export default {
   meta: {
     type: 'problem',
     docs: { description: 'Forbid useDocumentPrint imports in new files (allowlist current surfaces only).' },

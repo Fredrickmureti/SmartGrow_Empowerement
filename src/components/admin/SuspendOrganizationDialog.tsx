@@ -1,13 +1,13 @@
 // @ts-nocheck - Admin tables not in auto-generated types
 import { useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -103,19 +103,19 @@ export function SuspendOrganizationDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent className="sm:max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
             <AlertTriangle className={`h-5 w-5 ${isSuspended ? "text-green-500" : "text-destructive"}`} />
             {isSuspended ? "Unsuspend Organization" : "Suspend Organization"}
-          </DialogTitle>
-          <DialogDescription>
+          </AlertDialogTitle>
+          <AlertDialogDescription>
             {isSuspended
               ? `Unsuspend ${organization?.name} to restore access to the system.`
               : `Suspend ${organization?.name} to prevent all users from accessing the system.`}
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
 
         {!isSuspended && (
           <div className="space-y-4 py-4">
@@ -135,7 +135,7 @@ export function SuspendOrganizationDialog({
           </div>
         )}
 
-        <DialogFooter>
+        <AlertDialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
@@ -147,8 +147,8 @@ export function SuspendOrganizationDialog({
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isSuspended ? "Unsuspend" : "Suspend"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

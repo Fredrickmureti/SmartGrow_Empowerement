@@ -116,6 +116,7 @@ export function ExchangeRateSettings() {
               Add currency
             </Button>
           </DialogTrigger>
+          {/* ADMIN-DIALOG-EXEMPT: Inline exchange rate provider settings toggle — provider settings surface, not entity CRUD. */}
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Add a display currency</DialogTitle>

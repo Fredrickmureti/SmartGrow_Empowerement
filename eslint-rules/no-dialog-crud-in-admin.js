@@ -64,9 +64,28 @@ export default {
     }
 
     function hasExempt(node) {
+      // Accept both a leading JS comment and a preceding JSX comment
+      // `{/* ADMIN-DIALOG-EXEMPT: ... */}`. JSX comments live inside a
+      // JSXExpressionContainer as an inner block-comment token, so
+      // `getCommentsBefore` (which looks at leading trivia only) misses
+      // them; fall back to a raw-source scan of the lines above the tag.
       const comments = sourceCode.getCommentsBefore(node) || [];
-      return comments.some((c) => /ADMIN-DIALOG-EXEMPT:/.test(c.value));
+      if (comments.some((c) => /ADMIN-DIALOG-EXEMPT:/.test(c.value))) return true;
+      const lines = sourceCode.getLines();
+      const startLine = node.loc.start.line; // 1-indexed
+      // Scan up to 3 lines above (skips indentation-only whitespace lines).
+      for (let i = startLine - 2; i >= Math.max(0, startLine - 5); i--) {
+        const l = lines[i];
+        if (!l) continue;
+        if (/ADMIN-DIALOG-EXEMPT:/.test(l)) return true;
+        if (l.trim() === "") continue;
+        // Stop once we hit a non-comment / non-blank line above the tag.
+        if (!/^\s*(\{\s*\/\*|\/\/|\/\*)/.test(l)) break;
+      }
+      return false;
     }
+
+
 
     function collectDescendantTags(node, out) {
       if (!node) return;

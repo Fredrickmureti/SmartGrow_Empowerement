@@ -1,91 +1,77 @@
+# Platform Admin UX — Verification & Completion Plan
 
-## Verification of prior agent's claims
+## What I verified from the prior agent's work
 
-Confirmed present on disk:
+Independently checked every claim against the codebase, not the handoff note:
 
-- Audit doc `docs/design-system/audit/platform-admin.md` (normative 4-pattern classification).
-- Substrate: `@/apps/platform-admin` re-exports `AdminRecordPage`, `AdminRecordForm`, `AdminPeekShell`, `AdminWizard`, etc.
-- Phase 1–5 workspace routes:
-  - `pages/admin/groups/{Create,Edit}Page.tsx` (+ `AdminGroupForm`)
-  - `pages/admin/team/{Invite,MemberEdit}Page.tsx`
-  - `pages/admin/plan-builder/{Plan,Feature}{Create,Edit}Page.tsx` (+ shared forms)
-  - `pages/admin/localization/{PackCreate,PackDetail}Page.tsx`
-  - `pages/admin/email-center/{Compose,CampaignCreate,TemplateCreate,TemplateEdit,AutomationEdit}Page.tsx`
-  - `pages/admin/demo-requests/DemoRequestReplyPage.tsx`
-  - All registered in `routes/-lazyRoutes.tsx`.
+- `docs/design-system/audit/platform-admin.md` exists and is normative — the four-pattern rule (workspace / wizard / peek / confirm) is codified.
+- Phase 0 substrate real: `@/apps/platform-admin` re-exports `AdminRecordPage`, `AdminRecordForm`, `AdminPeekShell`, `AdminWizard`.
+- Workspaces exist for: Organizations (edit, subscription, delete wizard, entitlement overrides create/edit), Users (detail), Team (invite / member edit), Groups (create/edit), Plan Builder (plan + feature create/edit), Localization Packs (create/edit + publish wizard), Email Center (campaign, template, automation, compose), Demo Requests (reply), Settings → Demo Videos (create/edit).
+- Install-Pack-on-tenant wizard **is** wired: `src/pages/admin/organizations/AdminOrgLocalizationInstallPage.tsx`, registered in `-lazyRoutes.tsx`, routed at `/admin-management/organizations/:id/localization/install`, entered from a `Localization` tab on the org workspace. Edge function `install-localization-pack` accepts on-behalf-of callers.
+- The lint rule `no-dialog-crud-in-admin` exists and is wired into `eslint.config.js` at error level.
 
-Gaps found — the "Phase 5 complete" claim is accurate for the four listed dialogs, but three groups of form-bearing admin dialogs were **never inventoried** and still violate the classification rule, and Phase 6 lint guard does not exist:
+## What the prior agent got wrong or left unfinished
 
-1. `components/admin/OrgEntitlementOverrides.tsx` — "Add Entitlement Override" is a multi-field CRUD dialog on the Organization workspace. Should be a workspace sub-route or an inline record form panel.
-2. `components/admin/DemoVideoManagement.tsx` — create/edit demo video is a full form dialog. Should be workspace routes.
-3. `components/admin/AuthEmailTemplates.tsx` — two dialogs (Preview, Code). Read-only viewers, but large; should be peek sheets, not dialogs.
-4. No `eslint-rules/no-dialog-crud-in-admin.js`, no wiring in `eslint.config.js`.
-5. Deferred: Localization **Publish Pack Version** wizard and **Install Pack on tenant** wizard were never built.
+1. **Lint guard is a no-op.** `eslint.config.js` fails to load because `eslint-rules/no-direct-employees-branch-write.js` still uses `module.exports = { ... }` while the config imports it as an ESM default. ESLint aborts with `SyntaxError: does not provide an export named 'default'` before it can enforce anything — including `no-dialog-crud-in-admin`. Phase 6 is effectively unenforced.
+2. **Form-bearing overlays still live in `src/{pages,components}/admin/**`** without `ADMIN-DIALOG-EXEMPT` markers and without matching the doc's classification:
+   - `components/admin/OwnershipTransferDialog.tsx` — `Dialog` + `Select` + confirm. Doc: confirm dialog.
+   - `components/admin/ScheduleDeletionDialog.tsx` — `Dialog` + `Input`/`Textarea`. Doc: confirm dialog.
+   - `components/admin/SuspendOrganizationDialog.tsx` — `Dialog` + `Textarea` reason. Doc: confirm dialog.
+   - `components/admin/DeleteUserDialog.tsx` — `Dialog` + typed-confirm `Input`. Doc: confirm dialog.
+   - `components/admin/email/EmailTemplatesTab.tsx` — preview `Dialog`. Doc: preview → peek.
+   - `components/admin/email/AdminAIEmailAssistant.tsx` — two `Dialog`s with `Textarea` prompts for AI generation. Doc silent; classify as inline assistant → exempt.
+   - `pages/admin/AdminGroups.tsx` — `AlertDialog` only (delete). Already compliant.
+   - `components/admin/DemoVideoManagement.tsx`, `OrgEntitlementOverrides.tsx` — `AlertDialog` only (delete confirms). Compliant.
+   - Settings/provider/infra files (BankProviderSettings, MpesaEnvironmentSettings, ExchangeRateSettings, AIProviderCard, DataResetTool, StorageMonitorTab, AdminMfaStatus, AdminDashboardLayout) are legitimately exempt per doc — they lack the marker only because the lint step never ran.
 
-All other `Dialog`/`Sheet` usages under `src/{pages,components}/admin` are either confirmation `AlertDialog`s (Suspend, DeleteUser, ScheduleDeletion, OwnershipTransfer, group delete) or exempted inline settings forms (MFA, exchange rates, bank providers, mpesa env, AI provider, data reset, storage monitor, dashboard layout chrome) — these correctly stay per the audit doc's "provider connections and toggles remain inline" clause.
+## Work to execute (in order, each independently shippable)
 
-## Plan
+### 1. Repair the lint substrate so the guard actually runs
 
-### Step 1 — Close the three form-dialog gaps missed by the prior agent
+- Rewrite `eslint-rules/no-direct-employees-branch-write.js` to use `export default { ... }` (matches the sibling ESM rules).
+- Re-run `npx eslint 'src/pages/admin/**' 'src/components/admin/**'` and drive violations to zero. Every failure below feeds into steps 2–4.
 
-**1a. Entitlement overrides → workspace sub-route.**
-- New route `/admin-management/organizations/$id/entitlements/new` and `…/entitlements/$overrideId/edit`, backed by `AdminEntitlementOverrideForm` on `RecordFormShell`.
-- `OrgEntitlementOverrides` list becomes navigation-only: "Add override" links to `new`, row action links to `edit`. Delete stays as `AlertDialog` confirm.
+### 2. Convert the four "confirm-shape" dialogs from `Dialog` to `AlertDialog`
 
-**1b. Demo videos → workspace routes.**
-- New routes `/admin-management/settings/demo-videos/new` and `/…/$id/edit` (list stays on the existing settings tab).
-- `DemoVideoManagement` reduced to list + delete confirm; create/edit dialog removed.
+The doc explicitly classifies these as confirm dialogs. `AlertDialog` is the primitive exempted by the lint rule. Preserve current behavior (reason field, typed confirmation, target-user select stay) — swap the wrapper components only:
 
-**1c. Auth email template viewers → `DocumentPeekShell` peeks.**
-- Preview + code viewers moved into `AdminPeekShell` (`?peek=<templateId>&mode=preview|code`) so they match every other read-mostly admin surface.
+- `SuspendOrganizationDialog.tsx` → `AlertDialog` with `Textarea` reason retained.
+- `ScheduleDeletionDialog.tsx` → `AlertDialog` with date `Input` + reason `Textarea` retained.
+- `DeleteUserDialog.tsx` → `AlertDialog` with typed-confirm `Input` retained.
+- `OwnershipTransferDialog.tsx` → `AlertDialog` with target-user `Select` + typed confirm retained.
 
-Each migration follows the audit doc's 6-step checklist: classify → route → lazy-register → build from scaffolds → remove dialog + state → verify build clean.
+Each keeps the same public props and callsites; only the shell changes. This matches the doc and satisfies the lint rule without needing an exempt marker.
 
-### Step 2 — Deferred Localization wizards
+### 3. Migrate the Email template preview to a peek sheet
 
-**2a. Publish Pack Version wizard** at `/admin-management/localization-packs/$id/publish` using `AdminWizard` + `AdminWizardStepper`:
+- Replace the `Dialog`-based preview in `EmailTemplatesTab.tsx` with `AdminPeekShell` (`?emailTemplatePeek=<id>&mode=preview|code`) matching the existing Auth Email Templates peek pattern documented in the audit.
+- Peek shows Preview / HTML tabs, "Open full page" → existing `AdminEmailTemplateEditPage`.
 
-```text
-Step 1: Version metadata (semver, changelog)
-Step 2: Diff review (rules added/changed/removed vs current published)
-Step 3: Compatibility checks (tenant install impact preview)
-Step 4: Confirm & publish (typed confirmation → mutation)
-```
+### 4. Mark legitimate inline-settings overlays exempt
 
-Launched from the pack detail workspace "Publish new version" action; commit call reuses existing `pack_versions` insert + `localization_packs.published_version_id` update path — **no schema changes**.
+Add a single-line `// ADMIN-DIALOG-EXEMPT: <reason>` above each `DialogContent` / `SheetContent` in the eight settings/infra components the doc already whitelists (BankProviderSettings, MpesaEnvironmentSettings, ExchangeRateSettings, AIProviderCard, DataResetTool, StorageMonitorTab, AdminMfaStatus, AdminDashboardLayout) plus `AdminAIEmailAssistant` (inline AI generator). No behavior change.
 
-**2b. Install Pack on tenant wizard** at `/admin-management/organizations/$id/localization/install`:
+### 5. Documentation & audit trail
 
-```text
-Step 1: Choose company (business) within the organization
-Step 2: Choose pack + surface conflict with the currently-installed pack
-Step 3: Confirm & install (typed confirmation, force_reseed, ack skeleton)
-```
+- Update `docs/design-system/audit/platform-admin.md` "Migration order" section: mark Phase 6 **enforced** once step 1 lands; add the four confirm-dialog conversions and the email-template peek to the Phase 5.5 completion list; note the AI assistant exemption in the exempt list.
+- No schema, RLS, or business-logic changes.
 
-Entry point added on the Organization workspace under a new **Localization** tab. The `install-localization-pack` edge function was extended to allow platform admins to install on behalf of any organization — when the caller lacks a `user_roles` row for the target org, the function checks `is_platform_admin` before refusing. No schema changes.
+### 6. Verification checklist before hand-off
 
-### Step 3 — Phase 6 lint guard
-
-- Add `eslint-rules/no-dialog-crud-in-admin.js`: reports `DialogContent` / `SheetContent` JSX inside `src/pages/admin/**` and `src/components/admin/**` when the subtree contains a form control (`input`, `select`, `textarea`, `<Form>`, `useForm`). Allow-list: files importing from `@/components/ui/alert-dialog`, plus an explicit exemption list of settings-inline components enumerated in the audit doc (MFA, exchange rates, bank providers, mpesa env, AI provider, data reset, storage monitor, dashboard layout).
-- Wire the rule into `eslint.config.js` for those two globs at `error` level.
-- Run lint; fix any residual violations by either migrating (if CRUD) or adding to the exemption list with a code-comment rationale.
-
-### Step 4 — Verification
-
+- `npx eslint 'src/pages/admin/**' 'src/components/admin/**'` exits 0.
+- `rg "^import.*from \"@/components/ui/dialog\"" src/pages/admin src/components/admin` returns only marked/exempt files or peek-shell consumers.
 - `tsgo` clean.
-- `bunx eslint src/pages/admin src/components/admin` clean.
-- Playwright smoke on `/admin-management/organizations/<id>` → click "Add entitlement override" → workspace opens (not a dialog). Same for demo videos + localization publish flow. Screenshot each.
-- Update audit doc §"Event → pattern map" to add the three newly-classified events and check off Phase 6.
+- Manual smoke: suspend org, schedule deletion, delete user, transfer ownership, preview email template, install pack on tenant — every flow still completes end-to-end.
 
-### Technical details
+## Technical notes
 
-- New forms compose `AdminRecordForm` + `useAdminRecordFormSubmit`; no bespoke submit logic.
-- All new routes registered in `src/routes/-lazyRoutes.tsx` and mounted in `App.tsx` under the existing `/admin-management` guard so MFA + role checks are inherited.
-- Command palette entries via `src/lib/admin/registry.ts` only for top-level pages (publish/install wizards are contextual, not palette-visible).
-- No DB migrations, no RLS changes, no edge-function changes.
+- `AlertDialog` supports arbitrary children (form controls render fine); the lint rule exempts it by tag name.
+- The peek migration for email templates reuses `usePeekParam` + `AdminPeekShell` — no new primitives.
+- The lint rule fix is a one-line export change; no config edit required.
 
-### Out of scope
+## Out of scope
 
-- Visual redesign of admin shell.
-- Any tenant-facing module changes.
-- Retiring the confirmation `AlertDialog`s — they are the sanctioned pattern.
+- Any tenant module changes.
+- Visual redesign of the admin shell.
+- Further work on the deferred install-pack wizard (already shipped by prior agent).
+- Tailwind v3 → v4.

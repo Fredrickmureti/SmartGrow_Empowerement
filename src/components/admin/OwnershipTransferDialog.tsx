@@ -3,9 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { PlatformAdmin } from "@/hooks/usePlatformTeam";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
-  DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
+  AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -126,23 +126,23 @@ export function OwnershipTransferDialog({ admins, onComplete }: OwnershipTransfe
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5">
           <Crown className="h-3.5 w-3.5" />
           Transfer Ownership
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      </AlertDialogTrigger>
+      <AlertDialogContent className="sm:max-w-lg">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
             <Crown className="h-5 w-5 text-amber-500" />
             Platform Ownership Transfer
-          </DialogTitle>
-          <DialogDescription>
+          </AlertDialogTitle>
+          <AlertDialogDescription>
             Transfer platform ownership to another active admin. This action is reversible until the target accepts.
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
 
         {isLoadingTransfer ? (
           <div className="flex items-center justify-center py-8">
@@ -170,13 +170,13 @@ export function OwnershipTransferDialog({ admins, onComplete }: OwnershipTransfe
                 </div>
               </div>
             </div>
-            <DialogFooter>
+            <AlertDialogFooter>
               <Button variant="destructive" size="sm" onClick={handleCancel} disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
                 <X className="h-3.5 w-3.5 mr-1.5" />
                 Cancel Transfer
               </Button>
-            </DialogFooter>
+            </AlertDialogFooter>
           </div>
         ) : (
           <div className="space-y-4">
@@ -220,17 +220,17 @@ export function OwnershipTransferDialog({ admins, onComplete }: OwnershipTransfe
               />
             </div>
 
-            <DialogFooter>
+            <AlertDialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
               <Button onClick={handleInitiate} disabled={!targetUserId || isSubmitting}>
                 {isSubmitting && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
                 Initiate Transfer
               </Button>
-            </DialogFooter>
+            </AlertDialogFooter>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

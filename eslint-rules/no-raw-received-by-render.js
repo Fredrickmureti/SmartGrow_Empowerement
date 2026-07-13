@@ -22,7 +22,7 @@ const ALLOW_PATH_FRAGMENTS = [
   "/__tests__/",
 ];
 
-module.exports = {
+export default {
   meta: {
     type: "problem",
     docs: {
