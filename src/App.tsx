@@ -669,6 +669,8 @@ const App = () => (
                               <Route path="hardware-ops" element={<LazyRoute module="Hardware Ops"><HardwareOpsPage /></LazyRoute>} />
                               <Route path="team" element={<LazyRoute module="Team"><AdminTeam /></LazyRoute>} />
                               <Route path="groups" element={<LazyRoute module="Groups"><AdminGroups /></LazyRoute>} />
+                              <Route path="groups/new" element={<LazyRoute module="Create Group"><AdminGroupCreatePage /></LazyRoute>} />
+                              <Route path="groups/:id/edit" element={<LazyRoute module="Edit Group"><AdminGroupEditPage /></LazyRoute>} />
                             </Route>
 
                             {/* ============================================== */}
