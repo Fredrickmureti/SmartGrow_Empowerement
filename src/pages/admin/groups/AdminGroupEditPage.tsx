@@ -19,7 +19,7 @@ export default function AdminGroupEditPage() {
   }, [fetchGroups]);
 
   if (isLoading && groups.length === 0) {
-    return <LoadingState label="Loading group..." />;
+    return <LoadingState />;
   }
 
   const group = groups.find((g) => g.id === id) ?? null;
