@@ -413,7 +413,7 @@ function PreflightCard({
                 : tone === "warning"
                   ? "warning"
                   : tone === "error"
-                    ? "destructive"
+                    ? "danger"
                     : "neutral"
             }
           >
