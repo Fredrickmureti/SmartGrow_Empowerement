@@ -34,6 +34,8 @@ import { useAdminCurrency } from "@/hooks/useAdminCurrency";
 // /admin-management/organizations/:id/subscription workspace page.
 import { SuspendOrganizationDialog } from "@/components/admin/SuspendOrganizationDialog";
 import { ScheduleDeletionDialog } from "@/components/admin/ScheduleDeletionDialog";
+import { OrganizationPeekSheet } from "@/components/admin/organizations/OrganizationPeekSheet";
+import { usePeekParam } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
 
 interface OrganizationWithStats {
