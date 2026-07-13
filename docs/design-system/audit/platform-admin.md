@@ -178,16 +178,26 @@ same shell contract tenant apps use. It ships in slices:
   `AdminSidebar` / `AdminSidebarBody` / `AdminTopBar`. The legacy
   `src/components/admin/shell/adminNav.ts` remains as a thin
   backward-compat re-export.
-- **Phase 7.2 — visual shell alignment (planned).** Replace
-  `AdminDashboardLayout` with a shared shell primitive extracted
-  from `PlatformShell` (rail-less, no install/subscription gates,
-  since admin is a persona rather than an installable app). The
-  `nav` prop plumbed in 7.1 is the seam that lets this land without
-  touching page-level code.
-- **Phase 7.3 — page-group opt-in (planned).** Migrate admin page
-  groups onto the new shell in the sequence Organizations & Users →
-  Plans/Apps/Features → Localization → Email/Demo/Team/Groups →
-  Settings/Infra/Audit. Each group is independently shippable.
+- **Phase 7.2 — visual shell alignment (shipped 2026-07-13).** The
+  shared chrome now lives in
+  `src/components/layout/shell/WorkspaceShellFrame.tsx` — a pure,
+  data-free frame owning the outer flex container, desktop sidebar
+  slot, mobile `Sheet`, topbar slot, banner slots, and the
+  content wrapper (`max-w-6xl`, padding tokens,
+  `useFullWidthRequested()` opt-in). Both `PlatformShell` (tenant,
+  with `AppRail` + subscription/trial banners) and
+  `PlatformAdminAppLayout` (persona, no rail, no banners) compose on
+  it, so admin and tenant chrome are structurally identical.
+  `src/components/admin/AdminDashboardLayout.tsx` is now a thin
+  `@deprecated` re-export of `PlatformAdminAppLayout`; its three
+  remaining direct consumers (AdminProfile, AdminLayoutRoute,
+  AdminInlineMfaSetup) work unchanged and will migrate in Phase 7.3.
+- **Phase 7.3 — page-group opt-in (planned).** Retire the deprecated
+  `AdminDashboardLayout` name by migrating the last direct consumers
+  and any remaining admin pages onto `PlatformAdminAppLayout` in the
+  sequence Organizations & Users → Plans/Apps/Features → Localization
+  → Email/Demo/Team/Groups → Settings/Infra/Audit. Each group is
+  independently shippable.
 
 ## Non-goals
 
@@ -198,6 +208,13 @@ same shell contract tenant apps use. It ships in slices:
 
 ## Change log
 
+- **Phase 7.2 (2026-07-13).** Extracted `WorkspaceShellFrame`
+  (`src/components/layout/shell/WorkspaceShellFrame.tsx`) as the
+  shared chrome primitive. `PlatformShell` and
+  `PlatformAdminAppLayout` both compose on it, so admin and tenant
+  render identical sidebar/topbar/mobile-Sheet/content-wrapper
+  behavior. `AdminDashboardLayout` reduced to a `@deprecated`
+  re-export of `PlatformAdminAppLayout` pending Phase 7.3.
 - **Phase 7.1 (2026-07-13).** Admin nav data model unified with
   tenant `WorkspaceNav`. Canonical source moved to
   `src/apps/platform-admin/nav.ts`; `PlatformAdminAppLayout` now
@@ -209,5 +226,6 @@ same shell contract tenant apps use. It ships in slices:
   Feature Catalog read peek (`?featurePeek=<featureId>`), and the
   Generic Email Templates preview migrated from `Dialog` to
   `DocumentPeekShell` (`?templatePreview=<templateId>`).
+
 
 

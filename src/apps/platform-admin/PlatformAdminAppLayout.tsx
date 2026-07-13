@@ -1,18 +1,19 @@
 /**
- * PlatformAdminAppLayout — the admin persona's counterpart to
- * `PlatformShell`. See `docs/design-system/audit/platform-admin.md`
- * and `docs/design-system.md`.
+ * PlatformAdminAppLayout — admin persona counterpart to `PlatformShell`.
+ * See `docs/design-system/audit/platform-admin.md` (Phase 7.2).
  *
  * Signature mirrors `PlatformShell(app, nav, children)` — admin is a
- * persona rather than an installable app, so there is no `AppRail`
- * or install/subscription gating, but the `nav` contract is the
- * same shape as tenant apps supply (`WorkspaceNav`). This is the
- * Phase-7 structural handle: swapping the visual shell later is a
- * matter of changing what this component renders, without touching
- * page-level code or the nav data source.
+ * persona, not an installable app, so there is no `AppRail` and no
+ * install/subscription/access gates. Chrome is delegated to the
+ * shared `WorkspaceShellFrame` so admin and tenant share identical
+ * sidebar/topbar/mobile-Sheet/content-wrapper behavior.
  */
-import type { ReactNode } from "react";
-import { AdminDashboardLayout } from "@/components/admin/AdminDashboardLayout";
+import { useState, type ReactNode } from "react";
+import { CountryWorkspaceProvider } from "@/contexts/CountryWorkspaceContext";
+import { WorkspaceShellFrame } from "@/components/layout/shell/WorkspaceShellFrame";
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { AdminSidebarBody } from "@/components/admin/shell/AdminSidebarBody";
+import { AdminTopBar } from "@/components/admin/shell/AdminTopBar";
 import { PLATFORM_ADMIN_NAV, type AdminWorkspaceNav } from "./nav";
 
 interface PlatformAdminAppLayoutProps {
@@ -25,7 +26,26 @@ export function PlatformAdminAppLayout({
   children,
   nav = PLATFORM_ADMIN_NAV,
 }: PlatformAdminAppLayoutProps) {
-  return <AdminDashboardLayout nav={nav}>{children}</AdminDashboardLayout>;
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  return (
+    <CountryWorkspaceProvider>
+      <WorkspaceShellFrame
+        sidebar={<AdminSidebar nav={nav} />}
+        mobileSidebar={
+          <AdminSidebarBody nav={nav} onNavigate={() => setMobileNavOpen(false)} />
+        }
+        topBar={
+          <AdminTopBar nav={nav} onOpenMobileNav={() => setMobileNavOpen(true)} />
+        }
+        mobileNavOpen={mobileNavOpen}
+        onMobileNavOpenChange={setMobileNavOpen}
+        mobileSheetWidthClass="w-72"
+      >
+        {children}
+      </WorkspaceShellFrame>
+    </CountryWorkspaceProvider>
+  );
 }
 
 export default PlatformAdminAppLayout;
