@@ -248,8 +248,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   // Undo/history/validation stay single-sourced.
   const commitDocument = (nextDoc: any[], focusIndex?: number) => {
     const next: V3Body = { ...v3Body, document: nextDoc };
-    setV3Body(next);
-    setV3Validation(validateV3Body(next, []));
+    commitBody(next);
     if (focusIndex != null && focusIndex >= 0 && focusIndex < nextDoc.length) {
       handleSelectNode(`doc.${focusIndex}`);
     } else {
