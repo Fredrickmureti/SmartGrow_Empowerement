@@ -1,6 +1,6 @@
 // @ts-nocheck - Admin tables not in auto-generated types
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Pencil, Trash2, BookOpen } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, BookOpen, Eye } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
+import { FeaturePeekSheet, type FeaturePeekEntry } from "./FeaturePeekSheet";
 
 interface CatalogFeature {
   id: string;
