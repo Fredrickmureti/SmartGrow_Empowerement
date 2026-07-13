@@ -217,7 +217,12 @@ same shell contract tenant apps use. It ships in slices:
   Organizations row peek (`?peek=<orgId>`), App Catalog edit workspace
   (`/app-catalog/$id/edit`) alongside the existing inline row toggles,
   Feature Catalog read peek (`?featurePeek=<featureId>`), and the
-  Generic Email Templates preview migrated from `Dialog` to
+## Change log
+
+- **Phase 7.2 (2026-07-13).** Extracted `WorkspaceShellFrame` as the
+  shared chrome primitive; `PlatformShell` and `PlatformAdminAppLayout`
+  both compose on it. `AdminDashboardLayout` reduced to a deprecated
+  re-export.
   `DocumentPeekShell` (`?templatePreview=<templateId>`).
 
 
