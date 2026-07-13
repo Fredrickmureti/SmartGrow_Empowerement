@@ -164,14 +164,40 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
               '<button data-act="duplicate" title="Duplicate">⧉</button>' +
               '<button data-act="delete" title="Delete">✕</button>';
             el.appendChild(bar);
-            // Insert-below gutter — a hover-only "+" between blocks so a
-            // publisher can add a node exactly where they want it, without
-            // reaching for the toolbar.
+            // Insert-below gutter — a hover-only "+" between blocks with a
+            // popover palette so a publisher can add any block primitive
+            // exactly where they want it, without reaching for the toolbar.
             var ins = document.createElement('div');
             ins.className = 'ce-insertbar';
             ins.setAttribute('contenteditable', 'false');
-            ins.innerHTML = '<button class="ce-insert-btn" data-act="insertAfter" title="Insert node below">+</button>';
+            ins.innerHTML =
+              '<button class="ce-insert-btn" data-act="insertToggle" title="Insert node below">+</button>' +
+              '<div class="ce-insert-menu" role="menu">' +
+                '<div class="ce-insert-group">Text</div>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="heading">Heading</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="rich_text">Paragraph</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="list">List</button>' +
+                '<div class="ce-insert-group">Fields</div>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="label_fill">Label + fill</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="field_row">Field row</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="key_value">Key / value</button>' +
+                '<div class="ce-insert-group">Layout</div>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="grid">Table (grid)</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="columns">Columns</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="section">Section</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="spacer">Spacer</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="page_break">Page break</button>' +
+                '<div class="ce-insert-group">Statutory</div>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="legal_notice">Legal notice</button>' +
+                '<button class="ce-insert-item" data-act="insertPick" data-type="signature_strip">Signature strip</button>' +
+              '</div>';
             el.appendChild(ins);
+          });
+        } catch(e){}
+      }
+      function closeAllInsertMenus(){
+        try { document.querySelectorAll('.ce-insertbar.ce-open').forEach(function(n){ n.classList.remove('ce-open'); }); } catch(e){}
+      }
           });
         } catch(e){}
       }
