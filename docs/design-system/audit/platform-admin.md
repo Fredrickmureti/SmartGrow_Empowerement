@@ -75,9 +75,18 @@ Demo Requests
 - Request Details — **peek**
 - Compose reply — **workspace** (reuses email compose workspace)
 
+Auth Email Templates (Settings)
+- Preview / HTML code viewer — **peek** (`?authEmailPeek=<id>&authEmailMode=preview|code`)
+
+Demo Video Library (Settings)
+- Add / Edit Video — **workspace** `/admin-management/settings/demo-videos/{new,$id/edit}`
+- Delete — **confirm dialog**
+
 Infrastructure / Settings tabs
 - Provider connections and toggles remain inline configuration forms.
-  They are not entity CRUD; the four-pattern rule does not apply.
+  They are not entity CRUD; the four-pattern rule does not apply. Files
+  in this exemption may carry `// ADMIN-DIALOG-EXEMPT: <reason>` on any
+  overlay the four-pattern rule would otherwise flag.
 
 ## The substrate
 
@@ -132,7 +141,23 @@ Phase-by-phase, each phase is independently shippable.
 - **Phase 3** — Plan Builder, App Catalog, Feature Catalog workspaces.
 - **Phase 4** — Localization Packs workspace + publish wizard.
 - **Phase 5** — Email Center + Demo Requests workspaces.
-- **Phase 6** — Enable the lint guard, delete leftover admin dialogs.
+- **Phase 5.5** — Entitlement Overrides, Demo Video Library, Auth Email
+  Template viewers migrated to workspaces / peek sheets. Publish Pack
+  Version wizard shipped (`/localization-packs/$id/publish`).
+- **Phase 6** — Lint guard `local/no-dialog-crud-in-admin` scoped to
+  `src/{pages,components}/admin/**` at error level. New form-bearing
+  Dialog/Sheet in those trees fails the lint step. Overlays that are
+  legitimately inline (settings tabs, provider connections, MFA setup,
+  bank/mpesa/exchange-rate/AI/data-reset/storage-monitor/dashboard
+  chrome) opt out via `// ADMIN-DIALOG-EXEMPT: <reason>`.
+
+## Deferred
+
+- Install Pack on tenant wizard requires the
+  `install-localization-pack` edge function to accept
+  `on_behalf_of_organization_id`; migration tracked separately. Until
+  then, tenants install their own packs from the tenant Localization
+  settings surface.
 
 ## Non-goals
 
