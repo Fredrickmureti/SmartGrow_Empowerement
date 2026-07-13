@@ -1,19 +1,27 @@
 // @ts-nocheck - Admin tables not in auto-generated types
+/**
+ * AuthEmailTemplates — platform email-template gallery. Preview + HTML
+ * views are read-mostly quick looks and therefore mount inside the
+ * shared admin peek scaffold (`?peek=<template-id>&mode=preview|code`)
+ * instead of raw <Dialog> — per the Platform Admin four-pattern rule
+ * (`docs/design-system/audit/platform-admin.md`).
+ */
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AdminPeekShell } from "@/apps/platform-admin";
 import { toast } from "sonner";
-import { 
-  Copy, 
-  Eye, 
-  ExternalLink, 
-  Mail, 
-  UserPlus, 
-  Wand2, 
-  KeyRound, 
+import {
+  Copy,
+  Eye,
+  ExternalLink,
+  Mail,
+  UserPlus,
+  Wand2,
+  KeyRound,
   AtSign,
   Check,
   Code
@@ -28,10 +36,38 @@ const templateIcons: Record<string, React.ReactNode> = {
   'reset-password': <KeyRound className="h-5 w-5" />,
 };
 
+const PEEK_PARAM = "authEmailPeek";
+const MODE_PARAM = "authEmailMode";
+
 export function AuthEmailTemplates() {
-  const [selectedTemplate, setSelectedTemplate] = useState<AuthEmailTemplate | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
-  const [showCode, setShowCode] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const peekId = params.get(PEEK_PARAM);
+  const mode = (params.get(MODE_PARAM) === "code" ? "code" : "preview") as
+    | "preview"
+    | "code";
+  const selectedTemplate =
+    (peekId && authEmailTemplates.find((t) => t.id === peekId)) || null;
+
+  const openPeek = (template: AuthEmailTemplate, m: "preview" | "code") => {
+    const next = new URLSearchParams(params);
+    next.set(PEEK_PARAM, template.id);
+    next.set(MODE_PARAM, m);
+    setParams(next, { replace: true });
+  };
+
+  const closePeek = () => {
+    const next = new URLSearchParams(params);
+    next.delete(PEEK_PARAM);
+    next.delete(MODE_PARAM);
+    setParams(next, { replace: true });
+  };
+
+  const switchMode = (m: "preview" | "code") => {
+    const next = new URLSearchParams(params);
+    next.set(MODE_PARAM, m);
+    setParams(next, { replace: true });
+  };
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleCopyHtml = async (template: AuthEmailTemplate) => {
