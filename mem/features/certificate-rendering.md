@@ -49,13 +49,18 @@ produced crushed/overflowing P9s. pdf-lib is a low-level drawing lib — the
 wrong tool for a statutory grid.
 
 **Editor:** `CertificateV3Editor.tsx` (structured — no raw-JSON textareas).
-Per-node inspectors ship for all v3 and v4 primitives — `grid` (columns +
-header/footer row stacks with span/rowspan/variant + `sum_of` footer cells),
-`list` (nested, marker-configurable), `label_fill`, `field_row`, `columns`
-(per-column child editors), and `page_break`. A full Excel-like spreadsheet
-designer with drag-resize and live per-node preview is still Phase C's
-end-goal; this editor is the typed intermediate that unblocks pack authoring
-of v4 templates.
+Per-node inspectors ship for all v3 and v4 primitives — `list` (nested,
+marker-configurable), `label_fill`, `field_row`, `columns` (per-column
+child editors), and `page_break`. The `grid` primitive is edited through
+**`GridDesigner.tsx`** — a spreadsheet-style designer that renders header /
+data / footer bands with their real colspan/rowspan layout, supports
+click-to-select cells with a Merge → / Split → / Merge ↓ / Split ↓ toolbar,
+draggable column-width ruler (mm) and per-column id / align / format /
+bind_key / nowrap inspectors. Sum-of-column footer cells are toggled with a
+Σ button on the selected footer cell. Phase D (server-side PDF) is
+explicitly deferred; today's "PDF" still materialises client-side via
+paged.js + browser print.
+
 
 **Canonical KE P9 body:** `src/features/localization/lib/engine/templates/keP9.ts`.
 On v4 as of the 2026-07-13 architecture audit. Produces a 4-row header stack

@@ -18,6 +18,7 @@ import {
   AlertTriangle, FileCode2, Sparkles, Plus, Trash2, ArrowUp, ArrowDown, Link2, Type,
 } from "lucide-react";
 import { KE_P9_V3_TEMPLATE } from "../lib/engine/templates/keP9";
+import { GridDesigner } from "./GridDesigner";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ export interface V3Body {
 
 type Value = { kind: "literal"; value: string | number } | { kind: "binding"; path: string; format?: string; fallback?: string };
 
-const VALUE_FORMATS = ["text", "number", "currency", "percent", "date", "month_short"];
+export const VALUE_FORMATS = ["text", "number", "currency", "percent", "date", "month_short"];
 const NODE_TYPES = [
   { value: "heading", label: "Heading" },
   { value: "rich_text", label: "Rich text / paragraph" },
@@ -102,7 +103,7 @@ export function validateV3Body(body: Partial<V3Body>, parseErrors: string[] = []
 
 // ── Value editor ─────────────────────────────────────────────────────────
 
-function ValueEditor({ value, onChange, placeholder }: {
+export function ValueEditor({ value, onChange, placeholder }: {
   value: Value | undefined;
   onChange: (v: Value) => void;
   placeholder?: string;
@@ -304,7 +305,7 @@ function NodeEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
     case "columns":
       return <ColumnsEditor node={node} onChange={onChange} />;
     case "grid":
-      return <GridEditor node={node} onChange={onChange} />;
+      return <GridDesigner node={node} onChange={onChange} />;
     default:
       return <div className="text-[11px] text-muted-foreground">No editor for “{node.type}”.</div>;
   }
