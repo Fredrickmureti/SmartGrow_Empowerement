@@ -631,15 +631,9 @@ export default function AdminOrganizations() {
         </Card>
       </div>
 
-      {/* Multi-Step Delete Dialog */}
-      <MultiStepDeleteDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        entityName={selectedOrg?.name || ""}
-        entityType="Organization"
-        onConfirm={handleDeleteOrg}
-        isDeleting={isDeleting}
-      />
+      {/* Delete Organization moved to wizard route /admin-management/organizations/:id/delete */}
+
+
 
 
 
