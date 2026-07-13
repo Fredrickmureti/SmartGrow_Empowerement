@@ -136,6 +136,12 @@ import {
   AdminFeatureEditPage,
   AdminLocalizationPackCreatePage,
   AdminLocalizationPackDetailPage,
+  AdminEmailComposePage,
+  AdminEmailCampaignCreatePage,
+  AdminEmailTemplateCreatePage,
+  AdminEmailTemplateEditPage,
+  AdminEmailAutomationEditPage,
+  AdminDemoRequestReplyPage,
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
@@ -666,7 +672,13 @@ const App = () => (
                               <Route path="reports" element={<LazyRoute module="Reports"><AdminReports /></LazyRoute>} />
                               <Route path="settings" element={<LazyRoute module="Settings"><AdminSettings /></LazyRoute>} />
                               <Route path="email-center" element={<LazyRoute module="Email Center"><AdminEmailCenter /></LazyRoute>} />
+                              <Route path="email-center/compose" element={<LazyRoute module="Compose Email"><AdminEmailComposePage /></LazyRoute>} />
+                              <Route path="email-center/campaigns/new" element={<LazyRoute module="Create Campaign"><AdminEmailCampaignCreatePage /></LazyRoute>} />
+                              <Route path="email-center/templates/new" element={<LazyRoute module="Create Email Template"><AdminEmailTemplateCreatePage /></LazyRoute>} />
+                              <Route path="email-center/templates/:id/edit" element={<LazyRoute module="Edit Email Template"><AdminEmailTemplateEditPage /></LazyRoute>} />
+                              <Route path="email-center/automations/:id" element={<LazyRoute module="Edit Automation"><AdminEmailAutomationEditPage /></LazyRoute>} />
                               <Route path="demo-requests" element={<LazyRoute module="Demo Requests"><AdminDemoRequests /></LazyRoute>} />
+                              <Route path="demo-requests/:id/reply" element={<LazyRoute module="Reply to Demo Request"><AdminDemoRequestReplyPage /></LazyRoute>} />
                               <Route path="localization-packs" element={<LazyRoute module="Localization Packs"><AdminLocalizationPacks /></LazyRoute>} />
                               <Route path="localization-packs/new" element={<LazyRoute module="Create Localization Pack"><AdminLocalizationPackCreatePage /></LazyRoute>} />
                               <Route path="localization-packs/:id" element={<LazyRoute module="Localization Pack"><AdminLocalizationPackDetailPage /></LazyRoute>} />
