@@ -8,10 +8,12 @@
  * exactly what a tenant files. No pdf-lib, no server rasteriser.
  */
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-// Vite resolves this to a served, same-origin URL. Loaded *inside* the
-// iframe so paged.js paginates the iframe document and its @page rules
-// never leak into the host app.
-import pagedPolyfillUrl from "pagedjs/dist/paged.polyfill.js?url";
+// Same-origin URL for the paged.js polyfill. Served from /public/vendor/ so
+// it loads *inside* the iframe and its @page rules never leak into the host
+// app. Copied at repo-setup time (see public/vendor/paged.polyfill.js) — the
+// upstream `pagedjs` package does not expose this file through its exports
+// map, so bundling it via `?url` is not portable.
+const pagedPolyfillUrl = "/vendor/paged.polyfill.js";
 import { compile } from "../lib/engine/compile";
 import type { CertificatePayload, CertificateTemplateV3 } from "../lib/engine/types";
 

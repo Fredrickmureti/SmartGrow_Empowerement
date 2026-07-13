@@ -11,10 +11,10 @@
  * is what you file" holds because the exact same HTML drives preview,
  * this overlay, and the printed PDF.
  */
-// Vite resolves this to a served, same-origin URL. Loaded *inside* the
-// iframe so paged.js paginates the iframe document and its @page rules
-// never leak into the host app.
-import pagedPolyfillUrl from "pagedjs/dist/paged.polyfill.js?url";
+// Same-origin URL served from /public/vendor/ (see CertificateHtmlSurface).
+// Loaded *inside* the overlay iframe so paged.js paginates the iframe
+// document and its @page rules never leak into the host app.
+const pagedPolyfillUrl = "/vendor/paged.polyfill.js";
 
 function frameHtml(compiledHtml: string): string {
   const frameCss = `
