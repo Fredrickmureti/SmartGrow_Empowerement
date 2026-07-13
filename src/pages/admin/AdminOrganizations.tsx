@@ -170,6 +170,10 @@ export default function AdminOrganizations() {
     navigate(`/admin-management/organizations/${org.id}`);
   };
 
+  const handleQuickLook = (org: OrganizationWithStats) => {
+    setPeekId(org.id);
+  };
+
   const handleManageSubscription = (org: OrganizationWithStats) => {
     navigate(`/admin-management/organizations/${org.id}/subscription`);
   };
