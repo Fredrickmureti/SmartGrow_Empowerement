@@ -1,55 +1,109 @@
-## Verification of prior work
+## Verification of prior state
 
-I audited the codebase against `docs/design-system/audit/platform-admin.md` and the previous agent's exit note. Findings:
+I audited the prior agent's exit claim and confirm the following on disk:
 
-- **Phase 0–6 substrate is real and in place.** `src/apps/platform-admin/` exports the admin scaffolds; `eslint-rules/no-dialog-crud-in-admin.js` is wired; the workspace/wizard/peek/confirm primitives from `@/design-system` are being consumed by the new pages under `src/pages/admin/{organizations,plan-builder,team,groups,localization,email-center,settings,demo-requests}/`.
-- **Users peek is implemented** (`usePeekParam` in `AdminUsers.tsx`), **Organizations peek is not** — confirmed the doc requires it and only Users has it.
-- **App Catalog** has only the list route; no `$id/edit` workspace. The list uses inline row Switches/Selects, which the doc permits for single-field edits, but there is no dedicated edit surface for multi-field editing when needed.
-- **Feature Catalog** (`FeatureCatalogSettings.tsx`) has an edit workspace already (`AdminFeatureEditPage`) but no read-peek — doc requires peek for read.
-- **Generic Email Templates preview** in `components/admin/email/EmailTemplatesTab.tsx` is still a `Dialog` (lint-clean, no form controls) — doc explicitly calls this out as deferred polish.
-- **PlatformShell migration (item 5)** is untouched — admin pages still render inside `AdminDashboardLayout` via `PlatformAdminAppLayout`, not `PlatformShell` with a workspace `nav.ts`.
+- **Phase 0–6** substrate present (`src/apps/platform-admin/`, `eslint-rules/no-dialog-crud-in-admin.js`, four-pattern primitives consumed by all migrated admin pages).
+- **Prior `.lovable/plan.md` items 1–4** are shipped: `OrganizationPeekSheet.tsx`, `AdminAppCatalogEditPage.tsx`, `FeaturePeekSheet.tsx`, and the email-templates `?templatePreview=` peek all exist and are wired in.
+- **Phase 7.1** is shipped exactly as claimed: `src/apps/platform-admin/nav.ts` exports `PLATFORM_ADMIN_NAV: AdminWorkspaceNav`, and `PlatformAdminAppLayout` threads a `nav` prop through `AdminDashboardLayout` → `AdminSidebar` / `AdminSidebarBody` / `AdminTopBar`, mirroring `PlatformShell(app, nav, children)`.
+- Remaining `platform-admin.md` slices: **Phase 7.2** (visual shell alignment) and **Phase 7.3** (page-group opt-in). This plan covers 7.2 only, so the shell change is landed and validated on one page-group before we begin the app-wide opt-in in 7.3.
 
-The prior agent's summary is accurate. I am picking up from that state.
+## Goal (Phase 7.2)
 
-## Scope of this plan
+Admin pages currently render inside `AdminDashboardLayout`. Tenant apps render inside `PlatformShell`. The two are structurally close but not identical — sidebar, topbar, mobile Sheet, spacing tokens and behavior all diverge in small ways. The brief's core criterion ("admin must feel like part of the same ERP") requires that admin adopt the same visual shell primitive tenant apps use — minus the pieces that don't apply to a persona (AppRail, install gate, subscription/access gate, active-business requirement).
 
-Close the four tactical four-pattern gaps so `platform-admin.md` is fully honored end-to-end. **Item 5 (admin console onto `PlatformShell` + workspace `nav.ts`) is intentionally not in this plan** — it is a Phase-7 structural migration touching every admin page and warrants its own scoped plan with a phased rollout. I will surface that plan immediately after this one lands.
+Extract that shared body so both shells consume it, then route `PlatformAdminAppLayout` through it. No admin page code changes in this phase; the seam is the existing `nav` prop plumbed in 7.1.
 
-### 1. Organizations row peek — `?peek=<id>` on `/admin-management/organizations`
-- Add `OrganizationPeekSheet` under `src/components/admin/organizations/` built on `AdminPeekShell` (`DocumentPeekShell`), showing: name, plan, status badge, owner email, country, created date, user count, and quick actions "Open full workspace" (→ `/organizations/$id`) + "Manage subscription" (→ `/organizations/$id/subscription`).
-- Wire `usePeekParam()` in `AdminOrganizations.tsx`, add a "Quick look" menu item above the existing "View details" action, and make the row click open the peek (double-click / "View full workspace" navigates).
-- Data: reuse the row's already-loaded `OrganizationWithStats`; no new query needed for v1.
+## Approach
 
-### 2. App Catalog edit workspace — `/admin-management/app-catalog/$id/edit`
-- Create `src/pages/admin/app-catalog/AdminAppCatalogEditPage.tsx` on `AdminRecordForm` (`mode="edit"`) with fields: name, description, category, required_plan, sort_order, is_available, is_visible_in_signup, is_core, icon override.
-- Keep the current inline row toggles for the three boolean quick-switches (doc allows inline single-field edits) but replace the row's chevron/name click with a route to the edit workspace so multi-field edits use the workspace.
-- Register the lazy route in `src/routes/-lazyRoutes.tsx` and mount under `/admin-management/app-catalog/:id/edit` in `App.tsx`.
+### 1. Extract `WorkspaceShellFrame` from `PlatformShell`
 
-### 3. Feature Catalog read peek
-- Add `?featurePeek=<id>` param handling to `FeatureCatalogSettings.tsx` (uses its own key to avoid collision with any parent list peek).
-- Add `FeaturePeekSheet` on `AdminPeekShell` showing: code, label, description, category, plan tier availability matrix, in-use count. Quick actions: "Edit feature" (→ existing `/plan-builder/features/$id/edit`).
+New file: `src/components/layout/shell/WorkspaceShellFrame.tsx`.
 
-### 4. Generic Email Templates preview → peek
-- Convert the `Dialog` in `components/admin/email/EmailTemplatesTab.tsx` to `AdminPeekShell` driven by `?templatePreview=<id>` so preview is shareable and consistent with the other admin peeks.
-- Keep the "Preview" and "Edit HTML" mode toggle inside the peek body; keep existing "Use template" / "Edit" actions in the peek's action bar.
+Owns the pure layout body currently inside `PlatformShellBody`:
 
-### Non-goals (this plan)
+- outer `flex min-h-screen w-full bg-background` container
+- desktop sidebar slot
+- mobile nav `Sheet`
+- topbar slot
+- main content area with `max-w-6xl` cap, padding, and `useFullWidthRequested()` override
+- banner slots (subscription/trial) as optional children so admin can pass none
 
-- No changes to any tenant module.
-- No visual redesign of the admin shell — that is item 5, a follow-up plan.
-- No schema, RLS, or edge function changes.
-- No changes to inline settings toggles already carrying `ADMIN-DIALOG-EXEMPT`.
+Props:
 
-### Verification per item
+```ts
+interface WorkspaceShellFrameProps {
+  sidebar: ReactNode;              // desktop sidebar
+  mobileSidebar: ReactNode;        // rendered inside Sheet
+  topBar: ReactNode;
+  banners?: ReactNode;             // above <main>, optional
+  children: ReactNode;
+  fullWidth?: boolean;
+  noPadding?: boolean;
+  mobileNavOpen: boolean;
+  onMobileNavOpenChange: (v: boolean) => void;
+}
+```
 
-For each of 1–4: (a) `bun run build:dev` clean, (b) `bun run lint` clean including `no-dialog-crud-in-admin`, (c) Playwright smoke — open the list page, trigger the new peek/workspace, confirm no console errors and the retired dialog no longer renders.
+The frame is presentation-only — no data hooks, no gates. That keeps admin (persona) and tenant (app) sharing the exact same chrome while each keeps its own gating in its wrapper.
 
-### Deliverables
+### 2. Refactor `PlatformShell` to use the frame
 
-- New files: `OrganizationPeekSheet.tsx`, `AdminAppCatalogEditPage.tsx`, `FeaturePeekSheet.tsx`.
-- Edits: `AdminOrganizations.tsx`, `AdminAppCatalog.tsx`, `FeatureCatalogSettings.tsx`, `EmailTemplatesTab.tsx`, `App.tsx`, `src/routes/-lazyRoutes.tsx`.
-- Doc update: mark items 1–4 done in `platform-admin.md`; add a "Deferred → Phase 7" pointer for the `PlatformShell` migration.
+`PlatformShellBody` becomes a thin composition:
 
-### Follow-up (separate plan, after this ships)
+- keeps all existing hooks (`useSession`, `useAppNavigation`, `useInstalledApps`, `useWorkspaceContextReady`, `useRequireActiveBusiness`) exactly where they are
+- keeps the not-installed / no-access early returns unchanged
+- renders `<WorkspaceShellFrame sidebar={<WorkspaceSidebar/>} mobileSidebar={<MobileAppSwitcher/> + <SidebarBody/>} topBar={<WorkspaceTopBar/>} banners={<SubscriptionStatusBanner/><SubscriptionReadOnlyBanner/><AppTrialBanner/>}>`
 
-Phase 7 — migrate `/admin-management/*` off `AdminDashboardLayout` onto `PlatformShell` + a workspace `nav.ts` per `docs/design-system.md`. That is the structural work that closes the "admin feels like a separate product" gap in the original brief. It will be planned page-group by page-group (Organizations & Users → Plans/Apps/Features → Localization → Email/Demo/Team/Groups → Settings/Infra/Audit) so each phase is independently shippable.
+Zero behavior change for tenant apps. Verified by build + a Playwright pass on one tenant app route (`/sales`).
+
+### 3. Rebuild `PlatformAdminAppLayout` on the frame
+
+Replace the current `AdminDashboardLayout` delegation with a direct composition of `WorkspaceShellFrame`, wired to the admin sidebar/topbar primitives already refactored to take a `nav` prop in 7.1:
+
+```tsx
+<CountryWorkspaceProvider>
+  <WorkspaceShellFrame
+    sidebar={<AdminSidebar nav={nav} />}
+    mobileSidebar={<AdminSidebarBody nav={nav} onNavigate={closeMobileNav} />}
+    topBar={<AdminTopBar nav={nav} onOpenMobileNav={openMobileNav} />}
+    mobileNavOpen={mobileNavOpen}
+    onMobileNavOpenChange={setMobileNavOpen}
+  >
+    {children}
+  </WorkspaceShellFrame>
+</CountryWorkspaceProvider>
+```
+
+No banners for admin (persona has no subscription/trial concept). No `AppLayoutProvider` for admin unless a downstream primitive requires it — audit this by grepping `useFullWidthRequested` / `useRequestFullWidth` inside `src/pages/admin/**` and `src/components/admin/**`. If any admin page already uses it, wrap admin in `AppLayoutProvider appId="platform-admin"` to keep the same seam.
+
+### 4. Deprecate `AdminDashboardLayout`
+
+- Convert `src/components/admin/AdminDashboardLayout.tsx` into a thin backward-compat wrapper that re-exports `PlatformAdminAppLayout` under the old name, with a JSDoc `@deprecated` pointing to `PlatformAdminAppLayout`. The three remaining direct consumers (`AdminProfile.tsx`, `AdminLayoutRoute.tsx`, `AdminInlineMfaSetup.tsx`) keep working with no code change.
+- Route migration off the deprecated name is deferred to Phase 7.3 (per-page-group).
+
+### 5. Update the audit doc
+
+Mark Phase 7.2 as shipped in `docs/design-system/audit/platform-admin.md`. Update Phase 7.3 to reference `WorkspaceShellFrame` as the target primitive and confirm the opt-in sequence: Organizations & Users → Plans/Apps/Features → Localization → Email/Demo/Team/Groups → Settings/Infra/Audit.
+
+## Verification
+
+- `bun run build:dev` clean.
+- `bun run lint` clean, including `no-dialog-crud-in-admin`.
+- Playwright smoke: (a) tenant app `/sales` renders identically (visual diff against pre-change screenshot), (b) admin `/admin-management` renders inside the new shared frame with the sidebar, topbar, mobile Sheet, and content max-width visually consistent with tenant apps.
+- Grep confirms no admin page imports `AdminDashboardLayout` directly except the three known consumers; each still mounts because the deprecated name re-exports the new layout.
+
+## Non-goals (this plan)
+
+- No changes to any tenant module or its shell behavior.
+- No admin page code changes — the seam is the `nav` prop plumbed in 7.1 plus the frame swap in the layout wrapper.
+- Phase 7.3 (page-group opt-in and retiring the deprecated `AdminDashboardLayout` name) is a follow-up plan, sliced per the sequence in the audit doc.
+- No schema, RLS, or edge-function changes.
+
+## Deliverables
+
+- New: `src/components/layout/shell/WorkspaceShellFrame.tsx`.
+- Edits: `PlatformShell.tsx` (recompose on frame), `PlatformAdminAppLayout.tsx` (compose on frame directly), `AdminDashboardLayout.tsx` (thin deprecated re-export), `docs/design-system/audit/platform-admin.md` (mark 7.2 shipped, update 7.3 target).
+
+## Follow-up (separate plan)
+
+Phase 7.3 — page-group opt-in. Migrate `/admin-management/*` off the deprecated `AdminDashboardLayout` name onto `PlatformAdminAppLayout` in the sequence above, retire `AdminDashboardLayout.tsx` at the end.
