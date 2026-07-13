@@ -128,6 +128,8 @@ import {
   AdminGroups,
   AdminGroupCreatePage,
   AdminGroupEditPage,
+  AdminTeamInvitePage,
+  AdminTeamMemberEditPage,
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
@@ -668,6 +670,8 @@ const App = () => (
                               <Route path="audit-log" element={<LazyRoute module="Audit Log"><AdminAuditLog /></LazyRoute>} />
                               <Route path="hardware-ops" element={<LazyRoute module="Hardware Ops"><HardwareOpsPage /></LazyRoute>} />
                               <Route path="team" element={<LazyRoute module="Team"><AdminTeam /></LazyRoute>} />
+                              <Route path="team/invite" element={<LazyRoute module="Invite Team Member"><AdminTeamInvitePage /></LazyRoute>} />
+                              <Route path="team/:id/edit" element={<LazyRoute module="Edit Team Member"><AdminTeamMemberEditPage /></LazyRoute>} />
                               <Route path="groups" element={<LazyRoute module="Groups"><AdminGroups /></LazyRoute>} />
                               <Route path="groups/new" element={<LazyRoute module="Create Group"><AdminGroupCreatePage /></LazyRoute>} />
                               <Route path="groups/:id/edit" element={<LazyRoute module="Edit Group"><AdminGroupEditPage /></LazyRoute>} />
