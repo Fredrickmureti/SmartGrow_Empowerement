@@ -231,6 +231,19 @@ export default function AdminAppCatalog() {
                   <TableCell className="text-center text-sm text-muted-foreground">
                     {app.sort_order}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() =>
+                        navigate(`/admin-management/app-catalog/${app.id}/edit`)
+                      }
+                      title="Edit app"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               );
             })}
