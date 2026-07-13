@@ -267,7 +267,7 @@ function buildFrameHtml(compiledHtml: string, selectedNodeId: string | null): st
 
 export const CertificateHtmlSurface = forwardRef<CertificateHtmlSurfaceHandle, Props>(
   function CertificateHtmlSurface(
-    { template, payload, currency, className, onUnresolved, onError, onSelectNode, selectedNodeId, onNodeAction, onReorder },
+    { template, payload, currency, className, onUnresolved, onError, onSelectNode, selectedNodeId, onNodeAction, onReorder, onEditText, onInsertAfter },
     ref,
   ) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
