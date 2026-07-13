@@ -17,6 +17,13 @@ const pagedPolyfillUrl = "/vendor/paged.polyfill.js";
 import { compile } from "../lib/engine/compile";
 import type { CertificatePayload, CertificateTemplateV3 } from "../lib/engine/types";
 
+/** Parses `doc.<n>` → n (or null for header/footer/malformed ids). */
+function parseTopLevelIndex(nodeId: string | null | undefined): number | null {
+  if (!nodeId) return null;
+  const m = /^doc\.(\d+)$/.exec(nodeId);
+  return m ? Number(m[1]) : null;
+}
+
 export interface CertificateHtmlSurfaceHandle {
   /** Open the browser print dialog for the paginated document (Save as PDF). */
   print: () => void;
