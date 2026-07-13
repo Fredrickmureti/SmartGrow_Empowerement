@@ -10,9 +10,12 @@
  * `ytdRows` from the template's own rules so the fixture works for any
  * pack.
  */
-import type { CertificatePayload } from "./pdf/certificateRenderer.ts";
+// Inline fixture type — the pdf-lib CertificatePayload type was retired
+// along with the legacy renderers; this fixture only needs to satisfy the
+// v3 compile() consumer, which reads it as a loose Record.
+export type CertificateLintPayload = Record<string, unknown>;
 
-export function buildLintFixture(ruleCodes: string[]): CertificatePayload {
+export function buildLintFixture(ruleCodes: string[]): CertificateLintPayload {
   const monthly = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     basic_pay: 120_000,
@@ -68,14 +71,15 @@ export function buildLintFixture(ruleCodes: string[]): CertificatePayload {
 }
 
 /**
- * Minimum byte floor per doc class. If a rendered certificate PDF falls
- * below this, the template is almost certainly missing sections (empty
- * bodies compress to ~1.5 KB from pdf-lib overhead alone).
+ * Minimum byte floor per doc class. Applied to the compiled v3 HTML output
+ * (the lint gate no longer produces a PDF). A fully rendered certificate
+ * HTML is normally 20–100 KB; anything smaller almost certainly means the
+ * document tree collapsed to a near-empty page.
  */
 export function byteFloorFor(templateCode: string): number {
   const c = String(templateCode ?? "").toUpperCase();
-  if (c.startsWith("P9")) return 6_000;
-  if (c.startsWith("P10")) return 4_000;
-  if (c.startsWith("CERT_OF_SERVICE") || c.startsWith("CERTIFICATE_OF_SERVICE")) return 3_000;
-  return 2_500; // generic floor — a section-based cert is never < 2.5 KB
+  if (c.startsWith("P9")) return 8_000;
+  if (c.startsWith("P10")) return 6_000;
+  if (c.startsWith("CERT_OF_SERVICE") || c.startsWith("CERTIFICATE_OF_SERVICE")) return 4_000;
+  return 3_000;
 }

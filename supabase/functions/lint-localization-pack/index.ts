@@ -32,7 +32,8 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { extractTokens } from "../_shared/validateAgainstSchema.ts";
 import { checkCertificateCompleteness } from "../_shared/certificateCompleteness.ts";
-import { renderCertificatePdf } from "../_shared/pdf/certificateRenderer.ts";
+import { compile as compileCertificateHtml } from "../_shared/certificate-engine/compile.ts";
+import { type CertificateTemplateV3 } from "../_shared/certificate-engine/types.ts";
 import { buildLintFixture, byteFloorFor } from "../_shared/certificateLintFixture.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -296,44 +297,49 @@ Deno.serve(async (req) => {
       for (const e of validateBankExportStructure(t)) errors.push(e);
     }
 
-    // 9. Visual QA gate — render each certificate through the same
-    //    renderer the runtime uses, against a synthetic fixture. Reject
-    //    on render failure or a byte floor breach (proxy for a template
-    //    whose sections collapse to a near-empty PDF at runtime).
+    // 9. Visual QA gate — compile each certificate through the v3 engine
+    //    against a synthetic fixture. Reject on compile failure or a
+    //    byte-floor breach on the produced HTML (proxy for a template
+    //    whose document tree collapses to a near-empty page at runtime).
     for (const t of certTpls ?? []) {
       const code = t.code ?? t.rule_code ?? "(unknown)";
       const label = `certificate template "${code}"`;
       try {
-        const ruleCodes = Array.isArray(t?.body?.sections)
-          ? Array.from(
-              new Set(
-                t.body.sections.flatMap((s: any) =>
-                  Array.isArray(s?.rule_codes) ? s.rule_codes : [],
-                ),
-              ),
-            )
-          : [];
-        const payload = buildLintFixture(ruleCodes.length ? ruleCodes : [t.rule_code].filter(Boolean));
-        const template = {
+        const bodyV = Number(t?.body?.schema_version ?? 1);
+        if (bodyV < 3 || !Array.isArray(t?.body?.document)) {
+          errors.push(`${label}: body is not a v3 engine template (schema_version=${bodyV}). The pdf-lib renderers have been retired.`);
+          continue;
+        }
+        const ruleCodes: string[] = [];
+        for (const node of t.body.document as any[]) {
+          if (node?.type !== "matrix") continue;
+          for (const col of Array.isArray(node.columns) ? node.columns : []) {
+            const c = String(col?.source_key ?? col?.rule_code ?? col?.key ?? "");
+            if (c && c !== "month_index") ruleCodes.push(c);
+          }
+        }
+        const payload = buildLintFixture(ruleCodes.length ? Array.from(new Set(ruleCodes)) : [t.rule_code].filter(Boolean));
+        const template: CertificateTemplateV3 = {
+          schema_version: 3,
           code,
           display_name: code,
-          legal_reference: t.legal_reference ?? null,
-          regulation_citation: t.regulation_citation ?? null,
-          effective_date: t.effective_date ?? null,
-          authority_name: null,
-          body: t.body ?? { sections: [] },
-        };
-        const bytes = await renderCertificatePdf(template as any, payload as any, {});
+          paper_format: t.body.paper_format,
+          page_master: t.body.page_master,
+          document: t.body.document,
+        } as CertificateTemplateV3;
+        const { html } = compileCertificateHtml(template, payload as Record<string, unknown>, {});
+        const bytes = new TextEncoder().encode(html);
         const floor = byteFloorFor(String(code));
         if (bytes.byteLength < floor) {
           errors.push(
-            `${label}: rendered PDF (${bytes.byteLength} bytes) is below the ${floor} byte floor — sections are likely rendering empty.`,
+            `${label}: compiled HTML (${bytes.byteLength} bytes) is below the ${floor} byte floor — the document tree is likely rendering empty.`,
           );
         }
       } catch (e) {
-        errors.push(`${label}: renderer threw during visual-QA — ${(e as any)?.message ?? e}`);
+        errors.push(`${label}: v3 compile threw during visual-QA — ${(e as any)?.message ?? e}`);
       }
     }
+
 
     return ok({ errors, warnings, summary: {
       rules: rules?.length ?? 0,

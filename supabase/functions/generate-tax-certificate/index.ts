@@ -14,13 +14,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
-import { renderCertificatePdf } from "../_shared/pdf/certificateRenderer.ts";
 import { compile as compileCertificateHtml } from "../_shared/certificate-engine/compile.ts";
 import { buildMatrixRows, collectMatrixRuleCodes, sumMatrixColumn } from "../_shared/certificateMatrix.ts";
 import { type CertificateTemplateV3 } from "../_shared/certificate-engine/types.ts";
-import { renderCertificateXlsx } from "../_shared/xlsx/certificateXlsxRenderer.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
-import { renderTemplateBody, toSummaryRows } from "../_shared/renderTemplateBody.ts";
+import { renderTemplateBody } from "../_shared/renderTemplateBody.ts";
 import { type MonthlyRow } from "../_shared/certificateSections.ts";
 import { resolveCertificateYtd } from "../_shared/certificateSourceResolver.ts";
 import {
@@ -75,11 +73,9 @@ async function sha256Hex(value: unknown): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function isV2BlockTemplate(template: any): boolean {
-  const v = Number(template?.body?.schema_version ?? 1);
-  return v === 2 && Array.isArray(template?.body?.blocks);
-}
-
+// Certificate templates are v3-only since the pdf-lib renderers were retired
+// (DB validator `assert_certificate_template_body_valid` enforces
+// schema_version >= 3). These helpers remain as thin readability aids.
 function isV3EngineTemplate(template: any): boolean {
   return Number(template?.body?.schema_version ?? 1) >= 3
     && Array.isArray(template?.body?.document);
@@ -252,83 +248,57 @@ Deno.serve(async (req) => {
 
     const templateBodyHash = await sha256Hex(template.body ?? {});
 
-    // ADR 0060 v2026.4.0 — Structural refusal. V2 block templates are
-    // authoritative when present; legacy sections[] is validated only for
-    // pre-v2 templates so stale compatibility sections cannot keep driving
-    // a migrated pack's runtime behavior.
+    // Structural refusal — v3 templates only.
+    // Legacy v1/v2 renderers were retired; the DB trigger
+    // `assert_certificate_template_body_valid` rejects any body with
+    // schema_version < 3. We still validate the v3 shape here so the runtime
+    // surfaces a clean TEMPLATE_STRUCTURAL_INVALID instead of exploding
+    // inside the compiler on a malformed document tree.
     {
-      const isV3 = isV3EngineTemplate(template);
-      const isV2 = !isV3 && isV2BlockTemplate(template);
-      // v3 templates express their contract as a `document` node tree
-      // (heading / identity_strip / matrix / signature_strip / …); v2 uses
-      // `blocks`; pre-v2 uses `sections`. Validate the shape appropriate to
-      // the template's own schema_version so a migrated template isn't
-      // judged against a contract it no longer uses.
-      const nodes = isV3
-        ? (Array.isArray(template?.body?.document) ? template.body.document : [])
-        : isV2
-          ? (template.body.blocks ?? [])
-          : (Array.isArray(template?.body?.sections) ? template.body.sections : []);
-      const types = new Set<string>(nodes.map((s: any) => String(s?.type ?? "")));
-      const missing: string[] = [];
-      let hasData: boolean;
-      if (isV3) {
-        // The only hard requirement is a data-bearing node (a matrix or
-        // table). Identity/signature nodes are strongly recommended but the
-        // compiler renders gracefully without them, so they are not fatal.
-        hasData = types.has("matrix") || types.has("table");
-        if (!hasData) missing.push("matrix");
-      } else if (isV2) {
-        const hasEmployer = nodes.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employer");
-        const hasEmployee = nodes.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employee");
-        if (!hasEmployer) missing.push("employer field_grid");
-        if (!hasEmployee) missing.push("employee field_grid");
-        if (!types.has("signature_block")) missing.push("signature_block");
-        hasData = nodes.some((b: any) => b?.type === "table" && ["monthly_breakdown", "monthly_matrix", "ytd_rows"].includes(String(b?.data_source ?? "")));
-      } else {
-        for (const need of ["employer_header", "employee_header", "signature_block"]) {
-          if (!types.has(need)) missing.push(need);
-        }
-        hasData = ["monthly_breakdown", "ytd_table", "totals"].some((d) => types.has(d));
+      if (!isV3EngineTemplate(template)) {
+        return businessError(
+          422,
+          "TEMPLATE_STRUCTURAL_INVALID",
+          `Certificate template "${template.code}" is not a v3 engine template. The pdf-lib v1/v2 renderers have been retired.`,
+          "Republish the localization pack with this template authored as a v3 document AST (paper_format + page_master + document nodes).",
+          { template_code: template.code, template_source: templateSource },
+        );
       }
-      const contract = isV3 ? "document" : isV2 ? "blocks" : "sections";
-      if (nodes.length === 0 || missing.length > 0 || !hasData) {
-        // Best-effort diagnostic so the Publisher Health panel can surface
-        // packs whose templates are being refused in the field.
+      const nodes: any[] = Array.isArray(template?.body?.document) ? template.body.document : [];
+      const types = new Set<string>(nodes.map((s: any) => String(s?.type ?? "")));
+      const hasData = types.has("matrix") || types.has("table");
+      if (nodes.length === 0 || !hasData) {
         try {
           await admin.from("payroll_diagnostics").insert({
             organization_id: body.organization_id,
             business_id: body.business_id,
             severity: "error",
             code: "TEMPLATE_STRUCTURAL_INVALID",
-            message: `Certificate template "${template.code}" refused: missing section contract`,
+            message: `Certificate template "${template.code}" refused: v3 document missing a data-bearing node (matrix or table)`,
             details: {
               template_code: template.code,
               template_source: templateSource,
               pack_id: template.pack_id ?? null,
-              contract,
-              sections_present: Array.from(types),
-              missing_identity_sections: missing,
-              has_data_section: hasData,
+              contract: "document",
+              nodes_present: Array.from(types),
             },
           });
         } catch { /* diagnostics best-effort */ }
         return businessError(
           422,
           "TEMPLATE_STRUCTURAL_INVALID",
-          `Certificate template "${template.code}" cannot be rendered: its body is missing the required section contract (identity headers, data section, and signature block). This template ships as a legacy stub and must be refreshed at the pack level before it can be issued.`,
-          "Ask your platform administrator to publish the latest localization pack version that ships this certificate with a full section layout.",
+          `Certificate template "${template.code}" cannot be rendered: its v3 document has no matrix/table node to carry the payroll data.`,
+          "Ask your platform administrator to publish a version of this template that includes a matrix node bound to the resolved payload.",
           {
             template_code: template.code,
             template_source: templateSource,
-            contract,
-            sections_present: Array.from(types),
-            missing_identity_sections: missing,
-            has_data_section: hasData,
+            contract: "document",
+            nodes_present: Array.from(types),
           },
         );
       }
     }
+
 
     // Resolve employees
     // Wave 1.1: position/department resolved via FK joins (legacy text cols dropped)
@@ -536,78 +506,10 @@ Deno.serve(async (req) => {
           } catch { /* never break rendering on diagnostics */ }
         }
 
-        // ADR 0060 v2026.4.0 — the legacy baseSummary triad
-        // (deductions / employer contributions / taxable income) was a
-        // payslip concept masquerading as a statutory footer. Totals
-        // now come exclusively from the template's `totals` section
-        // via renderCertificateSections. The structural refusal above
-        // guarantees a `totals` section is always present, so
-        // sections.totalsRows will not be empty.
-
-        // ADR-0060 Wave 8 — Dedicated certificate renderer.
-        // The template's `body.sections[]` (already validated by the
-        // `certificate_template_v2` schema trigger) is rendered by
-        // `renderCertificatePdf`, which draws each section as its own
-        // visual band (identity, period, monthly grid, totals, relief,
-        // footnote, signature). We no longer flatten sections into the
-        // generic report PDF — that path collapsed identity + signature
-        // bands into a tiny bottom summary strip and produced the
-        // "shallow document" tenants complained about.
-        const sectionsSpec = (template.body && Array.isArray((template.body as any).sections))
-          ? (template.body as any).sections as any[]
-          : [];
-        // ADR-0060 addendum: v2 templates express monthly grids as
-        // TableBlocks with data_source in {"monthly_breakdown","monthly_matrix"}.
-        // We collect rule codes from both legacy sections[] and blocks[]
-        // so the RPC returns everything the renderer will bind against.
-        const blocksSpec = (template.body && Array.isArray((template.body as any).blocks))
-          ? (template.body as any).blocks as any[]
-          : [];
-
-        // Pull monthly rows once for every rule_code referenced by any
-        // monthly_breakdown/monthly_matrix section or block.
+        // v3 rule-code collection happens later, inside the matrix-node
+        // walk (see `collectMatrixRuleCodes`). No pre-fetch here.
         let monthlyRows: MonthlyRow[] = [];
-        const codesFromSections = sectionsSpec
-          .filter((s: any) => s?.type === "monthly_breakdown")
-          .flatMap((s: any) => {
-            const fromCodes = Array.isArray(s.rule_codes) ? s.rule_codes as string[] : [];
-            const fromCols = Array.isArray(s.columns)
-              ? (s.columns as any[])
-                  .map((c) => typeof c === "string" ? c : String(c?.key ?? c?.rule_code ?? ""))
-                  .filter(Boolean)
-              : [];
-            return [...fromCodes, ...fromCols];
-          });
-        const codesFromBlocks = blocksSpec
-          .filter((b: any) => b?.type === "table"
-            && (b.data_source === "monthly_breakdown" || b.data_source === "monthly_matrix"))
-          .flatMap((b: any) => {
-            const derivedKeys = new Set(
-              (Array.isArray(b.derived_columns) ? b.derived_columns : [])
-                .map((d: any) => String(d?.key ?? "")).filter(Boolean),
-            );
-            const derivedArgs = (Array.isArray(b.derived_columns) ? b.derived_columns : [])
-              .flatMap((d: any) => Array.isArray(d?.args) ? d.args : [])
-              .filter((a: any) => typeof a === "string")
-              .map((a: string) => a)
-              .filter((k: string) => k && k !== "month_index" && !derivedKeys.has(k));
-            const fromCols = Array.isArray(b.columns)
-              ? (b.columns as any[])
-                  .map((c) => String(c?.source_key ?? c?.rule_code ?? c?.key ?? ""))
-                  .filter((k) => k && k !== "month_index" && !derivedKeys.has(k))
-              : [];
-            const explicit = Array.isArray(b.rule_codes) ? b.rule_codes.map((k: any) => String(k)).filter(Boolean) : [];
-            return [...fromCols, ...derivedArgs, ...explicit];
-          });
-        const allMonthlyRuleCodes = isV2BlockTemplate(template) ? codesFromBlocks : [...codesFromSections, ...codesFromBlocks];
-        if (allMonthlyRuleCodes.length) {
-          const { data: monthly } = await admin.rpc("payroll_employee_monthly_breakdown", {
-            p_year: body.fiscal_year,
-            p_employee_id: emp.id,
-            p_rule_codes: Array.from(new Set(allMonthlyRuleCodes)),
-          });
-          monthlyRows = (monthly ?? []) as MonthlyRow[];
-        }
+
 
         // Record any unresolved footer-note tokens as diagnostics but
         // never surface them into the rendered PDF (the dedicated
@@ -661,12 +563,9 @@ Deno.serve(async (req) => {
               filename: null,
             }];
 
-        // Render lazily and cache — a pack that declares both `pdf` and
-        // `xlsx` still renders each engine only once. Renderers are pure:
-        // same v2 sections + same resolved payload ⇒ same bytes.
-        let pdfBytes: Uint8Array | null = null;
-        let xlsxBytes: Uint8Array | null = null;
+        // Render lazily and cache — one compile per template.
         let htmlBytes: Uint8Array | null = null;
+
 
         const enginePayload = {
           employee: {
@@ -750,12 +649,8 @@ Deno.serve(async (req) => {
         // HTML (CSS Paged Media). It is byte-identical to what the
         // publisher sees in the editor preview AND to what the tenant
         // materialises to a vector PDF client-side (paged.js + browser
-        // print). This is the single render path — no pdf-lib redraw, so
-        // "preview === output" holds by construction. Legacy (pre-v3)
-        // templates still fall back to the block/section pdf-lib renderer
-        // until their pack rows are migrated to a v3 document AST.
-        const v3 = isV3EngineTemplate(template);
-
+        // print). This is the ONLY render path — the pdf-lib renderers
+        // have been retired; "preview === output" holds by construction.
         const renderHtml = (): Uint8Array => {
           const v3Template = {
             schema_version: 3,
@@ -773,22 +668,6 @@ Deno.serve(async (req) => {
           return new TextEncoder().encode(html);
         };
 
-        const renderPdf = async () => {
-          return await renderCertificatePdf(
-          {
-            code: template.code,
-            display_name: template.display_name,
-            legal_reference: (packTemplate as any).legal_reference ?? null,
-            regulation_citation: (packTemplate as any).regulation_citation ?? null,
-            effective_date: (packTemplate as any).effective_date ?? null,
-            authority_name: authorityName,
-            body: template.body as any,
-          },
-          enginePayload as any,
-          { branding: branding ?? null },
-          );
-        };
-
         const basePath = `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${serial}`;
         const artifactsList: CertificateArtifact[] = [];
         let pdfPath: string | null = null;
@@ -802,81 +681,17 @@ Deno.serve(async (req) => {
           // compiled HTML (the tenant materialises the vector PDF in the
           // browser). Everything downstream keys off `producedFormat`.
           let producedFormat: string = decl.format;
-          if (decl.format === "xlsx") {
-            // Odoo-model editable twin. Consumes the SAME v2 sections
-            // and the SAME resolved payload as the PDF renderer — no
-            // separate data source, no master workbook.
-            if (!xlsxBytes) {
-              xlsxBytes = await renderCertificateXlsx(
-                {
-                  code: template.code,
-                  display_name: template.display_name,
-                  legal_reference: (packTemplate as any).legal_reference ?? null,
-                  regulation_citation: (packTemplate as any).regulation_citation ?? null,
-                  effective_date: (packTemplate as any).effective_date ?? null,
-                  authority_name: authorityName,
-                  body: template.body as any,
-                },
-                {
-                  employee: {
-                    id: emp.id,
-                    full_name: payload.employee.full_name,
-                    employee_number: payload.employee.employee_number,
-                    tax_pin: payload.employee.tax_pin,
-                    national_id: payload.employee.national_id,
-                    position: payload.employee.position,
-                    department: payload.employee.department,
-                    hire_date: (emp as any).hire_date ?? null,
-                    exit_date: (emp as any).termination_date ?? null,
-                  },
-                  employer: {
-                    name: branding?.name ?? "",
-                    tax_pin: (branding as any)?.tax_pin ?? "",
-                    address: (branding as any)?.address ?? "",
-                    tax_office: (branding as any)?.tax_office ?? "",
-                    phone: (branding as any)?.phone ?? "",
-                    email: (branding as any)?.email ?? "",
-                  },
-                  fiscal_year: body.fiscal_year,
-                  period_label: `1 Jan ${body.fiscal_year} - 31 Dec ${body.fiscal_year}`,
-                  currency: orgCurrency,
-                  monthly: monthlyRows,
-                  ytdRows: rows.map((r) => ({
-                    rule_code: r.rule_code,
-                    category: r.category,
-                    employee_amount: Number(r.employee_amount) || 0,
-                    employer_amount: Number(r.employer_amount) || 0,
-                    taxable_amount: Number(r.taxable_amount) || 0,
-                  })),
-                  totals,
-                  serial_number: serial,
-                  generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
-                },
-              );
-            }
-            bytes = xlsxBytes;
-            ext = "xlsx";
-            mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-          } else if (decl.format === "pdf" || decl.format === "html") {
-            if (v3) {
-              // v3 audited artifact = compiled HTML; the browser produces
-              // the vector PDF on download/print.
-              if (!htmlBytes) htmlBytes = renderHtml();
-              bytes = htmlBytes;
-              ext = "html";
-              mime = "text/html; charset=utf-8";
-              producedFormat = "html";
-            } else {
-              if (!pdfBytes) pdfBytes = await renderPdf();
-              bytes = pdfBytes;
-              ext = "pdf";
-              mime = "application/pdf";
-              producedFormat = "pdf";
-            }
+          if (decl.format === "pdf" || decl.format === "html") {
+            if (!htmlBytes) htmlBytes = renderHtml();
+            bytes = htmlBytes;
+            ext = "html";
+            mime = "text/html; charset=utf-8";
+            producedFormat = "html";
           } else {
-            // Unknown/unsupported writer for certificates. The trigger on
-            // pack save should have caught this, but we defensively skip
-            // and record a diagnostic so publishers see it.
+            // xlsx and any other declared format have no v3 renderer yet.
+            // (The pdf-lib-backed xlsx renderer was retired alongside the
+            // certificate PDF renderer.) Record a diagnostic so publishers
+            // see it and skip.
             try {
               await admin.from("payroll_diagnostics").insert({
                 organization_id: body.organization_id,
@@ -885,12 +700,13 @@ Deno.serve(async (req) => {
                 surface: "certificate",
                 severity: "error",
                 code: "CERT_OUTPUT_UNSUPPORTED",
-                message: `Certificate output format '${decl.format}' has no renderer.`,
+                message: `Certificate output format '${decl.format}' has no v3 renderer.`,
                 details: { format: decl.format, template_code: template.code },
               });
             } catch { /* diagnostics best-effort */ }
             continue;
           }
+
 
           const storagePath = decl.filename
             ? `${body.organization_id}/payroll/tax-certificates/${body.fiscal_year}/${template.code}/${decl.filename}`
@@ -970,15 +786,8 @@ Deno.serve(async (req) => {
             batch_id: batchId,
             provenance: {
               ...provenance,
-              // ADR-0060 Phase F: stamp the renderer version so the
-              // staleness sweep (`payroll_supersede_v1_certificates`)
-              // can skip certificates already produced by V2.
-              renderer:
-                isV3EngineTemplate(template)
-                  ? "v3-html"
-                  : Number((template.body as any)?.schema_version ?? 1) >= 2
-                    ? "v2"
-                    : "v1",
+              // v3-only renderer stack (pdf-lib retired).
+              renderer: "v3-html",
             },
           })
           .select("id, serial_number, artifacts, fiscal_year, employee_id, template_code, status, batch_id")
