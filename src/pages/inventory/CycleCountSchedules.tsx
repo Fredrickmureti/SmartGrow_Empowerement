@@ -364,7 +364,7 @@ export default function CycleCountSchedules() {
           }
         >
           <FieldGrid columns={2}>
-            <div className="col-span-2">
+            <FieldCell span="full">
               <Label>Name</Label>
               <Input
                 value={form.name}
@@ -374,12 +374,12 @@ export default function CycleCountSchedules() {
               <p className="text-xs text-muted-foreground mt-1">
                 A label your team will recognise on the Physical Counts list.
               </p>
-            </div>
+            </FieldCell>
 
-            <div>
+            <FieldCell>
               <Label>Warehouse</Label>
               <Select value={form.warehouse_id} onValueChange={(v) => setForm({ ...form, warehouse_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select a warehouse" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Select a warehouse" /></SelectTrigger>
                 <SelectContent>
                   {warehouses.map((w) => (
                     <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
@@ -389,12 +389,12 @@ export default function CycleCountSchedules() {
               <p className="text-xs text-muted-foreground mt-1">
                 Which warehouse this rotation applies to.
               </p>
-            </div>
+            </FieldCell>
 
-            <div>
+            <FieldCell>
               <Label>How often</Label>
               <Select value={form.cadence} onValueChange={(v) => setForm({ ...form, cadence: v as Cadence })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="daily">Every day</SelectItem>
                   <SelectItem value="weekly">Every week</SelectItem>
@@ -406,12 +406,12 @@ export default function CycleCountSchedules() {
               <p className="text-xs text-muted-foreground mt-1">
                 How frequently the system should generate a new count worksheet.
               </p>
-            </div>
+            </FieldCell>
 
-            <div>
+            <FieldCell>
               <Label>What to count</Label>
               <Select value={form.scope_type} onValueChange={(v) => setForm({ ...form, scope_type: v as ScopeType })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="warehouse">The entire warehouse</SelectItem>
                   <SelectItem value="abc_class">Only A/B/C class items</SelectItem>
@@ -422,29 +422,30 @@ export default function CycleCountSchedules() {
               <p className="text-xs text-muted-foreground mt-1">
                 Which stock the worksheet should include.
               </p>
-            </div>
+            </FieldCell>
 
             {form.scope_type === "abc_class" && (
-              <div>
+              <FieldCell>
                 <Label>ABC class</Label>
                 <Select
                   value={form.abc_class || undefined}
                   onValueChange={(v) => setForm({ ...form, abc_class: v as FormState["abc_class"] })}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="A">A — highest value / fastest movers</SelectItem>
                     <SelectItem value="B">B — mid-tier</SelectItem>
                     <SelectItem value="C">C — long-tail / low value</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </FieldCell>
             )}
 
-            <div>
+            <FieldCell>
               <Label>Tolerance %</Label>
               <Input
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 value={form.tolerance_pct}
                 onChange={(e) => setForm({ ...form, tolerance_pct: e.target.value })}
@@ -454,12 +455,13 @@ export default function CycleCountSchedules() {
                 Variances smaller than this percentage are auto-accepted.
                 Larger variances are flagged for review before posting.
               </p>
-            </div>
+            </FieldCell>
 
-            <div>
+            <FieldCell>
               <Label>Tolerance amount</Label>
               <Input
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 value={form.tolerance_value}
                 onChange={(e) => setForm({ ...form, tolerance_value: e.target.value })}
@@ -469,29 +471,41 @@ export default function CycleCountSchedules() {
                 Same idea, but as a money amount. Use whichever suits the
                 products in scope.
               </p>
-            </div>
+            </FieldCell>
 
-            <div className="flex items-center justify-between col-span-2 rounded border p-3">
-              <div className="pr-4">
-                <Label>Lock stock automatically when the worksheet is generated</Label>
-                <p className="text-xs text-muted-foreground">
-                  When on, the worksheet skips <em>Draft</em> and locks stock
-                  immediately so counters can start straight away. Leave off
-                  if you want a supervisor to review before locking stock.
-                </p>
+            <FieldCell span="full">
+              <div className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="min-w-0 sm:pr-4">
+                  <Label>Lock stock automatically when the worksheet is generated</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    When on, the worksheet skips <em>Draft</em> and locks stock
+                    immediately so counters can start straight away. Leave off
+                    if you want a supervisor to review before locking stock.
+                  </p>
+                </div>
+                <Switch
+                  checked={form.auto_freeze}
+                  onCheckedChange={(v) => setForm({ ...form, auto_freeze: v })}
+                  className="self-start sm:self-center shrink-0"
+                />
               </div>
-              <Switch checked={form.auto_freeze} onCheckedChange={(v) => setForm({ ...form, auto_freeze: v })} />
-            </div>
+            </FieldCell>
 
-            <div className="flex items-center justify-between col-span-2 rounded border p-3">
-              <div className="pr-4">
-                <Label>Active</Label>
-                <p className="text-xs text-muted-foreground">
-                  Paused schedules stop generating new count worksheets.
-                </p>
+            <FieldCell span="full">
+              <div className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="min-w-0 sm:pr-4">
+                  <Label>Active</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Paused schedules stop generating new count worksheets.
+                  </p>
+                </div>
+                <Switch
+                  checked={form.active}
+                  onCheckedChange={(v) => setForm({ ...form, active: v })}
+                  className="self-start sm:self-center shrink-0"
+                />
               </div>
-              <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} />
-            </div>
+            </FieldCell>
           </FieldGrid>
         </DetailSheet>
 
