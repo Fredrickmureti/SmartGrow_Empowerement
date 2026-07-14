@@ -645,9 +645,8 @@ export default function ReplenishmentLog() {
                             ? `${durationMs} ms`
                             : `${(durationMs / 1000).toFixed(1)} s`;
                       return (
-                        <>
+                        <Fragment key={run.id}>
                           <TableRow
-                            key={run.id}
                             role="button"
                             tabIndex={0}
                             aria-expanded={isExpanded}
