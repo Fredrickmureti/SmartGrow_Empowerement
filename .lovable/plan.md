@@ -1,130 +1,79 @@
-# NSSF "VOLUNTARY" — architectural diagnosis + fix
 
-## 1. What "Voluntary" on the NSSF return actually is
+# Voluntary NSSF — Teaching Run
 
-Per the NSSF Act No. 45 of 2013 and NSSF's own e-return file spec, the monthly employer return has three contribution-type rows:
+Goal: show, on your real tenant, exactly where "voluntary NSSF" lives in the payroll architecture, why it does *not* belong in `salary_structures`, and watch every downstream system (payslip line → NSSF return → GL) light up in response to a single tenant-level action.
 
-- `101` — Tier I (mandatory, 6% + 6% up to LEL)
-- `102` — Tier II (mandatory, 6% + 6% between LEL and UEL)
-- **`105` — Voluntary Contributions** — a flat top-up above the tiers, **opt-in by the employee**, initiated via NSSF's *Voluntary Member Contributions Monthly Check-Off System* form. The employer only remits it when the employee has signed the check-off authorization; there is **no statutory obligation** to deduct or populate it for other employees.
+## Part 1 — How salary structures work (mental model)
 
-Enterprise payroll systems (Odoo `l10n_hr_kenya`, Workday, SAP SuccessFactors, Oracle HCM, Dynamics 365) all model Type-105 the same way: **an opt-in, per-employee recurring flat deduction**, never a computed statutory percentage. The column is left blank/zero unless a specific employee has a standing check-off.
+Think of a salary structure as a **recipe** attached to an employment contract.
 
-## 2. What our architecture currently does
-
-Verified against the live DB and code (not just seed migrations — the current NSSF_RET row was later edited to KRA's real byproduct layout):
-
-`localization_pack_return_templates` row `NSSF_RET`, column `voluntary`, source:
-
-```
-sum_rule.nssf_voluntary.employee
+```text
+salary_structures            ← the recipe header (Kenya Standard 2026)
+   └── payroll_salary_rules  ← ordered ingredients (basic, house, paye, nssf_tier1…)
+         └── each rule has: code, category, condition, amount formula, optional pack binding
+salary_structure_rule_sets   ← frozen JSON snapshot published for each version
 ```
 
-Resolver contract (`supabase/functions/_shared/returnSourceResolver.ts:44,94-112,156-169`): `sum_rule.<code>.<side>` sums `payslip_lines.employee_amount` (or `employer_amount`) where `rule_code = <code>`, and `<code>` is auto-added to the payslip_lines fetch via `extractExtraRuleCodes`. Unknown codes silently return 0 (line 182), which is why the column renders blank instead of failing.
+At payroll time, the engine reads the **snapshot** (not the live rules), walks it in `sequence` order, evaluates each rule's condition, computes its amount, and emits a **payslip line tagged by `code`**. Return templates (NSSF_RET, P10, P9A) then pull those codes back via `sum_rule.<code>.employee` bindings. The snapshot model is why mid-month edits can't rewrite last week's payslip.
 
-What produces `payslip_lines`:
+**Two amount modes matter:**
+- Engine-computed via a **pack rule** (`statutory_rule_id` set) → PAYE, SHIF, NSSF Tier 1 & 2. The structure just *declares the line exists*; the localization pack owns the math.
+- Structure-computed → fixed, %-of-base, or expression. Used for earnings and non-statutory deductions.
 
-- `payroll_statutory_rules` — has `nssf` only, no `nssf_voluntary`.
-- `payroll_rule_types` — same.
-- `pack_token_registry` — has `employee.tier3_voluntary_employee/employer` (Ghana precedent, ADR 0010 Amendment) but nothing for Kenya voluntary.
-- `payroll_input_types` / `payslip_inputs` — no `nssf_voluntary` input.
-- `salary_components` — none.
-- `employee_custom_deductions` — general path that *does* reach payslips, but `compute-payroll/index.ts:3631-3651` emits those lines with `rule_code = "custom_" + cd.code`, so a pack column source of `sum_rule.nssf_voluntary.employee` would need to be `sum_rule.custom_nssf_voluntary.employee` to match — and that prefix is an engine-internal convention, not something a pack template should hard-code.
+## Part 2 — Why voluntary NSSF is NOT a salary-structure rule
 
-Employee Profile: consistent with your description — only pack-published statutory *identifiers* (KRA PIN, NSSF No., SHIF, AHL Ref) via `employee_statutory_identifiers` and dynamic `entity_field_configs`. No amount fields.
+Voluntary NSSF (Type-105) in Kenya is:
+- **Opt-in per employee** (requires a signed check-off form filed with NSSF).
+- **Variable per employee** (KES 2,000 for one, 15,000 for another).
+- **Time-bounded** (employees can stop it; NSSF acknowledges the termination).
+- **Not part of the employment contract's compensation recipe.**
 
-**Diagnosis (single sentence):** the Kenya pack publishes a return column that reads `sum_rule.nssf_voluntary.employee`, but no rule, input, token, or deduction in the tenant produces payslip lines with `rule_code = 'nssf_voluntary'`. The column is architecturally orphaned. This is **not a data-entry bug**, **not a template bug** (Type 105 is legitimately part of the return), and **not a missing employee field** (Type 105 is a recurring amount, not an identifier). It is a **pack↔engine wiring gap**: the pack declares a rule-code source without publishing the corresponding rule.
+Odoo models this exact category with `hr.contract.salary.attachment` / *Other Input* lines, **not** as a salary rule on every contract. SAP calls them "recurring payments/deductions (IT0014)". The universal pattern: statutory-adjacent, employee-specific, recurring deductions live in an **enrollment table**, and the payroll engine picks them up as inputs — they don't pollute the salary structure.
 
-## 3. Where the fix belongs (architecture answer)
+Our equivalent is already built:
 
-Wrong homes and why:
-
-- ❌ Employee Profile statutory field → Type-105 is a *monthly amount* per active check-off, not an identifier. Never modeled this way in enterprise systems.
-- ❌ Hard-coded engine branch for `nssf_voluntary` → breaks country-agnosticism (also fails `no-hardcoded-country-payroll.test.ts`, `no-country-named-functions_test.sql`).
-- ❌ New bespoke `nssf_voluntary_contributions` table → duplicates the existing recurring-deduction ownership already held by `custom_deduction_types` + `employee_custom_deductions`, contradicts ADR 0005/0022 module-ownership discipline.
-- ❌ New `payroll_input_types` entry keyed per period → misrepresents a *standing* check-off as an ad-hoc input; also unenrollable, no GL mapping, no lifecycle.
-
-Right home: the existing **`custom_deduction_types` / `employee_custom_deductions`** surface — which already carries amount, schedule, GL liability mapping, employer-vs-employee flag, and payslip integration — **plus a pack-declared identity** that ties a specific deduction type to a specific pack rule code, so the pack template can bind to it *without* leaking the engine's `custom_` prefix.
-
-This mirrors the Ghana Tier-3 precedent (ADR 0010 Amendment 2 — `EMPLOYEE_INPUT_REGISTRY` unions pack-registry tokens with built-ins), extended one level down from *tokens* to *rule codes emitted on payslip lines*.
-
-## 4. Proposed change (minimal, pack-driven, no country code in engine)
-
-### 4.1 Pack-level: declare voluntary deduction slots
-
-Add a nullable column `payroll_rule_code TEXT` to `custom_deduction_types`. When set, the compute-payroll custom-deduction emitter uses that as the `rule_code` on the payslip line (and in metadata) instead of `custom_<code>`. Uniqueness constraint per organization on `(pack_id, payroll_rule_code)` so packs can seed prototypes without colliding with tenant-created deductions.
-
-Semantics: this is the **general** hook — any pack can declare "this deduction, if the tenant installs and configures it, feeds return column X via rule code Y." Not Kenya-specific.
-
-### 4.2 Kenya pack seed (migration)
-
-Insert (idempotent) a Kenya-owned `custom_deduction_types` template row:
-
-- `code = 'nssf_voluntary'`
-- `payroll_rule_code = 'nssf_voluntary'`
-- `is_employer_contribution = false` (employee side; a second row will be added if/when we support employer top-up)
-- `pre_tax = false` (Type-105 is post-tax; PAYE relief for Tier-3 style pension is separate)
-- GL mapping wired to the existing pack default account role `tier3_payable` (already seeded in migration `20260707215652`) so no new GL role is introduced
-- `pack_id` = Kenya pack
-
-Tenant activation stays a manual HR action (matches the real business event: employee submits the NSSF check-off form → HR creates the `employee_custom_deductions` row with the amount and start date). No auto-enrollment.
-
-### 4.3 Engine: single-line change in `compute-payroll`
-
-In the custom-deduction loop (`supabase/functions/compute-payroll/index.ts:3631`):
-
-```ts
-const emittedCode = cd.payroll_rule_code ?? `custom_${cd.code}`;
-pushLine(emittedCode, ..., emittedCode, ...);
+```text
+custom_deduction_types            ← tenant catalog (e.g. "NSSF Voluntary")
+   payroll_rule_code = 'nssf_voluntary'   ← binds to Kenya pack's declared rule code
+employee_custom_deductions        ← per-employee enrollment (amount, start, end)
 ```
 
-Country-agnostic. Legacy custom deductions unchanged (fall through the `??`).
+The engine (`compute-payroll/index.ts`) now emits payslip lines with `rule_code = nssf_voluntary` when a type has that binding set — which is exactly what the NSSF return VOLUNTARY column reads.
 
-### 4.4 Return template resolver: no change
+Bottom line: **salary structures = the contract's compensation recipe. Voluntary NSSF = an employee-level statutory attachment.** Wrong home would either force every Kenyan employee to carry a zero line or duplicate opt-in logic across contracts.
 
-`sum_rule.nssf_voluntary.employee` will now naturally match the emitted line. `extractExtraRuleCodes` already adds `nssf_voluntary` to the payslip_lines fetch.
+## Part 3 — What we'll do and observe
 
-### 4.5 Pack tokens (nice-to-have, non-blocking)
+One tenant: **Joshua Holdings** (`bf392ca6-a743-435c-ae41-5bf25199470d`).
 
-Register `employee.nssf_voluntary_amount` in `pack_token_registry` (source = `employee_custom_deduction`) for future certificate/payslip templates that want the per-payslip amount inline. Follows the Ghana Tier-3 precedent exactly.
+1. **Read** the current Kenya payroll setup on this business: active salary structure(s), which employees are on them, and whether any `custom_deduction_types` with `payroll_rule_code = 'nssf_voluntary'` already exists.
+2. **Seed the tenant catalog** — insert (if missing) one `custom_deduction_types` row:
+   - `code = 'nssf_voluntary'`, `name = 'NSSF Voluntary (Type 105)'`
+   - `payroll_rule_code = 'nssf_voluntary'` (this is the binding to the Kenya pack)
+   - GL role: `tier3_payable` via the pack's account mapping
+   - `deduction_type = 'fixed'`, taxable = false, pre-tax = false
+3. **Enroll one employee** — pick the first active Kenyan employee, insert an `employee_custom_deductions` row for KES 2,000/month, starting the current payroll period.
+4. **Run a payroll period** for that employee (dry compute via the existing `compute-payroll` edge function) and read back:
+   - The payslip line with `rule_code = 'nssf_voluntary'` and `amount = 2000` under deductions.
+   - The NSSF return preview (`localization_pack_return_templates` → NSSF_RET) — the VOLUNTARY column now sums to 2000 for this employee.
+   - The journal entry preview — DR net-pay clearing / CR `tier3_payable` for 2000 (routed via the `custom_deduction_types.gl_account_role` binding).
+5. **Toggle behaviour** — set the employee's enrollment `end_date` to a past date and re-run: line disappears, VOLUNTARY column zeroes, GL entry drops. This proves the enrollment table (not the structure) is the single control point.
+6. **Contrast probe (read-only)** — dump the active salary structure's rules and show that adding a `nssf_voluntary` rule there would either (a) require a per-employee override table anyway to hold the amount, or (b) force a zero line on every non-participant. Same conclusion Odoo reached.
 
-### 4.6 UI
+All results captured as annotated SQL / edge-function outputs in a short report so you can see the cause → effect chain.
 
-Nothing new to build:
+## Part 4 — Technical notes
 
-- Finance → Default Accounts already exposes `tier3_payable` (guard-protected per ADR 0022).
-- HR → Employee → Deductions (existing `CustomDeductionDialog`) is the enrollment surface. Kenya tenants will see the pack-seeded `nssf_voluntary` deduction type in the picker; HR fills in the monthly amount and effective dates from the signed NSSF check-off form.
-- Payslip already renders custom-deduction lines through the existing classifier (`voluntary_deduction` classification already exists in `payslipClassifier.ts:27`).
-- Compliance / Returns → NSSF Monthly Byproduct Return will now render populated `VOLUNTARY` cells for employees with an active `nssf_voluntary` deduction, and zero for everyone else (which is the correct enterprise behavior).
+- No schema changes. The wiring from the previous migration (`custom_deduction_types.payroll_rule_code`, pack token registry entry, engine `emittedCode` derivation) is what makes this experiment possible without touching the engine again.
+- No pack changes. The Kenya pack already declares the `nssf_voluntary` rule code and its NSSF_RET binding; the advisory template row documents the recommended shape.
+- No structure changes. The Kenya salary structure stays clean — no voluntary NSSF rule added, matching Odoo/SAP conventions.
+- If Joshua Holdings has no active Kenyan employee, we stop at step 1 and report; we won't fabricate employees.
+- The payroll run in step 4 uses the existing `compute-payroll` edge function in dry-run mode — no period is finalised, no GL is actually posted.
 
-## 5. Lifecycle answers (Business Events 1–5)
+## Deliverable
 
-1. **Employee joins** → identifiers only (KRA PIN, NSSF No., SHIF No., AHL Ref) via pack-driven statutory fields. **No voluntary field collected.**
-2. **Payroll processes** → NSSF Tier I + Tier II always via `payroll_statutory_rules('nssf')`; Type-105 amount comes exclusively from an active `employee_custom_deductions` row linked to the pack-seeded `nssf_voluntary` type. Never manual entry in payslip inputs, never derived from gross.
-3. **Employee opts in to top-up** → signs NSSF Voluntary Member Contributions Monthly Check-Off form. HR (not payroll officer, not finance) receives the form and creates the `employee_custom_deductions` row with the monthly amount, start date, and optional end date. The system of record is HR.
-4. **Where it lives** → `custom_deduction_types` (pack-seeded template) + `employee_custom_deductions` (tenant enrollment). Not identifiers, not a separate NSSF config table, not benefits (Kenya NSSF voluntary is not modeled as an employer benefit plan).
-5. **What it affects** → payslip line (visible under Voluntary Deductions), employee net pay (post-tax reduction), employer NSSF liability row 105 (via existing `payroll_liabilities` + `tier3_payable` GL), NSSF byproduct return VOLUNTARY column. **Does not affect** PAYE computation, insurance relief, personal relief, or employer statutory expense — Type-105 is entirely between employee and NSSF; employer facilitates the check-off only.
-
-## 6. Testing
-
-Add an architecture test asserting:
-
-- Every `localization_pack_return_templates` column whose source matches `sum_rule\.(.+)\.(employee|employer)` has *either* a `payroll_statutory_rules.rule_code` OR a `custom_deduction_types.payroll_rule_code` (or a `payroll_salary_rules.rule_code`) that could produce it, in the same pack. Prevents future orphan columns in any pack, not just Kenya.
-
-Add an integration test for `compute-payroll`: employee with an `employee_custom_deductions` row linked to a `custom_deduction_types` row where `payroll_rule_code='nssf_voluntary'` → resulting payslip has a line with `rule_code='nssf_voluntary'` and the NSSF return VOLUNTARY column sums correctly.
-
-## 7. Non-goals / explicitly out of scope
-
-- Employer-side voluntary top-up (rare; add a second Kenya-pack row later if a tenant requires it).
-- Reworking NSSF Tier-I/II — those work today.
-- Backfilling historic returns — historic payslips have no voluntary lines, so historic returns will continue to render 0 in the column (correct).
-- Any change to the country-agnostic engine beyond the single-line `emittedCode` swap.
-
-## Technical summary
-
-- **Schema:** `ALTER TABLE public.custom_deduction_types ADD COLUMN payroll_rule_code TEXT NULL;` + partial unique index on `(pack_id, payroll_rule_code) WHERE payroll_rule_code IS NOT NULL`. No RLS changes (rows are pack-owned or org-owned exactly as today; grants unchanged).
-- **Engine:** `supabase/functions/compute-payroll/index.ts` — one-line change to derive `emittedCode` from `payroll_rule_code ?? "custom_" + code`.
-- **Kenya pack seed migration:** idempotent insert of a `custom_deduction_types` row `nssf_voluntary` with GL mapping to `tier3_payable`.
-- **Pack token registry:** one row for `employee.nssf_voluntary_amount` (optional, for future templates).
-- **Architecture test:** `src/test/architecture/return-template-columns-have-source.test.ts` — pattern-matches every `sum_rule.*` source in every pack against declared producers.
-- **Compute-payroll test:** exercises the end-to-end flow with a synthetic pack + tenant.
+A short walkthrough document with SQL snapshots at each step showing:
+- Before: no voluntary NSSF anywhere.
+- After enrollment: payslip line + NSSF return VOLUNTARY column + GL preview all showing 2,000.
+- After termination: all three revert to zero.
+- Salary structure JSON unchanged throughout — proof the recipe is untouched.
