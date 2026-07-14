@@ -141,7 +141,7 @@ export function useProcurementRecommendations() {
         .in("status", OPEN_STATUSES)
         .order("urgency", { ascending: true })
         .order("created_at", { ascending: false })
-        .limit(500);
+        .limit(2000);
       if (branchId) q = q.eq("branch_id", branchId);
       const { data, error } = await q;
       if (error) throw error;
