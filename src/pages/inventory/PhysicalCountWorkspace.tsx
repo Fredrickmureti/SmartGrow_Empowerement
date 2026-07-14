@@ -229,7 +229,7 @@ export default function PhysicalCountWorkspace() {
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-4 sm:space-y-6">
       <RecordHeader
         eyebrow="Inventory"
         title="Physical Count Workspace"
@@ -249,27 +249,27 @@ export default function PhysicalCountWorkspace() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Active</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{buckets.active.length}</div></CardContent>
+          <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6"><CardTitle className="text-xs text-muted-foreground">Active</CardTitle></CardHeader>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6"><div className="text-xl sm:text-2xl font-bold">{buckets.active.length}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">In review</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-amber-600">{buckets.in_review.length}</div></CardContent>
+          <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6"><CardTitle className="text-xs text-muted-foreground">In review</CardTitle></CardHeader>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6"><div className="text-xl sm:text-2xl font-bold text-amber-600">{buckets.in_review.length}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Posted</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-emerald-600">{buckets.posted.length}</div></CardContent>
+          <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6"><CardTitle className="text-xs text-muted-foreground">Posted</CardTitle></CardHeader>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6"><div className="text-xl sm:text-2xl font-bold text-emerald-600">{buckets.posted.length}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{counts.length}</div></CardContent>
+          <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6"><CardTitle className="text-xs text-muted-foreground">Total</CardTitle></CardHeader>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6"><div className="text-xl sm:text-2xl font-bold">{counts.length}</div></CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="px-4 py-4 sm:px-6 sm:py-6">
           <CardTitle className="text-base">Counts</CardTitle>
           <CardDescription>
             Actions are gated by the count's state and by separation-of-duties: a user cannot
@@ -278,18 +278,20 @@ export default function PhysicalCountWorkspace() {
         </CardHeader>
         <CardContent className="p-0">
           <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-            <div className="px-4 pt-2">
-              <TabsList>
+            <div className="px-3 pt-2 sm:px-4 overflow-x-auto">
+              <TabsList className="w-max">
                 <TabsTrigger value="active">Active ({buckets.active.length})</TabsTrigger>
                 <TabsTrigger value="in_review">In review ({buckets.in_review.length})</TabsTrigger>
                 <TabsTrigger value="posted">Posted ({buckets.posted.length})</TabsTrigger>
                 <TabsTrigger value="all">All ({counts.length})</TabsTrigger>
               </TabsList>
             </div>
-            <TabsContent value="active" className="mt-0">{renderTable(buckets.active)}</TabsContent>
-            <TabsContent value="in_review" className="mt-0">{renderTable(buckets.in_review)}</TabsContent>
-            <TabsContent value="posted" className="mt-0">{renderTable(buckets.posted)}</TabsContent>
-            <TabsContent value="all" className="mt-0">{renderTable(counts)}</TabsContent>
+            <div className="overflow-x-auto">
+              <TabsContent value="active" className="mt-0">{renderTable(buckets.active)}</TabsContent>
+              <TabsContent value="in_review" className="mt-0">{renderTable(buckets.in_review)}</TabsContent>
+              <TabsContent value="posted" className="mt-0">{renderTable(buckets.posted)}</TabsContent>
+              <TabsContent value="all" className="mt-0">{renderTable(counts)}</TabsContent>
+            </div>
           </Tabs>
         </CardContent>
       </Card>
