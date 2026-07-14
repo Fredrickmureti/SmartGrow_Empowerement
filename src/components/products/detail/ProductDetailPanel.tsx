@@ -213,6 +213,64 @@ export function ProductDetailPanel({
     </>
   ) : undefined;
 
+  // Sticky quick-actions footer — always reachable on mobile without
+  // scrolling past the tabs. Only rendered for tracked physical products.
+  const footer =
+    product && trackInventory && !isService ? (
+      <FooterActionBar
+        anchor="sheet"
+        trailing={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              asChild
+              onClick={() => onOpenChange(false)}
+            >
+              <Link to={`/inventory-app/stock?action=adjust&product=${product.id}`}>
+                <ClipboardList className="h-3.5 w-3.5 mr-1" /> Adjust
+              </Link>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              asChild
+              onClick={() => onOpenChange(false)}
+            >
+              <Link to={`/inventory-app/transfers?action=new&product=${product.id}`}>
+                <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Transfer
+              </Link>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              asChild
+              onClick={() => onOpenChange(false)}
+            >
+              <Link to={`/inventory-app/forecast?product=${product.id}`}>
+                <TrendingUp className="h-3.5 w-3.5 mr-1" /> Forecast
+              </Link>
+            </Button>
+            <Button
+              size="sm"
+              asChild
+              onClick={() => onOpenChange(false)}
+              className={
+                isLowStock || isOutOfStock
+                  ? "bg-warning text-warning-foreground hover:bg-warning/90"
+                  : ""
+              }
+            >
+              <Link to={`/purchases-app/purchase-orders?action=new&product=${product.id}`}>
+                <ShoppingCart className="h-3.5 w-3.5 mr-1" />{" "}
+                {isLowStock || isOutOfStock ? "Replenish" : "Create PO"}
+              </Link>
+            </Button>
+          </div>
+        }
+      />
+    ) : undefined;
+
   return (
     <DetailSheet
       open={open}
@@ -225,6 +283,7 @@ export function ProductDetailPanel({
       }
       description={description}
       headerActions={headerActions}
+      footer={footer}
     >
       {/* Product thumbnail + status badges (rendered in the body, NOT inside
           SheetDescription — badges are <div> and would invalidate the <p>). */}
