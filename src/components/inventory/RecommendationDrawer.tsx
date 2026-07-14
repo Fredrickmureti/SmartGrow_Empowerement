@@ -10,6 +10,8 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sheet,
   SheetContent,
@@ -70,6 +72,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     editQty,
     convertToPo,
     convertToTransfer,
+    attachToPo,
     assign,
   } = useProcurementRecommendations();
   const { warehouses } = useWarehouses();
@@ -89,6 +92,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
   const [poNotes, setPoNotes] = useState("");
   const [poQty, setPoQty] = useState<string>("");
   const [poVendorId, setPoVendorId] = useState<string>(KEEP_VENDOR);
+  const [poTargetId, setPoTargetId] = useState<string>("__new__");
   const [xfFrom, setXfFrom] = useState<string>("");
   const [xfTo, setXfTo] = useState<string>("");
   const [xfQty, setXfQty] = useState<string>("");
@@ -109,6 +113,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     editQty.isPending ||
     convertToPo.isPending ||
     convertToTransfer.isPending ||
+    attachToPo.isPending ||
     assign.isPending;
 
   const resolvedVendorId =
@@ -117,6 +122,35 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     poVendorId === KEEP_VENDOR
       ? rec.vendor?.name ?? null
       : vendors.find((v) => v.id === poVendorId)?.name ?? null;
+
+  // Draft POs for the resolved vendor & rec's business — offered as attach targets.
+  const draftPosQuery = useQuery({
+    queryKey: [
+      "recommendation-attach-targets",
+      rec.business_id,
+      resolvedVendorId,
+    ],
+    enabled: open && !!resolvedVendorId && !!rec.business_id && !rec.linked_po_id,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("purchase_orders")
+        .select("id, po_number, order_date, total")
+        .eq("business_id", rec.business_id)
+        .eq("vendor_id", resolvedVendorId)
+        .eq("status", "draft")
+        .order("order_date", { ascending: false })
+        .limit(25);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        po_number: string | null;
+        order_date: string | null;
+        total: number | null;
+      }>;
+    },
+  });
+  const draftPos = draftPosQuery.data ?? [];
 
   const err = (e: unknown) => humanizeRecError(normalizeError(e).message);
 
@@ -162,13 +196,23 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
       return;
     }
     try {
-      await convertToPo.mutateAsync({
-        id: rec.id,
-        vendorId: resolvedVendorId,
-        qty: poQty ? Number(poQty) : null,
-        notes: poNotes || null,
-      });
-      toast.success("Draft purchase order created");
+      if (poTargetId && poTargetId !== "__new__") {
+        await attachToPo.mutateAsync({
+          id: rec.id,
+          poId: poTargetId,
+          qty: poQty ? Number(poQty) : null,
+          notes: poNotes || null,
+        });
+        toast.success("Recommendation attached to existing draft PO");
+      } else {
+        await convertToPo.mutateAsync({
+          id: rec.id,
+          vendorId: resolvedVendorId,
+          qty: poQty ? Number(poQty) : null,
+          notes: poNotes || null,
+        });
+        toast.success("Draft purchase order created");
+      }
       onClose();
     } catch (e) {
       toast.error(err(e));
@@ -480,6 +524,38 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                   />
                 </div>
               </div>
+              {resolvedVendorId && !rec.linked_po_id && (
+                <div>
+                  <Label htmlFor="rec-po-target" className="text-xs">
+                    Target PO
+                  </Label>
+                  <Select value={poTargetId} onValueChange={setPoTargetId}>
+                    <SelectTrigger id="rec-po-target">
+                      <SelectValue placeholder="Create new draft" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__new__">
+                        Create new draft PO
+                      </SelectItem>
+                      {draftPos.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.po_number ?? p.id.slice(0, 8)}
+                          {p.order_date ? ` · ${p.order_date}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {draftPosQuery.isLoading ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Loading draft POs…
+                    </p>
+                  ) : draftPos.length === 0 ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      No open draft POs for this vendor — a new draft will be created.
+                    </p>
+                  ) : null}
+                </div>
+              )}
               <Textarea
                 aria-label="PO notes"
                 placeholder="Notes (optional)"
@@ -497,7 +573,12 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                 disabled={busy || !resolvedVendorId || !!rec.linked_po_id}
                 className="w-full"
               >
-                Create PO{resolvedVendorName ? ` for ${resolvedVendorName}` : ""}
+                {poTargetId && poTargetId !== "__new__"
+                  ? `Attach to ${
+                      draftPos.find((p) => p.id === poTargetId)?.po_number ??
+                      "draft PO"
+                    }`
+                  : `Create PO${resolvedVendorName ? ` for ${resolvedVendorName}` : ""}`}
               </Button>
             </section>
 

@@ -60952,6 +60952,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      attach_recommendation_to_po: {
+        Args: {
+          p_notes?: string
+          p_po_id: string
+          p_qty?: number
+          p_rec_id: string
+        }
+        Returns: string
+      }
       attendance_admin_close_session: {
         Args: { _attendance_id: string; _clock_out?: string; _reason?: string }
         Returns: string
