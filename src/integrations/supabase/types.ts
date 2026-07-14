@@ -40751,26 +40751,87 @@ export type Database = {
           },
         ]
       }
+      procurement_recommendation_events: {
+        Row: {
+          actor_id: string | null
+          business_id: string | null
+          created_at: string
+          event_type: string
+          from_status: string | null
+          id: string
+          note: string | null
+          organization_id: string
+          payload: Json
+          recommendation_id: string
+          to_status: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          event_type: string
+          from_status?: string | null
+          id?: string
+          note?: string | null
+          organization_id: string
+          payload?: Json
+          recommendation_id: string
+          to_status?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          event_type?: string
+          from_status?: string | null
+          id?: string
+          note?: string | null
+          organization_id?: string
+          payload?: Json
+          recommendation_id?: string
+          to_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_recommendation_events_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procurement_recommendations: {
         Row: {
+          actioned_at: string | null
+          actioned_by: string | null
           actioned_ref_id: string | null
           actioned_ref_type: string | null
+          approval_request_id: string | null
+          assignee_id: string | null
           branch_id: string | null
           business_id: string | null
           created_at: string
+          edited_qty: number | null
           explanation: Json
           id: string
           incoming: number
           lead_time_days: number
+          linked_mo_id: string | null
+          linked_po_id: string | null
+          linked_transfer_id: string | null
+          merged_into_id: string | null
           needed_by: string | null
           net_requirement: number
           on_hand: number
           organization_id: string
+          override_reason: string | null
           preferred_vendor_id: string | null
           product_id: string
           reserved: number
           run_id: string
           safety_stock: number
+          snooze_until: string | null
           status: string
           suggested_qty: number
           suggested_source: string
@@ -40780,24 +40841,35 @@ export type Database = {
           warehouse_id: string | null
         }
         Insert: {
+          actioned_at?: string | null
+          actioned_by?: string | null
           actioned_ref_id?: string | null
           actioned_ref_type?: string | null
+          approval_request_id?: string | null
+          assignee_id?: string | null
           branch_id?: string | null
           business_id?: string | null
           created_at?: string
+          edited_qty?: number | null
           explanation?: Json
           id?: string
           incoming?: number
           lead_time_days?: number
+          linked_mo_id?: string | null
+          linked_po_id?: string | null
+          linked_transfer_id?: string | null
+          merged_into_id?: string | null
           needed_by?: string | null
           net_requirement?: number
           on_hand?: number
           organization_id: string
+          override_reason?: string | null
           preferred_vendor_id?: string | null
           product_id: string
           reserved?: number
           run_id: string
           safety_stock?: number
+          snooze_until?: string | null
           status?: string
           suggested_qty?: number
           suggested_source?: string
@@ -40807,24 +40879,35 @@ export type Database = {
           warehouse_id?: string | null
         }
         Update: {
+          actioned_at?: string | null
+          actioned_by?: string | null
           actioned_ref_id?: string | null
           actioned_ref_type?: string | null
+          approval_request_id?: string | null
+          assignee_id?: string | null
           branch_id?: string | null
           business_id?: string | null
           created_at?: string
+          edited_qty?: number | null
           explanation?: Json
           id?: string
           incoming?: number
           lead_time_days?: number
+          linked_mo_id?: string | null
+          linked_po_id?: string | null
+          linked_transfer_id?: string | null
+          merged_into_id?: string | null
           needed_by?: string | null
           net_requirement?: number
           on_hand?: number
           organization_id?: string
+          override_reason?: string | null
           preferred_vendor_id?: string | null
           product_id?: string
           reserved?: number
           run_id?: string
           safety_stock?: number
+          snooze_until?: string | null
           status?: string
           suggested_qty?: number
           suggested_source?: string
@@ -40834,6 +40917,27 @@ export type Database = {
           warehouse_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "procurement_recommendations_linked_po_id_fkey"
+            columns: ["linked_po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_recommendations_linked_transfer_id_fkey"
+            columns: ["linked_transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_recommendations_merged_into_id_fkey"
+            columns: ["merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_recommendations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurement_recommendations_product_id_fkey"
             columns: ["product_id"]
@@ -60817,6 +60921,10 @@ export type Database = {
         }
         Returns: string
       }
+      assign_procurement_recommendation: {
+        Args: { p_assignee: string; p_rec_id: string }
+        Returns: undefined
+      }
       attach_c2b_to_pos_transaction: {
         Args: { _c2b_id: string; _pos_transaction_id: string }
         Returns: {
@@ -61861,6 +61969,25 @@ export type Database = {
         Args: { p_proforma_id: string; p_user_id: string }
         Returns: Json
       }
+      convert_recommendation_to_po: {
+        Args: {
+          p_notes?: string
+          p_qty?: number
+          p_rec_id: string
+          p_vendor_id?: string
+        }
+        Returns: string
+      }
+      convert_recommendation_to_transfer: {
+        Args: {
+          p_from_warehouse_id: string
+          p_notes?: string
+          p_qty?: number
+          p_rec_id: string
+          p_to_warehouse_id: string
+        }
+        Returns: string
+      }
       convert_rfq_to_po_atomic: {
         Args: { _rfq_id: string; _rfq_vendor_id: string; _user_id: string }
         Returns: Json
@@ -62116,6 +62243,10 @@ export type Database = {
         }
       }
       earth: { Args: never; Returns: number }
+      edit_procurement_recommendation_qty: {
+        Args: { p_qty: number; p_reason: string; p_rec_id: string }
+        Returns: undefined
+      }
       email_outbox_recover_stuck: {
         Args: { p_older_than_minutes?: number }
         Returns: number
@@ -64836,6 +64967,17 @@ export type Database = {
         }
         Returns: string
       }
+      log_procurement_recommendation_event: {
+        Args: {
+          p_event_type: string
+          p_from_status: string
+          p_note?: string
+          p_payload?: Json
+          p_rec_id: string
+          p_to_status: string
+        }
+        Returns: string
+      }
       log_report_view: {
         Args: {
           p_branch_id?: string
@@ -64896,6 +65038,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      merge_procurement_recommendations: {
+        Args: { p_ids: string[] }
+        Returns: string
       }
       merge_table_orders: {
         Args: {
@@ -68492,6 +68638,10 @@ export type Database = {
       snapshot_identity_drift_report: { Args: never; Returns: number }
       snapshot_project_burndown: {
         Args: { _project_id: string }
+        Returns: undefined
+      }
+      snooze_procurement_recommendation: {
+        Args: { p_note?: string; p_rec_id: string; p_snooze_until: string }
         Returns: undefined
       }
       start_app_trial: {
