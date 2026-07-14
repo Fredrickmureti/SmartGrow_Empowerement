@@ -3402,6 +3402,7 @@ Deno.serve(async (req) => {
       const customDeductionLineMeta: Array<{
         assignment_id: string;
         type_id: string;
+        scheme_component_id: string | null;
         code: string;
         label: string;
         amount: number;
@@ -3489,6 +3490,7 @@ Deno.serve(async (req) => {
         customDeductionLineMeta.push({
           assignment_id: a.id,
           type_id: t.id,
+          scheme_component_id: t.scheme_component_id ?? null,
           code: t.code,
           label: t.label,
           amount: amt,
@@ -3571,13 +3573,17 @@ Deno.serve(async (req) => {
         // Phase C: optional posting bucket copied onto payslip_lines.
         // NULL preserves legacy behaviour (posts to generic salary_expense).
         accounting_tag: string | null = null,
+        // Enterprise statutory model: custom deductions and other pack-authored
+        // byproducts can carry an explicit component id from their source row.
+        // Prefer that durable identity over rule-code inference.
+        explicit_scheme_component_id: string | null = null,
       ) => {
         if (!employee_amount && !employer_amount) return;
         const finalSource = input_ref ? withInputRef(source, input_ref) : source;
         // Statutory Scheme model: structural stamp for return generators,
         // GL, dashboards. NULL for non-statutory lines (earnings, loans,
         // garnishments, reimbursements) — they aren't part of any scheme.
-        const scheme_component_id = resolveSchemeComponentId(
+        const scheme_component_id = explicit_scheme_component_id ?? resolveSchemeComponentId(
           empCountry,
           rule_code,
           Number(employee_amount) || 0,
@@ -3721,9 +3727,12 @@ Deno.serve(async (req) => {
             gl_expense_account_id: cd.gl_expense_account_id,
             payslip_group: cd.payslip_group,
             payroll_rule_code: cd.payroll_rule_code,
+            scheme_component_id: cd.scheme_component_id,
           },
           null,
           { kind: "custom_deduction", code: emittedCode, assignment_id: cd.assignment_id, deduction_type_id: cd.type_id, label: cd.label },
+          null,
+          cd.scheme_component_id,
         );
       }
       // P1: Employer admin fees — one employer_contribution line per resolved

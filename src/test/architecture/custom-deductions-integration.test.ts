@@ -30,6 +30,15 @@ describe("Custom Deductions engine wiring", () => {
     expect(COMPUTE).toMatch(/deduction_type_id:\s*cd\.type_id/);
   });
 
+  it("compute-payroll stamps component-linked custom deductions onto payslip_lines", () => {
+    expect(COMPUTE).toMatch(/scheme_component_id:\s*t\.scheme_component_id\s*\?\?\s*null/);
+    expect(COMPUTE).toMatch(/explicit_scheme_component_id:\s*string\s*\|\s*null\s*=\s*null/);
+    expect(COMPUTE).toMatch(/const\s+scheme_component_id\s*=\s*explicit_scheme_component_id\s*\?\?\s*resolveSchemeComponentId/);
+    const customEmitBlock = COMPUTE.split("Turn D: custom deduction lines")[1]?.split("P1: Employer admin fees")[0] ?? "";
+    expect(customEmitBlock).toMatch(/scheme_component_id:\s*cd\.scheme_component_id/);
+    expect(customEmitBlock).toMatch(/cd\.scheme_component_id/);
+  });
+
   it("compute-payroll does not leak custom deductions into generic deduction buckets", () => {
     const customBlock = COMPUTE.slice(
       COMPUTE.indexOf("// ─── Turn D: custom deductions"),

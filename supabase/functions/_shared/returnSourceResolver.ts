@@ -36,11 +36,14 @@ export interface SourceContext {
     allowances: number;          // sum of payslips.other_earnings
     payslipCount?: number;       // number of eligible payslips represented in this context
     byRule: Record<string, RuleSum>; // sum per rule_code referenced by the template
+    byComponent?: Record<string, RuleSum>; // sum per statutory scheme component id
+    byColumn?: Record<string, unknown>;    // resolved values for structurally-bound return columns
   };
 }
 
 /** Patterns the resolver understands beyond the static system sources. */
 const EMPLOYEE_DYNAMIC = /^employee\.[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*$/;
+const BOUND_COLUMN = /^bound_column\.([a-z_][a-z0-9_]*)$/;
 const SUM_RULE = /^sum_rule\.([a-z0-9_]+)\.(employee|employer)$/;
 const SUM_TAXABLE_MINUS_RULES = /^sum_taxable_minus_rules:([a-z0-9_,]+)$/;
 
@@ -131,6 +134,12 @@ export function readSource(source: string, ctx: SourceContext): unknown {
 
   if (source.startsWith("constant.")) {
     return source.slice("constant.".length);
+  }
+
+  const bound = BOUND_COLUMN.exec(source);
+  if (bound && ctx.sums.byColumn && Object.prototype.hasOwnProperty.call(ctx.sums.byColumn, bound[1])) {
+    const value = ctx.sums.byColumn[bound[1]];
+    return typeof value === "number" ? round2(value) : value;
   }
 
   if (source.startsWith("employee.")) {
