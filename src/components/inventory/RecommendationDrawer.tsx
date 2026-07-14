@@ -376,6 +376,11 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
 
           {/* -------- Overview -------- */}
           <TabsContent value="overview" className="space-y-4 pt-4">
+            {/* Human "why" — one sentence, no formulas. Planner-first. */}
+            <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
+              {narrateRecommendation(rec)}
+            </div>
+
             <div className="grid grid-cols-2 gap-2 text-sm">
               <Field label="On hand" value={rec.on_hand} />
               <Field label="Reserved" value={rec.reserved} />
