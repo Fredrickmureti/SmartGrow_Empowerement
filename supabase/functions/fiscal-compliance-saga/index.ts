@@ -171,7 +171,8 @@ async function dispatchEvent(supabase: any, ev: OutboxEvent) {
           org_id: ev.org_id, branch_id: ev.branch_id,
           event_type: "fiscal.receipt_rejected",
           source_doc_type: ev.source_doc_type, source_doc_id: ev.source_doc_id,
-          payload: { provider_key: providerKey, document_kind: documentKind, error: errMsg },
+          payload: { ...ev.payload, provider_key: providerKey, document_kind: documentKind, error: errMsg },
+          idempotency_key: `fiscal.receipt_rejected:${ev.source_doc_type}:${ev.source_doc_id}:${ev.id}`,
         });
       }
       return;
@@ -187,9 +188,11 @@ async function dispatchEvent(supabase: any, ev: OutboxEvent) {
       event_type: "fiscal.receipt_issued",
       source_doc_type: ev.source_doc_type, source_doc_id: ev.source_doc_id,
       payload: {
+        ...ev.payload,
         provider_key: providerKey, document_kind: documentKind,
         fiscal_number: data?.cuNumber, qr_data: data?.qrCodeUrl,
       },
+      idempotency_key: `fiscal.receipt_issued:${ev.source_doc_type}:${ev.source_doc_id}:${ev.id}`,
     });
   } catch (e: any) {
     const errMsg = e?.message ?? String(e);
