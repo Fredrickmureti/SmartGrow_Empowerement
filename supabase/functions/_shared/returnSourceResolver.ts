@@ -58,6 +58,7 @@ export const STATIC_SYSTEM_SOURCES = [
   "employee.branch_id",
   "sum_employee_amount",
   "sum_employer_amount",
+  "sum_gross_amount",
   "sum_taxable_amount",
   "sum_basic_pay",
   "sum_allowances",
@@ -70,6 +71,7 @@ export const STATIC_SYSTEM_SOURCES = [
 /** Numeric sources (for total-row validation). */
 export const NUMERIC_SOURCE_PREDICATES: Array<(s: string) => boolean> = [
   (s) => s === "sum_employee_amount" || s === "sum_employer_amount" || s === "sum_taxable_amount",
+  (s) => s === "sum_gross_amount",
   (s) => s === "sum_basic_pay" || s === "sum_allowances" || s === "sum_total_amount" || s === "count_payslips",
   (s) => SUM_RULE.test(s),
   (s) => SUM_TAXABLE_MINUS_RULES.test(s),
