@@ -353,9 +353,23 @@ Deno.serve(async (req) => {
     // template behaviour is unchanged.
     const { data: lines, error: linesErr } = await admin
       .from("payslip_lines")
-      .select("payslip_id, employee_id, rule_code, category, employee_amount, employer_amount")
+      .select("payslip_id, employee_id, rule_code, category, employee_amount, employer_amount, scheme_component_id")
       .in("payslip_id", payslipIds);
     if (linesErr) return jsonResponse({ error: `payslip_lines: ${linesErr.message}` }, 500);
+
+    const { data: reportingBindings, error: bindingErr } = await admin
+      .from("statutory_reporting_bindings")
+      .select("scheme_component_id, column_key, side")
+      .eq("return_template_code", template.code);
+    if (bindingErr) return jsonResponse({ error: `statutory_reporting_bindings: ${bindingErr.message}` }, 500);
+    const bindingsByColumn = new Map<string, { scheme_component_id: string; side: "employee" | "employer" | "total" }>();
+    for (const b of (reportingBindings ?? []) as any[]) {
+      if (!b?.column_key || !b?.scheme_component_id) continue;
+      bindingsByColumn.set(String(b.column_key), {
+        scheme_component_id: String(b.scheme_component_id),
+        side: b.side === "employer" || b.side === "total" ? b.side : "employee",
+      });
+    }
 
 
     // 3) Pull employees — statutory identifiers (tax_pin, nssf_number,
@@ -386,7 +400,7 @@ Deno.serve(async (req) => {
     //    template, and basic/allowances from the payslip itself.
     const ruleCodeSet = new Set(ruleCodes);
     const emptySums = (): SourceContext["sums"] => ({
-      employee: 0, employer: 0, taxable: 0, basic: 0, allowances: 0, payslipCount: 0, byRule: {},
+      employee: 0, employer: 0, taxable: 0, basic: 0, allowances: 0, payslipCount: 0, byRule: {}, byComponent: {}, byColumn: {},
     });
     const sumsByEmp = new Map<string, SourceContext["sums"]>();
     for (const eid of employeeIds) sumsByEmp.set(eid, emptySums());
@@ -399,6 +413,13 @@ Deno.serve(async (req) => {
       r.employee += empAmt;
       r.employer += erAmt;
       s.byRule[ln.rule_code] = r;
+      if (ln.scheme_component_id) {
+        const componentId = String(ln.scheme_component_id);
+        const c = s.byComponent?.[componentId] ?? { employee: 0, employer: 0 };
+        c.employee += empAmt;
+        c.employer += erAmt;
+        (s.byComponent ||= {})[componentId] = c;
+      }
       // Primary sums only roll up filters.rule_codes — keeps existing
       // reconciliation semantics intact.
       if (ruleCodeSet.has(ln.rule_code)) {
@@ -421,6 +442,37 @@ Deno.serve(async (req) => {
       s.payslipCount = (s.payslipCount ?? 0) + 1;
     }
 
+    const resolveBoundColumnValue = (s: SourceContext["sums"], columnKey: string): number | undefined => {
+      const binding = bindingsByColumn.get(columnKey);
+      if (!binding) return undefined;
+      const component = s.byComponent?.[binding.scheme_component_id] ?? { employee: 0, employer: 0 };
+      const value = binding.side === "total"
+        ? component.employee + component.employer
+        : binding.side === "employer"
+          ? component.employer
+          : component.employee;
+      return Number(value.toFixed(2));
+    };
+    const applyBoundColumns = (s: SourceContext["sums"]) => {
+      if (!bindingsByColumn.size) return;
+      for (const col of columns) {
+        const value = resolveBoundColumnValue(s, col.key);
+        if (value !== undefined) (s.byColumn ||= {})[col.key] = value;
+      }
+    };
+    for (const s of sumsByEmp.values()) applyBoundColumns(s);
+
+    const readColumnSource = (col: ColumnSpec, ctx: SourceContext): unknown => {
+      if (ctx.sums.byColumn && Object.prototype.hasOwnProperty.call(ctx.sums.byColumn, col.key)) {
+        return ctx.sums.byColumn[col.key];
+      }
+      return readSource(col.source, ctx);
+    };
+    const hasReportableAmount = (s: SourceContext["sums"]) => {
+      if (s.employee !== 0 || s.employer !== 0) return true;
+      return Object.values(s.byColumn ?? {}).some((value) => Number(value) !== 0);
+    };
+
 
     // 5) Project rows per declarative columns
     const groupBy: string[] = Array.isArray(template.body?.group_by) ? template.body.group_by : ["employee_id"];
@@ -429,9 +481,9 @@ Deno.serve(async (req) => {
       for (const eid of employeeIds) {
         const emp = empById.get(eid) ?? {};
         const sums = sumsByEmp.get(eid) ?? emptySums();
-        if (sums.employee === 0 && sums.employer === 0) continue; // skip empty rows
+        if (!hasReportableAmount(sums)) continue; // skip empty rows
         const row: Record<string, unknown> = {};
-        for (const col of columns) row[col.key] = readSource(col.source, { employee: emp, sums });
+        for (const col of columns) row[col.key] = readColumnSource(col, { employee: emp, sums });
         projected.push(row);
       }
     } else {
@@ -449,10 +501,17 @@ Deno.serve(async (req) => {
           cur.employer += r.employer;
           a.byRule[code] = cur;
         }
+        for (const [componentId, r] of Object.entries(s.byComponent ?? {})) {
+          const cur = a.byComponent?.[componentId] ?? { employee: 0, employer: 0 };
+          cur.employee += r.employee;
+          cur.employer += r.employer;
+          (a.byComponent ||= {})[componentId] = cur;
+        }
         return a;
       }, emptySums());
+      applyBoundColumns(sums);
       const row: Record<string, unknown> = {};
-      for (const col of columns) row[col.key] = readSource(col.source, { employee: {}, sums });
+      for (const col of columns) row[col.key] = readColumnSource(col, { employee: {}, sums });
       projected.push(row);
     }
 
