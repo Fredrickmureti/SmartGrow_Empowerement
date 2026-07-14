@@ -255,6 +255,14 @@ export default function ReplenishmentLog() {
               <RefreshCw className={`mr-2 h-4 w-4 ${isTriggering ? "animate-spin" : ""}`} />
               {isTriggering ? "Planning..." : "Run planning"}
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/inventory-app/replenishment/auto-po-log")}
+              title="View archival auto-PO executor log"
+            >
+              <ScrollText className="mr-2 h-4 w-4" />
+              Auto-PO log
+            </Button>
           </div>
         </div>
 
@@ -328,7 +336,6 @@ export default function ReplenishmentLog() {
           <TabsList>
             <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
             <TabsTrigger value="runs">Runs</TabsTrigger>
-            <TabsTrigger value="log">Auto-PO log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="recommendations" className="space-y-4">
