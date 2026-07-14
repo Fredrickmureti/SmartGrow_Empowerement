@@ -159,11 +159,34 @@ export default function ReplenishmentLog() {
     return s;
   }, [recommendations, user?.id]);
 
+  const filterOptions = useMemo(() => {
+    const vendors = new Map<string, string>();
+    const branches = new Map<string, string>();
+    const sources = new Set<string>();
+    for (const r of recommendations) {
+      if (r.vendor?.id && r.vendor?.name) vendors.set(r.vendor.id, r.vendor.name);
+      if (r.branch?.id && r.branch?.name) branches.set(r.branch.id, r.branch.name);
+      if (r.suggested_source) sources.add(r.suggested_source);
+    }
+    return {
+      vendors: Array.from(vendors, ([id, name]) => ({ id, name })).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+      branches: Array.from(branches, ([id, name]) => ({ id, name })).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+      sources: Array.from(sources),
+    };
+  }, [recommendations]);
+
   const filteredRecs = useMemo(() => {
     const q = deferredRecSearch.trim().toLowerCase();
     return recommendations
       .filter((r) => (urgencyFilter === "all" ? true : r.urgency === urgencyFilter))
       .filter((r) => (statusFilter === "all" ? true : r.status === statusFilter))
+      .filter((r) => (vendorFilter === "all" ? true : r.vendor?.id === vendorFilter))
+      .filter((r) => (warehouseFilter === "all" ? true : r.branch?.id === warehouseFilter))
+      .filter((r) => (sourceFilter === "all" ? true : r.suggested_source === sourceFilter))
       .filter((r) => (assignedToMe ? r.assignee_id === user?.id : true))
       .filter((r) => {
         if (!q) return true;
@@ -174,7 +197,17 @@ export default function ReplenishmentLog() {
         );
       })
       .sort((a, b) => URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency]);
-  }, [recommendations, urgencyFilter, statusFilter, assignedToMe, deferredRecSearch, user?.id]);
+  }, [
+    recommendations,
+    urgencyFilter,
+    statusFilter,
+    vendorFilter,
+    warehouseFilter,
+    sourceFilter,
+    assignedToMe,
+    deferredRecSearch,
+    user?.id,
+  ]);
 
   // Prune selection to what is currently visible so bulk actions can't
   // touch rows the planner filtered away.
