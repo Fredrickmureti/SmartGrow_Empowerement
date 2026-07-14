@@ -82,6 +82,25 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
   const { contacts } = useContacts();
   const { mode: governanceMode, isSolo: soloMode } = useGovernanceMode();
   const { data: events = [] } = useRecommendationEvents(rec?.id ?? null);
+  const { data: warehouseStock = [] } = useWarehouseStockForProduct(
+    rec?.product_id ?? null,
+    rec?.business_id ?? null,
+  );
+  // Map warehouseId → on-hand for annotation & validation in the transfer flow.
+  const stockByWarehouse = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const row of warehouseStock) m.set(row.warehouseId, row.onHand);
+    return m;
+  }, [warehouseStock]);
+  const suggestedSourceId = useMemo(() => {
+    if (!rec) return null;
+    const target = Number(rec.edited_qty ?? rec.suggested_qty) || 0;
+    // Best source = warehouse with ≥ target on-hand and highest surplus; falls
+    // back to the warehouse with the most on-hand.
+    const rows = warehouseStock.filter((r) => r.warehouseId !== rec.warehouse_id);
+    const feasible = rows.filter((r) => r.onHand >= target);
+    return (feasible[0] ?? rows[0])?.warehouseId ?? null;
+  }, [warehouseStock, rec]);
 
   const vendors = useMemo(
     () =>
