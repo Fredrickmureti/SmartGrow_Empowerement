@@ -3631,8 +3631,15 @@ Deno.serve(async (req) => {
       }
       // Turn D: custom deduction lines (Slice 2 — post-tax only in this pass)
       for (const cd of customDeductionLineMeta) {
+        // When the tenant's custom_deduction_types row carries a pack-declared
+        // `payroll_rule_code`, emit the payslip line under that stable code so
+        // localization pack return templates and pack tokens can bind to it
+        // (e.g. Kenya NSSF Type-105 "nssf_voluntary" — NSSF_RET VOLUNTARY column).
+        // Otherwise fall back to the engine-internal `custom_<code>` prefix so
+        // legacy tenant-created deductions keep behaving byte-identically.
+        const emittedCode = cd.payroll_rule_code ?? `custom_${cd.code}`;
         pushLine(
-          `custom_${cd.code}`,
+          emittedCode,
           cd.is_employer_contribution ? "employer_contribution" : "deduction",
           cd.label,
           cd.is_employer_contribution ? 0 : cd.amount,
@@ -3646,9 +3653,10 @@ Deno.serve(async (req) => {
             gl_liability_account_id: cd.gl_liability_account_id,
             gl_expense_account_id: cd.gl_expense_account_id,
             payslip_group: cd.payslip_group,
+            payroll_rule_code: cd.payroll_rule_code,
           },
           null,
-          { kind: "custom_deduction", code: cd.code, assignment_id: cd.assignment_id, deduction_type_id: cd.type_id, label: cd.label },
+          { kind: "custom_deduction", code: emittedCode, assignment_id: cd.assignment_id, deduction_type_id: cd.type_id, label: cd.label },
         );
       }
       // P1: Employer admin fees — one employer_contribution line per resolved
