@@ -33,27 +33,20 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   RefreshCw,
   Search,
   Package,
   AlertTriangle,
   CheckCircle2,
-  Info,
-  Ban,
-  Clock,
+  GitMerge,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { normalizeError } from "@/services/resilience";
+import { RecommendationDrawer } from "@/components/inventory/RecommendationDrawer";
 
 const URGENCY_ORDER: Record<RecUrgency, number> = {
   stockout: 0,
