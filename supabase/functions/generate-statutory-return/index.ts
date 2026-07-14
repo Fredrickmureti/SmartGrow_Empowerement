@@ -438,6 +438,7 @@ Deno.serve(async (req) => {
     for (const ps of payslips) {
       const s = sumsByEmp.get(ps.employee_id);
       if (!s) continue;
+      s.gross += Number(ps.gross_pay) || 0;
       s.taxable += Number(ps.taxable_income ?? ps.gross_pay) || 0;
       s.payslipCount = (s.payslipCount ?? 0) + 1;
     }
