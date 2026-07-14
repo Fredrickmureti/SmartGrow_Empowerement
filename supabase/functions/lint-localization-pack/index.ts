@@ -340,6 +340,72 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 10. Statutory Scheme model — structural bindings gate.
+    //     For every scheme_component of type voluntary/employer/top_up in this
+    //     pack's country, require either (a) an explicit statutory_reporting_bindings
+    //     row referencing a return template that exists in this pack, or (b) an
+    //     opt-out marker on the component (parameters.reports_to = 'none').
+    //     Also cross-check: every binding must resolve to a `sum_rule.<code>.<side>`
+    //     column in the referenced template body — the "documented but never
+    //     materialised" failure mode (Kenya NSSF voluntary pre-fix) becomes
+    //     impossible.
+    try {
+      const country = (pack as any).country_code;
+      const [{ data: schemes }, { data: components }, { data: bindings }] = await Promise.all([
+        sb.from("statutory_schemes").select("id, code").eq("country_code", country),
+        sb.from("statutory_scheme_components").select("id, scheme_id, code, component_type, party, rule_code, parameters").in(
+          "scheme_id",
+          [], // placeholder — filled below
+        ),
+        sb.from("statutory_reporting_bindings").select("scheme_component_id, return_template_code, column_key, side"),
+      ]);
+      const schemeIds = (schemes ?? []).map((s: any) => s.id);
+      let comps: any[] = [];
+      if (schemeIds.length) {
+        const { data: c2 } = await sb
+          .from("statutory_scheme_components")
+          .select("id, scheme_id, code, component_type, party, rule_code, parameters")
+          .in("scheme_id", schemeIds);
+        comps = c2 ?? [];
+      }
+      const bindingsByComponent = new Map<string, any[]>();
+      for (const b of bindings ?? []) {
+        const arr = bindingsByComponent.get(b.scheme_component_id) ?? [];
+        arr.push(b);
+        bindingsByComponent.set(b.scheme_component_id, arr);
+      }
+      const returnTplByCode = new Map((returnTpls ?? []).map((t: any) => [t.code ?? t.rule_code, t]));
+
+      const REQUIRE_BINDING = new Set(["voluntary", "employer", "top_up"]);
+      for (const c of comps) {
+        if (!REQUIRE_BINDING.has(c.component_type)) continue;
+        const optOut = (c.parameters as any)?.reports_to === "none";
+        const boundRows = bindingsByComponent.get(c.id) ?? [];
+        if (boundRows.length === 0 && !optOut) {
+          errors.push(
+            `Scheme component ${c.code} (rule_code=${c.rule_code}, type=${c.component_type}): no statutory_reporting_bindings row and no parameters.reports_to='none' opt-out. Voluntary/employer/top-up components MUST declare where they surface in returns.`,
+          );
+          continue;
+        }
+        for (const b of boundRows) {
+          const tpl = returnTplByCode.get(b.return_template_code);
+          if (!tpl) continue; // template lives in another pack — cross-pack refs OK
+          const cols = Array.isArray(tpl.body?.columns) ? tpl.body.columns : [];
+          const expectedSource = `sum_rule.${c.rule_code}.${b.side}`;
+          const hasColumn = cols.some(
+            (col: any) => col?.key === b.column_key && String(col?.source ?? "") === expectedSource,
+          );
+          if (!hasColumn) {
+            errors.push(
+              `Return template ${b.return_template_code}: statutory_reporting_bindings row for component ${c.code} expects column key='${b.column_key}' with source='${expectedSource}', but the template body has no such column. Regenerate the template body from bindings.`,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      warnings.push(`Statutory scheme binding lint skipped: ${(e as any)?.message ?? e}`);
+    }
+
 
     return ok({ errors, warnings, summary: {
       rules: rules?.length ?? 0,
@@ -349,6 +415,7 @@ Deno.serve(async (req) => {
       account_roles: accountRoles?.length ?? 0,
       bank_exports: bankExportTpls?.length ?? 0,
     } });
+
   } catch (e) {
     return ok({ errors: [String((e as any)?.message ?? e)], warnings: [] }, 500);
   }

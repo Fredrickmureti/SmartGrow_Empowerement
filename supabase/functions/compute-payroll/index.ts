@@ -1719,6 +1719,52 @@ Deno.serve(async (req) => {
       return { housingExempt: Math.min(empHousingAllowance, housingCap) };
     }
 
+    // ─── Statutory scheme components lookup (Phase: Statutory Scheme model) ───
+    // Load all active scheme components for the countries in this run and
+    // build a Map keyed by `${country}:${rule_code}:${party}` → component id.
+    // Stamped onto payslip_lines.scheme_component_id at emit time so return
+    // generators can aggregate by component (structural) rather than by
+    // rule_code string convention. Country-agnostic — packs for KE, UG, TZ,
+    // NG, etc. all populate the same tables and get the same behaviour.
+    const schemeComponentByKey = new Map<string, string>();
+    try {
+      const { data: schemeComponents } = await supabaseAdmin
+        .from("statutory_scheme_components")
+        .select("id, rule_code, party, is_active, statutory_schemes!inner(country_code, is_active)")
+        .eq("is_active", true)
+        .in("statutory_schemes.country_code", Array.from(countriesInRun));
+      for (const c of (schemeComponents || []) as any[]) {
+        const cc = String(c.statutory_schemes?.country_code || "").toUpperCase();
+        if (!cc) continue;
+        schemeComponentByKey.set(`${cc}:${c.rule_code}:${c.party}`, c.id);
+      }
+    } catch (e) {
+      console.warn("[compute-payroll] statutory_scheme_components load failed (non-fatal):", (e as Error).message);
+    }
+    const resolveSchemeComponentId = (
+      countryCode: string | null | undefined,
+      ruleCode: string | null | undefined,
+      employeeAmount: number,
+      employerAmount: number,
+    ): string | null => {
+      if (!countryCode || !ruleCode) return null;
+      const cc = String(countryCode).toUpperCase();
+      // Prefer employee party when employee_amount > 0, else employer.
+      // If both are non-zero (rare), employee wins — the deduction line is
+      // the primary regulator surface; the employer contribution has its
+      // own separate line via the employer emitter.
+      if (employeeAmount > 0) {
+        const hit = schemeComponentByKey.get(`${cc}:${ruleCode}:employee`);
+        if (hit) return hit;
+      }
+      if (employerAmount > 0) {
+        const hit = schemeComponentByKey.get(`${cc}:${ruleCode}:employer`);
+        if (hit) return hit;
+      }
+      return null;
+    };
+
+
     // Legacy alias for the single-country fast path. When the caller
     // passed a top-level `country_code`, this points at that slice.
     const statutoryRules: PayrollRule[] = country_code
@@ -3528,6 +3574,15 @@ Deno.serve(async (req) => {
       ) => {
         if (!employee_amount && !employer_amount) return;
         const finalSource = input_ref ? withInputRef(source, input_ref) : source;
+        // Statutory Scheme model: structural stamp for return generators,
+        // GL, dashboards. NULL for non-statutory lines (earnings, loans,
+        // garnishments, reimbursements) — they aren't part of any scheme.
+        const scheme_component_id = resolveSchemeComponentId(
+          empCountry,
+          rule_code,
+          Number(employee_amount) || 0,
+          Number(employer_amount) || 0,
+        );
         lineRows.push({
           rule_code,
           rule_type,
@@ -3540,8 +3595,10 @@ Deno.serve(async (req) => {
           source: finalSource,
           statutory_rule_id,
           accounting_tag,
+          scheme_component_id,
         });
       };
+
 
       // Earnings
       if (basicSalary > 0) pushLine("basic", "earning", "Basic Salary", basicSalary, 0, true, "earning", null, null, { kind: "contract", code: "basic", component: "basic", contract_id: (emp as any).active_contract_id ?? null, label: "Employment contract — basic" }, earnTag["basic"] ?? null);
