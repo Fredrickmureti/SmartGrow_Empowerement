@@ -196,13 +196,23 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
       return;
     }
     try {
-      await convertToPo.mutateAsync({
-        id: rec.id,
-        vendorId: resolvedVendorId,
-        qty: poQty ? Number(poQty) : null,
-        notes: poNotes || null,
-      });
-      toast.success("Draft purchase order created");
+      if (poTargetId && poTargetId !== "__new__") {
+        await attachToPo.mutateAsync({
+          id: rec.id,
+          poId: poTargetId,
+          qty: poQty ? Number(poQty) : null,
+          notes: poNotes || null,
+        });
+        toast.success("Recommendation attached to existing draft PO");
+      } else {
+        await convertToPo.mutateAsync({
+          id: rec.id,
+          vendorId: resolvedVendorId,
+          qty: poQty ? Number(poQty) : null,
+          notes: poNotes || null,
+        });
+        toast.success("Draft purchase order created");
+      }
       onClose();
     } catch (e) {
       toast.error(err(e));
