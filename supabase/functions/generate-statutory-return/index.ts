@@ -492,6 +492,7 @@ Deno.serve(async (req) => {
       const sums = Array.from(sumsByEmp.values()).reduce((a, s) => {
         a.employee += s.employee;
         a.employer += s.employer;
+        a.gross += s.gross;
         a.taxable += s.taxable;
         a.basic += s.basic;
         a.allowances += s.allowances;
