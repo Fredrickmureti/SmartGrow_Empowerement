@@ -259,10 +259,36 @@ export default function ReplenishmentLog() {
               </Select>
             </div>
 
+            {selected.size > 0 && (
+              <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <span className="font-medium">{selected.size} selected</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={selected.size < 2 || mergeRecs.isPending}
+                  onClick={async () => {
+                    try {
+                      await mergeRecs.mutateAsync(Array.from(selected));
+                      toast.success(`Merged ${selected.size} recommendations`);
+                      setSelected(new Set());
+                    } catch (e) {
+                      toast.error(`Merge failed: ${normalizeError(e).message}`);
+                    }
+                  }}
+                >
+                  <GitMerge className="h-4 w-4 mr-1" /> Merge (same product + vendor)
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                  Clear
+                </Button>
+              </div>
+            )}
+
             <div className="table-container rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8"></TableHead>
                     <TableHead>Urgency</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Branch</TableHead>
@@ -273,19 +299,19 @@ export default function ReplenishmentLog() {
                     <TableHead className="text-right">Suggested</TableHead>
                     <TableHead>Vendor</TableHead>
                     <TableHead>Needed by</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {recsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center py-8">
+                      <TableCell colSpan={12} className="text-center py-8">
                         Loading…
                       </TableCell>
                     </TableRow>
                   ) : filteredRecs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center py-10 text-muted-foreground">
+                      <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">
                         <div className="flex flex-col items-center gap-2">
                           <Package className="h-8 w-8" />
                           <span>No open recommendations.</span>
@@ -298,18 +324,29 @@ export default function ReplenishmentLog() {
                   ) : (
                     filteredRecs.map((r) => {
                       const available = Math.max(0, Number(r.on_hand) - Number(r.reserved));
+                      const effective = Number((r as any).edited_qty ?? r.suggested_qty);
                       return (
-                        <TableRow key={r.id}>
+                        <TableRow
+                          key={r.id}
+                          className="cursor-pointer hover:bg-muted/40"
+                          onClick={() => setDrawerRec(r)}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selected.has(r.id)}
+                              onCheckedChange={(v) => {
+                                setSelected((prev) => {
+                                  const next = new Set(prev);
+                                  if (v) next.add(r.id);
+                                  else next.delete(r.id);
+                                  return next;
+                                });
+                              }}
+                            />
+                          </TableCell>
                           <TableCell>{urgencyBadge(r.urgency)}</TableCell>
                           <TableCell className="font-medium">
-                            <button
-                              className="text-primary hover:underline text-left"
-                              onClick={() =>
-                                navigate(`/inventory-app/products?selected=${r.product_id}`)
-                              }
-                            >
-                              {r.product?.name || "—"}
-                            </button>
+                            {r.product?.name || "—"}
                             {r.product?.sku && (
                               <span className="text-xs text-muted-foreground ml-1">
                                 ({r.product.sku})
@@ -326,43 +363,19 @@ export default function ReplenishmentLog() {
                             {coverLabel(available, Number(r.velocity_per_week))}
                           </TableCell>
                           <TableCell className="text-right font-semibold">
-                            {Number(r.suggested_qty)}
+                            {effective}
+                            {(r as any).edited_qty != null && (
+                              <span className="ml-1 text-[10px] text-amber-600" title="Overridden">*</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-sm">{r.vendor?.name ?? "—"}</TableCell>
                           <TableCell className="text-sm">
                             {r.needed_by ? format(new Date(r.needed_by), "MMM d") : "—"}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setWhy(r)}
-                                title="Why this recommendation?"
-                              >
-                                <Info className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() =>
-                                  setStatus.mutate({ id: r.id, status: "snoozed" })
-                                }
-                                title="Snooze"
-                              >
-                                <Clock className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() =>
-                                  setStatus.mutate({ id: r.id, status: "dismissed" })
-                                }
-                                title="Dismiss"
-                              >
-                                <Ban className="h-4 w-4" />
-                              </Button>
-                            </div>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {(r as any).status ?? "open"}
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       );
@@ -372,6 +385,7 @@ export default function ReplenishmentLog() {
               </Table>
             </div>
           </TabsContent>
+
 
           <TabsContent value="runs" className="space-y-4">
             <div className="table-container rounded-md border">
