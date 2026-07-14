@@ -612,9 +612,11 @@ export default function ReplenishmentLog() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8" aria-label="Expand" />
                     <TableHead>Started</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Duration</TableHead>
                     <TableHead className="text-right">Recs</TableHead>
                     <TableHead className="text-right">Stock-outs</TableHead>
                     <TableHead className="text-right">Critical</TableHead>
@@ -624,34 +626,131 @@ export default function ReplenishmentLog() {
                 <TableBody>
                   {runs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         No planning runs yet.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    runs.map((run) => (
-                      <TableRow key={run.id}>
-                        <TableCell className="text-sm">
-                          {format(new Date(run.started_at), "MMM d, yyyy HH:mm")}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{run.run_type}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {run.status === "failed" ? (
-                            <Badge variant="destructive">Failed</Badge>
-                          ) : run.status === "completed" ? (
-                            <Badge variant="default">Completed</Badge>
-                          ) : (
-                            <Badge variant="secondary">Running</Badge>
+                    runs.map((run) => {
+                      const isExpanded = expandedRunId === run.id;
+                      const durationMs =
+                        run.completed_at && run.started_at
+                          ? new Date(run.completed_at).getTime() -
+                            new Date(run.started_at).getTime()
+                          : null;
+                      const duration =
+                        durationMs === null
+                          ? "—"
+                          : durationMs < 1000
+                            ? `${durationMs} ms`
+                            : `${(durationMs / 1000).toFixed(1)} s`;
+                      return (
+                        <>
+                          <TableRow
+                            key={run.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-expanded={isExpanded}
+                            aria-label={`Planning run started ${format(new Date(run.started_at), "PPpp")}`}
+                            className="cursor-pointer hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setExpandedRunId(isExpanded ? null : run.id);
+                              }
+                            }}
+                          >
+                            <TableCell className="text-muted-foreground">
+                              {isExpanded ? "▾" : "▸"}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {format(new Date(run.started_at), "MMM d, yyyy HH:mm")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{run.run_type}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {run.status === "failed" ? (
+                                <Badge variant="destructive">Failed</Badge>
+                              ) : run.status === "completed" ? (
+                                <Badge variant="default">Completed</Badge>
+                              ) : (
+                                <Badge variant="secondary">
+                                  <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                  Running
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right text-sm text-muted-foreground">
+                              {duration}
+                            </TableCell>
+                            <TableCell className="text-right">{run.recommendations_created}</TableCell>
+                            <TableCell className="text-right">{run.stockouts}</TableCell>
+                            <TableCell className="text-right">{run.critical}</TableCell>
+                            <TableCell className="text-right">{run.low}</TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow key={`${run.id}-detail`}>
+                              <TableCell colSpan={9} className="bg-muted/30">
+                                <div className="space-y-2 py-2 px-1 text-sm">
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Started
+                                      </div>
+                                      <div>
+                                        {format(new Date(run.started_at), "PPpp")}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Completed
+                                      </div>
+                                      <div>
+                                        {run.completed_at
+                                          ? format(new Date(run.completed_at), "PPpp")
+                                          : "—"}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Duration
+                                      </div>
+                                      <div>{duration}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Run ID
+                                      </div>
+                                      <div className="font-mono text-xs">
+                                        {run.id.slice(0, 8)}…
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {run.error_message && (
+                                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+                                      <div className="font-semibold mb-1">
+                                        Error
+                                      </div>
+                                      <pre className="whitespace-pre-wrap font-mono">
+                                        {run.error_message}
+                                      </pre>
+                                    </div>
+                                  )}
+                                  {run.status === "running" && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Planning still in progress — the workspace
+                                      updates automatically via realtime.
+                                    </p>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
                           )}
-                        </TableCell>
-                        <TableCell className="text-right">{run.recommendations_created}</TableCell>
-                        <TableCell className="text-right">{run.stockouts}</TableCell>
-                        <TableCell className="text-right">{run.critical}</TableCell>
-                        <TableCell className="text-right">{run.low}</TableCell>
-                      </TableRow>
-                    ))
+                        </>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
