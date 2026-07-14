@@ -82,13 +82,14 @@ export default function ReplenishmentLog() {
     runs,
     isLoading: recsLoading,
     runPlanning,
-    setStatus,
+    mergeRecs,
   } = useProcurementRecommendations();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | RecUrgency>("all");
-  const [why, setWhy] = useState<ProcurementRecommendation | null>(null);
+  const [drawerRec, setDrawerRec] = useState<ProcurementRecommendation | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const isTriggering = runPlanning.isPending;
 
