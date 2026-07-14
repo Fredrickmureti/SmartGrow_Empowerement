@@ -220,37 +220,6 @@ export default function ReplenishmentLog() {
   );
   const mergeError = useMemo(() => mergeBlockingReason(selectedRecs), [selectedRecs]);
 
-  const filteredLogs = logs.filter((log) => {
-    const q = logSearch.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      log.product?.name?.toLowerCase().includes(q) ||
-      log.purchase_order?.po_number?.toLowerCase().includes(q);
-    const matchesStatus = logStatus === "all" || log.status === logStatus;
-    return matchesSearch && matchesStatus;
-  });
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "po_created":
-        return (
-          <Badge variant="default">
-            <CheckCircle2 className="h-3 w-3 mr-1" /> PO Created
-          </Badge>
-        );
-      case "pending":
-        return <Badge variant="secondary">Pending</Badge>;
-      case "failed":
-        return (
-          <Badge variant="destructive">
-            <AlertTriangle className="h-3 w-3 mr-1" /> Failed
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
   const toggleSelected = (id: string, on: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
