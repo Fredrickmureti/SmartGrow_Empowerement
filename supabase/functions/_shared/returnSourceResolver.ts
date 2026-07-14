@@ -31,6 +31,7 @@ export interface SourceContext {
   sums: {
     employee: number;            // sum of payslip_lines.employee_amount across filters.rule_codes
     employer: number;            // sum of payslip_lines.employer_amount across filters.rule_codes
+    gross: number;               // sum of payslips.gross_pay (true gross earnings)
     taxable: number;             // sum of payslips.taxable_income (fallback gross_pay)
     basic: number;               // sum of payslips.basic_salary
     allowances: number;          // sum of payslips.other_earnings
