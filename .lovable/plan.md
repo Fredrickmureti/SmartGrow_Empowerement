@@ -1,109 +1,74 @@
-## Verification of prior state
+## Business event
 
-I audited the prior agent's exit claim and confirm the following on disk:
+The Product Detail sheet is a **peek** — the operator's business event is "I need context about this product to decide the next action (replenish, adjust, transfer, edit price)." Peeks must open instantly with a cheap headline and defer heavy analytics. Judged against that yardstick, three separate problems are stacked in the current implementation, only one of which the user surfaced.
 
-- **Phase 0–6** substrate present (`src/apps/platform-admin/`, `eslint-rules/no-dialog-crud-in-admin.js`, four-pattern primitives consumed by all migrated admin pages).
-- **Prior `.lovable/plan.md` items 1–4** are shipped: `OrganizationPeekSheet.tsx`, `AdminAppCatalogEditPage.tsx`, `FeaturePeekSheet.tsx`, and the email-templates `?templatePreview=` peek all exist and are wired in.
-- **Phase 7.1** is shipped exactly as claimed: `src/apps/platform-admin/nav.ts` exports `PLATFORM_ADMIN_NAV: AdminWorkspaceNav`, and `PlatformAdminAppLayout` threads a `nav` prop through `AdminDashboardLayout` → `AdminSidebar` / `AdminSidebarBody` / `AdminTopBar`, mirroring `PlatformShell(app, nav, children)`.
-- Remaining `platform-admin.md` slices: **Phase 7.2** (visual shell alignment) and **Phase 7.3** (page-group opt-in). This plan covers 7.2 only, so the shell change is landed and validated on one page-group before we begin the app-wide opt-in in 7.3.
+## What I found
 
-## Goal (Phase 7.2)
+### 1. Mobile paint glitches ("CD-ROM lines") — root cause is a real DOM bug, not styling
 
-Admin pages currently render inside `AdminDashboardLayout`. Tenant apps render inside `PlatformShell`. The two are structurally close but not identical — sidebar, topbar, mobile Sheet, spacing tokens and behavior all diverge in small ways. The brief's core criterion ("admin must feel like part of the same ERP") requires that admin adopt the same visual shell primitive tenant apps use — minus the pieces that don't apply to a persona (AppRail, install gate, subscription/access gate, active-business requirement).
+Console proves it (already in this session's logs):
 
-Extract that shared body so both shells consume it, then route `PlatformAdminAppLayout` through it. No admin page code changes in this phase; the seam is the existing `nav` prop plumbed in 7.1.
-
-## Approach
-
-### 1. Extract `WorkspaceShellFrame` from `PlatformShell`
-
-New file: `src/components/layout/shell/WorkspaceShellFrame.tsx`.
-
-Owns the pure layout body currently inside `PlatformShellBody`:
-
-- outer `flex min-h-screen w-full bg-background` container
-- desktop sidebar slot
-- mobile nav `Sheet`
-- topbar slot
-- main content area with `max-w-6xl` cap, padding, and `useFullWidthRequested()` override
-- banner slots (subscription/trial) as optional children so admin can pass none
-
-Props:
-
-```ts
-interface WorkspaceShellFrameProps {
-  sidebar: ReactNode;              // desktop sidebar
-  mobileSidebar: ReactNode;        // rendered inside Sheet
-  topBar: ReactNode;
-  banners?: ReactNode;             // above <main>, optional
-  children: ReactNode;
-  fullWidth?: boolean;
-  noPadding?: boolean;
-  mobileNavOpen: boolean;
-  onMobileNavOpenChange: (v: boolean) => void;
-}
+```
+Warning: validateDOMNesting(...): <div> cannot appear as a descendant of <p>.
+  at Badge → at p (SheetDescription) → at SheetHeader → at ProductDetailPanel
 ```
 
-The frame is presentation-only — no data hooks, no gates. That keeps admin (persona) and tenant (app) sharing the exact same chrome while each keeps its own gating in its wrapper.
+`ProductDetailPanel.tsx` (L177–193) renders 3–8 `<Badge>` (a `<div>`) inside `<SheetDescription>` (a `<p>`). Browsers auto-close the `<p>` at the first block child, so React's virtual tree and the browser's real tree diverge. Every re-render (loading→loaded, data updates, tab switches, resize) triggers hydration/reconciliation against the wrong parent — on mobile Safari/Chromium this produces exactly the horizontal-tear/scanline artifact the user described, because the browser is re-painting an element whose parent it silently reparented.
 
-### 2. Refactor `PlatformShell` to use the frame
+This is a functional HTML validity bug, not a design choice. Fixing it removes the glitch on every mobile device, not just this one.
 
-`PlatformShellBody` becomes a thin composition:
+### 2. Perceived 4-second load — the data hook is sequential, not composed
 
-- keeps all existing hooks (`useSession`, `useAppNavigation`, `useInstalledApps`, `useWorkspaceContextReady`, `useRequireActiveBusiness`) exactly where they are
-- keeps the not-installed / no-access early returns unchanged
-- renders `<WorkspaceShellFrame sidebar={<WorkspaceSidebar/>} mobileSidebar={<MobileAppSwitcher/> + <SidebarBody/>} topBar={<WorkspaceTopBar/>} banners={<SubscriptionStatusBanner/><SubscriptionReadOnlyBanner/><AppTrialBanner/>}>`
+`useProductDetailData` (`src/hooks/inventory/useProductDetailData.ts`) runs **nine Supabase round-trips serially** inside one `queryFn`: product → warehouse_stock → lots → packaging → identifiers → reorder rules → recent movements → open POs → 28-day velocity. Each `await` blocks the next. On a 150 ms RTT that is 1.3 s minimum before any tab can render; on flaky mobile it becomes 3–5 s — matching the reported delay.
 
-Zero behavior change for tenant apps. Verified by build + a Playwright pass on one tenant app route (`/sales`).
+Only three of these queries feed the header + intelligence strip that shows first (product, warehouse_stock, packaging). The other six feed tabs the user hasn't clicked yet.
 
-### 3. Rebuild `PlatformAdminAppLayout` on the frame
+### 3. Design-system drift — the peek does NOT use the shared primitive
 
-Replace the current `AdminDashboardLayout` delegation with a direct composition of `WorkspaceShellFrame`, wired to the admin sidebar/topbar primitives already refactored to take a `nav` prop in 7.1:
+The inventory audit doc (`docs/design-system/audit/inventory.md`) claims the Product peek is "Done" on `PeekScaffold`. It is not — `ProductDetailPanel` uses the raw `<Sheet>` from `components/ui/sheet` directly. Compare to how it *should* look: `AdjustmentPeekSheet`, `AssetPeekSheet`, `JournalEntryPeekSheet`, `SalesPeekScaffold` all compose the design-system primitive. The Product peek is the last inventory record surface still living outside the system, which is why its header/footer contract, sizing, and mobile behavior all differ from every other peek in the ERP.
 
-```tsx
-<CountryWorkspaceProvider>
-  <WorkspaceShellFrame
-    sidebar={<AdminSidebar nav={nav} />}
-    mobileSidebar={<AdminSidebarBody nav={nav} onNavigate={closeMobileNav} />}
-    topBar={<AdminTopBar nav={nav} onOpenMobileNav={openMobileNav} />}
-    mobileNavOpen={mobileNavOpen}
-    onMobileNavOpenChange={setMobileNavOpen}
-  >
-    {children}
-  </WorkspaceShellFrame>
-</CountryWorkspaceProvider>
-```
+### Bonus finding surfaced by the same investigation
 
-No banners for admin (persona has no subscription/trial concept). No `AppLayoutProvider` for admin unless a downstream primitive requires it — audit this by grepping `useFullWidthRequested` / `useRequestFullWidth` inside `src/pages/admin/**` and `src/components/admin/**`. If any admin page already uses it, wrap admin in `AppLayoutProvider appId="platform-admin"` to keep the same seam.
+Fixed and Adjustment peeks pass their badge cluster through `PeekScaffold`'s dedicated `badges` slot (rendered outside the `<p>`), so they don't have the DOM-nesting bug. Every peek that hand-rolls a `<Sheet>` is a candidate for the same class of issue. The correct fix is not "wrap badges in a span" — it is to stop hand-rolling the sheet.
 
-### 4. Deprecate `AdminDashboardLayout`
+## Plan (three layers, one PR)
 
-- Convert `src/components/admin/AdminDashboardLayout.tsx` into a thin backward-compat wrapper that re-exports `PlatformAdminAppLayout` under the old name, with a JSDoc `@deprecated` pointing to `PlatformAdminAppLayout`. The three remaining direct consumers (`AdminProfile.tsx`, `AdminLayoutRoute.tsx`, `AdminInlineMfaSetup.tsx`) keep working with no code change.
-- Route migration off the deprecated name is deferred to Phase 7.3 (per-page-group).
+### Layer A — visual/functional fix (removes the mobile glitch)
 
-### 5. Update the audit doc
+Migrate `ProductDetailPanel` from raw `<Sheet>` to `PeekScaffold` (same primitive already used by Adjustment / Asset / Journal Entry / Sales peeks):
 
-Mark Phase 7.2 as shipped in `docs/design-system/audit/platform-admin.md`. Update Phase 7.3 to reference `WorkspaceShellFrame` as the target primitive and confirm the opt-in sequence: Organizations & Users → Plans/Apps/Features → Localization → Email/Demo/Team/Groups → Settings/Infra/Audit.
+- Move title, SKU, and type into `PeekScaffold`'s `title` / `subtitle` slots (plain text — no block children).
+- Move all badges (Inactive, Out of stock, Low stock, Negative, Lot-tracked, Expiry, Multi-UoM) into the scaffold's `badges` slot, which renders them in a sibling `<div>`, not inside the description `<p>`.
+- Move Edit / Delete into `headerActions`; keep the deep-link action row (Adjust, Transfer, Replenish, Forecast, Movements) in the body as a `FooterActionBar` at `anchor="sheet"` so it sticks on mobile instead of scrolling away.
+- Delete the outer `overflow-y-auto` — the scaffold owns the scroll container, so nested scrollers (a documented source of iOS paint tearing) disappear.
 
-## Verification
+### Layer B — performance fix (kills the 4-second perceived load)
 
-- `bun run build:dev` clean.
-- `bun run lint` clean, including `no-dialog-crud-in-admin`.
-- Playwright smoke: (a) tenant app `/sales` renders identically (visual diff against pre-change screenshot), (b) admin `/admin-management` renders inside the new shared frame with the sidebar, topbar, mobile Sheet, and content max-width visually consistent with tenant apps.
-- Grep confirms no admin page imports `AdminDashboardLayout` directly except the three known consumers; each still mounts because the deprecated name re-exports the new layout.
+Rework `useProductDetailData` from serial to a two-phase composed fetch:
 
-## Non-goals (this plan)
+- **Phase 1 — critical path, `Promise.all`**: product + warehouse_stock + packaging. This is everything the header, badges, and intelligence strip need. Target ≤300 ms on a warm cache, ≤1 s cold.
+- **Phase 2 — deferred, `Promise.all`**: identifiers, reorder rules, lots, recent movements, open POs, velocity. Fired via a second `useQuery` keyed the same way, `enabled` only after phase 1 resolves, with `placeholderData` so tabs render with skeletons instead of blocking the peek open.
+- Keep the existing 30 s `staleTime` and cache key shape so nothing downstream (invalidations, subscribers) breaks.
 
-- No changes to any tenant module or its shell behavior.
-- No admin page code changes — the seam is the `nav` prop plumbed in 7.1 plus the frame swap in the layout wrapper.
-- Phase 7.3 (page-group opt-in and retiring the deprecated `AdminDashboardLayout` name) is a follow-up plan, sliced per the sequence in the audit doc.
-- No schema, RLS, or edge-function changes.
+Expected result: sheet paints headline + tiles in one frame; tabs light up as their slice arrives.
 
-## Deliverables
+### Layer C — consistency + regression guard
 
-- New: `src/components/layout/shell/WorkspaceShellFrame.tsx`.
-- Edits: `PlatformShell.tsx` (recompose on frame), `PlatformAdminAppLayout.tsx` (compose on frame directly), `AdminDashboardLayout.tsx` (thin deprecated re-export), `docs/design-system/audit/platform-admin.md` (mark 7.2 shipped, update 7.3 target).
+- Update `docs/design-system/audit/inventory.md` to describe the peek as actually shipped on `PeekScaffold` (the row currently misrepresents reality).
+- Extend `src/test/architecture/inventory-record-dialog-ban.test.ts` to also fail if any file under `src/components/products/**` imports `Sheet` from `@/components/ui/sheet` — that closes the door on future drift.
+- Grep the other inventory peeks for the same `<Badge>`-inside-`<SheetDescription>` pattern; if any exist, fix them in the same pass so we don't ship a partial cure.
 
-## Follow-up (separate plan)
+## Explicitly NOT in this PR
 
-Phase 7.3 — page-group opt-in. Migrate `/admin-management/*` off the deprecated `AdminDashboardLayout` name onto `PlatformAdminAppLayout` in the sequence above, retire `AdminDashboardLayout.tsx` at the end.
+- No changes to the tab bodies (`OverviewTab`, `StockTab`, `MovementsTab`, etc.) — they already consume `data` slices and continue to work with the two-phase hook.
+- No schema/RPC changes. If phase 2 is still slow after parallelization, the next step is a `get_product_detail_bundle(product_id, branch_id)` Postgres function returning one JSON payload — but that's a separate migration and should be validated with real timings first.
+- No visual redesign of tab content — the request was UX quality, not a re-layout.
+
+## Files touched
+
+- `src/components/products/detail/ProductDetailPanel.tsx` — rewrite on `PeekScaffold`
+- `src/hooks/inventory/useProductDetailData.ts` — split into critical + deferred queries
+- `src/test/architecture/inventory-record-dialog-ban.test.ts` — extend guard
+- `docs/design-system/audit/inventory.md` — correct the audit row
+
+Ready to build on approval.
