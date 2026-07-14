@@ -5,7 +5,6 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useApprovalGate } from "@/hooks/useApprovalGate";
-import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Maps a raw RPC error string onto a planner-friendly message. Any SQL
@@ -124,7 +123,6 @@ export function useProcurementRecommendations() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
-  const { user } = useAuth();
   const approvalGate = useApprovalGate();
 
   const organizationId = currentOrg?.id ?? null;
