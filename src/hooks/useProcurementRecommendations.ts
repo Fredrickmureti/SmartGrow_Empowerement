@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -140,7 +141,7 @@ export function useProcurementRecommendations() {
         .in("status", OPEN_STATUSES)
         .order("urgency", { ascending: true })
         .order("created_at", { ascending: false })
-        .limit(500);
+        .limit(2000);
       if (branchId) q = q.eq("branch_id", branchId);
       const { data, error } = await q;
       if (error) throw error;
@@ -162,6 +163,36 @@ export function useProcurementRecommendations() {
       return (data ?? []) as ReplenishmentRun[];
     },
   });
+
+  // Realtime — planners get near-live updates when other users change a
+  // recommendation or when a scheduled run finishes without needing to
+  // refresh. See migration enabling the supabase_realtime publication for
+  // procurement_recommendations + replenishment_runs.
+  useEffect(() => {
+    if (!businessId) return;
+    const channel = supabase
+      .channel(`replenishment-workspace-${businessId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "procurement_recommendations", filter: `business_id=eq.${businessId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ["procurement-recommendations", organizationId, businessId] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "replenishment_runs", filter: `business_id=eq.${businessId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ["replenishment-runs", organizationId, businessId] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc, organizationId, businessId]);
+
+
 
   const runPlanning = useMutation({
     mutationFn: async () => {
@@ -395,3 +426,96 @@ export function useRecommendationEvents(recId: string | null) {
     },
   });
 }
+
+/**
+ * Per-warehouse on-hand for a product — powers the transfer flow's
+ * "recommended source" hint. Returns rows sorted by descending on-hand
+ * (surplus warehouses surface first). Only warehouses in the same
+ * business as the recommendation are returned.
+ */
+export function useWarehouseStockForProduct(
+  productId: string | null | undefined,
+  businessId: string | null | undefined,
+) {
+  return useQuery({
+    queryKey: ["warehouse-stock-for-product", productId, businessId],
+    enabled: !!productId && !!businessId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("warehouse_stock")
+        .select("warehouse_id, quantity, warehouse:warehouses!warehouse_id(id, name, business_id)")
+        .eq("product_id", productId!);
+      if (error) throw error;
+      const rows = ((data ?? []) as Array<{
+        warehouse_id: string;
+        quantity: number;
+        warehouse: { id: string; name: string; business_id: string | null } | null;
+      }>)
+        .filter((r) => r.warehouse?.business_id === businessId)
+        .map((r) => ({
+          warehouseId: r.warehouse_id,
+          warehouseName: r.warehouse?.name ?? "Unknown",
+          onHand: Number(r.quantity) || 0,
+        }))
+        .sort((a, b) => b.onHand - a.onHand);
+      return rows;
+    },
+  });
+}
+
+/**
+ * Renders a single-sentence planner-friendly explanation from a
+ * recommendation's numbers. Deliberately non-technical: no formulas,
+ * no jargon. Falls back to a neutral sentence when velocity is zero.
+ */
+export function narrateRecommendation(rec: ProcurementRecommendation): string {
+  const available = Math.max(0, Number(rec.on_hand) - Number(rec.reserved));
+  const velocityDaily = (Number(rec.velocity_per_week) || 0) / 7;
+  const incoming = Number(rec.incoming) || 0;
+  const suggested = Number(rec.edited_qty ?? rec.suggested_qty) || 0;
+  const lead = Number(rec.lead_time_days) || 0;
+  const daysOfCover = velocityDaily > 0 ? Math.floor((available + incoming) / velocityDaily) : null;
+
+  const parts: string[] = [];
+
+  if (rec.urgency === "stockout") {
+    parts.push("Already out of stock.");
+  } else if (daysOfCover !== null && daysOfCover >= 0) {
+    parts.push(
+      `Will run out in ${daysOfCover} day${daysOfCover === 1 ? "" : "s"} at the current sell-through rate.`,
+    );
+  } else {
+    parts.push("Below safety stock with no measurable sell-through this month.");
+  }
+
+  const velWeekly = Math.round(Number(rec.velocity_per_week) || 0);
+  if (velWeekly > 0) {
+    parts.push(`28-day velocity is ~${velWeekly}/week.`);
+  }
+
+  if (incoming > 0) {
+    parts.push(`${Math.round(incoming)} unit${incoming === 1 ? "" : "s"} already on order.`);
+  } else {
+    parts.push("Nothing is on order today.");
+  }
+
+  if (lead > 0) {
+    parts.push(`Vendor lead time is ${lead} day${lead === 1 ? "" : "s"}.`);
+  }
+
+  if (suggested > 0) {
+    const source =
+      rec.suggested_source === "manufacture"
+        ? "manufacture"
+        : rec.suggested_source === "transfer"
+          ? "transfer in"
+          : "purchase";
+    parts.push(`Suggest ${source} ${Math.round(suggested)} units${
+      rec.needed_by ? ` by ${new Date(rec.needed_by).toLocaleDateString()}` : ""
+    }.`);
+  }
+
+  return parts.join(" ");
+}
+

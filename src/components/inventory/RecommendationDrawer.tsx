@@ -47,6 +47,8 @@ import {
 import {
   useProcurementRecommendations,
   useRecommendationEvents,
+  useWarehouseStockForProduct,
+  narrateRecommendation,
   humanizeRecError,
   type ProcurementRecommendation,
 } from "@/hooks/useProcurementRecommendations";
@@ -80,6 +82,25 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
   const { contacts } = useContacts();
   const { mode: governanceMode, isSolo: soloMode } = useGovernanceMode();
   const { data: events = [] } = useRecommendationEvents(rec?.id ?? null);
+  const { data: warehouseStock = [] } = useWarehouseStockForProduct(
+    rec?.product_id ?? null,
+    rec?.business_id ?? null,
+  );
+  // Map warehouseId → on-hand for annotation & validation in the transfer flow.
+  const stockByWarehouse = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const row of warehouseStock) m.set(row.warehouseId, row.onHand);
+    return m;
+  }, [warehouseStock]);
+  const suggestedSourceId = useMemo(() => {
+    if (!rec) return null;
+    const target = Number(rec.edited_qty ?? rec.suggested_qty) || 0;
+    // Best source = warehouse with ≥ target on-hand and highest surplus; falls
+    // back to the warehouse with the most on-hand.
+    const rows = warehouseStock.filter((r) => r.warehouseId !== rec.warehouse_id);
+    const feasible = rows.filter((r) => r.onHand >= target);
+    return (feasible[0] ?? rows[0])?.warehouseId ?? null;
+  }, [warehouseStock, rec]);
 
   const vendors = useMemo(
     () =>
@@ -376,6 +397,11 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
 
           {/* -------- Overview -------- */}
           <TabsContent value="overview" className="space-y-4 pt-4">
+            {/* Human "why" — one sentence, no formulas. Planner-first. */}
+            <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
+              {narrateRecommendation(rec)}
+            </div>
+
             <div className="grid grid-cols-2 gap-2 text-sm">
               <Field label="On hand" value={rec.on_hand} />
               <Field label="Reserved" value={rec.reserved} />
@@ -589,15 +615,40 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <ArrowRightLeft className="h-4 w-4" /> Create draft warehouse transfer
               </h3>
+              {suggestedSourceId && !xfFrom && (
+                <p className="text-xs text-muted-foreground">
+                  Recommended source:{" "}
+                  <button
+                    type="button"
+                    className="underline text-primary"
+                    onClick={() => {
+                      setXfFrom(suggestedSourceId);
+                      if (!xfTo && rec.warehouse_id) setXfTo(rec.warehouse_id);
+                    }}
+                  >
+                    {warehouses.find((w) => w.id === suggestedSourceId)?.name ?? "Unknown"}
+                  </button>{" "}
+                  ({Math.round(stockByWarehouse.get(suggestedSourceId) ?? 0)} on hand)
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label htmlFor="rec-xf-from" className="text-xs">From warehouse</Label>
                   <Select value={xfFrom} onValueChange={setXfFrom}>
                     <SelectTrigger id="rec-xf-from"><SelectValue placeholder="Source" /></SelectTrigger>
                     <SelectContent>
-                      {warehouses.map((w) => (
-                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                      ))}
+                      {warehouses.map((w) => {
+                        const oh = stockByWarehouse.get(w.id);
+                        const label =
+                          oh !== undefined
+                            ? `${w.name} · ${Math.round(oh)} on hand`
+                            : w.name;
+                        return (
+                          <SelectItem key={w.id} value={w.id}>
+                            {label}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -624,6 +675,18 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                   onChange={(e) => setXfQty(e.target.value)}
                 />
               </div>
+              {(() => {
+                const need = Number(xfQty || effectiveQty) || 0;
+                const src = xfFrom ? stockByWarehouse.get(xfFrom) : undefined;
+                if (xfFrom && src !== undefined && src < need) {
+                  return (
+                    <p className="text-xs text-destructive">
+                      Only {Math.round(src)} on hand at source — short by {Math.round(need - src)}.
+                    </p>
+                  );
+                }
+                return null;
+              })()}
               <Button
                 onClick={handleConvertTransfer}
                 disabled={busy || !!rec.linked_transfer_id}
