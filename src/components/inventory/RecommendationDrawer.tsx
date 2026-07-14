@@ -391,6 +391,28 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
 
         {/* Top-level lifecycle actions — always visible, keyboard-first */}
         {!isTerminal && (
+          <>
+          {hasPendingApproval && (
+            <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldQuestion className="h-4 w-4 text-amber-600" />
+                  <span>
+                    Pending approval — an approver must sign off before this can be
+                    converted to a purchase order.
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleCancelApproval}
+                  disabled={busy}
+                >
+                  Cancel request
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Lifecycle actions">
             <Button
               size="sm"
@@ -416,6 +438,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
               <Ban className="h-4 w-4 mr-1" /> Reject
             </Button>
           </div>
+          </>
         )}
 
         <Tabs defaultValue="overview" className="mt-4">
