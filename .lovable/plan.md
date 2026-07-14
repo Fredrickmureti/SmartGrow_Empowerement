@@ -1,79 +1,121 @@
+## Diagnosis
 
-# Voluntary NSSF — Teaching Run
+You are correct: we should **not create another account**. The localization-pack installer already created the correct statutory liability account, **NSSF Payable**, and mapping voluntary NSSF to that same account is the right accounting treatment.
 
-Goal: show, on your real tenant, exactly where "voluntary NSSF" lives in the payroll architecture, why it does *not* belong in `salary_structures`, and watch every downstream system (payslip line → NSSF return → GL) light up in response to a single tenant-level action.
+The current approval blocker is a system bug, not a user setup problem.
 
-## Part 1 — How salary structures work (mental model)
+### What is happening now
 
-Think of a salary structure as a **recipe** attached to an employment contract.
+The latest payroll run contains two deduction lines for the same KES 2,000 voluntary NSSF enrollment:
+
+1. **Correct line**
+   - `rule_code = custom_nssf_voluntary`
+   - `source = custom_deduction`
+   - includes `deduction_type_id`
+   - includes `gl_liability_account_id = NSSF Payable`
+   - this line is postable and does not need a GL Account Mapping row.
+
+2. **Incorrect duplicate line**
+   - `rule_code = custom_nssf_voluntary_<assignment_id>`
+   - no `source = custom_deduction`
+   - no `deduction_type_id`
+   - no GL account stamped on it
+   - the run-level validator treats it like a statutory/default payroll rule and asks for:
+     - `custom_nssf_voluntary_<assignment_id>_payable`
+     - `custom_nssf_voluntary_payable`
+
+That is why approval says payroll setup is required even though the custom deduction type is already mapped.
+
+## Business rule to preserve
+
+Voluntary NSSF Type 105 is:
+
+- employee-side only
+- remitted to NSSF
+- posted to the existing **NSSF Payable** account
+- configured per employee through `employee_custom_deductions`
+- not a salary-structure rule
+- not a new chart-of-accounts role
+- not a separate statutory-rule setup item
+
+## Implementation plan
+
+### 1. Fix compute-payroll so custom deductions are not emitted twice
+
+Update the custom-deduction computation path so the deduction amount is not left inside the generic `deductionsDetail` bucket that later becomes a second generic payslip line.
+
+Expected result for one voluntary NSSF enrollment:
 
 ```text
-salary_structures            ← the recipe header (Kenya Standard 2026)
-   └── payroll_salary_rules  ← ordered ingredients (basic, house, paye, nssf_tier1…)
-         └── each rule has: code, category, condition, amount formula, optional pack binding
-salary_structure_rule_sets   ← frozen JSON snapshot published for each version
+payslip_lines:
+  nssf_voluntary or custom_nssf_voluntary
+    source.source = custom_deduction
+    source.deduction_type_id = <custom_deduction_type_id>
+    source.assignment_id = <employee_custom_deduction_id>
+    source.gl_liability_account_id = <NSSF Payable account id>
 ```
 
-At payroll time, the engine reads the **snapshot** (not the live rules), walks it in `sequence` order, evaluates each rule's condition, computes its amount, and emits a **payslip line tagged by `code`**. Return templates (NSSF_RET, P10, P9A) then pull those codes back via `sum_rule.<code>.employee` bindings. The snapshot model is why mid-month edits can't rewrite last week's payslip.
-
-**Two amount modes matter:**
-- Engine-computed via a **pack rule** (`statutory_rule_id` set) → PAYE, SHIF, NSSF Tier 1 & 2. The structure just *declares the line exists*; the localization pack owns the math.
-- Structure-computed → fixed, %-of-base, or expression. Used for earnings and non-statutory deductions.
-
-## Part 2 — Why voluntary NSSF is NOT a salary-structure rule
-
-Voluntary NSSF (Type-105) in Kenya is:
-- **Opt-in per employee** (requires a signed check-off form filed with NSSF).
-- **Variable per employee** (KES 2,000 for one, 15,000 for another).
-- **Time-bounded** (employees can stop it; NSSF acknowledges the termination).
-- **Not part of the employment contract's compensation recipe.**
-
-Odoo models this exact category with `hr.contract.salary.attachment` / *Other Input* lines, **not** as a salary rule on every contract. SAP calls them "recurring payments/deductions (IT0014)". The universal pattern: statutory-adjacent, employee-specific, recurring deductions live in an **enrollment table**, and the payroll engine picks them up as inputs — they don't pollute the salary structure.
-
-Our equivalent is already built:
+There should be **no** extra line like:
 
 ```text
-custom_deduction_types            ← tenant catalog (e.g. "NSSF Voluntary")
-   payroll_rule_code = 'nssf_voluntary'   ← binds to Kenya pack's declared rule code
-employee_custom_deductions        ← per-employee enrollment (amount, start, end)
+custom_nssf_voluntary_<assignment_id>
 ```
 
-The engine (`compute-payroll/index.ts`) now emits payslip lines with `rule_code = nssf_voluntary` when a type has that binding set — which is exactly what the NSSF return VOLUNTARY column reads.
+### 2. Make the run-level GL validator custom-deduction aware
 
-Bottom line: **salary structures = the contract's compensation recipe. Voluntary NSSF = an employee-level statutory attachment.** Wrong home would either force every Kenyan employee to carry a zero line or duplicate opt-in logic across contracts.
+Update `payroll_required_gl_mappings_for_run` so it excludes payslip lines where:
 
-## Part 3 — What we'll do and observe
+```text
+source.source = 'custom_deduction'
+```
 
-One tenant: **Joshua Holdings** (`bf392ca6-a743-435c-ae41-5bf25199470d`).
+Those lines are validated by `post-payroll-gl` against `custom_deduction_types.gl_liability_account_id`, not by `default_account_settings`.
 
-1. **Read** the current Kenya payroll setup on this business: active salary structure(s), which employees are on them, and whether any `custom_deduction_types` with `payroll_rule_code = 'nssf_voluntary'` already exists.
-2. **Seed the tenant catalog** — insert (if missing) one `custom_deduction_types` row:
-   - `code = 'nssf_voluntary'`, `name = 'NSSF Voluntary (Type 105)'`
-   - `payroll_rule_code = 'nssf_voluntary'` (this is the binding to the Kenya pack)
-   - GL role: `tier3_payable` via the pack's account mapping
-   - `deduction_type = 'fixed'`, taxable = false, pre-tax = false
-3. **Enroll one employee** — pick the first active Kenyan employee, insert an `employee_custom_deductions` row for KES 2,000/month, starting the current payroll period.
-4. **Run a payroll period** for that employee (dry compute via the existing `compute-payroll` edge function) and read back:
-   - The payslip line with `rule_code = 'nssf_voluntary'` and `amount = 2000` under deductions.
-   - The NSSF return preview (`localization_pack_return_templates` → NSSF_RET) — the VOLUNTARY column now sums to 2000 for this employee.
-   - The journal entry preview — DR net-pay clearing / CR `tier3_payable` for 2000 (routed via the `custom_deduction_types.gl_account_role` binding).
-5. **Toggle behaviour** — set the employee's enrollment `end_date` to a past date and re-run: line disappears, VOLUNTARY column zeroes, GL entry drops. This proves the enrollment table (not the structure) is the single control point.
-6. **Contrast probe (read-only)** — dump the active salary structure's rules and show that adding a `nssf_voluntary` rule there would either (a) require a per-employee override table anyway to hold the amount, or (b) force a zero line on every non-participant. Same conclusion Odoo reached.
+This prevents future custom deductions from being misclassified as statutory/default mapping keys.
 
-All results captured as annotated SQL / edge-function outputs in a short report so you can see the cause → effect chain.
+### 3. Keep GL Account Mapping for statutory/default payroll roles only
 
-## Part 4 — Technical notes
+Do not add these keys to `default_account_settings`:
 
-- No schema changes. The wiring from the previous migration (`custom_deduction_types.payroll_rule_code`, pack token registry entry, engine `emittedCode` derivation) is what makes this experiment possible without touching the engine again.
-- No pack changes. The Kenya pack already declares the `nssf_voluntary` rule code and its NSSF_RET binding; the advisory template row documents the recommended shape.
-- No structure changes. The Kenya salary structure stays clean — no voluntary NSSF rule added, matching Odoo/SAP conventions.
-- If Joshua Holdings has no active Kenyan employee, we stop at step 1 and report; we won't fabricate employees.
-- The payroll run in step 4 uses the existing `compute-payroll` edge function in dry-run mode — no period is finalised, no GL is actually posted.
+```text
+custom_nssf_voluntary_payable
+custom_nssf_voluntary_<assignment_id>_payable
+```
 
-## Deliverable
+They are invalid because they are generated from tenant enrollment data, not from the localization pack’s chart-of-accounts role catalog.
 
-A short walkthrough document with SQL snapshots at each step showing:
-- Before: no voluntary NSSF anywhere.
-- After enrollment: payslip line + NSSF return VOLUNTARY column + GL preview all showing 2,000.
-- After termination: all three revert to zero.
-- Salary structure JSON unchanged throughout — proof the recipe is untouched.
+### 4. Fix the approval/setup message routing
+
+Where the run returns custom-deduction mapping problems, route the user to:
+
+```text
+Payroll → Configuration → Rule Type Definitions / Custom Deduction Types
+```
+
+not:
+
+```text
+Configure statutory rules
+```
+
+The “Configure statutory rules” button is misleading here because voluntary NSSF is being consumed as a custom deduction type bound to a pack rule code, not as a missing statutory rule.
+
+### 5. Recompute the affected draft run after the fix
+
+After implementation, recompute the draft run so stale duplicate payslip lines and stale `GL_MAPPING_MISSING` blocker issues are regenerated cleanly.
+
+Verification should show:
+
+- no `custom_nssf_voluntary_<assignment_id>_payable` missing key
+- no `custom_nssf_voluntary_payable` missing key
+- approval no longer blocked by those custom keys
+- the voluntary NSSF line remains KES 2,000
+- the posting path credits the already-mapped NSSF Payable account
+
+## No schema expansion
+
+No new COA account is needed.
+No new statutory account role is needed.
+No new salary-structure row is needed.
+
+This is a wiring correction: custom deductions must stay on their per-type GL mapping path and must not leak into the generic statutory/default GL mapping validator.

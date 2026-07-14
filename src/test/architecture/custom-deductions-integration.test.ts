@@ -30,6 +30,23 @@ describe("Custom Deductions engine wiring", () => {
     expect(COMPUTE).toMatch(/deduction_type_id:\s*cd\.type_id/);
   });
 
+  it("compute-payroll does not leak custom deductions into generic deduction buckets", () => {
+    const customBlock = COMPUTE.slice(
+      COMPUTE.indexOf("// ─── Turn D: custom deductions"),
+      COMPUTE.indexOf("const empTotalDeductions"),
+    );
+
+    // Custom deductions must be represented only by customDeductionLineMeta so
+    // their per-type GL account can travel in payslip_lines.source. If they are
+    // also pushed into deductionsDetail/contributionsDetail, the generic line
+    // emitter creates a second rule_code like custom_<code>_<assignment_id>, and
+    // the run-level GL validator wrongly asks for default_account_settings rows.
+    expect(customBlock).not.toMatch(/deductionsDetail\s*\[/);
+    expect(customBlock).not.toMatch(/contributionsDetail\s*\[/);
+    expect(customBlock).toMatch(/customEmployeeDeductionTotal/);
+    expect(customBlock).toMatch(/customEmployerContributionTotal/);
+  });
+
   it("compute-payroll bumps cumulative_recovered and auto-completes on cap", () => {
     expect(COMPUTE).toMatch(/cumulative_recovered/);
     expect(COMPUTE).toMatch(/status.*=.*["']completed["']/);
