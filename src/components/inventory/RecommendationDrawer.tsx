@@ -51,6 +51,7 @@ import {
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { useContacts } from "@/hooks/useContacts";
+import { useGovernanceMode } from "@/hooks/governance/useGovernanceMode";
 import { normalizeError } from "@/services/resilience";
 
 interface Props {
