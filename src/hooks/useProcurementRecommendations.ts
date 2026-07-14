@@ -164,6 +164,36 @@ export function useProcurementRecommendations() {
     },
   });
 
+  // Realtime — planners get near-live updates when other users change a
+  // recommendation or when a scheduled run finishes without needing to
+  // refresh. See migration enabling the supabase_realtime publication for
+  // procurement_recommendations + replenishment_runs.
+  useEffect(() => {
+    if (!businessId) return;
+    const channel = supabase
+      .channel(`replenishment-workspace-${businessId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "procurement_recommendations", filter: `business_id=eq.${businessId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ["procurement-recommendations", organizationId, businessId] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "replenishment_runs", filter: `business_id=eq.${businessId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ["replenishment-runs", organizationId, businessId] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc, organizationId, businessId]);
+
+
+
   const runPlanning = useMutation({
     mutationFn: async () => {
       if (!businessId) throw new Error("Select a business first");
