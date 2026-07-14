@@ -24,6 +24,7 @@ const StockReports = lazy(() => import("@/pages/reports/StockReports"));
 const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryValuationReport"));
 const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
 const ReplenishmentLog = lazy(() => import("@/pages/ReplenishmentLog"));
+const AutoPoLog = lazy(() => import("@/pages/inventory/AutoPoLog"));
 const ScrapRecording = lazy(() => import("@/pages/inventory/ScrapRecording"));
 const ScrapNew = lazy(() => import("@/pages/inventory/ScrapNew"));
 const ScrapReasons = lazy(() => import("@/pages/inventory/setup/ScrapReasons"));
@@ -185,6 +186,18 @@ export function InventoryApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Replenishment">
                 <ReplenishmentLog />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Auto-PO log — archival */}
+        <Route
+          path="replenishment/auto-po-log"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Auto-PO Log">
+                <AutoPoLog />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
