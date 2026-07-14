@@ -727,36 +727,24 @@ Deno.serve(async (req) => {
           columnKeyByLabel.set(String(col.label ?? col.key).toLowerCase(), col.key);
           columnKeyByLabel.set(String(col.key).toLowerCase(), col.key);
         }
-        const boundSubmissionColumns = Array.isArray((subFmt as any)?.columns)
-          ? ((subFmt as any).columns as any[])
-              .filter((col) => col?.header && columnKeyByLabel.has(String(col.header).toLowerCase()))
-              .map((col) => ({
-                source: String(col.source ?? ""),
-                columnKey: columnKeyByLabel.get(String(col.header).toLowerCase())!,
-              }))
-          : [];
-        const govRows = employeeIds
-          .map((eid) => {
-            const sums = sumsByEmp.get(eid) ?? emptySums();
-            const byRule = { ...sums.byRule };
-            for (const binding of boundSubmissionColumns) {
-              if (!binding.source.startsWith("sum_rule.")) continue;
-              const sourceParts = binding.source.split(".");
-              const ruleCode = sourceParts[1];
-              const side = sourceParts[2] === "employer" ? "employer" : "employee";
-              const value = Number(sums.byColumn?.[binding.columnKey] ?? 0);
-              byRule[ruleCode] = {
-                ...(byRule[ruleCode] ?? { employee: 0, employer: 0 }),
-                [side]: value,
-              } as any;
+        const renderSubFmt = subFmt && Array.isArray((subFmt as any).columns)
+          ? {
+              ...(subFmt as any),
+              columns: ((subFmt as any).columns as any[]).map((col) => {
+                const key = col?.header ? columnKeyByLabel.get(String(col.header).toLowerCase()) : null;
+                return key && bindingsByColumn.has(key)
+                  ? { ...col, source: `bound_column.${key}` }
+                  : col;
+              }),
             }
-            return {
-              employee: empById.get(eid) ?? {},
-              sums: { ...sums, byRule },
-            };
-          })
+          : subFmt;
+        const govRows = employeeIds
+          .map((eid) => ({
+            employee: empById.get(eid) ?? {},
+            sums: sumsByEmp.get(eid) ?? emptySums(),
+          }))
           .filter((r) => hasReportableAmount(r.sums));
-        const out = await renderGovFile(subFmt ?? { type: "gov_csv", columns: [] }, govRows);
+        const out = await renderGovFile(renderSubFmt ?? { type: "gov_csv", columns: [] }, govRows);
         if (out) {
           const path = `${basePath}.${out.extension}`;
           const upload = await admin.storage
