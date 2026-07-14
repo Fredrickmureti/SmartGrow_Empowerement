@@ -455,7 +455,7 @@ export default function TaxCertificates() {
           ) : null}
 
           <div className="rounded border">
-            <div className="flex items-center justify-between p-3 border-b">
+            <div className="flex flex-col gap-3 p-3 border-b sm:flex-row sm:items-center sm:justify-between">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <Checkbox
                   checked={!!employees.length && selectedEmployees.size === employees.length}
@@ -463,16 +463,21 @@ export default function TaxCertificates() {
                 />
                 {selectedEmployees.size}/{employees.length} employees selected
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button
                   variant="outline"
                   onClick={onGenerateYearEnd}
                   disabled={generate.isPending || blockedReasons.length > 0}
                   title="Bulk regenerate for every active employee in this fiscal year"
+                  className="w-full sm:w-auto"
                 >
                   <RefreshCw className="h-4 w-4 mr-2" /> Year-end batch
                 </Button>
-                <Button onClick={onGenerate} disabled={generate.isPending || blockedReasons.length > 0}>
+                <Button
+                  onClick={onGenerate}
+                  disabled={generate.isPending || blockedReasons.length > 0}
+                  className="w-full sm:w-auto"
+                >
                   {generate.isPending ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
@@ -482,6 +487,7 @@ export default function TaxCertificates() {
                 </Button>
               </div>
             </div>
+
             <div className="max-h-72 overflow-y-auto">
               <Table>
                 <TableBody>
