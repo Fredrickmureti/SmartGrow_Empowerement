@@ -321,6 +321,34 @@ export function useProcurementRecommendations() {
     },
   });
 
+
+  const attachToPo = useMutation({
+    mutationFn: async (args: {
+      id: string;
+      poId: string;
+      qty?: number | null;
+      notes?: string | null;
+    }) => {
+      const { data, error } = await (supabase as any).rpc(
+        "attach_recommendation_to_po",
+        {
+          p_rec_id: args.id,
+          p_po_id: args.poId,
+          p_qty: args.qty ?? null,
+          p_notes: args.notes ?? null,
+        },
+      );
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateRecs(),
+        qc.invalidateQueries({ queryKey: ["purchase-orders"] }),
+      ]);
+    },
+  });
+
   const mergeRecs = useMutation({
     mutationFn: async (ids: string[]) => {
       const { data, error } = await (supabase as any).rpc(
