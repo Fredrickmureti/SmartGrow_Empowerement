@@ -9519,6 +9519,7 @@ export type Database = {
           payroll_rule_code: string | null
           payslip_group: string
           requires_approval: boolean
+          scheme_component_id: string | null
           sort_order: number
           tax_treatment: Database["public"]["Enums"]["custom_deduction_tax_treatment"]
           updated_at: string
@@ -9543,6 +9544,7 @@ export type Database = {
           payroll_rule_code?: string | null
           payslip_group?: string
           requires_approval?: boolean
+          scheme_component_id?: string | null
           sort_order?: number
           tax_treatment?: Database["public"]["Enums"]["custom_deduction_tax_treatment"]
           updated_at?: string
@@ -9567,6 +9569,7 @@ export type Database = {
           payroll_rule_code?: string | null
           payslip_group?: string
           requires_approval?: boolean
+          scheme_component_id?: string | null
           sort_order?: number
           tax_treatment?: Database["public"]["Enums"]["custom_deduction_tax_treatment"]
           updated_at?: string
@@ -9627,6 +9630,13 @@ export type Database = {
             columns: ["gl_liability_account_id"]
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_deduction_types_scheme_component_id_fkey"
+            columns: ["scheme_component_id"]
+            isOneToOne: false
+            referencedRelation: "statutory_scheme_components"
             referencedColumns: ["id"]
           },
         ]
@@ -32371,6 +32381,7 @@ export type Database = {
           rule_type: string | null
           rule_version_hash: string | null
           rule_version_id: string | null
+          scheme_component_id: string | null
           sequence: number
           source: Json | null
           statutory_reference: string | null
@@ -32395,6 +32406,7 @@ export type Database = {
           rule_type?: string | null
           rule_version_hash?: string | null
           rule_version_id?: string | null
+          scheme_component_id?: string | null
           sequence?: number
           source?: Json | null
           statutory_reference?: string | null
@@ -32419,6 +32431,7 @@ export type Database = {
           rule_type?: string | null
           rule_version_hash?: string | null
           rule_version_id?: string | null
+          scheme_component_id?: string | null
           sequence?: number
           source?: Json | null
           statutory_reference?: string | null
@@ -32445,6 +32458,13 @@ export type Database = {
             columns: ["rule_version_id"]
             isOneToOne: false
             referencedRelation: "salary_structure_rule_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslip_lines_scheme_component_id_fkey"
+            columns: ["scheme_component_id"]
+            isOneToOne: false
+            referencedRelation: "statutory_scheme_components"
             referencedColumns: ["id"]
           },
           {
@@ -48716,6 +48736,160 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "statutory_authorities_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "localization_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      statutory_reporting_bindings: {
+        Row: {
+          column_key: string
+          created_at: string
+          id: string
+          notes: string | null
+          return_template_code: string
+          scheme_component_id: string
+          side: Database["public"]["Enums"]["statutory_reporting_side"]
+          updated_at: string
+        }
+        Insert: {
+          column_key: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          return_template_code: string
+          scheme_component_id: string
+          side?: Database["public"]["Enums"]["statutory_reporting_side"]
+          updated_at?: string
+        }
+        Update: {
+          column_key?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          return_template_code?: string
+          scheme_component_id?: string
+          side?: Database["public"]["Enums"]["statutory_reporting_side"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statutory_reporting_bindings_scheme_component_id_fkey"
+            columns: ["scheme_component_id"]
+            isOneToOne: false
+            referencedRelation: "statutory_scheme_components"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      statutory_scheme_components: {
+        Row: {
+          code: string
+          component_type: Database["public"]["Enums"]["statutory_component_type"]
+          created_at: string
+          display_name: string
+          gl_expense_role: string | null
+          gl_liability_role: string | null
+          id: string
+          is_active: boolean
+          parameters: Json
+          party: Database["public"]["Enums"]["statutory_component_party"]
+          rule_code: string
+          scheme_id: string
+          tax_treatment: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          component_type: Database["public"]["Enums"]["statutory_component_type"]
+          created_at?: string
+          display_name: string
+          gl_expense_role?: string | null
+          gl_liability_role?: string | null
+          id?: string
+          is_active?: boolean
+          parameters?: Json
+          party: Database["public"]["Enums"]["statutory_component_party"]
+          rule_code: string
+          scheme_id: string
+          tax_treatment?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          component_type?: Database["public"]["Enums"]["statutory_component_type"]
+          created_at?: string
+          display_name?: string
+          gl_expense_role?: string | null
+          gl_liability_role?: string | null
+          id?: string
+          is_active?: boolean
+          parameters?: Json
+          party?: Database["public"]["Enums"]["statutory_component_party"]
+          rule_code?: string
+          scheme_id?: string
+          tax_treatment?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statutory_scheme_components_scheme_id_fkey"
+            columns: ["scheme_id"]
+            isOneToOne: false
+            referencedRelation: "statutory_schemes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      statutory_schemes: {
+        Row: {
+          authority_id: string | null
+          code: string
+          country_code: string
+          created_at: string
+          description: string | null
+          display_name: string
+          id: string
+          is_active: boolean
+          pack_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          authority_id?: string | null
+          code: string
+          country_code: string
+          created_at?: string
+          description?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean
+          pack_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          authority_id?: string | null
+          code?: string
+          country_code?: string
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          pack_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statutory_schemes_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "statutory_authorities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "statutory_schemes_pack_id_fkey"
             columns: ["pack_id"]
             isOneToOne: false
             referencedRelation: "localization_packs"
@@ -70244,6 +70418,18 @@ export type Database = {
         | "employee"
         | "internal"
       sms_status: "queued" | "sent" | "delivered" | "failed" | "undelivered"
+      statutory_component_party: "employee" | "employer"
+      statutory_component_type:
+        | "mandatory"
+        | "voluntary"
+        | "employer"
+        | "top_up"
+      statutory_reporting_side:
+        | "employee"
+        | "employer"
+        | "total"
+        | "taxable"
+        | "count"
       training_enrollment_status:
         | "enrolled"
         | "in_progress"
@@ -70863,6 +71049,20 @@ export const Constants = {
         "internal",
       ],
       sms_status: ["queued", "sent", "delivered", "failed", "undelivered"],
+      statutory_component_party: ["employee", "employer"],
+      statutory_component_type: [
+        "mandatory",
+        "voluntary",
+        "employer",
+        "top_up",
+      ],
+      statutory_reporting_side: [
+        "employee",
+        "employer",
+        "total",
+        "taxable",
+        "count",
+      ],
       training_enrollment_status: [
         "enrolled",
         "in_progress",
