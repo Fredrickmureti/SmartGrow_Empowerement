@@ -450,75 +450,10 @@ export function ProductDetailPanel({
             </div>
           )}
 
-          {/* Quick actions */}
-          {trackInventory && !isService && (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                asChild
-                onClick={() => onOpenChange(false)}
-              >
-                <Link
-                  to={`/inventory-app/stock?action=adjust&product=${product.id}`}
-                >
-                  <ClipboardList className="h-3.5 w-3.5 mr-1" /> Adjust
-                </Link>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                asChild
-                onClick={() => onOpenChange(false)}
-              >
-                <Link
-                  to={`/inventory-app/transfers?action=new&product=${product.id}`}
-                >
-                  <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Transfer
-                </Link>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                asChild
-                onClick={() => onOpenChange(false)}
-                className={
-                  isLowStock || isOutOfStock
-                    ? "border-warning/40 text-warning"
-                    : ""
-                }
-              >
-                <Link
-                  to={`/purchases-app/purchase-orders?action=new&product=${product.id}`}
-                >
-                  <ShoppingCart className="h-3.5 w-3.5 mr-1" />{" "}
-                  {isLowStock || isOutOfStock ? "Replenish" : "Create PO"}
-                </Link>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                asChild
-                onClick={() => onOpenChange(false)}
-              >
-                <Link to={`/inventory-app/forecast?product=${product.id}`}>
-                  <TrendingUp className="h-3.5 w-3.5 mr-1" /> Forecast
-                </Link>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                asChild
-                onClick={() => onOpenChange(false)}
-              >
-                <Link
-                  to={`/inventory-app/stock?tab=movements&product=${product.id}`}
-                >
-                  <BarChart3 className="h-3.5 w-3.5 mr-1" /> All movements
-                </Link>
-              </Button>
-            </div>
-          )}
+          {/* Quick actions moved to sticky FooterActionBar (anchor="sheet")
+              so they remain reachable on mobile without scrolling. */}
+
+
 
           {/* Tabs */}
           <Tabs defaultValue={tabs[0]?.id ?? "overview"}>
