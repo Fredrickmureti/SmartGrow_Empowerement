@@ -722,12 +722,40 @@ Deno.serve(async (req) => {
     const isGovOutput = govFormat !== null;
     if (subFmt || isGovOutput) {
       try {
+        const columnKeyByLabel = new Map<string, string>();
+        for (const col of columns) {
+          columnKeyByLabel.set(String(col.label ?? col.key).toLowerCase(), col.key);
+          columnKeyByLabel.set(String(col.key).toLowerCase(), col.key);
+        }
+        const boundSubmissionColumns = Array.isArray((subFmt as any)?.columns)
+          ? ((subFmt as any).columns as any[])
+              .filter((col) => col?.header && columnKeyByLabel.has(String(col.header).toLowerCase()))
+              .map((col) => ({
+                source: String(col.source ?? ""),
+                columnKey: columnKeyByLabel.get(String(col.header).toLowerCase())!,
+              }))
+          : [];
         const govRows = employeeIds
-          .map((eid) => ({
-            employee: empById.get(eid) ?? {},
-            sums: sumsByEmp.get(eid) ?? emptySums(),
-          }))
-          .filter((r) => r.sums.employee !== 0 || r.sums.employer !== 0);
+          .map((eid) => {
+            const sums = sumsByEmp.get(eid) ?? emptySums();
+            const byRule = { ...sums.byRule };
+            for (const binding of boundSubmissionColumns) {
+              if (!binding.source.startsWith("sum_rule.")) continue;
+              const sourceParts = binding.source.split(".");
+              const ruleCode = sourceParts[1];
+              const side = sourceParts[2] === "employer" ? "employer" : "employee";
+              const value = Number(sums.byColumn?.[binding.columnKey] ?? 0);
+              byRule[ruleCode] = {
+                ...(byRule[ruleCode] ?? { employee: 0, employer: 0 }),
+                [side]: value,
+              } as any;
+            }
+            return {
+              employee: empById.get(eid) ?? {},
+              sums: { ...sums, byRule },
+            };
+          })
+          .filter((r) => hasReportableAmount(r.sums));
         const out = await renderGovFile(subFmt ?? { type: "gov_csv", columns: [] }, govRows);
         if (out) {
           const path = `${basePath}.${out.extension}`;
