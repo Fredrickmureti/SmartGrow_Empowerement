@@ -400,7 +400,7 @@ Deno.serve(async (req) => {
     //    template, and basic/allowances from the payslip itself.
     const ruleCodeSet = new Set(ruleCodes);
     const emptySums = (): SourceContext["sums"] => ({
-      employee: 0, employer: 0, taxable: 0, basic: 0, allowances: 0, payslipCount: 0, byRule: {}, byComponent: {}, byColumn: {},
+      employee: 0, employer: 0, gross: 0, taxable: 0, basic: 0, allowances: 0, payslipCount: 0, byRule: {}, byComponent: {}, byColumn: {},
     });
     const sumsByEmp = new Map<string, SourceContext["sums"]>();
     for (const eid of employeeIds) sumsByEmp.set(eid, emptySums());
