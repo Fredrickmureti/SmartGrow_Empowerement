@@ -69,6 +69,7 @@ export function CustomDeductionDialog({ open, onOpenChange, editing }: Props) {
     sort_order: 100,
     requires_approval: false,
     is_active: true,
+    payroll_rule_code: null,
   });
 
   useEffect(() => {
@@ -89,6 +90,7 @@ export function CustomDeductionDialog({ open, onOpenChange, editing }: Props) {
         sort_order: editing.sort_order,
         requires_approval: editing.requires_approval,
         is_active: editing.is_active,
+        payroll_rule_code: editing.payroll_rule_code ?? null,
       });
     }
   }, [editing]);
