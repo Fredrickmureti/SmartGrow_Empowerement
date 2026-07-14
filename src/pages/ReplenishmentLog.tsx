@@ -549,7 +549,7 @@ export default function ReplenishmentLog() {
       </div>
 
       <RecommendationDrawer
-        recommendation={drawerRec}
+        rec={drawerRec}
         open={!!drawerRec}
         onClose={() => setDrawerRec(null)}
       />
