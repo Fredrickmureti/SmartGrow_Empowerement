@@ -31,6 +31,7 @@ export interface SourceContext {
   sums: {
     employee: number;            // sum of payslip_lines.employee_amount across filters.rule_codes
     employer: number;            // sum of payslip_lines.employer_amount across filters.rule_codes
+    gross: number;               // sum of payslips.gross_pay (true gross earnings)
     taxable: number;             // sum of payslips.taxable_income (fallback gross_pay)
     basic: number;               // sum of payslips.basic_salary
     allowances: number;          // sum of payslips.other_earnings
@@ -57,6 +58,7 @@ export const STATIC_SYSTEM_SOURCES = [
   "employee.branch_id",
   "sum_employee_amount",
   "sum_employer_amount",
+  "sum_gross_amount",
   "sum_taxable_amount",
   "sum_basic_pay",
   "sum_allowances",
@@ -69,6 +71,7 @@ export const STATIC_SYSTEM_SOURCES = [
 /** Numeric sources (for total-row validation). */
 export const NUMERIC_SOURCE_PREDICATES: Array<(s: string) => boolean> = [
   (s) => s === "sum_employee_amount" || s === "sum_employer_amount" || s === "sum_taxable_amount",
+  (s) => s === "sum_gross_amount",
   (s) => s === "sum_basic_pay" || s === "sum_allowances" || s === "sum_total_amount" || s === "count_payslips",
   (s) => SUM_RULE.test(s),
   (s) => SUM_TAXABLE_MINUS_RULES.test(s),
@@ -164,6 +167,7 @@ export function readSource(source: string, ctx: SourceContext): unknown {
   switch (source) {
     case "sum_employee_amount": return round2(ctx.sums.employee);
     case "sum_employer_amount": return round2(ctx.sums.employer);
+    case "sum_gross_amount":    return round2(ctx.sums.gross);
     case "sum_taxable_amount":  return round2(ctx.sums.taxable);
     case "sum_basic_pay":       return round2(ctx.sums.basic);
     case "sum_allowances":      return round2(ctx.sums.allowances);
