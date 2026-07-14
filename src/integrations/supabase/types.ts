@@ -68115,6 +68115,10 @@ export type Database = {
           serial_number: string
         }[]
       }
+      resolve_fiscal_provider: {
+        Args: { p_branch_id: string; p_org_id: string }
+        Returns: string
+      }
       resolve_install_plan: {
         Args: { p_app_id: string; p_org_id: string }
         Returns: Json
