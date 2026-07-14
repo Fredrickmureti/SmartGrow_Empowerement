@@ -161,8 +161,27 @@ export function useProcurementRecommendations() {
     },
   });
 
-  const invalidateRecs = () =>
-    qc.invalidateQueries({ queryKey: ["procurement-recommendations"] });
+  const recsKey = ["procurement-recommendations"] as const;
+  const invalidateRecs = () => qc.invalidateQueries({ queryKey: recsKey });
+
+  /**
+   * Optimistically patch every cached recommendations list. The recs list is
+   * keyed by (org, business, branch) — we mutate every variant so the row
+   * transitions (approve, snooze, dismiss, edit) feel instant regardless of
+   * which branch scope is active.
+   */
+  function patchCachedRec(id: string, patch: Partial<ProcurementRecommendation>) {
+    const snapshots: Array<[readonly unknown[], ProcurementRecommendation[] | undefined]> = [];
+    qc.getQueriesData<ProcurementRecommendation[]>({ queryKey: recsKey }).forEach(([key, data]) => {
+      snapshots.push([key, data]);
+      if (!data) return;
+      qc.setQueryData<ProcurementRecommendation[]>(key, data.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    });
+    return snapshots;
+  }
+  function restoreCachedRecs(snapshots: Array<[readonly unknown[], ProcurementRecommendation[] | undefined]>) {
+    snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
+  }
 
   const setStatus = useMutation({
     mutationFn: async (args: { id: string; status: RecStatus }) => {
@@ -172,7 +191,9 @@ export function useProcurementRecommendations() {
         .eq("id", args.id);
       if (error) throw error;
     },
-    onSuccess: invalidateRecs,
+    onMutate: async (args) => ({ snapshots: patchCachedRec(args.id, { status: args.status }) }),
+    onError: (_e, _a, ctx) => ctx && restoreCachedRecs(ctx.snapshots),
+    onSettled: invalidateRecs,
   });
 
   const snooze = useMutation({
@@ -184,7 +205,11 @@ export function useProcurementRecommendations() {
       });
       if (error) throw error;
     },
-    onSuccess: invalidateRecs,
+    onMutate: async (args) => ({
+      snapshots: patchCachedRec(args.id, { status: "snoozed", snooze_until: args.until.toISOString() }),
+    }),
+    onError: (_e, _a, ctx) => ctx && restoreCachedRecs(ctx.snapshots),
+    onSettled: invalidateRecs,
   });
 
   const assign = useMutation({
@@ -195,7 +220,9 @@ export function useProcurementRecommendations() {
       });
       if (error) throw error;
     },
-    onSuccess: invalidateRecs,
+    onMutate: async (args) => ({ snapshots: patchCachedRec(args.id, { assignee_id: args.assigneeId }) }),
+    onError: (_e, _a, ctx) => ctx && restoreCachedRecs(ctx.snapshots),
+    onSettled: invalidateRecs,
   });
 
   const editQty = useMutation({
@@ -207,7 +234,11 @@ export function useProcurementRecommendations() {
       });
       if (error) throw error;
     },
-    onSuccess: invalidateRecs,
+    onMutate: async (args) => ({
+      snapshots: patchCachedRec(args.id, { edited_qty: args.qty, override_reason: args.reason }),
+    }),
+    onError: (_e, _a, ctx) => ctx && restoreCachedRecs(ctx.snapshots),
+    onSettled: invalidateRecs,
   });
 
   const convertToPo = useMutation({
