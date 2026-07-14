@@ -81,6 +81,12 @@ describe("returnSourceResolver — per-rule sums", () => {
     const ctx = makeCtx();
     expect(readSource("sum_rule.never_seen.employee", ctx)).toBe(0);
   });
+
+  it("reads internally-bound return column values before string-source fallback", () => {
+    const ctx = makeCtx({ byColumn: { voluntary: 2000 } });
+    expect(readSource("bound_column.voluntary", ctx)).toBe(2000);
+    expect(readSource("bound_column.missing", ctx)).toBe("");
+  });
 });
 
 describe("returnSourceResolver — taxable minus pre-tax deductions", () => {
