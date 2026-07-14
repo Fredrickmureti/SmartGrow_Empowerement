@@ -747,7 +747,7 @@ export default function ReplenishmentLog() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </Fragment>
                       );
                     })
                   )}
