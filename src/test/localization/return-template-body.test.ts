@@ -106,6 +106,7 @@ describe("return-template body — schema validation", () => {
     expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("employee.employee_number");
     expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("sum_employee_amount");
     expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("sum_employer_amount");
+    expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("sum_gross_amount");
     expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("sum_taxable_amount");
     expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("sum_total_amount");
     expect(KNOWN_SYSTEM_COLUMN_SOURCES).toContain("count_payslips");
