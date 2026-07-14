@@ -5,7 +5,17 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 
 export type RecUrgency = "stockout" | "critical" | "low" | "planned";
-export type RecStatus = "open" | "snoozed" | "dismissed" | "actioned";
+export type RecStatus =
+  | "open"
+  | "snoozed"
+  | "dismissed"
+  | "actioned"
+  | "in_review"
+  | "approved"
+  | "executing"
+  | "fulfilled"
+  | "cancelled"
+  | "merged";
 
 export interface ProcurementRecommendation {
   id: string;
@@ -28,6 +38,16 @@ export interface ProcurementRecommendation {
   needed_by: string | null;
   explanation: Record<string, number | string | null>;
   status: RecStatus;
+  snooze_until: string | null;
+  assignee_id: string | null;
+  linked_po_id: string | null;
+  linked_transfer_id: string | null;
+  linked_mo_id: string | null;
+  edited_qty: number | null;
+  override_reason: string | null;
+  merged_into_id: string | null;
+  actioned_at: string | null;
+  actioned_by: string | null;
   created_at: string;
   product?: { id: string; name: string; sku: string | null } | null;
   vendor?: { id: string; name: string } | null;
@@ -49,10 +69,23 @@ export interface ReplenishmentRun {
   error_message: string | null;
 }
 
+export interface RecommendationEvent {
+  id: string;
+  recommendation_id: string;
+  event_type: string;
+  from_status: string | null;
+  to_status: string | null;
+  actor_id: string | null;
+  payload: Record<string, unknown>;
+  note: string | null;
+  created_at: string;
+}
+
+const OPEN_STATUSES: RecStatus[] = ["open", "in_review", "approved", "snoozed"];
+
 /**
- * Reads open procurement recommendations for the active business/branch.
- * The `run_replenishment_planning` RPC (session-authenticated) is the
- * only writer; this hook is read-only + status transitions.
+ * Reads recommendations for the active business/branch and exposes the
+ * Phase 1 lifecycle actions (snooze/assign/edit/convert/merge/dismiss).
  */
 export function useProcurementRecommendations() {
   const qc = useQueryClient();
@@ -77,7 +110,7 @@ export function useProcurementRecommendations() {
            branch:branches!branch_id(id,name)`,
         )
         .eq("business_id", businessId)
-        .eq("status", "open")
+        .in("status", OPEN_STATUSES)
         .order("urgency", { ascending: true })
         .order("created_at", { ascending: false })
         .limit(500);
@@ -128,6 +161,9 @@ export function useProcurementRecommendations() {
     },
   });
 
+  const invalidateRecs = () =>
+    qc.invalidateQueries({ queryKey: ["procurement-recommendations"] });
+
   const setStatus = useMutation({
     mutationFn: async (args: { id: string; status: RecStatus }) => {
       const { error } = await (supabase as any)
@@ -136,8 +172,107 @@ export function useProcurementRecommendations() {
         .eq("id", args.id);
       if (error) throw error;
     },
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["procurement-recommendations"] }),
+    onSuccess: invalidateRecs,
+  });
+
+  const snooze = useMutation({
+    mutationFn: async (args: { id: string; until: Date; note?: string }) => {
+      const { error } = await (supabase as any).rpc("snooze_procurement_recommendation", {
+        p_rec_id: args.id,
+        p_snooze_until: args.until.toISOString(),
+        p_note: args.note ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: invalidateRecs,
+  });
+
+  const assign = useMutation({
+    mutationFn: async (args: { id: string; assigneeId: string | null }) => {
+      const { error } = await (supabase as any).rpc("assign_procurement_recommendation", {
+        p_rec_id: args.id,
+        p_assignee: args.assigneeId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: invalidateRecs,
+  });
+
+  const editQty = useMutation({
+    mutationFn: async (args: { id: string; qty: number; reason: string }) => {
+      const { error } = await (supabase as any).rpc("edit_procurement_recommendation_qty", {
+        p_rec_id: args.id,
+        p_qty: args.qty,
+        p_reason: args.reason,
+      });
+      if (error) throw error;
+    },
+    onSuccess: invalidateRecs,
+  });
+
+  const convertToPo = useMutation({
+    mutationFn: async (args: {
+      id: string;
+      vendorId?: string | null;
+      qty?: number | null;
+      notes?: string | null;
+    }) => {
+      const { data, error } = await (supabase as any).rpc("convert_recommendation_to_po", {
+        p_rec_id: args.id,
+        p_vendor_id: args.vendorId ?? null,
+        p_qty: args.qty ?? null,
+        p_notes: args.notes ?? null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateRecs(),
+        qc.invalidateQueries({ queryKey: ["purchase-orders"] }),
+      ]);
+    },
+  });
+
+  const convertToTransfer = useMutation({
+    mutationFn: async (args: {
+      id: string;
+      fromWarehouseId: string;
+      toWarehouseId: string;
+      qty?: number | null;
+      notes?: string | null;
+    }) => {
+      const { data, error } = await (supabase as any).rpc(
+        "convert_recommendation_to_transfer",
+        {
+          p_rec_id: args.id,
+          p_from_warehouse_id: args.fromWarehouseId,
+          p_to_warehouse_id: args.toWarehouseId,
+          p_qty: args.qty ?? null,
+          p_notes: args.notes ?? null,
+        },
+      );
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateRecs(),
+        qc.invalidateQueries({ queryKey: ["stock-transfers"] }),
+      ]);
+    },
+  });
+
+  const mergeRecs = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { data, error } = await (supabase as any).rpc(
+        "merge_procurement_recommendations",
+        { p_ids: ids },
+      );
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: invalidateRecs,
   });
 
   return {
@@ -147,5 +282,29 @@ export function useProcurementRecommendations() {
     error: recsQuery.error || runsQuery.error,
     runPlanning,
     setStatus,
+    snooze,
+    assign,
+    editQty,
+    convertToPo,
+    convertToTransfer,
+    mergeRecs,
   };
+}
+
+/** Audit trail for a single recommendation. */
+export function useRecommendationEvents(recId: string | null) {
+  return useQuery({
+    queryKey: ["procurement-recommendation-events", recId],
+    enabled: !!recId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("procurement_recommendation_events")
+        .select("*")
+        .eq("recommendation_id", recId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return (data ?? []) as RecommendationEvent[];
+    },
+  });
 }
