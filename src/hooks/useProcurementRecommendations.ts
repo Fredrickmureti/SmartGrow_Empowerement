@@ -373,6 +373,7 @@ export function useProcurementRecommendations() {
     editQty,
     convertToPo,
     convertToTransfer,
+    attachToPo,
     mergeRecs,
   };
 }
