@@ -24,6 +24,7 @@ function makeCtx(overrides: Partial<SourceContext["sums"]> = {}): SourceContext 
     sums: {
       employee: 12_500,
       employer: 4_320,
+      gross: 105_000,
       taxable: 100_000,
       basic: 80_000,
       allowances: 20_000,
