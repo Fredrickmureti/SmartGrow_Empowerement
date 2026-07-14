@@ -115,9 +115,13 @@ export default function ReplenishmentLog() {
   const [logStatus, setLogStatus] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | RecUrgency>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | RecStatus>("all");
+  const [vendorFilter, setVendorFilter] = useState<string>("all");
+  const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [assignedToMe, setAssignedToMe] = useState(false);
   const [drawerRec, setDrawerRec] = useState<ProcurementRecommendation | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
   const deferredRecSearch = useDeferredValue(recSearch);
 
