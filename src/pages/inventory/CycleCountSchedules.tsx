@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDeleteDialog } from "@/components/shared/ConfirmDeleteDialog";
-import { DetailSheet, FieldGrid, FooterActionBar } from "@/design-system";
+import { DetailSheet, FieldGrid, FieldCell, FooterActionBar } from "@/design-system";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
