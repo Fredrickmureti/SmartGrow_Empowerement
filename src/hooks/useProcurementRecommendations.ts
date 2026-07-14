@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
+import { useApprovalGate } from "@/hooks/useApprovalGate";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Maps a raw RPC error string onto a planner-friendly message. Any SQL
@@ -52,6 +54,7 @@ export interface ProcurementRecommendation {
   business_id: string | null;
   branch_id: string | null;
   product_id: string;
+  warehouse_id: string | null;
   on_hand: number;
   reserved: number;
   incoming: number;
@@ -71,6 +74,7 @@ export interface ProcurementRecommendation {
   linked_po_id: string | null;
   linked_transfer_id: string | null;
   linked_mo_id: string | null;
+  approval_request_id: string | null;
   edited_qty: number | null;
   override_reason: string | null;
   merged_into_id: string | null;
