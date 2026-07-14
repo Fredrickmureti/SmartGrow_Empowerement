@@ -127,4 +127,23 @@ describe("inventory record dialog ban", () => {
       `Inventory pages must use routes, WizardShell, RecordFormShell, or DetailSheet for record forms — inline record Dialogs are banned. Offenders:\n${leaked.join("\n")}`,
     ).toEqual([]);
   });
+
+  it("Product peek surfaces must compose the shared DetailSheet/PeekScaffold — no raw @/components/ui/sheet imports", () => {
+    const cmd =
+      "find src/components/products -type f -name '*.tsx' 2>/dev/null || true";
+    const files = execSync(cmd, { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean);
+    const RAW_SHEET_IMPORT = /from ["']@\/components\/ui\/sheet["']/;
+    const offenders = files.filter((f) =>
+      RAW_SHEET_IMPORT.test(readFileSync(f, "utf8")),
+    );
+    expect(
+      offenders,
+      `Files under src/components/products/** must not import the raw ` +
+        `Sheet primitive. Use DetailSheet from @/design-system so peeks ` +
+        `share header/footer contract and stay HTML-valid (badges outside ` +
+        `SheetDescription).\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
 });
