@@ -286,6 +286,26 @@ export function CustomDeductionDialog({ open, onOpenChange, editing }: Props) {
               />
             </div>
           </div>
+
+          <div className="border-t pt-3">
+            <Label>Pack rule code (advanced)</Label>
+            <Input
+              value={form.payroll_rule_code ?? ""}
+              onChange={(e) => {
+                const v = e.target.value.toLowerCase().replace(/\s+/g, "_").trim();
+                setForm({ ...form, payroll_rule_code: v === "" ? null : v });
+              }}
+              placeholder="e.g. nssf_voluntary — leave blank unless bound to a pack return column"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional. When a localization pack return template or token
+              expects a specific rule code (e.g. Kenya NSSF Type-105
+              <code className="mx-1">nssf_voluntary</code>), set it here so this
+              deduction's payslip lines are emitted under that code. Must be
+              lowercase snake_case and must not start with{" "}
+              <code>custom_</code>.
+            </p>
+          </div>
         </div>
 
         <DialogFooter>
