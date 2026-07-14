@@ -61346,6 +61346,10 @@ export type Database = {
         Args: { _transfer_id: string }
         Returns: Json
       }
+      cancel_procurement_approval: {
+        Args: { p_rec_id: string }
+        Returns: undefined
+      }
       cancel_scheduled_organization_deletion: {
         Args: { p_org_id: string }
         Returns: Json

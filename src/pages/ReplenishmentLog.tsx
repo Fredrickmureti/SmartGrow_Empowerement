@@ -6,7 +6,6 @@
 import { Fragment, useMemo, useState, useDeferredValue } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useReplenishmentLogs } from "@/hooks/useReplenishmentLogs";
 import {
   useProcurementRecommendations,
   humanizeRecError,
@@ -44,6 +43,7 @@ import {
   CheckCircle2,
   GitMerge,
   UserCircle2,
+  ScrollText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -100,7 +100,6 @@ function mergeBlockingReason(recs: ProcurementRecommendation[]): string | null {
 export default function ReplenishmentLog() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { logs, isLoading: logsLoading } = useReplenishmentLogs();
   const {
     recommendations,
     runs,
@@ -111,8 +110,6 @@ export default function ReplenishmentLog() {
 
   // Per-tab state — do not share filters across tabs.
   const [recSearch, setRecSearch] = useState("");
-  const [logSearch, setLogSearch] = useState("");
-  const [logStatus, setLogStatus] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | RecUrgency>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | RecStatus>("all");
   const [vendorFilter, setVendorFilter] = useState<string>("all");
@@ -223,37 +220,6 @@ export default function ReplenishmentLog() {
   );
   const mergeError = useMemo(() => mergeBlockingReason(selectedRecs), [selectedRecs]);
 
-  const filteredLogs = logs.filter((log) => {
-    const q = logSearch.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      log.product?.name?.toLowerCase().includes(q) ||
-      log.purchase_order?.po_number?.toLowerCase().includes(q);
-    const matchesStatus = logStatus === "all" || log.status === logStatus;
-    return matchesSearch && matchesStatus;
-  });
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "po_created":
-        return (
-          <Badge variant="default">
-            <CheckCircle2 className="h-3 w-3 mr-1" /> PO Created
-          </Badge>
-        );
-      case "pending":
-        return <Badge variant="secondary">Pending</Badge>;
-      case "failed":
-        return (
-          <Badge variant="destructive">
-            <AlertTriangle className="h-3 w-3 mr-1" /> Failed
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
   const toggleSelected = (id: string, on: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -288,6 +254,14 @@ export default function ReplenishmentLog() {
             <Button onClick={handleRun} disabled={isTriggering}>
               <RefreshCw className={`mr-2 h-4 w-4 ${isTriggering ? "animate-spin" : ""}`} />
               {isTriggering ? "Planning..." : "Run planning"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/inventory-app/replenishment/auto-po-log")}
+              title="View archival auto-PO executor log"
+            >
+              <ScrollText className="mr-2 h-4 w-4" />
+              Auto-PO log
             </Button>
           </div>
         </div>
@@ -362,7 +336,6 @@ export default function ReplenishmentLog() {
           <TabsList>
             <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
             <TabsTrigger value="runs">Runs</TabsTrigger>
-            <TabsTrigger value="log">Auto-PO log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="recommendations" className="space-y-4">
@@ -756,114 +729,6 @@ export default function ReplenishmentLog() {
             </div>
           </TabsContent>
 
-          <TabsContent value="log" className="space-y-4">
-            <div className="filter-bar">
-              <div className="relative flex-1 min-w-0">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search by product or PO number…"
-                  value={logSearch}
-                  onChange={(e) => setLogSearch(e.target.value)}
-                  className="pl-9 w-full"
-                  aria-label="Search auto-PO log"
-                />
-              </div>
-              <Select value={logStatus} onValueChange={setLogStatus}>
-                <SelectTrigger className="w-full sm:w-[180px]" aria-label="Filter by log status">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="po_created">PO Created</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="table-container rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Triggered</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Stock Level</TableHead>
-                    <TableHead className="text-right">Qty Ordered</TableHead>
-                    <TableHead>PO #</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {logsLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
-                        Loading...
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredLogs.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        <div className="flex flex-col items-center gap-2">
-                          <Package className="h-8 w-8" />
-                          <span>No auto-PO activity yet.</span>
-                          <span className="text-xs">
-                            Legacy: rows appear here only for reorder rules with "Auto Create PO" enabled.
-                          </span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="text-sm">
-                          {format(new Date(log.triggered_at), "MMM d, yyyy HH:mm")}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <button
-                            className="text-primary hover:underline text-left"
-                            onClick={() => navigate(`/inventory-app/products?selected=${log.product_id}`)}
-                          >
-                            {log.product?.name || "—"}
-                          </button>
-                          {log.product?.sku && (
-                            <span className="text-xs text-muted-foreground ml-1">({log.product.sku})</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={log.trigger_type === "auto" ? "secondary" : "outline"}>
-                            {log.trigger_type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">{log.current_stock}</TableCell>
-                        <TableCell className="text-right">{log.reorder_quantity}</TableCell>
-                        <TableCell>
-                          {log.purchase_order ? (
-                            <button
-                              className="text-sm font-medium text-primary hover:underline"
-                              onClick={() => navigate(`/purchases?selected=${log.purchase_order_id}`)}
-                            >
-                              {log.purchase_order.po_number}
-                            </button>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            {getStatusBadge(log.status)}
-                            {log.error_message && (
-                              <span className="text-xs text-destructive">{log.error_message}</span>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
         </Tabs>
       </div>
 
