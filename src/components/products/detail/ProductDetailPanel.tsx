@@ -260,7 +260,7 @@ export function ProductDetailPanel({
                   : ""
               }
             >
-              <Link to={`/purchases-app/purchase-orders?action=new&product=${product.id}`}>
+              <Link to={`/purchases/orders/new?product=${product.id}`}>
                 <ShoppingCart className="h-3.5 w-3.5 mr-1" />{" "}
                 {isLowStock || isOutOfStock ? "Replenish" : "Create PO"}
               </Link>

@@ -51,6 +51,7 @@ import {
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { useContacts } from "@/hooks/useContacts";
+import { useGovernanceMode } from "@/hooks/governance/useGovernanceMode";
 import { normalizeError } from "@/services/resilience";
 
 interface Props {
@@ -74,6 +75,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
   const { warehouses } = useWarehouses();
   const { members, getUserName } = useOrgMembers();
   const { contacts } = useContacts();
+  const { mode: governanceMode, isSolo: soloMode } = useGovernanceMode();
   const { data: events = [] } = useRecommendationEvents(rec?.id ?? null);
 
   const vendors = useMemo(
@@ -267,6 +269,17 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
               {rec.urgency}
             </Badge>
             <Badge variant="outline">{rec.status}</Badge>
+            <Badge
+              variant="outline"
+              className="gap-1"
+              title={
+                soloMode
+                  ? "Solo governance mode — approvals are auto-accepted for the acting user."
+                  : `Governance mode: ${governanceMode}. Approvals follow the tenant's segregation-of-duties policy.`
+              }
+            >
+              <ShieldQuestion className="h-3 w-3" /> {governanceMode}
+            </Badge>
             {rec.branch?.name && <Badge variant="outline">{rec.branch.name}</Badge>}
             {rec.assignee_id && (
               <Badge variant="outline" className="gap-1">
@@ -284,7 +297,16 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
         {/* Top-level lifecycle actions — always visible, keyboard-first */}
         {!isTerminal && (
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Lifecycle actions">
-            <Button size="sm" onClick={handleApprove} disabled={busy || !canApprove}>
+            <Button
+              size="sm"
+              onClick={handleApprove}
+              disabled={busy || !canApprove}
+              title={
+                soloMode
+                  ? "Solo mode — approving marks this recommendation as approved immediately."
+                  : `Governance mode: ${governanceMode} — the platform's approval policy will be applied.`
+              }
+            >
               <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
             </Button>
             <Button

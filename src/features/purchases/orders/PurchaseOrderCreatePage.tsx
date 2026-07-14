@@ -60,8 +60,10 @@ const emptyLine = (sort_order = 0): LineItem => ({
 export default function PurchaseOrderCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const prefillContactId = searchParams.get("contact_id") ?? "";
+  const prefillContactId =
+    searchParams.get("contact_id") ?? searchParams.get("vendor") ?? "";
   const prefillProjectId = searchParams.get("project_id");
+  const prefillProductId = searchParams.get("product");
 
   const { getNextPONumber, createPurchaseOrder } = usePurchaseOrders();
   const { contacts } = useContacts();
@@ -82,6 +84,28 @@ export default function PurchaseOrderCreatePage() {
   useEffect(() => {
     if (prefillContactId) setFormData((p) => ({ ...p, vendor_id: prefillContactId }));
   }, [prefillContactId]);
+
+  // Prefill first line with product from query param (once products load)
+  useEffect(() => {
+    if (!prefillProductId || products.length === 0) return;
+    const product = products.find((p) => p.id === prefillProductId);
+    if (!product) return;
+    setLineItems((prev) => {
+      const first = prev[0];
+      if (!first || first.product_id) return prev;
+      const unit_price = product.cost_price || product.unit_price || 0;
+      const next = [...prev];
+      next[0] = {
+        ...first,
+        product_id: product.id,
+        description: product.name,
+        unit_price,
+        tax_rate: product.tax_rate || 0,
+      };
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillProductId, products.length]);
 
   const { priceLists } = useVendorPriceLists(formData.vendor_id || undefined);
 
