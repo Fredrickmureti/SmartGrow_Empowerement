@@ -167,6 +167,7 @@ export function readSource(source: string, ctx: SourceContext): unknown {
   switch (source) {
     case "sum_employee_amount": return round2(ctx.sums.employee);
     case "sum_employer_amount": return round2(ctx.sums.employer);
+    case "sum_gross_amount":    return round2(ctx.sums.gross);
     case "sum_taxable_amount":  return round2(ctx.sums.taxable);
     case "sum_basic_pay":       return round2(ctx.sums.basic);
     case "sum_allowances":      return round2(ctx.sums.allowances);
