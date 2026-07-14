@@ -56,6 +56,7 @@ describe("returnSourceResolver — system sources", () => {
   it("reads sum_* totals rounded to 2dp", () => {
     expect(readSource("sum_employee_amount", ctx)).toBe(12500);
     expect(readSource("sum_employer_amount", ctx)).toBe(4320);
+    expect(readSource("sum_gross_amount", ctx)).toBe(105000);
     expect(readSource("sum_taxable_amount", ctx)).toBe(100000);
     expect(readSource("sum_basic_pay", ctx)).toBe(80000);
     expect(readSource("sum_allowances", ctx)).toBe(20000);
