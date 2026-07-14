@@ -116,7 +116,7 @@ export function SuppliersTab({ productId, baseLabel, packs }: Props) {
           <div className="flex items-center justify-between">
             <span className="font-medium">{top.vendorName ?? "—"}</span>
             <Button size="sm" variant="outline" asChild>
-              <Link to={`/purchases-app/purchase-orders?action=new&product=${productId}${top.vendorId ? `&vendor=${top.vendorId}` : ""}`}>
+              <Link to={`/purchases/orders/new?product=${productId}${top.vendorId ? `&contact_id=${top.vendorId}` : ""}`}>
                 <ShoppingCart className="h-3.5 w-3.5 mr-1" /> New PO
               </Link>
             </Button>
