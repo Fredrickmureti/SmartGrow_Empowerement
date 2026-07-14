@@ -288,54 +288,58 @@ export default function CycleCountSchedules() {
                 everything else every quarter.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Warehouse</TableHead>
-                    <TableHead>How often</TableHead>
-                    <TableHead>What to count</TableHead>
-                    <TableHead>Next count due</TableHead>
-                    <TableHead>Last generated</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {schedules.map((s) => {
-                    const wh = warehouses.find((w) => w.id === s.warehouse_id);
-                    return (
-                      <TableRow key={s.id}>
-                        <TableCell className="font-medium">{s.name}</TableCell>
-                        <TableCell>{wh?.name ?? "—"}</TableCell>
-                        <TableCell><Badge variant="secondary">{CADENCE_LABEL[s.cadence]}</Badge></TableCell>
-                        <TableCell><span className="text-xs">{scopeSummary(s)}</span></TableCell>
-                        <TableCell className="text-xs">
-                          {format(new Date(s.next_run_at), "PP p")}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {s.last_run_at ? format(new Date(s.last_run_at), "PP p") : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={s.active ? "default" : "outline"}>
-                            {s.active ? "Active" : "Paused"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" onClick={() => openEdit(s)} aria-label="Edit">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(s)} aria-label="Delete">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+              <div className="-mx-6 overflow-x-auto sm:mx-0">
+                <div className="min-w-[900px] px-6 sm:min-w-0 sm:px-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Warehouse</TableHead>
+                        <TableHead>How often</TableHead>
+                        <TableHead>What to count</TableHead>
+                        <TableHead>Next count due</TableHead>
+                        <TableHead>Last generated</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {schedules.map((s) => {
+                        const wh = warehouses.find((w) => w.id === s.warehouse_id);
+                        return (
+                          <TableRow key={s.id}>
+                            <TableCell className="font-medium">{s.name}</TableCell>
+                            <TableCell>{wh?.name ?? "—"}</TableCell>
+                            <TableCell><Badge variant="secondary">{CADENCE_LABEL[s.cadence]}</Badge></TableCell>
+                            <TableCell><span className="text-xs">{scopeSummary(s)}</span></TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {format(new Date(s.next_run_at), "PP p")}
+                            </TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {s.last_run_at ? format(new Date(s.last_run_at), "PP p") : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={s.active ? "default" : "outline"}>
+                                {s.active ? "Active" : "Paused"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button size="icon" variant="ghost" onClick={() => openEdit(s)} aria-label="Edit">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(s)} aria-label="Delete">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
