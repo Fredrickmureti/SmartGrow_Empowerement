@@ -146,7 +146,7 @@ export function SuppliersTab({ productId, baseLabel, packs }: Props) {
                 <TableCell className="font-mono text-xs">
                   {r.poId ? (
                     <Link
-                      to={`/purchases-app/purchase-orders?id=${r.poId}`}
+                      to={`/purchases/orders/${r.poId}`}
                       className="text-primary hover:underline"
                     >
                       {r.poNumber ?? r.poId.slice(0, 8)}
