@@ -39,7 +39,6 @@ import {
   ArrowRightLeft,
   ShoppingCart,
   TrendingUp,
-  BarChart3,
 } from "lucide-react";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { StockTab } from "./tabs/StockTab";
