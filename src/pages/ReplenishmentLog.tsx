@@ -401,6 +401,45 @@ export default function ReplenishmentLog() {
                   <SelectItem value="snoozed">Snoozed</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={vendorFilter} onValueChange={setVendorFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]" aria-label="Filter by vendor">
+                  <SelectValue placeholder="Filter by vendor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All vendors</SelectItem>
+                  {filterOptions.vendors.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]" aria-label="Filter by warehouse or branch">
+                  <SelectValue placeholder="Filter by branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All branches</SelectItem>
+                  {filterOptions.branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]" aria-label="Filter by source type">
+                  <SelectValue placeholder="Source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All sources</SelectItem>
+                  {filterOptions.sources.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s === "buy" ? "Buy" : s === "transfer" ? "Transfer" : "Manufacture"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Toggle
                 pressed={assignedToMe}
                 onPressedChange={setAssignedToMe}
@@ -410,6 +449,13 @@ export default function ReplenishmentLog() {
                 <UserCircle2 className="h-4 w-4 mr-1" /> Mine
               </Toggle>
             </div>
+
+            {recommendations.length >= 2000 && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                Showing the first 2 000 open recommendations. Narrow the filters
+                (urgency, vendor, branch) to see the rest, or split the run by branch.
+              </div>
+            )}
 
             {effectiveSelection.size > 0 && (
               <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
