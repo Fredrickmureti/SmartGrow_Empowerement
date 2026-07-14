@@ -75,6 +75,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
   const { warehouses } = useWarehouses();
   const { members, getUserName } = useOrgMembers();
   const { contacts } = useContacts();
+  const { mode: governanceMode, isSolo: soloMode } = useGovernanceMode();
   const { data: events = [] } = useRecommendationEvents(rec?.id ?? null);
 
   const vendors = useMemo(
