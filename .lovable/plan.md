@@ -1,119 +1,82 @@
+# Sales / POS / Invoice transaction pipeline — diagnostic + repair plan
 
-# Replenishment — Deferred Items 15 & 16
+## Context
 
-Scope is intentionally narrow: only the two items from the previous agent's handoff that don't require new domains. Items 10 (Manufacturing Orders) and 17 (Forecast tie-in) stay out — no new subsystems.
+Two failures reported after the Inventory replenishment/approvals work:
 
-Not addressed here: broader audit of the replenishment engine (out of scope per your answer). If you want that in a follow-up, say the word.
+1. `POST /rest/v1/invoices` → **400 Bad Request** (invoice creation)
+2. `POST /rest/v1/rpc/process_pos_transaction` → **404 Not Found** (POS commit)
 
----
+Zero-trust checks already done in plan mode:
 
-## Item 16 — Retire the Auto-PO log tab
+- `process_pos_transaction(uuid,uuid,uuid,uuid,jsonb,jsonb,numeric,numeric,numeric,numeric,text,uuid,text,text,text,uuid,uuid,uuid,numeric,uuid,text)` **exists** in `public`. `authenticated` has EXECUTE. The FE named params (`src/hooks/pos/usePOSTransactionOffline.ts`) match the signature — no missing required args. A 404 with these facts is a **PostgREST schema-cache miss**, not a missing function. Do not recreate the RPC.
+- `public.invoices` carries ~20 triggers (revenue projection, fiscal enqueue, SO/proforma/contact business-match, count-limit, GL integrity, POS-credit lineage, revenue projection, plus a **duplicate pair** `trg_notify_invoice_created` + `trigger_notify_invoice_created` both firing `notify_invoice_created`). Any BEFORE INSERT trigger raising will surface as PostgREST 400 on the invoice POST.
+- Recent inventory migrations (Jul 12–14) touched `reset_module__inventory`, procurement recommendations, approval mirror trigger, `attach_recommendation_to_po`, `cancel_procurement_approval`. None of them redefine `process_pos_transaction`, `invoices` triggers, `stock_movements` trigger, or `pos_transactions` schema — but the reset migration replaced governance function bodies and may have invalidated PostgREST's cached plan for `process_pos_transaction`.
 
-**Why:** The workspace mixes two audiences. Planners triage recommendations; the Auto-PO log is an operational audit of trigger-driven auto-POs. Keeping it as a third tab on a planning workspace confuses the mental model ("is this where I plan, or where I audit?") and pushes the recommendations engine into second place visually.
+## Canonical ERP lifecycle (reference)
 
-**What changes**
-
-- Remove the `Auto-PO log` tab from `src/pages/ReplenishmentLog.tsx`.
-- Drop `logSearch`, `logStatus`, `filteredLogs`, and the log rendering block (~lines 759–end of that TabsContent).
-- Keep `useReplenishmentLogs` — it's still consumed by `Recommendations` and `Runs` context (verify) and by the archival route.
-- Add a new archival route: `src/pages/inventory/AutoPoLog.tsx` — the extracted log UI, filters, and hook usage, unchanged.
-- Register it in `src/apps/inventory/routes.tsx` at `/inventory/replenishment/auto-po-log`.
-- Add a small `Auto-PO log` link in the workspace header (secondary button, next to `Run Planning`), so operators can still reach it.
-- Update `src/apps/inventory/nav.ts` only if the log currently has a nav entry; otherwise, header link is enough.
-- Rename `src/pages/ReplenishmentLog.tsx` file identity in comments (top-of-file JSDoc) to reflect it is the planning workspace, not a log page. Do not rename the file itself in this pass — the route path is stable and a rename fans out to the router.
-
-**Verification**
-- Tabs list shows only `Recommendations` and `Runs`.
-- `/inventory/replenishment/auto-po-log` renders the previous log tab identically (same filters, same table, same empty state).
-- Type check clean; existing `useReplenishmentLogs` tests untouched.
-
----
-
-## Item 15 — Route recommendation approvals through `approval_rules`
-
-**Why:** Today `handleApprove` in `RecommendationDrawer` writes `status = 'approved'` directly. That is a bespoke state machine that bypasses the platform's approval subsystem (`approval_rules`, `approval_rule_logs`, `useApprovalGate`, `AppAccessApprovalsInbox`). Every other entity that requires sign-off (sales orders, app access, etc.) goes through this engine; replenishment must too, so that:
-- Org admins can configure "orders over N units / value require approval" without a code change.
-- A single inbox surfaces pending approvals across modules.
-- Audit trail is uniform (`approval_rule_logs` with requester, approver, timestamps, notes).
-- SoD rules (requester ≠ approver) are enforced centrally.
-
-**Data model**
-
-No new tables. Use existing:
-- `approval_rules` — entity_type = `'procurement_recommendation'`, action_name = `'approve'`, optional threshold on `suggested_qty` or `estimated_cost`.
-- `approval_rule_logs` — one row per approval request; status `pending` / `approved` / `rejected`.
-
-Seed one default inactive rule per business on first workspace load? No — leave rule creation to Settings > Approvals like every other entity. Document it in the empty-state hint.
-
-**State machine change**
-
-Current: `open → in_review → approved → (convert)` — all client-driven, no gate.
-
-New:
+```text
+Sales order → Invoice header → Invoice items → Inventory reservation
+             → Delivery / shipment → Stock movement (COGS)
+             → Invoice.status='confirmed' → GL journal (AR + Revenue + Tax + COGS)
+             → Receivable → Payment allocation → Receipt
 ```
-open ──request review──► in_review ──[approval_rules match?]──►
-                                     │ yes → pending approval → approved (by approver)
-                                     │ no  → approved directly (no rule configured)
-                         └──convert──► po_created / transfer_created / dismissed
+```text
+POS cart → process_pos_transaction (single txn):
+             validate stock → reserve/consume → pos_transactions insert
+             → pos_transaction_items → pos_transaction_payments
+             → stock_movements (sale) → cash/AR posting event
+             → domain event (sale.committed) → fiscal enqueue → receipt
 ```
+Both paths must share:
+- one stock-movement writer (RLS + branch trigger already in place)
+- one journal poster (`post_journal_entry_atomic`)
+- one AR engine (single open-items engine per ADR 0033)
 
-`in_review` becomes the trigger point that consults `useApprovalGate.checkApproval('procurement_recommendation', 'approve', rec.id, { suggested_qty, estimated_cost })`.
-- If `blocked` → create `approval_rule_logs` row via `requestApproval`, keep rec at `in_review`, show a `Pending approval` badge + the rule name.
-- If not blocked → transition to `approved` immediately (preserves current behaviour when no rule is configured).
+## Phase 1 — Reproduce and capture ground truth (no writes)
 
-Approver actions live in the existing approvals inbox (`AppAccessApprovalsInbox` today only handles app-access; extend it or add a sibling `ProcurementApprovalsInbox` — decision below).
+1. Trigger both failures from the running preview (POS commit + create invoice on `/sales/invoices/new`) and read the full response body via `code--read_network_requests` — PostgREST returns `code`, `message`, `hint`, and (for 404 RPC) the exact "Could not find the function … with parameters (…)" line. That message is the only reliable diagnostic; every fix below is contingent on it.
+2. Run the same POS RPC with `supabase--read_query` wrapping a `SELECT` on `pg_proc` + a signature probe to confirm PostgREST is out of sync with the DB.
+3. Inspect the invoice payload the FE actually posts (`useInvoices` / invoice create page) and cross-check every column against `public.invoices` schema + the BEFORE INSERT triggers listed above.
 
-**Wiring**
+Nothing is patched in Phase 1 — this closes the actual root cause instead of guessing.
 
-1. **`src/hooks/useProcurementRecommendations.ts`**
-   - Add a new mutation `requestApprovalOrApprove({ id, values })` that:
-     - Calls `useApprovalGate.checkApproval`.
-     - If blocked and no existing pending log → `requestApproval` (creates `approval_rule_logs` row), sets rec `status = 'in_review'`, stores `approval_log_id` on the rec.
-     - If not blocked → sets `status = 'approved'` directly.
-   - Retain `setStatus` for dismiss / snooze / manual overrides.
+## Phase 2 — Targeted repairs (only what Phase 1 proves)
 
-2. **Migration** — add `approval_log_id uuid` (nullable, FK to `approval_rule_logs`) on `procurement_recommendations` so the drawer can render the pending state and approvers can round-trip. GRANTs unchanged (table already grants authenticated). No RLS change — reads follow existing business scope.
+Branch A — **POS 404 is a schema-cache miss** (most likely):
 
-3. **`RecommendationDrawer.tsx`**
-   - Rename the primary CTA to `Approve` still, but its handler is `requestApprovalOrApprove`.
-   - When `rec.status === 'in_review' && rec.approval_log_id`, replace the Approve/Reject buttons with a `Pending approval — <ruleName>` callout and a `Cancel request` link (deletes/rejects the log, returns rec to `open`).
-   - Disable `Convert to PO` / `Convert to Transfer` while `status !== 'approved'` when a rule was matched (preserve solo-mode passthrough when no rule).
+- Issue `NOTIFY pgrst, 'reload schema';` from a small migration to force PostgREST to re-introspect. Add a defensive `GRANT EXECUTE … TO authenticated` (idempotent) to survive future reloads.
 
-4. **Inbox surface** — extend `AppAccessApprovalsInbox` into a generic `ApprovalsInbox` that groups pending `approval_rule_logs` by `entity_type`. Add a small `Procurement recommendation` section with:
-   - product · vendor · suggested qty · estimated cost · requester · age.
-   - `Approve` / `Reject` buttons calling `useApprovalGate.approveRequest` / `rejectRequest`.
-   - On approve, a lightweight postgres trigger promotes the linked rec to `approved`; on reject, it returns to `open` with `dismissed_reason` set from the note. (Trigger belongs in the same migration.)
+Branch B — **POS 404 is a signature drift** (only if Phase 1 shows a "parameters (…)" mismatch):
 
-5. **Trigger (migration)**
-   ```sql
-   -- when approval_rule_logs row for entity_type='procurement_recommendation'
-   -- transitions to approved/rejected, mirror it onto the rec.
-   ```
-   Keeps the workspace live-updating via the realtime subscription that already listens on `procurement_recommendations`.
+- Adapt the FE call in `usePOSTransactionOffline.ts` + `TransactionQueue.ts` to the live signature, or add a thin overload — but never recreate the function body. The canonical implementation lives in the last migration that defined it.
 
-6. **Settings** — no UI change; org admins already manage approval rules from the existing Settings > Approvals page. Confirm `entity_type` dropdown includes `procurement_recommendation` (add to the enum/options list there — one-line change).
+Branch C — **Invoice 400 is a trigger raising** (most likely — a BEFORE INSERT trigger validating branch/business/proforma/SO/contact, or the count-limit trigger):
 
-**Backwards compatibility**
+- The Phase 1 error body identifies the exact trigger + constraint. Fix by (i) supplying the missing/valid column from the FE if the payload is wrong, or (ii) tightening the trigger's guard clause if the recent inventory reset invalidated a helper it depends on (e.g. `_is_teardown_for_org` still exists; `get_effective_invoice_limit` still exists).
+- Drop the duplicate `trigger_notify_invoice_created` (keep `trg_notify_invoice_created`). Duplicate isn't the 400 cause but it double-emits notifications and is a latent bug.
 
-- Businesses with zero rules configured see identical behaviour (approve → approved). No forced migration for existing recs.
-- Existing `in_review` recs without an `approval_log_id` continue to render an Approve button (legacy path).
+Branch D — **Invoice 400 is RLS** (only if code is `42501`):
 
-**Verification**
-- With no rule: click Approve → status becomes `approved`, mutation returns fast, no `approval_rule_logs` row.
-- With a rule (`suggested_qty > 50`): Approve on a qty-100 rec → status is `in_review`, `approval_log_id` populated, drawer shows Pending state, inbox lists it.
-- Approver clicks Approve in inbox → rec flips to `approved` in real time (workspace subscription).
-- Approver clicks Reject → rec flips to `open`, drawer shows the rejection note.
-- SoD: requester ≠ approver enforced by inbox (hide Approve button on own request).
-- Type check clean. Add one vitest around the mutation branch (`useProcurementRecommendations.approve.test.ts`).
+- Verify `invoices` INSERT policy still routes through `user_can_access_business` + branch check; recent inventory RLS rewrites did not touch `invoices`, but confirm.
 
----
+## Phase 3 — Consolidation and guardrails (small, high-value)
 
-## Sequencing
+- Add an architecture test that asserts every RPC referenced by `src/hooks/pos/**` and `src/hooks/**invoice**` resolves to exactly one function in `pg_proc` with matching param names. Catches schema drift before it reaches production.
+- Add a lightweight pgTAP case that `process_pos_transaction` exists with the current 21-arg signature and has `EXECUTE` for `authenticated`.
+- Document in `docs/adr/` that Sales-invoice and POS-sale share one journal poster and one stock-movement writer, and that only migrations may recreate `process_pos_transaction` (no client-side fallback path).
 
-1. Migration (adds column + trigger + enum entry).  ← must land first.
-2. Hook + drawer wiring.
-3. Inbox extension.
-4. Auto-PO log extraction + tab removal.
-5. Manual verification + one vitest.
+## Explicitly NOT in scope
 
-Estimate: single build turn should cover 1, 2, 4; item 3 (inbox) is the largest surface — may spill.
+- Recreating `process_pos_transaction` from scratch. It exists.
+- Rewriting the invoice trigger stack. The 400 is one raising trigger; fix that one.
+- Any change to `stock_movements` / `warehouse_stock` / branch RLS (already audited).
+- Any UI change beyond aligning the two RPC call sites if Branch B is proven.
+
+## Files likely touched (build-mode)
+
+- `supabase/migrations/<new>.sql` — `NOTIFY pgrst`, defensive GRANT, drop duplicate invoice trigger, any trigger-guard tightening Phase 1 identifies.
+- `src/hooks/pos/usePOSTransactionOffline.ts` + `src/services/offline/TransactionQueue.ts` — only under Branch B.
+- `src/test/architecture/rpc-signature-drift.test.ts` (new) — Phase 3 guard.
+- `supabase/tests/pos-transaction-rpc.sql` (new pgTAP case) — Phase 3 guard.
+- `docs/adr/00XX-sales-pos-shared-pipeline.md` (new) — Phase 3 documentation.
