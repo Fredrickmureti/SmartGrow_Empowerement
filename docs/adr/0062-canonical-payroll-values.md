@@ -104,6 +104,39 @@ without adding a new resolver source.
   follow-up in §5 introduces the only schema change (a nullable numeric
   column on `payslip_lines`).
 
+## Amendment 2026-07-14 — Submission-format parity
+
+Return templates carry **two** declarative column lists:
+
+| List | Consumed by | Producer |
+|---|---|---|
+| `body.columns[]` | CSV + PDF outputs, in-app preview | `generate-statutory-return` |
+| `submission_format.columns[]` | The file the tax authority ingests (`gov_xlsx`, `gov_csv`, `gov_xml`) | `_shared/govFileWriter.ts` |
+
+The initial ADR-0062 fix rebound only `body.columns` for the six KE
+templates. The government-portal XLSX kept the old `sum_taxable_amount`
+binding, so the *filed* artifact was still wrong even though the
+in-app view was correct.
+
+**Rule:** every declarative output surface for a given logical column
+must resolve to the same canonical source. A column labelled "Gross
+Pay" cannot be `sum_gross_amount` in one surface and
+`sum_taxable_amount` in another.
+
+**Enforcement:** `generate-statutory-return` now compares
+`body.columns` and `submission_format.columns` by normalized
+header/key. If two `sum_*` sources disagree for the same logical
+column, generation aborts with `RETURN_TEMPLATE_SOURCE_MISMATCH`
+(HTTP 422) rather than emitting a silently-wrong file. Static and
+runtime guards under `src/test/localization/` prevent regression:
+
+- `ke-return-gov-file-gross-binding.test.ts` — scans migrations for
+  new `submission_format` entries mapping `gross*` headers to
+  `sum_taxable_amount`.
+- `return-gov-file-column-parity.test.ts` — runtime contract for the
+  new mismatch error.
+
+
 ## References
 
 - `.lovable/plan.md` — investigation and fix plan (2026-07-14).
