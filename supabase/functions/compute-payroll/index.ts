@@ -3574,6 +3574,15 @@ Deno.serve(async (req) => {
       ) => {
         if (!employee_amount && !employer_amount) return;
         const finalSource = input_ref ? withInputRef(source, input_ref) : source;
+        // Statutory Scheme model: structural stamp for return generators,
+        // GL, dashboards. NULL for non-statutory lines (earnings, loans,
+        // garnishments, reimbursements) — they aren't part of any scheme.
+        const scheme_component_id = resolveSchemeComponentId(
+          empCountry,
+          rule_code,
+          Number(employee_amount) || 0,
+          Number(employer_amount) || 0,
+        );
         lineRows.push({
           rule_code,
           rule_type,
@@ -3586,8 +3595,10 @@ Deno.serve(async (req) => {
           source: finalSource,
           statutory_rule_id,
           accounting_tag,
+          scheme_component_id,
         });
       };
+
 
       // Earnings
       if (basicSalary > 0) pushLine("basic", "earning", "Basic Salary", basicSalary, 0, true, "earning", null, null, { kind: "contract", code: "basic", component: "basic", contract_id: (emp as any).active_contract_id ?? null, label: "Employment contract — basic" }, earnTag["basic"] ?? null);
