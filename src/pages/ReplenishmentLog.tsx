@@ -3,7 +3,7 @@
  * engine. Planners triage here before Purchasing turns recommendations
  * into POs. The old auto-PO log stays on a secondary tab.
  */
-import { useMemo, useState, useDeferredValue } from "react";
+import { Fragment, useMemo, useState, useDeferredValue } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReplenishmentLogs } from "@/hooks/useReplenishmentLogs";
