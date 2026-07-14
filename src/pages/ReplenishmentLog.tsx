@@ -6,7 +6,6 @@
 import { Fragment, useMemo, useState, useDeferredValue } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useReplenishmentLogs } from "@/hooks/useReplenishmentLogs";
 import {
   useProcurementRecommendations,
   humanizeRecError,
@@ -44,6 +43,7 @@ import {
   CheckCircle2,
   GitMerge,
   UserCircle2,
+  ScrollText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -100,7 +100,6 @@ function mergeBlockingReason(recs: ProcurementRecommendation[]): string | null {
 export default function ReplenishmentLog() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { logs, isLoading: logsLoading } = useReplenishmentLogs();
   const {
     recommendations,
     runs,
@@ -111,8 +110,6 @@ export default function ReplenishmentLog() {
 
   // Per-tab state — do not share filters across tabs.
   const [recSearch, setRecSearch] = useState("");
-  const [logSearch, setLogSearch] = useState("");
-  const [logStatus, setLogStatus] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | RecUrgency>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | RecStatus>("all");
   const [vendorFilter, setVendorFilter] = useState<string>("all");
