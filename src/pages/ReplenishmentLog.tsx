@@ -548,40 +548,11 @@ export default function ReplenishmentLog() {
         </Tabs>
       </div>
 
-      <Dialog open={!!why} onOpenChange={(o) => !o && setWhy(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Why this recommendation?</DialogTitle>
-            <DialogDescription>
-              Inputs the engine used to compute the suggested quantity.
-            </DialogDescription>
-          </DialogHeader>
-          {why && (
-            <div className="space-y-2 text-sm">
-              <div className="font-medium">
-                {why.product?.name}{" "}
-                {why.product?.sku && (
-                  <span className="text-muted-foreground">({why.product.sku})</span>
-                )}
-              </div>
-              <dl className="grid grid-cols-2 gap-y-1 gap-x-4">
-                {Object.entries(why.explanation || {}).map(([k, v]) => (
-                  <div key={k} className="contents">
-                    <dt className="text-muted-foreground">{k}</dt>
-                    <dd className="text-right font-mono">
-                      {typeof v === "number" ? Math.round(v * 100) / 100 : String(v ?? "—")}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              <div className="pt-2 text-xs text-muted-foreground">
-                Formula: net = max(0, safety + velocity/7 × lead − available − incoming),
-                then rounded up to pack size and floored at MOQ.
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <RecommendationDrawer
+        recommendation={drawerRec}
+        open={!!drawerRec}
+        onClose={() => setDrawerRec(null)}
+      />
     </>
   );
 }
