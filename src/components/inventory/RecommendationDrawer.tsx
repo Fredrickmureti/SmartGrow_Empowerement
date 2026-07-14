@@ -297,7 +297,16 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
         {/* Top-level lifecycle actions — always visible, keyboard-first */}
         {!isTerminal && (
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Lifecycle actions">
-            <Button size="sm" onClick={handleApprove} disabled={busy || !canApprove}>
+            <Button
+              size="sm"
+              onClick={handleApprove}
+              disabled={busy || !canApprove}
+              title={
+                soloMode
+                  ? "Solo mode — approving marks this recommendation as approved immediately."
+                  : `Governance mode: ${governanceMode} — the platform's approval policy will be applied.`
+              }
+            >
               <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
             </Button>
             <Button
