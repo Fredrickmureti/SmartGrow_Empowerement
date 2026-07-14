@@ -8,7 +8,7 @@
 
 BEGIN;
 
-SELECT plan(21);
+SELECT plan(22);
 
 -- ------------------------------------------------------------------
 -- I1. _dn_source_invoice_business_match trigger exists and is wired
@@ -181,6 +181,20 @@ SELECT ok(
      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
     WHERE n.nspname='public' AND p.proname='complete_delivery_atomic'),
   'complete_delivery_atomic posts symmetric cogs_reversal GL for returns'
+);
+
+-- I19. Fiscal enqueue must honor the canonical outbox schema. The outbox is
+-- organization-scoped; business context belongs in payload, not a physical
+-- business_id column. This guards invoice confirmation from failing inside the
+-- fiscal side-effect when the outbox contract drifts.
+SELECT ok(
+  (SELECT pg_get_functiondef(p.oid) NOT LIKE '%business_id,%'
+      AND pg_get_functiondef(p.oid) LIKE '%jsonb_build_object%business_id%'
+     FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND p.proname='enqueue_fiscal_receipt_required'
+      AND pg_get_function_identity_arguments(p.oid) = 'p_org_id uuid, p_business_id uuid, p_branch_id uuid, p_source_doc_type text, p_source_doc_id uuid, p_document_kind text, p_payload jsonb'),
+  'enqueue_fiscal_receipt_required writes business scope into payload, not obsolete outbox.business_id'
 );
 
 SELECT * FROM finish();
