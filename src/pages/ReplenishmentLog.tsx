@@ -1,17 +1,18 @@
 /**
- * Inventory Planning Workspace — renamed home of the former
- * "Replenishment log" page. The engine emits explainable procurement
- * recommendations (see `useProcurementRecommendations`) and this
- * workspace is where planners triage them before Purchasing turns
- * them into POs. The old auto-PO log stays on a secondary tab.
+ * Inventory Planning Workspace — home of the procurement recommendations
+ * engine. Planners triage here before Purchasing turns recommendations
+ * into POs. The old auto-PO log stays on a secondary tab.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useDeferredValue } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { useReplenishmentLogs } from "@/hooks/useReplenishmentLogs";
 import {
   useProcurementRecommendations,
+  humanizeRecError,
   type ProcurementRecommendation,
   type RecUrgency,
+  type RecStatus,
 } from "@/hooks/useProcurementRecommendations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Toggle } from "@/components/ui/toggle";
 import {
   RefreshCw,
   Search,
@@ -41,6 +43,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   GitMerge,
+  UserCircle2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -74,8 +77,29 @@ function coverLabel(available: number, velocityPerWeek: number): string {
   return `${Math.round(dos)}d`;
 }
 
+/**
+ * Explains why a candidate merge is not valid. Returns null when the
+ * selection is mergeable client-side (same product + same preferred vendor).
+ * The server re-validates business scope + status.
+ */
+function mergeBlockingReason(recs: ProcurementRecommendation[]): string | null {
+  if (recs.length < 2) return "Select at least two recommendations to merge.";
+  const first = recs[0];
+  const sameProduct = recs.every((r) => r.product_id === first.product_id);
+  if (!sameProduct) return "All selected rows must be the same product.";
+  const sameVendor = recs.every(
+    (r) => (r.preferred_vendor_id ?? null) === (first.preferred_vendor_id ?? null),
+  );
+  if (!sameVendor) return "All selected rows must share the same preferred vendor.";
+  const mergeable: RecStatus[] = ["open", "in_review", "approved", "snoozed"];
+  const badStatus = recs.find((r) => !mergeable.includes(r.status));
+  if (badStatus) return `Cannot merge a recommendation with status "${badStatus.status}".`;
+  return null;
+}
+
 export default function ReplenishmentLog() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { logs, isLoading: logsLoading } = useReplenishmentLogs();
   const {
     recommendations,
@@ -85,11 +109,17 @@ export default function ReplenishmentLog() {
     mergeRecs,
   } = useProcurementRecommendations();
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  // Per-tab state — do not share filters across tabs.
+  const [recSearch, setRecSearch] = useState("");
+  const [logSearch, setLogSearch] = useState("");
+  const [logStatus, setLogStatus] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | RecUrgency>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | RecStatus>("all");
+  const [assignedToMe, setAssignedToMe] = useState(false);
   const [drawerRec, setDrawerRec] = useState<ProcurementRecommendation | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const deferredRecSearch = useDeferredValue(recSearch);
 
   const isTriggering = runPlanning.isPending;
 
@@ -97,26 +127,40 @@ export default function ReplenishmentLog() {
     try {
       const r = await runPlanning.mutateAsync();
       toast.success(
-        `Planning complete — ${r.recommendations_created} recommendation${r.recommendations_created === 1 ? "" : "s"} (stock-outs ${r.stockouts}, critical ${r.critical}, low ${r.low})`,
+        `Planning complete — ${r.recommendations_created} recommendation${
+          r.recommendations_created === 1 ? "" : "s"
+        } (stock-outs ${r.stockouts}, critical ${r.critical}, low ${r.low})`,
       );
-    } catch (error: any) {
-      toast.error(`Planning failed: ${normalizeError(error).message}`);
+    } catch (error) {
+      toast.error(`Planning failed: ${humanizeRecError(normalizeError(error).message)}`);
     }
   };
 
   const kpis = useMemo(() => {
-    const s = { stockout: 0, critical: 0, low: 0, planned: 0, incoming: 0 };
+    const s = {
+      stockout: 0,
+      critical: 0,
+      low: 0,
+      planned: 0,
+      incoming: 0,
+      awaitingApproval: 0,
+      assignedToMe: 0,
+    };
     for (const r of recommendations) {
       s[r.urgency]++;
       s.incoming += Number(r.incoming || 0);
+      if (r.status === "in_review") s.awaitingApproval++;
+      if (user?.id && r.assignee_id === user.id) s.assignedToMe++;
     }
     return s;
-  }, [recommendations]);
+  }, [recommendations, user?.id]);
 
   const filteredRecs = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = deferredRecSearch.trim().toLowerCase();
     return recommendations
       .filter((r) => (urgencyFilter === "all" ? true : r.urgency === urgencyFilter))
+      .filter((r) => (statusFilter === "all" ? true : r.status === statusFilter))
+      .filter((r) => (assignedToMe ? r.assignee_id === user?.id : true))
       .filter((r) => {
         if (!q) return true;
         return (
@@ -126,13 +170,29 @@ export default function ReplenishmentLog() {
         );
       })
       .sort((a, b) => URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency]);
-  }, [recommendations, urgencyFilter, searchQuery]);
+  }, [recommendations, urgencyFilter, statusFilter, assignedToMe, deferredRecSearch, user?.id]);
+
+  // Prune selection to what is currently visible so bulk actions can't
+  // touch rows the planner filtered away.
+  const visibleIds = useMemo(() => new Set(filteredRecs.map((r) => r.id)), [filteredRecs]);
+  const effectiveSelection = useMemo(() => {
+    const out = new Set<string>();
+    selected.forEach((id) => visibleIds.has(id) && out.add(id));
+    return out;
+  }, [selected, visibleIds]);
+  const selectedRecs = useMemo(
+    () => filteredRecs.filter((r) => effectiveSelection.has(r.id)),
+    [filteredRecs, effectiveSelection],
+  );
+  const mergeError = useMemo(() => mergeBlockingReason(selectedRecs), [selectedRecs]);
 
   const filteredLogs = logs.filter((log) => {
+    const q = logSearch.trim().toLowerCase();
     const matchesSearch =
-      log.product?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.purchase_order?.po_number?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || log.status === statusFilter;
+      !q ||
+      log.product?.name?.toLowerCase().includes(q) ||
+      log.purchase_order?.po_number?.toLowerCase().includes(q);
+    const matchesStatus = logStatus === "all" || log.status === logStatus;
     return matchesSearch && matchesStatus;
   });
 
@@ -156,6 +216,17 @@ export default function ReplenishmentLog() {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
+
+  const toggleSelected = (id: string, on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const openDrawer = (r: ProcurementRecommendation) => setDrawerRec(r);
 
   return (
     <>
@@ -184,7 +255,7 @@ export default function ReplenishmentLog() {
           </div>
         </div>
 
-        <div className="stats-grid grid-cols-2 sm:grid-cols-5">
+        <div className="stats-grid grid-cols-2 sm:grid-cols-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Stock-outs</CardTitle>
@@ -211,10 +282,33 @@ export default function ReplenishmentLog() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Planned</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Awaiting approval</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{kpis.planned}</div>
+              <button
+                type="button"
+                className="text-2xl font-bold text-left hover:underline"
+                onClick={() => setStatusFilter("in_review")}
+                aria-label="Filter recommendations awaiting approval"
+              >
+                {kpis.awaitingApproval}
+              </button>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Assigned to me</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <button
+                type="button"
+                className="text-2xl font-bold text-left hover:underline"
+                onClick={() => setAssignedToMe((v) => !v)}
+                aria-pressed={assignedToMe}
+                aria-label="Toggle assigned-to-me filter"
+              >
+                {kpis.assignedToMe}
+              </button>
             </CardContent>
           </Card>
           <Card>
@@ -240,13 +334,14 @@ export default function ReplenishmentLog() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search product, SKU or vendor…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={recSearch}
+                  onChange={(e) => setRecSearch(e.target.value)}
                   className="pl-9 w-full"
+                  aria-label="Search recommendations"
                 />
               </div>
-              <Select value={urgencyFilter} onValueChange={(v) => setUrgencyFilter(v as any)}>
-                <SelectTrigger className="w-full sm:w-[200px]">
+              <Select value={urgencyFilter} onValueChange={(v) => setUrgencyFilter(v as typeof urgencyFilter)}>
+                <SelectTrigger className="w-full sm:w-[180px]" aria-label="Filter by urgency">
                   <SelectValue placeholder="Filter by urgency" />
                 </SelectTrigger>
                 <SelectContent>
@@ -257,28 +352,57 @@ export default function ReplenishmentLog() {
                   <SelectItem value="planned">Planned</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                <SelectTrigger className="w-full sm:w-[180px]" aria-label="Filter by status">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="in_review">Awaiting approval</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="snoozed">Snoozed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Toggle
+                pressed={assignedToMe}
+                onPressedChange={setAssignedToMe}
+                aria-label="Show only recommendations assigned to me"
+                className="whitespace-nowrap"
+              >
+                <UserCircle2 className="h-4 w-4 mr-1" /> Mine
+              </Toggle>
             </div>
 
-            {selected.size > 0 && (
-              <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                <span className="font-medium">{selected.size} selected</span>
+            {effectiveSelection.size > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <span className="font-medium">{effectiveSelection.size} selected</span>
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={selected.size < 2 || mergeRecs.isPending}
+                  disabled={!!mergeError || mergeRecs.isPending}
+                  title={mergeError ?? "Merge selected recommendations"}
                   onClick={async () => {
                     try {
-                      await mergeRecs.mutateAsync(Array.from(selected));
-                      toast.success(`Merged ${selected.size} recommendations`);
+                      await mergeRecs.mutateAsync(Array.from(effectiveSelection));
+                      toast.success(`Merged ${effectiveSelection.size} recommendations`);
                       setSelected(new Set());
                     } catch (e) {
-                      toast.error(`Merge failed: ${normalizeError(e).message}`);
+                      toast.error(`Merge failed: ${humanizeRecError(normalizeError(e).message)}`);
                     }
                   }}
                 >
-                  <GitMerge className="h-4 w-4 mr-1" /> Merge (same product + vendor)
+                  <GitMerge className="h-4 w-4 mr-1" /> Merge
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                {mergeError && (
+                  <span className="text-xs text-muted-foreground">{mergeError}</span>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelected(new Set())}
+                  className="ml-auto"
+                >
                   Clear
                 </Button>
               </div>
@@ -288,7 +412,7 @@ export default function ReplenishmentLog() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-8"></TableHead>
+                    <TableHead className="w-8" aria-label="Select" />
                     <TableHead>Urgency</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Branch</TableHead>
@@ -324,24 +448,31 @@ export default function ReplenishmentLog() {
                   ) : (
                     filteredRecs.map((r) => {
                       const available = Math.max(0, Number(r.on_hand) - Number(r.reserved));
-                      const effective = Number((r as any).edited_qty ?? r.suggested_qty);
+                      const effective = Number(r.edited_qty ?? r.suggested_qty);
+                      const isSelected = effectiveSelection.has(r.id);
+                      const label = `${r.product?.name ?? "Recommendation"} — ${r.urgency}`;
                       return (
                         <TableRow
                           key={r.id}
-                          className="cursor-pointer hover:bg-muted/40"
-                          onClick={() => setDrawerRec(r)}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={label}
+                          aria-selected={isSelected}
+                          data-state={isSelected ? "selected" : undefined}
+                          className="cursor-pointer hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=selected]:bg-muted/60"
+                          onClick={() => openDrawer(r)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              openDrawer(r);
+                            }
+                          }}
                         >
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
-                              checked={selected.has(r.id)}
-                              onCheckedChange={(v) => {
-                                setSelected((prev) => {
-                                  const next = new Set(prev);
-                                  if (v) next.add(r.id);
-                                  else next.delete(r.id);
-                                  return next;
-                                });
-                              }}
+                              checked={isSelected}
+                              aria-label={`Select ${label}`}
+                              onCheckedChange={(v) => toggleSelected(r.id, !!v)}
                             />
                           </TableCell>
                           <TableCell>{urgencyBadge(r.urgency)}</TableCell>
@@ -364,8 +495,14 @@ export default function ReplenishmentLog() {
                           </TableCell>
                           <TableCell className="text-right font-semibold">
                             {effective}
-                            {(r as any).edited_qty != null && (
-                              <span className="ml-1 text-[10px] text-amber-600" title="Overridden">*</span>
+                            {r.edited_qty != null && (
+                              <span
+                                className="ml-1 text-[10px] text-amber-600"
+                                title="Overridden"
+                                aria-label="Quantity overridden"
+                              >
+                                *
+                              </span>
                             )}
                           </TableCell>
                           <TableCell className="text-sm">{r.vendor?.name ?? "—"}</TableCell>
@@ -374,7 +511,7 @@ export default function ReplenishmentLog() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">
-                              {(r as any).status ?? "open"}
+                              {r.status}
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -444,13 +581,14 @@ export default function ReplenishmentLog() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search by product or PO number…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={logSearch}
+                  onChange={(e) => setLogSearch(e.target.value)}
                   className="pl-9 w-full"
+                  aria-label="Search auto-PO log"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+              <Select value={logStatus} onValueChange={setLogStatus}>
+                <SelectTrigger className="w-full sm:w-[180px]" aria-label="Filter by log status">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
