@@ -65,14 +65,22 @@ master orchestrator just composes them in the right dependency order.
   → ancillaries → transactions_ledger → banking
   → sales → purchases → finance → sequences
   ```
-- Coverage check at the end re-counts every transactional table for
-  `org_id`. Any residual > 0 raises and the whole transaction rolls back.
+- Coverage check at the end re-counts key transactional tables per module
+  for `org_id` (including physical counts, warehouse balances, cost layers,
+  reservations, lots, recalls, prescriptions, and scan events — the
+  historical inventory-side gap fixed on 2026-07-14). Any residual > 0 is
+  surfaced in the response as `residual` and `coverage_check = 'failed'`.
+- Also zeroes derived state: `accounts.current_balance` is reset to 0 for
+  the org after journal entries have been wiped, so the GL balance
+  projection stays coherent with the (now-empty) ledger.
 - Returns:
   ```json
   {
     "success": true,
-    "totalDeleted": 12345,
-    "details": { "<module>": { "<table>": <rows>, … }, … },
+    "counts": { "<module>": { "<table>": <rows>, ... }, ... },
+    "totalDeleted": 0,
+    "residual": { "<table>": <rows> },
+    "residualTotal": 0,
     "coverage_check": "passed"
   }
   ```
