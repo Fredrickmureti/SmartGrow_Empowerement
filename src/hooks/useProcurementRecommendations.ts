@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
-import { useBranch } from "@/hooks/useBranch";
+import { useBranch } from "@/contexts/BranchContext";
 
 export type RecUrgency = "stockout" | "critical" | "low" | "planned";
 export type RecStatus = "open" | "snoozed" | "dismissed" | "actioned";
