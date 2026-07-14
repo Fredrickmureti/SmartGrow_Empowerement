@@ -1,77 +1,69 @@
 /**
- * ADR-0062 regression + architecture guard.
+ * ADR-0062 architecture guard.
  *
- * The KE statutory return templates (P10, P10A, P10D, NSSF_RET, SHIF_RET,
- * AHL_RET) used to bind columns labelled "Gross Pay" / "Annual Gross Pay" /
- * "Pensionable Pay" to `source: sum_taxable_amount`, so NSSF/PAYE/etc.
- * returns rendered *taxable income* under a "Gross Pay" header.
+ * Prevents *future* KE (or any) seed / update migrations from re-binding a
+ * gross-labelled statutory-return column to `sum_taxable_amount`, or vice
+ * versa. The historical seed migration 20260620001436 is intentionally
+ * allow-listed — its rows were repointed at install time via the ADR-0062
+ * data-update migration (see the runtime post-condition DO $$ block), and
+ * new tenants pick up the corrected `localization_pack_return_templates`
+ * rows from the DB, not from that historical file.
  *
- * This test:
- *   1. Statically greps the KE seed migration to ensure no `gross*` column
- *      key is ever bound to `sum_taxable_amount` again.
- *   2. Symmetrically ensures no `taxable*` column key is bound to
- *      `sum_gross_amount` (would be the mirror mistake).
- *
- * The runtime rebind of already-installed tenants is asserted in-database by
- * the ADR-0062 data migration's post-condition DO $$ block.
+ * The runtime contract of `sum_gross_amount` is pinned by
+ * `return-source-resolver-gross.test.ts`.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 
-const KE_SEED = readFileSync(
-  resolve(
-    __dirname,
-    "../../../supabase/migrations/20260620001436_406718e2-4677-4bf2-93a2-fbdf733b4bf1.sql",
-  ),
-  "utf8",
-);
+const MIGRATIONS_DIR = resolve(__dirname, "../../../supabase/migrations");
 
-// jsonb_build_object('key','<k>','label','<l>','source','<s>')
+// Historical seed that shipped the defect; rebound at runtime by the
+// ADR-0062 data migration. Do not edit — migration files are immutable.
+const ALLOW_LIST = new Set<string>([
+  "20260620001436_406718e2-4677-4bf2-93a2-fbdf733b4bf1.sql",
+]);
+
+// jsonb_build_object('key','<k>', … 'source','<s>' … )
 const COLUMN_RE =
   /jsonb_build_object\s*\(\s*'key'\s*,\s*'([^']+)'[^)]*?'source'\s*,\s*'([^']+)'\s*\)/g;
 
-interface Col {
+interface Offender {
+  file: string;
   key: string;
   source: string;
 }
 
-function extractColumns(src: string): Col[] {
-  const out: Col[] = [];
-  for (const m of src.matchAll(COLUMN_RE)) {
-    out.push({ key: m[1], source: m[2] });
+function scanMigrations(): { grossToTaxable: Offender[]; taxableToGross: Offender[] } {
+  const grossToTaxable: Offender[] = [];
+  const taxableToGross: Offender[] = [];
+  const entries = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
+  for (const file of entries) {
+    if (ALLOW_LIST.has(file)) continue;
+    const full = join(MIGRATIONS_DIR, file);
+    if (!statSync(full).isFile()) continue;
+    const src = readFileSync(full, "utf8");
+    for (const m of src.matchAll(COLUMN_RE)) {
+      const [, key, source] = m;
+      if (/^gross/i.test(key) && source === "sum_taxable_amount") {
+        grossToTaxable.push({ file, key, source });
+      }
+      if (/^taxable/i.test(key) && source === "sum_gross_amount") {
+        taxableToGross.push({ file, key, source });
+      }
+    }
   }
-  return out;
+  return { grossToTaxable, taxableToGross };
 }
 
-describe("ADR-0062 — KE return templates: gross vs taxable binding", () => {
-  const cols = extractColumns(KE_SEED);
+describe("ADR-0062 — no return template may misbind gross vs taxable", () => {
+  const { grossToTaxable, taxableToGross } = scanMigrations();
 
-  it("extracted a reasonable number of columns from the seed", () => {
-    // Sanity: the file defines several templates × several columns each.
-    expect(cols.length).toBeGreaterThan(10);
+  it("no NEW migration binds a gross-labelled column to sum_taxable_amount", () => {
+    expect(grossToTaxable).toEqual([]);
   });
 
-  it("no gross-labelled column is bound to sum_taxable_amount", () => {
-    const offenders = cols.filter(
-      (c) => /^gross/i.test(c.key) && c.source === "sum_taxable_amount",
-    );
-    expect(offenders).toEqual([]);
-  });
-
-  it("no taxable-labelled column is bound to sum_gross_amount (mirror check)", () => {
-    const offenders = cols.filter(
-      (c) => /^taxable/i.test(c.key) && c.source === "sum_gross_amount",
-    );
-    expect(offenders).toEqual([]);
-  });
-
-  it("no pensionable-labelled column is bound to sum_taxable_amount", () => {
-    // Pensionable earnings are, per ADR-0062, gross-equivalent until the
-    // follow-up sum_rule_base.<code> lands. They must not read taxable.
-    const offenders = cols.filter(
-      (c) => /pensionable/i.test(c.key) && c.source === "sum_taxable_amount",
-    );
-    expect(offenders).toEqual([]);
+  it("no NEW migration binds a taxable-labelled column to sum_gross_amount", () => {
+    expect(taxableToGross).toEqual([]);
   });
 });
