@@ -124,6 +124,8 @@ export function useProcurementRecommendations() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
+  const { user } = useAuth();
+  const approvalGate = useApprovalGate();
 
   const organizationId = currentOrg?.id ?? null;
   const businessId = currentBusiness?.id ?? null;
@@ -256,6 +258,67 @@ export function useProcurementRecommendations() {
     onMutate: async (args) => ({ snapshots: patchCachedRec(args.id, { status: args.status }) }),
     onError: (_e, _a, ctx) => ctx && restoreCachedRecs(ctx.snapshots),
     onSettled: invalidateRecs,
+  });
+
+  /**
+   * Approve a recommendation via the platform's central approval subsystem.
+   *
+   * If an `approval_rules` entry matches (entity_type='procurement_recommendation',
+   * action_name='approve'), an `approval_rule_logs` row is created and a DB
+   * trigger flips the recommendation to `in_review` with `approval_request_id`
+   * pointing at the log. Approvers act from the approvals inbox; the trigger
+   * then flips the rec to `approved` or back to `open`.
+   *
+   * When no rule matches, the rec is approved immediately — the current
+   * behaviour for tenants that haven't configured any approval policies.
+   */
+  const approveOrRequest = useMutation({
+    mutationFn: async (args: {
+      id: string;
+      suggestedQty: number;
+      estimatedCost?: number;
+    }): Promise<{ approved: boolean; ruleName?: string }> => {
+      const check = await approvalGate.checkApproval(
+        "procurement_recommendation",
+        "approve",
+        args.id,
+        { suggested_qty: args.suggestedQty, estimated_cost: args.estimatedCost ?? 0 },
+      );
+      if (check.blocked) {
+        // Pending request already exists — nothing to do; drawer will render
+        // the pending state from `approval_request_id`.
+        if (check.status === "pending") {
+          return { approved: false, ruleName: check.ruleName };
+        }
+        if (!check.ruleId) throw new Error(check.message || "Approval required.");
+        const logId = await approvalGate.requestApproval(
+          "procurement_recommendation",
+          "approve",
+          args.id,
+          check.ruleId,
+        );
+        if (!logId) throw new Error("Could not raise the approval request.");
+        // Trigger `_mirror_approval_to_procurement_rec` sets status/approval_request_id.
+        return { approved: false, ruleName: check.ruleName };
+      }
+      const { error } = await (supabase as any)
+        .from("procurement_recommendations")
+        .update({ status: "approved" })
+        .eq("id", args.id);
+      if (error) throw error;
+      return { approved: true };
+    },
+    onSuccess: invalidateRecs,
+  });
+
+  const cancelApproval = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any).rpc("cancel_procurement_approval", {
+        p_rec_id: id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: invalidateRecs,
   });
 
   const snooze = useMutation({
@@ -403,6 +466,8 @@ export function useProcurementRecommendations() {
     error: recsQuery.error || runsQuery.error,
     runPlanning,
     setStatus,
+    approveOrRequest,
+    cancelApproval,
     snooze,
     assign,
     editQty,
