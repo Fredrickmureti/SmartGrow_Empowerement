@@ -70,6 +70,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     editQty,
     convertToPo,
     convertToTransfer,
+    attachToPo,
     assign,
   } = useProcurementRecommendations();
   const { warehouses } = useWarehouses();
@@ -89,6 +90,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
   const [poNotes, setPoNotes] = useState("");
   const [poQty, setPoQty] = useState<string>("");
   const [poVendorId, setPoVendorId] = useState<string>(KEEP_VENDOR);
+  const [poTargetId, setPoTargetId] = useState<string>("__new__");
   const [xfFrom, setXfFrom] = useState<string>("");
   const [xfTo, setXfTo] = useState<string>("");
   const [xfQty, setXfQty] = useState<string>("");
