@@ -1,139 +1,98 @@
-## Diagnosis
+# Payroll canonical-values architecture investigation — findings & fix plan
 
-You were right to challenge this.
-
-The business event is:
+## 1. Architecture trace (end-to-end)
 
 ```text
-Employee elects voluntary statutory deduction
-→ payroll computes a custom deduction
-→ approved payroll result stores the legal deduction amount
-→ statutory return should report that amount under the pack-defined voluntary return column
+Salary structure / contract
+        │
+        ▼
+compute-payroll (edge fn)         ← engine, SINGLE SOURCE OF TRUTH
+        │  computes independently:
+        │    gross_pay          = basic + housing + transport + other + reimbursements
+        │    taxable_income     = gross − pre-tax (NSSF+SHIF+AHL when flagged)
+        │    taxable_base       (mirror of taxable_income)
+        │    per-rule employee_amount / employer_amount → payslip_lines
+        ▼
+public.payslips  (columns: gross_pay, taxable_income, taxable_base, net_pay, …)
+public.payslip_lines  (per rule_code amounts)
+        │
+        ├──► post-payroll-gl        reads gross_pay ✔ correct
+        ├──► generate-payslip-pdf   reads gross_pay ✔ correct
+        ├──► payrollData / register reads gross_pay ✔ correct
+        ├──► certificate-engine     path-bindings for P9 etc. ✔ correct
+        │
+        └──► generate-statutory-return
+                 │
+                 uses returnSourceResolver.ts
+                 sources: sum_taxable_amount → sums payslips.taxable_income (fallback gross_pay)
+                          sum_basic_pay, sum_allowances, sum_employee_amount, sum_employer_amount, sum_rule.*
+                          (NO sum_gross_amount source exists today)
+                 │
+                 reads `body.columns[].source` from
+                 public.localization_pack_return_templates (SEED DATA)
+                 │
+                 ▼
+        CSV / PDF return  ← the mislabeled value surfaces here
 ```
 
-What I found in the current tenant:
+## 2. Where the defect lives — proven
 
-- The employee’s **NSSF voluntary custom deduction** is configured and active.
-- The approved payroll run `PAY-0018` produced a `payslip_lines` row:
-  - `rule_code = nssf_voluntary`
-  - `employee_amount = 2000`
-  - `source.source = custom_deduction`
-- The current `NSSF_RET` template has `VOLUNTARY` mapped to `sum_rule.nssf_voluntary.employee`.
-- The most recent generated return payload now shows `voluntary: 2000`, but older generated returns show `voluntary: 0`.
-- The architectural problem remains: the custom deduction payslip line still has `scheme_component_id = null`, even though the custom deduction type is linked to the NSSF voluntary statutory component.
+**Not** the engine, **not** the schema, **not** the resolver logic. The engine correctly persists `gross_pay = 94,000` and `taxable_income = 84,365.06` as two distinct columns.
 
-So my previous implementation fixed the immediate string-code path, but did **not** fully implement the enterprise architecture I described. The generator is still functionally relying on `rule_code` conventions instead of the durable statutory component binding.
+The defect is a **seed-data / template-binding mistake** in
+`supabase/migrations/20260620001436_406718e2-4677-4bf2-93a2-fbdf733b4bf1.sql`,
+which inserts six KE return templates whose "Gross Pay" columns are bound to `source: 'sum_taxable_amount'`:
 
-## What is wrong architecturally
+| Template | Column key | Column label | Wrong source |
+|---|---|---|---|
+| P10       | `gross_pay`     | Gross Pay        | sum_taxable_amount |
+| P10A      | `gross_pay`     | Gross Pay        | sum_taxable_amount |
+| P10D      | `gross_pay_ytd` | Annual Gross Pay | sum_taxable_amount |
+| **NSSF_RET** | `gross_pay`  | Pensionable Pay  | sum_taxable_amount |
+| SHIF_RET  | `gross_pay`     | Gross Pay        | sum_taxable_amount |
+| AHL_RET   | `gross_pay`     | Gross Pay        | sum_taxable_amount |
 
-The return should not depend on this fragile assumption:
+The resolver source `sum_taxable_amount` explicitly documents "sum of payslips.taxable_income" — its name is honest; the template is what lies. There is **no** `sum_gross_amount` source in `_shared/returnSourceResolver.ts` today, so even fixing the binding requires adding one (basic+allowances is not full gross — it excludes overtime/bonus/commission/reimbursements).
 
-```text
-template column source = sum_rule.nssf_voluntary.employee
-matches payslip_lines.rule_code = nssf_voluntary
-```
+Additionally, "Pensionable Pay" on the NSSF return is not the same concept as gross either — NSSF Act defines pensionable earnings as capped gross (Tier I / Tier II bands). The current design has no persisted `pensionable_earnings` column; NSSF/SHIF/AHL each compute off `params.base` inside the engine but the base used is not stored. For NSSF specifically, "Pensionable Pay" per the NSSF by-product spec = min(gross, upper limit) — currently unmodelled.
 
-That is better than before, but still not enterprise-grade.
+## 3. Blast radius
 
-The durable contract should be:
+- All six KE statutory returns above misreport gross columns as taxable.
+- P9 tax certificate and GL postings are unaffected (they read `payslips.gross_pay` directly through separate code paths).
+- Payroll register, analytics, PDF payslip: unaffected.
+- Future country packs would be able to make the same mistake — the resolver offers `sum_taxable_amount` but no `sum_gross_amount`, encouraging misuse.
 
-```text
-custom_deduction_types.scheme_component_id
-→ payslip_lines.scheme_component_id
-→ statutory_reporting_bindings.scheme_component_id
-→ return column
-```
+## 4. Ownership of the fix (correct architectural layer)
 
-That is what scales to Ghana Tier 3, Uganda voluntary NSSF, pension top-ups, union dues that are legally reportable, country-specific employer components, and future localization packs without inventing more string conventions.
+1. **Resolver (platform)** — add a first-class `sum_gross_amount` source that returns `sum(payslips.gross_pay)`. Symmetric to existing `sum_taxable_amount`.
+2. **Resolver (platform)** — add a `sum_pensionable_amount` source. Implementation reads a new engine-persisted `pensionable_pay` (see step 3) and falls back to `LEAST(gross_pay, cap)` only if the localization pack declares a cap parameter — but no country-specific logic in the resolver. If we choose to defer engine persistence, ship `sum_gross_amount` now and treat pensionable = gross for the NSSF template until step 3 lands (documented caveat, matches current NSSF Byproduct where the cap is applied per contribution, not per pay line).
+3. **Engine (platform, follow-up)** — persist the *base* used for each statutory contribution alongside the amount, e.g. `payslip_lines.contribution_base numeric`, populated when compute-payroll writes NSSF/SHIF/AHL/pension lines. Adds `sum_rule_base.<rule_code>` resolver source. This closes the "pensionable earnings" modelling gap without any Kenya-specific code.
+4. **Kenya pack (data-only migration)** — rebind the six templates above to the correct new sources: `gross_pay` columns → `sum_gross_amount`; NSSF "Pensionable Pay" → `sum_rule_base.nssf` once step 3 lands, otherwise `sum_gross_amount` with a documented caveat.
+5. **Guard tests** — add an architecture test that flags any `localization_pack_return_templates` column whose `key` contains `gross` but whose `source` is `sum_taxable_amount`, and vice versa (a `taxable_*` key bound to `sum_gross_amount`). Add an ADR "canonical payroll values contract" listing the field semantics and the resolver→column naming discipline.
 
-## Implementation plan
+## 5. Implementation steps (in order, no code yet)
 
-### 1. Fix payroll result provenance
+1. Add ADR `docs/adr/00XX-canonical-payroll-values.md` defining: gross_pay, taxable_income, chargeable_income (already in monthlyMatrix), pensionable_earnings, contribution_base, and the rule: **return templates MUST NOT compute; they consume named resolver sources whose names match their semantics**.
+2. Extend `supabase/functions/_shared/returnSourceResolver.ts`:
+   - New source `sum_gross_amount` → `round2(sum(gross_pay))`.
+   - New source `sum_net_pay` (parity, tiny) — optional.
+   - Extend `ctx.sums` accumulator in `generate-statutory-return/index.ts` to include `gross`.
+   - Mirror the addition in the browser copy if one exists (verify parity file).
+3. Migration: `UPDATE public.localization_pack_return_templates SET body = jsonb_set(...)` re-binding the six KE templates' `gross_pay`/`gross_pay_ytd` columns to `sum_gross_amount`. Leave `totals` in sync. Idempotent WHERE guards on the current wrong source value.
+4. Regression test (vitest):
+   - Fixture payslip: gross 94,000, taxable 84,365.06.
+   - Assert NSSF_RET column labeled "Pensionable Pay" now emits 94,000 (or the capped value once step 6 lands), and PAYE-base columns still emit 84,365.06.
+5. Architecture guard test (vitest or SQL): scan seed templates for `key ~* 'gross'` bound to `sum_taxable_amount` → fail. Symmetric check for taxable/pensionable mislabelling.
+6. Follow-up (separate PR, not in this fix): engine writes `contribution_base` on statutory `payslip_lines`; add `sum_rule_base.<code>` resolver source; rebind NSSF Pensionable Pay to that. This is the proper long-term modelling of pensionable earnings and lets any country express caps declaratively via localization-pack rule parameters.
 
-Update `compute-payroll` so custom deduction lines carry the statutory component identity when the deduction type has one.
+## 6. Non-goals / explicit avoids
 
-For employee custom deductions:
+- No hardcoding 94,000 anywhere.
+- No renaming of persisted columns.
+- No Kenya-specific branch in engine or resolver.
+- No duplicated calculation in the return generator — resolver stays the only computation site for aggregates, engine stays the only computation site for per-payslip values.
 
-```text
-custom_deduction_types.scheme_component_id
-→ emitted payslip_lines.scheme_component_id
-```
+## Approval
 
-This makes the approved payroll result legally self-describing.
-
-### 2. Backfill existing approved result metadata safely
-
-Run a narrow migration that backfills only missing `payslip_lines.scheme_component_id` where all of these are true:
-
-- line source is `custom_deduction`
-- line source contains `deduction_type_id`
-- the referenced `custom_deduction_types` row has `scheme_component_id`
-- the line currently has `scheme_component_id IS NULL`
-
-This does **not** change money, net pay, GL posting, or tax. It only restores missing provenance on immutable payroll results.
-
-### 3. Upgrade statutory return aggregation to component-aware reporting
-
-Change `generate-statutory-return` so it loads `statutory_reporting_bindings` for the template and uses component-bound line amounts when a column is bound.
-
-For a binding like:
-
-```text
-NSSF_RET.voluntary
-→ NSSF voluntary component
-→ employee side
-```
-
-The generator should aggregate:
-
-```text
-sum payslip_lines.employee_amount
-where payslip_lines.scheme_component_id = binding.scheme_component_id
-```
-
-not merely:
-
-```text
-sum payslip_lines.employee_amount
-where payslip_lines.rule_code = 'nssf_voluntary'
-```
-
-### 4. Preserve backward compatibility
-
-Keep existing `sum_rule.<code>.<side>` behavior for templates and tenants that have not yet adopted component bindings.
-
-Resolution order:
-
-```text
-1. Explicit statutory_reporting_bindings for the template column
-2. Existing source token resolver fallback
-```
-
-So current packs do not break, but new/updated packs get structural correctness.
-
-### 5. Make government files use the same component-aware row context
-
-Ensure CSV/PDF/gov_xlsx/gov_xml all consume the same resolved row context, so the audit artifact and authority upload cannot disagree.
-
-This matters because users may be viewing the primary `gov_xlsx`, while the internal payload or audit CSV may show something else.
-
-### 6. Add regression tests for the business event
-
-Add tests that lock the full lifecycle:
-
-```text
-custom deduction type linked to statutory component
-→ employee assignment produces payslip line with scheme_component_id
-→ NSSF_RET voluntary column reads 2000 from component binding
-→ no Kenya-specific branch is introduced
-```
-
-Also add an architecture guard that fails if `statutory_reporting_bindings` exists but return generation ignores it.
-
-### 7. Regenerate the affected return
-
-After the architecture is fixed, regenerate the current tenant’s NSSF return for the affected period so the active artifact reflects the approved payroll result.
-
-## Expected outcome
-
-The NSSF voluntary amount will come from the employee’s actual voluntary custom deduction, through the approved payroll result, into the statutory return by statutory component identity — not by a fragile Kenya-specific string match.
+Approve to proceed with steps 1–5 in one PR. Step 6 (engine-persisted `contribution_base` + `sum_rule_base.*` + true pensionable-earnings modelling) will be a follow-up PR so this correction ships without waiting on an engine change; the interim NSSF "Pensionable Pay" = gross is documented and matches current behavior for uncapped earners.

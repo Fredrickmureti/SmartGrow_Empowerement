@@ -68151,7 +68151,7 @@ export type Database = {
       reset_module__fixed_assets: { Args: { org_id: string }; Returns: Json }
       reset_module__hr: { Args: { org_id: string }; Returns: Json }
       reset_module__inventory: {
-        Args: { business_id?: string; org_id: string }
+        Args: { org_id: string; p_business_id?: string }
         Returns: Json
       }
       reset_module__payroll: { Args: { org_id: string }; Returns: Json }
