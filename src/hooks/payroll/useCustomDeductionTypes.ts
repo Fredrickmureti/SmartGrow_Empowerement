@@ -47,6 +47,15 @@ export interface CustomDeductionType {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Optional pack-declared rule code emitted on payslip_lines. When
+   * set, compute-payroll uses this string verbatim as the rule_code
+   * so localization pack return templates and pack tokens can bind
+   * to it (e.g. Kenya NSSF Type-105 "nssf_voluntary" → NSSF_RET
+   * VOLUNTARY column). Legacy rows leave it null and get the
+   * `custom_<code>` fallback.
+   */
+  payroll_rule_code: string | null;
 }
 
 export type CustomDeductionTypeInput = Omit<
