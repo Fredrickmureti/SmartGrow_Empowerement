@@ -35,7 +35,7 @@ describe("statutory return component bindings", () => {
   it("resolver supports internal bound column values without exposing country-specific sources", () => {
     expect(RESOLVER).toMatch(/byColumn\?:\s*Record<string, unknown>/);
     expect(RESOLVER).toMatch(/BOUND_COLUMN/);
-    expect(RESOLVER).toMatch(/bound_column\./);
+    expect(RESOLVER).toMatch(/\^bound_column\\\\\./);
     expect(RESOLVER).not.toMatch(/nssf_voluntary|NSSF_RET|Kenya/);
   });
 });

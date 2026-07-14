@@ -34,10 +34,7 @@ describe("Custom Deductions engine wiring", () => {
     expect(COMPUTE).toMatch(/scheme_component_id:\s*t\.scheme_component_id\s*\?\?\s*null/);
     expect(COMPUTE).toMatch(/explicit_scheme_component_id:\s*string\s*\|\s*null\s*=\s*null/);
     expect(COMPUTE).toMatch(/const\s+scheme_component_id\s*=\s*explicit_scheme_component_id\s*\?\?\s*resolveSchemeComponentId/);
-    const customEmitBlock = COMPUTE.slice(
-      COMPUTE.indexOf("// Turn D: custom deduction lines"),
-      COMPUTE.indexOf("// P1: Employer admin fees"),
-    );
+    const customEmitBlock = COMPUTE.split("Turn D: custom deduction lines")[1]?.split("P1: Employer admin fees")[0] ?? "";
     expect(customEmitBlock).toMatch(/scheme_component_id:\s*cd\.scheme_component_id/);
     expect(customEmitBlock).toMatch(/cd\.scheme_component_id/);
   });
