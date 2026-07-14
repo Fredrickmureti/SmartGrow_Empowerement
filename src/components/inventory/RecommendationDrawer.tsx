@@ -47,6 +47,8 @@ import {
 import {
   useProcurementRecommendations,
   useRecommendationEvents,
+  useWarehouseStockForProduct,
+  narrateRecommendation,
   humanizeRecError,
   type ProcurementRecommendation,
 } from "@/hooks/useProcurementRecommendations";
