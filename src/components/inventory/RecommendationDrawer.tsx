@@ -111,6 +111,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     editQty.isPending ||
     convertToPo.isPending ||
     convertToTransfer.isPending ||
+    attachToPo.isPending ||
     assign.isPending;
 
   const resolvedVendorId =
