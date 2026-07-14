@@ -1719,6 +1719,52 @@ Deno.serve(async (req) => {
       return { housingExempt: Math.min(empHousingAllowance, housingCap) };
     }
 
+    // ─── Statutory scheme components lookup (Phase: Statutory Scheme model) ───
+    // Load all active scheme components for the countries in this run and
+    // build a Map keyed by `${country}:${rule_code}:${party}` → component id.
+    // Stamped onto payslip_lines.scheme_component_id at emit time so return
+    // generators can aggregate by component (structural) rather than by
+    // rule_code string convention. Country-agnostic — packs for KE, UG, TZ,
+    // NG, etc. all populate the same tables and get the same behaviour.
+    const schemeComponentByKey = new Map<string, string>();
+    try {
+      const { data: schemeComponents } = await supabaseAdmin
+        .from("statutory_scheme_components")
+        .select("id, rule_code, party, is_active, statutory_schemes!inner(country_code, is_active)")
+        .eq("is_active", true)
+        .in("statutory_schemes.country_code", Array.from(countriesInRun));
+      for (const c of (schemeComponents || []) as any[]) {
+        const cc = String(c.statutory_schemes?.country_code || "").toUpperCase();
+        if (!cc) continue;
+        schemeComponentByKey.set(`${cc}:${c.rule_code}:${c.party}`, c.id);
+      }
+    } catch (e) {
+      console.warn("[compute-payroll] statutory_scheme_components load failed (non-fatal):", (e as Error).message);
+    }
+    const resolveSchemeComponentId = (
+      countryCode: string | null | undefined,
+      ruleCode: string | null | undefined,
+      employeeAmount: number,
+      employerAmount: number,
+    ): string | null => {
+      if (!countryCode || !ruleCode) return null;
+      const cc = String(countryCode).toUpperCase();
+      // Prefer employee party when employee_amount > 0, else employer.
+      // If both are non-zero (rare), employee wins — the deduction line is
+      // the primary regulator surface; the employer contribution has its
+      // own separate line via the employer emitter.
+      if (employeeAmount > 0) {
+        const hit = schemeComponentByKey.get(`${cc}:${ruleCode}:employee`);
+        if (hit) return hit;
+      }
+      if (employerAmount > 0) {
+        const hit = schemeComponentByKey.get(`${cc}:${ruleCode}:employer`);
+        if (hit) return hit;
+      }
+      return null;
+    };
+
+
     // Legacy alias for the single-country fast path. When the caller
     // passed a top-level `country_code`, this points at that slice.
     const statutoryRules: PayrollRule[] = country_code
