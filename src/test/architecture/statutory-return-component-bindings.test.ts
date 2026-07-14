@@ -27,9 +27,9 @@ describe("statutory return component bindings", () => {
   });
 
   it("keeps government files aligned with component-bound return columns", () => {
-    expect(RETURN_FN).toMatch(/boundSubmissionColumns/);
+    expect(RETURN_FN).toMatch(/renderSubFmt/);
     expect(RETURN_FN).toMatch(/columnKeyByLabel/);
-    expect(RETURN_FN).toMatch(/sums\.byColumn\?\.\[binding\.columnKey\]/);
+    expect(RETURN_FN).toMatch(/source:\s*`bound_column\.\$\{key\}`/);
   });
 
   it("resolver supports internal bound column values without exposing country-specific sources", () => {
