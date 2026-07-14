@@ -76,6 +76,8 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     convertToTransfer,
     attachToPo,
     assign,
+    approveOrRequest,
+    cancelApproval,
   } = useProcurementRecommendations();
   const { warehouses } = useWarehouses();
   const { members, getUserName } = useOrgMembers();
@@ -135,7 +137,9 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     convertToPo.isPending ||
     convertToTransfer.isPending ||
     attachToPo.isPending ||
-    assign.isPending;
+    assign.isPending ||
+    approveOrRequest.isPending ||
+    cancelApproval.isPending;
 
   const resolvedVendorId =
     poVendorId === KEEP_VENDOR ? rec.preferred_vendor_id : poVendorId || null;
@@ -177,8 +181,19 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
 
   const handleApprove = async () => {
     try {
-      await setStatus.mutateAsync({ id: rec.id, status: "approved" });
-      toast.success("Recommendation approved");
+      const result = await approveOrRequest.mutateAsync({
+        id: rec.id,
+        suggestedQty: effectiveQty,
+      });
+      if (result.approved) {
+        toast.success("Recommendation approved");
+      } else {
+        toast.success(
+          result.ruleName
+            ? `Approval requested — ${result.ruleName}`
+            : "Sent for approval",
+        );
+      }
     } catch (e) {
       toast.error(err(e));
     }
@@ -194,8 +209,20 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
   };
   const handleRequestReview = async () => {
     try {
-      await setStatus.mutateAsync({ id: rec.id, status: "in_review" });
+      await approveOrRequest.mutateAsync({
+        id: rec.id,
+        suggestedQty: effectiveQty,
+      });
       toast.success("Sent for review");
+    } catch (e) {
+      toast.error(err(e));
+    }
+  };
+
+  const handleCancelApproval = async () => {
+    try {
+      await cancelApproval.mutateAsync(rec.id);
+      toast.success("Approval request cancelled");
     } catch (e) {
       toast.error(err(e));
     }
@@ -305,7 +332,10 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     }
   };
 
-  const canApprove = rec.status === "open" || rec.status === "in_review";
+  const hasPendingApproval =
+    rec.status === "in_review" && !!rec.approval_request_id;
+  const canApprove =
+    (rec.status === "open" || rec.status === "in_review") && !hasPendingApproval;
   const canRequestReview = rec.status === "open";
   const isTerminal = ["fulfilled", "cancelled", "merged"].includes(rec.status);
 
