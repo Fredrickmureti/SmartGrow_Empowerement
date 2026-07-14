@@ -205,7 +205,7 @@ export function ProductStockPanel({
 
   const adjustHref = `/inventory-app/stock?action=adjust&product=${productId}`;
   const transferHref = `/inventory-app/transfers?action=new&product=${productId}`;
-  const receiveHref = `/purchases-app/purchase-orders?action=new&product=${productId}`;
+  const receiveHref = `/purchases/orders/new?product=${productId}`;
   const movementsHref = `/inventory-app/stock?tab=movements&product=${productId}`;
   const forecastHref = `/inventory-app/forecast?product=${productId}`;
   const valuationHref = `/inventory-app/reports/valuation?product=${productId}`;
