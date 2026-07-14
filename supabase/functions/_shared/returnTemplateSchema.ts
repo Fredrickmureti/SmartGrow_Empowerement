@@ -40,6 +40,7 @@ export const KNOWN_SYSTEM_COLUMN_SOURCES = [
   "employee.branch_id",
   "sum_employee_amount",
   "sum_employer_amount",
+  "sum_gross_amount",
   "sum_taxable_amount",
   "sum_basic_pay",
   "sum_allowances",
