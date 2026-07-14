@@ -20,7 +20,7 @@
 import { useMemo } from "react";
 import { formatBaseQtyAsPacks, type PackForRollup } from "@/lib/packagingRollup";
 import { Link } from "react-router-dom";
-import { DetailSheet } from "@/design-system";
+import { DetailSheet, FooterActionBar } from "@/design-system";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
