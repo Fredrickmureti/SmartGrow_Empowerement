@@ -1,122 +1,149 @@
 
-# Inventory Replenishment — architecture verdict & engineering plan
+# Inventory Replenishment — Validation Report
 
-## 1. Verdict (what actually exists today)
+Scope of verification: the code shipped by the previous agent under
+`src/pages/ReplenishmentLog.tsx`, `src/components/inventory/RecommendationDrawer.tsx`,
+`src/hooks/useProcurementRecommendations.ts`, and the two migrations
+`20260714110953_*` (planning engine) and `20260714114201_*` (lifecycle RPCs).
 
-The subsystem is **~30% of an enterprise planning engine** — a competent net-requirement calculator wrapped in a passive dashboard. What is real:
+## 1. Verification of the final claim
 
-- `product_reorder_rules` — safety stock, MOQ, pack size, lead time, preferred vendor, `source_strategy` (unused), optional branch/warehouse scope.
-- `replenishment_runs` — audit header per planning execution.
-- `procurement_recommendations` — one row per (product, branch) shortage, with `explanation` JSON and an `open / snoozed / dismissed / actioned` status.
-- `run_replenishment_planning(business, branch, trigger)` RPC — reads on-hand from `warehouse_stock`, open-PO incoming, and 28-day trailing outbound velocity; computes `safety + lead-demand − available − incoming`, rounds to MOQ/pack, classifies urgency.
-- `src/lib/replenishment/engine.ts` — pure TS mirror kept in sync with the SQL.
-- Workspace `/inventory-app/replenishment` (`ReplenishmentLog.tsx`) — KPIs, urgency filter, "Why" dialog, snooze/dismiss, runs tab, legacy auto-PO log tab.
+Claim: *"Wired the recommendations table to the new drawer, added bulk‑merge action and selection checkboxes, removed the legacy 'Why' dialog."*
 
-What is **missing** vs. Odoo/SAP/Dynamics/ERPNext-class MRP:
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Table → drawer wiring | Verified | `ReplenishmentLog.tsx` L332, `<RecommendationDrawer>` mounted L551‑555. |
+| Selection checkboxes | Verified | L334‑346, `selected: Set<string>` state L92. |
+| Bulk merge action | Verified (with caveats — see §3) | L262‑285 uses `mergeRecs.mutateAsync`. |
+| Legacy "Why" dialog removed | Verified | `rg 'WhyDialog\|WhyModal\|ReplenishmentWhy'` returns 0 hits; no orphaned import. |
+| No orphaned code / unused hooks | Partial | `useProcurementRecommendations` still exports `assign` — never called from any UI (dead surface). Several `(r as any).edited_qty` / `(r as any).status` casts even though both fields are on the typed interface. |
+| No regressions | Not fully verifiable without runtime — see §4. |
 
-| # | Gap | Impact |
-|---|---|---|
-| 1 | No path from recommendation → PO / transfer / MO. `actioned_ref_type/id` columns exist but nothing writes them. | Recommendations are read-only wallpaper. |
-| 2 | `suggested_source` is hard-coded `'buy'`. `source_strategy` on the rule is ignored. No transfer or manufacture sourcing. | Multi-warehouse and make-vs-buy invisible. |
-| 3 | No approval workflow. Platform has `approval_workflows` / `approval_requests`; planning does not feed them. | Cannot enforce planner ≠ approver ≠ buyer SoD. |
-| 4 | Snooze is binary — no `snooze_until`, no assignee, no comments, no merge, no edit-qty, no per-line regenerate, no lifecycle audit. | Not a work item, just a badge. |
-| 5 | No open-PO tie-back per recommendation. Incoming is a scalar sum. | Planner cannot see "PO#123 already resolves this on Wed". |
-| 6 | Demand = 28-day trailing outbound only. Sales orders, backorders, reservations-over-time, forecasts, seasonality, BOM explosion — all ignored. | Not time-phased. Cannot MRP. |
-| 7 | Vendor sourcing = single `preferred_supplier_id`. `vendor_pricelists` (price breaks, per-vendor lead time, per-vendor MOQ) not consulted. | No vendor selection intelligence. |
-| 8 | Sums across warehouses per branch — no per-warehouse recommendation, no lateral transfer suggestion when one warehouse is long and another short. | Encourages over-buying. |
-| 9 | Lot / expiry ignored. FEFO exists (ADR-0025) but near-expiry stock still counted as available. | Overstates cover. |
-| 10 | Only `manual` run type is wired. `scheduled` / `event` enums exist but no pg_cron and no event triggers (low-stock, new sales order, PO cancellation). | Planners must remember to click. |
-| 11 | Legacy `replenishment_logs` (auto-PO) lives on a separate tab with its own lifecycle, disconnected from recommendations. | Two truths; tech debt. |
-| 12 | No notifications on run completion, new stock-outs, or newly critical items. | Silent engine. |
-| 13 | No planning reports (supplier proposal, shortage list, plan-vs-actual). | Nothing to send to a buyer or CFO. |
-| 14 | No rules-management page in nav. `useProductReorderRules` exists but planners can't triage rule coverage. | Cold start invisible. |
+Conclusion: the four headline items are in the codebase, but the feature is
+**not** at the "enterprise planning engine" bar the brief demands.
 
-## 2. Target architecture (single-page)
+## 2. What the subsystem does model correctly
 
-```text
-                         ┌──────────────────────────────────┐
-   Demand signals ──────►│                                  │
-   (SO backlog,          │        Planning Engine           │
-    reservations,        │  (run_replenishment_planning v2) │
-    28d velocity,        │                                  │──► procurement_recommendations
-    forecast horizon)    │  time-phased, per-warehouse,     │     (open → in_review →
-                         │  vendor-aware, source-aware      │      approved → executing →
-   Supply signals ──────►│                                  │      fulfilled / cancelled)
-   (on-hand, open POs    │                                  │
-    with ETA, open       └────────────────┬─────────────────┘
-    transfers, MOs,                       │
-    lots+expiry)                          ▼
-                                 ┌────────────────┐
-   Rules ───────────────────────►│ Recommendation │──► converts to
-   (reorder rules,               │   work items   │     • Purchase Order (rec_id stamped)
-    vendor pricelists,           │  (assignable,  │     • Stock Transfer (rec_id stamped)
-    source_strategy,             │   mergeable,   │     • Manufacturing Order (future)
-    approval rules)              │   auditable)   │
-                                 └────────┬───────┘
-                                          │
-                                          ▼
-                                 Approval workflow (SoD)
-                                          │
-                                          ▼
-                             Notifications + digest email
-                                          │
-                                          ▼
-                       Planning reports (shortage, supplier proposal)
-```
+- Deterministic recommendation math on the server (safety + velocity/7 × lead − available − incoming, pack/MOQ rounded) — matches Odoo/SAP MRP baseline. Verified in engine unit tests (`src/lib/replenishment/__tests__/engine.test.ts`).
+- Full lifecycle status enum (`open / in_review / approved / snoozed / dismissed / actioned / executing / fulfilled / cancelled / merged`) plus an append-only `procurement_recommendation_events` audit trail.
+- Server-side lifecycle RPCs (`snooze / assign / edit_qty / convert_to_po / convert_to_transfer / merge`) are `SECURITY DEFINER` and re-check `user_can_access_business`.
+- Auto-fulfill / auto-reopen triggers on the linked PO and transfer (`sync_recommendation_from_po` etc.) — replenishment closes itself when the sourcing document completes or is cancelled, which is the correct enterprise contract.
 
-Sourcing decision order (per rule `source_strategy`):
-1. `prefer_transfer` → if another accessible warehouse in the same business has surplus > safety, emit `transfer` rec first.
-2. `prefer_manufacture` → if product has an active BOM, emit `manufacture` rec (phase 3).
-3. Otherwise `buy` — pick vendor via `vendor_pricelists` (best price at required qty, respecting per-vendor MOQ & lead time), fallback to `preferred_supplier_id`.
+These parts are production-shaped and should not be reworked.
 
-## 3. Phased delivery
+## 3. Gaps — planner workflow is incomplete
 
-Each phase ends with the module still shippable. No user question needed — scope is inferred from mature ERP norms.
+### 3.1 Missing lifecycle actions in the UI (RPCs exist server-side)
 
-### Phase 1 — Recommendation becomes a work item (foundation)
-- DB: extend `procurement_recommendations` with `status` values `in_review, approved, executing, fulfilled, cancelled`; add `snooze_until`, `assignee_id`, `linked_po_id`, `linked_transfer_id`, `linked_mo_id`, `approval_request_id`, `edited_qty`, `override_reason`.
-- DB: `procurement_recommendation_events` audit table (who did what, when, from/to status).
-- RPC `convert_recommendation_to_po(rec_id, vendor_id?, qty?, notes?)` — creates a draft PO under Purchases rules, stamps `linked_po_id`, transitions status to `executing`, writes audit event. Rec auto-flips to `fulfilled` when the linked PO's GRN closes the qty.
-- RPC `convert_recommendation_to_transfer(rec_id, from_wh, to_wh, qty?)` — same shape for `stock_transfers`.
-- RPC `merge_recommendations(ids[])` (same product+vendor, aggregate qty).
-- Workspace: bulk-select, "Create PO", "Create transfer", "Assign to…", "Snooze until", edit qty inline, per-row audit drawer.
+- **Approve / reject** (`status: in_review → approved / dismissed`) — the state machine and the events table already support it, but the drawer only exposes Snooze / Dismiss and direct "Create PO". There is no queue view for "pending approval".
+- **Assign** — `assign` mutation is exported by the hook but not wired anywhere. Planner ownership is invisible.
+- **Bulk actions** — only merge is exposed. Enterprise planners need bulk approve / dismiss / snooze / convert‑to‑PO by vendor.
+- **Manufacturing** — schema has `linked_mo_id` and `suggested_source: manufacture`, but there is no `convert_recommendation_to_mo` RPC or UI. Any recommendation with `suggested_source='manufacture'` is a dead-end today.
 
-### Phase 2 — Sourcing & demand intelligence
-- Engine v2: per-warehouse rows (not per-branch aggregate); consult `vendor_pricelists` for vendor + effective MOQ/lead-time; honour `source_strategy` to emit transfer recs before buy recs.
-- Demand: add open `sales_order_items` + `backorders` (net of already-shipped) to the shortage horizon; expose `demand_open_orders` in `explanation`.
-- Show incoming as line-item tie-back: rec drawer lists the PO lines + ETAs that already cover part of the need.
-- Lot/expiry: subtract stock expiring inside `lead_time_days + safety_days` from "available" (rule flag `exclude_expiring`).
+### 3.2 Convert‑to‑PO UX regressions vs. the RPC contract
 
-### Phase 3 — Automation, approvals, notifications
-- pg_cron nightly `run_replenishment_planning('scheduled')` per business; also incremental event runs when a rule fires (low-stock trigger, PO cancellation, big new SO).
-- Wire into existing `approval_workflows`: rules can require approval for `value > X` or `urgency = planned`; recs enter `in_review` and use platform approval engine.
-- Notifications: on run finish (digest of net new stock-outs), on approval requested/granted, on recommendation reaching `needed_by` with no linked PO.
-- Retire `replenishment_logs`: migrate any live rows into recommendations w/ `linked_po_id`, remove the auto-PO tab, redirect it to a filtered view of executed recs.
+- The RPC accepts `p_vendor_id`, but the drawer always sends `null`. If the preferred vendor is missing, the button is simply disabled with a hint to "edit the reorder rule". A planner cannot override the vendor from the drawer even though the backend supports it.
+- No vendor pricelist / lead‑time preview.
+- No "add to existing draft PO for this vendor" — every conversion creates a new draft. The main brief calls this out ("Linked to existing Purchase Orders").
 
-### Phase 4 — Reporting & rule governance
-- Rules management page under Inventory → Setup (safety-stock coverage %, orphan products with no rule, rule effectiveness — recs generated vs. fulfilled).
-- Reports: Shortage report, Supplier proposal (grouped by vendor, exportable), Plan-vs-actual (recommended qty vs. purchased qty vs. received qty).
-- Optional: MRP-II BOM explosion for manufacturing recs (deferred; requires MO module).
+### 3.3 Convert‑to‑transfer is blind
 
-## 4. Guardrails preserved
+- Warehouse selects list every warehouse without any stock indication. Planner picks source blind; no `on_hand at source ≥ qty` validation, no "source warehouses with surplus" suggestion. The RPC can and should return a "recommended source" hint.
 
-- Planner writes recommendations, Purchases writes POs, Warehouse writes GRNs — SoD unchanged (ADR-0016).
-- Every conversion RPC runs `SECURITY DEFINER` with `user_can_access_business` + `can_access_branch` + `user_has_module_permission('purchases'|'inventory')`.
-- TS engine (`src/lib/replenishment/engine.ts`) stays bit-for-bit equivalent to the SQL — a new architecture test asserts identical output on a seeded fixture.
-- Branch stamping trigger on `stock_movements` continues to derive `branch_id` from warehouse (inventory audit verdict retained).
+### 3.4 Merge action UX
 
-## 5. Out of scope for this handoff
+- Button label says "Merge (same product + vendor)" but nothing client-side validates that the current selection satisfies it. The user only learns via a toast when the RPC raises. Pre-flight the constraint client-side and disable the button with an inline reason.
+- After a merge, `edited_qty` is discarded (`edited_qty = NULL` at L433) — override reasons on individual recs vanish from the target row (they remain in the audit trail, so this is auditable, but the drawer's "Overridden *" marker will disappear silently). Worth surfacing a note in the merge event payload.
+- Merge is only allowed for `open / in_review / approved / snoozed` — good — but the drawer doesn't tell the user why a specific selection is ineligible.
 
-- True statistical forecasting (Holt-Winters, ML). Phase 2 uses SO backlog + trailing velocity as demand; forecast is a separate future workstream.
-- Manufacturing order emission (needs MO module).
-- Multi-echelon (DC → store) DRP.
-- Consignment / VMI sourcing.
+### 3.5 Runs tab is a stub
 
-## 6. Deliverables of this plan when built
+- Shows only counters. No drill-in: cannot see which recommendations came out of a run, cannot see per-run errors, cannot re-run a scope, cannot see run duration.
+- Hardcoded `.limit(20)` in `runsQuery`. No pagination.
 
-- Migration set for phases 1–3 (schema, RPCs, cron, RLS).
-- Refactored `ReplenishmentLog.tsx` (renamed `InventoryPlanning`) with work-item behaviour; new `RecommendationDrawer`, `SourcingPicker`, `RulesCoverage` components.
-- New tests: engine parity (SQL vs TS), conversion RPC RLS/SoD, notification triggers, cron dispatcher.
-- Documentation update: `docs/audit/inventory-verdict.md` extended with a "Planning" section; new ADR "Replenishment recommendation lifecycle & sourcing" superseding the passive-log model.
+### 3.6 Filtering, sorting, pagination
 
-Approve to move into Phase 1 implementation; I will not touch phases 2–4 in the same pass.
+- Recommendations table filters only on urgency + free-text. Missing: status, assignee, vendor, warehouse, source-type (`buy/transfer/manufacture`), needed_by range, aging bucket.
+- Hard `.limit(500)` on the client query. Silent truncation once a mid-size retailer runs planning across branches — dangerous for a "planning engine".
+- No column sort; the single order is by urgency then created_at. Planners typically pivot by needed_by, cover days, spend.
+- `searchQuery` and `statusFilter` are single state variables shared across the "Recommendations", "Runs", and "Auto‑PO log" tabs → filters bleed across tabs.
+
+### 3.7 KPIs / workspace narrative
+
+- Five KPI cards but nothing answering the questions the brief explicitly requires: *"Which recommendations require approval?", "Which shortages remain unresolved?", "Which purchase orders already solve the problem?"* No "assigned to me", "awaiting approval", "aging > N days" tile.
+- No inline "why" narrative on the row — the drawer's Overview shows raw fields; there is no human sentence like "Will stock out in 4d; 28d velocity 21/wk; incoming 0; needed by …". The prompt explicitly asks for explainability.
+
+## 4. Code quality issues (senior-review bar)
+
+- **State model** — `selected` is a `Set` in `useState`. Selected IDs are not pruned when the filter changes; a planner can filter, select rows, change the filter, and merge rows they no longer see. Should intersect with `filteredRecs.map(r => r.id)` before enabling merge.
+- **Row interaction accessibility** — `<TableRow onClick=…>` with no `role="button"`, `tabIndex`, or keyboard handler. Screen-reader / keyboard users cannot open the drawer. `<Checkbox>` has no `aria-label`.
+- **Type safety** — `(supabase as any)` everywhere plus `(r as any).edited_qty / (r as any).status` even though those keys exist on `ProcurementRecommendation`. Suggests generated Supabase types are stale; a regeneration + removing the casts is a same-turn cleanup.
+- **Optimistic updates missing** — snooze / dismiss / setStatus have zero optimistic feedback; the row disappears only after invalidation, which is jarring under 500 rows.
+- **Toast error rendering** — `toast.error(normalizeError(e).message)` is correct but relies on the RPC's raw error text ("Recommendations must share the same business, product and preferred vendor"). Users see a wall of SQL-flavored English. Wrap the well-known RPC error codes into UX-friendly messages.
+- **Runs polling** — no realtime channel and no auto-refresh while a run is in status `running`. The UI shows a stale "Running" badge until manual refresh.
+- **Debouncing** — `searchQuery` re-filters and re-renders 500 rows on every keystroke, no `useDeferredValue` / debounce.
+- **Two responsibilities per page** — "Inventory Planning" and legacy "Auto-PO log" share one route, one state, one search box. Consider extracting the log to `/inventory-app/replenishment/log` as an archival view.
+- **Dead export** — `useProcurementRecommendations().assign` has no caller. Either wire the UI or remove.
+- **`packagingRollup.ts` still exposes legacy names** — unrelated, but a similar "kept for backward compat" pattern the team should audit before the next release.
+
+## 5. Data / correctness observations
+
+- Planning writes but the workspace does not show how the client cache reacts to the new run — `runPlanning.onSuccess` invalidates queries, but there is no post-run summary state (which recs are new vs. carried over vs. auto-closed). Add `runs_delta` counters or a "since last run" filter.
+- `procurement_recommendations` are filtered by `OPEN_STATUSES` (`open / in_review / approved / snoozed`). Anything moved to `actioned / executing / fulfilled / cancelled / merged / dismissed` vanishes from the workspace. There is no "history" tab per product to see the last N recommendations — planners want that for auditing repeat stock-outs.
+- `needed_by` is derived by the engine but never used for sorting, filtering, or KPIs.
+- `explanation` JSON is shown as a raw key/value grid inside `<details>`. Not consumable by a non‑technical planner.
+
+## 6. Recommended follow‑up (in priority order)
+
+Small, high‑leverage fixes (can be shipped in one iteration):
+
+1. **Approve / reject actions in the drawer**, plus an "Awaiting approval" filter/tile. Wire `setStatus` for `in_review → approved / dismissed` and emit the audit event.
+2. **Assignment UX**: assignee combobox in the drawer + `Assigned to me` KPI. Consumes existing `assign` RPC.
+3. **Pre‑flight merge validation** on the client (same business + product + vendor) with an inline reason when ineligible.
+4. **Vendor override + attach‑to‑existing‑draft PO** in the convert‑to‑PO section. RPC already accepts `p_vendor_id`.
+5. **Accessibility pass**: row keyboard/role, checkbox `aria-label`, focus styling for selected rows.
+6. **Deduplicate per‑tab state** (separate `searchQuery`/`statusFilter` for the log tab).
+7. **Drop `(as any)` casts** — regenerate Supabase types and clean the row rendering.
+8. **Optimistic updates + toast copy polish** for snooze / dismiss / edit qty.
+
+Medium (next iteration):
+
+9. **Runs drill‑in** page: recommendations produced by a run, timings, errors, re‑run scope.
+10. **Manufacturing conversion** (`convert_recommendation_to_mo`) — closes the `suggested_source='manufacture'` dead end.
+11. **Suggested source warehouse** on the transfer flow, driven by warehouse stock + lead time.
+12. **Server-side pagination / cursor** in `procurement_recommendations` query; virtualize the table.
+13. **Filter set**: status, assignee, vendor, warehouse, source type, needed_by range, aging bucket. Persist as saved views.
+14. **Human "why" narrative** in the drawer built from the explanation payload.
+
+Larger (architectural — flag for ADR discussion):
+
+15. **Approval workflow integration** with `approval_requests / approval_workflows` (already present in the schema) instead of a bespoke `in_review → approved` state.
+16. **Retire the Auto‑PO log tab** or move to a "Legacy activity" archival route once the new engine is fully adopted.
+17. **Forecast tie‑in**: expose the forecast contribution driving `needed_by` and let planners flip scenarios (safety +N days, promo uplift, etc.).
+18. **Realtime channel** on `replenishment_runs` and `procurement_recommendations` so multi-planner workspaces converge without manual refresh.
+
+## 7. Definition of "done" this report proposes
+
+The feature is production-ready once, in the Inventory Planning workspace,
+a planner can — without leaving the page and without SQL knowledge:
+
+- see the shortages, why they exist, and when they will hit;
+- filter and slice recommendations by every dimension listed in §3.6;
+- take every lifecycle action the schema supports (approve, reject, assign, snooze, dismiss, edit, merge, convert to PO / transfer / MO), in bulk, with pre‑flight validation;
+- follow a recommendation into the PO / transfer / MO it created, and back again;
+- inspect a planning run's outputs and errors.
+
+The current implementation satisfies roughly the first bullet and half of the third. Everything above is what closes the gap between "dashboard displaying inventory metrics" and "enterprise planning engine".
+
+### Technical annex
+
+- Files reviewed:
+  `src/pages/ReplenishmentLog.tsx`,
+  `src/components/inventory/RecommendationDrawer.tsx`,
+  `src/hooks/useProcurementRecommendations.ts`,
+  `src/hooks/useReplenishmentLogs.ts`,
+  `src/lib/replenishment/engine.ts`,
+  migrations `20260714110953_*` and `20260714114201_*`,
+  `src/apps/inventory/{nav.ts,routes.tsx}`.
+- No runtime execution / Playwright reproduction was performed; all findings are static. If you want, I can drive the workspace with Playwright in build mode to confirm the accessibility, filter‑bleed, and stale‑runs observations.
+- Next step: approve this report (or trim the follow-up list) and I will implement §6 items 1–8 in a single build pass.
