@@ -123,6 +123,35 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
       ? rec.vendor?.name ?? null
       : vendors.find((v) => v.id === poVendorId)?.name ?? null;
 
+  // Draft POs for the resolved vendor & rec's business — offered as attach targets.
+  const draftPosQuery = useQuery({
+    queryKey: [
+      "recommendation-attach-targets",
+      rec.business_id,
+      resolvedVendorId,
+    ],
+    enabled: open && !!resolvedVendorId && !!rec.business_id && !rec.linked_po_id,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("purchase_orders")
+        .select("id, po_number, order_date, total")
+        .eq("business_id", rec.business_id)
+        .eq("vendor_id", resolvedVendorId)
+        .eq("status", "draft")
+        .order("order_date", { ascending: false })
+        .limit(25);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        po_number: string | null;
+        order_date: string | null;
+        total: number | null;
+      }>;
+    },
+  });
+  const draftPos = draftPosQuery.data ?? [];
+
   const err = (e: unknown) => humanizeRecError(normalizeError(e).message);
 
   const handleApprove = async () => {
