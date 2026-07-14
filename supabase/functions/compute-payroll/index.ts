@@ -3364,6 +3364,7 @@ Deno.serve(async (req) => {
         sort_order: number;
         gl_liability_account_id: string | null;
         gl_expense_account_id: string | null;
+        payroll_rule_code: string | null;
       }> = [];
       const empCustom = customDeductionsByEmployee[emp.id] || [];
       // Deterministic order: sort_order asc, then code
@@ -3448,6 +3449,7 @@ Deno.serve(async (req) => {
           sort_order: t.sort_order ?? 100,
           gl_liability_account_id: t.gl_liability_account_id,
           gl_expense_account_id: t.gl_expense_account_id,
+          payroll_rule_code: t.payroll_rule_code ?? null,
         });
         customDeductionsApplied.push({
           assignment_id: a.id,

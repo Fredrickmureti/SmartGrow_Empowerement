@@ -9516,6 +9516,7 @@ export type Database = {
           is_taxable: boolean
           label: string
           parameters: Json
+          payroll_rule_code: string | null
           payslip_group: string
           requires_approval: boolean
           sort_order: number
@@ -9539,6 +9540,7 @@ export type Database = {
           is_taxable?: boolean
           label: string
           parameters?: Json
+          payroll_rule_code?: string | null
           payslip_group?: string
           requires_approval?: boolean
           sort_order?: number
@@ -9562,6 +9564,7 @@ export type Database = {
           is_taxable?: boolean
           label?: string
           parameters?: Json
+          payroll_rule_code?: string | null
           payslip_group?: string
           requires_approval?: boolean
           sort_order?: number
