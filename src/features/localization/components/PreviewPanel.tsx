@@ -88,6 +88,7 @@ const SYNTHETIC_CTX_2: Record<string, any> = {
   },
   sum_employee_amount: 14500,
   sum_employer_amount: 3260,
+  sum_gross_amount: 82000,
   sum_taxable_amount: 78000,
 };
 
