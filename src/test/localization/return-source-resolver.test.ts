@@ -130,6 +130,7 @@ describe("returnSourceResolver — discovery and recognition", () => {
 
   it("isNumericSource recognises every numeric token shape", () => {
     expect(isNumericSource("sum_employee_amount")).toBe(true);
+    expect(isNumericSource("sum_gross_amount")).toBe(true);
     expect(isNumericSource("sum_basic_pay")).toBe(true);
     expect(isNumericSource("sum_total_amount")).toBe(true);
     expect(isNumericSource("count_payslips")).toBe(true);
