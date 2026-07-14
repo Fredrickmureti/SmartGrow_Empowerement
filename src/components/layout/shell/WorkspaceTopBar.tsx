@@ -162,7 +162,7 @@ export function WorkspaceTopBar({ app, nav, onOpenMobileNav }: WorkspaceTopBarPr
           <Sparkles className="h-4 w-4" />
         </Button>
         <NotificationBell />
-        <ThemeToggle />
+        <ThemeToggle collapsed />
         <button
           type="button"
           className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
