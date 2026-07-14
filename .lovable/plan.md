@@ -1,82 +1,130 @@
-# Sales / POS / Invoice transaction pipeline — diagnostic + repair plan
+# NSSF "VOLUNTARY" — architectural diagnosis + fix
 
-## Context
+## 1. What "Voluntary" on the NSSF return actually is
 
-Two failures reported after the Inventory replenishment/approvals work:
+Per the NSSF Act No. 45 of 2013 and NSSF's own e-return file spec, the monthly employer return has three contribution-type rows:
 
-1. `POST /rest/v1/invoices` → **400 Bad Request** (invoice creation)
-2. `POST /rest/v1/rpc/process_pos_transaction` → **404 Not Found** (POS commit)
+- `101` — Tier I (mandatory, 6% + 6% up to LEL)
+- `102` — Tier II (mandatory, 6% + 6% between LEL and UEL)
+- **`105` — Voluntary Contributions** — a flat top-up above the tiers, **opt-in by the employee**, initiated via NSSF's *Voluntary Member Contributions Monthly Check-Off System* form. The employer only remits it when the employee has signed the check-off authorization; there is **no statutory obligation** to deduct or populate it for other employees.
 
-Zero-trust checks already done in plan mode:
+Enterprise payroll systems (Odoo `l10n_hr_kenya`, Workday, SAP SuccessFactors, Oracle HCM, Dynamics 365) all model Type-105 the same way: **an opt-in, per-employee recurring flat deduction**, never a computed statutory percentage. The column is left blank/zero unless a specific employee has a standing check-off.
 
-- `process_pos_transaction(uuid,uuid,uuid,uuid,jsonb,jsonb,numeric,numeric,numeric,numeric,text,uuid,text,text,text,uuid,uuid,uuid,numeric,uuid,text)` **exists** in `public`. `authenticated` has EXECUTE. The FE named params (`src/hooks/pos/usePOSTransactionOffline.ts`) match the signature — no missing required args. A 404 with these facts is a **PostgREST schema-cache miss**, not a missing function. Do not recreate the RPC.
-- `public.invoices` carries ~20 triggers (revenue projection, fiscal enqueue, SO/proforma/contact business-match, count-limit, GL integrity, POS-credit lineage, revenue projection, plus a **duplicate pair** `trg_notify_invoice_created` + `trigger_notify_invoice_created` both firing `notify_invoice_created`). Any BEFORE INSERT trigger raising will surface as PostgREST 400 on the invoice POST.
-- Recent inventory migrations (Jul 12–14) touched `reset_module__inventory`, procurement recommendations, approval mirror trigger, `attach_recommendation_to_po`, `cancel_procurement_approval`. None of them redefine `process_pos_transaction`, `invoices` triggers, `stock_movements` trigger, or `pos_transactions` schema — but the reset migration replaced governance function bodies and may have invalidated PostgREST's cached plan for `process_pos_transaction`.
+## 2. What our architecture currently does
 
-## Canonical ERP lifecycle (reference)
+Verified against the live DB and code (not just seed migrations — the current NSSF_RET row was later edited to KRA's real byproduct layout):
 
-```text
-Sales order → Invoice header → Invoice items → Inventory reservation
-             → Delivery / shipment → Stock movement (COGS)
-             → Invoice.status='confirmed' → GL journal (AR + Revenue + Tax + COGS)
-             → Receivable → Payment allocation → Receipt
+`localization_pack_return_templates` row `NSSF_RET`, column `voluntary`, source:
+
 ```
-```text
-POS cart → process_pos_transaction (single txn):
-             validate stock → reserve/consume → pos_transactions insert
-             → pos_transaction_items → pos_transaction_payments
-             → stock_movements (sale) → cash/AR posting event
-             → domain event (sale.committed) → fiscal enqueue → receipt
+sum_rule.nssf_voluntary.employee
 ```
-Both paths must share:
-- one stock-movement writer (RLS + branch trigger already in place)
-- one journal poster (`post_journal_entry_atomic`)
-- one AR engine (single open-items engine per ADR 0033)
 
-## Phase 1 — Reproduce and capture ground truth (no writes)
+Resolver contract (`supabase/functions/_shared/returnSourceResolver.ts:44,94-112,156-169`): `sum_rule.<code>.<side>` sums `payslip_lines.employee_amount` (or `employer_amount`) where `rule_code = <code>`, and `<code>` is auto-added to the payslip_lines fetch via `extractExtraRuleCodes`. Unknown codes silently return 0 (line 182), which is why the column renders blank instead of failing.
 
-1. Trigger both failures from the running preview (POS commit + create invoice on `/sales/invoices/new`) and read the full response body via `code--read_network_requests` — PostgREST returns `code`, `message`, `hint`, and (for 404 RPC) the exact "Could not find the function … with parameters (…)" line. That message is the only reliable diagnostic; every fix below is contingent on it.
-2. Run the same POS RPC with `supabase--read_query` wrapping a `SELECT` on `pg_proc` + a signature probe to confirm PostgREST is out of sync with the DB.
-3. Inspect the invoice payload the FE actually posts (`useInvoices` / invoice create page) and cross-check every column against `public.invoices` schema + the BEFORE INSERT triggers listed above.
+What produces `payslip_lines`:
 
-Nothing is patched in Phase 1 — this closes the actual root cause instead of guessing.
+- `payroll_statutory_rules` — has `nssf` only, no `nssf_voluntary`.
+- `payroll_rule_types` — same.
+- `pack_token_registry` — has `employee.tier3_voluntary_employee/employer` (Ghana precedent, ADR 0010 Amendment) but nothing for Kenya voluntary.
+- `payroll_input_types` / `payslip_inputs` — no `nssf_voluntary` input.
+- `salary_components` — none.
+- `employee_custom_deductions` — general path that *does* reach payslips, but `compute-payroll/index.ts:3631-3651` emits those lines with `rule_code = "custom_" + cd.code`, so a pack column source of `sum_rule.nssf_voluntary.employee` would need to be `sum_rule.custom_nssf_voluntary.employee` to match — and that prefix is an engine-internal convention, not something a pack template should hard-code.
 
-## Phase 2 — Targeted repairs (only what Phase 1 proves)
+Employee Profile: consistent with your description — only pack-published statutory *identifiers* (KRA PIN, NSSF No., SHIF, AHL Ref) via `employee_statutory_identifiers` and dynamic `entity_field_configs`. No amount fields.
 
-Branch A — **POS 404 is a schema-cache miss** (most likely):
+**Diagnosis (single sentence):** the Kenya pack publishes a return column that reads `sum_rule.nssf_voluntary.employee`, but no rule, input, token, or deduction in the tenant produces payslip lines with `rule_code = 'nssf_voluntary'`. The column is architecturally orphaned. This is **not a data-entry bug**, **not a template bug** (Type 105 is legitimately part of the return), and **not a missing employee field** (Type 105 is a recurring amount, not an identifier). It is a **pack↔engine wiring gap**: the pack declares a rule-code source without publishing the corresponding rule.
 
-- Issue `NOTIFY pgrst, 'reload schema';` from a small migration to force PostgREST to re-introspect. Add a defensive `GRANT EXECUTE … TO authenticated` (idempotent) to survive future reloads.
+## 3. Where the fix belongs (architecture answer)
 
-Branch B — **POS 404 is a signature drift** (only if Phase 1 shows a "parameters (…)" mismatch):
+Wrong homes and why:
 
-- Adapt the FE call in `usePOSTransactionOffline.ts` + `TransactionQueue.ts` to the live signature, or add a thin overload — but never recreate the function body. The canonical implementation lives in the last migration that defined it.
+- ❌ Employee Profile statutory field → Type-105 is a *monthly amount* per active check-off, not an identifier. Never modeled this way in enterprise systems.
+- ❌ Hard-coded engine branch for `nssf_voluntary` → breaks country-agnosticism (also fails `no-hardcoded-country-payroll.test.ts`, `no-country-named-functions_test.sql`).
+- ❌ New bespoke `nssf_voluntary_contributions` table → duplicates the existing recurring-deduction ownership already held by `custom_deduction_types` + `employee_custom_deductions`, contradicts ADR 0005/0022 module-ownership discipline.
+- ❌ New `payroll_input_types` entry keyed per period → misrepresents a *standing* check-off as an ad-hoc input; also unenrollable, no GL mapping, no lifecycle.
 
-Branch C — **Invoice 400 is a trigger raising** (most likely — a BEFORE INSERT trigger validating branch/business/proforma/SO/contact, or the count-limit trigger):
+Right home: the existing **`custom_deduction_types` / `employee_custom_deductions`** surface — which already carries amount, schedule, GL liability mapping, employer-vs-employee flag, and payslip integration — **plus a pack-declared identity** that ties a specific deduction type to a specific pack rule code, so the pack template can bind to it *without* leaking the engine's `custom_` prefix.
 
-- The Phase 1 error body identifies the exact trigger + constraint. Fix by (i) supplying the missing/valid column from the FE if the payload is wrong, or (ii) tightening the trigger's guard clause if the recent inventory reset invalidated a helper it depends on (e.g. `_is_teardown_for_org` still exists; `get_effective_invoice_limit` still exists).
-- Drop the duplicate `trigger_notify_invoice_created` (keep `trg_notify_invoice_created`). Duplicate isn't the 400 cause but it double-emits notifications and is a latent bug.
+This mirrors the Ghana Tier-3 precedent (ADR 0010 Amendment 2 — `EMPLOYEE_INPUT_REGISTRY` unions pack-registry tokens with built-ins), extended one level down from *tokens* to *rule codes emitted on payslip lines*.
 
-Branch D — **Invoice 400 is RLS** (only if code is `42501`):
+## 4. Proposed change (minimal, pack-driven, no country code in engine)
 
-- Verify `invoices` INSERT policy still routes through `user_can_access_business` + branch check; recent inventory RLS rewrites did not touch `invoices`, but confirm.
+### 4.1 Pack-level: declare voluntary deduction slots
 
-## Phase 3 — Consolidation and guardrails (small, high-value)
+Add a nullable column `payroll_rule_code TEXT` to `custom_deduction_types`. When set, the compute-payroll custom-deduction emitter uses that as the `rule_code` on the payslip line (and in metadata) instead of `custom_<code>`. Uniqueness constraint per organization on `(pack_id, payroll_rule_code)` so packs can seed prototypes without colliding with tenant-created deductions.
 
-- Add an architecture test that asserts every RPC referenced by `src/hooks/pos/**` and `src/hooks/**invoice**` resolves to exactly one function in `pg_proc` with matching param names. Catches schema drift before it reaches production.
-- Add a lightweight pgTAP case that `process_pos_transaction` exists with the current 21-arg signature and has `EXECUTE` for `authenticated`.
-- Document in `docs/adr/` that Sales-invoice and POS-sale share one journal poster and one stock-movement writer, and that only migrations may recreate `process_pos_transaction` (no client-side fallback path).
+Semantics: this is the **general** hook — any pack can declare "this deduction, if the tenant installs and configures it, feeds return column X via rule code Y." Not Kenya-specific.
 
-## Explicitly NOT in scope
+### 4.2 Kenya pack seed (migration)
 
-- Recreating `process_pos_transaction` from scratch. It exists.
-- Rewriting the invoice trigger stack. The 400 is one raising trigger; fix that one.
-- Any change to `stock_movements` / `warehouse_stock` / branch RLS (already audited).
-- Any UI change beyond aligning the two RPC call sites if Branch B is proven.
+Insert (idempotent) a Kenya-owned `custom_deduction_types` template row:
 
-## Files likely touched (build-mode)
+- `code = 'nssf_voluntary'`
+- `payroll_rule_code = 'nssf_voluntary'`
+- `is_employer_contribution = false` (employee side; a second row will be added if/when we support employer top-up)
+- `pre_tax = false` (Type-105 is post-tax; PAYE relief for Tier-3 style pension is separate)
+- GL mapping wired to the existing pack default account role `tier3_payable` (already seeded in migration `20260707215652`) so no new GL role is introduced
+- `pack_id` = Kenya pack
 
-- `supabase/migrations/<new>.sql` — `NOTIFY pgrst`, defensive GRANT, drop duplicate invoice trigger, any trigger-guard tightening Phase 1 identifies.
-- `src/hooks/pos/usePOSTransactionOffline.ts` + `src/services/offline/TransactionQueue.ts` — only under Branch B.
-- `src/test/architecture/rpc-signature-drift.test.ts` (new) — Phase 3 guard.
-- `supabase/tests/pos-transaction-rpc.sql` (new pgTAP case) — Phase 3 guard.
-- `docs/adr/00XX-sales-pos-shared-pipeline.md` (new) — Phase 3 documentation.
+Tenant activation stays a manual HR action (matches the real business event: employee submits the NSSF check-off form → HR creates the `employee_custom_deductions` row with the amount and start date). No auto-enrollment.
+
+### 4.3 Engine: single-line change in `compute-payroll`
+
+In the custom-deduction loop (`supabase/functions/compute-payroll/index.ts:3631`):
+
+```ts
+const emittedCode = cd.payroll_rule_code ?? `custom_${cd.code}`;
+pushLine(emittedCode, ..., emittedCode, ...);
+```
+
+Country-agnostic. Legacy custom deductions unchanged (fall through the `??`).
+
+### 4.4 Return template resolver: no change
+
+`sum_rule.nssf_voluntary.employee` will now naturally match the emitted line. `extractExtraRuleCodes` already adds `nssf_voluntary` to the payslip_lines fetch.
+
+### 4.5 Pack tokens (nice-to-have, non-blocking)
+
+Register `employee.nssf_voluntary_amount` in `pack_token_registry` (source = `employee_custom_deduction`) for future certificate/payslip templates that want the per-payslip amount inline. Follows the Ghana Tier-3 precedent exactly.
+
+### 4.6 UI
+
+Nothing new to build:
+
+- Finance → Default Accounts already exposes `tier3_payable` (guard-protected per ADR 0022).
+- HR → Employee → Deductions (existing `CustomDeductionDialog`) is the enrollment surface. Kenya tenants will see the pack-seeded `nssf_voluntary` deduction type in the picker; HR fills in the monthly amount and effective dates from the signed NSSF check-off form.
+- Payslip already renders custom-deduction lines through the existing classifier (`voluntary_deduction` classification already exists in `payslipClassifier.ts:27`).
+- Compliance / Returns → NSSF Monthly Byproduct Return will now render populated `VOLUNTARY` cells for employees with an active `nssf_voluntary` deduction, and zero for everyone else (which is the correct enterprise behavior).
+
+## 5. Lifecycle answers (Business Events 1–5)
+
+1. **Employee joins** → identifiers only (KRA PIN, NSSF No., SHIF No., AHL Ref) via pack-driven statutory fields. **No voluntary field collected.**
+2. **Payroll processes** → NSSF Tier I + Tier II always via `payroll_statutory_rules('nssf')`; Type-105 amount comes exclusively from an active `employee_custom_deductions` row linked to the pack-seeded `nssf_voluntary` type. Never manual entry in payslip inputs, never derived from gross.
+3. **Employee opts in to top-up** → signs NSSF Voluntary Member Contributions Monthly Check-Off form. HR (not payroll officer, not finance) receives the form and creates the `employee_custom_deductions` row with the monthly amount, start date, and optional end date. The system of record is HR.
+4. **Where it lives** → `custom_deduction_types` (pack-seeded template) + `employee_custom_deductions` (tenant enrollment). Not identifiers, not a separate NSSF config table, not benefits (Kenya NSSF voluntary is not modeled as an employer benefit plan).
+5. **What it affects** → payslip line (visible under Voluntary Deductions), employee net pay (post-tax reduction), employer NSSF liability row 105 (via existing `payroll_liabilities` + `tier3_payable` GL), NSSF byproduct return VOLUNTARY column. **Does not affect** PAYE computation, insurance relief, personal relief, or employer statutory expense — Type-105 is entirely between employee and NSSF; employer facilitates the check-off only.
+
+## 6. Testing
+
+Add an architecture test asserting:
+
+- Every `localization_pack_return_templates` column whose source matches `sum_rule\.(.+)\.(employee|employer)` has *either* a `payroll_statutory_rules.rule_code` OR a `custom_deduction_types.payroll_rule_code` (or a `payroll_salary_rules.rule_code`) that could produce it, in the same pack. Prevents future orphan columns in any pack, not just Kenya.
+
+Add an integration test for `compute-payroll`: employee with an `employee_custom_deductions` row linked to a `custom_deduction_types` row where `payroll_rule_code='nssf_voluntary'` → resulting payslip has a line with `rule_code='nssf_voluntary'` and the NSSF return VOLUNTARY column sums correctly.
+
+## 7. Non-goals / explicitly out of scope
+
+- Employer-side voluntary top-up (rare; add a second Kenya-pack row later if a tenant requires it).
+- Reworking NSSF Tier-I/II — those work today.
+- Backfilling historic returns — historic payslips have no voluntary lines, so historic returns will continue to render 0 in the column (correct).
+- Any change to the country-agnostic engine beyond the single-line `emittedCode` swap.
+
+## Technical summary
+
+- **Schema:** `ALTER TABLE public.custom_deduction_types ADD COLUMN payroll_rule_code TEXT NULL;` + partial unique index on `(pack_id, payroll_rule_code) WHERE payroll_rule_code IS NOT NULL`. No RLS changes (rows are pack-owned or org-owned exactly as today; grants unchanged).
+- **Engine:** `supabase/functions/compute-payroll/index.ts` — one-line change to derive `emittedCode` from `payroll_rule_code ?? "custom_" + code`.
+- **Kenya pack seed migration:** idempotent insert of a `custom_deduction_types` row `nssf_voluntary` with GL mapping to `tier3_payable`.
+- **Pack token registry:** one row for `employee.nssf_voluntary_amount` (optional, for future templates).
+- **Architecture test:** `src/test/architecture/return-template-columns-have-source.test.ts` — pattern-matches every `sum_rule.*` source in every pack against declared producers.
+- **Compute-payroll test:** exercises the end-to-end flow with a synthetic pack + tenant.
