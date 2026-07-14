@@ -269,6 +269,17 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
               {rec.urgency}
             </Badge>
             <Badge variant="outline">{rec.status}</Badge>
+            <Badge
+              variant="outline"
+              className="gap-1"
+              title={
+                soloMode
+                  ? "Solo governance mode — approvals are auto-accepted for the acting user."
+                  : `Governance mode: ${governanceMode}. Approvals follow the tenant's segregation-of-duties policy.`
+              }
+            >
+              <ShieldQuestion className="h-3 w-3" /> {governanceMode}
+            </Badge>
             {rec.branch?.name && <Badge variant="outline">{rec.branch.name}</Badge>}
             {rec.assignee_id && (
               <Badge variant="outline" className="gap-1">
