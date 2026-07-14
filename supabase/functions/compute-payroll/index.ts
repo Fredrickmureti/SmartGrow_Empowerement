@@ -3366,6 +3366,8 @@ Deno.serve(async (req) => {
         gl_expense_account_id: string | null;
         payroll_rule_code: string | null;
       }> = [];
+      let customEmployeeDeductionTotal = 0;
+      let customEmployerContributionTotal = 0;
       const empCustom = customDeductionsByEmployee[emp.id] || [];
       // Deterministic order: sort_order asc, then code
       empCustom.sort((a, b) => {
@@ -3374,7 +3376,8 @@ Deno.serve(async (req) => {
         return String(a.deduction_type?.code || "").localeCompare(String(b.deduction_type?.code || ""));
       });
       const runningEmpDeductions = () =>
-        Object.values(deductionsDetail).reduce((s: number, v: any) => s + Number(v || 0), 0);
+        Object.values(deductionsDetail).reduce((s: number, v: any) => s + Number(v || 0), 0)
+        + customEmployeeDeductionTotal;
       for (const a of empCustom) {
         const t = a.deduction_type;
         if (!t) continue;
@@ -3432,11 +3435,10 @@ Deno.serve(async (req) => {
           }
         }
 
-        const key = `custom_${t.code}_${a.id}`;
         if (t.is_employer_contribution) {
-          contributionsDetail[key] = (contributionsDetail[key] || 0) + amt;
+          customEmployerContributionTotal += amt;
         } else {
-          deductionsDetail[key] = (deductionsDetail[key] || 0) + amt;
+          customEmployeeDeductionTotal += amt;
         }
         customDeductionLineMeta.push({
           assignment_id: a.id,
@@ -3459,9 +3461,9 @@ Deno.serve(async (req) => {
         });
       }
 
-      const empTotalDeductions = Object.values(deductionsDetail).reduce((s, v) => s + v, 0);
+      const empTotalDeductions = Object.values(deductionsDetail).reduce((s, v) => s + v, 0) + customEmployeeDeductionTotal;
 
-      const empTotalEmployerContributions = Object.values(contributionsDetail).reduce((s, v) => s + v, 0);
+      const empTotalEmployerContributions = Object.values(contributionsDetail).reduce((s, v) => s + v, 0) + customEmployerContributionTotal;
       const netPay = grossPay - empTotalDeductions;
 
       if (netPay < 0) {
@@ -3479,6 +3481,14 @@ Deno.serve(async (req) => {
       }
       for (const [key, val] of Object.entries(contributionsDetail)) {
         runContributionsSummary[key] = (runContributionsSummary[key] || 0) + val;
+      }
+      for (const cd of customDeductionLineMeta) {
+        const emittedCode = cd.payroll_rule_code ?? `custom_${cd.code}`;
+        if (cd.is_employer_contribution) {
+          runContributionsSummary[emittedCode] = (runContributionsSummary[emittedCode] || 0) + cd.amount;
+        } else {
+          runDeductionsSummary[emittedCode] = (runDeductionsSummary[emittedCode] || 0) + cd.amount;
+        }
       }
 
       // ─── Build payslip_lines + payslip_inputs (AUTHORITATIVE) ───

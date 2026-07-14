@@ -5,6 +5,7 @@
 --   2. Version trigger increments on material change only.
 --   3. Lifecycle-event trigger writes exactly one event per status transition.
 --   4. Readiness rule row exists and is active.
+--   5. Run-level GL resolver ignores sourced custom-deduction payslip lines.
 --
 -- Wrapped in BEGIN/ROLLBACK so state is not persisted.
 
@@ -115,6 +116,58 @@ BEGIN
     RAISE EXCEPTION 'FAIL: readiness rule not seeded (found %)', v_cnt;
   END IF;
   RAISE NOTICE 'PASS: readiness rule present';
+END $$;
+
+-- 5) Run-level mapping resolver must not ask default_account_settings for
+--    custom deduction lines. Those post through custom_deduction_types.
+DO $$
+DECLARE
+  v_org uuid;
+  v_biz uuid;
+  v_run uuid;
+  v_slip uuid;
+  v_missing int;
+BEGIN
+  SELECT organization_id, id INTO v_org, v_biz FROM public.businesses LIMIT 1;
+  IF v_biz IS NULL THEN
+    RAISE NOTICE 'No business fixture — skipping custom deduction resolver test.';
+    RETURN;
+  END IF;
+
+  INSERT INTO public.payroll_runs
+    (organization_id, business_id, payroll_number, pay_period_start, pay_period_end, payment_date, status)
+  VALUES
+    (v_org, v_biz, '__tap_custom_ded_run', CURRENT_DATE, CURRENT_DATE, CURRENT_DATE, 'draft')
+  RETURNING id INTO v_run;
+
+  INSERT INTO public.payslips
+    (organization_id, business_id, payroll_run_id, employee_id, gross_pay, total_deductions, net_pay, taxable_income, status)
+  SELECT v_org, v_biz, v_run, e.id, 2000, 2000, 0, 2000, 'pending'
+  FROM public.employees e
+  WHERE e.business_id = v_biz
+  LIMIT 1
+  RETURNING id INTO v_slip;
+
+  IF v_slip IS NULL THEN
+    RAISE NOTICE 'No employee fixture — skipping custom deduction resolver test.';
+    RETURN;
+  END IF;
+
+  INSERT INTO public.payslip_lines
+    (organization_id, business_id, payroll_run_id, payslip_id, rule_code, category, label, sequence, employee_amount, employer_amount, taxable, rule_type, source)
+  VALUES
+    (v_org, v_biz, v_run, v_slip, 'custom_nssf_voluntary', 'deduction', 'NSSF Voluntary (Type 105)', 1, 2000, 0, false, 'custom_deduction',
+     jsonb_build_object('source','custom_deduction','deduction_type_id',gen_random_uuid(),'assignment_id',gen_random_uuid(),'gl_liability_account_id',gen_random_uuid()));
+
+  SELECT count(*) INTO v_missing
+  FROM public.payroll_required_gl_mappings_for_run(v_run)
+  WHERE setting_key LIKE 'custom\_%' ESCAPE '\';
+
+  IF v_missing <> 0 THEN
+    RAISE EXCEPTION 'FAIL: custom deduction line leaked into default GL mapping resolver (% rows)', v_missing;
+  END IF;
+
+  RAISE NOTICE 'PASS: custom deduction lines are excluded from default GL resolver';
 END $$;
 
 ROLLBACK;
