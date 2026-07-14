@@ -215,12 +215,12 @@ Deno.serve(async (req) => {
     });
 
     await admin.from("business_event_outbox").insert({
-      organization_id: batch.organization_id,
-      business_id: batch.business_id || null,
+      org_id: batch.organization_id,
       event_type: "payroll.payment_batch.reversed",
-      aggregate_type: "payroll_payment_batch",
-      aggregate_id: batch.id,
+      source_doc_type: "payroll_payment_batch",
+      source_doc_id: batch.id,
       payload: {
+        business_id: batch.business_id || null,
         batch_id: batch.id,
         batch_number: batch.batch_number,
         reversal_je_id: reversalJeId,
@@ -228,7 +228,8 @@ Deno.serve(async (req) => {
         reason: body.reason,
         actor: userId,
       },
-      emitted_by: userId,
+      actor_user_id: userId,
+      idempotency_key: `payroll.payment_batch.reversed:${batch.id}:${reversalJeId}`,
     } as any);
 
     return json({ ok: true, reversal_je_id: reversalJeId });
