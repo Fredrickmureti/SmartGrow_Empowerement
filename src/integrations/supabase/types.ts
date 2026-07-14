@@ -40751,6 +40751,119 @@ export type Database = {
           },
         ]
       }
+      procurement_recommendations: {
+        Row: {
+          actioned_ref_id: string | null
+          actioned_ref_type: string | null
+          branch_id: string | null
+          business_id: string | null
+          created_at: string
+          explanation: Json
+          id: string
+          incoming: number
+          lead_time_days: number
+          needed_by: string | null
+          net_requirement: number
+          on_hand: number
+          organization_id: string
+          preferred_vendor_id: string | null
+          product_id: string
+          reserved: number
+          run_id: string
+          safety_stock: number
+          status: string
+          suggested_qty: number
+          suggested_source: string
+          updated_at: string
+          urgency: string
+          velocity_per_week: number
+          warehouse_id: string | null
+        }
+        Insert: {
+          actioned_ref_id?: string | null
+          actioned_ref_type?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          explanation?: Json
+          id?: string
+          incoming?: number
+          lead_time_days?: number
+          needed_by?: string | null
+          net_requirement?: number
+          on_hand?: number
+          organization_id: string
+          preferred_vendor_id?: string | null
+          product_id: string
+          reserved?: number
+          run_id: string
+          safety_stock?: number
+          status?: string
+          suggested_qty?: number
+          suggested_source?: string
+          updated_at?: string
+          urgency: string
+          velocity_per_week?: number
+          warehouse_id?: string | null
+        }
+        Update: {
+          actioned_ref_id?: string | null
+          actioned_ref_type?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          explanation?: Json
+          id?: string
+          incoming?: number
+          lead_time_days?: number
+          needed_by?: string | null
+          net_requirement?: number
+          on_hand?: number
+          organization_id?: string
+          preferred_vendor_id?: string | null
+          product_id?: string
+          reserved?: number
+          run_id?: string
+          safety_stock?: number
+          status?: string
+          suggested_qty?: number
+          suggested_source?: string
+          updated_at?: string
+          urgency?: string
+          velocity_per_week?: number
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_recommendations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "procurement_recommendations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_recommendations_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "replenishment_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_recommendations_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_categories: {
         Row: {
           business_id: string | null
@@ -41180,11 +41293,15 @@ export type Database = {
           lead_time_days: number | null
           max_quantity: number | null
           min_quantity: number
+          moq: number
           notify_user_ids: string[] | null
           organization_id: string
+          pack_size: number
           preferred_supplier_id: string | null
           product_id: string
           reorder_quantity: number | null
+          safety_stock: number
+          source_strategy: string
           updated_at: string | null
           warning_threshold: number | null
         }
@@ -41200,11 +41317,15 @@ export type Database = {
           lead_time_days?: number | null
           max_quantity?: number | null
           min_quantity?: number
+          moq?: number
           notify_user_ids?: string[] | null
           organization_id: string
+          pack_size?: number
           preferred_supplier_id?: string | null
           product_id: string
           reorder_quantity?: number | null
+          safety_stock?: number
+          source_strategy?: string
           updated_at?: string | null
           warning_threshold?: number | null
         }
@@ -41220,11 +41341,15 @@ export type Database = {
           lead_time_days?: number | null
           max_quantity?: number | null
           min_quantity?: number
+          moq?: number
           notify_user_ids?: string[] | null
           organization_id?: string
+          pack_size?: number
           preferred_supplier_id?: string | null
           product_id?: string
           reorder_quantity?: number | null
+          safety_stock?: number
+          source_strategy?: string
           updated_at?: string | null
           warning_threshold?: number | null
         }
@@ -44478,6 +44603,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      replenishment_runs: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          completed_at: string | null
+          created_at: string
+          critical: number
+          error_message: string | null
+          id: string
+          low: number
+          organization_id: string
+          params: Json
+          recommendations_created: number
+          run_type: string
+          started_at: string
+          status: string
+          stockouts: number
+          triggered_by: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          critical?: number
+          error_message?: string | null
+          id?: string
+          low?: number
+          organization_id: string
+          params?: Json
+          recommendations_created?: number
+          run_type?: string
+          started_at?: string
+          status?: string
+          stockouts?: number
+          triggered_by?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          critical?: number
+          error_message?: string | null
+          id?: string
+          low?: number
+          organization_id?: string
+          params?: Json
+          recommendations_created?: number
+          run_type?: string
+          started_at?: string
+          status?: string
+          stockouts?: number
+          triggered_by?: string | null
+        }
+        Relationships: []
       }
       report_access_log: {
         Row: {
@@ -68084,6 +68266,14 @@ export type Database = {
           primary_business_id: string
           primary_legal_name: string
         }[]
+      }
+      run_replenishment_planning: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_trigger_type?: string
+        }
+        Returns: Json
       }
       salary_structure_deletion_report: {
         Args: { p_id: string }
