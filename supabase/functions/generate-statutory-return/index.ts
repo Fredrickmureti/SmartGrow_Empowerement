@@ -240,6 +240,56 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ADR-0062 (Submission format parity): a template must never encode
+    // the same logical column with different canonical sources in
+    // body.columns (drives CSV/PDF + in-app preview) and
+    // submission_format.columns (drives the government-portal file
+    // rendered by govFileWriter). Silent divergence is exactly the
+    // defect that let NSSF_RET file taxable_income under a "GROSS PAY"
+    // header. We match by normalized header/key and only guard the
+    // `sum_*` canonical family — passthrough / literal sources are
+    // allowed to differ (e.g. formatting variants).
+    {
+      const subFmtEarly = (template as any).submission_format as
+        | { columns?: Array<{ header?: string; source?: string }> }
+        | null
+        | undefined;
+      const subCols = Array.isArray(subFmtEarly?.columns) ? subFmtEarly!.columns! : [];
+      if (subCols.length) {
+        const norm = (s: string) =>
+          s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        const bodyByKey = new Map<string, string>();
+        for (const c of columns) {
+          if (!c || typeof c.source !== "string") continue;
+          bodyByKey.set(norm(c.key), c.source);
+          if (c.label) bodyByKey.set(norm(c.label), c.source);
+        }
+        for (const sc of subCols) {
+          if (!sc || typeof sc.header !== "string" || typeof sc.source !== "string") continue;
+          const bodySource = bodyByKey.get(norm(sc.header));
+          if (
+            bodySource &&
+            bodySource !== sc.source &&
+            sc.source.startsWith("sum_") &&
+            bodySource.startsWith("sum_")
+          ) {
+            return businessError(
+              422,
+              "RETURN_TEMPLATE_SOURCE_MISMATCH",
+              "This return template disagrees with itself: the same column is bound to different canonical payroll sources in the in-app view and in the government-portal file.",
+              "Ask an administrator to align the template so every column resolves to a single canonical source (ADR-0062).",
+              {
+                template_code: body.template_code,
+                column: sc.header,
+                body_source: bodySource,
+                submission_source: sc.source,
+              },
+            );
+          }
+        }
+      }
+    }
+
     // Enterprise lifecycle gate — statutory returns may only be filed
     // from a closed payroll period. Shared with `generate-tax-certificate`
     // via `_shared/payrollLifecycleGate.ts`. SAP HCM / Workday / Oracle
