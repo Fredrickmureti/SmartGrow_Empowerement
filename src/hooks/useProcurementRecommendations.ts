@@ -4,6 +4,33 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 
+/**
+ * Maps a raw RPC error string onto a planner-friendly message. Any SQL
+ * exception raised by the procurement RPCs bubbles up as `error.message`.
+ * We normalise the well-known ones so toasts don't read like a stack trace.
+ */
+export function humanizeRecError(raw: string | undefined | null): string {
+  const m = (raw ?? "").toLowerCase();
+  if (!m) return "Something went wrong. Please try again.";
+  if (m.includes("must share the same business, product and preferred vendor"))
+    return "Selected recommendations must share the same product and preferred vendor to be merged.";
+  if (m.includes("at least two recommendations required"))
+    return "Select at least two recommendations to merge.";
+  if (m.includes("already linked to purchase order"))
+    return "This recommendation already has a linked purchase order.";
+  if (m.includes("already linked to transfer"))
+    return "This recommendation already has a linked stock transfer.";
+  if (m.includes("recommendation has no preferred vendor") || m.includes("a vendor is required"))
+    return "Pick a vendor before creating a purchase order.";
+  if (m.includes("from and to warehouses must differ"))
+    return "Source and destination warehouses must be different.";
+  if (m.includes("access denied")) return "You don't have access to this record.";
+  if (m.includes("recommendation not found")) return "This recommendation no longer exists.";
+  if (m.includes("quantity must be > 0")) return "Quantity must be greater than zero.";
+  return raw!;
+}
+
+
 export type RecUrgency = "stockout" | "critical" | "low" | "planned";
 export type RecStatus =
   | "open"
@@ -161,8 +188,27 @@ export function useProcurementRecommendations() {
     },
   });
 
-  const invalidateRecs = () =>
-    qc.invalidateQueries({ queryKey: ["procurement-recommendations"] });
+  const recsKey = ["procurement-recommendations"] as const;
+  const invalidateRecs = () => qc.invalidateQueries({ queryKey: recsKey });
+
+  /**
+   * Optimistically patch every cached recommendations list. The recs list is
+   * keyed by (org, business, branch) — we mutate every variant so the row
+   * transitions (approve, snooze, dismiss, edit) feel instant regardless of
+   * which branch scope is active.
+   */
+  function patchCachedRec(id: string, patch: Partial<ProcurementRecommendation>) {
+    const snapshots: Array<[readonly unknown[], ProcurementRecommendation[] | undefined]> = [];
+    qc.getQueriesData<ProcurementRecommendation[]>({ queryKey: recsKey }).forEach(([key, data]) => {
+      snapshots.push([key, data]);
+      if (!data) return;
+      qc.setQueryData<ProcurementRecommendation[]>(key, data.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    });
+    return snapshots;
+  }
+  function restoreCachedRecs(snapshots: Array<[readonly unknown[], ProcurementRecommendation[] | undefined]>) {
+    snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
+  }
 
   const setStatus = useMutation({
     mutationFn: async (args: { id: string; status: RecStatus }) => {
@@ -172,7 +218,9 @@ export function useProcurementRecommendations() {
         .eq("id", args.id);
       if (error) throw error;
     },
-    onSuccess: invalidateRecs,
+    onMutate: async (args) => ({ snapshots: patchCachedRec(args.id, { status: args.status }) }),
+    onError: (_e, _a, ctx) => ctx && restoreCachedRecs(ctx.snapshots),
+    onSettled: invalidateRecs,
   });
 
   const snooze = useMutation({
@@ -184,7 +232,11 @@ export function useProcurementRecommendations() {
       });
       if (error) throw error;
     },
-    onSuccess: invalidateRecs,
+    onMutate: async (args) => ({
+      snapshots: patchCachedRec(args.id, { status: "snoozed", snooze_until: args.until.toISOString() }),
+    }),
+    onError: (_e, _a, ctx) => ctx && restoreCachedRecs(ctx.snapshots),
+    onSettled: invalidateRecs,
   });
 
   const assign = useMutation({
@@ -195,7 +247,9 @@ export function useProcurementRecommendations() {
       });
       if (error) throw error;
     },
-    onSuccess: invalidateRecs,
+    onMutate: async (args) => ({ snapshots: patchCachedRec(args.id, { assignee_id: args.assigneeId }) }),
+    onError: (_e, _a, ctx) => ctx && restoreCachedRecs(ctx.snapshots),
+    onSettled: invalidateRecs,
   });
 
   const editQty = useMutation({
@@ -207,7 +261,11 @@ export function useProcurementRecommendations() {
       });
       if (error) throw error;
     },
-    onSuccess: invalidateRecs,
+    onMutate: async (args) => ({
+      snapshots: patchCachedRec(args.id, { edited_qty: args.qty, override_reason: args.reason }),
+    }),
+    onError: (_e, _a, ctx) => ctx && restoreCachedRecs(ctx.snapshots),
+    onSettled: invalidateRecs,
   });
 
   const convertToPo = useMutation({

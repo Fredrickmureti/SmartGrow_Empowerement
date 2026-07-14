@@ -1,8 +1,8 @@
 /**
  * RecommendationDrawer — inspects a procurement recommendation and lets the
- * planner act on it: convert to PO, convert to warehouse transfer, edit
- * quantity, snooze, dismiss. Also renders the full audit trail from
- * `procurement_recommendation_events`.
+ * planner act on it: approve, reject, assign, convert to PO, convert to
+ * warehouse transfer, edit quantity, snooze, dismiss. Also renders the full
+ * audit trail from `procurement_recommendation_events`.
  *
  * All writes go through security-definer RPCs (see
  * `useProcurementRecommendations`) which enforce business + branch access.
@@ -38,13 +38,19 @@ import {
   Ban,
   Pencil,
   FileText,
+  CheckCircle2,
+  UserCircle2,
+  ShieldQuestion,
 } from "lucide-react";
 import {
   useProcurementRecommendations,
   useRecommendationEvents,
+  humanizeRecError,
   type ProcurementRecommendation,
 } from "@/hooks/useProcurementRecommendations";
 import { useWarehouses } from "@/hooks/useWarehouses";
+import { useOrgMembers } from "@/hooks/useOrgMembers";
+import { useContacts } from "@/hooks/useContacts";
 import { normalizeError } from "@/services/resilience";
 
 interface Props {
@@ -53,6 +59,9 @@ interface Props {
   onClose: () => void;
 }
 
+const UNASSIGNED = "__unassigned__";
+const KEEP_VENDOR = "__preferred__";
+
 export function RecommendationDrawer({ rec, open, onClose }: Props) {
   const {
     snooze,
@@ -60,12 +69,24 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     editQty,
     convertToPo,
     convertToTransfer,
+    assign,
   } = useProcurementRecommendations();
   const { warehouses } = useWarehouses();
+  const { members, getUserName } = useOrgMembers();
+  const { contacts } = useContacts();
   const { data: events = [] } = useRecommendationEvents(rec?.id ?? null);
+
+  const vendors = useMemo(
+    () =>
+      contacts
+        .filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [contacts],
+  );
 
   const [poNotes, setPoNotes] = useState("");
   const [poQty, setPoQty] = useState<string>("");
+  const [poVendorId, setPoVendorId] = useState<string>(KEEP_VENDOR);
   const [xfFrom, setXfFrom] = useState<string>("");
   const [xfTo, setXfTo] = useState<string>("");
   const [xfQty, setXfQty] = useState<string>("");
@@ -85,25 +106,80 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
     setStatus.isPending ||
     editQty.isPending ||
     convertToPo.isPending ||
-    convertToTransfer.isPending;
+    convertToTransfer.isPending ||
+    assign.isPending;
+
+  const resolvedVendorId =
+    poVendorId === KEEP_VENDOR ? rec.preferred_vendor_id : poVendorId || null;
+  const resolvedVendorName =
+    poVendorId === KEEP_VENDOR
+      ? rec.vendor?.name ?? null
+      : vendors.find((v) => v.id === poVendorId)?.name ?? null;
+
+  const err = (e: unknown) => humanizeRecError(normalizeError(e).message);
+
+  const handleApprove = async () => {
+    try {
+      await setStatus.mutateAsync({ id: rec.id, status: "approved" });
+      toast.success("Recommendation approved");
+    } catch (e) {
+      toast.error(err(e));
+    }
+  };
+  const handleReject = async () => {
+    try {
+      await setStatus.mutateAsync({ id: rec.id, status: "dismissed" });
+      toast.success("Recommendation rejected");
+      onClose();
+    } catch (e) {
+      toast.error(err(e));
+    }
+  };
+  const handleRequestReview = async () => {
+    try {
+      await setStatus.mutateAsync({ id: rec.id, status: "in_review" });
+      toast.success("Sent for review");
+    } catch (e) {
+      toast.error(err(e));
+    }
+  };
+
+  const handleAssign = async (userId: string) => {
+    const assigneeId = userId === UNASSIGNED ? null : userId;
+    try {
+      await assign.mutateAsync({ id: rec.id, assigneeId });
+      toast.success(assigneeId ? `Assigned to ${getUserName(assigneeId)}` : "Unassigned");
+    } catch (e) {
+      toast.error(err(e));
+    }
+  };
 
   const handleConvertPo = async () => {
+    if (!resolvedVendorId) {
+      toast.error("Pick a vendor before creating a purchase order.");
+      return;
+    }
     try {
       await convertToPo.mutateAsync({
         id: rec.id,
+        vendorId: resolvedVendorId,
         qty: poQty ? Number(poQty) : null,
         notes: poNotes || null,
       });
       toast.success("Draft purchase order created");
       onClose();
     } catch (e) {
-      toast.error(`Could not create PO: ${normalizeError(e).message}`);
+      toast.error(err(e));
     }
   };
 
   const handleConvertTransfer = async () => {
     if (!xfFrom || !xfTo) {
       toast.error("Pick source and destination warehouses");
+      return;
+    }
+    if (xfFrom === xfTo) {
+      toast.error("Source and destination warehouses must be different.");
       return;
     }
     try {
@@ -116,7 +192,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
       toast.success("Draft stock transfer created");
       onClose();
     } catch (e) {
-      toast.error(`Could not create transfer: ${normalizeError(e).message}`);
+      toast.error(err(e));
     }
   };
 
@@ -136,7 +212,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
       setEditValue("");
       setEditReason("");
     } catch (e) {
-      toast.error(normalizeError(e).message);
+      toast.error(err(e));
     }
   };
 
@@ -148,7 +224,7 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
       toast.success(`Snoozed for ${days} day${days === 1 ? "" : "s"}`);
       onClose();
     } catch (e) {
-      toast.error(normalizeError(e).message);
+      toast.error(err(e));
     }
   };
 
@@ -158,9 +234,13 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
       toast.success("Dismissed");
       onClose();
     } catch (e) {
-      toast.error(normalizeError(e).message);
+      toast.error(err(e));
     }
   };
+
+  const canApprove = rec.status === "open" || rec.status === "in_review";
+  const canRequestReview = rec.status === "open";
+  const isTerminal = ["fulfilled", "cancelled", "merged"].includes(rec.status);
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -175,16 +255,51 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
             )}
           </SheetTitle>
           <SheetDescription className="flex flex-wrap gap-2 items-center">
-            <Badge variant={rec.urgency === "stockout" || rec.urgency === "critical" ? "destructive" : rec.urgency === "low" ? "default" : "secondary"}>
+            <Badge
+              variant={
+                rec.urgency === "stockout" || rec.urgency === "critical"
+                  ? "destructive"
+                  : rec.urgency === "low"
+                    ? "default"
+                    : "secondary"
+              }
+            >
               {rec.urgency}
             </Badge>
             <Badge variant="outline">{rec.status}</Badge>
             {rec.branch?.name && <Badge variant="outline">{rec.branch.name}</Badge>}
+            {rec.assignee_id && (
+              <Badge variant="outline" className="gap-1">
+                <UserCircle2 className="h-3 w-3" /> {getUserName(rec.assignee_id)}
+              </Badge>
+            )}
             {rec.needed_by && (
-              <span className="text-xs">Needed by {format(new Date(rec.needed_by), "MMM d, yyyy")}</span>
+              <span className="text-xs">
+                Needed by {format(new Date(rec.needed_by), "MMM d, yyyy")}
+              </span>
             )}
           </SheetDescription>
         </SheetHeader>
+
+        {/* Top-level lifecycle actions — always visible, keyboard-first */}
+        {!isTerminal && (
+          <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Lifecycle actions">
+            <Button size="sm" onClick={handleApprove} disabled={busy || !canApprove}>
+              <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleRequestReview}
+              disabled={busy || !canRequestReview}
+            >
+              <ShieldQuestion className="h-4 w-4 mr-1" /> Send for review
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleReject} disabled={busy}>
+              <Ban className="h-4 w-4 mr-1" /> Reject
+            </Button>
+          </div>
+        )}
 
         <Tabs defaultValue="overview" className="mt-4">
           <TabsList className="w-full">
@@ -213,6 +328,30 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
               Formula: net = max(0, safety + velocity/7 × lead − available − incoming),
               then rounded up to pack size and floored at MOQ.
             </div>
+
+            {/* Assignment */}
+            <section className="space-y-2 rounded-md border p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <UserCircle2 className="h-4 w-4" /> Assignee
+              </div>
+              <Select
+                value={rec.assignee_id ?? UNASSIGNED}
+                onValueChange={handleAssign}
+                disabled={busy}
+              >
+                <SelectTrigger aria-label="Assign recommendation">
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.user_id} value={m.user_id}>
+                      {m.full_name || m.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </section>
 
             {rec.linked_po_id && (
               <div className="rounded-md border p-3 text-sm bg-muted/40">
@@ -249,20 +388,30 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <Pencil className="h-4 w-4" /> Override quantity
               </h3>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder={`${effectiveQty}`}
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                />
-                <Input
-                  placeholder="Reason (required)"
-                  value={editReason}
-                  onChange={(e) => setEditReason(e.target.value)}
-                />
-                <Button onClick={handleEditQty} disabled={busy}>Save</Button>
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                <div>
+                  <Label htmlFor="rec-edit-qty" className="text-xs">Quantity</Label>
+                  <Input
+                    id="rec-edit-qty"
+                    type="number"
+                    min={0}
+                    placeholder={`${effectiveQty}`}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="rec-edit-reason" className="text-xs">Reason</Label>
+                  <Input
+                    id="rec-edit-reason"
+                    placeholder="Required"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={handleEditQty} disabled={busy}>Save</Button>
+                </div>
               </div>
             </section>
 
@@ -273,15 +422,34 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <ShoppingCart className="h-4 w-4" /> Create draft purchase order
               </h3>
-              {!rec.preferred_vendor_id && (
-                <p className="text-xs text-muted-foreground">
-                  No preferred vendor on file — the recommendation must have one before a PO can be raised. Edit the reorder rule to set a vendor.
-                </p>
-              )}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs">Quantity</Label>
+                  <Label htmlFor="rec-po-vendor" className="text-xs">Vendor</Label>
+                  <Select value={poVendorId} onValueChange={setPoVendorId}>
+                    <SelectTrigger id="rec-po-vendor">
+                      <SelectValue placeholder="Pick vendor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rec.preferred_vendor_id && (
+                        <SelectItem value={KEEP_VENDOR}>
+                          {rec.vendor?.name ?? "Preferred vendor"}{" "}
+                          <span className="text-xs text-muted-foreground">(preferred)</span>
+                        </SelectItem>
+                      )}
+                      {vendors
+                        .filter((v) => v.id !== rec.preferred_vendor_id)
+                        .map((v) => (
+                          <SelectItem key={v.id} value={v.id}>
+                            {v.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="rec-po-qty" className="text-xs">Quantity</Label>
                   <Input
+                    id="rec-po-qty"
                     type="number"
                     min={0}
                     placeholder={`${effectiveQty}`}
@@ -289,23 +457,25 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                     onChange={(e) => setPoQty(e.target.value)}
                   />
                 </div>
-                <div>
-                  <Label className="text-xs">Vendor</Label>
-                  <Input value={rec.vendor?.name ?? "—"} disabled />
-                </div>
               </div>
               <Textarea
+                aria-label="PO notes"
                 placeholder="Notes (optional)"
                 value={poNotes}
                 onChange={(e) => setPoNotes(e.target.value)}
                 rows={2}
               />
+              {!resolvedVendorId && (
+                <p className="text-xs text-muted-foreground">
+                  Pick a vendor above (or set a preferred vendor on the reorder rule) to enable this action.
+                </p>
+              )}
               <Button
                 onClick={handleConvertPo}
-                disabled={busy || !rec.preferred_vendor_id || !!rec.linked_po_id}
+                disabled={busy || !resolvedVendorId || !!rec.linked_po_id}
                 className="w-full"
               >
-                Create PO
+                Create PO{resolvedVendorName ? ` for ${resolvedVendorName}` : ""}
               </Button>
             </section>
 
@@ -318,9 +488,9 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs">From warehouse</Label>
+                  <Label htmlFor="rec-xf-from" className="text-xs">From warehouse</Label>
                   <Select value={xfFrom} onValueChange={setXfFrom}>
-                    <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
+                    <SelectTrigger id="rec-xf-from"><SelectValue placeholder="Source" /></SelectTrigger>
                     <SelectContent>
                       {warehouses.map((w) => (
                         <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
@@ -329,9 +499,9 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">To warehouse</Label>
+                  <Label htmlFor="rec-xf-to" className="text-xs">To warehouse</Label>
                   <Select value={xfTo} onValueChange={setXfTo}>
-                    <SelectTrigger><SelectValue placeholder="Destination" /></SelectTrigger>
+                    <SelectTrigger id="rec-xf-to"><SelectValue placeholder="Destination" /></SelectTrigger>
                     <SelectContent>
                       {warehouses.map((w) => (
                         <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
@@ -341,8 +511,9 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                 </div>
               </div>
               <div>
-                <Label className="text-xs">Quantity</Label>
+                <Label htmlFor="rec-xf-qty" className="text-xs">Quantity</Label>
                 <Input
+                  id="rec-xf-qty"
                   type="number"
                   min={0}
                   placeholder={`${effectiveQty}`}
@@ -368,8 +539,11 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                 <Clock className="h-4 w-4" /> Defer
               </h3>
               <div className="flex items-center gap-2">
-                <Label className="text-xs whitespace-nowrap">Snooze for (days)</Label>
+                <Label htmlFor="rec-snooze" className="text-xs whitespace-nowrap">
+                  Snooze for (days)
+                </Label>
                 <Input
+                  id="rec-snooze"
                   type="number"
                   min={1}
                   value={snoozeDays}
@@ -379,7 +553,12 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                 <Button variant="outline" onClick={handleSnooze} disabled={busy}>
                   Snooze
                 </Button>
-                <Button variant="ghost" onClick={handleDismiss} disabled={busy} className="ml-auto">
+                <Button
+                  variant="ghost"
+                  onClick={handleDismiss}
+                  disabled={busy}
+                  className="ml-auto"
+                >
                   <Ban className="h-4 w-4 mr-1" /> Dismiss
                 </Button>
               </div>
@@ -403,6 +582,11 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                     {(e.from_status || e.to_status) && (
                       <div className="text-xs mt-1">
                         {e.from_status ?? "—"} → {e.to_status ?? "—"}
+                      </div>
+                    )}
+                    {e.actor_id && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        by {getUserName(e.actor_id)}
                       </div>
                     )}
                     {e.note && <p className="text-xs mt-1 italic">"{e.note}"</p>}
