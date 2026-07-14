@@ -524,6 +524,38 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                   />
                 </div>
               </div>
+              {resolvedVendorId && !rec.linked_po_id && (
+                <div>
+                  <Label htmlFor="rec-po-target" className="text-xs">
+                    Target PO
+                  </Label>
+                  <Select value={poTargetId} onValueChange={setPoTargetId}>
+                    <SelectTrigger id="rec-po-target">
+                      <SelectValue placeholder="Create new draft" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__new__">
+                        Create new draft PO
+                      </SelectItem>
+                      {draftPos.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.po_number ?? p.id.slice(0, 8)}
+                          {p.order_date ? ` · ${p.order_date}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {draftPosQuery.isLoading ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Loading draft POs…
+                    </p>
+                  ) : draftPos.length === 0 ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      No open draft POs for this vendor — a new draft will be created.
+                    </p>
+                  ) : null}
+                </div>
+              )}
               <Textarea
                 aria-label="PO notes"
                 placeholder="Notes (optional)"
@@ -541,7 +573,12 @@ export function RecommendationDrawer({ rec, open, onClose }: Props) {
                 disabled={busy || !resolvedVendorId || !!rec.linked_po_id}
                 className="w-full"
               >
-                Create PO{resolvedVendorName ? ` for ${resolvedVendorName}` : ""}
+                {poTargetId && poTargetId !== "__new__"
+                  ? `Attach to ${
+                      draftPos.find((p) => p.id === poTargetId)?.po_number ??
+                      "draft PO"
+                    }`
+                  : `Create PO${resolvedVendorName ? ` for ${resolvedVendorName}` : ""}`}
               </Button>
             </section>
 
