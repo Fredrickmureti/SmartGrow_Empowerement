@@ -103,6 +103,19 @@ export function EmployeesApp() {
           }
         />
 
+        {/* HR review queue for employee-submitted profile change requests.
+            Static segment ranks above `employees/:id` in RRv6, so this is safe. */}
+        <Route
+          path="employees/change-requests"
+          element={
+            <PermissionProtectedRoute permission="manageEmployees" fallbackPath="/hr/employees">
+              <LazyRoute module="Profile change requests">
+                <EmployeeChangeRequestsPage />
+              </LazyRoute>
+            </PermissionProtectedRoute>
+          }
+        />
+
         <Route
           path="employees/:id"
           element={
