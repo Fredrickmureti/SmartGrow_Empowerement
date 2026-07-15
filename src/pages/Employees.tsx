@@ -474,6 +474,7 @@ export default function Employees() {
             <CustomizeFieldsButton entityType="employee" />
             {can("manageEmployees") && (
               <>
+                <ChangeRequestsBadgeButton />
                 <Button variant="outline" onClick={() => navigate("/hr/configuration")}>
                   HR Workspace Setup
                 </Button>
