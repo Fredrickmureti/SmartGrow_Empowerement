@@ -30,20 +30,8 @@ import { useLeaveAllocations, type LeaveBalance } from "@/hooks/leave/useLeaveAl
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 
 function statusBadge(status: string) {
-  const map: Record<string, { label: string; cls: string }> = {
-    draft: { label: "Draft", cls: "bg-muted text-muted-foreground" },
-    pending: { label: "Pending", cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-    pending_second_approval: { label: "Awaiting final approval", cls: "bg-amber-500/10 text-amber-700 border-amber-500/20" },
-    approved: { label: "Approved", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
-    rejected: { label: "Rejected", cls: "bg-rose-500/10 text-rose-600 border-rose-500/20" },
-    cancelled: { label: "Cancelled", cls: "bg-muted text-muted-foreground" },
-  };
-  const v = map[status] ?? { label: status, cls: "" };
-  return (
-    <Badge variant="outline" className={v.cls}>
-      {v.label}
-    </Badge>
-  );
+  const meta = hrStatus(status);
+  return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
 }
 
 export default function MyLeave() {
