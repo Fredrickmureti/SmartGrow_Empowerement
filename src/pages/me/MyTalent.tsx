@@ -49,13 +49,16 @@ export default function MyTalent() {
     <>
       <PageHeader title="My talent" description="Your goals, reviews, competencies, and growth plan in one place." />
       <PageBody>
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Tile icon={Target}      label="Active goals"     value={active.length} />
-        <Tile icon={AlertCircle} label="Check-ins due"   value={overdue.length} tone={overdue.length ? "warn" : undefined} />
-        <Tile icon={ClipboardList} label="Pending reviews" value={pendingReviews} tone={pendingReviews ? "warn" : undefined} />
-        <Link to="/me/talent/competencies"><Tile icon={Award} label="Competencies" value="Open →" /></Link>
-      </div>
+      {/* Quick stats — shared KpiStrip primitive (parity with MyLeave / MyPayslips / MyLoans). */}
+      <KpiStrip
+        tiles={[
+          { key: "active", label: "Active goals", value: active.length, icon: Target, tone: "neutral" },
+          { key: "overdue", label: "Check-ins due", value: overdue.length, icon: AlertCircle, tone: overdue.length ? "rose" : "neutral" },
+          { key: "reviews", label: "Pending reviews", value: pendingReviews, icon: ClipboardList, tone: pendingReviews ? "amber" : "neutral" },
+          { key: "competencies", label: "Competencies", value: "Open", icon: Award, tone: "sky", onClick: () => { window.location.assign("/me/talent/competencies"); } },
+        ]}
+      />
+
 
       {/* My goals */}
       <Card>
