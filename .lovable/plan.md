@@ -1,84 +1,100 @@
 
-## Root cause (investigated end-to-end)
+## What the 422 actually is right now
 
-The 422 from `generate-tax-certificate` for **Annual Earnings Statement** is not a transport / auth / RPC failure. It is a **structural refusal** from the edge function's own contract check.
+I re-verified the live DB and engine state:
 
-Trace:
+- `ANNUAL_EARNINGS_STATEMENT` (pack_id NULL, generic) — body **has** been republished with `derived_columns` (gross/benefits/deductions/net via `cat:*` tokens). The validator in `generate-tax-certificate/index.ts` (lines 91–152) now passes for this body. The generic template is structurally OK.
+- `GH_PAYE_EMPLOYEE_ANNUAL` (Ghana pack `8de30937…`, version **1.0.0**) — body still ships columns `basic / allowances / gross / ssnit / tier2 / reliefs / chargeable / paye` with **no `rule_codes`, no `source_key`, no `derived_columns`**. This is the *same* mis-binding class ADR-0061 flagged; any tenant on the Ghana pack that requests this certificate will still 422 with `MATRIX_NO_RULE_CODES`.
+- `P9A` (KE pack 10.1.6) — bound correctly, generates fine.
+- `CERT_OF_SERVICE` — not a matrix; unrelated to this class of bug.
 
-1. Client — `useTaxCertificates.ts:260` calls `generate-tax-certificate` with `template_code: "ANNUAL_EARNINGS_STATEMENT"`.
-2. Edge function loads the template row from `localization_pack_certificate_templates` (`id 822e9bbd-…`, `pack_id NULL` — the generic/global fallback).
-3. It runs `validateCanonicalSourceNode(...)` on every `matrix` node in `body.document`.
-4. The matrix at `document[3]` has data columns `gross, benefits, deductions, tax, net` and:
-   - no `matrix.rule_codes`,
-   - no `columns[*].source_key`,
-   - no `derived_columns`.
-5. Branch at `index.ts:104-112` fires → `businessError(422, "TEMPLATE_STRUCTURAL_INVALID", reason_code: MATRIX_NO_RULE_CODES)`.
+So the "still failing" 422 the user is seeing is one (or both) of:
+1. The Ghana annual PAYE certificate being requested (unbound).
+2. A stale response before the edge function picked up the latest engine changes (already redeployed at 11:32Z per logs).
 
-This is exactly the latent bug **ADR-0061** warned about:
+The generic template's own body is now valid, but three things are still weak:
+- **`cat:benefit` is not a real payroll category** — the enum is `earning / deduction / statutory_employee / statutory_employer / relief / tax` (verified against `pivotToMonthlyMatrix`'s SEED_CATEGORIES set). `benefits` column silently sums nothing.
+- **Income tax has no country-neutral binding** — the `tax` column was dropped from the generic template; we should introduce `cat:tax` as a first-class category and rebind, so the generic statement is useful (not just gross/net).
+- **Ghana template is broken and has no pack version bump** to force tenants to upgrade.
 
-> "The same mis-binding pattern exists latently on other certificates rewritten in the same migration (Ghana `GH_PAYE_EMPLOYEE_ANNUAL`, the generic `ANNUAL_EARNINGS_STATEMENT`) and can recur on any future pack."
+## Plan
 
-The template body currently in the DB (migration `20260713001927_…`) declares columns but never tells the matrix engine which `payslip_lines` rule codes/categories to pivot. The engine correctly refuses rather than silently emitting zeros. The refusal is right; the template is wrong.
+### 1. Engine — extend category enum with `tax` and de-dup
 
-## Why "just bind rule_codes" is not enough
+`supabase/functions/_shared/monthlyMatrix.ts`
+- Extend `SEED_CATEGORIES` (and the aggregation loop) with `"tax"` so `cat:tax` becomes an addressable synthetic column. Every `payslip_lines` row with `category = 'tax'` accumulates here.
+- Verify (already true) that `cat:*` keys are additive, not overwritten, per month.
 
-`ANNUAL_EARNINGS_STATEMENT` has `pack_id IS NULL` — it is the **country-neutral generic** certificate. Real rule codes are country-specific (`paye`, `shif`, `nssf`, `housing_levy`, `nita`…). Hardcoding Kenya codes here would break Ghana, Rwanda, etc.
+No other engine changes needed — `cat:*` resolution, validator acceptance, and RPC "all rows" fetch path are already in place.
 
-`monthlyMatrix.ts` today only pivots by `rule_code`. `payroll_employee_monthly_breakdown` already returns `category` per row (`earning`, `deduction`, `statutory_employee`, `statutory_employer`, `relief`), but the pivot ignores it. So today there is **no country-neutral way** to express "sum all earnings" or "sum all statutory deductions" in a matrix.
+### 2. Generic template — hardened rework (no pack, ships via migration)
 
-## Fix — two coordinated changes
+Republish `ANNUAL_EARNINGS_STATEMENT` (pack_id NULL) with a **cleaner, wider** column set:
 
-### 1. Engine: add category aggregation to `monthlyMatrix` (small, additive)
+| Column         | Binding                                                          |
+|----------------|------------------------------------------------------------------|
+| `month`        | month axis                                                       |
+| `gross`        | `sum(cat:earning)`                                               |
+| `benefits`     | *removed* — was `cat:benefit` (invalid category); merged into `gross` |
+| `statutory`    | `sum(cat:statutory_employee)`                                    |
+| `other_ded`    | `sum(cat:deduction)`                                             |
+| `tax`          | `sum(cat:tax)` — reinstated via new `cat:tax` category           |
+| `net`          | `sub(gross, statutory, other_ded, tax)`                          |
 
-`supabase/functions/_shared/monthlyMatrix.ts`:
+Also:
+- Keep `rule_codes: []` sentinel + `amount_field: "employee_amount"`.
+- Footer `sum_columns` updated to `[gross, statutory, other_ded, tax, net]`.
+- YTD Summary section rebound to sum the same derived keys (so summary and matrix agree by construction).
 
-- Extend `pivotToMonthlyMatrix` to additionally accumulate per-category totals into synthetic column keys of the form `cat:<category>` on each monthly row (`cat:earning`, `cat:deduction`, `cat:statutory_employee`, `cat:statutory_employer`, `cat:relief`).
-- `applyDerivedColumns` already resolves any string arg via `row[key]`, so `derived_columns` expressions can reference `cat:earning` etc. with zero further changes.
-- `collectMatrixRuleCodes` and the validator: treat any `cat:*` token that appears as a `derived_columns` arg as "resolved" (add to the accepted-symbols set in `certificateMatrix.ts::collectDerivedArgOffences` and mirror the same in `generate-tax-certificate/index.ts::validateCanonicalSourceNode` — the validator already recognises "raw rule_code" and "derived key"; we add "category token").
-- Mirror the browser-side lint (`src/features/localization/lib/engine/*` if it duplicates the check) so the editor stays in parity.
+### 3. Ghana PAYE annual certificate — republish + bump pack
 
-This is intentionally a small, orthogonal extension — it does not change existing pack behaviour. Any pack that does not use `cat:*` tokens is unaffected.
+Republish `GH_PAYE_EMPLOYEE_ANNUAL` body's matrix with proper bindings:
+- `basic` → `source_key: "basic_salary"` (canonical rule code)
+- `allowances` → `sum(cat:earning) - basic` via derived `sub(cat:earning, basic)`
+- `gross` → `sum(cat:earning)`
+- `ssnit` → `source_key: "ssnit_tier1"` (whatever the Ghana pack rule code is — verified against pack seed rules)
+- `tier2` → `source_key: "ssnit_tier2"` (or `provident_fund` per Ghana pack)
+- `reliefs` → `sum(cat:relief)`
+- `chargeable` → `sub(gross, ssnit, tier2, reliefs)`
+- `paye` → `sum(cat:tax)`
 
-### 2. Republish `ANNUAL_EARNINGS_STATEMENT` body
+Bump Ghana pack `version` from `1.0.0` → **`1.1.0`** and emit a `pack_upgrade_proposal` row so tenants see an upgrade prompt.
 
-New migration (data-only `UPDATE` on `localization_pack_certificate_templates` where `code='ANNUAL_EARNINGS_STATEMENT' AND pack_id IS NULL`) that rewrites `body.document[3]` (the matrix) with:
+### 4. Pack upgrade surface
 
-- `"rule_codes": []` (explicit empty — signals "no raw rule_code columns, all data via derived").
-- `"derived_columns"`:
-  - `gross` → `sum(cat:earning)` (amount_field `employee_amount`)
-  - `benefits` → `sum(cat:earning)` minus a `basic` fallback, or simply `sum(cat:earning)` if the pack does not distinguish (decision below)
-  - `deductions` → `sum(cat:statutory_employee, cat:deduction)`
-  - `tax` → `sum(cat:statutory_employee)` filtered to income-tax rule codes is NOT possible generically; instead we bind `tax` via a **new** matrix-level directive `"tax_source": "cat:tax"` or drop the `tax` column from the generic template and keep it in country-specific packs. The plan chooses to **drop `tax` from the generic template** and leave tax reporting to the country-specific certificates (P9A, GH_PAYE_EMPLOYEE_ANNUAL). Rationale: "income tax" is not a country-neutral concept and cannot be safely aggregated without a pack-authored classifier.
-  - `net` → `sub(gross, deductions)`
-- `columns[]` correspondingly: `month`, `gross`, `benefits`, `deductions`, `net` — each data column keyed to a derived key (so the "column has no source_key AND not in derived_columns" branch is satisfied).
-- `footer.sum_columns` updated to match.
+For every affected tenant on the Ghana pack, insert a row into `pack_upgrade_proposals` (proposed_version `1.1.0`, reason: "Fixes Annual PAYE certificate rendering"). This is the mechanism the user meant by "I will upgrade".
 
-The YTD summary section stays as-is (it already reads pre-aggregated `totals.gross_pay` / `totals.deductions` / `totals.net_pay` from the payload, not from the matrix).
+Generic template has no pack, so it upgrades in place — no proposal needed. Note that in the release notes.
 
-Open question for you before the migration is written — **do we drop the Income Tax column entirely from the generic template, or do we introduce a `cat:tax` category by reclassifying `paye`/`income_tax` rule codes across packs?** The former is a 1-line drop; the latter is a wider pack-side change.
+### 5. Regression tests
 
-### 3. Guard tests
+- Update `src/test/architecture/annual-earnings-canonical-binding.test.ts` to reflect the new column set and to assert `cat:tax` appears in derived args.
+- Add sibling test `ghana-paye-annual-canonical-binding.test.ts` mirroring the same shape for `GH_PAYE_EMPLOYEE_ANNUAL`.
+- Extend `monthlyMatrix_test.ts` with a case that verifies rows with `category = 'tax'` accumulate into `cat:tax`.
+- The existing `matrix-derived-columns-must-resolve.test.ts` and `statutory-templates-must-bind-canonical-sources.test.ts` will now guard both templates automatically.
 
-- Extend `src/test/architecture/statutory-templates-must-bind-canonical-sources.test.ts` to accept `cat:*` tokens as valid canonical bindings.
-- Add a new architecture test: `ANNUAL_EARNINGS_STATEMENT` body must have `derived_columns.length > 0` (regression pin against the exact bug we just found).
-- Add a Deno test alongside `monthlyMatrix_test.ts` covering the new `cat:*` synthetic keys.
+### 6. What is NOT changing
+
+- No changes to `compute-payroll`, `payslip_lines`, `payroll_employee_ytd`, RPCs, resolver, PDF renderer, or the KE 10.1.6 pack.
+- No hardcoded country-specific logic added to the platform.
+- No changes to the client hook `useTaxCertificates.ts`.
 
 ## Files touched
 
 ```text
-supabase/functions/_shared/monthlyMatrix.ts          (engine — add cat:* keys)
-supabase/functions/_shared/certificateMatrix.ts      (validator — accept cat:*)
-supabase/functions/generate-tax-certificate/index.ts (mirror validator change)
-supabase/migrations/<new>_republish_annual_earnings.sql (data-only body update)
-src/test/architecture/statutory-templates-must-bind-canonical-sources.test.ts
-src/test/architecture/<new>-annual-earnings-canonical-binding.test.ts
-supabase/functions/_shared/monthlyMatrix_test.ts
+supabase/functions/_shared/monthlyMatrix.ts             (+ cat:tax seeding)
+supabase/functions/_shared/monthlyMatrix_test.ts        (test)
+supabase/migrations/<new>_republish_annual_earnings_v2.sql
+supabase/migrations/<new>_republish_ghana_paye_annual_and_bump.sql
+src/test/architecture/annual-earnings-canonical-binding.test.ts   (updated)
+src/test/architecture/ghana-paye-annual-canonical-binding.test.ts (new)
 ```
 
-No client-side / hook / renderer changes are required — the resolver, matrix engine, and PDF pipeline already handle derived columns; we're only widening what a derived arg can reference.
+## Open question before I implement
 
-## Out of scope
+The **`tax` category doesn't yet exist as a canonical `payslip_lines.category` enum** in your rule-type catalog. Two options:
 
-- Kenya P9A (already fixed in pack 10.1.6).
-- Ghana `GH_PAYE_EMPLOYEE_ANNUAL` (same latent bug per ADR-0061 — a separate follow-up; call out but do not fix here unless you approve).
-- Any change to `compute-payroll`, `payslip_lines`, `payroll_employee_ytd_rollup`, or the certificate PDF renderer.
+- **(A) Reclassify `paye`/`income_tax` rules to `category = 'tax'`** across packs (KE, GH) in the same migration. Cleanest, but touches pack rule sets. `cat:tax` then works everywhere.
+- **(B) Keep the tax column out of the generic template** and only bind it inside country packs via explicit `source_key` (e.g. Ghana `source_key: "paye"`). Generic template shows gross / statutory / other_ded / net only.
+
+I recommend **(B)** — it keeps this change surgical and country-neutral, and Ghana + KE already own their own annual certificates where `paye` is bound explicitly. If you prefer (A) say so and I'll add the reclassification to the migration.
