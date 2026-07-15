@@ -29818,11 +29818,17 @@ export type Database = {
           country_code: string | null
           created_at: string
           description: string | null
+          export_formats: Json
           feature_flag: string | null
           id: string
           is_active: boolean
           label: string
           localization_pack_id: string | null
+          metadata: Json
+          owner_kind: string
+          owner_ref: string | null
+          parameters: Json
+          preview_kind: string
           report_key: string
           scope: string
           sort_order: number
@@ -29834,11 +29840,17 @@ export type Database = {
           country_code?: string | null
           created_at?: string
           description?: string | null
+          export_formats?: Json
           feature_flag?: string | null
           id?: string
           is_active?: boolean
           label: string
           localization_pack_id?: string | null
+          metadata?: Json
+          owner_kind?: string
+          owner_ref?: string | null
+          parameters?: Json
+          preview_kind?: string
           report_key: string
           scope?: string
           sort_order?: number
@@ -29850,11 +29862,17 @@ export type Database = {
           country_code?: string | null
           created_at?: string
           description?: string | null
+          export_formats?: Json
           feature_flag?: string | null
           id?: string
           is_active?: boolean
           label?: string
           localization_pack_id?: string | null
+          metadata?: Json
+          owner_kind?: string
+          owner_ref?: string | null
+          parameters?: Json
+          preview_kind?: string
           report_key?: string
           scope?: string
           sort_order?: number
@@ -29870,6 +29888,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payroll_report_runs: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          duration_ms: number | null
+          employee_count: number | null
+          error: string | null
+          filters: Json
+          generated_at: string
+          generated_by: string | null
+          id: string
+          organization_id: string
+          owner_kind: string | null
+          pack_code: string | null
+          pack_version: string | null
+          params: Json
+          report_key: string
+          report_label: string | null
+          row_count: number | null
+          source_payroll_run_ids: string[]
+          status: string
+          template_version: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          employee_count?: number | null
+          error?: string | null
+          filters?: Json
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          organization_id: string
+          owner_kind?: string | null
+          pack_code?: string | null
+          pack_version?: string | null
+          params?: Json
+          report_key: string
+          report_label?: string | null
+          row_count?: number | null
+          source_payroll_run_ids?: string[]
+          status?: string
+          template_version?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          employee_count?: number | null
+          error?: string | null
+          filters?: Json
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          organization_id?: string
+          owner_kind?: string | null
+          pack_code?: string | null
+          pack_version?: string | null
+          params?: Json
+          report_key?: string
+          report_label?: string | null
+          row_count?: number | null
+          source_payroll_run_ids?: string[]
+          status?: string
+          template_version?: string | null
+        }
+        Relationships: []
       }
       payroll_return_diagnostics: {
         Row: {
