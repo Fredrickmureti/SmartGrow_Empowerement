@@ -35,6 +35,7 @@ const HRDashboard = lazy(() => import("@/pages/hr/HRDashboard"));
 const EmployeeProfile = lazy(() => import("@/pages/hr/EmployeeProfile"));
 const EmployeeNewPage = lazy(() => import("@/pages/hr/EmployeeNewPage"));
 const MyDraftsPage = lazy(() => import("@/pages/hr/MyDraftsPage"));
+const EmployeeChangeRequestsPage = lazy(() => import("@/pages/hr/EmployeeChangeRequestsPage"));
 const EmployeesConfiguration = lazy(() => import("@/pages/hr/configuration/ConfigurationLayout"));
 const BenefitEnrollmentWindows = lazy(() => import("@/pages/hr/BenefitEnrollmentWindows"));
 const OnboardingIssues = lazy(() => import("@/pages/hr/OnboardingIssues"));
@@ -99,6 +100,19 @@ export function EmployeesApp() {
                 <MyDraftsPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* HR review queue for employee-submitted profile change requests.
+            Static segment ranks above `employees/:id` in RRv6, so this is safe. */}
+        <Route
+          path="employees/change-requests"
+          element={
+            <PermissionProtectedRoute permission="manageEmployees" fallbackPath="/hr/employees">
+              <LazyRoute module="Profile change requests">
+                <EmployeeChangeRequestsPage />
+              </LazyRoute>
+            </PermissionProtectedRoute>
           }
         />
 

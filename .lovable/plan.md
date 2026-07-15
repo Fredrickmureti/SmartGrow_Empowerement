@@ -1,145 +1,72 @@
 
-# ESS Identity & Profile Architecture — Audit + Redesign Plan
+# ESS Identity Portal — Verify & Complete
 
-Scope: architectural, not cosmetic. Fix ownership boundaries, routing, and information architecture across the `/me/*` portal. No changes to HR write paths, payroll, or auth backends beyond what's required to enforce ownership.
+I audited what the previous agent shipped before proposing new work. Below is what I verified, what needs deeper verification, and the concrete gaps to close.
 
-## 1. Root causes of the current symptoms
+## What I verified is in place
 
-| Symptom | Root cause |
-|---|---|
-| `/me/profile` → immediately back to `/me` | `src/pages/hr/MyProfile.tsx` redirects the portal user to `/hr/employees/:id`. `/hr/*` is admin-app space; the portal guard (`InternalOnlyRoute` / `PermissionProtectedRoute`) bounces portal users back to `/me`. Two shells fighting each other. |
-| Editable "Account Profile" inside `/me/settings` | `MySettings` embeds `UserProfilePage` (the workspace-user profile editor). It edits the **auth/profile row**, not the HR employee — but presents itself as "your profile", so users assume it updates HR. Two identities blurred into one form. |
-| Notifications link exits the portal shell | `/me/settings` links to `/notifications`, which is rendered by the business shell — no `MePortalLayout` wrapper. |
-| Password disabled ("contact admin") | Placeholder. No decision has been made about whether this project uses Supabase auth self-service, SSO, or admin-issued creds. |
-| Profile ownership ambiguity | No field-level classification exists. The HR record, the `profiles` auth row, and `auth.users` are all reachable from portal UI without an ownership model. |
+- **Routing root cause fixed**: `src/pages/hr/MyProfile.tsx` is now a `<Navigate to="/me/profile" replace />` shim, ending the `/hr/employees/:id` → portal-guard → `/me` bounce.
+- **Portal-native pages exist and are wired in `src/apps/me/MeApp.tsx`**: `/me/profile` (`MyProfilePage.tsx`, 419 lines), `/me/account` (`MyAccount.tsx`, 185 lines, real `supabase.auth.updateUser` + reset link), `/me/notifications` (`MyNotifications.tsx`, 146 lines), `/me/settings` (thin index).
+- **Portal nav** (`MePortalLayout.tsx`) has an Account group with Profile · Account · Notifications; user menu points to `/me/profile` and `/me/account`.
+- **Backend migration** `20260715231920_…sql` creates `employee_profile_change_requests` with proper GRANTs + RLS (self-select, HR-select, block-direct-insert, cancel-own), `v_my_employee_profile` (security invoker, masked national_id + bank), and three RPCs: `update_own_employee_personal(jsonb)` (whitelist), `submit_profile_change_request(field,value,reason)` (HR-field whitelist), `review_profile_change_request(id,decision,note)` (role-gated, applies diff on approve). Ownership matrix is enforced in the DB, not just the UI.
 
-## 2. Identity lifecycle — canonical model
+## Verification pass (before writing new code)
 
-Three separate records, three owners:
+Fast, read-only sweep — no fixes yet unless a real regression is found:
 
-```text
-auth.users            (Identity)          — email, password, MFA, sessions
-  └─ profiles         (User Account)      — display name, avatar, phone-for-login, UI prefs
-       └─ employees   (HR Record)         — legal name, national ID, employment, comp, bank
-```
+1. Re-read `MyProfilePage.tsx`, `MyAccount.tsx`, `MyNotifications.tsx` end-to-end for: correct RPC arg names, cache-invalidation on mutate, empty/loading/`EmployeeLinkRequired` fallback, no admin-only widgets leaking in.
+2. Grep for any surviving `/me/*` → `/notifications`, `/hr/*`, `/settings/*` links (NotificationPopover "View all", user menus, deep links from widgets) — confirm they route within `/me/*` when `useSelfService()` is true.
+3. Confirm the migration matches the runtime schema (columns used by view exist on `employees`; `has_role` signature matches the project's enum).
+4. Confirm `update_own_employee_personal` cannot silently touch HR fields (whitelist loop happens before UPDATE — verified visually; will add a pgTAP test below).
+5. Confirm `review_profile_change_request`'s dynamic UPDATE only accepts keys that were whitelisted at submit time (double-checked: submit RPC gates on `v_hr_fields`, review RPC then trusts row → safe as long as no other path can insert; RLS `WITH CHECK (false)` on INSERT enforces this).
 
-Lifecycle events (already largely modeled in DB — see `employee_lifecycle_events`, `organization_invitations.employee_id`, `user_access_status` trigger):
+Anything broken found in this pass gets folded into step 1 below before shipping new surfaces.
 
-1. HR creates employee (draft → active)
-2. HR issues invitation (`user_invited`)
-3. Invitee accepts (`user_invitation_accepted`, `user_linked`) — auth.users + profiles row created, employee.user_id set
-4. Portal access granted; ESS surfaces filter by `employee.user_id = auth.uid()`
-5. Field edits route to the correct owner (see §4)
-6. HR terminates employee (`lifecycle_status = terminated`) → portal access revoked, auth.users retained for audit
-7. HR unlinks (`user_unlinked`) → auth.users optionally disabled
+## Gaps to close (previous agent explicitly deferred)
 
-This lifecycle is already correct in the DB. The **UI** does not respect it.
+### 1. HR admin review queue
+New route `/hr/employees/change-requests` (admin shell):
+- List pending `employee_profile_change_requests` for the current org with employee name, field, old → new diff, reason, requested_at.
+- Approve / Reject actions call `review_profile_change_request` RPC.
+- Filter by status; default = pending. Empty state.
+- Link from `/hr/employees` toolbar with a pending-count badge (single count query).
 
-## 3. Field ownership matrix (the source of truth)
+### 2. Employee's own "My change requests" strip
+On `/me/profile`, small card listing the employee's own pending requests with cancel action (RLS already permits status→cancelled). Closes the loop so users see their submission's state.
 
-| Field | Owner | Employee can… | Approval | Notifies |
-|---|---|---|---|---|
-| Legal first/last name | HR | Request change | HR approves | Payroll, statutory, ID docs |
-| Preferred name / display name | User Account | Edit freely | — | — |
-| Work email | HR + Identity | Read-only | Admin only | Identity, invites |
-| Personal email | Employee-managed | Edit | — | HR notified |
-| Phone (personal) | Employee-managed | Edit | — | HR notified (emergency) |
-| Phone (work) | HR | Read-only | HR | — |
-| Home address | Employee-managed | Edit | — | HR notified (statutory) |
-| Emergency contact | Employee-managed | Edit | — | HR notified |
-| National ID / tax IDs | HR | Read-only (masked) | HR only | Payroll |
-| Bank account (payroll) | Employee-managed, HR-gated | Request change | HR approves before next payroll | Payroll |
-| Avatar | User Account | Edit | — | — |
-| Date of birth | HR | Read-only | HR | — |
-| Marital status / dependents | Employee-managed | Edit | — | HR notified (tax) |
-| Job title, department, manager, salary | HR | Read-only | — | — |
-| Password / MFA | Identity | Self-service (if enabled) | — | Security log |
-| UI preferences (theme, locale, notif channels) | User Account | Edit | — | — |
+### 3. Bank-change payroll lock
+`submit_profile_change_request` should reject bank_* field submissions while the employee has any payroll run in states {`draft`,`calculating`,`review`,`approved`} in the current period. Enforced in the RPC (single `EXISTS` check) with a clear `ERRCODE` + message; UI surfaces the message via toast.
 
-"Request change" fields go through a lightweight change-request queue (new table `employee_profile_change_requests`) that HR approves; approval applies the diff to `employees` and emits a lifecycle event.
+### 4. MFA & recent login history on `/me/account`
+- **MFA**: Enroll/unenroll TOTP factor via `supabase.auth.mfa.*`. Show current factor state; QR + verify flow behind a dialog.
+- **Login history**: Read from existing `login_history` table (already present, see `<supabase-tables>`) — last 10 sessions with device/ip/timestamp; RLS assumed scoped to `user_id`; verify and add owner-select policy if missing.
 
-## 4. Route & shell architecture
+### 5. Architectural guardrails
+- **pgTAP** `supabase/tests/ess_profile_rpcs_test.sql`: asserts (a) `update_own_employee_personal` rejects HR keys, (b) `submit_profile_change_request` rejects non-HR keys, (c) non-admin cannot call `review_profile_change_request`, (d) RLS blocks direct INSERT into `employee_profile_change_requests`, (e) view masks `national_id` / `bank_account_number`.
+- **ESLint rule** `eslint-rules/no-shell-leak-from-me.js`: inside files under `src/pages/me/**` or `src/apps/me/**`, flag `<Link to="/hr/…">`, `<Link to="/settings/…">`, `<Link to="/notifications">`, and equivalent `navigate("/hr/…")` calls. Register in `eslint.config.js` with an allowlist file for genuine cross-shell links (e.g. sign-out).
+- **Arch test** `src/test/architecture/ess-portal-shell.test.ts`: greps `src/pages/me/**` for the same patterns as a fast belt-and-braces check the ESLint rule can't miss during CI cache skips.
 
-Every URL starting with `/me/` MUST render inside `MePortalLayout`. No portal link may point into `/hr/*`, `/settings/*`, or `/notifications` directly.
+## Explicitly out of scope
 
-New/changed routes (all under `MeApp.tsx`, wrapped by `SelfServiceProvider` + `MePortalLayout`):
+- Restyling any page beyond what the gaps above require. The previous agent's ownership-labeled card layout stays.
+- Rewriting other `/me/*` pages (payslips, leave, timesheets) — those already live under `MePortalLayout` and use `SelfServiceContext`.
+- Payroll domain changes beyond the read-only "is there an open run?" check in the bank-lock RPC.
 
-```text
-/me                     Home (unchanged)
-/me/profile             NEW ESS profile page (read-only HR view + editable personal section)
-  /me/profile/personal    Editable personal contact block
-  /me/profile/emergency   Emergency contacts
-  /me/profile/bank        Bank details (change-request flow)
-  /me/profile/documents   Employee documents (moved from /me/documents header link)
-/me/account             NEW — Identity & User Account surface
-  /me/account/security    Password, MFA, sessions, login history
-  /me/account/preferences Theme, locale, notification channels
-/me/notifications       NEW — inbox rendered inside portal shell (reuses existing NotificationsPage body)
-/me/requests            NEW — my open change requests (profile edits, leave, etc.)
-```
+## Technical details
 
-Removed:
-- `MyProfile.tsx` redirect to `/hr/employees/:id` (portal users must never enter `/hr/*`)
-- `/me/settings` embedded `UserProfilePage` (split into `/me/profile/personal` + `/me/account`)
-- Portal link to `/notifications` (rewritten to `/me/notifications`)
+- Migration order: add bank-payroll-lock branch inside `submit_profile_change_request` in a new migration (do not edit the existing one); pgTAP file added alongside. New migration also adds any missing SELECT policy on `login_history` for own rows.
+- HR queue reads via `requireSupabaseAuth` context so RLS applies (HR-select policy already permits it); mutations go through the RPC.
+- New route file `src/routes/hr.employees.change-requests.tsx` (dot convention already used in project). Registered inside the existing admin shell — no new layout.
+- `/me/account` MFA + login history live in the same file; no new page.
+- ESLint rule is a standard AST rule matching `JSXAttribute[name.name="to"]` string literals + `CallExpression[callee.name="navigate"]` first-arg literals; parallels existing rules like `no-hand-rolled-me-header.js`.
 
-`MySettings.tsx` becomes a thin index page linking to `/me/profile`, `/me/account/security`, `/me/account/preferences`. Password tile becomes active when Supabase email/password auth is on for the org; otherwise it links to SSO help (decision: default ON — Supabase email/password self-service via `resetPasswordForEmail`, since this project already uses Supabase auth).
+## Sequencing
 
-## 5. New ESS Profile page (`/me/profile`)
+1. Verification sweep (read-only) — fold any real regressions into step 2.
+2. Migration: bank-lock + login_history policy + pgTAP file.
+3. HR review queue route + toolbar badge.
+4. `/me/profile` "My change requests" strip.
+5. `/me/account` MFA + login history sections.
+6. ESLint rule + arch test + docs update in `mem/features/`.
 
-Three-section layout, ownership visible in the UI:
-
-1. **HR record** (read-only card, badge: "Managed by HR")
-   Name (legal), employee number, job title, department, manager, employment status, start date, work email, work phone.
-   Footer: "Something wrong? Request a correction" → opens change-request dialog scoped to HR-owned fields.
-
-2. **Personal details** (editable, badge: "You manage this")
-   Preferred name, personal email, personal phone, home address, DOB display (read-only), marital status, dependents.
-   Saves to `employees` via a new RPC `update_own_employee_personal(...)` that whitelists ONLY employee-managed columns and emits a lifecycle event + optional HR notification.
-
-3. **Sensitive** (change-request flow, badge: "HR approval required")
-   Legal name, bank account, tax identifiers (masked). Submit → row in `employee_profile_change_requests`, HR reviews in `/hr/employees/:id` → approve applies diff.
-
-Avatar lives on `/me/account` (User Account ownership), not on the HR profile card, so it's clear the avatar is a portal-user asset, not an HR record.
-
-## 6. Backend changes
-
-- **New table** `employee_profile_change_requests` (id, employee_id, requested_by, field_key, old_value, new_value, status, reviewed_by, reviewed_at, created_at). RLS: employee can insert/select own; HR admins select/update org rows. `GRANT` block per project convention.
-- **New RPC** `public.update_own_employee_personal(patch jsonb)` — whitelists employee-managed columns, updates `employees` for `WHERE user_id = auth.uid()`, emits lifecycle event, notifies HR channel.
-- **New RPC** `public.submit_profile_change_request(field_key text, new_value jsonb)` and `approve_profile_change_request(id uuid)`.
-- **New view** `v_my_employee_profile` — canonical read for the portal profile page, projecting HR-owned + employee-managed + masked-sensitive fields; grants SELECT to `authenticated`, RLS: `employee.user_id = auth.uid()`.
-- Password reset: reuse Supabase `resetPasswordForEmail` + existing `/reset-password` flow.
-
-## 7. Portal navigation redesign (inside `MePortalLayout`)
-
-Top-level items become:
-
-```text
-Home · Time off · Timesheets · Attendance · Payslips · Documents · Learning · Talent · Notifications · Profile
-```
-
-Bottom / user menu: **Profile · Account · Sign out** (Account = identity/security/preferences).
-
-Every `/me/*` page renders inside the same shell — no exits to `/hr` or `/notifications`. Breadcrumbs added on nested pages (`Profile / Personal`, `Account / Security`). Visual continuity: same header, same nav rail, same width, same page-title component.
-
-## 8. What we are explicitly NOT doing
-
-- No changes to HR admin write paths (`/hr/employees/*`).
-- No changes to payroll, leave, timesheets, attendance business logic.
-- No renaming of DB columns; only additive tables/RPCs/views.
-- No new auth provider; Supabase email/password stays. SSO remains a future toggle.
-
-## Technical section
-
-- Files added: `src/pages/me/MyProfilePage.tsx`, `MyProfilePersonal.tsx`, `MyProfileEmergency.tsx`, `MyProfileBank.tsx`, `MyAccount.tsx`, `MyAccountSecurity.tsx`, `MyAccountPreferences.tsx`, `MyNotifications.tsx`, `MyRequests.tsx`. Change-request dialog under `src/components/me/profile/`.
-- Files removed/rewritten: `src/pages/hr/MyProfile.tsx` (delete redirect), `src/pages/me/MySettings.tsx` (thin index), `src/apps/me/MeApp.tsx` (new routes), `src/components/me/MePortalLayout.tsx` (nav update), portal `Link to="/notifications"` rewritten to `/me/notifications`.
-- Migrations: `employee_profile_change_requests` table + GRANTs + RLS + policies; `v_my_employee_profile` view; RPCs `update_own_employee_personal`, `submit_profile_change_request`, `approve_profile_change_request`. All emit `employee_lifecycle_events`.
-- pgTAP guard: new test asserting the RPC whitelists, the view masks sensitive columns, and RLS scopes to `auth.uid()`.
-- ESLint rule: extend existing `no-hand-rolled-me-header` family with `no-portal-link-outside-me` to block `/me/*` pages linking into `/hr/*`, `/settings/*`, or `/notifications`.
-- Auth: `/me/account/security` uses `supabase.auth.updateUser({ password })` and `resetPasswordForEmail`; MFA left as a follow-up toggle.
-
-## Open questions before build
-
-1. Approval workflow: single-step (HR admin) or two-step (manager → HR)? Default: single-step HR.
-2. Should bank-account changes be blocked during an open payroll run? Default: yes, reject with reason.
-3. Password self-service: enable now (Supabase email/password) or leave disabled pending SSO decision? Default: enable now.
+I'll pause after step 1 only if the verification pass turns up a real regression that changes the plan; otherwise I proceed straight through.

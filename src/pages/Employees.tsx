@@ -9,7 +9,9 @@ import { normalizeError } from "@/services/resilience";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Plus, Search, Users, Loader2, UserCheck, UserX, Briefcase, Upload, LayoutGrid, List as ListIcon, AlertTriangle, ChevronDown, Zap } from "lucide-react";
+import { Plus, Search, Users, Loader2, UserCheck, UserX, Briefcase, Upload, LayoutGrid, List as ListIcon, AlertTriangle, ChevronDown, Zap, Bell as ChangeRequestBell } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Badge as ChangeRequestBadge } from "@/components/ui/badge";
 
 import { useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import type { EmployeeFormData } from "@/components/employees/EmployeeFormDialog";
@@ -474,6 +476,7 @@ export default function Employees() {
             <CustomizeFieldsButton entityType="employee" />
             {can("manageEmployees") && (
               <>
+                <ChangeRequestsBadgeButton />
                 <Button variant="outline" onClick={() => navigate("/hr/configuration")}>
                   HR Workspace Setup
                 </Button>
@@ -737,5 +740,46 @@ export default function Employees() {
         />
       </PageBody>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ChangeRequestsBadgeButton — link into the HR profile-change review queue
+// with a live pending-count badge. Uses head-only count so it is cheap.
+// ---------------------------------------------------------------------------
+
+function useChangeRequestsCount() {
+  return useQuery({
+    queryKey: ["hr-profile-change-requests-pending-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("employee_profile_change_requests" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (error) throw error;
+      return count ?? 0;
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+function ChangeRequestsBadgeButton() {
+  const nav = useNavigate();
+  const { data: count } = useChangeRequestsCount();
+
+  return (
+    <Button
+      variant="outline"
+      onClick={() => nav("/hr/employees/change-requests")}
+      className="relative"
+    >
+      <ChangeRequestBell className="mr-2 h-4 w-4" />
+      Change requests
+      {count && count > 0 ? (
+        <ChangeRequestBadge variant="destructive" className="ml-2 h-5 px-1.5 text-[10px]">
+          {count}
+        </ChangeRequestBadge>
+      ) : null}
+    </Button>
   );
 }

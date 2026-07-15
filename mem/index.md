@@ -11,3 +11,4 @@ Statutory paper allowlist covers A3/A4/Letter/Legal × portrait+landscape. Which
 
 ## Memories
 - [Certificate rendering](mem://features/certificate-rendering) — Engine AST versions, node primitives, theme system, KE P9 blueprint mapping.
+- [ESS identity portal](mem://features/ess-identity-portal) — Ownership matrix (HR vs identity vs employee-managed), change-request RPCs, /me/* shell integrity guards.

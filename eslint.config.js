@@ -20,6 +20,7 @@ import noDirectEmployeesBranchWrite from "./eslint-rules/no-direct-employees-bra
 import noPayslipLinesInCertificates from "./eslint-rules/no-payslip-lines-in-certificates.js";
 import noDialogCrudInAdmin from "./eslint-rules/no-dialog-crud-in-admin.js";
 import noHandRolledMeHeader from "./eslint-rules/no-hand-rolled-me-header.js";
+import noShellLeakFromMe from "./eslint-rules/no-shell-leak-from-me.js";
 
 
 export default tseslint.config(
@@ -53,6 +54,7 @@ export default tseslint.config(
           "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
           "no-dialog-crud-in-admin": noDialogCrudInAdmin,
           "no-hand-rolled-me-header": noHandRolledMeHeader,
+          "no-shell-leak-from-me": noShellLeakFromMe,
         },
       },
     },
@@ -200,9 +202,10 @@ export default tseslint.config(
   // PageHeader primitive. Editor-time flag; the arch test
   // `me-uses-design-system.test.ts` is the authoritative guard in CI.
   {
-    files: ["src/pages/me/**/*.{ts,tsx}"],
+    files: ["src/pages/me/**/*.{ts,tsx}", "src/apps/me/**/*.{ts,tsx}"],
     rules: {
       "local/no-hand-rolled-me-header": "error",
+      "local/no-shell-leak-from-me": "error",
     },
   },
 );
