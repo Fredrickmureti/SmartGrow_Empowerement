@@ -278,11 +278,17 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (sendErr) {
-      return new Response(JSON.stringify({ error: sendErr.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      console.error("[send-invitation-email] send-email invoke failed", {
+        invitation_id: invitation.id,
+        to: invitation.email,
+        message: sendErr.message,
       });
+      return new Response(
+        JSON.stringify({ error: "email_send_failed", details: sendErr.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+
 
     return new Response(JSON.stringify({ success: true, id: (sendData as any)?.id }), {
       status: 200,
