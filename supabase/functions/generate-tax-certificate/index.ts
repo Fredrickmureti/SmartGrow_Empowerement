@@ -15,7 +15,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { compile as compileCertificateHtml } from "../_shared/certificate-engine/compile.ts";
-import { buildMatrixRows, collectMatrixRuleCodes, sumMatrixColumn } from "../_shared/certificateMatrix.ts";
+import { buildMatrixRows, collectDerivedArgOffences, collectMatrixRuleCodes, sumMatrixColumn } from "../_shared/certificateMatrix.ts";
 import { type CertificateTemplateV3 } from "../_shared/certificate-engine/types.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody } from "../_shared/renderTemplateBody.ts";
@@ -121,6 +121,29 @@ function validateCanonicalSourceNode(params: {
       `Certificate template "${templateCode}" has ${kind} column(s) with no canonical binding: ${unbound.join(", ")}.`,
       "Bind each data column via `source_key` (canonical rule code) or a `derived_columns` entry keyed to the column. Statutory templates must never render unbound zeros.",
       { template_code: templateCode, template_source: templateSource, contract: `${kind}.columns`, reason_code: `${kind.toUpperCase()}_COLUMN_UNBOUND`, unbound_columns: unbound },
+    );
+  }
+
+  // Every string arg in every derived_columns expression must resolve to a
+  // real symbol (column key, earlier derived key, or a rule_code in the
+  // matrix superset). Otherwise the column silently evaluates to 0 (see
+  // monthlyMatrix.argValue). ADR-0061 addendum.
+  const derivedOffences = collectDerivedArgOffences(node);
+  if (derivedOffences.length > 0) {
+    return businessError(
+      422,
+      "TEMPLATE_STRUCTURAL_INVALID",
+      `Certificate template "${templateCode}" has ${kind} derived_columns referencing unresolved symbol(s): ${
+        derivedOffences.map((o) => `${o.derived_key}[${o.arg}]`).join(", ")
+      }.`,
+      "Every string arg in derived_columns must be another column key, an earlier derived key, or a rule_code listed on the matrix. Republish the pack with the corrected references.",
+      {
+        template_code: templateCode,
+        template_source: templateSource,
+        contract: `${kind}.derived_columns`,
+        reason_code: `${kind.toUpperCase()}_DERIVED_ARG_UNRESOLVED`,
+        unresolved: derivedOffences,
+      },
     );
   }
 

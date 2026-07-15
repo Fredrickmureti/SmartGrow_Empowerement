@@ -44,6 +44,56 @@ export function collectMatrixRuleCodes(matrixNode: any): string[] {
 }
 
 /**
+ * Validate that every string arg in every derived-column expression resolves
+ * to a real symbol available on the matrix row at derivation time. Namely:
+ *   1) another column's `key` / `bind_key` / `id`,
+ *   2) an earlier `derived_columns[j].key` (j < i), or
+ *   3) a raw rule_code listed in `matrix.rule_codes` (or exposed via any
+ *      column's `source_key`, which is included in that superset).
+ *
+ * Numeric literal args are always allowed. Unknown symbols would silently
+ * evaluate to 0 (see monthlyMatrix.argValue) — this check turns that class
+ * of latent template bug into a loud structural failure.
+ *
+ * Returns the list of offences (empty when the matrix is valid). Callers
+ * decide whether to throw (runtime generator) or aggregate (tests).
+ */
+export interface MatrixDerivedArgOffence {
+  derived_key: string;
+  arg: string;
+  index: number;
+}
+
+export function collectDerivedArgOffences(matrixNode: any): MatrixDerivedArgOffence[] {
+  const columns: MatrixColumnSpec[] = Array.isArray(matrixNode?.columns) ? matrixNode.columns : [];
+  const derived: any[] = Array.isArray(matrixNode?.derived_columns)
+    ? matrixNode.derived_columns
+    : [];
+  if (derived.length === 0) return [];
+
+  const columnKeys = new Set<string>();
+  for (const c of columns) {
+    const t = columnTargetKey(c);
+    if (t) columnKeys.add(t);
+  }
+  const ruleCodes = new Set<string>(collectMatrixRuleCodes(matrixNode));
+  const derivedKeysSoFar = new Set<string>();
+
+  const offences: MatrixDerivedArgOffence[] = [];
+  derived.forEach((d, idx) => {
+    const args = Array.isArray(d?.args) ? d.args : [];
+    for (const a of args) {
+      if (typeof a === "number") continue;
+      const s = String(a);
+      if (columnKeys.has(s) || derivedKeysSoFar.has(s) || ruleCodes.has(s)) continue;
+      offences.push({ derived_key: String(d?.key ?? `#${idx}`), arg: s, index: idx });
+    }
+    if (d?.key) derivedKeysSoFar.add(String(d.key));
+  });
+  return offences;
+}
+
+/**
  * Pivot raw monthly rule-code rows into semantic matrix rows keyed by the
  * template's column keys, then apply the pack's derived columns.
  */
