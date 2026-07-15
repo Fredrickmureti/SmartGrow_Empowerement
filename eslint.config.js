@@ -54,6 +54,7 @@ export default tseslint.config(
           "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
           "no-dialog-crud-in-admin": noDialogCrudInAdmin,
           "no-hand-rolled-me-header": noHandRolledMeHeader,
+          "no-shell-leak-from-me": noShellLeakFromMe,
         },
       },
     },
