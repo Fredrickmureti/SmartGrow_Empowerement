@@ -208,7 +208,7 @@ function LoginHistoryCard() {
         .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw error;
-      return (data ?? []) as Array<{
+      return (data ?? []) as unknown as Array<{
         id: string; created_at: string; ip_address: string | null;
         user_agent: string | null; status: string | null; is_new_device: boolean | null;
       }>;

@@ -437,7 +437,7 @@ function MyChangeRequestsStrip({ employeeId }: { employeeId: string }) {
         .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw error;
-      return (data ?? []) as Array<{
+      return (data ?? []) as unknown as Array<{
         id: string; field_key: string; new_value: any; status: string;
         reason: string | null; created_at: string; review_note: string | null; reviewed_at: string | null;
       }>;
