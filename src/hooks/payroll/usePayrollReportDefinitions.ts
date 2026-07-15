@@ -195,23 +195,37 @@ function normalize(r: any): PayrollReportDefinition {
   };
 }
 
-export function usePayrollReportDefinitions(countryCode?: string | null) {
+/**
+ * Tenant-scoped catalogue. Reads the security-definer RPC
+ * `payroll_report_definitions_for_tenant`, which returns:
+ *   - all active platform reports (owner_kind <> 'localization_pack'), plus
+ *   - active localization-pack reports ONLY when the pack is present in
+ *     `installed_localization_packs` for the given (organization_id,
+ *     business_id).
+ *
+ * This is how the Ghana / Kenya / … isolation is enforced. Do NOT filter
+ * by `businesses.country_code` on the client — a business's country
+ * attribute is not the same as which localization packs a tenant has
+ * installed. See ADR-0062 invariant 6.
+ */
+export function usePayrollReportDefinitions(
+  organizationId: string | null | undefined,
+  businessId?: string | null | undefined,
+) {
   return useQuery({
-    queryKey: ["payroll-report-definitions", countryCode ?? null],
+    queryKey: ["payroll-report-definitions", organizationId ?? null, businessId ?? null],
+    enabled: !!organizationId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<PayrollReportDefinition[]> => {
-      const { data, error } = await (supabase as any)
-        .from("payroll_report_definitions")
-        .select(
-          "id, report_key, label, description, category, scope, country_code, sort_order, feature_flag, owner_kind, owner_ref, preview_kind, export_formats, parameters, metadata, data_source, period_selector, dependencies, artifact_generator",
-        )
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true });
-      if (error) throw error;
-      const rows = (data ?? []).filter(
-        (r: any) => !r.country_code || !countryCode || r.country_code === countryCode,
+      const { data, error } = await (supabase as any).rpc(
+        "payroll_report_definitions_for_tenant",
+        {
+          p_organization_id: organizationId,
+          p_business_id: businessId ?? null,
+        },
       );
-      return rows.map(normalize);
+      if (error) throw error;
+      return (data ?? []).map(normalize);
     },
   });
 }
