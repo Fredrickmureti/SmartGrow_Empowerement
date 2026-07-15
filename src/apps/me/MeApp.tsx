@@ -293,6 +293,14 @@ export default function MeApp() {
           }
         />
         <Route
+          path="one-on-ones/new"
+          element={
+            <Lazy module="Schedule 1:1">
+              <MyOneOnOneNew />
+            </Lazy>
+          }
+        />
+        <Route
           path="one-on-ones/:id"
           element={
             <Lazy module="1:1">
@@ -300,6 +308,7 @@ export default function MeApp() {
             </Lazy>
           }
         />
+
         <Route
           path="team"
           element={
