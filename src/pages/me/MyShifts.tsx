@@ -15,9 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Calendar, ArrowLeftRight, Check, X } from "lucide-react";
+import { CalendarClock, ArrowLeftRight, Check, X } from "lucide-react";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
-import { PageHeader, PageBody, DetailSheet, FooterActionBar } from "@/design-system";
+import { PageHeader, PageBody, DetailSheet, FooterActionBar, EmptyState } from "@/design-system";
 
 function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -74,9 +74,13 @@ export default function MyShifts() {
           <CardTitle>Upcoming shifts</CardTitle>
           <CardDescription>Next 60 days.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className={upcoming.length === 0 ? "min-h-[220px] flex items-center justify-center" : undefined}>
           {upcoming.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No upcoming shifts.</p>
+            <EmptyState
+              icon={CalendarClock}
+              title="No shifts scheduled"
+              description="You have no assigned shifts in the next 60 days. Your roster will appear here once your manager publishes it."
+            />
           ) : (
             <div className="space-y-2">
               {upcoming.map((a) => (
@@ -120,9 +124,13 @@ export default function MyShifts() {
         <CardHeader>
           <CardTitle>Swap requests</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className={swaps.length === 0 ? "min-h-[220px] flex items-center justify-center" : undefined}>
           {swaps.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No swap requests.</p>
+            <EmptyState
+              icon={ArrowLeftRight}
+              title="No swap requests"
+              description="Swap requests you send or receive will show up here with their approval status."
+            />
           ) : (
             <div className="space-y-2">
               {swaps.map((s) => {
