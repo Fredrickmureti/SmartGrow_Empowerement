@@ -11,18 +11,18 @@
  * doubles as a line manager — same primitive as the other two ESS pages.
  */
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useDrillDownAnchor } from "@/hooks/payroll/useDrillDownAnchor";
 import { format } from "date-fns";
 import { CalendarOff, Plus, Inbox, CalendarClock, CheckCircle2, Hourglass, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PageHeader, PageBody } from "@/design-system";
+import { PageHeader, PageBody, StatusBadge } from "@/design-system";
 import { KpiStrip } from "@/components/hr/KpiStrip";
+import { hrStatus } from "@/components/hr/hrStatusMap";
 
 import { ManagerTriageBanner } from "@/components/hr/ManagerTriageBanner";
-import { LeaveRequestForm } from "@/components/leave/LeaveRequestForm";
 import { LeaveBalanceCard } from "@/components/leave/LeaveBalanceCard";
 import { useLeaveRequests } from "@/hooks/leave/useLeaveRequests";
 import { useLeaveTypes } from "@/hooks/leave/useLeaveTypes";
