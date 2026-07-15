@@ -95,6 +95,10 @@ export function EmployeeInviteDialog({
           p_user_type: userType,
           p_permission_group_ids: userType === "internal" ? selectedGroupIds : null,
           p_invited_by: meRes.user?.id ?? null,
+          // Explicit FK so the invitation is linked to this employee record
+          // rather than inferred by email at accept-time. Also lets the DB
+          // emit a `user_invited` lifecycle event against this employee.
+          p_employee_id: employeeId,
         },
       );
       if (rpcError) throw rpcError;
@@ -106,13 +110,12 @@ export function EmployeeInviteDialog({
         return;
       }
 
-      // Update employee record to show invited status
+      // Only sync the employee's `email` field (used elsewhere for matching).
+      // `user_access_status` is now derived by DB triggers from
+      // (employees.user_id, organization_invitations) — never write it here.
       const { error: empError } = await supabase
         .from("employees")
-        .update({
-          user_access_status: "invited",
-          email: normalizedEmail,
-        })
+        .update({ email: normalizedEmail })
         .eq("id", employeeId);
 
       if (empError) throw empError;
