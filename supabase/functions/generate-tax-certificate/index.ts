@@ -124,6 +124,29 @@ function validateCanonicalSourceNode(params: {
     );
   }
 
+  // Every string arg in every derived_columns expression must resolve to a
+  // real symbol (column key, earlier derived key, or a rule_code in the
+  // matrix superset). Otherwise the column silently evaluates to 0 (see
+  // monthlyMatrix.argValue). ADR-0061 addendum.
+  const derivedOffences = collectDerivedArgOffences(node);
+  if (derivedOffences.length > 0) {
+    return businessError(
+      422,
+      "TEMPLATE_STRUCTURAL_INVALID",
+      `Certificate template "${templateCode}" has ${kind} derived_columns referencing unresolved symbol(s): ${
+        derivedOffences.map((o) => `${o.derived_key}[${o.arg}]`).join(", ")
+      }.`,
+      "Every string arg in derived_columns must be another column key, an earlier derived key, or a rule_code listed on the matrix. Republish the pack with the corrected references.",
+      {
+        template_code: templateCode,
+        template_source: templateSource,
+        contract: `${kind}.derived_columns`,
+        reason_code: `${kind.toUpperCase()}_DERIVED_ARG_UNRESOLVED`,
+        unresolved: derivedOffences,
+      },
+    );
+  }
+
   return null;
 }
 
