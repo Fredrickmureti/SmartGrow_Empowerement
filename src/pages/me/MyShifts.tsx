@@ -74,7 +74,7 @@ export default function MyShifts() {
           <CardTitle>Upcoming shifts</CardTitle>
           <CardDescription>Next 60 days.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className={upcoming.length === 0 ? "min-h-[220px] flex items-center justify-center" : undefined}>
           {upcoming.length === 0 ? (
             <p className="text-sm text-muted-foreground">No upcoming shifts.</p>
           ) : (
