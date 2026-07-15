@@ -13,8 +13,8 @@
  * one. The visual/behavioural parity comes from copying the same layout
  * shape, not from re-using the gated wrapper.
  *
- * `MeSubNav` — the redundant horizontal sub-nav that duplicated the rail —
- * has been retired.
+ * The redundant horizontal sub-nav that duplicated the rail has been retired
+ * as part of this wave.
  */
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
