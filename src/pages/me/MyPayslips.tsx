@@ -249,7 +249,7 @@ export default function MyPayslips() {
                         {formatCurrency(ps.net_pay)}
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={ps.status} />
+                        <PayslipStatusBadge status={ps.status} />
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
