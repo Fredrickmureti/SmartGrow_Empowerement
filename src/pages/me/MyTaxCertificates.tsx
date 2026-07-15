@@ -18,9 +18,9 @@
  * Superseded certificates are shown but visually de-emphasized; only the
  * latest "issued" row per (template, year) is the canonical document.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { Download, FileText, Loader2 } from "lucide-react";
+import { Download, Loader2, Printer } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -45,7 +45,6 @@ import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useCertificateTemplates, downloadTaxCertificate, type TaxCertificate } from "@/hooks/payroll/useTaxCertificates";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
 import { toast } from "sonner";
-import { useState } from "react";
 import { PageHeader, PageBody, LoadingState } from "@/design-system";
 
 function StatusBadge({ status }: { status: TaxCertificate["status"] }) {
@@ -54,10 +53,58 @@ function StatusBadge({ status }: { status: TaxCertificate["status"] }) {
   return <Badge variant="secondary">Draft</Badge>;
 }
 
+/**
+ * Employee-facing artifact formats. `gov_*` outputs are for filers, not
+ * employees, so they are filtered out of the ESS surface.
+ */
+const EMPLOYEE_FORMATS = new Set(["html", "pdf", "xlsx"]);
+
+type ArtifactAction = {
+  key: string;
+  format: string;
+  label: string;
+  icon: "print" | "download";
+  run: () => Promise<void>;
+};
+
+function buildActions(cert: TaxCertificate): ArtifactAction[] {
+  const raw: Array<{ format: string; path?: string | null; label?: string | null }> =
+    Array.isArray(cert.artifacts) && cert.artifacts.length
+      ? (cert.artifacts as any[])
+      : ([
+          cert.pdf_path ? { format: "pdf", path: cert.pdf_path } : null,
+          cert.xlsx_path ? { format: "xlsx", path: cert.xlsx_path } : null,
+        ].filter(Boolean) as any[]);
+
+  return raw
+    .filter((a) => EMPLOYEE_FORMATS.has(a.format))
+    .map((a, i) => {
+      const isHtml = a.format === "html";
+      const label =
+        a.label ??
+        (isHtml ? "Print" : a.format === "xlsx" ? "Excel" : "PDF");
+      return {
+        key: `${a.format}-${a.path ?? i}`,
+        format: a.format,
+        label,
+        icon: isHtml ? "print" : "download",
+        run: async () => {
+          if (isHtml && a.path) {
+            await downloadTaxCertificate({ artifact_path: a.path, format: "html" });
+          } else if (a.format === "xlsx") {
+            await downloadTaxCertificate(cert, "xlsx");
+          } else {
+            await downloadTaxCertificate(cert);
+          }
+        },
+      } as ArtifactAction;
+    });
+}
+
 export default function MyTaxCertificates() {
   const { currentEmployee, isLoading: empLoading } = useCurrentEmployee();
   const templatesQ = useCertificateTemplates();
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const employeeId = currentEmployee?.id;
 
@@ -67,7 +114,7 @@ export default function MyTaxCertificates() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("payroll_tax_certificates")
-        .select("id, organization_id, business_id, branch_id, employee_id, template_code, fiscal_year, pdf_path, xlsx_path, artifacts, serial_number, status, generated_at")
+        .select("id, organization_id, business_id, branch_id, employee_id, template_code, fiscal_year, pdf_path, xlsx_path, artifacts, serial_number, status, generated_at, stale, stale_reason")
         .eq("employee_id", employeeId!)
         .order("fiscal_year", { ascending: false })
         .order("generated_at", { ascending: false });
@@ -97,15 +144,15 @@ export default function MyTaxCertificates() {
   const certs = certsQ.data ?? [];
   const issued = certs.filter((c) => c.status === "issued");
 
-  const handleDownload = async (cert: TaxCertificate) => {
-    setDownloadingId(cert.id);
+  const runAction = async (rowKey: string, action: ArtifactAction) => {
+    const key = `${rowKey}:${action.key}`;
+    setBusyKey(key);
     try {
-      await downloadTaxCertificate(cert);
+      await action.run();
     } catch (e: any) {
-      // toast already raised inside downloadTaxCertificate on failure
-      if (!e?.message) toast.error("Download failed");
+      if (!e?.message) toast.error("Action failed");
     } finally {
-      setDownloadingId(null);
+      setBusyKey(null);
     }
   };
 
@@ -113,7 +160,7 @@ export default function MyTaxCertificates() {
     <>
       <PageHeader
         title="My tax certificates"
-        description="Year-end statutory certificates issued for you by your employer. Download these for personal tax filing or record-keeping."
+        description="Year-end statutory certificates issued for you by your employer. Print for your records or download for personal tax filing."
       />
       <PageBody>
       <Card>
@@ -122,7 +169,7 @@ export default function MyTaxCertificates() {
           <CardDescription>
             {issued.length === 0
               ? "Nothing has been issued for you yet. Your employer generates these at the end of each fiscal year."
-              : `${issued.length} certificate${issued.length === 1 ? "" : "s"} available for download.`}
+              : `${issued.length} certificate${issued.length === 1 ? "" : "s"} available.`}
             {certs.length > issued.length
               ? ` Older superseded versions are also listed for your reference.`
               : ""}
@@ -147,12 +194,16 @@ export default function MyTaxCertificates() {
                   <TableHead>Serial</TableHead>
                   <TableHead>Issued</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {certs.map((cert) => {
                   const dim = cert.status === "superseded";
+                  const actions = buildActions(cert);
+                  const staleTitle = cert.stale
+                    ? "Regenerate this certificate before downloading the current file"
+                    : undefined;
                   return (
                     <TableRow key={cert.id} className={dim ? "opacity-60" : ""}>
                       <TableCell className="font-medium">{cert.fiscal_year}</TableCell>
@@ -163,19 +214,34 @@ export default function MyTaxCertificates() {
                       </TableCell>
                       <TableCell><StatusBadge status={cert.status} /></TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!cert.pdf_path || downloadingId === cert.id}
-                          onClick={() => handleDownload(cert)}
-                        >
-                          {downloadingId === cert.id ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4 mr-1" />
-                          )}
-                          Download
-                        </Button>
+                        {actions.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">No downloads</span>
+                        ) : (
+                          <div className="flex flex-wrap justify-end gap-1">
+                            {actions.map((a) => {
+                              const key = `${cert.id}:${a.key}`;
+                              const busy = busyKey === key;
+                              const Icon = busy
+                                ? Loader2
+                                : a.icon === "print"
+                                  ? Printer
+                                  : Download;
+                              return (
+                                <Button
+                                  key={a.key}
+                                  variant={a.icon === "print" ? "outline" : "ghost"}
+                                  size="sm"
+                                  disabled={!!cert.stale || busy}
+                                  title={staleTitle}
+                                  onClick={() => runAction(cert.id, a)}
+                                >
+                                  <Icon className={`h-4 w-4 mr-1 ${busy ? "animate-spin" : ""}`} />
+                                  {a.label}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -189,3 +255,4 @@ export default function MyTaxCertificates() {
     </>
   );
 }
+

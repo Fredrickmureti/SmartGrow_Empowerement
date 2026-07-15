@@ -49,16 +49,30 @@ export default function ResourceDetail() {
   if (!video) {
     return (
       <>
-        <PageHeader title="Resource" />
+        <PageHeader
+          title="Resource"
+          actions={
+            <Button variant="outline" asChild>
+              <Link to="/home">
+                <ArrowLeft className="mr-1 h-4 w-4" /> Back to workspace
+              </Link>
+            </Button>
+          }
+        />
         <PageBody>
           <EmptyState
             icon={BookOpen}
             title="Video not found"
-            description="It may have been unpublished. Head back to the library."
+            description="It may have been unpublished. Head back to the library or your workspace."
             action={
-              <Button variant="outline" onClick={() => navigate("/resources")}>
-                <ArrowLeft className="mr-1 h-4 w-4" /> Back to library
-              </Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button variant="outline" onClick={() => navigate("/home")}>
+                  <ArrowLeft className="mr-1 h-4 w-4" /> Back to workspace
+                </Button>
+                <Button variant="ghost" onClick={() => navigate("/resources")}>
+                  Library
+                </Button>
+              </div>
             }
           />
         </PageBody>
@@ -74,11 +88,16 @@ export default function ResourceDetail() {
         title={video.title}
         description={video.description ?? undefined}
         actions={
-          <Button variant="outline" asChild>
-            <Link to="/resources">
-              <ArrowLeft className="mr-1 h-4 w-4" /> Library
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/home">
+                <ArrowLeft className="mr-1 h-4 w-4" /> Back to workspace
+              </Link>
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link to="/resources">Library</Link>
+            </Button>
+          </div>
         }
       />
       <PageBody>
