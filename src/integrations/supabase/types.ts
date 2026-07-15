@@ -34480,10 +34480,13 @@ export type Database = {
       }
       platform_demo_videos: {
         Row: {
+          app_key: string | null
+          audience: string
           category: string | null
           created_at: string
           created_by: string | null
           description: string | null
+          difficulty: string | null
           duration_seconds: number | null
           id: string
           is_published: boolean | null
@@ -34495,10 +34498,13 @@ export type Database = {
           video_url: string
         }
         Insert: {
+          app_key?: string | null
+          audience?: string
           category?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          difficulty?: string | null
           duration_seconds?: number | null
           id?: string
           is_published?: boolean | null
@@ -34510,10 +34516,13 @@ export type Database = {
           video_url: string
         }
         Update: {
+          app_key?: string | null
+          audience?: string
           category?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          difficulty?: string | null
           duration_seconds?: number | null
           id?: string
           is_published?: boolean | null
