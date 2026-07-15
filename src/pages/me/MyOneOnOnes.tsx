@@ -3,7 +3,7 @@
  * manager. Also surfaces the manager view if the current user manages
  * other employees (combined list, role-tagged per row).
  */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useOneOnOnes } from "@/hooks/useContinuousPerformance";
@@ -11,10 +11,6 @@ import { useEmployees } from "@/hooks/useEmployees";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarClock, Plus, ChevronRight } from "lucide-react";
 import { PageHeader, PageBody, EmptyState } from "@/design-system";
 
@@ -56,7 +52,11 @@ export default function MyOneOnOnes() {
       <PageHeader
         title="1:1 meetings"
         description="Recurring conversations between you and your manager — and your direct reports."
-        actions={directReports.length > 0 ? <ScheduleDialog reports={directReports} onScheduled={() => { asEmployee; asManager; }} /> : null}
+        actions={directReports.length > 0 ? (
+          <Button asChild size="sm">
+            <Link to="/me/one-on-ones/new"><Plus className="h-4 w-4 mr-1" /> Schedule 1:1</Link>
+          </Button>
+        ) : null}
       />
       <PageBody>
       <Card>
@@ -93,57 +93,4 @@ function Row({ meeting, role, otherName }: { meeting: any; role: "as_employee" |
   );
 }
 
-function ScheduleDialog({ reports, onScheduled }: { reports: any[]; onScheduled?: () => void }) {
-  const [open, setOpen] = useState(false);
-  const { schedule } = useOneOnOnes();
-  const [emp, setEmp] = useState("");
-  const [when, setWhen] = useState("");
-  const [duration, setDuration] = useState(30);
-  const [recurrence, setRecurrence] = useState<"none" | "weekly" | "biweekly" | "monthly">("biweekly");
 
-  async function submit() {
-    await schedule.mutateAsync({ employee_id: emp, scheduled_at: when, duration_minutes: duration, recurrence });
-    setOpen(false); setEmp(""); setWhen("");
-    onScheduled?.();
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" /> Schedule 1:1</Button></DialogTrigger>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Schedule 1:1</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label>With (direct report)</Label>
-            <Select value={emp} onValueChange={setEmp}>
-              <SelectTrigger><SelectValue placeholder="Pick a report" /></SelectTrigger>
-              <SelectContent>{reports.map((r: any) => <SelectItem key={r.id} value={r.id}>{r.first_name} {r.last_name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>When</Label><Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} /></div>
-            <div><Label>Duration (min)</Label><Input type="number" min={5} max={480} value={duration} onChange={(e) => setDuration(Number(e.target.value))} /></div>
-          </div>
-          <div>
-            <Label>Recurrence</Label>
-            <Select value={recurrence} onValueChange={(v) => setRecurrence(v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None (one-off)</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="biweekly">Bi-weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={!emp || !when || schedule.isPending}>
-            {schedule.isPending ? "Scheduling…" : "Schedule"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}

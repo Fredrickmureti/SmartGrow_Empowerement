@@ -11,18 +11,18 @@
  * doubles as a line manager — same primitive as the other two ESS pages.
  */
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useDrillDownAnchor } from "@/hooks/payroll/useDrillDownAnchor";
 import { format } from "date-fns";
 import { CalendarOff, Plus, Inbox, CalendarClock, CheckCircle2, Hourglass, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PageHeader, PageBody } from "@/design-system";
+import { PageHeader, PageBody, StatusBadge } from "@/design-system";
 import { KpiStrip } from "@/components/hr/KpiStrip";
+import { hrStatus } from "@/components/hr/hrStatusMap";
 
 import { ManagerTriageBanner } from "@/components/hr/ManagerTriageBanner";
-import { LeaveRequestForm } from "@/components/leave/LeaveRequestForm";
 import { LeaveBalanceCard } from "@/components/leave/LeaveBalanceCard";
 import { useLeaveRequests } from "@/hooks/leave/useLeaveRequests";
 import { useLeaveTypes } from "@/hooks/leave/useLeaveTypes";
@@ -30,20 +30,8 @@ import { useLeaveAllocations, type LeaveBalance } from "@/hooks/leave/useLeaveAl
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 
 function statusBadge(status: string) {
-  const map: Record<string, { label: string; cls: string }> = {
-    draft: { label: "Draft", cls: "bg-muted text-muted-foreground" },
-    pending: { label: "Pending", cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-    pending_second_approval: { label: "Awaiting final approval", cls: "bg-amber-500/10 text-amber-700 border-amber-500/20" },
-    approved: { label: "Approved", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
-    rejected: { label: "Rejected", cls: "bg-rose-500/10 text-rose-600 border-rose-500/20" },
-    cancelled: { label: "Cancelled", cls: "bg-muted text-muted-foreground" },
-  };
-  const v = map[status] ?? { label: status, cls: "" };
-  return (
-    <Badge variant="outline" className={v.cls}>
-      {v.label}
-    </Badge>
-  );
+  const meta = hrStatus(status);
+  return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
 }
 
 export default function MyLeave() {
@@ -52,7 +40,7 @@ export default function MyLeave() {
   const { currentEmployee } = useCurrentEmployee();
   const { getEmployeeBalances } = useLeaveAllocations();
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
-  const [showRequestForm, setShowRequestForm] = useState(false);
+  
 
   useEffect(() => {
     if (currentEmployee?.id) {
@@ -89,9 +77,11 @@ export default function MyLeave() {
         title="My Time Off"
         description="Request leave, track approvals, and view your remaining balance."
         actions={
-          <Button onClick={() => setShowRequestForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Request leave
+          <Button asChild>
+            <Link to="/me/leave/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Request leave
+            </Link>
           </Button>
         }
       />
@@ -176,8 +166,6 @@ export default function MyLeave() {
           />
         </TabsContent>
       </Tabs>
-
-      <LeaveRequestForm open={showRequestForm} onOpenChange={setShowRequestForm} />
       </PageBody>
     </>
   );

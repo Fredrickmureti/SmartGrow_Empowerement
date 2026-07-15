@@ -30,6 +30,11 @@ describe("ESS portal uses the design-system PageHeader primitive", () => {
 
   for (const file of files) {
     if (MIGRATION_TODO.has(file)) continue;
+    // Routed record-form pages (`*New.tsx`) use `RecordFormShell` (with
+    // its own `RecordHeader`) or an existing WorkflowSheet — they must
+    // NOT render a second `PageHeader`. Skip them here; the DetailSheet
+    // / RecordFormShell tests below still cover them.
+    if (/New\.tsx$/.test(file)) continue;
     it(`${file} imports PageHeader from @/design-system`, () => {
       const src = readFileSync(join(ME_DIR, file), "utf8");
       // Skip pure re-export shells.
@@ -41,6 +46,7 @@ describe("ESS portal uses the design-system PageHeader primitive", () => {
     });
   }
 
+
   it("MePortalLayout no longer renders the retired MeSubNav duplicate", () => {
     const src = readFileSync(
       resolve(__dirname, "../../components/me/MePortalLayout.tsx"),
@@ -49,4 +55,44 @@ describe("ESS portal uses the design-system PageHeader primitive", () => {
     expect(src).not.toMatch(/MeSubNav/);
     expect(src).toMatch(/NAV_GROUPS/);
   });
+
+  /**
+   * Guard against record-shaped forms coming back as ad-hoc Dialogs.
+   * Every ESS record form must route on `RecordFormShell` or open in
+   * `DetailSheet` / `WorkflowSheet`. Pure confirmations may use
+   * `AlertDialog`, but they must not pull `@/components/ui/dialog`.
+   *
+   * If a new page needs to import `@/components/ui/dialog` for a
+   * legitimate reason, add it to `DIALOG_ALLOWLIST` with a comment
+   * explaining why — do not delete this test.
+   */
+  const DIALOG_ALLOWLIST = new Set<string>([]);
+
+  for (const file of files) {
+    if (DIALOG_ALLOWLIST.has(file)) continue;
+    it(`${file} does not import @/components/ui/dialog`, () => {
+      const src = readFileSync(join(ME_DIR, file), "utf8");
+      if (src.length < 400) return;
+      expect(src).not.toMatch(/from\s+"@\/components\/ui\/dialog"/);
+    });
+  }
+
+  /**
+   * Guard against hand-rolled KPI value blocks (`text-2xl font-*bold`).
+   * Every ESS KPI tile must use `KpiStrip` from
+   * `@/components/hr/KpiStrip` so the ESS portal stops re-inventing
+   * stat tiles per page. Same allow-list mechanism as above.
+   */
+  const KPI_ALLOWLIST = new Set<string>([]);
+
+  for (const file of files) {
+    if (KPI_ALLOWLIST.has(file)) continue;
+    it(`${file} does not hand-roll a text-2xl font-*bold KPI value`, () => {
+      const src = readFileSync(join(ME_DIR, file), "utf8");
+      if (src.length < 400) return;
+      expect(src).not.toMatch(
+        /text-2xl[^"'`]*font-(semibold|bold)|font-(semibold|bold)[^"'`]*text-2xl/,
+      );
+    });
+  }
 });

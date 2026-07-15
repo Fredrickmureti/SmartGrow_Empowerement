@@ -55,6 +55,8 @@ const MyOneOnOneDetail = lazy(() => import("@/pages/me/MyOneOnOneDetail"));
 const MyTeamTalent = lazy(() => import("@/pages/me/MyTeamTalent"));
 const MyLearningPathsPage = lazy(() => import("@/pages/me/MyLearningPathsPage"));
 const MyQuizPlayerPage = lazy(() => import("@/pages/me/MyQuizPlayerPage"));
+const MyLeaveNew = lazy(() => import("@/pages/me/MyLeaveNew"));
+const MyOneOnOneNew = lazy(() => import("@/pages/me/MyOneOnOneNew"));
 
 const Lazy = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
@@ -96,6 +98,16 @@ export default function MeApp() {
             </Lazy>
           }
         />
+        <Route
+          path="leave/new"
+          element={
+            <Lazy module="Request leave">
+              <MyLeaveNew />
+            </Lazy>
+          }
+        />
+
+
 
         {/* My Timesheets — own time entries */}
         <Route
@@ -281,6 +293,14 @@ export default function MeApp() {
           }
         />
         <Route
+          path="one-on-ones/new"
+          element={
+            <Lazy module="Schedule 1:1">
+              <MyOneOnOneNew />
+            </Lazy>
+          }
+        />
+        <Route
           path="one-on-ones/:id"
           element={
             <Lazy module="1:1">
@@ -288,6 +308,7 @@ export default function MeApp() {
             </Lazy>
           }
         />
+
         <Route
           path="team"
           element={

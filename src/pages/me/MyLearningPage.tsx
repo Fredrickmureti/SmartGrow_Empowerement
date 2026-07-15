@@ -13,12 +13,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Play, CheckCircle2, XCircle, Paperclip, Link2, FileText, Download, ExternalLink, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
+import { PageHeader, PageBody, LoadingState, EmptyState, DetailSheet, FooterActionBar } from "@/design-system";
 
 export default function MyLearning() {
   const { currentEmployee } = useCurrentEmployee();
@@ -159,12 +158,20 @@ function CourseContentDialog({ course, onClose }: { course: TrainingCourse; onCl
   }
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{course.name}</DialogTitle>
-          {course.objectives && <DialogDescription className="whitespace-pre-wrap">{course.objectives}</DialogDescription>}
-        </DialogHeader>
+    <DetailSheet
+      open
+      onOpenChange={(v) => !v && onClose()}
+      size="lg"
+      title={course.name}
+      description={course.objectives ?? undefined}
+      footer={
+        <FooterActionBar
+          anchor="sheet"
+          trailing={<Button variant="outline" onClick={onClose}>Close</Button>}
+        />
+      }
+    >
+      <div className="px-6 py-4 space-y-4">
         {course.description && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{course.description}</p>}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">Course materials</h3>
@@ -197,11 +204,11 @@ function CourseContentDialog({ course, onClose }: { course: TrainingCourse; onCl
             </ul>
           )}
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Close</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DetailSheet>
   );
 }
+
 
 function CompleteDialog({ course, onClose, onSubmit }: {
   course: TrainingCourse;
@@ -218,51 +225,61 @@ function CompleteDialog({ course, onClose, onSubmit }: {
   const disabled = submitting || (needsCert && !file);
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Mark "{course.name}" complete</DialogTitle>
-          <DialogDescription>
-            {needsCert
-              ? "This course requires a completion certificate. Upload it below to mark complete."
-              : "Confirm you've completed this course."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          {needsCert && (
-            <div>
-              <Label>Certificate</Label>
-              <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0])} />
-              <div className="mt-1">
-                <Button variant="outline" onClick={() => fileRef.current?.click()}>
-                  <Upload className="h-4 w-4 mr-1" /> {file ? file.name : "Choose file"}
-                </Button>
-              </div>
-              {course.pass_score != null && <p className="text-xs text-muted-foreground mt-1">Pass score: {course.pass_score}</p>}
-            </div>
-          )}
+    <DetailSheet
+      open
+      onOpenChange={(v) => !v && onClose()}
+      size="sm"
+      title={`Mark "${course.name}" complete`}
+      description={
+        needsCert
+          ? "This course requires a completion certificate. Upload it below to mark complete."
+          : "Confirm you've completed this course."
+      }
+      footer={
+        <FooterActionBar
+          anchor="sheet"
+          leading={
+            <Button variant="outline" onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
+          }
+          trailing={
+            <Button
+              disabled={disabled}
+              onClick={async () => {
+                setSubmitting(true);
+                try {
+                  await onSubmit({ file, score: score ? Number(score) : undefined });
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            >
+              {submitting ? "Saving…" : "Mark complete"}
+            </Button>
+          }
+        />
+      }
+    >
+      <div className="px-6 py-4 space-y-3">
+        {needsCert && (
           <div>
-            <Label>Score (optional)</Label>
-            <Input type="number" step="0.1" value={score} onChange={(e) => setScore(e.target.value)} placeholder="e.g. 85" />
+            <Label>Certificate</Label>
+            <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0])} />
+            <div className="mt-1">
+              <Button variant="outline" onClick={() => fileRef.current?.click()}>
+                <Upload className="h-4 w-4 mr-1" /> {file ? file.name : "Choose file"}
+              </Button>
+            </div>
+            {course.pass_score != null && <p className="text-xs text-muted-foreground mt-1">Pass score: {course.pass_score}</p>}
           </div>
+        )}
+        <div>
+          <Label>Score (optional)</Label>
+          <Input type="number" step="0.1" value={score} onChange={(e) => setScore(e.target.value)} placeholder="e.g. 85" />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button
-            disabled={disabled}
-            onClick={async () => {
-              setSubmitting(true);
-              try {
-                await onSubmit({ file, score: score ? Number(score) : undefined });
-              } finally {
-                setSubmitting(false);
-              }
-            }}
-          >
-            {submitting ? "Saving…" : "Mark complete"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DetailSheet>
   );
 }
+
