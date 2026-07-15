@@ -22,8 +22,14 @@ import {
 } from "./monthlyMatrix.ts";
 
 export interface MatrixColumnSpec {
-  key: string;
+  key?: string;
+  id?: string;
+  bind_key?: string;
   source_key?: string | null;
+}
+
+function columnTargetKey(c: MatrixColumnSpec): string {
+  return String(c.key ?? c.bind_key ?? c.id ?? "");
 }
 
 export function collectMatrixRuleCodes(matrixNode: any): string[] {
@@ -62,7 +68,8 @@ export function buildMatrixRows(
   for (const row of pivot) {
     for (const c of columns) {
       if (c?.source_key) {
-        row[c.key] = Number(row[String(c.source_key)] ?? 0);
+        const target = columnTargetKey(c);
+        if (target) row[target] = Number(row[String(c.source_key)] ?? 0);
       }
     }
   }

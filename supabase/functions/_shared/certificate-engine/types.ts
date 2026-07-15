@@ -245,6 +245,8 @@ export interface GridColumn {
   format?: ValueFormat;
   /** Data-row payload key; defaults to `id`. */
   bind_key?: string;
+  /** Canonical payroll rule_code feeding this column before derived math. */
+  source_key?: string | null;
   /** If true, cells in this column never wrap. */
   nowrap?: boolean;
 }
@@ -277,6 +279,15 @@ export interface GridNode {
   type: "grid";
   title?: Value;
   columns: GridColumn[];
+  /** Raw rule codes needed by source_key and derived-column expressions. */
+  rule_codes?: string[];
+  /** Derived data-row columns, evaluated after source_key aliasing. */
+  derived_columns?: Array<{
+    key: string;
+    expr: "sum" | "sub" | "min" | "max" | "pct";
+    args: Array<string | number>;
+  }>;
+  amount_field?: "employee_amount" | "employer_amount" | "taxable_amount";
   /** Header row stack (top → bottom). Any number of rows. */
   header_rows?: GridHeaderCell[][];
   /** Data body bound to a payload array. */
