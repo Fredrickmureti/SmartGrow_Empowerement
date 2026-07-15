@@ -306,6 +306,13 @@ function ViewerInner() {
         </ReportFilters>
       }
     >
+      <PayrollReportContextHeader
+        definition={definition}
+        organizationId={currentOrg?.id}
+        businessId={currentBusiness?.id}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+      />
       <PayrollReportMetadataBand
         definition={definition}
         dateFrom={dateFrom}
@@ -317,6 +324,14 @@ function ViewerInner() {
         dependencies={definition.dependencies ?? []}
         readiness={readiness}
       />
+      {!isPackArtifact && rows.length > 0 && (
+        <PayrollReportKpiBand
+          definition={definition}
+          columns={columns}
+          rows={rows}
+          canSeeMoney={canSeeMoney}
+        />
+      )}
       {isPackArtifact ? (
         <PackArtifactPanel
           definition={definition}
@@ -331,6 +346,11 @@ function ViewerInner() {
           canSeeMoney={canSeeMoney}
         />
       )}
+      <PayrollReportHistoryStrip
+        organizationId={currentOrg?.id}
+        businessId={currentBusiness?.id}
+        reportKey={reportKey}
+      />
     </ReportPageLayout>
   );
 }
