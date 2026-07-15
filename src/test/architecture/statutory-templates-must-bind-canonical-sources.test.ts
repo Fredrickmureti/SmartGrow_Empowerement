@@ -128,19 +128,27 @@ describe("statutory certificate templates must bind canonical payroll sources", 
       const explicitCodes = Array.isArray(m.rule_codes) ? m.rule_codes.filter(Boolean) : [];
       const sourceKeys = cols.map((c) => c.source_key ?? "").filter(Boolean);
       const derivedKeys = new Set((m.derived_columns ?? []).map((d) => d.key));
+      // Country-neutral templates bind columns via `derived_columns` that
+      // reference `cat:*` category rollups. Detect any such usage — it
+      // fully satisfies the "matrix asks for payroll data" contract even
+      // when no raw rule_codes / source_keys are declared.
+      const usesCategoryAggregation = (m.derived_columns ?? []).some((d: any) =>
+        Array.isArray(d?.args) && d.args.some((a: any) => typeof a === "string" && a.startsWith("cat:"))
+      );
 
       // Historical migration bodies may be superseded by later SQL updates
       // that do not embed a fresh $json$ block. Once a node declares the
       // canonical-source contract, enforce it; the current P9 source template
       // above prevents the v4 grid regression that caused this incident.
-      if (explicitCodes.length + sourceKeys.length === 0) continue;
+      if (explicitCodes.length + sourceKeys.length === 0 && !usesCategoryAggregation) continue;
 
-      // Contract 1: matrix must resolve to a non-empty rule-code set
-      // (otherwise `payroll_employee_monthly_breakdown` is never called
-      // and every raw column seeds to 0).
+      // Contract 1: matrix must resolve to a non-empty rule-code set OR
+      // declare category aggregation (otherwise
+      // `payroll_employee_monthly_breakdown` is never called and every
+      // raw column seeds to 0).
       expect(
-        explicitCodes.length + sourceKeys.length,
-        `Template ${body.code} ${m.type} has no rule_codes and no source_key on any column — the resolver will never fetch payroll data.`,
+        explicitCodes.length + sourceKeys.length + (usesCategoryAggregation ? 1 : 0),
+        `Template ${body.code} ${m.type} has no rule_codes, no source_key on any column, and no cat:* derived aggregation — the resolver will never fetch payroll data.`,
       ).toBeGreaterThan(0);
 
       // Contract 2: every data column must be bound to a canonical
@@ -155,3 +163,4 @@ describe("statutory certificate templates must bind canonical payroll sources", 
     }
   });
 });
+
