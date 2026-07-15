@@ -244,6 +244,7 @@ export default function MeHome() {
         onOpenChange={(v) => !v && setDetailId(null)}
         canSeeAmounts
         portalMode
+        variant="sheet"
         payslip={recentPayslips.find((p) => p.id === detailId) as any}
         currency={recentPayslips.find((p) => p.id === detailId)?.currency}
       />
