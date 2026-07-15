@@ -1,20 +1,22 @@
 /**
- * MePortalLayout — purpose-built chrome for the `/me/*` Employee Self-Service
- * portal.
+ * MePortalLayout — chrome for the `/me/*` Employee Self-Service portal.
  *
- * Replaces `AppWorkspaceLayout` (the business-app shell) inside `MeApp` so
- * portal users (and admins viewing /me) get an ESS-shaped surface:
- *   - Slim topbar: workspace name, notifications, theme toggle, user menu.
- *     NO app launcher, NO app marketplace, NO Subscriptions, NO admin Settings.
- *   - Left rail: the eight `/me/*` destinations with current-route highlight.
- *     Collapses behind a sheet on mobile.
+ * Rebuilt in the ESS consistency wave to structurally mirror the platform's
+ * `WorkspaceShellFrame` + `WorkspaceSidebar` composition used by every
+ * business app (`/hr`, `/finance`, `/sales`, …). Same grid, same padding
+ * tokens, same collapsible left rail with grouped nav (Operations / Records
+ * / Account), same mobile Sheet drawer, same slim topbar treatment.
  *
- * This is the enterprise-grade ESS chrome described in `.lovable/plan.md`
- * Step 5. It applies uniformly regardless of whether the user is a regular
- * employee or an internal admin who navigated to /me — the boundary stays
- * clean either way.
+ * We render the primitives inline (rather than mounting `PlatformShell`)
+ * because `PlatformShell` intentionally early-returns for `userType ===
+ * "portal"` and requires an `AppDefinition`; the ESS portal doesn't have
+ * one. The visual/behavioural parity comes from copying the same layout
+ * shape, not from re-using the gated wrapper.
+ *
+ * `MeSubNav` — the redundant horizontal sub-nav that duplicated the rail —
+ * has been retired.
  */
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
@@ -31,6 +33,8 @@ import {
   ArrowLeft,
   Target,
   GraduationCap,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,7 +57,6 @@ import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useEntitlementGate } from "@/hooks/useEntitlementGate";
 import { useOrganization } from "@/hooks/useOrganization";
 import { getDisplayName } from "@/lib/user-display-name";
-import { MeSubNav } from "@/components/me/MeSubNav";
 
 interface NavItemDef {
   to: string;
@@ -65,66 +68,134 @@ interface NavItemDef {
   end?: boolean;
 }
 
-const NAV_ITEMS: NavItemDef[] = [
-  { to: "/me",            label: "Home",        icon: LayoutDashboard, end: true },
-  { to: "/me/talent",     label: "Talent",      icon: Target },
-  { to: "/me/learning",   label: "Learning",    icon: GraduationCap },
-  { to: "/me/leave",      label: "Time off",    icon: CalendarOff },
-  { to: "/me/timesheets", label: "Timesheets",  icon: Clock,        gateAppId: "timesheets" },
-  { to: "/me/attendance", label: "Attendance",  icon: ClipboardList },
-  { to: "/me/shifts",     label: "Shifts",      icon: ClipboardList },
-  { to: "/me/onboarding", label: "Onboarding",  icon: ClipboardList },
-  { to: "/me/payslips",         label: "Payslips",          icon: Wallet },
-  { to: "/me/tax-certificates", label: "Tax certificates",  icon: FileText,     gateAppId: "payroll" },
-  { to: "/me/loans",            label: "Loans",             icon: Wallet,       gateAppId: "payroll" },
-  { to: "/me/documents",        label: "Documents",         icon: FileText },
-  { to: "/me/profile",    label: "Profile",     icon: UserIcon },
-  { to: "/me/settings",   label: "My settings", icon: Settings },
+interface NavGroupDef {
+  label: string;
+  items: NavItemDef[];
+}
+
+/**
+ * Grouped navigation — structural parity with `WorkspaceSidebar`
+ * (Operations / Insights / Setup pattern). Portal groups: Operations
+ * (day-to-day time affordances), Records (statements and personal HR
+ * files), Account (identity + preferences).
+ */
+const NAV_GROUPS: NavGroupDef[] = [
+  {
+    label: "Operations",
+    items: [
+      { to: "/me",            label: "Home",        icon: LayoutDashboard, end: true },
+      { to: "/me/leave",      label: "Time off",    icon: CalendarOff },
+      { to: "/me/timesheets", label: "Timesheets",  icon: Clock,        gateAppId: "timesheets" },
+      { to: "/me/attendance", label: "Attendance",  icon: ClipboardList },
+      { to: "/me/shifts",     label: "Shifts",      icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Development",
+    items: [
+      { to: "/me/talent",     label: "Talent",      icon: Target },
+      { to: "/me/learning",   label: "Learning",    icon: GraduationCap },
+      { to: "/me/onboarding", label: "Onboarding",  icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Records",
+    items: [
+      { to: "/me/payslips",         label: "Payslips",         icon: Wallet },
+      { to: "/me/tax-certificates", label: "Tax certificates", icon: FileText, gateAppId: "payroll" },
+      { to: "/me/loans",            label: "Loans",            icon: Wallet,   gateAppId: "payroll" },
+      { to: "/me/documents",        label: "Documents",        icon: FileText },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { to: "/me/profile",  label: "Profile",     icon: UserIcon },
+      { to: "/me/settings", label: "My settings", icon: Settings },
+    ],
+  },
 ];
 
-function useVisibleNav(): NavItemDef[] {
+function useVisibleGroups(): NavGroupDef[] {
   const payroll = useEntitlementGate("payroll", "read");
   const timesheets = useEntitlementGate("timesheets", "read");
   return useMemo(
     () =>
-      NAV_ITEMS.filter((i) => {
-        if (i.gateAppId === "payroll") return payroll.allowed;
-        if (i.gateAppId === "timesheets") return timesheets.allowed;
-        return true;
-      }),
+      NAV_GROUPS.map((g) => ({
+        ...g,
+        items: g.items.filter((i) => {
+          if (i.gateAppId === "payroll") return payroll.allowed;
+          if (i.gateAppId === "timesheets") return timesheets.allowed;
+          return true;
+        }),
+      })).filter((g) => g.items.length > 0),
     [payroll.allowed, timesheets.allowed],
   );
 }
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
-  const items = useVisibleNav();
+function SidebarBody({
+  collapsed,
+  onNavigate,
+}: {
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}) {
+  const groups = useVisibleGroups();
   return (
-    <nav className="flex flex-col gap-1 p-2">
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-              )
-            }
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{item.label}</span>
-          </NavLink>
-        );
-      })}
-    </nav>
+    <>
+      <div
+        className={cn(
+          "flex items-center h-12 border-b border-border shrink-0",
+          collapsed ? "justify-center px-1" : "gap-2 px-3",
+        )}
+      >
+        <LayoutDashboard className="h-4 w-4 shrink-0 text-primary" />
+        {!collapsed && (
+          <span className="text-sm font-semibold truncate flex-1">My Workspace</span>
+        )}
+      </div>
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        {groups.map((group) => (
+          <div key={group.label}>
+            {!collapsed && (
+              <div className="px-2 pb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium">
+                {group.label}
+              </div>
+            )}
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={onNavigate}
+                    title={collapsed ? item.label : undefined}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                        isActive
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        collapsed && "justify-center px-0",
+                      )
+                    }
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+    </>
   );
 }
+
+const COLLAPSE_STORAGE_KEY = "lov:me-portal-sidebar:collapsed";
 
 export function MePortalLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -135,6 +206,16 @@ export function MePortalLayout({ children }: { children: ReactNode }) {
   const { currentOrg } = useOrganization();
   const { userType } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(COLLAPSE_STORAGE_KEY) === "1";
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(COLLAPSE_STORAGE_KEY, collapsed ? "1" : "0");
+    }
+  }, [collapsed]);
 
   // Internal users (admins, HR officers, anyone with business-app access)
   // need an explicit way back to the main workspace. Portal-only employees
@@ -150,10 +231,6 @@ export function MePortalLayout({ children }: { children: ReactNode }) {
 
   const handleSignOut = async () => {
     try {
-      // Sign-out hygiene: cancel in-flight queries and clear cached
-      // protected data before clearing the session so a Back-button press
-      // can't restore portal data, then redirect to the real auth route
-      // (`/login` — there is no `/auth` route in this app's router).
       await queryClient.cancelQueries();
       queryClient.clear();
       await signOut();
@@ -164,55 +241,79 @@ export function MePortalLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Slim topbar */}
-      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-14 items-center gap-3 px-3 sm:px-6">
-          {/* Mobile menu */}
+    <div className="flex min-h-screen w-full bg-background">
+      {/* Desktop rail — mirrors WorkspaceSidebar shape */}
+      <aside
+        aria-label="My Workspace navigation"
+        className={cn(
+          "hidden md:flex h-screen sticky top-0 shrink-0 flex-col border-r border-border bg-background transition-[width] duration-150",
+          collapsed ? "w-14" : "w-60",
+        )}
+      >
+        <div className="relative flex-1 flex flex-col min-h-0">
+          <SidebarBody collapsed={collapsed} />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2.5 right-1 h-7 w-7 text-muted-foreground"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </aside>
+
+      {/* Mobile drawer */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="w-80 p-0 flex flex-col">
+          <SidebarBody onNavigate={() => setMobileOpen(false)} />
+          {canReturnToWorkspace && (
+            <div className="border-t p-2 shrink-0">
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start gap-2"
+                onClick={() => setMobileOpen(false)}
+              >
+                <Link to="/">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to workspace
+                </Link>
+              </Button>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Main column */}
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Slim topbar — 48px, matches WorkspaceTopBar height */}
+        <header className="sticky top-0 z-40 h-12 flex items-center gap-3 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-3 sm:px-6">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open menu">
+              <Button variant="ghost" size="icon" className="md:hidden -ml-1" aria-label="Open menu">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64">
-              <div className="px-4 py-4 border-b">
-                <p className="text-sm font-semibold">My Workspace</p>
-                {currentOrg?.name ? (
-                  <p className="text-xs text-muted-foreground truncate">{currentOrg.name}</p>
-                ) : null}
-              </div>
-              <NavList onNavigate={() => setMobileOpen(false)} />
-              {canReturnToWorkspace && (
-                <div className="border-t p-2">
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start gap-2"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <Link to="/">
-                      <ArrowLeft className="h-4 w-4" />
-                      Back to workspace
-                    </Link>
-                  </Button>
-                </div>
-              )}
-            </SheetContent>
           </Sheet>
 
-          <Link to="/me" className="flex items-center gap-2 min-w-0">
-            <div className="h-8 w-8 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-              <LayoutDashboard className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 hidden sm:block">
-              <p className="text-sm font-semibold leading-none">My Workspace</p>
-              {currentOrg?.name ? (
-                <p className="text-xs text-muted-foreground truncate">{currentOrg.name}</p>
-              ) : null}
-            </div>
-          </Link>
+          <div className="min-w-0 hidden sm:flex items-center gap-2">
+            <span className="text-sm font-semibold">My Workspace</span>
+            {currentOrg?.name ? (
+              <>
+                <span className="text-muted-foreground/50 text-xs">/</span>
+                <span className="text-xs text-muted-foreground truncate max-w-[220px]">
+                  {currentOrg.name}
+                </span>
+              </>
+            ) : null}
+          </div>
 
           <div className="ml-auto flex items-center gap-1">
             {canReturnToWorkspace && (
@@ -280,25 +381,10 @@ export function MePortalLayout({ children }: { children: ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Body: sidebar + content */}
-      <div className="flex-1 flex min-h-0">
-        <aside className="hidden md:flex w-60 shrink-0 border-r flex-col">
-          <div className="px-4 py-3 border-b">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
-              Self-service
-            </p>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <NavList />
-          </div>
-        </aside>
-
-        <main className="flex-1 min-w-0 overflow-x-hidden">
-          <div className="p-4 sm:p-6 max-w-6xl mx-auto w-full">
-            <MeSubNav />
+        <main className="flex-1 overflow-auto">
+          <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-4">
             {children}
           </div>
         </main>
