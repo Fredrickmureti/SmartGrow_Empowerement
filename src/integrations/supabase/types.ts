@@ -66988,6 +66988,10 @@ export type Database = {
         Args: { p_business_id: string; p_organization_id: string }
         Returns: Json
       }
+      payroll_report_definitions_sync_from_packs: {
+        Args: never
+        Returns: undefined
+      }
       payroll_required_gl_mappings_for_run: {
         Args: { p_run_id: string }
         Returns: {
