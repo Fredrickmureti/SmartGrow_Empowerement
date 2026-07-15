@@ -161,6 +161,65 @@ export function AdminDemoVideoForm({ mode }: AdminDemoVideoFormProps) {
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="video-app">Product area</Label>
+            <Select
+              value={formData.app_key ?? "__none"}
+              onValueChange={(v) =>
+                setFormData((p) => ({ ...p, app_key: v === "__none" ? null : v }))
+              }
+            >
+              <SelectTrigger id="video-app">
+                <SelectValue placeholder="General / platform-wide" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">General / platform-wide</SelectItem>
+                {RESOURCE_APP_OPTIONS.map((o) => (
+                  <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Which app this tutorial belongs to. Drives contextual surfacing inside the app.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="video-audience">Audience</Label>
+            <Select
+              value={formData.audience ?? "public"}
+              onValueChange={(v) =>
+                setFormData((p) => ({ ...p, audience: v as "public" | "authenticated" }))
+              }
+            >
+              <SelectTrigger id="video-audience">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AUDIENCE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="video-difficulty">Difficulty</Label>
+            <Select
+              value={formData.difficulty ?? "__none"}
+              onValueChange={(v) =>
+                setFormData((p) => ({ ...p, difficulty: v === "__none" ? null : (v as "intro" | "deep-dive") }))
+              }
+            >
+              <SelectTrigger id="video-difficulty">
+                <SelectValue placeholder="Unspecified" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">Unspecified</SelectItem>
+                {DIFFICULTY_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <AdminFieldCell span={2}>
             <div className="space-y-2">
               <Label htmlFor="video-url">Video URL *</Label>
