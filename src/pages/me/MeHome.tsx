@@ -27,6 +27,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader, PageBody, Section } from "@/design-system";
 import { PayslipDetailDialog } from "@/components/payroll/PayslipDetailDialog";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useLeaveAllocations, type LeaveBalance } from "@/hooks/leave/useLeaveAllocations";
@@ -145,15 +146,13 @@ export default function MeHome() {
   const pendingLeave = leaveRequests.filter((r) => r.status === "pending").length;
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 w-full">
-      <header>
-        <h1 className="text-2xl font-semibold">Hi {greetingName} 👋</h1>
-        <p className="text-sm text-muted-foreground">
-          Your workspace — leave, timesheets, payslips and personal details, all in one place.
-        </p>
-      </header>
-
-      <QuickActionsSection />
+    <>
+      <PageHeader
+        title={`Hi ${greetingName} 👋`}
+        description="Your workspace — leave, timesheets, payslips and personal details, all in one place."
+      />
+      <PageBody>
+        <QuickActionsSection />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Leave summary */}
@@ -238,7 +237,7 @@ export default function MeHome() {
             )}
           </CardContent>
         </Card>
-      </div>
+        </div>
       <PayslipDetailDialog
         payslipId={detailId}
         open={!!detailId}
@@ -248,8 +247,8 @@ export default function MeHome() {
         payslip={recentPayslips.find((p) => p.id === detailId) as any}
         currency={recentPayslips.find((p) => p.id === detailId)?.currency}
       />
-
-    </div>
+      </PageBody>
+    </>
   );
 }
 
