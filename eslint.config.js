@@ -202,9 +202,10 @@ export default tseslint.config(
   // PageHeader primitive. Editor-time flag; the arch test
   // `me-uses-design-system.test.ts` is the authoritative guard in CI.
   {
-    files: ["src/pages/me/**/*.{ts,tsx}"],
+    files: ["src/pages/me/**/*.{ts,tsx}", "src/apps/me/**/*.{ts,tsx}"],
     rules: {
       "local/no-hand-rolled-me-header": "error",
+      "local/no-shell-leak-from-me": "error",
     },
   },
 );
