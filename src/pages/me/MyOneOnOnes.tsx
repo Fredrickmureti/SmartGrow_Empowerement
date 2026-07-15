@@ -52,7 +52,11 @@ export default function MyOneOnOnes() {
       <PageHeader
         title="1:1 meetings"
         description="Recurring conversations between you and your manager — and your direct reports."
-        actions={directReports.length > 0 ? <ScheduleDialog reports={directReports} onScheduled={() => { asEmployee; asManager; }} /> : null}
+        actions={directReports.length > 0 ? (
+          <Button asChild size="sm">
+            <Link to="/me/one-on-ones/new"><Plus className="h-4 w-4 mr-1" /> Schedule 1:1</Link>
+          </Button>
+        ) : null}
       />
       <PageBody>
       <Card>
