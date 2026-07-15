@@ -26,10 +26,16 @@ type: feature
 
 ## Guardrails
 - ESLint rule `no-shell-leak-from-me` — flags `<Link to="/hr/…" | "/settings/…" | "/notifications">` and `navigate("/hr/…")` calls inside `src/pages/me/**` or `src/apps/me/**`. Allowlist: `/hr/talent/reviews`, `/hr/talent/development` (manager drill-downs).
+  Uses `export default` (ESM) to match the project's `eslint.config.js` — a `module.exports` version silently breaks the entire ESLint config load.
 - Arch test `src/test/architecture/ess-portal-shell.test.ts` — filesystem sweep companion (CI-cache-resilient).
 - `/hr/MyProfile.tsx` is a redirect-only shim to `/me/profile` — closes the original `/hr/employees/:id` → portal-guard bounce.
+
+## Audit trail & notifications
+- `employee_lifecycle_event_type` extended with `profile_change_requested`, `profile_change_approved`, `profile_change_rejected`.
+- `submit_profile_change_request` emits `profile_change_requested` and fanouts a `notifications` row to every user with role admin/super_admin/owner, linking to `/hr/employees/change-requests`.
+- `review_profile_change_request` emits `profile_change_approved` or `profile_change_rejected` and notifies the requesting employee (if user-linked), linking back to `/me/profile`.
 
 ## Explicitly deferred (not in current plan)
 - pgTAP test for the new RPCs — smoke tests should be added when a Supabase pgTAP runner is wired in.
 - MFA/TOTP enrollment on `/me/account` — needs QR + verify UX; separate ticket.
-- Sign-in email change flow with verification.
+- Sign-in email change flow with verification — Supabase auth email-change + parallel HR request for `work_email`; separate ticket.
