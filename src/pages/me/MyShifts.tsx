@@ -15,9 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Calendar, ArrowLeftRight, Check, X } from "lucide-react";
+import { CalendarClock, ArrowLeftRight, Check, X } from "lucide-react";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
-import { PageHeader, PageBody, DetailSheet, FooterActionBar } from "@/design-system";
+import { PageHeader, PageBody, DetailSheet, FooterActionBar, EmptyState } from "@/design-system";
 
 function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
