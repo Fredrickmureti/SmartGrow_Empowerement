@@ -245,7 +245,7 @@ const handler = async (req: Request): Promise<Response> => {
         html,
         category: "user_invitation",
         organization_id: invitation.organization_id,
-        business_id: (invitation as any).business_id ?? null,
+        business_id: null,
         template_key: "invitation:user",
         metadata: { invitation_id: invitation.id, role: invitation.role },
       },
