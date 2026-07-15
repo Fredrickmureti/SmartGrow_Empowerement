@@ -134,19 +134,5 @@ export default function MyTalent() {
   );
 }
 
-function Tile({ icon: Icon, label, value, tone, hint }: { icon: any; label: string; value: React.ReactNode; tone?: "warn"; hint?: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className={"text-2xl font-semibold " + (tone === "warn" ? "text-destructive" : "")}>{value}</p>
-            {hint ? <p className="text-[10px] text-muted-foreground mt-0.5">{hint}</p> : null}
-          </div>
-          <Icon className={"h-5 w-5 " + (tone === "warn" ? "text-destructive" : "text-muted-foreground")} />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+
+
