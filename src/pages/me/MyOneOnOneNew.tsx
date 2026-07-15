@@ -72,7 +72,8 @@ export default function MyOneOnOneNew() {
     >
       <Section title="Meeting details" description="Pick a direct report and when you want to meet.">
         <FieldGrid>
-          <FieldCell span={2} label="With (direct report)">
+          <FieldCell span={2}>
+            <Label>With (direct report)</Label>
             <Select value={emp} onValueChange={setEmp}>
               <SelectTrigger><SelectValue placeholder="Pick a report" /></SelectTrigger>
               <SelectContent>
@@ -84,14 +85,16 @@ export default function MyOneOnOneNew() {
               </SelectContent>
             </Select>
           </FieldCell>
-          <FieldCell label="When">
+          <FieldCell>
+            <Label>When</Label>
             <Input
               type="datetime-local"
               value={when}
               onChange={(e) => setWhen(e.target.value)}
             />
           </FieldCell>
-          <FieldCell label="Duration (minutes)">
+          <FieldCell>
+            <Label>Duration (minutes)</Label>
             <Input
               type="number"
               min={5}
@@ -100,7 +103,8 @@ export default function MyOneOnOneNew() {
               onChange={(e) => setDuration(Number(e.target.value))}
             />
           </FieldCell>
-          <FieldCell span={2} label="Recurrence">
+          <FieldCell span={2}>
+            <Label>Recurrence</Label>
             <Select value={recurrence} onValueChange={(v) => setRecurrence(v as any)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -113,6 +117,7 @@ export default function MyOneOnOneNew() {
           </FieldCell>
         </FieldGrid>
       </Section>
+
     </RecordFormShell>
   );
 }
