@@ -746,15 +746,20 @@ Deno.serve(async (req) => {
           });
           for (const dataNode of dataNodes) {
             const codes = collectMatrixRuleCodes(dataNode);
+            const wantsAllRows = matrixUsesCategoryAggregation(dataNode);
             let v3Monthly: any[] = [];
-            if (codes.length) {
+            if (codes.length || wantsAllRows) {
               const { data: mm } = await admin.rpc("payroll_employee_monthly_breakdown", {
                 p_year: body.fiscal_year,
                 p_employee_id: emp.id,
-                p_rule_codes: codes,
+                // NULL → return every payslip_line row (all rule_codes)
+                // so category rollups (`cat:earning`, `cat:statutory_employee`,
+                // …) can be aggregated by `pivotToMonthlyMatrix`.
+                p_rule_codes: wantsAllRows ? null : codes,
               });
               v3Monthly = (mm ?? []) as any[];
             }
+
             const matrixRows = buildMatrixRows(v3Monthly, dataNode);
             // Bind the rows at the template's rows_binding path (dot path).
             const bindingPath = dataNode.type === "grid"
