@@ -284,6 +284,7 @@ export default function MyPayslips() {
         onOpenChange={(v) => !v && setDetailPayslip(null)}
         canSeeAmounts
         portalMode
+        variant="sheet"
         payslip={detailPayslip}
         currency={(currentOrg as { currency_code?: string } | null | undefined)?.currency_code}
         title="Payslip detail"
