@@ -34,6 +34,12 @@ describe("tax certificate lifecycle invariants", () => {
     expect(GEN).toMatch(/v_org_active_localization_pack/);
   });
 
+  it("Certificate of Service is sourced from employment facts, not payroll YTD", () => {
+    expect(GEN).toMatch(/isCertificateOfServiceTemplate/);
+    expect(GEN).toMatch(/employee_service_record/);
+    expect(GEN).toMatch(/!isServiceCertificate\s*&&\s*!rows\.length/);
+  });
+
   it("download writes a lifecycle 'downloaded' event", () => {
     expect(DOWNLOAD).toMatch(/payroll_tax_certificate_events/);
     expect(DOWNLOAD).toMatch(/downloaded/);

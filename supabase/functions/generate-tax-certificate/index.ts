@@ -88,6 +88,12 @@ function isMonthColumn(c: any): boolean {
   return key === "month" || key === "month_index" || String(c?.format ?? "").toLowerCase() === "month_short";
 }
 
+function isCertificateOfServiceTemplate(template: any): boolean {
+  const code = String(template?.code ?? template?.body?.code ?? "").toUpperCase();
+  const displayName = String(template?.display_name ?? template?.body?.display_name ?? "");
+  return code === "CERT_OF_SERVICE" || code === "CERTIFICATE_OF_SERVICE" || /certificate\s+of\s+service/i.test(displayName);
+}
+
 function validateCanonicalSourceNode(params: {
   node: any;
   templateCode: string;
@@ -363,6 +369,7 @@ Deno.serve(async (req) => {
         );
       }
       const nodes: any[] = Array.isArray(template?.body?.document) ? template.body.document : [];
+      const isServiceCertificate = isCertificateOfServiceTemplate(template);
       const types = new Set<string>();
       // v4 documents nest data-bearing nodes inside section / columns
       // wrappers. Walk the tree so `grid` inside a `section` still counts
@@ -372,7 +379,7 @@ Deno.serve(async (req) => {
       });
       // v3: `matrix` / `table`. v4: `grid` (cell-level control, replaces matrix).
       const hasData = types.has("matrix") || types.has("table") || types.has("grid");
-      if (nodes.length === 0 || !hasData) {
+      if (nodes.length === 0 || (!hasData && !isServiceCertificate)) {
         try {
           await admin.from("payroll_diagnostics").insert({
             organization_id: body.organization_id,
@@ -438,7 +445,7 @@ Deno.serve(async (req) => {
     // reference dropped columns like tax_pin on employees directly.
     let employeesQuery = admin
       .from("employees")
-      .select("id, first_name, last_name, employee_number, national_id, email, branch_id, business_id, organization_id, department:departments!employees_department_id_fkey(name), job_position:job_positions(name)")
+      .select("id, first_name, last_name, employee_number, national_id, email, branch_id, business_id, organization_id, hire_date, termination_date, department:departments!employees_department_id_fkey(name), job_position:job_positions(name)")
       .eq("organization_id", body.organization_id)
       .eq("business_id", body.business_id);
     if (employeeIds.length) {
@@ -483,7 +490,7 @@ Deno.serve(async (req) => {
     // `Verified`/`Prepayments`. The shared module lives at
     // `_shared/payrollLifecycleGate.ts` so every generator uses the exact
     // same rules — no per-generator drift.
-    {
+    if (!isCertificateOfServiceTemplate(template)) {
       const gate = await requireApprovedRunsForYear(admin, {
         organization_id: body.organization_id,
         business_id: body.business_id,
@@ -560,18 +567,33 @@ Deno.serve(async (req) => {
         // ADR 0060: certificates read YTD via the shared resolver only.
         // This is the single writer that owns the canonical
         // payroll_employee_ytd_rollup projection + provenance snapshot.
-        const source = await resolveCertificateYtd({
-          admin,
-          organizationId: body.organization_id,
-          businessId: body.business_id,
-          employeeId: emp.id,
-          fiscalYear: body.fiscal_year,
-        });
+        const isServiceCertificate = isCertificateOfServiceTemplate(template);
+        const source = isServiceCertificate
+          ? {
+              rows: [] as RollupRow[],
+              provenance: {
+                source: "employee_service_record",
+                max_payroll_updated_at: null,
+                payroll_run_ids: [],
+              },
+              totals: {
+                gross_pay: 0,
+                deductions: 0,
+                net_pay: 0,
+              },
+            }
+          : await resolveCertificateYtd({
+              admin,
+              organizationId: body.organization_id,
+              businessId: body.business_id,
+              employeeId: emp.id,
+              fiscalYear: body.fiscal_year,
+            });
         const rows = source.rows as RollupRow[];
-        // Per-employee guard: an employee with no YTD rollup rows for the
-        // fiscal year has no payslip lines in an approved run — skip with an
-        // actionable message rather than emitting an empty PDF or throwing.
-        if (!rows.length) {
+        // Per-employee guard: payroll-derived certificates need YTD rollup
+        // rows for the fiscal year. Certificate of Service is intentionally
+        // sourced from employee/employer service facts, not payslip lines.
+        if (!isServiceCertificate && !rows.length) {
           skipped.push({
             employee_id: emp.id,
             employee_number: (emp as any).employee_number ?? null,
@@ -582,7 +604,6 @@ Deno.serve(async (req) => {
         }
 
         const provenance = source.provenance;
-        const maxPayrollUpdatedAt = provenance.max_payroll_updated_at;
         const totals = source.totals;
 
         const payload = {

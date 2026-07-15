@@ -53,6 +53,12 @@ const REQUIRED_IDENTITY_SECTIONS = ["employer_header", "employee_header", "signa
 const DATA_SECTIONS = ["monthly_breakdown", "ytd_table", "totals"];
 const STATUTORY_CODE_RE = /^(P9|P10|VAT|PAYE|NSSF|SHIF|AHL|WHT|NHIF|NITA|HELB)/i;
 
+function isCertificateOfService(row: any): boolean {
+  const code = String(row?.code ?? row?.rule_code ?? row?.body?.code ?? "").toUpperCase();
+  const displayName = String(row?.display_name ?? row?.body?.display_name ?? "");
+  return code === "CERT_OF_SERVICE" || code === "CERTIFICATE_OF_SERVICE" || /certificate\s+of\s+service/i.test(displayName);
+}
+
 function validateMetadata(label: string, code: string, row: any, errs: string[]) {
   if (!row.effective_date || String(row.effective_date) < "2000-01-01") {
     errs.push(`${label}: effective_date must be set and >= 2000-01-01 (got ${row.effective_date ?? "null"}).`);
@@ -71,9 +77,20 @@ function validateCertificateStructure(row: any): string[] {
   const code = row.code ?? row.rule_code ?? "(unknown)";
   const label = `certificate template "${code}"`;
   const body = row.body ?? {};
+  const document = Array.isArray(body?.document) ? body.document : [];
   const sections = Array.isArray(body?.sections) ? body.sections : [];
   const blocks = Array.isArray(body?.blocks) ? body.blocks : [];
-  if (Number(body?.schema_version ?? 1) >= 2 && blocks.length > 0) {
+  if (Number(body?.schema_version ?? 1) >= 3 && document.length > 0) {
+    const types = new Set<string>(document.map((n: any) => String(n?.type ?? "")));
+    const hasIdentity = types.has("identity_strip") || types.has("field_row");
+    const hasSignature = types.has("signature_strip");
+    const hasData = types.has("matrix") || types.has("grid") || types.has("table");
+    if (!hasIdentity) errs.push(`${label}: v3/v4 document missing identity_strip or field_row.`);
+    if (!hasSignature) errs.push(`${label}: v3/v4 document missing signature_strip.`);
+    if (!hasData && !isCertificateOfService(row)) {
+      errs.push(`${label}: v3/v4 document must include at least one matrix/grid/table data node.`);
+    }
+  } else if (Number(body?.schema_version ?? 1) >= 2 && blocks.length > 0) {
     const hasEmployer = blocks.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employer");
     const hasEmployee = blocks.some((b: any) => b?.type === "field_grid" && String(b?.data_source ?? "") === "employee");
     const hasSignature = blocks.some((b: any) => b?.type === "signature_block");
@@ -81,7 +98,7 @@ function validateCertificateStructure(row: any): string[] {
     if (!hasEmployer) errs.push(`${label}: v2 blocks missing employer field_grid.`);
     if (!hasEmployee) errs.push(`${label}: v2 blocks missing employee field_grid.`);
     if (!hasSignature) errs.push(`${label}: v2 blocks missing signature_block.`);
-    if (!hasData) errs.push(`${label}: v2 blocks must include at least one table bound to monthly_breakdown, monthly_matrix, or ytd_rows.`);
+    if (!hasData && !isCertificateOfService(row)) errs.push(`${label}: v2 blocks must include at least one table bound to monthly_breakdown, monthly_matrix, or ytd_rows.`);
     const completeness = checkCertificateCompleteness(String(code), body);
     if (!completeness.ok) {
       errs.push(
@@ -95,7 +112,7 @@ function validateCertificateStructure(row: any): string[] {
     for (const need of REQUIRED_IDENTITY_SECTIONS) {
       if (!types.has(need)) errs.push(`${label}: missing required section "${need}".`);
     }
-    if (!DATA_SECTIONS.some((d) => types.has(d))) {
+    if (!DATA_SECTIONS.some((d) => types.has(d)) && !isCertificateOfService(row)) {
       errs.push(`${label}: must contain at least one data section (${DATA_SECTIONS.join(" | ")}).`);
     }
     // Doc-class specific completeness (shared with publish gate + editor).
@@ -207,7 +224,7 @@ Deno.serve(async (req) => {
         .eq("pack_id", pack_id),
       sb.from("localization_pack_remittance_schedules").select("rule_code, frequency").eq("pack_id", pack_id),
       sb.from("localization_pack_certificate_templates")
-        .select("body, rule_code, code, effective_date, authority_id, legal_reference, regulation_citation")
+        .select("body, rule_code, code, display_name, effective_date, authority_id, legal_reference, regulation_citation")
         .eq("pack_id", pack_id),
       sb.from("localization_pack_return_templates")
         .select("body, rule_code, code, effective_date, authority_id, legal_reference, regulation_citation")
