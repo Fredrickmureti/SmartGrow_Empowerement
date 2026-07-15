@@ -79,6 +79,19 @@ export default function RemittanceTracking() {
   const queryClient = useQueryClient();
   const { accounts } = useAccounts();
 
+  // Deep-link support: /hr/payroll/statutory-remittances?template=NSSF_RET&from=2026-01-01&to=2026-07-31
+  // is used by the Reporting Centre to hand off pack-artifact statutory reports
+  // to the workflow that actually generates them. Honour those params so the
+  // page lands on the Returns tab with the correct template + year preselected.
+  const [searchParams] = useSearchParams();
+  const deepLinkTemplate = searchParams.get("template") ?? undefined;
+  const deepLinkFrom = searchParams.get("from") ?? undefined;
+  const deepLinkYear = deepLinkFrom
+    ? Number(deepLinkFrom.slice(0, 4)) || undefined
+    : undefined;
+  const initialTab = deepLinkTemplate ? "returns" : "liabilities";
+
+
   const [statusFilter, setStatusFilter] = useState<string>("outstanding");
   const [authorityFilter, setAuthorityFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
