@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Play, CheckCircle2, XCircle, Paperclip, Link2, FileText, Download, ExternalLink, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 export default function MyLearning() {
   const { currentEmployee } = useCurrentEmployee();
@@ -30,10 +31,10 @@ export default function MyLearning() {
 
   if (!currentEmployee) {
     return (
-      <Card>
-        <CardHeader><CardTitle>My Learning</CardTitle><CardDescription>Your assigned courses and progress.</CardDescription></CardHeader>
-        <CardContent><p className="text-sm text-muted-foreground">Ask your HR admin to link your account to your employee profile.</p></CardContent>
-      </Card>
+      <>
+        <PageHeader title="My learning" description="Your assigned courses and progress." />
+        <PageBody><EmptyState icon={BookOpen} title="No linked employee record" description="Ask your HR admin to link your account to your employee profile." /></PageBody>
+      </>
     );
   }
 
@@ -85,15 +86,13 @@ export default function MyLearning() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2"><BookOpen className="h-6 w-6" /> My Learning</h1>
-          <p className="text-sm text-muted-foreground">Courses you've been enrolled in, with materials and completion tracking.</p>
-        </div>
-        <Button variant="outline" asChild><a href="/me/learning/catalog">Browse catalog</a></Button>
-      </div>
-
+    <>
+      <PageHeader
+        title="My learning"
+        description="Courses you've been enrolled in, with materials and completion tracking."
+        actions={<Button variant="outline" asChild><a href="/me/learning/catalog">Browse catalog</a></Button>}
+      />
+      <PageBody>
       <Card>
         <CardContent className="pt-4 space-y-2">
           <div className="flex items-center justify-between text-sm">
@@ -104,8 +103,8 @@ export default function MyLearning() {
         </CardContent>
       </Card>
 
-      {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : enrollments.length === 0 ? (
-        <Card><CardContent className="py-10 text-center text-muted-foreground">You don't have any learning assigned yet.</CardContent></Card>
+      {isLoading ? <LoadingState /> : enrollments.length === 0 ? (
+        <EmptyState icon={BookOpen} title="No learning assigned yet" />
       ) : (
         <div className="space-y-6">
           <Section title="To do" items={inProgress.length === 0 ? todo : []} render={row} empty={inProgress.length > 0 ? null : "Nothing to start."} />
@@ -132,7 +131,8 @@ export default function MyLearning() {
           }}
         />
       )}
-    </div>
+      </PageBody>
+    </>
   );
 }
 

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarClock, Plus, ChevronRight } from "lucide-react";
+import { PageHeader, PageBody, EmptyState } from "@/design-system";
 
 export default function MyOneOnOnes() {
   const { currentEmployee } = useCurrentEmployee();
@@ -39,22 +40,25 @@ export default function MyOneOnOnes() {
   };
 
   if (!currentEmployee) {
-    return <Card><CardHeader><CardTitle>1:1s</CardTitle><CardDescription>1:1 meetings need a linked employee record.</CardDescription></CardHeader></Card>;
+    return (
+      <>
+        <PageHeader title="1:1 meetings" description="1:1 meetings need a linked employee record." />
+        <PageBody><EmptyState icon={CalendarClock} title="No linked employee record" description="Ask your HR admin to link your account." /></PageBody>
+      </>
+    );
   }
 
   const upcoming = combined.filter(({ meeting }) => meeting.status === "scheduled" && new Date(meeting.scheduled_at).getTime() >= Date.now() - 1000 * 60 * 60);
   const past = combined.filter(({ meeting }) => meeting.status !== "scheduled" || new Date(meeting.scheduled_at).getTime() < Date.now() - 1000 * 60 * 60);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2"><CalendarClock className="h-5 w-5" /> 1:1 meetings</h1>
-          <p className="text-sm text-muted-foreground">Recurring conversations between you and your manager — and your direct reports.</p>
-        </div>
-        {directReports.length > 0 ? <ScheduleDialog reports={directReports} onScheduled={() => { asEmployee; asManager; }} /> : null}
-      </div>
-
+    <>
+      <PageHeader
+        title="1:1 meetings"
+        description="Recurring conversations between you and your manager — and your direct reports."
+        actions={directReports.length > 0 ? <ScheduleDialog reports={directReports} onScheduled={() => { asEmployee; asManager; }} /> : null}
+      />
+      <PageBody>
       <Card>
         <CardHeader><CardTitle className="text-base">Upcoming</CardTitle></CardHeader>
         <CardContent className="space-y-2">
@@ -70,7 +74,8 @@ export default function MyOneOnOnes() {
             past.slice(0, 30).map(({ role, meeting }) => <Row key={meeting.id} meeting={meeting} role={role} otherName={role === "as_employee" ? name(meeting.manager_id) : name(meeting.employee_id)} />)}
         </CardContent>
       </Card>
-    </div>
+      </PageBody>
+    </>
   );
 }
 

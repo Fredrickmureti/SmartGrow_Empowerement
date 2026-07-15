@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { PageHeader, PageBody, LoadingState } from "@/design-system";
 
 export default function MyOneOnOneDetail() {
   const { id } = useParams();
@@ -36,34 +37,33 @@ export default function MyOneOnOneDetail() {
 
   if (!meeting) {
     return (
-      <div className="space-y-3">
-        <Button asChild variant="ghost" size="sm"><Link to="/me/one-on-ones"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link></Button>
-        <Card><CardContent className="py-8 text-sm text-muted-foreground">Loading…</CardContent></Card>
-      </div>
+      <>
+        <PageHeader title="1:1" actions={<Button asChild variant="ghost" size="sm"><Link to="/me/one-on-ones"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link></Button>} />
+        <PageBody><LoadingState /></PageBody>
+      </>
     );
   }
 
   const items = meeting.action_items ?? [];
 
   return (
-    <div className="space-y-4">
-      <Button asChild variant="ghost" size="sm"><Link to="/me/one-on-ones"><ArrowLeft className="h-4 w-4 mr-1" /> Back to 1:1s</Link></Button>
-
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-semibold">1:1 — {new Date(meeting.scheduled_at).toLocaleString()}</h1>
-          <p className="text-sm text-muted-foreground">{meeting.duration_minutes} min · {meeting.recurrence ?? "none"}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge>{meeting.status}</Badge>
-          {meeting.status === "scheduled" ? (
-            <Button size="sm" onClick={() => complete.mutate({ id: meeting.id, summary })}>
-              <CheckCircle2 className="h-4 w-4 mr-1" /> Mark complete
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
+    <>
+      <PageHeader
+        title={`1:1 — ${new Date(meeting.scheduled_at).toLocaleString()}`}
+        description={`${meeting.duration_minutes} min · ${meeting.recurrence ?? "none"}`}
+        actions={
+          <>
+            <Button asChild variant="ghost" size="sm"><Link to="/me/one-on-ones"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link></Button>
+            <Badge>{meeting.status}</Badge>
+            {meeting.status === "scheduled" ? (
+              <Button size="sm" onClick={() => complete.mutate({ id: meeting.id, summary })}>
+                <CheckCircle2 className="h-4 w-4 mr-1" /> Mark complete
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+      <PageBody>
       <Card>
         <CardHeader><CardTitle className="text-base">Shared agenda</CardTitle><CardDescription>Both sides can add and address points.</CardDescription></CardHeader>
         <CardContent className="space-y-2">
@@ -131,7 +131,8 @@ export default function MyOneOnOneDetail() {
           <AddActionItem onAdd={(text, owner) => saveActionItems.mutate([...items, { id: crypto.randomUUID(), text, owner, done: false }])} />
         </CardContent>
       </Card>
-    </div>
+      </PageBody>
+    </>
   );
 }
 
