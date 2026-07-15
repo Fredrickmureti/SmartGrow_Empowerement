@@ -95,41 +95,36 @@ export default function MyLoans() {
         }
       />
       <PageBody>
-        {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Active loans</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeLoans.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Outstanding: {formatCurrency(totalOutstanding)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Monthly deduction</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(monthlyDeduction)}</div>
-            <p className="text-xs text-muted-foreground">Across active loans</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Pending requests</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pendingRequests.length}</div>
-            <p className="text-xs text-muted-foreground">Awaiting HR</p>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Stats — shared KpiStrip primitive (parity with MyLeave / MyPayslips) */}
+        <KpiStrip
+          tiles={[
+            {
+              key: "active",
+              label: "Active loans",
+              value: activeLoans.length,
+              icon: Wallet,
+              tone: "sky",
+              hint: `Outstanding: ${formatCurrency(totalOutstanding)}`,
+            },
+            {
+              key: "monthly",
+              label: "Monthly deduction",
+              value: formatCurrency(monthlyDeduction),
+              icon: TrendingDown,
+              tone: "neutral",
+              hint: "Across active loans",
+            },
+            {
+              key: "pending",
+              label: "Pending requests",
+              value: pendingRequests.length,
+              icon: Clock,
+              tone: pendingRequests.length ? "amber" : "neutral",
+              hint: "Awaiting HR",
+            },
+          ]}
+        />
+
 
       {/* Pending */}
       <Card>
