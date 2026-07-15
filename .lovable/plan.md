@@ -1,64 +1,112 @@
-## Audit of the previous agent's ESS work
 
-I walked every claim in `docs/design-system/audit/ess-portal.md` against the actual source.
+## Part 1 — Why /demo is empty for logged-out visitors
 
-**Verified complete (previous agent's claims hold up):**
-- Shell rebuild in `src/components/me/MePortalLayout.tsx` (rail + topbar + grouped nav, `MeSubNav` retired).
-- All 20 "Pending" pages in the audit **are in fact migrated** to `PageHeader` + `PageBody` from `@/design-system` — including MyTalent, MyGoals, MyReviews, MyCompetencies, MyDevelopmentPlan, MyOneOnOnes(+Detail), MyFeedback, MyLearning* cluster, MyTeam*, MySettings, MyTaxCertificates, MyExitClearance. The Wave B tail is functionally done; only the *bookkeeping* was never updated.
-- KPI strips on MyLeave and MyPayslips (last agent's final message) — confirmed.
-- `ManagerTriageBanner` on MyTimesheets — **already present** at `src/pages/timesheets/MyTimesheets.tsx:150`, contrary to the audit doc which lists it as pending.
+The RLS policy on `platform_demo_videos` is correct (`is_published = true` for everyone), but the table has **zero GRANTs**. Supabase's Data API needs an explicit `GRANT SELECT` to the `anon` role or the request 401s before RLS even runs. That's exactly what the network log shows:
 
-**Confirmed still outstanding (Wave C):**
-1. `src/test/architecture/me-uses-design-system.test.ts` allowlist and `docs/design-system/audit/ess-portal.md` "Pending" table are stale — 20 pages listed as pending are actually migrated. Guardrail is currently useless (every migrated page is exempt from the check).
-2. `MyLoans` KPI section is hand-rolled `<Card>` triplets (`src/pages/me/MyLoans.tsx:99-130`), not the shared `KpiStrip`.
-3. `MyTimesheets` has no `KpiStrip` (only the manager banner).
-4. `MyLeave` still opens `LeaveRequestForm` as a `Dialog` (`src/pages/me/MyLeave.tsx:180`). Platform standard for record-shaped forms is `RecordFormShell` behind a route (`/me/leave/new`).
-5. `MyShifts`, `MyLearningPage`, `MyOneOnOnes` still import from `@/components/ui/dialog` for what look like record-form / detail interactions — need to be triaged: confirm → `AlertDialog`, form → routed `RecordFormShell`, peek → `DetailSheet`.
-6. No shared HR status map — `MyPayslips`, `MyLoans`, `MyLeave`, `MyShifts`, `MyDocuments` each redefine their own tone/palette maps for status badges.
-7. `MyTalent` (line 140) and `MyTeamTalent` (line 195) hand-roll KPI cards with `text-2xl` — not caught by the lint rule because they aren't `<h1>`, but they're the same drift the lint targets. Should adopt shared KPI presentation.
+```
+GET /rest/v1/platform_demo_videos?is_published=eq.true → 401
+"permission denied for function is_platform_admin"
+```
 
-**Out of scope (as declared, leaving alone):** router migration, business-logic in `/me` hooks, feature scope for Talent/Learning, entitlements/session.
+(The error text is misleading — the real cause is missing table-level grants; PostgREST surfaces the first permission failure it hits while resolving the policy chain.)
 
-## Plan
+**Fix (migration):**
 
-### Phase 1 — Close the bookkeeping gap (fast, high-signal)
-- Empty `MIGRATION_TODO` in `src/test/architecture/me-uses-design-system.test.ts` so the guardrail actually enforces PageHeader on every `/me/*` page going forward. If the test then fails for any file, that's a real regression I'll fix in the same phase.
-- Update `docs/design-system/audit/ess-portal.md`:
-  - Move the 20 rows to Done.
-  - Mark `MyTimesheets` ManagerTriageBanner as Done.
-  - Rewrite the "Follow-on work" section to reflect the actual remaining items below.
+```sql
+GRANT SELECT ON public.platform_demo_videos TO anon;
+GRANT SELECT ON public.platform_demo_videos TO authenticated;
+GRANT ALL   ON public.platform_demo_videos TO service_role;
+```
 
-### Phase 2 — KPI parity on list surfaces
-- Replace `MyLoans` bespoke KPI cards with `KpiStrip` from `@/components/hr/KpiStrip` (the same primitive already used on `MyLeave` / `MyPayslips`).
-- Add a `KpiStrip` to `src/pages/timesheets/MyTimesheets.tsx` scoped to self-service mode (via `useSelfService`) — hours submitted / approved / draft this period.
-- Replace the hand-rolled KPI grids in `MyTalent` and `MyTeamTalent` with `KpiStrip` so they stop drifting.
+That's it — the existing "Anyone can view published demo videos" policy will then work for signed-out visitors.
 
-### Phase 3 — Shared HR status map
-- Create `src/components/hr/hrStatusMap.ts`: a single `{ status → { tone, label } }` map for HR record statuses (approved/pending/rejected/draft/paid/cancelled/…) returning `StatusBadge` tones (`neutral/info/success/warning/danger/accent`).
-- Refactor `MyPayslips`, `MyLoans`, `MyLeave`, `MyShifts`, `MyDocuments` to consume it via the design-system `StatusBadge`. No behavioural change.
+---
 
-### Phase 4 — Interaction-pattern parity (dialog → sheet/route)
-- `MyLeave`: promote the request flow to a route `/me/leave/new` (react-router-dom, matching current routing) mounted on `RecordFormShell`. Keep `LeaveRequestForm` as the field body; retire the Dialog wrapper on `MyLeave`.
-- `MyShifts`, `MyLearningPage`, `MyOneOnOnes`:
-  - `MyOneOnOnes` `ScheduleDialog` → routed `/me/one-on-ones/new` on `RecordFormShell` (record-shaped).
-  - `MyLearningPage` `CompleteDialog` → keep as `AlertDialog` (pure confirm); `CourseContentDialog` → `DetailSheet` (detail peek).
-  - `MyShifts` dialogs → triage per the same rubric (confirms stay `AlertDialog`, detail peeks → `DetailSheet`).
+## Part 2 — Enterprise pattern for in-app learning resources
 
-### Phase 5 — Enforcement additions
-- Extend `eslint-rules/no-hand-rolled-me-header.js` (or a sibling rule) to also flag `text-2xl font-semibold` / `text-2xl font-bold` blocks used as KPI values inside `/me/*` — catches the MyTalent/MyTeamTalent-style drift the current rule misses.
-- Add an assertion to `me-uses-design-system.test.ts` that no `/me/*` page imports `@/components/ui/dialog` for record-shaped forms (allowlist only pure confirmations).
+### How big platforms handle this
+- **Stripe / Linear / Notion / Intercom** all ship a persistent **Help / Resources launcher** — usually a `?` button in the top bar, opening a slide-over panel. Never a nav item screaming "TUTORIALS" in the sidebar.
+- Content is **categorized by product area** (in our case: by app — Sales, POS, Payroll, Inventory…), plus a "Getting started" track.
+- **Contextual surfacing:** when the user is inside an app, the panel pre-filters to that app's videos. When on the dashboard, it shows the "Getting started" track.
+- A **dedicated `/resources` page** exists for deep browsing (search, filters, full library) — the launcher is the fast path, `/resources` is the library.
+- Public marketing page (`/demo`) reuses the **same content** but only the videos flagged for public visibility.
 
-### Technical notes
-- All changes stay on `react-router-dom` — no TanStack Router migration.
-- No changes to `/me` data hooks or business logic.
-- New shared modules live in the platform's existing homes: `src/components/hr/` for the status map, existing `KpiStrip`, existing `RecordFormShell`.
-- Every file touched will be verified against `tsgo` and the arch tests before I close the phase.
+### What we build
 
-### Deliverables per phase
-- Phase 1: allowlist emptied, audit doc rewritten, `hr-suite-wave-c.test.ts` still green.
-- Phase 2: KpiStrip on MyLoans, MyTimesheets, MyTalent, MyTeamTalent.
-- Phase 3: `hrStatusMap.ts` + 5 pages refactored.
-- Phase 4: 2 new routes (`/me/leave/new`, `/me/one-on-ones/new`), 3 files with dialog imports removed or replaced.
-- Phase 5: 2 guardrail extensions.
+**1. Data model — light additions to `platform_demo_videos`**
+   - `app_key text` — which app the video belongs to (`"sales"`, `"pos"`, `"payroll"`, `null` for platform-wide/getting-started).
+   - `audience text` (default `'public'`) — `'public' | 'authenticated'`. Public videos show on `/demo` and in-app; authenticated-only videos show only in-app.
+   - `difficulty text` — `'intro' | 'deep-dive'` (optional, nice-to-have for tracks).
+   - Keep existing `category` for cross-cutting tags (e.g. "Setup", "Reporting").
 
-Say the word and I'll execute phases 1→5 in order.
+**2. New surfaces**
+   - **`ResourceCenterLauncher`** — global `?` button injected into `PlatformShell` topbar. Opens a `Sheet` (right side, 480px), reuses `DetailSheet` primitive for consistency.
+     - Header: search input + app filter chips
+     - Body: grouped list (Getting started, then per current-app videos, then everything else), each row is a thumbnail + title + duration
+     - Footer: link to `/resources`
+   - **`/resources` page** — full library, routed under the dashboard workspace. Uses `PageHeader` + `PageBody`, grid of video cards grouped by app, search, filter by app/difficulty.
+   - **`/resources/:id`** — single-video player page with description, related videos, "mark as watched" (localStorage, no schema needed for v1).
+   - **Contextual hook** on empty states: existing `EmptyState` gets an optional "Watch a quick tour" action that deep-links into the launcher pre-filtered.
+
+**3. Public `/demo` page**
+   - Same source of truth, but query is `is_published = true AND audience = 'public'`.
+   - After the grant fix, this works for anon.
+
+**4. Platform admin uploader upgrades** (`/admin-management/…` — wherever demo videos are managed today)
+   - Add fields to the upload form for the new columns: **App**, **Audience**, **Difficulty**, keep **Category** and **Sort order**.
+   - Enforce a **thumbnail** (required) and **duration** (auto-detected from the uploaded MP4 via `<video>.duration` in the browser, or a manual override). No more untitled thumbnailless entries — they look unprofessional in the launcher.
+   - Add a **preview** panel in the admin form showing exactly how the card will render in the launcher and on `/demo`, so admins publish with confidence.
+
+**5. Not doing in this pass** (call out so we agree)
+   - Progress tracking per user in the DB (localStorage is enough for v1).
+   - Learning paths / course sequencing (we already have `training_courses` for formal L&D — resource center is for lightweight product tours).
+   - i18n of video captions.
+
+### Technical section
+
+```text
+src/
+  features/resources/
+    ResourceCenterLauncher.tsx      # ? button + Sheet
+    ResourceCenterPanel.tsx         # inner content, shared with /resources
+    useDemoVideos.ts                # react-query hook, filters by audience/app
+    videoCard.tsx
+  pages/resources/
+    ResourcesIndex.tsx              # /resources
+    ResourceDetail.tsx              # /resources/:id
+  apps/platform-admin/…             # add fields to existing demo video form
+```
+
+Migration:
+```sql
+ALTER TABLE public.platform_demo_videos
+  ADD COLUMN IF NOT EXISTS app_key   text,
+  ADD COLUMN IF NOT EXISTS audience  text NOT NULL DEFAULT 'public',
+  ADD COLUMN IF NOT EXISTS difficulty text;
+
+GRANT SELECT ON public.platform_demo_videos TO anon;
+GRANT SELECT ON public.platform_demo_videos TO authenticated;
+GRANT ALL   ON public.platform_demo_videos TO service_role;
+
+-- Tighten the public-read policy to respect the audience flag
+DROP POLICY IF EXISTS "Anyone can view published demo videos" ON public.platform_demo_videos;
+CREATE POLICY "Public can view published public videos"
+  ON public.platform_demo_videos FOR SELECT
+  TO anon
+  USING (is_published = true AND audience = 'public');
+CREATE POLICY "Authenticated users can view all published videos"
+  ON public.platform_demo_videos FOR SELECT
+  TO authenticated
+  USING (is_published = true);
+```
+
+Launcher mount: single injection in `PlatformShell`'s topbar action slot, so every tenant app (Sales, POS, Payroll, Inventory, ESS, Dashboard) gets it for free — no per-app wiring.
+
+### Rollout order
+1. Grants + audience column migration → unblocks `/demo` immediately.
+2. Admin form upgrades (app, audience, thumbnail required, duration auto-detect, live preview).
+3. `ResourceCenterLauncher` + topbar mount.
+4. `/resources` library page + detail page.
+5. Wire contextual "Watch a quick tour" into 3–4 flagship empty states (Sales dashboard, POS setup, Payroll first-run, ESS home).
+
+Say the word and I'll switch to build mode and start at step 1.
