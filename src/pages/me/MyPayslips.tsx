@@ -46,20 +46,9 @@ interface PayslipWithRun extends Payslip {
   };
 }
 
-const STATUS_STYLE: Record<string, string> = {
-  pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
-  approved: "bg-green-500/10 text-green-600 border-green-500/20",
-  rejected: "bg-red-500/10 text-red-600 border-red-500/20",
-  paid: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-  draft: "bg-muted text-muted-foreground",
-};
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge variant="outline" className={STATUS_STYLE[status] ?? ""}>
-      {status}
-    </Badge>
-  );
+function PayslipStatusBadge({ status }: { status: string }) {
+  const meta = hrStatus(status);
+  return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
 }
 
 export default function MyPayslips() {
