@@ -27,12 +27,12 @@ const ENGINE_SRC = readFileSync(
 
 describe("Reliefs surfaced as payslip_lines (ADR-0062 addendum)", () => {
   it("emits a personal_relief informational line from the bracket trace", () => {
-    const idx = ENGINE_SRC.indexOf(`"personal_relief",\n              "relief",`);
+    const idx = ENGINE_SRC.indexOf(`"personal_relief",\n            "relief",`);
     expect(idx, "personal_relief pushLine call is missing").toBeGreaterThan(0);
     const win = ENGINE_SRC.slice(idx, idx + 800);
     expect(win).toMatch(/"Personal Relief"/);
     // Positive amount (variable, not a Math.abs on a negated form).
-    expect(win).toMatch(/personalRelief,\s*\n\s*0,/);
+    expect(win).toMatch(/personalReliefSum \* 100/);
     // Not taxable.
     expect(win).toMatch(/false,\s*\n\s*"relief"/);
     // Provenance stamp.
@@ -41,29 +41,27 @@ describe("Reliefs surfaced as payslip_lines (ADR-0062 addendum)", () => {
   });
 
   it("emits an insurance_relief informational line from the bracket trace", () => {
-    const idx = ENGINE_SRC.indexOf(`"insurance_relief",\n              "relief",`);
+    const idx = ENGINE_SRC.indexOf(`"insurance_relief",\n            "relief",`);
     expect(idx, "insurance_relief pushLine call is missing").toBeGreaterThan(0);
     const win = ENGINE_SRC.slice(idx, idx + 800);
     expect(win).toMatch(/"Insurance Relief"/);
-    expect(win).toMatch(/insuranceRelief,\s*\n\s*0,/);
+    expect(win).toMatch(/insuranceReliefSum \* 100/);
     expect(win).toMatch(/false,\s*\n\s*"relief"/);
   });
 
   it("guards emission on non-zero relief values (no clutter for empty reliefs)", () => {
     // Both pushes MUST be inside `if (X > 0)` blocks.
-    const pr = ENGINE_SRC.indexOf(`if (personalRelief > 0)`);
-    const ir = ENGINE_SRC.indexOf(`if (insuranceRelief > 0)`);
+    const pr = ENGINE_SRC.indexOf(`if (personalReliefSum > 0)`);
+    const ir = ENGINE_SRC.indexOf(`if (insuranceReliefSum > 0)`);
     expect(pr).toBeGreaterThan(0);
     expect(ir).toBeGreaterThan(0);
   });
 
-  it("relief emission sits inside the bracket-trace branch (not global)", () => {
-    // The block must be gated on `if (trace)` so non-tax rules never
-    // synthesise reliefs.
-    const emitIdx = ENGINE_SRC.indexOf(`if (personalRelief > 0)`);
-    const traceGuard = ENGINE_SRC.lastIndexOf(`if (trace) {`, emitIdx);
-    expect(traceGuard).toBeGreaterThan(0);
-    expect(emitIdx - traceGuard).toBeLessThan(2000);
+  it("relief emission is sourced from bracketTracesByRuleName (not global constants)", () => {
+    const emitIdx = ENGINE_SRC.indexOf(`if (personalReliefSum > 0)`);
+    const traceWalk = ENGINE_SRC.lastIndexOf(`Object.entries(bracketTracesByRuleName)`, emitIdx);
+    expect(traceWalk).toBeGreaterThan(0);
+    expect(emitIdx - traceWalk).toBeLessThan(1200);
   });
 
   it("does not fold reliefs into deductionsDetail totals", () => {

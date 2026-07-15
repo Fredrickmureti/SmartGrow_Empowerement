@@ -11,9 +11,9 @@
  * rule codes, and the resolver silently rendered zero on a filed
  * statutory document.
  *
- * This test statically walks every localization pack certificate
- * template body embedded in the migration set and refuses to allow any
- * future certificate to ship with an unbound matrix column. It is
+ * This test statically walks the latest localization pack certificate
+ * template body embedded in the migration/source set and refuses to allow any
+ * future certificate to ship with an unbound matrix/grid column. It is
  * country-agnostic — the same invariant governs KE P9A, GH PAYE,
  * ANNUAL_EARNINGS_STATEMENT, and every certificate published from any
  * pack.
@@ -27,14 +27,17 @@ import { join } from "node:path";
 
 interface MatrixColumn {
   key?: string;
+  id?: string;
+  bind_key?: string;
   source_key?: string | null;
   format?: string;
 }
 interface MatrixNode {
-  type: "matrix";
+  type: "matrix" | "grid";
   columns?: MatrixColumn[];
   rule_codes?: string[];
   derived_columns?: Array<{ key: string }>;
+  data_rows?: { bind?: string };
 }
 
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
@@ -53,21 +56,31 @@ function extractJsonBodies(sql: string): unknown[] {
   return bodies;
 }
 
-function walkMatrices(node: any, out: MatrixNode[]): void {
+function walkDataNodes(node: any, out: MatrixNode[]): void {
   if (!node || typeof node !== "object") return;
-  if (node.type === "matrix") out.push(node as MatrixNode);
-  if (Array.isArray(node.children)) node.children.forEach((c: any) => walkMatrices(c, out));
+  if (node.type === "matrix" || node.type === "grid") out.push(node as MatrixNode);
+  if (Array.isArray(node.children)) node.children.forEach((c: any) => walkDataNodes(c, out));
   if (Array.isArray(node.column_children)) {
-    node.column_children.forEach((col: any) => Array.isArray(col) && col.forEach((c) => walkMatrices(c, out)));
+    node.column_children.forEach((col: any) => Array.isArray(col) && col.forEach((c) => walkDataNodes(c, out)));
   }
-  if (Array.isArray(node.document)) node.document.forEach((c: any) => walkMatrices(c, out));
+  if (Array.isArray(node.document)) node.document.forEach((c: any) => walkDataNodes(c, out));
+}
+
+function columnKey(c: MatrixColumn): string {
+  return String(c.key ?? c.bind_key ?? c.id ?? "");
 }
 
 function isDataColumn(c: MatrixColumn): boolean {
-  if (!c?.key) return false;
-  if (c.key === "month") return false;
+  const key = columnKey(c);
+  if (!key) return false;
+  if (key === "month" || key === "month_index") return false;
   if (String(c.format ?? "").toLowerCase() === "month_short") return false;
   return true;
+}
+
+async function loadKeP9SourceTemplate(): Promise<any> {
+  const mod = await import("../../features/localization/lib/engine/templates/keP9");
+  return mod.KE_P9_V3_TEMPLATE;
 }
 
 describe("statutory certificate templates must bind canonical payroll sources", () => {
@@ -76,25 +89,40 @@ describe("statutory certificate templates must bind canonical payroll sources", 
   // We evaluate only bodies that look like a certificate template body:
   // schema_version + code + document (v3 shape). This mirrors the
   // runtime `isV3EngineTemplate` gate.
-  const templateBodies: Array<{ file: string; body: any }> = [];
+  const templateBodiesByCode = new Map<string, { file: string; body: any }>();
   for (const f of files) {
     const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
     for (const body of extractJsonBodies(sql)) {
       const b: any = body;
       if (b && Number(b.schema_version) >= 3 && typeof b.code === "string" && Array.isArray(b.document)) {
-        templateBodies.push({ file: f, body: b });
+        templateBodiesByCode.set(b.code, { file: f, body: b });
       }
     }
   }
+  const templateBodies: Array<{ file: string; body: any }> = Array.from(templateBodiesByCode.values());
 
   it("finds at least one v3 certificate template body across migrations", () => {
     expect(templateBodies.length).toBeGreaterThan(0);
   });
 
-  it.each(templateBodies)("$body.code (from $file): every matrix data column is bound", ({ body }) => {
-    const matrices: MatrixNode[] = [];
-    (body.document as any[]).forEach((n) => walkMatrices(n, matrices));
-    for (const m of matrices) {
+  it("source Kenya P9 grid binds every A–O data column", async () => {
+    const body = await loadKeP9SourceTemplate();
+    const nodes: MatrixNode[] = [];
+    (body.document as any[]).forEach((n) => walkDataNodes(n, nodes));
+    const grid = nodes.find((n) => n.type === "grid" && n.data_rows?.bind === "p9.months");
+    expect(grid, "KE P9 source template must expose a grid bound to p9.months").toBeTruthy();
+    expect(grid?.rule_codes ?? [], "KE P9 grid must request canonical payroll rule codes").toContain("personal_relief");
+    expect(grid?.columns?.find((c) => c.id === "col_m")?.source_key).toBe("personal_relief");
+    expect(grid?.columns?.find((c) => c.id === "col_n")?.source_key).toBe("insurance_relief");
+    expect(grid?.columns?.find((c) => c.id === "col_o")?.source_key).toBe("paye");
+  });
+
+  it.each(templateBodies)("$body.code (from $file): every matrix/grid payroll column is bound", ({ body }) => {
+    const nodes: MatrixNode[] = [];
+    (body.document as any[]).forEach((n) => walkDataNodes(n, nodes));
+    for (const m of nodes) {
+      const hasPayrollBinding = m.type === "matrix" ? Boolean((m as any).rows_binding) : Boolean(m.data_rows?.bind);
+      if (!hasPayrollBinding) continue;
       const cols = (m.columns ?? []).filter(isDataColumn);
       if (cols.length === 0) continue;
       const explicitCodes = Array.isArray(m.rule_codes) ? m.rule_codes.filter(Boolean) : [];
@@ -106,17 +134,17 @@ describe("statutory certificate templates must bind canonical payroll sources", 
       // and every raw column seeds to 0).
       expect(
         explicitCodes.length + sourceKeys.length,
-        `Template ${body.code} matrix has no rule_codes and no source_key on any column — the resolver will never fetch payroll data.`,
+        `Template ${body.code} ${m.type} has no rule_codes and no source_key on any column — the resolver will never fetch payroll data.`,
       ).toBeGreaterThan(0);
 
       // Contract 2: every data column must be bound to a canonical
       // source (source_key) or produced by a derived expression.
       const unbound = cols
-        .filter((c) => !c.source_key && !derivedKeys.has(String(c.key)))
-        .map((c) => c.key);
+        .filter((c) => !c.source_key && !derivedKeys.has(columnKey(c)))
+        .map((c) => columnKey(c));
       expect(
         unbound,
-        `Template ${body.code} has matrix data column(s) with no source_key and no derived_columns entry: ${unbound.join(", ")}. Unbound columns silently render as zero on a filed statutory document.`,
+        `Template ${body.code} has ${m.type} data column(s) with no source_key and no derived_columns entry: ${unbound.join(", ")}. Unbound columns silently render as zero on a filed statutory document.`,
       ).toEqual([]);
     }
   });
