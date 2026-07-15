@@ -84,6 +84,14 @@ and every statutory certificate published from the platform:
 - Runtime structural refusal in `generate-tax-certificate` provides
   defense in depth for override templates authored outside the migration
   set (`localization_pack_certificate_template_overrides`).
+- **Addendum (KE pack 10.1.4):** every string arg in a matrix
+  `derived_columns` expression must resolve to (a) another column key,
+  (b) an earlier derived key, or (c) a rule_code on the matrix.
+  Enforced by architecture test
+  `matrix-derived-columns-must-resolve.test.ts` and runtime reason code
+  `MATRIX_DERIVED_ARG_UNRESOLVED`. Closes the sibling gap where the KE
+  P9A body referenced `col_a…col_o` shorthand that never existed,
+  silently zeroing Cols D/E1/E3/J/K/L.
 - Payslips are unaffected — they read `payslip_lines` directly and never
   went through the certificate matrix layer.
 
