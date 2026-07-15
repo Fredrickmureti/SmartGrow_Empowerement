@@ -51,10 +51,6 @@ export function PayrollReportMetadataBand({
       label: "Generated",
       value: generatedAt ? format(generatedAt, "MMM d, yyyy · HH:mm") : "—",
     },
-    {
-      label: "Generated",
-      value: generatedAt ? format(generatedAt, "MMM d, yyyy · HH:mm") : "—",
-    },
   ];
 
   if (packCode || packVersion) {
