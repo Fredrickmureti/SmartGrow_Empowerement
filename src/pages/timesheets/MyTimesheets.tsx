@@ -147,7 +147,7 @@ export default function MyTimesheets() {
   }
 
   const draftHours = weekTimesheets.filter((t) => t.status === "draft").reduce((s, t) => s + (t.hours || 0), 0);
-  const submittedHours = weekTimesheets.filter((t) => t.status === "submitted" || t.status === "pending_approval").reduce((s, t) => s + (t.hours || 0), 0);
+  const submittedHours = weekTimesheets.filter((t) => t.status === "submitted").reduce((s, t) => s + (t.hours || 0), 0);
   const approvedHours = weekTimesheets.filter((t) => t.status === "approved").reduce((s, t) => s + (t.hours || 0), 0);
 
   return (
