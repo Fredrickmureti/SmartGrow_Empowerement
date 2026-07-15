@@ -65,24 +65,37 @@ function periodWindow(period: "monthly" | "quarterly" | "annual", year: number, 
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
-export function ReturnsTab() {
-  const { toast } = useToast();
-  const { can } = usePermissions();
-  const canWrite = can("managePayroll") || can("manageRemittances");
-  const [ackRun, setAckRun] = useState<ReturnRun | null>(null);
-  const [historyRun, setHistoryRun] = useState<ReturnRun | null>(null);
-  const recordAck = useRecordReturnAcknowledgement();
+export interface ReturnsTabProps {
+  initialTemplateCode?: string;
+  initialYear?: number;
+}
 
-  const { data: templates = [], isLoading: loadingTpl } = useReturnTemplates();
-  const { data: hasInstalledPack = false } = useHasInstalledLocalizationPack();
-  const [templateCode, setTemplateCode] = useState<string>("");
-  const activeTpl = useMemo(
-    () => templates.find((t) => t.code === templateCode) ?? templates[0],
-    [templates, templateCode],
-  );
+export function ReturnsTab({ initialTemplateCode, initialYear }: ReturnsTabProps = {}) {
+   const { toast } = useToast();
+   const { can } = usePermissions();
+   const canWrite = can("managePayroll") || can("manageRemittances");
+   const [ackRun, setAckRun] = useState<ReturnRun | null>(null);
+   const [historyRun, setHistoryRun] = useState<ReturnRun | null>(null);
+   const recordAck = useRecordReturnAcknowledgement();
 
-  const currentYear = new Date().getUTCFullYear();
-  const [year, setYear] = useState<number>(currentYear);
+   const { data: templates = [], isLoading: loadingTpl } = useReturnTemplates();
+   const { data: hasInstalledPack = false } = useHasInstalledLocalizationPack();
+   const [templateCode, setTemplateCode] = useState<string>(initialTemplateCode ?? "");
+   // Adopt an incoming deep-link template code once the templates list arrives.
+   useEffect(() => {
+     if (!initialTemplateCode) return;
+     if (templateCode === initialTemplateCode) return;
+     if (templates.some((t) => t.code === initialTemplateCode)) {
+       setTemplateCode(initialTemplateCode);
+     }
+   }, [initialTemplateCode, templates, templateCode]);
+   const activeTpl = useMemo(
+     () => templates.find((t) => t.code === templateCode) ?? templates[0],
+     [templates, templateCode],
+   );
+
+   const currentYear = new Date().getUTCFullYear();
+   const [year, setYear] = useState<number>(initialYear ?? currentYear);
   const periodOptions = useMemo(() => {
     if (!activeTpl) return [] as Array<{ idx: number; label: string }>;
     if (activeTpl.period === "monthly") {
