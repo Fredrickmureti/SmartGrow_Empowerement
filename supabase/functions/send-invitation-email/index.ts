@@ -66,12 +66,38 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("id", invitationId)
       .single();
 
-    if (invError || !invitation) {
+    if (invError) {
+      // Surface the REAL Postgres/PostgREST failure — a schema drift here
+      // (e.g. selecting a column that no longer exists) used to be masked
+      // as a generic "Invitation not found" 404, which made every invite
+      // email silently disappear with zero diagnostic trail.
+      console.error("[send-invitation-email] load invite failed", {
+        invitationId,
+        code: (invError as any).code,
+        message: invError.message,
+        details: (invError as any).details,
+        hint: (invError as any).hint,
+      });
+      return new Response(
+        JSON.stringify({
+          error: "invitation_lookup_failed",
+          details: invError.message,
+          code: (invError as any).code ?? null,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (!invitation) {
       return new Response(JSON.stringify({ error: "Invitation not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Verify caller is admin/owner in the invitation's organization
     // First check user_roles table
@@ -252,11 +278,17 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (sendErr) {
-      return new Response(JSON.stringify({ error: sendErr.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      console.error("[send-invitation-email] send-email invoke failed", {
+        invitation_id: invitation.id,
+        to: invitation.email,
+        message: sendErr.message,
       });
+      return new Response(
+        JSON.stringify({ error: "email_send_failed", details: sendErr.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+
 
     return new Response(JSON.stringify({ success: true, id: (sendData as any)?.id }), {
       status: 200,

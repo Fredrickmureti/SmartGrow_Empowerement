@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { Mail, UserPlus, Shield } from "lucide-react";
@@ -120,23 +121,49 @@ export function EmployeeInviteDialog({
 
       if (empError) throw empError;
 
-      // Send the invitation email via edge function
+      // Send the invitation email via edge function.
+      // `supabase.functions.invoke` does NOT throw on non-2xx — it returns
+      // `{ data, error }`. Previously we ignored `error`, so a 404/500 from
+      // the function slipped through and the user got a success toast while
+      // no email ever left the platform. We now surface the real reason.
+      let emailFailureReason: string | null = null;
       try {
-        await supabase.functions.invoke("send-invitation-email", {
-          body: { invitationId: result.invitation_id },
-        });
-      } catch (emailErr) {
-        console.error("Email send failed:", emailErr);
-        toast.warning("Invitation saved but email delivery may have failed.");
+        const { error: fnError } = await supabase.functions.invoke(
+          "send-invitation-email",
+          { body: { invitationId: result.invitation_id } },
+        );
+        if (fnError) {
+          if (fnError instanceof FunctionsHttpError) {
+            try {
+              const body = await fnError.context.text();
+              emailFailureReason = body || fnError.message;
+            } catch {
+              emailFailureReason = fnError.message;
+            }
+          } else {
+            emailFailureReason = fnError.message ?? "unknown_error";
+          }
+          console.error("[invite] send-invitation-email failed", emailFailureReason);
+        }
+      } catch (emailErr: any) {
+        emailFailureReason = emailErr?.message ?? "network_error";
+        console.error("[invite] send-invitation-email threw", emailErr);
       }
 
-      toast.success(
-        result.status === "reused"
-          ? `Invitation refreshed and resent to ${email}`
-          : `Invitation sent to ${email}`,
-      );
+      if (emailFailureReason) {
+        toast.error(
+          `Invitation saved for ${email}, but the email did not send: ${emailFailureReason.slice(0, 240)}`,
+        );
+      } else {
+        toast.success(
+          result.status === "reused"
+            ? `Resent the existing invitation to ${email} — no duplicate created.`
+            : `Invitation sent to ${email}`,
+        );
+      }
       onSuccess();
       onOpenChange(false);
+
     } catch (error: any) {
       console.error("Error inviting employee:", error);
       toast.error(normalizeError(error).message || "Failed to send invitation");
