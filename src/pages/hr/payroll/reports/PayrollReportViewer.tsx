@@ -211,10 +211,10 @@ function ViewerInner() {
     <ReportPageLayout
       title={definition.label}
       description={definition.description ?? undefined}
-      isLoading={isLoading}
-      error={error as Error | null}
-      isEmpty={!isLoading && rows.length === 0}
-      getExportConfig={getExportConfig}
+      isLoading={isPackArtifact ? false : isLoading}
+      error={isPackArtifact ? null : (error as Error | null)}
+      isEmpty={isPackArtifact ? false : !isLoading && rows.length === 0}
+      getExportConfig={isPackArtifact ? undefined : getExportConfig}
       headerActions={
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
@@ -244,12 +244,24 @@ function ViewerInner() {
         rowCount={rows.length}
         generatedAt={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
       />
-      <PayrollReportPreview
-        definition={definition}
-        columns={columns}
-        rows={rows}
-        canSeeMoney={canSeeMoney}
+      <PayrollReportReadinessChips
+        dependencies={definition.dependencies ?? []}
+        readiness={readiness}
       />
+      {isPackArtifact ? (
+        <PackArtifactPanel
+          definition={definition}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+        />
+      ) : (
+        <PayrollReportPreview
+          definition={definition}
+          columns={columns}
+          rows={rows}
+          canSeeMoney={canSeeMoney}
+        />
+      )}
     </ReportPageLayout>
   );
 }
