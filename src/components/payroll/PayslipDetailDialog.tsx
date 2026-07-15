@@ -87,6 +87,7 @@ export function PayslipDetailDialog({
   description,
   payslip,
   portalMode = false,
+  variant = "dialog",
 }: Props) {
   const { data: lines = [], isLoading } = usePayslipLines(open && payslipId ? payslipId : undefined);
   const { data: header } = usePayslipHeader(open && payslipId ? payslipId : undefined);
