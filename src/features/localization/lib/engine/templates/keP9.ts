@@ -41,7 +41,7 @@ const bindFmt = (path: string, format: any, fallback = "") =>
 const theme: Theme = {
   body_font: '"Times New Roman", "Nimbus Roman", Times, serif',
   heading_font: '"Helvetica Neue", "Arial", sans-serif',
-  base_font_size_pt: 8.5,
+  base_font_size_pt: 7.2,
   color: "#000",
   muted_color: "#000",
   rule_color: "#000",
@@ -53,9 +53,9 @@ const theme: Theme = {
   zebra: "none",
   heading_case: "none",
   heading_underline: false,
-  grid_font_size_pt: 6.5,
-  grid_number_font_size_pt: 6.5,
-  grid_footer_font_size_pt: 6.5,
+  grid_font_size_pt: 5.4,
+  grid_number_font_size_pt: 5.2,
+  grid_footer_font_size_pt: 5.2,
   numeric_letter_spacing: "0",
   legal_border: false,
   legal_border_color: "#000",
@@ -111,49 +111,40 @@ const derivedColumns: NonNullable<GridNode["derived_columns"]> = [
 
 // Header stack — 4 rows. Cell-level colspan/rowspan mirrors the KRA form.
 //
-// Row 1 (label): MONTH (rowspan 3), Basic Salary (rowspan 2), …
+// Row 1 (label): MONTH (rowspan 4), Basic Salary, …
 //                Defined Contribution Retirement Scheme (colspan 3), …
-//                Total Deductions (rowspan 2), …
-// Row 2 (unit):  Kshs. under every column except MONTH.
+//                Total Deductions, …
+// Row 2 (unit):  Kshs. under every amount column except MONTH.
 // Row 3 (letter): A B C D | E1 E2 E3 | F G H I J K L M N O
 // Row 4 (note):   only under E1/E2/E3 → "30% of A" / "Actual" / "Fixed 30,000 p.m"
 //
-// Note: KRA uses rowspan=3 for MONTH and simple columns because their
-//   letter row spans A/B/C/D above E1/E2/E3. We express that here by
-//   giving MONTH rowspan=3 and every non-E column rowspan=2 on the
-//   label row, then letting the letter row (row 3) fill only cells that
-//   don't already span down from row 1. To keep cell count consistent,
-//   we author 4 explicit rows where the letter row places one cell per
-//   data column and the note row is empty except under E1/E2/E3.
+// Note: the official form has a visible currency band across all amount
+//   columns. Do not rowspan ordinary labels over that unit row; otherwise
+//   `Kshs.` only appears under the E1/E2/E3 grouped columns.
 
 const headerRow_LabelUnit: GridHeaderCell[] = [
   { content: lit("MONTH"),                    row_span: 4, variant: "label", align: "center" },
-  { content: lit("Basic Salary"),             row_span: 2, variant: "label" },
-  { content: lit("Benefits – Non-Cash"),      row_span: 2, variant: "label" },
-  { content: lit("Value of Quarters"),        row_span: 2, variant: "label" },
-  { content: lit("Total Gross Pay"),          row_span: 2, variant: "label" },
+  { content: lit("Basic Salary"),             variant: "label" },
+  { content: lit("Benefits – Non-Cash"),      variant: "label" },
+  { content: lit("Value of Quarters"),        variant: "label" },
+  { content: lit("Total Gross Pay"),          variant: "label" },
   { content: lit("Defined Contribution Retirement Scheme"), span: 3, variant: "label" },
-  { content: lit("Affordable Housing Levy (AHL)"), row_span: 2, variant: "label" },
-  { content: lit("Social Health Insurance Fund (SHIF)"), row_span: 2, variant: "label" },
-  { content: lit("Post Retirement Medical Fund (PRMF)"), row_span: 2, variant: "label" },
-  { content: lit("Owner-Occupied Interest"),  row_span: 2, variant: "label" },
-  { content: lit("Total Deductions (Lower of E+F+G+H+I)"), row_span: 2, variant: "label" },
-  { content: lit("Chargeable Pay (D–J)"),     row_span: 2, variant: "label" },
-  { content: lit("Tax Charged"),              row_span: 2, variant: "label" },
-  { content: lit("Personal Relief"),          row_span: 2, variant: "label" },
-  { content: lit("Insurance Relief"),         row_span: 2, variant: "label" },
-  { content: lit("PAYE Tax (L-M-N)"),         row_span: 2, variant: "label" },
+  { content: lit("Affordable Housing Levy (AHL)"), variant: "label" },
+  { content: lit("Social Health Insurance Fund (SHIF)"), variant: "label" },
+  { content: lit("Post Retirement Medical Fund (PRMF)"), variant: "label" },
+  { content: lit("Owner-Occupied Interest"),  variant: "label" },
+  { content: lit("Total Deductions (Lower of E+F+G+H+I)"), variant: "label" },
+  { content: lit("Chargeable Pay (D–J)"),     variant: "label" },
+  { content: lit("Tax Charged"),              variant: "label" },
+  { content: lit("Personal Relief"),          variant: "label" },
+  { content: lit("Insurance Relief"),         variant: "label" },
+  { content: lit("PAYE Tax (L-M-N)"),         variant: "label" },
 ];
 
-// Row 2 — the "Kshs." unit for A, B, C, D and each of E1/E2/E3 (E1/E2/E3
-// appear as three separate cells beneath the merged E label).
+// Row 2 — the "Kshs." unit for every amount column A–O.
 const headerRow_Unit: GridHeaderCell[] = [
   // MONTH continues via rowspan
-  // Columns A–D continue via rowspan on row 1
-  { content: lit("Kshs."), variant: "unit", align: "center" },
-  { content: lit("Kshs."), variant: "unit", align: "center" },
-  { content: lit("Kshs."), variant: "unit", align: "center" },
-  // Columns F–O continue via rowspan on row 1
+  ...Array.from({ length: 17 }, () => ({ content: lit("Kshs."), variant: "unit" as const, align: "center" as const })),
 ];
 
 // Row 3 — letter row: A B C D | E1 E2 E3 | F G H I J K L M N O
@@ -326,7 +317,7 @@ const attachList: Node = {
 
 const importantBlock: Node = {
   type: "section",
-  keep_together: true,
+  keep_together: false,
   children: [
     {
       type: "rich_text",
@@ -348,6 +339,43 @@ const importantBlock: Node = {
   ],
 };
 
+// First-page statutory heading. This belongs in normal document flow rather
+// than a Paged Media running header: the official P9 shows it once at the top
+// of the form, and running margin boxes can clip tall header stacks in print.
+const topHeader: Node = {
+  type: "columns",
+  count: 3,
+  gap_mm: 4,
+  column_children: [
+    [
+      {
+        type: "rich_text",
+        align: "left",
+        paragraphs: [[{ text: lit("APPENDIX 2A"), emphasis: "bold" }]],
+      },
+    ],
+    [
+      { type: "heading", level: 2, align: "center", text: lit("KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT") },
+      { type: "rich_text", align: "center", paragraphs: [[{ text: lit("TAX DEDUCTION CARD"), emphasis: "bold" }]] },
+      {
+        type: "rich_text",
+        align: "center",
+        paragraphs: [[
+          { text: lit("YEAR "), emphasis: "muted" },
+          { text: bind("fiscal_year", "20 ......") },
+        ]],
+      },
+    ],
+    [
+      {
+        type: "rich_text",
+        align: "right",
+        paragraphs: [[{ text: lit("ISO 9001:2015 CERTIFIED"), emphasis: "muted" }]],
+      },
+    ],
+  ],
+};
+
 // ── Template envelope ────────────────────────────────────────────────
 export const KE_P9_V3_TEMPLATE: CertificateTemplateV3 = {
   schema_version: 4,
@@ -357,56 +385,15 @@ export const KE_P9_V3_TEMPLATE: CertificateTemplateV3 = {
   paper_format: {
     size: "A4",
     orientation: "landscape",
-    margin_top: 14,
+    margin_top: 6,
     margin_right: 10,
-    margin_bottom: 10,
+    margin_bottom: 8,
     margin_left: 10,
-    header_height: 22,
-    footer_height: 8,
+    header_height: 0,
+    footer_height: 6,
   },
   page_master: {
-    code: "ke.p9.page_master.v11",
-    header: [
-      {
-        type: "field_row",
-        gap_mm: 8,
-        columns: ["25mm", "1fr", "40mm"],
-        fields: [], // structural placeholder — header layout below via columns
-      },
-      {
-        type: "columns",
-        count: 3,
-        gap_mm: 4,
-        column_children: [
-          [
-            {
-              type: "rich_text",
-              align: "left",
-              paragraphs: [[{ text: lit("APPENDIX 2A"), emphasis: "bold" }]],
-            },
-          ],
-          [
-            { type: "heading", level: 2, align: "center", text: lit("KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT") },
-            { type: "rich_text", align: "center", paragraphs: [[{ text: lit("TAX DEDUCTION CARD"), emphasis: "bold" }]] },
-            {
-              type: "rich_text",
-              align: "center",
-              paragraphs: [[
-                { text: lit("YEAR "), emphasis: "muted" },
-                { text: bind("fiscal_year", "20 ......") },
-              ]],
-            },
-          ],
-          [
-            {
-              type: "rich_text",
-              align: "right",
-              paragraphs: [[{ text: lit("ISO 9001:2015 CERTIFIED"), emphasis: "muted" }]],
-            },
-          ],
-        ],
-      },
-    ],
+    code: "ke.p9.page_master.v12",
     footer: [
       {
         type: "rich_text",
@@ -421,21 +408,22 @@ export const KE_P9_V3_TEMPLATE: CertificateTemplateV3 = {
     ],
   },
   document: [
+    topHeader,
     // Identity block: inline label ......... value fill-in lines
     identityRow1,
     identityRow2,
     identityRow3,
-    { type: "spacer", size_mm: 2 },
+    { type: "spacer", size_mm: 1 },
     // Monthly deductions grid
     grid,
-    { type: "spacer", size_mm: 2 },
+    { type: "spacer", size_mm: 1 },
     // "To be completed by Employer at end of year" caption + fill-in totals
     {
       type: "rich_text",
       paragraphs: [[{ text: lit("To be completed by Employer at end of year"), emphasis: "italic" }]],
     },
     endOfYearRow,
-    { type: "spacer", size_mm: 3 },
+    { type: "spacer", size_mm: 1 },
     // IMPORTANT + Attach two-column notice with nested numbered lists
     importantBlock,
   ],

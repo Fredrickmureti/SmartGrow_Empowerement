@@ -12,6 +12,7 @@
 import { describe, it, expect } from "vitest";
 import { compile } from "../../../supabase/functions/_shared/certificate-engine/compile";
 import { KE_P9_V10_TEMPLATE } from "./fixtures/ke-p9-v10.template";
+import { KE_P9_V3_TEMPLATE } from "../../features/localization/lib/engine/templates/keP9";
 
 const SAMPLE_PAYLOAD = {
   employer: {
@@ -103,5 +104,39 @@ describe("Kenya P9 v10 — v3 compile snapshot", () => {
     const { unresolved } = compile(KE_P9_V10_TEMPLATE, partial as any, { currency: "KES" });
     expect(unresolved).toContain("employee.tax_pin");
     expect(unresolved).toContain("employee.employee_number");
+  });
+});
+
+describe("Kenya P9 source template — KRA Appendix 2A layout", () => {
+  it("renders the statutory top heading in document flow, not a clipping-prone running header", () => {
+    const { html } = compile(KE_P9_V3_TEMPLATE as any, SAMPLE_PAYLOAD as any, {});
+    const mainStart = html.indexOf('<main class="document">');
+    const appendix = html.indexOf("APPENDIX 2A");
+    const kra = html.indexOf("KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT");
+
+    expect(KE_P9_V3_TEMPLATE.page_master?.header).toBeUndefined();
+    expect(mainStart).toBeGreaterThan(-1);
+    expect(appendix).toBeGreaterThan(mainStart);
+    expect(kra).toBeGreaterThan(mainStart);
+    expect(html).toContain('class="page-footer"');
+  });
+
+  it("prints a Kshs. unit cell for every P9 amount column A through O", () => {
+    const { html } = compile(KE_P9_V3_TEMPLATE as any, SAMPLE_PAYLOAD as any, {});
+    const unitCount = (html.match(/>Kshs\.<\/th>/g) ?? []).length;
+
+    expect(unitCount).toBe(17);
+    for (const col of ["A","B","C","D","E1","E2","E3","F","G","H","I","J","K","L","M","N","O"]) {
+      expect(html).toContain(`>${col}</th>`);
+    }
+  });
+
+  it("keeps the IMPORTANT block in normal flow so it cannot force a blank middle page", () => {
+    const important = (KE_P9_V3_TEMPLATE.document as any[]).find(
+      (node) => node.type === "section" && JSON.stringify(node).includes("IMPORTANT"),
+    );
+
+    expect(important).toBeTruthy();
+    expect(important.keep_together).toBe(false);
   });
 });
