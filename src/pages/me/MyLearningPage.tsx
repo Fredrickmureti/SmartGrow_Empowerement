@@ -225,51 +225,61 @@ function CompleteDialog({ course, onClose, onSubmit }: {
   const disabled = submitting || (needsCert && !file);
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Mark "{course.name}" complete</DialogTitle>
-          <DialogDescription>
-            {needsCert
-              ? "This course requires a completion certificate. Upload it below to mark complete."
-              : "Confirm you've completed this course."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          {needsCert && (
-            <div>
-              <Label>Certificate</Label>
-              <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0])} />
-              <div className="mt-1">
-                <Button variant="outline" onClick={() => fileRef.current?.click()}>
-                  <Upload className="h-4 w-4 mr-1" /> {file ? file.name : "Choose file"}
-                </Button>
-              </div>
-              {course.pass_score != null && <p className="text-xs text-muted-foreground mt-1">Pass score: {course.pass_score}</p>}
-            </div>
-          )}
+    <DetailSheet
+      open
+      onOpenChange={(v) => !v && onClose()}
+      size="sm"
+      title={`Mark "${course.name}" complete`}
+      description={
+        needsCert
+          ? "This course requires a completion certificate. Upload it below to mark complete."
+          : "Confirm you've completed this course."
+      }
+      footer={
+        <FooterActionBar
+          anchor="sheet"
+          leading={
+            <Button variant="outline" onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
+          }
+          trailing={
+            <Button
+              disabled={disabled}
+              onClick={async () => {
+                setSubmitting(true);
+                try {
+                  await onSubmit({ file, score: score ? Number(score) : undefined });
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            >
+              {submitting ? "Saving…" : "Mark complete"}
+            </Button>
+          }
+        />
+      }
+    >
+      <div className="px-6 py-4 space-y-3">
+        {needsCert && (
           <div>
-            <Label>Score (optional)</Label>
-            <Input type="number" step="0.1" value={score} onChange={(e) => setScore(e.target.value)} placeholder="e.g. 85" />
+            <Label>Certificate</Label>
+            <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0])} />
+            <div className="mt-1">
+              <Button variant="outline" onClick={() => fileRef.current?.click()}>
+                <Upload className="h-4 w-4 mr-1" /> {file ? file.name : "Choose file"}
+              </Button>
+            </div>
+            {course.pass_score != null && <p className="text-xs text-muted-foreground mt-1">Pass score: {course.pass_score}</p>}
           </div>
+        )}
+        <div>
+          <Label>Score (optional)</Label>
+          <Input type="number" step="0.1" value={score} onChange={(e) => setScore(e.target.value)} placeholder="e.g. 85" />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button
-            disabled={disabled}
-            onClick={async () => {
-              setSubmitting(true);
-              try {
-                await onSubmit({ file, score: score ? Number(score) : undefined });
-              } finally {
-                setSubmitting(false);
-              }
-            }}
-          >
-            {submitting ? "Saving…" : "Mark complete"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DetailSheet>
   );
 }
+
