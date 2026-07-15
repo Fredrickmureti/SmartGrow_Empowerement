@@ -363,8 +363,8 @@ export function MePortalLayout({ children }: { children: ReactNode }) {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/me/settings">
-                    <Settings className="h-4 w-4 mr-2" /> My settings
+                  <Link to="/me/account">
+                    <KeyRound className="h-4 w-4 mr-2" /> Account
                   </Link>
                 </DropdownMenuItem>
                 {canReturnToWorkspace && (
