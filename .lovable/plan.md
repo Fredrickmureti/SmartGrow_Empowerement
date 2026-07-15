@@ -1,64 +1,71 @@
-## Problem
+# P9 header text is present but clipped — fix the running-header reservation
 
-The published KE P9A template in the database (`localization_pack_certificate_templates`) still uses the **legacy v3 layout**:
-- `heading` with fiscal year
-- `identity_strip` with two labeled column blocks titled `Employer` / `Employee` (Name/PIN/Tax Office/Address on the left, Main Name/Other Names/PIN/Employee No. on the right)
+## What I saw in `amazing.pdf`
 
-This does not match the KRA Appendix 2A form the user attached (`Original-p9-Template.pdf`), which shows:
+The top of the page shows only a sliver of `KENYA REVENUE AUTHORITY — DOMESTIC` and then `TAXES DEPARTMENT` / `TAX DEDUCTION CARD` fully. `APPENDIX 2A` and the first line of the centered heading are visually clipped, but the text is fully selectable — proof it was rendered into the PDF, just outside the visible top margin band.
+
+## Root cause (not a template content bug)
+
+The KE P9 `paper_format` declares:
 
 ```text
-APPENDIX 2A            KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT
-                       TAX DEDUCTION CARD YEAR 20 .........
-
-Employers Name  ....................................   Employer's PIN  ..............
-Employee's Main Name  ..............................   Employee's PIN  ..............
-Employee's Other Names  ...................................................................
+margin_top: 14 mm
+header_height: 22 mm
 ```
 
-The **canonical source template** at `src/features/localization/lib/engine/templates/keP9.ts` **already expresses this exact layout** using v4 primitives (`page_master` with 3-column header + inline `field_row`/`label_fill` identity rows), but the DB body was hand-published from an older v3 spec and was never re-synced to the canonical source. So the fix is a data refresh, not a schema change.
+The Paged Media running header (`@top-center { content: element(pageHeader); }`) is painted **inside** the page's top margin area. The compiler currently emits:
 
-The publisher editor (`CertificateV3Editor.tsx`) already supports all needed v4 primitives — `label_fill`, `field_row`, `columns`, `page_master`, `grid` — confirmed by inspecting the node type registry and inspectors. No editor code changes required.
+```css
+@page { margin: 14mm 10mm 10mm 10mm; ... }
+```
 
-## Fix (pack-only, data-only)
+So the header box has only **14 mm** of vertical room, but the P9 header stack (`APPENDIX 2A` + H2 `KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT` + `TAX DEDUCTION CARD` + `YEAR 20…`) needs ~20–22 mm. Anything above the margin band gets clipped by the printable page edge — which is exactly the "invisible but selectable" symptom you described.
 
-### 1. DB migration — republish KE P9A body from canonical source
+The `paper_format.header_height` / `footer_height` fields are already declared on the type and set to sensible values (`22` / `8`) on every template, but `compile.ts` never consumes them. That's the bug.
 
-Single `supabase--migration` that:
+## Fix — one small compiler change, mirrored, no template surgery
 
-1. Replaces `body` on the KE P9A `localization_pack_certificate_templates` row with the canonical `KE_P9_V3_TEMPLATE` (`schema_version: 4`) — the exact structure from `keP9.ts`:
-   - `paper_format`: A4 landscape, statutory margins
-   - `page_master.header`: 3-column band → left `APPENDIX 2A`, centre `KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT` + `TAX DEDUCTION CARD` + `YEAR {fiscal_year}`, right `ISO 9001:2015 CERTIFIED`
-   - `page_master.footer`: Serial + Generated line
-   - `document[0..2]`: three inline `field_row` blocks → `Employer's Name … Employer's PIN`, `Employee's Main Name … Employee's PIN`, `Employee's Other Names …`, all dotted-rule `label_fill`
-   - `document[3]`: `spacer`
-   - `document[4]`: `grid` — the 4-row header stack + 17 columns + `TOTAL` footer, with the previously fixed `derived_columns` (`col_d`/`col_e1`/`col_e3`/`col_j`/`col_k`/`col_l` computed from real `source_key` inputs, no `col_*` alias mismatches)
-   - `document[5..7]`: end-of-year "To be completed by Employer" caption + inline totals fill-in + IMPORTANT/Attach two-column notice with nested numbered lists
-   - `theme`: statutory form aesthetic (Times body, black rules, no zebra, no grey shading)
+### 1. Teach `compile()` that the effective @page margin must reserve the running-header/footer height
 
-2. Publishes a new `pack_versions` row for Kenya: `version = '10.1.5'`, `status = 'published'`, with changelog:
+In both compiler mirrors:
 
-   > **10.1.5** — Rebuild P9A header/identity band to match KRA Appendix 2A: `APPENDIX 2A` left-aligned band, centred `KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT / TAX DEDUCTION CARD / YEAR 20 …`, and inline dotted `Employers Name … Employer's PIN / Employee's Main Name … Employee's PIN / Employee's Other Names …` fill-in lines. No calculation changes.
+- `src/features/localization/lib/engine/compile.ts`
+- `supabase/functions/_shared/certificate-engine/compile.ts`
 
-3. Leaves the two-column `EMPLOYER` / `EMPLOYEE` `identity_strip` behind — replaced, not appended.
+Change the `@page` margin computation to:
 
-### 2. Editor sanity check (no changes expected)
+```text
+effective_top    = max(paper.margin_top,    paper.header_height + 2)
+effective_bottom = max(paper.margin_bottom, paper.footer_height + 2)
+```
 
-Confirm the editor already exposes `label_fill`, `field_row`, `columns`, `page_master` node inspectors (verified in `CertificateV3Editor.tsx` — nothing to add).
+(The `+ 2 mm` is breathing room between the running band and the document body — matches the visual gap on the KRA original.)
 
-### 3. Verification
+Left/right margins are unchanged. This is the semantically correct meaning of `header_height` and is the only reason those fields exist on `PaperFormat`.
 
-After the migration:
-- Query the DB and pretty-print `body->'document'->0..2` + `body->'page_master'->'header'` to confirm the shape.
-- Compile the DB body via the engine and diff its `html` against a compile of the source `KE_P9_V3_TEMPLATE` — they should be byte-identical (both drive off the same AST).
-- Regenerate a P9 for the May 2026 payslip and eyeball the header vs the KRA original.
+Because the fix lives in the country-agnostic engine, it benefits every current and future template (US W-2, GH IRT etc.) — no per-country logic, no Kenya-specific token, no violation of the "no country tokens" invariant.
+
+### 2. Keep both mirrors byte-identical
+
+The parity test `certificate-engine.mirror-parity.test.ts` already guards this. Both files get the same `Math.max(...)` line so the emitted CSS stays identical.
+
+### 3. Snapshot test refresh
+
+`ke-p9-v10.compile.test.ts` already asserts `@page` contains `A4 landscape`. Its deterministic-compile assertion still passes (both compiles use the new formula). No golden HTML lives in the snapshot — just structural `toContain` checks — so nothing else needs updating.
+
+### 4. No DB migration, no pack version bump
+
+The template body in the DB is unchanged. The running header was always structurally correct — it was the renderer that was starving it of vertical room. Existing tenants on pack 10.1.5 immediately benefit the next time they regenerate a P9, because the compiler runs at render time inside `generate-tax-certificate`, not at pack publish time.
 
 ## Out of scope
 
-- No changes to the payroll engine, resolver, monthly matrix, compiler, or column bindings — the 10.1.4 fix stands.
-- No changes to `keP9.ts` — it is already the canonical source; we are re-syncing the DB *to* it.
-- No editor code changes — the primitives already ship.
-- No new architecture tests — existing "no country tokens" and "matrix derived args must resolve" tests still guard this template.
+- `keP9.ts` template body (already matches KRA Appendix 2A).
+- Publisher editor (`CertificateV3Editor.tsx`) — no new primitives.
+- Payroll engine, resolver, monthly matrix, column bindings (10.1.4 fix stands).
+- pdf-lib / server PDF pipeline (still Phase D).
 
-## Technical detail
+## Verification
 
-The migration is a single UPDATE on the KE P9A row using `jsonb_build_object` (or a `body = $$…$$::jsonb` literal) to install the full v4 body verbatim from `keP9.ts`, followed by an INSERT into `pack_versions` with `country_code = 'KE'`, `version = '10.1.5'`, `status = 'published'`, and `changelog`. Existing tenants pick up 10.1.5 through the standard pack-sync flow.
+1. `bun vitest run src/test/localization/certificate-engine.mirror-parity.test.ts src/test/localization/ke-p9-v10.compile.test.ts` — both green.
+2. Regenerate the same May 2026 P9 that produced `amazing.pdf`. Expect `APPENDIX 2A`, `KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT`, `TAX DEDUCTION CARD`, `YEAR 2026`, `ISO 9001:2015 CERTIFIED` all fully visible in the top band, matching the KRA original.
+3. Regenerate a `genericExample` document to confirm smaller headers (`header_height: 12`) are unaffected — `max(12, 12+2) = 14 mm` vs its previous `margin_top`, which will be whichever is larger.
