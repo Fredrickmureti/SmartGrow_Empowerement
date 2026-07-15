@@ -158,12 +158,20 @@ function CourseContentDialog({ course, onClose }: { course: TrainingCourse; onCl
   }
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{course.name}</DialogTitle>
-          {course.objectives && <DialogDescription className="whitespace-pre-wrap">{course.objectives}</DialogDescription>}
-        </DialogHeader>
+    <DetailSheet
+      open
+      onOpenChange={(v) => !v && onClose()}
+      size="lg"
+      title={course.name}
+      description={course.objectives ?? undefined}
+      footer={
+        <FooterActionBar
+          anchor="sheet"
+          trailing={<Button variant="outline" onClick={onClose}>Close</Button>}
+        />
+      }
+    >
+      <div className="px-6 py-4 space-y-4">
         {course.description && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{course.description}</p>}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">Course materials</h3>
@@ -196,11 +204,11 @@ function CourseContentDialog({ course, onClose }: { course: TrainingCourse; onCl
             </ul>
           )}
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Close</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DetailSheet>
   );
 }
+
 
 function CompleteDialog({ course, onClose, onSubmit }: {
   course: TrainingCourse;
