@@ -1,71 +1,37 @@
-# P9 header text is present but clipped — fix the running-header reservation
+I rechecked the uploaded PDFs visually before planning the fix.
 
-## What I saw in `amazing.pdf`
+What I confirmed:
+- `amazing-2.pdf` has 3 pages; page 2 is completely blank.
+- The system header is still clipped: the top text is present/selectable but visually cut off, especially around `APPENDIX 2A` / `KENYA REVENUE AUTHORITY...`.
+- The original PDF is 1 page and its top section is normal visible content, not a clipped repeated running header.
+- The original has a `Kshs.` currency row across the amount columns; the system template only shows `Kshs.` under the Defined Contribution Retirement Scheme columns because the P9 header row is authored with unit cells only for E1/E2/E3.
 
-The top of the page shows only a sliver of `KENYA REVENUE AUTHORITY — DOMESTIC` and then `TAXES DEPARTMENT` / `TAX DEDUCTION CARD` fully. `APPENDIX 2A` and the first line of the centered heading are visually clipped, but the text is fully selectable — proof it was rendered into the PDF, just outside the visible top margin band.
+Plan:
 
-## Root cause (not a template content bug)
+1. **Stop clipping the P9 top header**
+   - Move the Kenya P9 top header out of the repeating page-margin header band and into the normal first-page document flow for this template.
+   - Keep only the footer in the page master.
+   - This removes the “selectable but invisible” margin-box clipping problem and also prevents the header from repeating on the later notes page.
 
-The KE P9 `paper_format` declares:
+2. **Match the official KRA header grid more closely**
+   - Rebuild the P9 grid header stack so the unit row includes `Kshs.` for every amount column, not only E1/E2/E3.
+   - Keep the E retirement group structure, but make the visible row order closer to the original: label row → currency row → letter/group row → E1/E2/E3 instruction row.
 
-```text
-margin_top: 14 mm
-header_height: 22 mm
-```
+3. **Remove the extra blank page / force one-page statutory layout**
+   - Compact the P9 template spacing and typography enough for the identity block, monthly grid, totals, and IMPORTANT/Attach notes to fit on one landscape page like the original.
+   - Remove the over-aggressive `keep_together` behavior from the IMPORTANT block that is causing the notes to be pushed after a blank page.
 
-The Paged Media running header (`@top-center { content: element(pageHeader); }`) is painted **inside** the page's top margin area. The compiler currently emits:
+4. **Ship through the localization pack**
+   - Apply a Supabase migration to update the stored KE P9 certificate template body.
+   - Bump the Kenya localization pack version so the tenant receives the corrected template through the normal update flow.
 
-```css
-@page { margin: 14mm 10mm 10mm 10mm; ... }
-```
-
-So the header box has only **14 mm** of vertical room, but the P9 header stack (`APPENDIX 2A` + H2 `KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT` + `TAX DEDUCTION CARD` + `YEAR 20…`) needs ~20–22 mm. Anything above the margin band gets clipped by the printable page edge — which is exactly the "invisible but selectable" symptom you described.
-
-The `paper_format.header_height` / `footer_height` fields are already declared on the type and set to sensible values (`22` / `8`) on every template, but `compile.ts` never consumes them. That's the bug.
-
-## Fix — one small compiler change, mirrored, no template surgery
-
-### 1. Teach `compile()` that the effective @page margin must reserve the running-header/footer height
-
-In both compiler mirrors:
-
-- `src/features/localization/lib/engine/compile.ts`
-- `supabase/functions/_shared/certificate-engine/compile.ts`
-
-Change the `@page` margin computation to:
-
-```text
-effective_top    = max(paper.margin_top,    paper.header_height + 2)
-effective_bottom = max(paper.margin_bottom, paper.footer_height + 2)
-```
-
-(The `+ 2 mm` is breathing room between the running band and the document body — matches the visual gap on the KRA original.)
-
-Left/right margins are unchanged. This is the semantically correct meaning of `header_height` and is the only reason those fields exist on `PaperFormat`.
-
-Because the fix lives in the country-agnostic engine, it benefits every current and future template (US W-2, GH IRT etc.) — no per-country logic, no Kenya-specific token, no violation of the "no country tokens" invariant.
-
-### 2. Keep both mirrors byte-identical
-
-The parity test `certificate-engine.mirror-parity.test.ts` already guards this. Both files get the same `Math.max(...)` line so the emitted CSS stays identical.
-
-### 3. Snapshot test refresh
-
-`ke-p9-v10.compile.test.ts` already asserts `@page` contains `A4 landscape`. Its deterministic-compile assertion still passes (both compiles use the new formula). No golden HTML lives in the snapshot — just structural `toContain` checks — so nothing else needs updating.
-
-### 4. No DB migration, no pack version bump
-
-The template body in the DB is unchanged. The running header was always structurally correct — it was the renderer that was starving it of vertical room. Existing tenants on pack 10.1.5 immediately benefit the next time they regenerate a P9, because the compiler runs at render time inside `generate-tax-certificate`, not at pack publish time.
-
-## Out of scope
-
-- `keP9.ts` template body (already matches KRA Appendix 2A).
-- Publisher editor (`CertificateV3Editor.tsx`) — no new primitives.
-- Payroll engine, resolver, monthly matrix, column bindings (10.1.4 fix stands).
-- pdf-lib / server PDF pipeline (still Phase D).
-
-## Verification
-
-1. `bun vitest run src/test/localization/certificate-engine.mirror-parity.test.ts src/test/localization/ke-p9-v10.compile.test.ts` — both green.
-2. Regenerate the same May 2026 P9 that produced `amazing.pdf`. Expect `APPENDIX 2A`, `KENYA REVENUE AUTHORITY DOMESTIC TAXES DEPARTMENT`, `TAX DEDUCTION CARD`, `YEAR 2026`, `ISO 9001:2015 CERTIFIED` all fully visible in the top band, matching the KRA original.
-3. Regenerate a `genericExample` document to confirm smaller headers (`header_height: 12`) are unaffected — `max(12, 12+2) = 14 mm` vs its previous `margin_top`, which will be whichever is larger.
+5. **Verification**
+   - Add/update focused compile tests for the canonical KE P9 v4 template:
+     - all expected `Kshs.` cells are emitted,
+     - the P9 header is not in the running page header,
+     - the footer still exists,
+     - no required payroll bindings regress.
+   - Regenerate a sample PDF, convert it to images, and visually verify:
+     - header is fully visible,
+     - `Kshs.` appears across the amount columns,
+     - no blank middle page is produced.
