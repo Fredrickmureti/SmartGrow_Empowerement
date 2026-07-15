@@ -70,6 +70,8 @@ import AdminLogin from "./pages/admin/AdminLogin";
 import AdminProfile from "./pages/admin/AdminProfile";
 import AdminAcceptInvitation from "./pages/admin/AdminAcceptInvitation";
 import Demo from "./pages/Demo";
+const ResourcesIndex = lazy(() => import("./pages/resources/ResourcesIndex"));
+const ResourceDetail = lazy(() => import("./pages/resources/ResourceDetail"));
 import OnboardingSetup from "./pages/OnboardingSetup";
 import NotFound from "./pages/NotFound";
 import HelpCenter from "./pages/HelpCenter";
