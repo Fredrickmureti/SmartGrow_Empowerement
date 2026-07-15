@@ -25260,6 +25260,7 @@ export type Database = {
           accepted_at: string | null
           created_at: string
           email: string
+          employee_id: string | null
           expires_at: string
           id: string
           invited_by: string | null
@@ -25273,6 +25274,7 @@ export type Database = {
           accepted_at?: string | null
           created_at?: string
           email: string
+          employee_id?: string | null
           expires_at?: string
           id?: string
           invited_by?: string | null
@@ -25286,6 +25288,7 @@ export type Database = {
           accepted_at?: string | null
           created_at?: string
           email?: string
+          employee_id?: string | null
           expires_at?: string
           id?: string
           invited_by?: string | null
@@ -25296,6 +25299,48 @@ export type Database = {
           user_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "organization_invitations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_setup_health"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "organization_invitations_organization_id_fkey"
             columns: ["organization_id"]
@@ -62122,6 +62167,10 @@ export type Database = {
         Args: { p_transfer_id: string }
         Returns: Json
       }
+      compute_employee_user_access_status: {
+        Args: { p_employee_id: string }
+        Returns: string
+      }
       compute_org_billing: {
         Args: { p_billing_cycle?: string; p_org_id: string }
         Returns: Json
@@ -68725,6 +68774,10 @@ export type Database = {
         Args: { p_app_id: string; p_org_id: string }
         Returns: Json
       }
+      revoke_organization_invitation: {
+        Args: { p_invitation_id: string }
+        Returns: Json
+      }
       revoke_product_barcode: {
         Args: { p_business_id: string; p_code: string; p_product_id: string }
         Returns: Json
@@ -69822,18 +69875,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      upsert_organization_invitation: {
-        Args: {
-          p_email: string
-          p_expires_days?: number
-          p_invited_by?: string
-          p_organization_id: string
-          p_permission_group_ids?: string[]
-          p_role: Database["public"]["Enums"]["app_role"]
-          p_user_type?: string
-        }
-        Returns: Json
-      }
+      upsert_organization_invitation:
+        | {
+            Args: {
+              p_email: string
+              p_expires_days?: number
+              p_invited_by?: string
+              p_organization_id: string
+              p_permission_group_ids?: string[]
+              p_role: Database["public"]["Enums"]["app_role"]
+              p_user_type?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_email: string
+              p_employee_id?: string
+              p_expires_days?: number
+              p_invited_by?: string
+              p_organization_id: string
+              p_permission_group_ids?: string[]
+              p_role: Database["public"]["Enums"]["app_role"]
+              p_user_type?: string
+            }
+            Returns: Json
+          }
       upsert_pos_security_settings: {
         Args: { p_branch_id: string; p_business_id: string; p_updates: Json }
         Returns: {
@@ -70247,6 +70314,11 @@ export type Database = {
         | "archived"
         | "unarchived"
         | "custom"
+        | "user_invited"
+        | "user_invitation_revoked"
+        | "user_invitation_accepted"
+        | "user_linked"
+        | "user_unlinked"
       employee_lifecycle_status:
         | "draft"
         | "active"
@@ -70864,6 +70936,11 @@ export const Constants = {
         "archived",
         "unarchived",
         "custom",
+        "user_invited",
+        "user_invitation_revoked",
+        "user_invitation_accepted",
+        "user_linked",
+        "user_unlinked",
       ],
       employee_lifecycle_status: [
         "draft",

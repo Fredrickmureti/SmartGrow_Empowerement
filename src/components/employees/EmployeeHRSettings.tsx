@@ -98,14 +98,11 @@ export function EmployeeHRSettings({ employee, onRefresh }: Props) {
         .eq("user_id", memberId);
       if (error) throw error;
 
-      // user_access_status is constrained by validate_user_access_status trigger
-      // to one of {none, invited, active}. The previous "internal" value would
-      // raise at the DB level. Role/type live on user_roles/organization_members;
-      // the employees column only mirrors whether the seat is active.
-      await supabase
-        .from("employees")
-        .update({ user_access_status: "active" })
-        .eq("id", employee.id);
+      // `user_access_status` is now derived by DB triggers from
+      // (employees.user_id, organization_invitations). Nothing to write here —
+      // the trigger already reflects the promotion once the underlying identity
+      // state changes. Kept as a no-op comment for clarity.
+
 
       toast.success("Employee promoted to internal user");
       onRefresh();
