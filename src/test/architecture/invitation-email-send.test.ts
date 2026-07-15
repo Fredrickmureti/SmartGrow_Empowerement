@@ -5,6 +5,7 @@ describe("invitation email send diagnostics", () => {
   it("routes app invitation emails through the shared checked helper", () => {
     const files = [
       "src/components/employees/EmployeeInviteDialog.tsx",
+      "src/components/onboarding/SetupWizard.tsx",
       "src/pages/Team.tsx",
       "src/pages/OnboardingSetup.tsx",
     ];

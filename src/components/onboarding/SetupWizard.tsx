@@ -31,6 +31,7 @@ import {
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { supabase } from "@/integrations/supabase/client";
+import { sendInvitationEmailOrThrow } from "@/lib/invitations/sendInvitationEmail";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
 
@@ -273,35 +274,41 @@ export function SetupWizard({ open, onOpenChange, onComplete }: SetupWizardProps
         return;
       }
 
-      // Create invitations for each email
+      const { data: meRes } = await supabase.auth.getUser();
+
+      // Create invitations for each email through the canonical RPC so
+      // duplicate-pending invite reuse, user-limit guards, and lifecycle
+      // semantics stay server-owned.
       let successCount = 0;
       let failCount = 0;
+      let emailFailCount = 0;
 
       for (const email of emails) {
         try {
-          // Create invitation in database
-          const { data: invitation, error: invError } = await supabase
-            .from("organization_invitations")
-            .insert({
-              organization_id: currentOrg?.id!,
-              email,
-              role: "staff" as const,
-              user_type: "internal",
-              expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            })
-            .select()
-            .single();
+          const { data: rpcData, error: invError } = await (supabase as any).rpc(
+            "upsert_organization_invitation",
+            {
+              p_organization_id: currentOrg?.id!,
+              p_email: email.toLowerCase(),
+              p_role: "staff",
+              p_user_type: "internal",
+              p_permission_group_ids: null,
+              p_invited_by: meRes.user?.id ?? null,
+            },
+          );
 
           if (invError) throw invError;
+          const result = rpcData as { status: string; invitation_id?: string };
+          if (result.status === "already_member") {
+            successCount++;
+            continue;
+          }
 
-          // Send invitation email
-          const { error: emailError } = await supabase.functions.invoke("send-invitation-email", {
-            body: { invitationId: invitation.id },
-          });
-
-          if (emailError) {
+          try {
+            await sendInvitationEmailOrThrow(result.invitation_id);
+          } catch (emailError: any) {
+            emailFailCount++;
             console.error("Error sending invitation email:", emailError);
-            // Invitation was created, email just failed - still count as success
           }
 
           successCount++;
@@ -313,8 +320,9 @@ export function SetupWizard({ open, onOpenChange, onComplete }: SetupWizardProps
 
       if (successCount > 0) {
         toast({
-          title: "Invitations sent!",
-          description: `Successfully invited ${successCount} team member${successCount > 1 ? "s" : ""}.${failCount > 0 ? ` ${failCount} failed.` : ""}`,
+          title: emailFailCount > 0 ? "Invitations saved" : "Invitations sent!",
+          description: `Processed ${successCount} team member${successCount > 1 ? "s" : ""}.${emailFailCount > 0 ? ` ${emailFailCount} email send${emailFailCount > 1 ? "s" : ""} failed.` : ""}${failCount > 0 ? ` ${failCount} failed.` : ""}`,
+          variant: emailFailCount > 0 ? "destructive" : undefined,
         });
       } else {
         toast({
