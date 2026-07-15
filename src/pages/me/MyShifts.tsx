@@ -186,43 +186,48 @@ export default function MyShifts() {
         </Card>
       )}
 
-      <Dialog open={openSwap.open} onOpenChange={(o) => setOpenSwap({ open: o })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Request shift swap</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              This opens a swap request for the shift on{" "}
-              {openSwap.assignmentId &&
-                assignments.find((a) => a.id === openSwap.assignmentId)?.assignment_date}
-              . HR will be able to assign a target and approve it.
-            </p>
-            <div>
-              <Label>Reason (optional)</Label>
-              <Textarea value={reason} onChange={(e) => setReason(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpenSwap({ open: false })}>
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!openSwap.assignmentId) return;
-                await create.mutateAsync({
-                  requester_employee_id: currentEmployee.id,
-                  requester_assignment_id: openSwap.assignmentId,
-                  reason: reason || null,
-                });
-                setOpenSwap({ open: false });
-              }}
-            >
-              Submit
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DetailSheet
+        open={openSwap.open}
+        onOpenChange={(o) => setOpenSwap({ open: o })}
+        size="sm"
+        title="Request shift swap"
+        description={
+          openSwap.assignmentId
+            ? `Swap request for the shift on ${assignments.find((a) => a.id === openSwap.assignmentId)?.assignment_date}. HR will be able to assign a target and approve it.`
+            : "Swap requests are reviewed by HR before being applied."
+        }
+        footer={
+          <FooterActionBar
+            anchor="sheet"
+            leading={
+              <Button variant="ghost" onClick={() => setOpenSwap({ open: false })}>
+                Cancel
+              </Button>
+            }
+            trailing={
+              <Button
+                onClick={async () => {
+                  if (!openSwap.assignmentId) return;
+                  await create.mutateAsync({
+                    requester_employee_id: currentEmployee.id,
+                    requester_assignment_id: openSwap.assignmentId,
+                    reason: reason || null,
+                  });
+                  setOpenSwap({ open: false });
+                }}
+              >
+                Submit
+              </Button>
+            }
+          />
+        }
+      >
+        <div className="px-6 py-4">
+          <Label>Reason (optional)</Label>
+          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} />
+        </div>
+      </DetailSheet>
+
       </PageBody>
     </>
   );
