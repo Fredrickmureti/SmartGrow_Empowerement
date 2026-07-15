@@ -219,7 +219,7 @@ function LoanTable({
                   : format(new Date(l.created_at), "MMM d, yyyy")}
               </TableCell>
               <TableCell>
-                <StatusBadge status={l.status} />
+                <LoanStatusBadge status={l.status} />
                 {l.status === "rejected" && (l as any).rejection_reason && (
                   <p className="text-xs text-muted-foreground mt-1 max-w-[18rem]">
                     {(l as any).rejection_reason}
