@@ -14,9 +14,15 @@ Deno.test("pivotToMonthlyMatrix — 12 months, seeded zeros, code sums", () => {
   ];
   const m = pivotToMonthlyMatrix(rows, ["basic_salary", "paye_gross", "shif_employee"]);
   assertEquals(m.length, 12);
-  assertEquals(m[0], { month_index: 1, basic_salary: 100000, paye_gross: 20000, shif_employee: 0 });
-  assertEquals(m[1], { month_index: 2, basic_salary: 100000, paye_gross: 0, shif_employee: 0 });
+  assertEquals(m[0], { month_index: 1, month: 1, basic_salary: 100000, paye_gross: 20000, shif_employee: 0 });
+  assertEquals(m[1], { month_index: 2, month: 2, basic_salary: 100000, paye_gross: 0, shif_employee: 0 });
   assertEquals(m[11].basic_salary, 0);
+});
+
+Deno.test("pivotToMonthlyMatrix — exposes template-facing month alias", () => {
+  const m = pivotToMonthlyMatrix([], ["personal_relief"]);
+  assertEquals(m[4].month_index, 5);
+  assertEquals(m[4].month, 5);
 });
 
 Deno.test("applyDerivedColumns — statutory certificate derived-column formulas", () => {
