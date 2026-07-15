@@ -27,6 +27,11 @@ import {
   type CreateDemoVideoInput,
   type DemoVideo,
 } from "@/hooks/useDemoVideos";
+import {
+  RESOURCE_APP_OPTIONS,
+  DIFFICULTY_OPTIONS,
+  AUDIENCE_OPTIONS,
+} from "@/features/resources/appOptions";
 
 const CATEGORIES: Array<{ value: string; label: string }> = [
   { value: "general", label: "General" },
