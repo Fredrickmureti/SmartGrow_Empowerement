@@ -78,6 +78,7 @@ import { Database } from "@/integrations/supabase/types";
 import { EditRoleDialog } from "@/components/team/EditRoleDialog";
 import { RemoveMemberDialog } from "@/components/team/RemoveMemberDialog";
 import { BranchAssignmentDialog } from "@/components/team/BranchAssignmentDialog";
+import { sendInvitationEmailOrThrow } from "@/lib/invitations/sendInvitationEmail";
 import { BusinessAccessDialog } from "@/components/team/BusinessAccessDialog";
 import { PromoteToInternalDialog } from "@/components/team/PromoteToInternalDialog";
 import { AssignGroupDialog } from "@/components/team/AssignGroupDialog";
@@ -349,22 +350,28 @@ export default function Team() {
       return;
     }
 
+    let emailFailureReason: string | null = null;
     if (result.invitation_id) {
       try {
-        await supabase.functions.invoke("send-invitation-email", {
-          body: { invitationId: result.invitation_id },
-        });
-      } catch (emailError) {
+        await sendInvitationEmailOrThrow(result.invitation_id);
+      } catch (emailError: any) {
+        emailFailureReason = emailError?.message ?? "unknown_error";
         console.error("Failed to send invitation email:", emailError);
       }
     }
 
     toast({
-      title: result.status === "reused" ? "Invitation refreshed" : "Invitation sent",
-      description:
-        result.status === "reused"
-          ? `Existing pending invitation refreshed and resent to ${inviteEmail}`
+      title: emailFailureReason
+        ? "Invitation saved, email failed"
+        : result.status === "reused"
+          ? "Invitation already pending"
+          : "Invitation sent",
+      description: emailFailureReason
+        ? `The invitation was saved for ${inviteEmail}, but the email did not send: ${emailFailureReason.slice(0, 220)}`
+        : result.status === "reused"
+          ? `Invitation to ${inviteEmail} was already pending — resent the same link.`
           : `Invitation sent to ${inviteEmail}`,
+      variant: emailFailureReason ? "destructive" : undefined,
     });
 
     setShowInviteDialog(false);
@@ -389,11 +396,7 @@ export default function Team() {
   const handleResendInvitation = async (invitationId: string, email: string) => {
     setResendingId(invitationId);
     try {
-      const { error } = await supabase.functions.invoke("send-invitation-email", {
-        body: { invitationId },
-      });
-
-      if (error) throw error;
+      await sendInvitationEmailOrThrow(invitationId);
 
       toast({
         title: "Invitation resent",
@@ -403,7 +406,7 @@ export default function Team() {
       console.error("Failed to resend invitation:", error);
       toast({
         title: "Error",
-        description: "Failed to resend invitation email",
+        description: normalizeError(error).message || "Failed to resend invitation email",
         variant: "destructive",
       });
     } finally {

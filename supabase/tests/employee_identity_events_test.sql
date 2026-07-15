@@ -8,7 +8,7 @@
 -- covered by employee_user_access_status_derived_test.sql.
 
 BEGIN;
-SELECT plan(9);
+SELECT plan(11);
 
 -- 1..5 enum values
 SELECT is(
@@ -59,6 +59,24 @@ SELECT is(
      FROM pg_proc p WHERE p.proname='upsert_organization_invitation'
        AND p.pronamespace='public'::regnamespace),
   1, 'upsert_organization_invitation emits user_invited events');
+
+SELECT isnt_empty(
+  $$SELECT 1 FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public'
+       AND c.relname = 'employees'
+       AND t.tgname = 'trg_enforce_employee_user_link_write_source'$$,
+  'employees.user_id writes are guarded by a database trigger'
+);
+
+SELECT is(
+  (SELECT (pg_get_functiondef(p.oid) ILIKE '%accept_organization_invitation_atomic%'
+        AND pg_get_functiondef(p.oid) ILIKE '%app.identity_change_source%')::int
+     FROM pg_proc p WHERE p.proname='accept_organization_invitation_atomic'
+       AND p.pronamespace='public'::regnamespace),
+  1, 'accept_organization_invitation_atomic marks sanctioned employee-user link source'
+);
 
 SELECT is(
   (SELECT (pg_get_functiondef(p.oid) ILIKE '%employee_lifecycle_events%'

@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.upsert_organization_invitation(uuid, text, public.app_role, text, uuid[], uuid, integer);

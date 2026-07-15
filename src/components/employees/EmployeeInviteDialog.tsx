@@ -9,7 +9,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { Mail, UserPlus, Shield } from "lucide-react";
@@ -17,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePermissionGroups } from "@/hooks/usePermissionGroups";
 import { cn } from "@/lib/utils";
+import { sendInvitationEmailOrThrow } from "@/lib/invitations/sendInvitationEmail";
 import { normalizeError } from "@/services/resilience";
 import {
   WorkflowSheet,
@@ -121,33 +121,15 @@ export function EmployeeInviteDialog({
 
       if (empError) throw empError;
 
-      // Send the invitation email via edge function.
-      // `supabase.functions.invoke` does NOT throw on non-2xx — it returns
-      // `{ data, error }`. Previously we ignored `error`, so a 404/500 from
-      // the function slipped through and the user got a success toast while
-      // no email ever left the platform. We now surface the real reason.
+      // Send the invitation email via the shared helper. It inspects
+      // `functions.invoke(...).error` because Supabase does not throw for
+      // non-2xx function responses.
       let emailFailureReason: string | null = null;
       try {
-        const { error: fnError } = await supabase.functions.invoke(
-          "send-invitation-email",
-          { body: { invitationId: result.invitation_id } },
-        );
-        if (fnError) {
-          if (fnError instanceof FunctionsHttpError) {
-            try {
-              const body = await fnError.context.text();
-              emailFailureReason = body || fnError.message;
-            } catch {
-              emailFailureReason = fnError.message;
-            }
-          } else {
-            emailFailureReason = fnError.message ?? "unknown_error";
-          }
-          console.error("[invite] send-invitation-email failed", emailFailureReason);
-        }
+        await sendInvitationEmailOrThrow(result.invitation_id);
       } catch (emailErr: any) {
         emailFailureReason = emailErr?.message ?? "network_error";
-        console.error("[invite] send-invitation-email threw", emailErr);
+        console.error("[invite] send-invitation-email failed", emailErr);
       }
 
       if (emailFailureReason) {

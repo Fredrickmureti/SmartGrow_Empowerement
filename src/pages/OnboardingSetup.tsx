@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { sendInvitationEmailOrThrow } from "@/lib/invitations/sendInvitationEmail";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { usePendingBusinessSetup, PendingBusinessSetup } from "@/hooks/usePendingBusinessSetup";
@@ -584,12 +585,18 @@ export default function OnboardingSetup() {
         const invitationIds: string[] = result.invitation_ids || [];
         const emailResults = await Promise.allSettled(
           invitationIds.map((invitationId) =>
-            supabase.functions.invoke("send-invitation-email", { body: { invitationId } })
+            sendInvitationEmailOrThrow(invitationId)
           )
         );
-        const sentCount = emailResults.filter(
-          (r) => r.status === "fulfilled" && !(r.value as any)?.error
-        ).length;
+        const sentCount = emailResults.filter((r) => r.status === "fulfilled").length;
+        emailResults.forEach((r, index) => {
+          if (r.status === "rejected") {
+            console.error("[OnboardingSetup] Invitation email failed", {
+              invitationId: invitationIds[index],
+              reason: r.reason?.message ?? r.reason,
+            });
+          }
+        });
         setInvitationsSent(sentCount);
 
         // Step 5: Preparing dashboard

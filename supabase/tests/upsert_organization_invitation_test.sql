@@ -9,14 +9,26 @@
 -- The fix coalesces NULL → ARRAY[]::uuid[] before both INSERT and UPDATE.
 
 BEGIN;
-SELECT plan(4);
+SELECT plan(5);
 
 -- 1. Function signature matches what the client calls.
 SELECT has_function(
   'public',
   'upsert_organization_invitation',
-  ARRAY['uuid','text','app_role','text','uuid[]','uuid','integer'],
+  ARRAY['uuid','text','app_role','text','uuid[]','uuid','integer','uuid'],
   'upsert_organization_invitation signature is stable'
+);
+
+-- The old 7-argument overload cannot identify the employee being invited,
+-- so it must not exist. Keeping it around lets callers bypass employee
+-- lifecycle events and the invitation->employee FK.
+SELECT is(
+  (SELECT COUNT(*)::int
+     FROM pg_proc p
+    WHERE p.proname = 'upsert_organization_invitation'
+      AND p.pronamespace = 'public'::regnamespace),
+  1,
+  'only the canonical employee-aware invitation RPC overload exists'
 );
 
 -- 2. Column invariant we rely on — NOT NULL DEFAULT '{}'.
