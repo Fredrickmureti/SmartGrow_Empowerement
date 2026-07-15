@@ -22,28 +22,8 @@ const ME_DIR = resolve(__dirname, "../../pages/me");
  * corresponding row in `docs/design-system/audit/ess-portal.md` marked
  * "Pending". Do not add new entries — migrate the page instead.
  */
-const MIGRATION_TODO = new Set<string>([
-  "MyCompetencies.tsx",
-  "MyDevelopmentPlan.tsx",
-  "MyExitClearance.tsx",
-  "MyFeedback.tsx",
-  "MyGoalDetail.tsx",
-  "MyGoals.tsx",
-  "MyLearningCatalog.tsx",
-  "MyLearningPage.tsx",
-  "MyLearningPathsPage.tsx",
-  "MyOneOnOneDetail.tsx",
-  "MyOneOnOnes.tsx",
-  "MyQuizPlayerPage.tsx",
-  "MyReviewDetail.tsx",
-  "MyReviews.tsx",
-  "MySettings.tsx",
-  "MyTalent.tsx",
-  "MyTaxCertificates.tsx",
-  "MyTeamLearningPage.tsx",
-  "MyTeamPage.tsx",
-  "MyTeamTalent.tsx",
-]);
+const MIGRATION_TODO = new Set<string>([]);
+
 
 describe("ESS portal uses the design-system PageHeader primitive", () => {
   const files = readdirSync(ME_DIR).filter((f) => f.endsWith(".tsx"));

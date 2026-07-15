@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { Download, Eye, FileText, Loader2, Wallet, Receipt, TrendingUp, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import {
   Table,
   TableBody,
@@ -27,7 +27,8 @@ import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
-import { PageHeader, PageBody } from "@/design-system";
+import { PageHeader, PageBody, StatusBadge } from "@/design-system";
+import { hrStatus } from "@/components/hr/hrStatusMap";
 import { KpiStrip } from "@/components/hr/KpiStrip";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
@@ -45,20 +46,9 @@ interface PayslipWithRun extends Payslip {
   };
 }
 
-const STATUS_STYLE: Record<string, string> = {
-  pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
-  approved: "bg-green-500/10 text-green-600 border-green-500/20",
-  rejected: "bg-red-500/10 text-red-600 border-red-500/20",
-  paid: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-  draft: "bg-muted text-muted-foreground",
-};
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge variant="outline" className={STATUS_STYLE[status] ?? ""}>
-      {status}
-    </Badge>
-  );
+function PayslipStatusBadge({ status }: { status: string }) {
+  const meta = hrStatus(status);
+  return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
 }
 
 export default function MyPayslips() {
@@ -259,7 +249,7 @@ export default function MyPayslips() {
                         {formatCurrency(ps.net_pay)}
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={ps.status} />
+                        <PayslipStatusBadge status={ps.status} />
                       </TableCell>
                       <TableCell className="text-right">
                         <Button

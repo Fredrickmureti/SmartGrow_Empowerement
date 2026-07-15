@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { Plus, Wallet, TrendingDown, Clock, History, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import {
   Table,
   TableBody,
@@ -22,7 +22,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageHeader, PageBody } from "@/design-system";
+import { PageHeader, PageBody, StatusBadge } from "@/design-system";
+import { KpiStrip } from "@/components/hr/KpiStrip";
+import { hrStatus } from "@/components/hr/hrStatusMap";
 import { useMyLoans } from "@/hooks/useMyLoans";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
@@ -30,35 +32,11 @@ import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
 import { RequestLoanWizard } from "@/components/loans/RequestLoanWizard";
 import type { EmployeeLoan } from "@/hooks/useEmployeeLoans";
 
-const STATUS_LABEL: Record<string, string> = {
-  requested: "Awaiting HR review",
-  pending_approval: "Pending approval",
-  rejected: "Rejected",
-  draft: "Draft",
-  active: "Active",
-  completed: "Completed",
-  cancelled: "Cancelled",
-  suspended: "Suspended",
-};
-
-const STATUS_STYLE: Record<string, string> = {
-  requested: "bg-amber-500/10 text-amber-700 border-amber-500/20",
-  pending_approval: "bg-amber-500/10 text-amber-700 border-amber-500/20",
-  active: "bg-primary/10 text-primary border-primary/20",
-  completed: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
-  rejected: "bg-destructive/10 text-destructive border-destructive/20",
-  cancelled: "bg-muted text-muted-foreground",
-  suspended: "bg-amber-500/10 text-amber-700 border-amber-500/20",
-  draft: "bg-muted text-muted-foreground",
-};
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge variant="outline" className={STATUS_STYLE[status] ?? ""}>
-      {STATUS_LABEL[status] ?? status}
-    </Badge>
-  );
+function LoanStatusBadge({ status }: { status: string }) {
+  const meta = hrStatus(status);
+  return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
 }
+
 
 export default function MyLoans() {
   const { currentEmployee, isLoading: empLoading } = useCurrentEmployee();
@@ -94,41 +72,36 @@ export default function MyLoans() {
         }
       />
       <PageBody>
-        {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Active loans</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeLoans.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Outstanding: {formatCurrency(totalOutstanding)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Monthly deduction</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(monthlyDeduction)}</div>
-            <p className="text-xs text-muted-foreground">Across active loans</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium">Pending requests</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pendingRequests.length}</div>
-            <p className="text-xs text-muted-foreground">Awaiting HR</p>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Stats — shared KpiStrip primitive (parity with MyLeave / MyPayslips) */}
+        <KpiStrip
+          tiles={[
+            {
+              key: "active",
+              label: "Active loans",
+              value: activeLoans.length,
+              icon: Wallet,
+              tone: "sky",
+              hint: `Outstanding: ${formatCurrency(totalOutstanding)}`,
+            },
+            {
+              key: "monthly",
+              label: "Monthly deduction",
+              value: formatCurrency(monthlyDeduction),
+              icon: TrendingDown,
+              tone: "neutral",
+              hint: "Across active loans",
+            },
+            {
+              key: "pending",
+              label: "Pending requests",
+              value: pendingRequests.length,
+              icon: Clock,
+              tone: pendingRequests.length ? "amber" : "neutral",
+              hint: "Awaiting HR",
+            },
+          ]}
+        />
+
 
       {/* Pending */}
       <Card>
@@ -246,7 +219,7 @@ function LoanTable({
                   : format(new Date(l.created_at), "MMM d, yyyy")}
               </TableCell>
               <TableCell>
-                <StatusBadge status={l.status} />
+                <LoanStatusBadge status={l.status} />
                 {l.status === "rejected" && (l as any).rejection_reason && (
                   <p className="text-xs text-muted-foreground mt-1 max-w-[18rem]">
                     {(l as any).rejection_reason}

@@ -28,6 +28,7 @@ import { TimesheetDayView } from "@/components/timesheets/TimesheetDayView";
 import { getWeekStart, getWeeklyHoursTarget } from "@/lib/datetime/weekStart";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
 import { ManagerTriageBanner } from "@/components/hr/ManagerTriageBanner";
+import { KpiStrip } from "@/components/hr/KpiStrip";
 
 export default function MyTimesheets() {
   const [searchParams] = useSearchParams();
@@ -145,9 +146,24 @@ export default function MyTimesheets() {
     return <EmployeeLinkRequired />;
   }
 
+  const draftHours = weekTimesheets.filter((t) => t.status === "draft").reduce((s, t) => s + (t.hours || 0), 0);
+  const submittedHours = weekTimesheets.filter((t) => t.status === "submitted" || t.status === "pending_approval").reduce((s, t) => s + (t.hours || 0), 0);
+  const approvedHours = weekTimesheets.filter((t) => t.status === "approved").reduce((s, t) => s + (t.hours || 0), 0);
+
   return (
     <div className="space-y-6">
       <ManagerTriageBanner module="timesheets" />
+
+      <KpiStrip
+        tiles={[
+          { key: "total", label: "Total hours", value: totalHours.toFixed(1), icon: Clock, tone: "neutral", hint: `Target: ${weeklyTarget}h` },
+          { key: "billable", label: "Billable", value: `${billablePct}%`, icon: LayoutGrid, tone: "sky", hint: `${billableHours.toFixed(1)}h billable` },
+          { key: "submitted", label: "Submitted", value: submittedHours.toFixed(1), icon: Send, tone: submittedHours ? "amber" : "neutral" },
+          { key: "approved", label: "Approved", value: approvedHours.toFixed(1), icon: CalendarDays, tone: approvedHours ? "emerald" : "neutral" },
+          { key: "draft", label: "Draft", value: draftHours.toFixed(1), icon: AlertCircle, tone: draftHours ? "rose" : "neutral" },
+        ]}
+      />
+
 
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
