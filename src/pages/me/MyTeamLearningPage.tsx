@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Users } from "lucide-react";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 export default function MyTeamLearningPage() {
   const { currentEmployee } = useCurrentEmployee();
@@ -49,20 +50,22 @@ export default function MyTeamLearningPage() {
   });
 
   if (!currentEmployee) {
-    return <Card><CardContent className="py-10 text-center text-muted-foreground">Link your account to an employee profile to view your team.</CardContent></Card>;
+    return (
+      <>
+        <PageHeader title="Team learning" description="Learning progress for your direct reports." />
+        <PageBody><EmptyState icon={Users} title="No linked employee record" description="Link your account to an employee profile to view your team." /></PageBody>
+      </>
+    );
   }
 
   const now = Date.now();
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2"><Users className="h-6 w-6" /> Team learning</h1>
-        <p className="text-sm text-muted-foreground">Learning progress for your direct reports.</p>
-      </div>
-
-      {lr || le ? <p className="text-sm text-muted-foreground">Loading…</p> : reports.length === 0 ? (
-        <Card><CardContent className="py-10 text-center text-muted-foreground">You don't have any direct reports.</CardContent></Card>
+    <>
+      <PageHeader title="Team learning" description="Learning progress for your direct reports." />
+      <PageBody>
+      {lr || le ? <LoadingState /> : reports.length === 0 ? (
+        <EmptyState icon={Users} title="No direct reports" />
       ) : (
         <div className="space-y-3">
           {reports.map((r: any) => {
@@ -117,6 +120,7 @@ export default function MyTeamLearningPage() {
           })}
         </div>
       )}
-    </div>
+      </PageBody>
+    </>
   );
 }

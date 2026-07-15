@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Users, Target, ClipboardList, BookOpen, AlertTriangle } from "lucide-react";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 interface Report {
   id: string;
@@ -124,17 +125,12 @@ export default function MyTeamPage() {
   }, [reports, goals, reviews, plans]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2"><Users className="h-5 w-5" /> My team</h1>
-        <p className="text-sm text-muted-foreground">Talent management snapshot for each of your direct reports.</p>
-      </div>
-
-      {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> :
+    <>
+      <PageHeader title="My team" description="Talent management snapshot for each of your direct reports." />
+      <PageBody>
+      {isLoading ? <LoadingState /> :
         rows.length === 0 ? (
-          <Card><CardContent className="py-10 text-center">
-            <p className="text-sm text-muted-foreground">You don't have any direct reports assigned to you yet.</p>
-          </CardContent></Card>
+          <EmptyState icon={Users} title="No direct reports assigned yet" />
         ) : (
           <div className="grid gap-3">
             {rows.map(({ report, empGoals, avgProgress, atRisk, empReviews, reviewOverdue, planItems, planProgress }) => (
@@ -191,7 +187,8 @@ export default function MyTeamPage() {
             ))}
           </div>
         )}
-    </div>
+      </PageBody>
+    </>
   );
 }
 

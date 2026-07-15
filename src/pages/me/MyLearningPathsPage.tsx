@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { GraduationCap, Play, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 const sb = supabase as any;
 
@@ -86,14 +87,12 @@ export default function MyLearningPathsPage() {
   const courseMap = new Map((courseEnrolls as any[]).map(c => [c.course_id, c]));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5" /> Learning paths</CardTitle>
-        <CardDescription>Curated sequences to grow into your next role.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
-        {!isLoading && !paths.length && <div className="text-sm text-muted-foreground">No active paths yet.</div>}
+    <>
+      <PageHeader title="Learning paths" description="Curated sequences to grow into your next role." />
+      <PageBody>
+      {isLoading && <LoadingState />}
+      {!isLoading && !paths.length && <EmptyState icon={GraduationCap} title="No active paths yet" />}
+      <div className="space-y-3">
         {(paths as any[]).map(p => {
           const enr = enrollMap.get(p.id);
           const courses = (p.learning_path_courses ?? []).sort((a: any, b: any) => a.sequence_no - b.sequence_no);
@@ -140,7 +139,8 @@ export default function MyLearningPathsPage() {
             </div>
           );
         })}
-      </CardContent>
-    </Card>
+      </div>
+      </PageBody>
+    </>
   );
 }

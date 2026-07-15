@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, CheckCircle2, MessageSquare } from "lucide-react";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 const MILESTONE_STATUS: MilestoneStatus[] = ["pending", "in_progress", "done", "skipped"];
 
@@ -27,21 +28,24 @@ export default function MyGoalDetail() {
   const [pct, setPct] = useState<number | null>(null);
   const [comment, setComment] = useState("");
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
-  if (!goal) return <p className="text-sm text-muted-foreground">Goal not found.</p>;
+  if (isLoading) return (<><PageHeader title="Goal" /><PageBody><LoadingState /></PageBody></>);
+  if (!goal) return (<><PageHeader title="Goal" /><PageBody><EmptyState title="Goal not found" /></PageBody></>);
 
   const sliderValue = pct ?? goal.progress_pct ?? 0;
 
   return (
-    <div className="space-y-4">
-      <Button asChild variant="ghost" size="sm"><Link to="/me/talent/goals"><ArrowLeft className="h-4 w-4 mr-1" /> Back to my goals</Link></Button>
-
+    <>
+      <PageHeader
+        title={goal.title}
+        description={goal.description ?? undefined}
+        actions={<Button asChild variant="ghost" size="sm"><Link to="/me/talent/goals"><ArrowLeft className="h-4 w-4 mr-1" /> Back to my goals</Link></Button>}
+      />
+      <PageBody>
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle className="text-xl">{goal.title}</CardTitle>
-              <CardDescription>{goal.description ?? ""}</CardDescription>
+              <CardTitle className="text-base">Snapshot</CardTitle>
             </div>
             <Badge>{goal.status.replace(/_/g, " ")}</Badge>
           </div>
@@ -128,7 +132,8 @@ export default function MyGoalDetail() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </PageBody>
+    </>
   );
 }
 

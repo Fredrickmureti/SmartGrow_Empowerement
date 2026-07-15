@@ -46,6 +46,7 @@ import { useCertificateTemplates, downloadTaxCertificate, type TaxCertificate } 
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
 import { toast } from "sonner";
 import { useState } from "react";
+import { PageHeader, PageBody, LoadingState } from "@/design-system";
 
 function StatusBadge({ status }: { status: TaxCertificate["status"] }) {
   if (status === "issued") return <Badge variant="default">Issued</Badge>;
@@ -82,7 +83,12 @@ export default function MyTaxCertificates() {
   }, [templatesQ.data]);
 
   if (empLoading) {
-    return <Skeleton className="h-32 w-full" />;
+    return (
+      <>
+        <PageHeader title="My tax certificates" description="Year-end statutory certificates issued for you by your employer." />
+        <PageBody><LoadingState /></PageBody>
+      </>
+    );
   }
   if (!currentEmployee) {
     return <EmployeeLinkRequired />;
@@ -104,20 +110,12 @@ export default function MyTaxCertificates() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <FileText className="h-6 w-6" />
-          My Tax Certificates
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Year-end statutory certificates issued for you by your employer.
-          Download these for personal tax filing or record-keeping. Whichever
-          country your employer operates in, the document type is determined
-          by the localization pack installed for your business.
-        </p>
-      </div>
-
+    <>
+      <PageHeader
+        title="My tax certificates"
+        description="Year-end statutory certificates issued for you by your employer. Download these for personal tax filing or record-keeping."
+      />
+      <PageBody>
       <Card>
         <CardHeader>
           <CardTitle>Issued certificates</CardTitle>
@@ -187,6 +185,7 @@ export default function MyTaxCertificates() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </PageBody>
+    </>
   );
 }

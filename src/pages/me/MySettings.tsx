@@ -17,17 +17,13 @@ import { Link } from "react-router-dom";
 import { ArrowRight, User as UserIcon, Bell, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import UserProfilePage from "@/pages/settings/UserProfilePage";
+import { PageHeader, PageBody } from "@/design-system";
 
 export default function MySettings() {
   return (
-    <div className="space-y-6 p-4 sm:p-6 w-full max-w-4xl">
-      <header>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Your account profile and personal preferences.
-        </p>
-      </header>
-
+    <>
+      <PageHeader title="Settings" description="Your account profile and personal preferences." />
+      <PageBody>
       {/* Quick links to related self-service surfaces */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Link
@@ -83,6 +79,7 @@ export default function MySettings() {
           <UserProfilePage />
         </CardContent>
       </Card>
-    </div>
+      </PageBody>
+    </>
   );
 }

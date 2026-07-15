@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Target, ChevronRight, AlertCircle, ClipboardList, Award, PenTool, MessageSquare, CalendarClock } from "lucide-react";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 export default function MyTalent() {
   const { user } = useAuth();
@@ -36,20 +37,17 @@ export default function MyTalent() {
 
   if (!currentEmployee) {
     return (
-      <Card>
-        <CardHeader><CardTitle>My Talent</CardTitle><CardDescription>Talent features require a linked employee record.</CardDescription></CardHeader>
-        <CardContent><p className="text-sm text-muted-foreground">Ask your HR admin to link your account to your employee profile.</p></CardContent>
-      </Card>
+      <>
+        <PageHeader title="My talent" description="Talent features require a linked employee record." />
+        <PageBody><EmptyState icon={Target} title="No linked employee record" description="Ask your HR admin to link your account to your employee profile." /></PageBody>
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">My Talent</h1>
-        <p className="text-sm text-muted-foreground">Your goals, reviews, competencies, and growth plan in one place.</p>
-      </div>
-
+    <>
+      <PageHeader title="My talent" description="Your goals, reviews, competencies, and growth plan in one place." />
+      <PageBody>
       {/* Quick stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Tile icon={Target}      label="Active goals"     value={active.length} />
@@ -68,7 +66,7 @@ export default function MyTalent() {
           <Button asChild variant="ghost" size="sm"><Link to="/me/talent/goals">View all</Link></Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> :
+          {isLoading ? <LoadingState rows={3} /> :
            active.length === 0 ? (
             <p className="text-sm text-muted-foreground">You have no active goals. Your manager will assign goals when the current cycle opens.</p>
           ) : active.slice(0, 5).map((g) => (
@@ -127,7 +125,8 @@ export default function MyTalent() {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </PageBody>
+    </>
   );
 }
 

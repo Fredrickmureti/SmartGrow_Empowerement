@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, ArrowLeft } from "lucide-react";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 export default function MyLearningCatalog() {
   const { currentEmployee } = useCurrentEmployee();
@@ -28,21 +29,24 @@ export default function MyLearningCatalog() {
   );
 
   if (!currentEmployee) {
-    return <Card><CardContent className="py-10 text-center text-muted-foreground">Link your account to an employee profile to browse courses.</CardContent></Card>;
+    return (
+      <>
+        <PageHeader title="Course catalog" description="Browse courses anyone can enroll in." />
+        <PageBody><EmptyState icon={BookOpen} title="No linked employee record" description="Link your account to an employee profile to browse courses." /></PageBody>
+      </>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2"><BookOpen className="h-6 w-6" /> Course catalog</h1>
-          <p className="text-sm text-muted-foreground">Browse courses anyone can enroll in.</p>
-        </div>
-        <Button variant="outline" asChild><Link to="/me/learning"><ArrowLeft className="h-4 w-4 mr-1" /> My Learning</Link></Button>
-      </div>
-
-      {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : catalog.length === 0 ? (
-        <Card><CardContent className="py-10 text-center text-muted-foreground">No self-enroll courses are available yet.</CardContent></Card>
+    <>
+      <PageHeader
+        title="Course catalog"
+        description="Browse courses anyone can enroll in."
+        actions={<Button variant="outline" asChild><Link to="/me/learning"><ArrowLeft className="h-4 w-4 mr-1" /> My learning</Link></Button>}
+      />
+      <PageBody>
+      {isLoading ? <LoadingState /> : catalog.length === 0 ? (
+        <EmptyState icon={BookOpen} title="No self-enroll courses available yet" />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {catalog.map((c) => {
@@ -74,6 +78,7 @@ export default function MyLearningCatalog() {
           })}
         </div>
       )}
-    </div>
+      </PageBody>
+    </>
   );
 }

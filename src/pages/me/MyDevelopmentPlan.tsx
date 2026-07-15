@@ -21,6 +21,7 @@ import {
 import { ArrowLeft, PenTool, CheckCircle2, Circle, AlertCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 export default function MyDevelopmentPlan() {
   const { currentEmployee } = useCurrentEmployee();
@@ -34,46 +35,29 @@ export default function MyDevelopmentPlan() {
 
   if (!currentEmployee) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>My Development Plan</CardTitle>
-          <CardDescription>Requires a linked employee record.</CardDescription>
-        </CardHeader>
-      </Card>
+      <>
+        <PageHeader title="My development plan" description="Requires a linked employee record." />
+        <PageBody><EmptyState icon={PenTool} title="No linked employee record" description="Ask your HR admin to link your account." /></PageBody>
+      </>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/me/talent">
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back to my talent
-          </Link>
-        </Button>
-      </div>
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <PenTool className="h-5 w-5" /> My development plan
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Actions agreed with your manager — built from competency gaps, reviews, and growth goals.
-        </p>
-      </div>
-
+    <>
+      <PageHeader
+        title="My development plan"
+        description="Actions agreed with your manager — built from competency gaps, reviews, and growth goals."
+        actions={
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/me/talent"><ArrowLeft className="h-4 w-4 mr-1" /> Back to my talent</Link>
+          </Button>
+        }
+      />
+      <PageBody>
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <LoadingState rows={3} />
       ) : visiblePlans.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center">
-            <PenTool className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="font-medium">No development plan yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Your manager hasn't activated a plan for you. After your next review, this is where it will
-              appear.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState icon={PenTool} title="No development plan yet" description="Your manager hasn't activated a plan for you. After your next review, this is where it will appear." />
       ) : (
         <>
           {visiblePlans.length > 1 && (
@@ -96,7 +80,8 @@ export default function MyDevelopmentPlan() {
           {activePlanId && <MyPlanBody planId={activePlanId} />}
         </>
       )}
-    </div>
+      </PageBody>
+    </>
   );
 }
 

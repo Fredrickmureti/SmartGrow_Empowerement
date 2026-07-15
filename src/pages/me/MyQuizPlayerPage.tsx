@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FileQuestion, CheckCircle2, XCircle } from "lucide-react";
+import { PageHeader, PageBody, LoadingState } from "@/design-system";
 
 const sb = supabase as any;
 
@@ -86,11 +87,14 @@ export default function MyQuizPlayerPage() {
     return v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
   }).length, [answers]);
 
-  if (!quiz) return <div className="p-6 text-sm text-muted-foreground">Loading quiz…</div>;
+  if (!quiz) return (<><PageHeader title="Quiz" /><PageBody><LoadingState /></PageBody></>);
 
   if (result) {
     return (
-      <Card>
+      <>
+        <PageHeader title={quiz.title} description={result.passed ? "Passed" : "Not yet"} />
+        <PageBody>
+        <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             {result.passed ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-destructive" />}
@@ -109,18 +113,20 @@ export default function MyQuizPlayerPage() {
             )}
           </div>
         </CardContent>
-      </Card>
+        </Card>
+        </PageBody>
+      </>
     );
   }
 
   if (!attempt) {
     return (
-      <Card>
+      <>
+        <PageHeader title={quiz.title} description={quiz.description ?? `Course: ${quiz.training_courses?.name}`} />
+        <PageBody>
+        <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><FileQuestion className="h-5 w-5" /> {quiz.title}</CardTitle>
-          <CardDescription>
-            {quiz.description ?? `Course: ${quiz.training_courses?.name}`}
-          </CardDescription>
+          <CardTitle className="text-base flex items-center gap-2"><FileQuestion className="h-5 w-5" /> Ready to begin?</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="text-sm flex gap-3 flex-wrap">
@@ -131,14 +137,19 @@ export default function MyQuizPlayerPage() {
           </div>
           <Button onClick={beginAttempt} disabled={!meEmp || !questions.length}>Start attempt</Button>
         </CardContent>
-      </Card>
+        </Card>
+        </PageBody>
+      </>
     );
   }
 
   return (
-    <Card>
+    <>
+      <PageHeader title={quiz.title} description={`${answeredCount} of ${questions.length} answered`} />
+      <PageBody>
+      <Card>
       <CardHeader>
-        <CardTitle>{quiz.title}</CardTitle>
+        <CardTitle className="text-base">Questions</CardTitle>
         <CardDescription>
           <Progress value={questions.length ? (answeredCount / questions.length) * 100 : 0} className="h-2 mt-2" />
         </CardDescription>
@@ -196,6 +207,8 @@ export default function MyQuizPlayerPage() {
           <Button onClick={submit} disabled={grade.isPending}>Submit</Button>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+      </PageBody>
+    </>
   );
 }
