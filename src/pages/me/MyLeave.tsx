@@ -77,9 +77,11 @@ export default function MyLeave() {
         title="My Time Off"
         description="Request leave, track approvals, and view your remaining balance."
         actions={
-          <Button onClick={() => setShowRequestForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Request leave
+          <Button asChild>
+            <Link to="/me/leave/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Request leave
+            </Link>
           </Button>
         }
       />
