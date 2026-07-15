@@ -16,6 +16,7 @@ import { NotificationBell } from "@/components/notifications";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { DeclaredScopeChip } from "@/components/common/DeclaredScopeChip";
 import { UserProfileSheet } from "@/components/profile/UserProfileSheet";
+import { ResourceCenterLauncher } from "@/features/resources/ResourceCenterLauncher";
 import { useAIAssistantContext } from "@/contexts/AIAssistantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/hooks/useUserProfile";
