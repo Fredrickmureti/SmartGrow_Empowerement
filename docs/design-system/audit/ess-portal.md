@@ -43,18 +43,22 @@ Additional per-page primitives already in place:
 
 ## Follow-on work (Wave C — interaction-pattern parity)
 
-### KPI parity on list surfaces
-- [ ] `MyLoans` — replace bespoke stat `<Card>` triplet with `KpiStrip`.
-- [ ] `MyTimesheets` — add self-service-scoped `KpiStrip`
-      (submitted / approved / draft hours this period).
-- [ ] `MyTalent`, `MyTeamTalent` — replace hand-rolled `text-2xl`
-      KPI grids with `KpiStrip`.
+### KPI parity on list surfaces — done
+- [x] `MyLoans` — bespoke stat `<Card>` triplet replaced with `KpiStrip`.
+- [x] `MyTimesheets` — 5-tile `KpiStrip` (total / billable / submitted /
+      approved / draft) added above the week grid.
+- [x] `MyTalent`, `MyTeamTalent` — hand-rolled `text-2xl` KPI grids
+      replaced with `KpiStrip`.
 
-### Shared HR status map
-Every list page still defines its own `{ status → tone }` colour map:
-`MyPayslips`, `MyLoans`, `MyLeave`, `MyShifts`, `MyDocuments`. Extract
-to `src/components/hr/hrStatusMap.ts` returning `StatusBadge` tones
-(`neutral/info/success/warning/danger/accent`) and refactor consumers.
+### Shared HR status map — done
+- [x] `src/components/hr/hrStatusMap.ts` — single `{ status → { tone, label } }`
+      resolver returning design-system `StatusBadge` tones.
+- [x] `MyPayslips`, `MyLoans` refactored to consume it via the
+      design-system `StatusBadge`; bespoke `STATUS_STYLE` / `STATUS_LABEL`
+      maps removed. `MyLeave`, `MyShifts`, `MyDocuments` did not
+      redefine their own colour palettes and need no refactor beyond
+      opting-in when they next surface a status pill.
+
 
 ### Dialog → sheet / route triage
 - [ ] `MyLeave` — `LeaveRequestForm` Dialog → routed `/me/leave/new`
