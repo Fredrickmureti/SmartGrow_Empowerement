@@ -29814,9 +29814,12 @@ export type Database = {
       }
       payroll_report_definitions: {
         Row: {
+          artifact_generator: string | null
           category: string
           country_code: string | null
           created_at: string
+          data_source: string
+          dependencies: string[]
           description: string | null
           export_formats: Json
           feature_flag: string | null
@@ -29828,6 +29831,7 @@ export type Database = {
           owner_kind: string
           owner_ref: string | null
           parameters: Json
+          period_selector: Json
           preview_kind: string
           report_key: string
           scope: string
@@ -29836,9 +29840,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          artifact_generator?: string | null
           category: string
           country_code?: string | null
           created_at?: string
+          data_source?: string
+          dependencies?: string[]
           description?: string | null
           export_formats?: Json
           feature_flag?: string | null
@@ -29850,6 +29857,7 @@ export type Database = {
           owner_kind?: string
           owner_ref?: string | null
           parameters?: Json
+          period_selector?: Json
           preview_kind?: string
           report_key: string
           scope?: string
@@ -29858,9 +29866,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          artifact_generator?: string | null
           category?: string
           country_code?: string | null
           created_at?: string
+          data_source?: string
+          dependencies?: string[]
           description?: string | null
           export_formats?: Json
           feature_flag?: string | null
@@ -29872,6 +29883,7 @@ export type Database = {
           owner_kind?: string
           owner_ref?: string | null
           parameters?: Json
+          period_selector?: Json
           preview_kind?: string
           report_key?: string
           scope?: string
@@ -66991,6 +67003,16 @@ export type Database = {
       payroll_report_definitions_sync_from_packs: {
         Args: never
         Returns: undefined
+      }
+      payroll_report_readiness: {
+        Args: {
+          p_business_id: string
+          p_date_from: string
+          p_date_to: string
+          p_organization_id: string
+          p_report_key: string
+        }
+        Returns: Json
       }
       payroll_required_gl_mappings_for_run: {
         Args: { p_run_id: string }

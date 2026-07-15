@@ -1,324 +1,285 @@
 
-# Payroll Reports — Enterprise Reporting Centre
+# Payroll Reports — Enterprise Architecture Audit & Remediation Plan
 
-## Phase 1 — Architecture audit (what exists today)
+This plan is deliberately audit-first. **Phase 1–4 are analysis; Phase 5 is implementation.** No files change until you approve.
 
-The plumbing is stronger than the UI. Findings from the codebase:
+---
 
-- **Registry already exists.** `payroll_report_definitions` is a DB-backed
-  registry consumed by `usePayrollReportDefinitions` — reports carry
-  `report_key, label, description, category, scope, country_code,
-  sort_order, feature_flag`. Categories today: `operational | cost |
-  management | compliance | audit`. Country packs *can* publish rows
-  without touching UI code. **Ownership is not modeled.**
-- **Single render engine.** `supabase/functions/render-report/` +
-  `_shared/reports/payrollData.ts` is the canonical builder. `Reports.tsx`
-  is the only caller for payroll keys; exports flow through
-  `ReportExportService` via `ReportPageLayout`. No duplicate generators.
-- **Sibling domains are already separated.** `TaxCertificates.tsx` (owner:
-  Localization pack via `generate-tax-certificate`) and Statutory
-  Remittances workflow (`remittances`, `generate-statutory-return`) live
-  outside Reports. That separation is correct and must be preserved — but
-  the *reporting entry points* for those domains (Kenya P9, P9A, NSSF,
-  SHIF, AHL, PAYE returns) are missing from the Reports centre and users
-  have no discoverable path to them.
-- **Localization packs already publish**: certificate templates + statutory
-  return templates. They do **not** currently publish rows into
-  `payroll_report_definitions`. That is the missing contract.
-- **UI weaknesses in `src/pages/hr/payroll/Reports.tsx`:**
-  1. One flat page: KPI strip + N `TabsList` chip groups + one table.
-     No landing/browse layer, no report page of its own.
-  2. Filters are date + branch only. Report parameters (period, run,
-     employee, currency basis, version) are not first-class.
-  3. Export formats are hardcoded in `ReportPageLayout` — a definition
-     cannot declare "PDF + Official CSV only" (needed for NSSF/PAYE).
-  4. Report metadata (generated-at, run ids, pack version, template
-     version, filters used, employee count) is not surfaced or stamped
-     onto exports.
-  5. Preview strategy is fixed at "table". Registers, summaries,
-     dashboards, certificates, statutory returns all render into the
-     same table shell.
-  6. No ownership badge, no source-of-truth link (e.g. "owned by Kenya
-     Fiscal Pack v10.1.6 → Localization › Packs").
-  7. No history / recent generations, no report subscriptions, no saved
-     views — although `scheduled_reports` already exists.
-  8. `groupPayrollReports` collapses everything under 5 category chips
-     with no separation between core payroll and country-published rows.
-     Adding 30 countries would produce an unusable chip wall.
+## Phase 1 — Architectural Audit (findings)
 
-## Phase 2 — Research findings (enterprise patterns worth adopting)
-
-Common shape across Workday, SAP SuccessFactors, Oracle HCM, Odoo
-Enterprise, Dynamics 365 HR:
-
-- **Reporting Centre landing** — dashboard-first: current period status,
-  last run, headcount, gross/net, statutory liability, blockers.
-  Answers "what is happening in payroll" before "which report".
-- **Library browser** — reports are cards/rows with metadata (owner,
-  category, last run, favourite, description, formats), not tab chips.
-  Filterable by owner/category/country/search. Infinitely scalable.
-- **Report viewer as its own route** — opening a report is navigation,
-  not tab state. Deep-linkable, back-button friendly. Each report
-  declares its parameter set (period, run, employee, currency basis) and
-  the viewer renders the appropriate preview (table, matrix, summary
-  cards, statutory form facsimile, cert PDF preview).
-- **Publisher model** — every report row declares an owner
-  (`Payroll Engine`, `Localization Pack:KE`, `Finance`, `Audit`). A
-  localization pack manifest contributes report definitions the same
-  way it contributes templates today.
-- **Export declaration** — each report advertises its supported outputs.
-  Statutory returns advertise the *official* export as the primary
-  action; PDF/CSV are secondary.
-- **Report runs are records** — every generation writes a
-  `payroll_report_runs` row: params, generated-by, generated-at, source
-  runs, pack version, template version. Same table drives history +
-  audit + re-export.
-
-## Phase 3 — Proposed enterprise architecture
-
-### Information architecture
+### 1.1 The payroll reporting lifecycle we actually run
 
 ```text
-/hr/payroll/reports                     — Reporting Centre (landing)
-  Overview               period health, KPI strip, blockers, recent runs
-  Library                registry browser (search / owner / category / country)
-  Scheduled              existing scheduled_reports surface (payroll scope)
-  History                payroll_report_runs (my runs, all runs)
-/hr/payroll/reports/:reportKey          — Report viewer (params + preview + export)
+compute-payroll ──► payslips + payslip_lines           (Payroll Engine)
+        │
+approve-payroll ──► payroll_runs.approved_at IS NOT NULL
+        │
+        ├──► payroll_liabilities        (Payroll Engine — canonical statutory obligation)
+        ├──► payroll_remittances        (Statutory Remittances workflow — payment lifecycle)
+        ├──► generate-statutory-return  (Localization Pack — filing artifact, stored in `documents/`)
+        ├──► generate-tax-certificate   (Localization Pack — YE certificate artifact)
+        ├──► post-payroll-gl ──► journal_entries       (Finance / GL)
+        └──► audit_logs / payslip_events               (Audit)
 ```
 
-Categories become **owner-first, category-second** rails:
+Every report in the library is a *view over one of these stages*. The current implementation ignores which stage owns the truth and re-derives everything from `payslip_lines`, which is the root cause of the disconnect you observed.
+
+### 1.2 Report-by-report analysis (with the actual data source they should read)
+
+| Report | Business event / who opens it | Canonical source of truth | Current source in `payrollData.ts` | Status |
+|---|---|---|---|---|
+| Payroll Register | Payroll officer, immediately after Approval | `payslips` + `payslip_lines` | ✅ correct | OK |
+| Payroll Summary | HR/Finance, per run | `payroll_runs` aggregate | ✅ correct | OK |
+| Payroll Work Entries | Payroll officer, pre-approval reconciliation | `payroll_work_entries` | ✅ (extended handler) | OK |
+| Employee Earnings | Employee/HR/manager — **YTD earnings history per component** | `payslips` + `payslip_lines` **pivoted per rule_code across periods** | ❌ Just a flat header dump (gross/ded/net per payslip) — this is Payroll Register again with fewer columns | **BROKEN — wrong semantic** |
+| Branch Payroll Cost | Finance/BU manager | `payslips.branch_id` + employer lines | ✅ correct | OK |
+| Department Payroll Cost | Finance/HR | `employees.department_id` + payslips | ✅ correct | OK |
+| Payroll GL Posting | Accountant, after post-payroll-gl | `journal_entries` + `journal_entry_lines` where source=payroll_run | Handled in `payrollExtendedData.ts` | OK |
+| Overtime | Manager | `payslip_lines` where rule maps to overtime | Regex on rule_code/label ("overtime|OT") — brittle | **WEAK — should read `payroll_rule_types.kind='overtime'`** |
+| Payroll Variance | CFO/HR analytics | Two run totals, delta | Sorts by `pay_period_end` ascending — treats "previous run" as previous *by end date*, not previous *by same schedule*. Cross-schedule mixing possible. | **WEAK** |
+| Employer Contributions | Finance, HR analytics | employer_amount lines | ✅ correct | OK |
+| Statutory Liabilities | Compliance / accounting | **`payroll_liabilities` (canonical)** | ❌ `payslip_lines.category === 'statutory'` | **BROKEN — root cause proven below** |
+| Payroll Audit Trail | Auditor | `payslip_events` / `audit_logs` | Handled in extended | OK |
+| P9 / P9A / P10 / P10A / P10D / NSSF / SHIF / AHL / NITA / HELB / Ghana PAYE etc. | Compliance officer | Existing `generate-statutory-return` / `generate-tax-certificate` (pack-owned) | Registry rows exist but the viewer's preview does not delegate to the artifact — it tries to render a payslip-lines table | **BROKEN — preview kind is `statutory_form` but the dispatcher currently falls back to table** |
+
+### 1.3 Root cause of "No data found" on Statutory Liabilities (proven)
+
+```
+SELECT category, COUNT(*) FROM payslip_lines GROUP BY category;
+ statutory_employee   4
+ statutory_employer   3
+ earning              3
+ deduction            1
+ relief               1
+```
+
+`payrollData.ts` line 230:
+
+```ts
+if (l.category !== "statutory") continue;
+```
+
+**Zero rows in the entire database have `category = 'statutory'`.** The compute engine writes `statutory_employee` / `statutory_employer` / `income_tax`. This is a category-vocabulary drift: the classifier (`_shared/payslipClassifier.ts`) knows the real names, but the Statutory Liabilities builder doesn't.
+
+**The deeper architectural bug behind the surface bug:** Statutory Liabilities has no business reading `payslip_lines` at all. `payroll_liabilities` is the canonical, closed-period, per-obligation table that Statutory Remittances files against. Reports should be a *view* over it, not a re-derivation. That is why Remittances/Returns can produce output while Reports shows "no data": they read different tables.
+
+### 1.4 Root cause of Employee Earnings being useless
+
+The report today returns `{ employee, period, gross, deductions, net_pay }` — one row per payslip. That is Payroll Register minus columns. An enterprise Employee Earnings report is a **pivot**: rows = employees, columns = earning components (Basic, HRA, Overtime, Bonus, …) across a chosen tax year, with YTD totals. What the users (accountant, HR, employee) actually ask is *"what did this person earn, broken down by pay component, over the year?"* — not "give me every payslip header again". Redesign, not query-fix.
+
+### 1.5 Statutory reports duplicate the wrong thing
+
+- Statutory Remittances = **workflow** (draft → generate → file → pay → reconcile). Owned by remittance workflow.
+- Statutory Reports (P9, NSSF file, SHIF file, …) = **artifacts** produced by the same generators.
+- Statutory Liabilities Report = **read-only view** over `payroll_liabilities`.
+
+Today's viewer, when opening a pack-owned statutory report, does not call the canonical `generate-statutory-return` / `generate-tax-certificate` — it routes through the generic table preview which has no data source for these keys. The registry rows exist, the entry points exist, the wiring between them is missing.
+
+### 1.6 Period selection is not payroll-native
+
+Every report currently uses arbitrary `dateFrom`/`dateTo`. Enterprise payroll systems always offer a **payroll-aware primary selector** and demote free date range to advanced:
+
+1. **Payroll Run** — for run-scoped reports (register, summary, variance, work entries, GL posting).
+2. **Payroll Period / Month** — for statutory monthly returns (P10, NSSF, SHIF, AHL).
+3. **Tax Year** — for certificates and annual reconciliations (P9, P10D, Employee Earnings YTD).
+4. **Quarter** — analytics.
+5. **Custom Date Range** — advanced fallback.
+
+This must be a declared parameter on each definition (`parameters.period.kind`), not a global date-range prop.
+
+### 1.7 Registry is under-modelled
+
+`payroll_report_definitions` today carries `owner_kind`, `preview_kind`, `export_formats`, `category`. It is missing:
+
+- `data_source` — the canonical stage this report reads (`payslips`, `payroll_liabilities`, `journal_entries`, `pack_artifact`, `payroll_remittances`, `audit_events`).
+- `period_selector` — one of `run | month | quarter | tax_year | custom` (with the allowed set per report).
+- `dependencies` — lifecycle preconditions (`payroll_approved`, `gl_posted`, `remittance_filed`). The library card should show "requires GL posting" instead of silently rendering empty.
+- `artifact_generator` — for pack-owned reports, the edge function that produces the canonical artifact (`generate-statutory-return` / `generate-tax-certificate`) so the viewer delegates instead of re-rendering.
+
+### 1.8 Enterprise comparison (extract, not imitate)
+
+- **Workday** — reports are declarative datasets over "business objects" with a period-selector primitive. Users never type date ranges for payroll reports; they pick a Pay Group Period or Tax Year.
+- **SAP SuccessFactors / SAP HCM** — separates *evaluations* (payroll engine output), *statutory reporting* (country versions / PY-XX), and *analytics*. Each has a distinct entry point but a single generator per document.
+- **Oracle HCM** — Statutory Reporting Types + Legislative Data Groups; every statutory report is registered by a legislative pack (identical to our localization-pack contract).
+- **Odoo Enterprise** — Payroll Reports = view; Statutory declarations = separate module; identical documents can be reached from either, but generated by one engine.
+- **Dynamics 365 HR** — reports carry metadata (period, run, generated_by, version) surfaced above every render; matches our metadata band intent.
+
+**Pattern we adopt:** registry-driven definitions, one canonical generator per artifact, payroll-native period selector, ownership rails, explicit lifecycle dependencies, artifact re-surfacing (not regeneration).
+
+---
+
+## Phase 2 — Architectural Inconsistencies (the list)
+
+1. Statutory Liabilities reads the wrong table (`payslip_lines`) and the wrong category token (`'statutory'`), producing empty output on every real dataset.
+2. Employee Earnings is semantically Payroll Register — not an earnings report.
+3. Overtime uses regex over rule labels instead of `payroll_rule_types.kind`.
+4. Payroll Variance mixes runs across schedules by end date.
+5. Pack-owned statutory reports render into a generic table preview instead of delegating to `generate-statutory-return` / `generate-tax-certificate`.
+6. Period selection is universally custom date range — non-native to payroll.
+7. Registry lacks `data_source`, `period_selector`, `dependencies`, `artifact_generator`.
+8. The Reports library does not communicate lifecycle preconditions ("payroll must be approved / GL must be posted / return must be filed") — users see empty results rather than "not ready".
+9. Two truths for statutory numbers: `payslip_lines` (Reports) vs `payroll_liabilities` (Remittances). Only one can be canonical — `payroll_liabilities` wins.
+10. No cross-schedule guard on payroll_period selection; date range lets users mix incompatible runs.
+
+---
+
+## Phase 3 — Proposed Enterprise Architecture
+
+### 3.1 Layers
 
 ```text
-Payroll Engine      → Register · Summary · Employee Earnings · Retro/Delta · Run Audit
-Cost & Finance      → Employer Contributions · Branch Cost · GL Posting · Cost Center
-Compliance (KE pack)→ P9 · P9A · PAYE Return · SHIF · NSSF · AHL · HELB
-Compliance (…)      → published by each installed country pack
-Management          → Trends · Distribution · Headcount × Cost
-Audit               → Approvals · Overrides · Access · Mapping Changes
+                       ┌───────────────────────────────┐
+                       │  Reporting Centre (UI)        │
+                       │  Overview | Library | Sched.  │
+                       │  | History                    │
+                       └──────────────┬────────────────┘
+                                      │
+             registry-driven          │  reads
+                                      ▼
+                       ┌───────────────────────────────┐
+                       │ payroll_report_definitions    │
+                       │ + owner_kind                  │
+                       │ + preview_kind                │
+                       │ + data_source   (NEW)         │
+                       │ + period_selector (NEW)       │
+                       │ + dependencies  (NEW)         │
+                       │ + artifact_generator (NEW)    │
+                       └──────────────┬────────────────┘
+                                      │ dispatch
+              ┌───────────────────────┼────────────────────────┬─────────────────────┐
+              ▼                       ▼                        ▼                     ▼
+     Payroll Engine views    Finance / GL views       Compliance artifacts     Audit views
+     (payslips,              (journal_entries,        (pack generators —       (payslip_events,
+      payslip_lines,          journal_entry_lines)     one canonical            audit_logs)
+      payroll_liabilities)                             per document)
 ```
 
-### Report ownership model (schema addition)
+### 3.2 Ownership rails (unchanged from ADR-0062, but now enforced)
 
-Extend `payroll_report_definitions`:
+- Payroll Engine · Cost & Finance · Compliance (Pack) · Management · Audit · HR
 
-```text
-owner_kind      enum: 'payroll_engine' | 'finance' | 'audit'
-                     | 'localization_pack' | 'management' | 'hr'
-owner_ref       text  -- pack code + version for localization; module id otherwise
-preview_kind    enum: 'table' | 'summary' | 'matrix' | 'dashboard'
-                     | 'statutory_form' | 'certificate'
-export_formats  jsonb -- [{ format: 'pdf'|'csv'|'xlsx'|'official_csv'|'xml',
-                --          label, isPrimary }]
-parameters      jsonb -- declarative param schema (period, run, employee,
-                --          currency_basis, comparison_period, filters)
-metadata        jsonb -- pack_version, template_version, publisher notes
+### 3.3 Canonical data-source contract (NEW)
+
+Each definition declares one of:
+
+- `payroll_engine.payslips`
+- `payroll_engine.payslip_lines`
+- `payroll_engine.payroll_liabilities`     ← Statutory Liabilities lives here
+- `payroll_engine.payroll_work_entries`
+- `finance.journal_entries`
+- `pack_artifact.statutory_return`         ← delegates to `generate-statutory-return`
+- `pack_artifact.tax_certificate`          ← delegates to `generate-tax-certificate`
+- `remittance.payroll_remittances`
+- `audit.payslip_events`
+
+The viewer dispatches on `data_source` first, `preview_kind` second. No file in `src/` will branch on `report_key`.
+
+### 3.4 Payroll-native period selector (NEW)
+
+```ts
+type PeriodSelector =
+  | { kind: 'run';       required: true }
+  | { kind: 'month';     required: true }
+  | { kind: 'quarter'  }
+  | { kind: 'tax_year' }
+  | { kind: 'custom'   };   // fallback, always allowed
 ```
 
-New tables:
+Each definition declares its **primary** selector and its **allowed** selectors. The viewer renders exactly the right selector — no more generic date range unless declared.
 
-```text
-payroll_report_runs
-  id, org_id, business_id, report_key, params_json,
-  row_count, employee_count, generated_by, generated_at,
-  pack_version, template_version, duration_ms, export_urls_json,
-  source_payroll_run_ids uuid[]
-```
+### 3.5 Lifecycle dependencies surfaced to users
 
-`render-report` writes one row per generation. History + audit consume it.
+- `payroll_approved` → visible on register/summary/statutory
+- `gl_posted` → visible on payroll_gl_posting
+- `remittance_filed` → visible on the "filing" cut of statutory reports
 
-### Localization pack contract
+If a dependency is unmet, the library card shows a chip ("Waiting: GL not posted") and the viewer's empty state is *diagnostic*, not silent.
 
-Pack manifests already publish templates. Extend the pack publisher
-migration path so a pack contributes:
+### 3.6 Statutory artifact delegation
 
-```text
-- report definitions            → payroll_report_definitions
-- report → template binding     → report_key ↔ statutory template / cert template
-- parameter overrides           → fiscal_year, month, employee etc.
-- export_formats                → declared per report (e.g. P9 = PDF+XLSX,
-                                  NSSF = official CSV + PDF)
-```
+Pack-owned reports (P9, P10, NSSF, SHIF, AHL, NITA, HELB, Ghana equivalents, …) do not re-render in the Reports viewer. The viewer calls the same edge function Statutory Remittances calls (`generate-statutory-return` / `generate-tax-certificate`) and previews the returned artifact. **One generator, two entry points.** Statutory Remittances remains the *workflow* view; Reports is the *catalog + re-access* view.
 
-Un-installing a pack retracts its definitions. **No file in `src/`
-mentions Kenya-specific report keys.** The current
-`payrollData.ts` builders for `payroll_register / payroll_summary /
-employer_contributions / statutory_liabilities / employee_earnings /
-branch_payroll_cost` remain owned by `payroll_engine`. Country reports
-(P9, NSSF, …) resolve through the existing statutory/certificate engines,
-not new generators.
+### 3.7 Employee Earnings redesigned
 
-### Report lifecycle
+Preview kind = `matrix`. Rows = employees. Columns = earning `rule_code`s. Period = Tax Year (primary) or Payroll Run (secondary). Includes YTD totals per component and grand totals per employee. Source: `payslip_lines` where bucket = `earning` (via `payslipClassifier`, not string match).
 
-```text
-Definition (registry row, owner-declared)
-   ↓
-Discovery  (Library / Overview surfaces show it)
-   ↓
-Parameter binding (viewer collects declared params)
-   ↓
-Generation (render-report → engine dispatch by owner_kind)
-   ↓
-Preview    (preview_kind decides the surface)
-   ↓
-Export     (export_formats decides the actions)
-   ↓
-Run record (payroll_report_runs; feeds History + Scheduled + Audit)
-```
+### 3.8 Statutory Liabilities redesigned
 
-### Preview model
+Preview kind = `table` over `payroll_liabilities` grouped by `liability_type` and period, with columns: employee-side, employer-side, total, filed amount (join `payroll_remittances`), outstanding. This is the canonical truth, and it matches what Statutory Remittances shows — because both read the same table.
 
-Dispatch by `preview_kind`:
+### 3.9 Overtime & Variance fixes
 
-- `table` — current tabular renderer (register, earnings, cost).
-- `summary` — grouped KPI + subtotal cards (Payroll Summary,
-  Employer Contributions).
-- `matrix` — pivot (Branch × Rule, Department × Month).
-- `dashboard` — analytical (trends, distribution).
-- `statutory_form` — form facsimile preview using the statutory template
-  engine (already used by remittances).
-- `certificate` — PDF preview via `generate-tax-certificate` (already
-  used by TaxCertificates).
+- Overtime: classify via `payroll_rule_types.kind = 'overtime'`, not regex.
+- Variance: group by `pay_schedule_id`, then order within schedule.
 
-### Export model
+---
 
-Each report definition declares its supported outputs. `ReportPageLayout`
-consumes `definition.exportFormats` instead of hardcoding. Official
-statutory outputs are surfaced as the *primary* action; convenience
-formats collapse into a menu.
+## Phase 4 — Implementation Plan (staged)
 
-### Report metadata model
+Each phase ships independently, no big-bang.
 
-Every viewer displays and every export stamps:
+### Phase 5a — Registry model extensions
 
-```text
-Report · Owner · Pack/Template version
-Period · Payroll Run(s) · Filters
-Generated at · Generated by
-Employee count · Row count · Currency basis
-```
+Migration adds columns to `payroll_report_definitions`:
 
-Persisted in `payroll_report_runs`; rendered in a metadata band above
-the preview and in export headers/footers.
+- `data_source text not null default 'payroll_engine.payslips'` (with CHECK against enum)
+- `period_selector jsonb not null default '{"primary":"custom","allowed":["custom"]}'`
+- `dependencies text[] not null default '{}'`
+- `artifact_generator text` (nullable)
 
-## Phase 4 — Implementation plan
+Backfill core definitions. Pack sync function updates `data_source='pack_artifact.statutory_return'` / `'pack_artifact.tax_certificate'` and `artifact_generator` accordingly.
 
-Backend-first, then UI. Each step is independently shippable.
+### Phase 5b — Viewer dispatch by data_source
 
-**Step 1 — Registry hardening (migration).**
-Add `owner_kind`, `owner_ref`, `preview_kind`, `export_formats`,
-`parameters`, `metadata` columns to `payroll_report_definitions`.
-Backfill existing 6 core rows as `owner_kind='payroll_engine'`,
-`preview_kind='table'`, `export_formats=[pdf,csv,xlsx]`. Pin
-via pgTAP contract test in `supabase/tests/`.
+`PayrollReportViewer` learns to dispatch:
 
-**Step 2 — `payroll_report_runs` table + writer.**
-Migration + GRANT + RLS. `render-report` writes a run row on success.
-Contract test for the columns.
+- `payroll_engine.*` → existing `render-report` path.
+- `payroll_engine.payroll_liabilities` → new small builder over `payroll_liabilities` + `payroll_remittances`.
+- `pack_artifact.statutory_return` → invokes `generate-statutory-return` (canonical), previews the returned bytes (CSV → tabular preview; PDF → embedded viewer).
+- `pack_artifact.tax_certificate` → invokes `generate-tax-certificate`, previews PDF.
 
-**Step 3 — Localization pack publisher.**
-Extend the pack apply/upgrade path (existing statutory/certificate
-publisher migrations) to also insert `payroll_report_definitions` rows
-declared by the pack. Retract on uninstall. Kenya pack publishes: P9,
-P9A, PAYE Monthly, SHIF, NSSF Tier I/II, AHL, HELB — each pointing at
-the existing statutory/certificate template it already ships. No
-hardcoded Kenya knowledge in `src/`.
+### Phase 5c — Fix Statutory Liabilities canonical source
 
-**Step 4 — Report viewer route.**
-New route `/hr/payroll/reports/:reportKey` rendered by a
-`PayrollReportViewer` that:
-- resolves the definition from the registry,
-- renders declared parameters (period picker, run picker, employee
-  picker, currency basis) via a small param-schema renderer,
-- dispatches to the right preview component by `preview_kind`,
-- renders the metadata band,
-- surfaces `export_formats` from the definition.
+Replace `payrollData.ts::statutory_liabilities` with a `payroll_liabilities` reader. Cross-join to `payroll_remittances` for filed/paid amounts. Metadata band shows the source table plainly.
 
-**Step 5 — Reporting Centre landing.**
-`/hr/payroll/reports` becomes tabs: Overview | Library | Scheduled |
-History. Overview keeps `PayrollReportsKpiStrip` and adds current
-period status, blockers (reuses readiness summary), last run, recent
-report runs. Library is a searchable grid grouped by owner rail
-(Payroll Engine, Finance, Compliance:KE, Management, Audit). Scheduled
-reuses `scheduled_reports` filtered to the payroll scope. History reads
-`payroll_report_runs`.
+### Phase 5d — Employee Earnings as YTD matrix
 
-**Step 6 — Retire the tab-chip page.**
-`Reports.tsx` becomes the Overview tab shell; the old chip picker is
-removed. Deep-links to any known `report_key` keep working via the new
-viewer route (backward compatible).
+Rewrite the handler to produce a matrix (employees × earning components) over the selected tax year / run. Preview kind switched to `matrix`. Uses `payslipClassifier` for bucketing.
 
-**Step 7 — Preview components.**
-- `TablePreview` — extract current tabular renderer verbatim (no
-  business-logic change).
-- `SummaryPreview`, `MatrixPreview`, `DashboardPreview` — additive,
-  used only where the definition asks for them.
-- `StatutoryFormPreview` and `CertificatePreview` — thin adapters that
-  delegate to the existing statutory/certificate engines.
+### Phase 5e — Overtime and Variance corrections
 
-**Step 8 — Metadata + export stamping.**
-`ReportPageLayout` reads `exportFormats` from the active definition;
-export headers/footers include the metadata band contents.
+- Overtime handler joins `payroll_rule_types` on `rule_code` and filters `kind='overtime'`.
+- Variance handler groups by `pay_schedule_id` before ordering.
 
-**Step 9 — Guards + tests.**
-- pgTAP: new columns/table pinned; pack-publish contract test asserting
-  that installing Kenya pack contributes ≥ N statutory rows and
-  uninstalling retracts them.
-- Vitest: architecture guard forbidding string-literal statutory report
-  keys (`P9`, `NSSF`, …) in `src/` outside `src/features/localization/`;
-  guard forbidding hardcoded `export_formats` in the viewer.
-- Playwright: land on Reporting Centre → open Library → open Payroll
-  Register → change period → export PDF; capture screenshots.
+### Phase 5f — Payroll-native period selector
 
-### Backward compatibility
+Replace the global `ReportFilters` date-range with a period selector that reads the definition's `period_selector` and renders Run picker / Month picker / Tax Year picker / Custom Range. The centre landing keeps a coarse month-context; the viewer owns per-report period binding.
 
-- Existing `payroll_register / …` report keys keep working; only the
-  UI shell around them changes.
-- `render-report` payload contract is unchanged; new columns are
-  purely additive.
-- The old page URL (`/hr/payroll/reports`) still resolves; the deep-link
-  the previous UI generated (tab state) is replaced by the viewer route
-  and a soft redirect from the legacy query.
+### Phase 5g — Lifecycle dependency chips
 
-### Risks & mitigations
+Library cards and viewer header show a "readiness" chip per declared dependency. RPC (`payroll_report_readiness(p_report_key, p_period)`) returns the dependency states so the UI is diagnostic on empty output.
 
-- **Pack migration risk** — publisher extension touches every installed
-  country. Ship as an idempotent upgrade migration; pgTAP + rollback
-  block. Bump Kenya pack version to force clean re-apply per the
-  existing pack upgrade flow (`docs/adr — 0056 localization-publisher-parity`).
-- **Registry drift** — architecture test forbids new hardcoded report
-  keys and export lists in components.
-- **Scope creep into Statutory Remittances workflow** — Reports centre
-  *lists and previews* statutory returns; *filing/lodging* remains in
-  the Remittances workflow. Both call the same generator; neither owns
-  it. Documented as ADR-0062 (new).
+### Phase 5h — Guardrails
 
-## Phase 5 — Implementation
+- Vitest: `payroll_report_definitions` — every row has a `data_source`, and no `payroll_engine.*` handler references string literals for known-mismatched categories (`'statutory'`).
+- Vitest: viewer must dispatch pack-owned reports through the canonical edge functions (source-level assertion, same style as the existing lifecycle-gate tests).
+- Vitest: registry rows for pack-owned reports must have `artifact_generator` non-null.
 
-Executed in the order above after this plan is approved. Each step
-lands as its own commit series with tests, migrations bumped to
-Kenya pack `10.1.7+`, and the ADR that documents the ownership +
-publisher contract.
+### Phase 5i — Docs
 
-## Technical appendix
+Update `docs/adr/0062-payroll-reporting-centre.md` with §Data Sources, §Period Selector, §Dependencies, §Delegation. Add a `docs/manuals/hr-payroll/11-reporting-centre.md` capturing the ownership rails and the "one generator, two entry points" rule.
 
-- Files touched:
-  - `supabase/migrations/*_payroll_report_definitions_enrichment.sql`
-  - `supabase/migrations/*_payroll_report_runs.sql`
-  - `supabase/migrations/*_kenya_pack_publishes_reports.sql`
-  - `supabase/functions/render-report/index.ts` (write run record)
-  - `supabase/tests/payroll_report_definitions_contract_test.sql`
-  - `supabase/tests/payroll_report_runs_contract_test.sql`
-  - `src/hooks/payroll/usePayrollReportDefinitions.ts` (new fields)
-  - `src/hooks/payroll/usePayrollReportRuns.ts` (new)
-  - `src/pages/hr/payroll/reports/ReportingCentre.tsx` (new landing)
-  - `src/pages/hr/payroll/reports/PayrollReportViewer.tsx` (new)
-  - `src/pages/hr/payroll/reports/panels/{Overview,Library,History}.tsx`
-  - `src/pages/hr/payroll/reports/previews/{Table,Summary,Matrix,Dashboard,StatutoryForm,Certificate}Preview.tsx`
-  - `src/pages/hr/payroll/Reports.tsx` → thin re-export for BC
-  - `src/apps/hr/sub/PayrollRoutes.tsx` (nested viewer route)
-  - `src/test/architecture/no-hardcoded-statutory-report-keys.test.ts`
-  - `docs/adr/0062-payroll-reporting-centre.md`
-- No changes to: `generate-tax-certificate`, `generate-statutory-return`,
-  `payrollData.ts` builders, remittance workflow, existing pack template
-  publishers.
+---
+
+## Non-goals for this pass
+
+- No visual redesign of the landing (Overview/Library layout stays).
+- No new report types beyond the ones already registered.
+- No changes to Statutory Remittances workflow.
+- No changes to `compute-payroll` or `payslip_lines` schema.
+
+---
+
+## What I need from you before implementing
+
+Nothing. If you approve this plan I will execute Phase 5a → 5i in order, opening one migration + code change per stage so each can be reviewed independently.

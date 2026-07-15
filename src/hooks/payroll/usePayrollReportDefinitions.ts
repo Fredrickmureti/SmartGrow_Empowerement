@@ -52,6 +52,34 @@ export interface PayrollReportParameters {
   [k: string]: unknown;
 }
 
+export type PayrollReportDataSource =
+  | "payroll_engine.payslips"
+  | "payroll_engine.payslip_lines"
+  | "payroll_engine.payroll_liabilities"
+  | "payroll_engine.payroll_work_entries"
+  | "finance.journal_entries"
+  | "pack_artifact.statutory_return"
+  | "pack_artifact.tax_certificate"
+  | "remittance.payroll_remittances"
+  | "audit.payslip_events";
+
+export type PayrollReportDependency =
+  | "payroll_approved"
+  | "gl_posted"
+  | "remittance_filed";
+
+export type PayrollPeriodSelectorKind =
+  | "run"
+  | "month"
+  | "quarter"
+  | "tax_year"
+  | "custom";
+
+export interface PayrollPeriodSelector {
+  primary: PayrollPeriodSelectorKind;
+  allowed: PayrollPeriodSelectorKind[];
+}
+
 export interface PayrollReportDefinition {
   id: string;
   reportKey: string;
@@ -68,6 +96,10 @@ export interface PayrollReportDefinition {
   exportFormats: PayrollReportExportFormat[];
   parameters: PayrollReportParameters;
   metadata: Record<string, unknown>;
+  dataSource: PayrollReportDataSource;
+  periodSelector: PayrollPeriodSelector;
+  dependencies: PayrollReportDependency[];
+  artifactGenerator: string | null;
 }
 
 const CATEGORY_LABEL: Record<PayrollReportCategory, string> = {
@@ -131,6 +163,13 @@ function normalize(r: any): PayrollReportDefinition {
         isPrimary: !!f.isPrimary,
       }))
     : DEFAULT_EXPORT_FORMATS;
+  const ps = (r.period_selector ?? {}) as any;
+  const periodSelector: PayrollPeriodSelector = {
+    primary: (ps.primary as PayrollPeriodSelectorKind) ?? "custom",
+    allowed: Array.isArray(ps.allowed) && ps.allowed.length
+      ? (ps.allowed as PayrollPeriodSelectorKind[])
+      : ["custom"],
+  };
   return {
     id: r.id,
     reportKey: r.report_key,
@@ -147,6 +186,12 @@ function normalize(r: any): PayrollReportDefinition {
     exportFormats: exports,
     parameters: (r.parameters ?? {}) as PayrollReportParameters,
     metadata: (r.metadata ?? {}) as Record<string, unknown>,
+    dataSource: (r.data_source as PayrollReportDataSource) ?? "payroll_engine.payslips",
+    periodSelector,
+    dependencies: Array.isArray(r.dependencies)
+      ? (r.dependencies as PayrollReportDependency[])
+      : [],
+    artifactGenerator: r.artifact_generator ?? null,
   };
 }
 
@@ -158,7 +203,7 @@ export function usePayrollReportDefinitions(countryCode?: string | null) {
       const { data, error } = await (supabase as any)
         .from("payroll_report_definitions")
         .select(
-          "id, report_key, label, description, category, scope, country_code, sort_order, feature_flag, owner_kind, owner_ref, preview_kind, export_formats, parameters, metadata",
+          "id, report_key, label, description, category, scope, country_code, sort_order, feature_flag, owner_kind, owner_ref, preview_kind, export_formats, parameters, metadata, data_source, period_selector, dependencies, artifact_generator",
         )
         .eq("is_active", true)
         .order("sort_order", { ascending: true });

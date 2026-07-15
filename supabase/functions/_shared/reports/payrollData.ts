@@ -51,10 +51,12 @@ async function loadPayslips(
   dateTo: string,
   filters: PayrollFilters,
 ) {
-  // Pull runs in window first, then their payslips + lines.
+  // Pull runs in window first, then their payslips + lines. `pay_schedule_id`
+  // is projected so payroll_variance can group *within* a schedule instead of
+  // mixing runs across schedules by end date (Phase 5e).
   let runQ = supabase
     .from("payroll_runs")
-    .select("id, payroll_number, pay_period_start, pay_period_end, status, branch_id, business_id")
+    .select("id, payroll_number, pay_period_start, pay_period_end, status, branch_id, business_id, pay_schedule_id, approved_at")
     .eq("organization_id", orgId)
     .lte("pay_period_start", dateTo)
     .gte("pay_period_end", dateFrom);
@@ -218,60 +220,113 @@ export async function buildPayrollReport(
       return { data: rows, summary: { grand_total: rows.reduce((s, r) => s + r.total_employer, 0) } };
     }
     case "statutory_liabilities": {
-      // Aggregate statutory-category lines + cross-check against remittances.
-      const remByRun = new Map<string, any[]>();
-      for (const r of remittances) {
-        const arr = remByRun.get(r.payroll_run_id) ?? [];
-        arr.push(r);
-        remByRun.set(r.payroll_run_id, arr);
-      }
-      const agg = new Map<string, { label: string; employee: number; employer: number; paid: number }>();
-      for (const l of lines) {
-        if (l.category !== "statutory") continue;
-        const cur = agg.get(l.rule_code) ?? { label: l.label, employee: 0, employer: 0, paid: 0 };
-        cur.employee += Number(l.employee_amount || 0);
-        cur.employer += Number(l.employer_amount || 0);
+      // Canonical source: `payroll_liabilities` (Phase 5c).
+      //
+      // The previous implementation filtered `payslip_lines.category === 'statutory'`
+      // — a token the compute engine never writes (it emits
+      // `statutory_employee` / `statutory_employer` / `income_tax`), so every
+      // real tenant saw "No data". Beyond the vocabulary bug, deriving
+      // liabilities from lines is architecturally wrong: `payroll_liabilities`
+      // is the closed-period, per-obligation table that Statutory Remittances
+      // files against. Reports must be a *view* over the same truth, not a
+      // parallel derivation.
+      let lq = supabase
+        .from("payroll_liabilities")
+        .select("rule_code, label, authority_name, original_amount, paid_amount, outstanding_amount, period_start, period_end, status")
+        .eq("organization_id", orgId)
+        .lte("period_start", dateTo)
+        .gte("period_end", dateFrom);
+      if (businessId) lq = lq.eq("business_id", businessId);
+      if (filters.branchId) lq = lq.eq("branch_id", filters.branchId);
+      if (filters.payrollRunId) lq = lq.eq("payroll_run_id", filters.payrollRunId);
+      const { data: liabs = [], error: lErr } = await lq;
+      if (lErr) throw lErr;
+
+      const agg = new Map<string, {
+        label: string; authority: string; original: number; paid: number; outstanding: number;
+      }>();
+      for (const l of liabs as any[]) {
+        const cur = agg.get(l.rule_code) ?? {
+          label: l.label ?? l.rule_code,
+          authority: l.authority_name ?? "—",
+          original: 0, paid: 0, outstanding: 0,
+        };
+        cur.original    += Number(l.original_amount    || 0);
+        cur.paid        += Number(l.paid_amount        || 0);
+        cur.outstanding += Number(l.outstanding_amount || 0);
         agg.set(l.rule_code, cur);
-      }
-      // Mark paid amounts from remittances by remittance_type matching rule_code or label.
-      for (const list of remByRun.values()) {
-        for (const r of list) {
-          if (r.status !== "paid") continue;
-          const cur = agg.get(r.remittance_type);
-          if (cur) cur.paid += Number(r.amount || 0) + Number(r.employer_amount || 0);
-        }
       }
       const rows = Array.from(agg.entries()).map(([code, v]) => {
         const row = {
           rule_code: code,
           label: v.label,
-          employee: v.employee,
-          employer: v.employer,
-          total: v.employee + v.employer,
+          authority: v.authority,
+          amount_due: v.original,
           paid: v.paid,
-          outstanding: v.employee + v.employer - v.paid,
+          outstanding: v.outstanding,
         };
         return withMeta(row, { sourceDocType: "payroll_liability", ruleCode: code });
       });
-      return { data: rows, summary: {} };
+      return { data: rows, summary: {
+        total_due: rows.reduce((s, r) => s + r.amount_due, 0),
+        total_paid: rows.reduce((s, r) => s + r.paid, 0),
+        total_outstanding: rows.reduce((s, r) => s + r.outstanding, 0),
+      } };
     }
     case "employee_earnings": {
-      // Per-employee, per-period gross/net history.
-      const rows = payslips.map((p: any) => {
-        const e = empById.get(p.employee_id);
-        const r = runById.get(p.payroll_run_id);
-        const row = {
+      // Phase 5d — YTD earnings matrix.
+      //
+      // Rows: employees. Columns: earning `rule_code`s (dynamic). Values:
+      // sum of `employee_amount` across payslip_lines whose category is an
+      // *earning* bucket. Total column = row sum. This is what an
+      // Employee Earnings report actually is on Workday / Oracle HCM /
+      // Odoo — a per-component pivot, not a payslip-header dump.
+      const isEarning = (l: any) => {
+        const c = String(l.category ?? "").toLowerCase();
+        return c === "earning" || c === "basic" || c === "allowance" || c === "bonus" || c === "overtime";
+      };
+      // Dynamic column set.
+      const codeLabels = new Map<string, string>();
+      for (const l of lines) {
+        if (!isEarning(l)) continue;
+        if (!codeLabels.has(l.rule_code)) codeLabels.set(l.rule_code, l.label ?? l.rule_code);
+      }
+      const cols = Array.from(codeLabels.keys()).sort();
+
+      // employee_id -> { rule_code -> amount }
+      const cells = new Map<string, Map<string, number>>();
+      for (const l of lines) {
+        if (!isEarning(l)) continue;
+        const row = cells.get(l.employee_id) ?? new Map<string, number>();
+        row.set(l.rule_code, (row.get(l.rule_code) ?? 0) + Number(l.employee_amount || 0));
+        cells.set(l.employee_id, row);
+      }
+      const rows = Array.from(cells.entries()).map(([empId, byCode]) => {
+        const e = empById.get(empId);
+        const row: Record<string, unknown> = {
           employee: empName(e),
           employee_number: e?.employee_number ?? "—",
-          period: `${r?.pay_period_start} → ${r?.pay_period_end}`,
-          gross: Number(p.gross_pay || 0),
-          deductions: Number(p.total_deductions || 0),
-          net_pay: Number(p.net_pay || 0),
-          status: p.status,
         };
-        return withMeta(row, { sourceDocType: "payslip", sourceDocId: p.id, partnerType: "employee", partnerId: p.employee_id });
+        let total = 0;
+        for (const code of cols) {
+          const amt = byCode.get(code) ?? 0;
+          row[code] = amt;
+          total += amt;
+        }
+        row.ytd_total = total;
+        return withMeta(row, {
+          sourceDocType: "employee",
+          sourceDocId: empId,
+          partnerType: "employee",
+          partnerId: empId,
+        });
       });
-      return { data: rows, summary: {} };
+      return { data: rows, summary: {
+        employee_count: rows.length,
+        earning_components: cols.length,
+        columns: cols.map((c) => ({ code: c, label: codeLabels.get(c) ?? c })),
+        total_earnings: rows.reduce((s, r) => s + Number((r as any).ytd_total || 0), 0),
+      } };
     }
     case "branch_payroll_cost": {
       const byBranch = new Map<string, { count: Set<string>; gross: number; employer: number }>();
@@ -353,9 +408,14 @@ export async function buildPayrollReport(
       return { data: rows, summary: { total_overtime: rows.reduce((s, r) => s + r.amount, 0) } };
     }
     case "payroll_variance": {
-      // Compare each payroll run against the immediately preceding run
-      // (chronological by pay_period_end) — gross, deductions, net,
-      // employer cost, headcount, with absolute and percent deltas.
+      // Phase 5e — variance must compare within the same pay schedule.
+      //
+      // The prior implementation ordered every run by `pay_period_end`
+      // regardless of schedule, so a fortnightly supplemental run could
+      // be diffed against a monthly primary run — mathematically meaningless.
+      // We now group runs by `pay_schedule_id` (nullable, treated as its
+      // own bucket), order within each bucket chronologically, and emit
+      // deltas only against the previous run in the same bucket.
       const runTotals = new Map<string, { gross: number; ded: number; net: number; employer: number; count: number }>();
       for (const p of payslips) {
         const k = p.payroll_run_id;
@@ -367,28 +427,38 @@ export async function buildPayrollReport(
         cur.count += 1;
         runTotals.set(k, cur);
       }
-      const ordered = runs
-        .filter((r: any) => runTotals.has(r.id))
-        .sort((a: any, b: any) => String(a.pay_period_end).localeCompare(String(b.pay_period_end)));
+      const bySchedule = new Map<string, any[]>();
+      for (const r of runs as any[]) {
+        if (!runTotals.has(r.id)) continue;
+        const key = r.pay_schedule_id ?? "__none__";
+        const arr = bySchedule.get(key) ?? [];
+        arr.push(r);
+        bySchedule.set(key, arr);
+      }
       const pct = (curr: number, prev: number) =>
         prev === 0 ? (curr === 0 ? 0 : 100) : ((curr - prev) / prev) * 100;
-      const rows = ordered.map((r: any, idx: number) => {
-        const t = runTotals.get(r.id)!;
-        const prev = idx > 0 ? runTotals.get(ordered[idx - 1].id) : undefined;
-        const row = {
-          payroll_number: r.payroll_number ?? "—",
-          period: `${r.pay_period_start} → ${r.pay_period_end}`,
-          headcount: t.count,
-          gross: t.gross,
-          net_pay: t.net,
-          employer_cost: t.employer,
-          gross_delta: prev ? t.gross - prev.gross : 0,
-          gross_delta_pct: prev ? Number(pct(t.gross, prev.gross).toFixed(2)) : 0,
-          net_delta: prev ? t.net - prev.net : 0,
-          net_delta_pct: prev ? Number(pct(t.net, prev.net).toFixed(2)) : 0,
-        };
-        return withMeta(row, { sourceDocType: "payroll_run", sourceDocId: r.id });
-      });
+      const rows: any[] = [];
+      for (const [, group] of bySchedule) {
+        group.sort((a: any, b: any) =>
+          String(a.pay_period_end).localeCompare(String(b.pay_period_end)));
+        group.forEach((r: any, idx: number) => {
+          const t = runTotals.get(r.id)!;
+          const prev = idx > 0 ? runTotals.get(group[idx - 1].id) : undefined;
+          const row = {
+            payroll_number: r.payroll_number ?? "—",
+            period: `${r.pay_period_start} → ${r.pay_period_end}`,
+            headcount: t.count,
+            gross: t.gross,
+            net_pay: t.net,
+            employer_cost: t.employer,
+            gross_delta: prev ? t.gross - prev.gross : 0,
+            gross_delta_pct: prev ? Number(pct(t.gross, prev.gross).toFixed(2)) : 0,
+            net_delta: prev ? t.net - prev.net : 0,
+            net_delta_pct: prev ? Number(pct(t.net, prev.net).toFixed(2)) : 0,
+          };
+          rows.push(withMeta(row, { sourceDocType: "payroll_run", sourceDocId: r.id }));
+        });
+      }
       return { data: rows, summary: {} };
     }
     default:
