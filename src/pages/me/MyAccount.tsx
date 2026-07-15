@@ -188,3 +188,71 @@ function PasswordCard() {
     </Card>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Login history — last 10 sign-in events for the current user.
+// Backed by public.login_history, which already has an owner-select RLS
+// policy ("Users can view own login history").
+// ---------------------------------------------------------------------------
+
+function LoginHistoryCard() {
+  const { user } = useAuth();
+  const { data, isLoading } = useQuery({
+    queryKey: ["my-login-history", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("login_history" as any)
+        .select("id, created_at, ip_address, user_agent, status, is_new_device")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; created_at: string; ip_address: string | null;
+        user_agent: string | null; status: string | null; is_new_device: boolean | null;
+      }>;
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <History className="h-4 w-4" /> Recent sign-in activity
+        </CardTitle>
+        <CardDescription>
+          The last 10 sign-in attempts for this account. Contact your admin if you see anything you don't recognise.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="text-sm">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          </div>
+        ) : !data || data.length === 0 ? (
+          <div className="text-muted-foreground">No sign-in history recorded yet.</div>
+        ) : (
+          <ul className="space-y-2">
+            {data.map((r) => (
+              <li key={r.id} className="flex items-start justify-between gap-3 border-b last:border-b-0 pb-2 last:pb-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{new Date(r.created_at).toLocaleString()}</span>
+                    {r.status && r.status !== "success" && (
+                      <Badge variant="destructive" className="text-[10px]">{r.status}</Badge>
+                    )}
+                    {r.is_new_device && <Badge variant="secondary" className="text-[10px]">New device</Badge>}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {r.ip_address ?? "unknown IP"} · {r.user_agent ?? "unknown device"}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
