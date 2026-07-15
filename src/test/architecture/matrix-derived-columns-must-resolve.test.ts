@@ -123,6 +123,10 @@ describe("matrix derived_columns args must resolve to real row symbols", () => {
           for (const a of d.args ?? []) {
             if (typeof a === "number") continue;
             const s = String(a);
+            // `cat:<category>` tokens are always resolvable — they are
+            // synthesised per-row by `pivotToMonthlyMatrix` from
+            // `payslip_lines.category`. See ADR-0061 addendum.
+            if (s.startsWith("cat:")) continue;
             if (columnKeys.has(s) || derivedKeysSoFar.has(s) || ruleCodes.has(s)) continue;
             offences.push({
               template_code: body.code,
