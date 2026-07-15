@@ -78,7 +78,6 @@ function TablePreview({ columns, rows, canSeeMoney }: Props) {
   return (
     <Card>
       <CardContent className="pt-6">
-        <div className="mb-3 text-sm text-muted-foreground">{rows.length} rows</div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -127,35 +126,10 @@ function TablePreview({ columns, rows, canSeeMoney }: Props) {
 }
 
 function SummaryPreview(props: Props) {
-  const { columns, rows, canSeeMoney } = props;
-  const { formatCurrency } = useCurrency();
-  const totalsRow = rows[rows.length - 1] ?? {};
-  const kpiCols = columns.filter(isMoneyCol).slice(0, 4);
-  return (
-    <>
-      {kpiCols.length > 0 && (
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {kpiCols.map((c) => (
-            <Card key={c.key}>
-              <CardContent className="pt-4">
-                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  {c.header}
-                </div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums">
-                  <MoneyOrHidden
-                    value={totalsRow[c.key]}
-                    canSee={canSeeMoney}
-                    format={formatCurrency}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-      <TablePreview {...props} />
-    </>
-  );
+  // SummaryPreview used to render its own KPI strip above the table.
+  // KPIs now live in the viewer-owned `PayrollReportKpiBand`, so this
+  // preview just delegates to the table body.
+  return <TablePreview {...props} />;
 }
 
 function DashboardPreview(props: Props) {

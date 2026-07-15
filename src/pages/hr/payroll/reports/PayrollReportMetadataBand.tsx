@@ -47,7 +47,10 @@ export function PayrollReportMetadataBand({
         "MMM d, yyyy",
       )}`,
     },
-    { label: "Rows", value: rowCount.toLocaleString() },
+    {
+      label: "Generated",
+      value: generatedAt ? format(generatedAt, "MMM d, yyyy · HH:mm") : "—",
+    },
     {
       label: "Generated",
       value: generatedAt ? format(generatedAt, "MMM d, yyyy · HH:mm") : "—",
