@@ -194,10 +194,26 @@ function ViewerInner() {
       }
       return out;
     });
-    return {
+    // Attach server-build hints so `PrintPreviewDialog` and PDF export take
+    // the SERVER-BUILD path in `render-report` (not the lossy prebuilt
+    // path that re-ships client rows). This is the fix for "table shows N
+    // rows but Preview PDF is empty": we now regenerate the dataset on the
+    // server from the same reportType + period the table used, guaranteeing
+    // the PDF matches what the user sees. CSV/Excel still use `rows` below.
+    const cfg: ExportConfig & {
+      reportType?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      businessId?: string;
+      filters?: Record<string, unknown>;
+    } = {
       title: definition?.label ?? String(reportKey),
-      companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
+      reportType: reportKey,
+      dateFrom,
+      dateTo,
+      businessId: currentBusiness?.id,
+      filters: { branchId: filters.branchId ?? null },
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(
         new Date(dateTo),
         "MMM d, yyyy",
@@ -211,7 +227,19 @@ function ViewerInner() {
       rows: exportRows,
       sheetName: definition?.label ?? String(reportKey),
     };
-  }, [rows, columns, reportKey, definition, dateFrom, dateTo, currentOrg, canSeeMoney]);
+    return cfg;
+  }, [
+    rows,
+    columns,
+    reportKey,
+    definition,
+    dateFrom,
+    dateTo,
+    currentOrg,
+    currentBusiness?.id,
+    filters.branchId,
+    canSeeMoney,
+  ]);
 
   if (defsLoading) {
     return (
