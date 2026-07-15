@@ -40,7 +40,7 @@ export default function MyLeave() {
   const { currentEmployee } = useCurrentEmployee();
   const { getEmployeeBalances } = useLeaveAllocations();
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
-  const [showRequestForm, setShowRequestForm] = useState(false);
+  
 
   useEffect(() => {
     if (currentEmployee?.id) {
