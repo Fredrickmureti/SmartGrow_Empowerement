@@ -13,18 +13,11 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Calendar, ArrowLeftRight, Check, X } from "lucide-react";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
-import { PageHeader, PageBody } from "@/design-system";
+import { PageHeader, PageBody, DetailSheet, FooterActionBar } from "@/design-system";
 
 function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
