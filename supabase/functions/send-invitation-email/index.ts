@@ -58,7 +58,11 @@ const handler = async (req: Request): Promise<Response> => {
     // The From-line on user invitations should read as the tenant, not the platform.
     const { data: invitation, error: invError } = await supabase
       .from("organization_invitations")
-      .select(`id, email, role, user_type, token, expires_at, organization_id, business_id, organization:organizations(id, name)`)
+      // NOTE: `organization_invitations` has no `business_id` column — invitations
+      // are scoped at the organization level. Referencing a missing column made
+      // PostgREST reject this select, which the handler mapped to a 404
+      // "Invitation not found" and silently swallowed every invite email.
+      .select(`id, email, role, user_type, token, expires_at, organization_id, organization:organizations(id, name)`)
       .eq("id", invitationId)
       .single();
 
