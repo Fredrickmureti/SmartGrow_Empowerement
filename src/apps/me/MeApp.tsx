@@ -98,6 +98,16 @@ export default function MeApp() {
             </Lazy>
           }
         />
+        <Route
+          path="leave/new"
+          element={
+            <Lazy module="Request leave">
+              <MyLeaveNew />
+            </Lazy>
+          }
+        />
+
+
 
         {/* My Timesheets — own time entries */}
         <Route
