@@ -604,7 +604,6 @@ Deno.serve(async (req) => {
         }
 
         const provenance = source.provenance;
-        const maxPayrollUpdatedAt = provenance.max_payroll_updated_at;
         const totals = source.totals;
 
         const payload = {
