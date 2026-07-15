@@ -1,37 +1,57 @@
-I rechecked the uploaded PDFs visually before planning the fix.
+# KE P9 Certificate — finish the handover
 
-What I confirmed:
-- `amazing-2.pdf` has 3 pages; page 2 is completely blank.
-- The system header is still clipped: the top text is present/selectable but visually cut off, especially around `APPENDIX 2A` / `KENYA REVENUE AUTHORITY...`.
-- The original PDF is 1 page and its top section is normal visible content, not a clipped repeated running header.
-- The original has a `Kshs.` currency row across the amount columns; the system template only shows `Kshs.` under the Defined Contribution Retirement Scheme columns because the P9 header row is authored with unit cells only for E1/E2/E3.
+## Findings (audit of prior work)
 
-Plan:
+1. **Renderer + source template are already correct.** `src/features/localization/lib/engine/templates/keP9.ts` (schema v4) is the intended fix:
+   - `topHeader` (APPENDIX 2A / KRA / TAX DEDUCTION CARD / YEAR) lives **in document flow**, not in `page_master.header` — so no clipping.
+   - `page_master` only defines a `footer`; no running header → no repeat on later pages.
+   - The grid unit row emits `Kshs.` for **all 17 amount columns A–O** (line 147).
+   - IMPORTANT block is not force-`keep_together`.
+   - Compile tests in `src/test/localization/ke-p9-v10.compile.test.ts` already assert all of the above and pass against the source module.
 
-1. **Stop clipping the P9 top header**
-   - Move the Kenya P9 top header out of the repeating page-margin header band and into the normal first-page document flow for this template.
-   - Keep only the footer in the page master.
-   - This removes the “selectable but invisible” margin-box clipping problem and also prevents the header from repeating on the later notes page.
+2. **The DB copy of the template was never updated to that source.** Row `localization_pack_certificate_templates.id = 8426e8da-f9c9-48cc-9d60-2dad85566e5c` (`code = P9`, `schema_version = 4`) still contains the **old body with a `page_master.header`** running header (APPENDIX 2A / KRA / ISO 9001 columns) — this is precisely the header that visibly clips in `Systems.pdf` and pushes content onto a blank second page.
 
-2. **Match the official KRA header grid more closely**
-   - Rebuild the P9 grid header stack so the unit row includes `Kshs.` for every amount column, not only E1/E2/E3.
-   - Keep the E retirement group structure, but make the visible row order closer to the original: label row → currency row → letter/group row → E1/E2/E3 instruction row.
+3. **The last two publishes did not touch the P9 body:**
+   - v10.1.4 (2026‑07‑15 08:31) → `jsonb_set` on `document[3].derived_columns` only.
+   - v10.1.5 (2026‑07‑15 09:01) → tightened the `enforce_certificate_template_structure` trigger; no body change.
+   Net effect: since the trigger now enforces structure, the update must satisfy it (identity + data + signature blocks). The current source template already does (identity_row nodes, grid = monthly_breakdown/totals, importantBlock closure).
 
-3. **Remove the extra blank page / force one-page statutory layout**
-   - Compact the P9 template spacing and typography enough for the identity block, monthly grid, totals, and IMPORTANT/Attach notes to fit on one landscape page like the original.
-   - Remove the over-aggressive `keep_together` behavior from the IMPORTANT block that is causing the notes to be pushed after a blank page.
+4. **Pack state:** `localization_packs` KE is at `10.1.5`. `pack_versions` shows 10.1.1 → 10.1.5 all `published`. No `2026.8.1` exists; that name from the earlier draft SQL should be discarded — we continue the `10.1.x` sequence the publisher has been using.
 
-4. **Ship through the localization pack**
-   - Apply a Supabase migration to update the stored KE P9 certificate template body.
-   - Bump the Kenya localization pack version so the tenant receives the corrected template through the normal update flow.
+5. **Renderer / PDF pipeline itself is not the bug.** Browser preview via paged.js and edge compile mirror are in parity (`certificate-engine.mirror-parity.test.ts`). Once the DB body matches the source, both preview and `generate-tax-certificate` will render the correct layout.
 
-5. **Verification**
-   - Add/update focused compile tests for the canonical KE P9 v4 template:
-     - all expected `Kshs.` cells are emitted,
-     - the P9 header is not in the running page header,
-     - the footer still exists,
-     - no required payroll bindings regress.
-   - Regenerate a sample PDF, convert it to images, and visually verify:
-     - header is fully visible,
-     - `Kshs.` appears across the amount columns,
-     - no blank middle page is produced.
+## What to do
+
+Single migration + version bump. No renderer, engine, or template‑source edits.
+
+### 1. Replace DB body with the current source template
+
+- Serialize `KE_P9_V3_TEMPLATE` (from `src/features/localization/lib/engine/templates/keP9.ts`) to JSON.
+- In a new Supabase migration, `UPDATE public.localization_pack_certificate_templates SET body = '<literal jsonb>'::jsonb, updated_at = now() WHERE id = '8426e8da-f9c9-48cc-9d60-2dad85566e5c';`
+- The `enforce_certificate_template_structure` trigger will validate; body already satisfies required identity/data/signature semantics via the identity rows, grid (monthly_breakdown + totals), and closing block.
+
+### 2. Bump pack version
+
+- `UPDATE public.localization_packs SET version = '10.1.6', updated_at = now() WHERE id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';`
+- Insert a matching `pack_versions` row (`version = '10.1.6'`, `status = 'published'`, `published_at = now()`, `pack_id = <KE pack id>`) mirroring the shape of the 10.1.5 row.
+
+### 3. Verify
+
+- Run `vitest` targeted at `src/test/localization/ke-p9-v10.compile.test.ts` and `certificate-engine.*.test.ts` (should still pass — no code changed).
+- Re-query the DB row: `body->'page_master'->'header'` must be `NULL`; `jsonb_array_length(body->'document')` = 10; count of `Kshs.` unit cells in the grid header = 17.
+- Regenerate the certificate for a sample tenant via `generate-tax-certificate` and confirm: single landscape page, top heading visible, `Kshs.` under every amount column, no blank middle page.
+
+## What NOT to do
+
+- Do **not** re-run the earlier draft SQL from `.lovable/plan.md` (it targeted a non-existent `2026.8.1` sequence and pre-dates the 10.1.5 trigger tightening).
+- Do **not** edit `keP9.ts`, `compile.ts` (browser or edge mirror), `resolver.ts`, `types.ts`, `certificateRenderer.ts`, or `generate-tax-certificate` — the source of truth already models the official KRA layout.
+- Do **not** introduce Kenya-specific logic in the engine or renderer. All fixes stay in pack data.
+
+## Technical details
+
+- Table: `public.localization_pack_certificate_templates`
+- Template row id: `8426e8da-f9c9-48cc-9d60-2dad85566e5c` (code `P9`, pack KE)
+- Pack row id: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`
+- New pack version: `10.1.6`
+- Body payload: the full serialized `KE_P9_V3_TEMPLATE` object (schema_version 4, paper A4 landscape, page_master with footer only, 10 document nodes).
+- Trigger to satisfy: `enforce_certificate_template_structure` (added in migration `20260715090135`).
