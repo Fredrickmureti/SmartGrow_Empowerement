@@ -13,12 +13,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Play, CheckCircle2, XCircle, Paperclip, Link2, FileText, Download, ExternalLink, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
+import { PageHeader, PageBody, LoadingState, EmptyState, DetailSheet, FooterActionBar } from "@/design-system";
 
 export default function MyLearning() {
   const { currentEmployee } = useCurrentEmployee();
