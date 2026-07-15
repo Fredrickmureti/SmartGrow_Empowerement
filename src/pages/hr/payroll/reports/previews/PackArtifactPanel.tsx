@@ -33,7 +33,7 @@ export function PackArtifactPanel({ definition, dateFrom, dateTo }: Props) {
   const isCertificate = definition.dataSource === "pack_artifact.tax_certificate";
 
   const workflowHref = isReturn
-    ? `/hr/payroll/statutory-remittances?template=${encodeURIComponent(
+    ? `/hr/remittances?template=${encodeURIComponent(
         String((definition.metadata as any)?.template_code ?? ""),
       )}&from=${dateFrom}&to=${dateTo}`
     : isCertificate
