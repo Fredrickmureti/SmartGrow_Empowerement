@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Calendar, ArrowLeftRight, Check, X } from "lucide-react";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
+import { PageHeader, PageBody } from "@/design-system";
 
 function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -69,17 +70,13 @@ export default function MyShifts() {
   if (!currentEmployee) return <EmployeeLinkRequired />;
 
   return (
-    <div className="space-y-6 p-4">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <Calendar className="h-6 w-6" /> My Shifts
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Your upcoming roster and shift swap requests.
-        </p>
-      </div>
-
-      <Card>
+    <>
+      <PageHeader
+        title="My Shifts"
+        description="Your upcoming roster and shift swap requests."
+      />
+      <PageBody>
+        <Card>
         <CardHeader>
           <CardTitle>Upcoming shifts</CardTitle>
           <CardDescription>Next 60 days.</CardDescription>
@@ -233,6 +230,7 @@ export default function MyShifts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </PageBody>
+    </>
   );
 }

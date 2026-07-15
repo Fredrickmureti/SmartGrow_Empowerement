@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader, PageBody } from "@/design-system";
 
 import { ManagerTriageBanner } from "@/components/hr/ManagerTriageBanner";
 import { LeaveRequestForm } from "@/components/leave/LeaveRequestForm";
@@ -69,22 +70,20 @@ export default function MyLeave() {
     .slice(0, 20);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">My Time Off</h1>
-          <p className="text-sm text-muted-foreground">
-            Request leave, track approvals, and view your remaining balance.
-          </p>
-        </div>
-        <Button onClick={() => setShowRequestForm(true)} className="sm:self-auto">
-          <Plus className="h-4 w-4 mr-2" />
-          Request leave
-        </Button>
-      </div>
-
-      {/* Manager triage — same primitive used on /me/attendance and /me/timesheets */}
-      <ManagerTriageBanner module="leave" />
+    <>
+      <PageHeader
+        title="My Time Off"
+        description="Request leave, track approvals, and view your remaining balance."
+        actions={
+          <Button onClick={() => setShowRequestForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Request leave
+          </Button>
+        }
+      />
+      <PageBody>
+        {/* Manager triage — same primitive used on /me/attendance and /me/timesheets */}
+        <ManagerTriageBanner module="leave" />
 
       {/* Balances strip */}
       <section>
@@ -156,7 +155,8 @@ export default function MyLeave() {
       </Tabs>
 
       <LeaveRequestForm open={showRequestForm} onOpenChange={setShowRequestForm} />
-    </div>
+      </PageBody>
+    </>
   );
 }
 

@@ -1,95 +1,101 @@
 
-# Payroll Report Viewer — Enterprise Rebuild + Empty-PDF Fix
+# ESS Portal — Design System Consistency Audit & Remediation
 
-## The two problems
+## What I inspected
 
-1. **The page is not enterprise-grade.** `/hr/payroll/reports/:reportKey` today is: title → filter card → a tiny metadata band ("Owner / Period / Rows / Generated") → a bare table whose first line is literally "3 rows". No KPI cards, no context, no relationship to the payroll run that produced the data, no drill-downs, no readiness explanation surface, no export/print affordance grouping. It looks like a debug page.
-2. **Preview PDF is empty on every report.** The table shows 3 rows, but "Preview" opens a blank PDF. This is not a per-report bug; it's a wiring bug in how the viewer feeds the PDF pipeline. Reproduced mentally on Employer Contributions and Employee Earnings; the same code path serves every payroll report.
+- Shell: `src/apps/me/MeApp.tsx`, `src/components/me/MePortalLayout.tsx`, `src/components/me/MeSubNav.tsx`, `src/components/me/EmployeeLinkRequired.tsx`.
+- All 28 pages under `src/pages/me/` (~4,800 LOC).
+- Compared against platform patterns already in production: `src/design-system/primitives/*` (PageHeader, PageBody, EmptyState, FilterBar, Section, DetailSheet, RecordFormShell, StatusBadge, LoadingState, ErrorState), `src/components/hr/` (KpiStrip, ManagerTriageBanner, SavedViewMenu, StatusFilterChips), and reference pages: `TimesheetApprovals`, `EmployeeProfile`, `Employees`, `Departments`, HR documents/contracts/lifecycle.
+- Audit doc source of truth: `docs/design-system/audit/employees.md`.
 
-## Root cause of the empty PDF
+## Findings — the ESS portal is materially drifted
 
-- The viewer's JSON fetch (`render-report … format:"json"`) returns `{ columns, data }` where `columns[i].key` are the server's canonical keys (e.g. `rule_code`, `employer_amount`, `employee_name`, `gross_pay`).
-- `getExportConfig()` in `PayrollReportViewer.tsx` builds `ExportConfig.rows` by doing `out[c.key] = row[c.key]` for each column. That's fine only if the JSON rows use identical keys. For several payroll reports the server returns `snake_case` in `columns` but the row objects also carry a `_meta` block, and some columns are computed keys (e.g. `total`, `ytd_*`) that don't exist on the raw row — those cells become `null`.
-- `PrintPreviewDialog` decides between "server-build" and "prebuilt" mode using `sb.reportType && sb.dateFrom && sb.dateTo`. Our export config sets none of them, so it always takes the prebuilt path — it re-sends the client's (partially null) rows to `render-report`, which faithfully renders a PDF with empty cells, or drops rows that have every visible column null, producing the "empty PDF" the user sees.
-- Net: we're round-tripping through PDF using a lossy client projection instead of asking the server to render its own dataset. That's the architectural mistake to fix, not a per-report column fix.
+### 1. Zero design-system primitive adoption (highest-impact drift)
+- `rg -l "@/design-system/primitives" src/pages/me` → **0 files**.
+- Every `/me/*` page hand-rolls `<h1 className="text-2xl font-bold tracking-tight">…</h1>` + subtitle instead of `<PageHeader>` / `<PageBody>`. Meanwhile Employees, Departments, Job Positions, Work Locations, Timesheets, HR Docs, Contracts, Lifecycle, Payroll reports have all migrated (see audit doc).
+- No page uses `EmptyState`, `LoadingState`, `ErrorState`, `Section`, `FilterBar`, or `StatusBadge` primitives — each page inlines its own `<Skeleton>` grid, its own "no data" card, and its own colored `<Badge>` map.
 
-## Fix strategy
+### 2. Bespoke chrome instead of the shadcn Sidebar pattern
+- `MePortalLayout` hand-rolls a `<header>` + `<aside w-60>` + mobile `<Sheet>`. The rest of the platform standardises on `SidebarProvider` / `Sidebar` / `SidebarTrigger` (see the sidebar knowledge in project rules). Result: different collapse behaviour, no icon-collapsed mini-rail, no active-state semantics from the Sidebar primitive.
 
-Two independent changes, done together:
+### 3. Duplicated navigation surface inside the portal
+- `MePortalLayout` renders a 14-item left rail **and** `MeSubNav` renders a horizontal grouped sub-nav on the same page. The rest of the platform uses one primary rail + one contextual sub-nav (`AttendanceSubNav`, `LeaveSubNav`, `TimesheetsSubNav`, `EmployeesSubNav`) — never both listing the same destinations.
 
-### A. Make the PDF come from the server, from the same query as the table
+### 4. Legacy dialogs where the platform moved to routed sheets/pages
+- Dialog imports found in `MyShifts.tsx`, `MyLearningPage.tsx`, `MyOneOnOnes.tsx`; inline "showRequestForm" popovers in `MyLeave.tsx`.
+- Platform standard for record create/edit is `RecordFormShell` routed pages (see `EmployeeNewPage`, `DepartmentCreatePage`, `WorkLocationEditPage`, etc.). Detail peeks use `DetailSheet`. ESS uses neither.
 
-1. In `PayrollReportViewer.getExportConfig`, attach server-build hints so `PrintPreviewDialog` and `exportToPDF` take the server path:
-   - `reportType: reportKey`
-   - `dateFrom`, `dateTo`
-   - `businessId`
-   - `filters: { branchId }`
-   - Keep `columns` + `rows` as a fallback for CSV/Excel (those still need client data), but the PDF/print branch now always calls `render-report` in server-build mode with `format: "pdf"`.
-2. Verify `PrintPreviewDialog` already forwards those hints (it does, lines 68-78) — no change there.
-3. Result: preview PDF is generated by the same code path that populated the table, so "3 rows in table" ↔ "3 rows in PDF" is guaranteed. No more per-report column-key drift.
-4. Add a regression test in `src/test/payroll/` that asserts every payroll report definition's `ExportConfig` produced by the viewer carries `reportType`, `dateFrom`, `dateTo`, and `businessId`.
+### 5. Status badges reinvented per page
+- Each of `MyLeave`, `MyPayslips`, `MyDocuments`, `MyShifts`, `MyLoans` defines a local `statusBadge`/`StatusBadge` function with its own colour map. Primitive `StatusBadge` exists and is used elsewhere.
 
-### B. Turn the viewer into a real enterprise report page
+### 6. KPI band inconsistency
+- `KpiStrip` is the platform's approved-count / pending-count strip (used in `TimesheetApprovals`, attendance & leave approvals). ESS ignores it — `MyLeave` hand-rolls balance cards, `MyPayslips` has no summary, `MeHome` uses custom tiles.
 
-Replace the current body layout with a structured page that follows the same anatomy Workday / Oracle Fusion / NetSuite use for a single report. Nothing about localization scoping or the tenant-filtered registry changes; this is purely the presentation layer above the already-tenant-scoped definition.
+### 7. Header action zoning
+- No page uses the `PageHeader` `actions` slot. Buttons float in ad-hoc flex rows (`MyLeave` right-aligned button; `MyPayslips` `ReportExportButtons` mid-body). Export/print/history affordances are missing on pages where they belong (`MyPayslips` has export; `MyLoans`/`MyDocuments` don't).
 
-New layout, top to bottom:
+### 8. Loading/empty/error states are one-off per page
+- `Skeleton` blocks are copy-pasted; empty states range from a plain `<Card>` sentence to nothing at all. `EmployeeLinkRequired` is the one shared empty state and is correctly reused — that's the pattern to extend everywhere.
 
-```text
-┌ Header ──────────────────────────────────────────────────────────┐
-│ Employer Contributions           [Owner: Payroll Engine]         │
-│ Employer-side statutory contributions.                           │
-│ Source run: Jun 2026 Payroll  ·  Approved 3 Jul 2026 by A. Doe   │
-│                              [Export ▾] [Preview] [All reports]  │
-├ Filters ─────────────────────────────────────────────────────────┤
-│ [Period ▾ latest approved run]  [Branch ▾]  [Compare period ▾]   │
-├ Readiness ───────────────────────────────────────────────────────┤
-│ [payroll_approved ✓]  [liabilities_posted ✓]  [gl_posted —]      │
-├ KPI band (report-type aware) ────────────────────────────────────┤
-│ [Total Employer Cost]  [# Contributions]  [Avg / Employee]  [Δ vs prev period] │
-├ Body ────────────────────────────────────────────────────────────┤
-│  • grouped/summary table (definition.previewKind drives it)      │
-│  • row click → payslip / run / remittance drill-down             │
-├ Footer ──────────────────────────────────────────────────────────┤
-│ Generated 15 Jul 2026 17:57 · Pack v2.3 · Template v4            │
-│ [History ▾ last 5 runs]                                          │
-└──────────────────────────────────────────────────────────────────┘
-```
+### 9. Sub-app registration
+- `MeApp` is not registered as an app under `src/apps` in the way `Contacts`/`CRM`/`Finance` are (they export `App` + `Layout`). Not user-visible, but confirms the portal predates the current app-shell convention.
 
-Concrete component work:
+## Remediation plan
 
-1. **`PayrollReportContextHeader`** (new): resolves the latest approved run for the current period and shows run label, approval date, approver, run id (deep link to `/hr/payroll/runs/:id`). If there is no approved run in range, shows a neutral "No approved run in this period — showing empty dataset" banner instead of the generic `isEmpty` state.
-2. **`PayrollReportKpiBand`** (new): reads a `kpis?: KpiSpec[]` slice off `payroll_report_definitions.metadata` (already a `jsonb` column). Each KPI is `{ key, label, agg: "sum"|"avg"|"count"|"delta", format }`. Renders 3–4 metric cards computed from the rows the viewer already has. Falls back to a sensible generic (row count, sum of first money column) when the definition doesn't declare KPIs, so every existing report gets a band immediately with zero DB changes. New reports opt into their own KPIs by populating `metadata.kpis`.
-3. **`PayrollReportPreview`** — keep the switch on `previewKind`, but drop the "3 rows" text from `TablePreview` (that string is what the user saw and hated). Row count moves into the KPI band; the table shows just the data with sticky header, zebra striping, and right-aligned money.
-4. **`PayrollReportHistoryStrip`** (new, collapsible): last 5 rows from `payroll_report_runs` for this `reportKey` + tenant, each a link that re-opens the viewer with those exact filters.
-5. **Empty-state semantics**: distinguish three cases so the page stops looking broken:
-   - No approved run in period → context-header banner + neutral empty table (not `FileX2`).
-   - Approved run exists, dataset genuinely empty → current `FileX2` empty state, but with a "Why?" popover that reads from `payroll_report_readiness`.
-   - Data present → normal render.
-6. **Header actions**: consolidate `Export` (Excel/CSV) + `Preview` (PDF) + `Print` into the existing `ReportExportButtons`; add an `Email report` item so the surface matches the rest of the reporting centre.
+### Wave A — Shell parity (foundation)
+1. Rebuild `MePortalLayout` on `SidebarProvider` + `Sidebar` (shadcn) with `collapsible="icon"` so the rail collapses to icons like every other app.
+2. Delete the horizontal `MeSubNav` — the rail is the single nav surface, matching every other app. Remove imports from `MePortalLayout`.
+3. Keep the "Back to workspace" affordance for internal users; keep `NotificationBell`, `ThemeToggle`, user menu.
+4. Ensure the shell wraps main content in `PageBody` sizing so all pages inherit consistent gutters.
 
-## Files touched
+### Wave B — Primitive adoption across all 28 pages
+For every `/me/*` page, replace:
+- Hand-rolled header block → `<PageHeader title=… subtitle=… actions={…} />`.
+- Body wrapper → `<PageBody>`.
+- Loading blocks → `<LoadingState />` (skeleton preset).
+- Empty blocks → `<EmptyState />` (or `EmployeeLinkRequired` when applicable).
+- Error blocks → `<ErrorState />`.
+- Per-page filter rows → `<FilterBar />` with `SavedViewMenu` / `StatusFilterChips` where a list has status.
+- Local `statusBadge` helpers → shared `<StatusBadge />` primitive with a single semantic status map contributed to `src/design-system/primitives/StatusBadge.tsx` (or a small `hr-status-map.ts` alongside it if it doesn't already exist).
 
-- `src/pages/hr/payroll/reports/PayrollReportViewer.tsx` — layout rebuild, `getExportConfig` carries server-build hints.
-- `src/pages/hr/payroll/reports/previews/PayrollReportPreview.tsx` — drop "N rows" line, tidy `TablePreview`.
-- `src/pages/hr/payroll/reports/PayrollReportContextHeader.tsx` (new).
-- `src/pages/hr/payroll/reports/PayrollReportKpiBand.tsx` (new).
-- `src/pages/hr/payroll/reports/PayrollReportHistoryStrip.tsx` (new).
-- `src/test/payroll/reports-viewer-contract.test.ts` (new) — regression for the ExportConfig server-build hints.
+Priority order (largest surfaces first):
+1. `MeHome`, `MyLeave`, `MyPayslips`, `MyAttendance`, `MyTimesheets`, `MyLoans`, `MyDocuments`, `MyShifts`.
+2. `MyOnboarding`, `MyExitClearance`, `MyTaxCertificates`, `MySettings`.
+3. Talent cluster: `MyTalent`, `MyGoals`, `MyGoalDetail`, `MyReviews`, `MyReviewDetail`, `MyCompetencies`, `MyDevelopmentPlan`, `MyOneOnOnes`, `MyOneOnOneDetail`, `MyFeedback`.
+4. Learning cluster: `MyLearningPage`, `MyLearningCatalog`, `MyLearningPathsPage`, `MyQuizPlayerPage`.
+5. Team cluster: `MyTeamPage`, `MyTeamTalent`, `MyTeamLearningPage`.
 
-No DB migration, no changes to `render-report`, no changes to tenant scoping.
+### Wave C — Interaction pattern parity
+1. `MyLeave` request form: convert the inline `showRequestForm` state into a routed page `/me/leave/new` backed by `RecordFormShell`, mirroring how HR creates records elsewhere. Keep the confirm/cancel affordances the shell provides; discard the local dialog.
+2. `MyShifts`, `MyLearningPage`, `MyOneOnOnes` dialog imports: audit each — pure confirms stay as `AlertDialog`; record-shaped forms become routed `RecordFormShell` pages; detail peeks use `DetailSheet`.
+3. Add KPI band to list surfaces: `KpiStrip` on `MyLeave` (balance / pending / used / accruing), `MyTimesheets` (this-week hours / pending / approved / rejected), `MyLoans` (outstanding / next installment / paid), `MyPayslips` (YTD gross / net / tax / last pay).
+4. Standardise export/print affordances via `ReportExportButtons` in `PageHeader.actions` on `MyPayslips`, `MyTaxCertificates`, `MyLoans`, `MyDocuments`, `MyAttendance`, `MyTimesheets`.
+5. Adopt `ManagerTriageBanner` uniformly on any /me page that already has a manager-facing counterpart (already present on `MyLeave`; add to `MyTimesheets` and `MyAttendance` where the user is also a manager).
 
-## Out of scope
+### Wave D — Guardrails so drift can't return
+1. New ESLint rule `eslint-rules/no-hand-rolled-me-header.js` — flags `<h1 className*="text-2xl font-bold tracking-tight">` inside `src/pages/me/` (must use `PageHeader`).
+2. Architecture test `src/test/architecture/me-uses-design-system.test.ts` — asserts every `src/pages/me/*.tsx` imports at least `PageHeader` from `@/design-system/primitives`.
+3. Extend `docs/design-system/audit/` with `docs/design-system/audit/ess-portal.md` mirroring the Employees audit table (row per surface, status column).
 
-- The tenant-scoped registry, localization ownership, `payroll_report_definitions_for_tenant` RPC, and the Ghana/Kenya isolation — those landed already and are covered by `src/test/payroll/reports-tenant-scoping.test.ts`.
-- Per-report bespoke KPI wiring beyond the generic band; individual reports can declare `metadata.kpis` in follow-up work without touching the viewer.
+### Out of scope
+- Business logic in the /me hooks (`useMyDocuments`, `useLeaveRequests`, etc.) — reads/writes unchanged.
+- Talent/Learning feature surface — only their presentation.
+- Router migration (react-router-dom → TanStack Router) — the whole app is on react-router-dom today; migrating just /me would break parity, not restore it.
+- Notifications wiring, entitlement gating logic, session/auth flows — behaviour is correct today.
+
+## Technical notes
+
+- `MeApp.tsx` uses `react-router-dom` `Routes/Route`; keep it. The Sidebar rebuild lives in `MePortalLayout` only.
+- `SidebarProvider` requires the outer `<div>` to be `w-full` (already covered by our shell rules).
+- Shared status map: add `src/design-system/primitives/status-maps/hr.ts` if not present, so leave/payslip/loan/document statuses share one source. Reuse in admin HR pages as well to close a latent duplication there.
+- Routed forms replacing dialogs: register redirects for any deep link that today opens the dialog (e.g. `?action=new`) so bookmarks and cross-links keep working — mirror the pattern used in Wave 13 for Departments.
 
 ## Verification
 
-1. Load `/hr/payroll/reports/employer_contributions` in a Kenya tenant with an approved June run.
-   - Header shows the June run link, KPI band shows total employer cost + count, table shows the 3 rows without the "3 rows" chrome.
-2. Click Preview → PDF renders with all 3 rows and money columns populated (server-build path).
-3. Load `/hr/payroll/reports/employee_earnings` with the same tenant — same three sections, table populated, PDF non-empty.
-4. Load any report with no approved run in the selected period — context-header banner appears; empty table is neutral; Preview PDF shows the report header and an empty dataset, not a blank page.
-5. Run `bunx vitest run src/test/payroll/reports-viewer-contract.test.ts` — passes.
-6. Run `bunx vitest run src/test/payroll/reports-tenant-scoping.test.ts` — still passes (no regression in localization scoping).
+1. `rg -l "@/design-system/primitives/PageHeader" src/pages/me` returns all 28 pages.
+2. `rg "text-2xl font-bold tracking-tight" src/pages/me` returns 0 matches.
+3. `rg -l "@/components/ui/dialog" src/pages/me` returns only pages where a plain confirm dialog is genuinely needed (documented allowlist).
+4. New arch test passes; new ESLint rule flags no violations.
+5. Manual walk-through: navigating between `/hr/*` (admin) and `/me/*` (portal) shows identical page-header treatment, identical sub-nav treatment, identical empty/loading/error states, identical status badge palette, identical record-create ergonomics.
+
+Estimated size: ~28 page refactors + 1 shell rewrite + 1 sub-nav deletion + 1 ESLint rule + 1 arch test + 1 audit doc. Each page refactor is presentation-only and small (<40 LOC per file on average).

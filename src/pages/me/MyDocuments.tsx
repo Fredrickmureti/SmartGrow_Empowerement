@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader, PageBody } from "@/design-system";
 import { useMyDocuments, type MyDocument } from "@/hooks/hr/useMyDocuments";
 
 function formatBytes(bytes: number | null): string {
@@ -54,19 +55,18 @@ export default function MyDocuments() {
   const pending = documents.filter((d) => !d.acknowledged_at).length;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <FileText className="h-6 w-6" />
-          My Documents
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Contracts, policies, certificates and other documents shared with you by HR.
-          {pending > 0 ? ` You have ${pending} item${pending === 1 ? "" : "s"} awaiting acknowledgement.` : ""}
-        </p>
-      </div>
-
-      <Card>
+    <>
+      <PageHeader
+        title="My Documents"
+        description={
+          "Contracts, policies, certificates and other documents shared with you by HR." +
+          (pending > 0
+            ? ` You have ${pending} item${pending === 1 ? "" : "s"} awaiting acknowledgement.`
+            : "")
+        }
+      />
+      <PageBody>
+        <Card>
         <CardHeader>
           <CardTitle>Document library</CardTitle>
           <CardDescription>
@@ -142,6 +142,7 @@ export default function MyDocuments() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </PageBody>
+    </>
   );
 }

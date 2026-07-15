@@ -34,11 +34,16 @@ describe("HR suite wave-C continuation", () => {
     expect(src).toMatch(/tab === "types"/);
   });
 
-  it("MeSubNav exists and MePortalLayout mounts it", () => {
-    expect(existsSync(resolve(ROOT, "src/components/me/MeSubNav.tsx"))).toBe(true);
+  it("MePortalLayout has been rebuilt on the platform sidebar shape (MeSubNav retired)", () => {
+    // MeSubNav duplicated the left rail and has been retired in the ESS
+    // consistency wave. MePortalLayout now renders a grouped sidebar
+    // structurally mirroring WorkspaceSidebar and no longer imports MeSubNav.
+    expect(existsSync(resolve(ROOT, "src/components/me/MeSubNav.tsx"))).toBe(false);
     const layout = r("src/components/me/MePortalLayout.tsx");
-    expect(layout).toMatch(/from\s+"@\/components\/me\/MeSubNav"/);
-    expect(layout).toMatch(/<MeSubNav/);
+    expect(layout).not.toMatch(/from\s+"@\/components\/me\/MeSubNav"/);
+    expect(layout).not.toMatch(/<MeSubNav/);
+    // Sanity: still rendering a grouped nav
+    expect(layout).toMatch(/NAV_GROUPS/);
   });
 
   it("Employees inbox hook + ModuleInboxCard 'employees' variant + 4-card strip", () => {

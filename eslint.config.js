@@ -19,6 +19,7 @@ import noRawZplOutsidePrinting from "./eslint-rules/no-raw-zpl-outside-printing.
 import noDirectEmployeesBranchWrite from "./eslint-rules/no-direct-employees-branch-write.js";
 import noPayslipLinesInCertificates from "./eslint-rules/no-payslip-lines-in-certificates.js";
 import noDialogCrudInAdmin from "./eslint-rules/no-dialog-crud-in-admin.js";
+import noHandRolledMeHeader from "./eslint-rules/no-hand-rolled-me-header.js";
 
 
 export default tseslint.config(
@@ -51,6 +52,7 @@ export default tseslint.config(
           "no-direct-employees-branch-write": noDirectEmployeesBranchWrite,
           "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
           "no-dialog-crud-in-admin": noDialogCrudInAdmin,
+          "no-hand-rolled-me-header": noHandRolledMeHeader,
         },
       },
     },
@@ -191,6 +193,16 @@ export default tseslint.config(
     ],
     rules: {
       "local/no-dialog-crud-in-admin": "error",
+    },
+  },
+
+  // ESS Portal (Wave A/B) — every /me/* page must consume the design-system
+  // PageHeader primitive. Editor-time flag; the arch test
+  // `me-uses-design-system.test.ts` is the authoritative guard in CI.
+  {
+    files: ["src/pages/me/**/*.{ts,tsx}"],
+    rules: {
+      "local/no-hand-rolled-me-header": "error",
     },
   },
 );

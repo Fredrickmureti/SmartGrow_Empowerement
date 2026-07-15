@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader, PageBody } from "@/design-system";
 import { useMyLoans } from "@/hooks/useMyLoans";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
@@ -82,20 +83,18 @@ export default function MyLoans() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <header className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold">My loans & advances</h1>
-          <p className="text-sm text-muted-foreground">
-            Request a salary advance or staff loan, and track repayments.
-          </p>
-        </div>
-        <Button onClick={() => setShowWizard(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Request loan
-        </Button>
-      </header>
-
-      {/* Stats */}
+    <>
+      <PageHeader
+        title="My loans & advances"
+        description="Request a salary advance or staff loan, and track repayments."
+        actions={
+          <Button onClick={() => setShowWizard(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Request loan
+          </Button>
+        }
+      />
+      <PageBody>
+        {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -193,7 +192,8 @@ export default function MyLoans() {
       </Card>
 
       <RequestLoanWizard open={showWizard} onClose={() => setShowWizard(false)} />
-    </div>
+      </PageBody>
+    </>
   );
 }
 

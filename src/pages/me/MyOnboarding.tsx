@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle2, ClipboardList, Sparkles } from "lucide-react";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
+import { PageHeader, PageBody } from "@/design-system";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -99,18 +100,13 @@ export default function MyOnboarding() {
   }
 
   return (
-    <div className="space-y-4 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <ClipboardList className="h-6 w-6" /> My Onboarding
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Tasks to get you set up at your new role. Tick them off as you complete
-          them.
-        </p>
-      </div>
-
-      {loading ? (
+    <>
+      <PageHeader
+        title="My Onboarding"
+        description="Tasks to get you set up at your new role. Tick them off as you complete them."
+      />
+      <PageBody>
+        {loading ? (
         <Skeleton className="h-48 w-full" />
       ) : records.length === 0 ? (
         <Card>
@@ -126,7 +122,8 @@ export default function MyOnboarding() {
       ) : (
         records.map((rec) => <OnboardingCard key={rec.id} record={rec} onToggle={toggleItem} />)
       )}
-    </div>
+      </PageBody>
+    </>
   );
 }
 
