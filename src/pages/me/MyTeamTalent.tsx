@@ -113,12 +113,28 @@ export default function MyTeamTalent() {
         }
       />
       <PageBody>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard icon={<Users className="h-4 w-4" />} label="Team size" value={rollup?.team_size ?? 0} />
-        <MetricCard icon={<Target className="h-4 w-4" />} label="Active goals" value={rollup?.active_goals ?? 0} subtitle={rollup?.at_risk_goals ? `${rollup.at_risk_goals} at risk` : undefined} subtitleTone={rollup?.at_risk_goals ? "warn" : undefined} />
-        <MetricCard icon={<AlertTriangle className="h-4 w-4" />} label="Overdue check-ins" value={rollup?.overdue_check_ins ?? 0} tone={rollup?.overdue_check_ins ? "warn" : undefined} />
-        <MetricCard icon={<Heart className="h-4 w-4" />} label="Kudos (30d)" value={rollup?.kudos_last_30d ?? 0} />
-      </div>
+      <KpiStrip
+        tiles={[
+          { key: "team", label: "Team size", value: rollup?.team_size ?? 0, icon: Users, tone: "neutral" },
+          {
+            key: "goals",
+            label: "Active goals",
+            value: rollup?.active_goals ?? 0,
+            icon: Target,
+            tone: rollup?.at_risk_goals ? "amber" : "neutral",
+            hint: rollup?.at_risk_goals ? `${rollup.at_risk_goals} at risk` : undefined,
+          },
+          {
+            key: "overdue",
+            label: "Overdue check-ins",
+            value: rollup?.overdue_check_ins ?? 0,
+            icon: AlertTriangle,
+            tone: rollup?.overdue_check_ins ? "rose" : "neutral",
+          },
+          { key: "kudos", label: "Kudos (30d)", value: rollup?.kudos_last_30d ?? 0, icon: Heart, tone: "sky" },
+        ]}
+      />
+
 
       <div className="grid md:grid-cols-2 gap-4">
         <Card>
