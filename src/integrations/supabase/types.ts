@@ -71195,6 +71195,9 @@ export type Database = {
         | "user_invitation_accepted"
         | "user_linked"
         | "user_unlinked"
+        | "profile_change_requested"
+        | "profile_change_approved"
+        | "profile_change_rejected"
       employee_lifecycle_status:
         | "draft"
         | "active"
@@ -71817,6 +71820,9 @@ export const Constants = {
         "user_invitation_accepted",
         "user_linked",
         "user_unlinked",
+        "profile_change_requested",
+        "profile_change_approved",
+        "profile_change_rejected",
       ],
       employee_lifecycle_status: [
         "draft",
