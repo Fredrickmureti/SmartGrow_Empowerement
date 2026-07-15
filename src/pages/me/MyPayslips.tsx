@@ -27,6 +27,7 @@ import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
+import { PageHeader, PageBody } from "@/design-system";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { PayslipDetailDialog } from "@/components/payroll/PayslipDetailDialog";
@@ -166,22 +167,18 @@ export default function MyPayslips() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <header className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <FileText className="h-6 w-6" /> My payslips
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Download recent pay statements and review your earnings history.
-          </p>
-        </div>
-        {payslips.length > 0 ? (
-          <ReportExportButtons getExportConfig={exportConfig} compact hideEmail />
-        ) : null}
-      </header>
-
-      <Card>
+    <>
+      <PageHeader
+        title="My payslips"
+        description="Download recent pay statements and review your earnings history."
+        actions={
+          payslips.length > 0 ? (
+            <ReportExportButtons getExportConfig={exportConfig} compact hideEmail />
+          ) : null
+        }
+      />
+      <PageBody>
+        <Card>
         <CardHeader>
           <CardTitle className="text-base">Payslip history</CardTitle>
           <CardDescription>
@@ -273,7 +270,8 @@ export default function MyPayslips() {
         currency={(currentOrg as { currency_code?: string } | null | undefined)?.currency_code}
         title="Payslip detail"
       />
-    </div>
+      </PageBody>
+    </>
   );
 }
 
