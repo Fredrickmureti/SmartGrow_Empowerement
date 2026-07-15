@@ -46,6 +46,9 @@ import { PayrollReportPreview } from "./previews/PayrollReportPreview";
 import { PackArtifactPanel } from "./previews/PackArtifactPanel";
 import { PayrollReportMetadataBand } from "./PayrollReportMetadataBand";
 import { PayrollReportReadinessChips } from "./PayrollReportReadinessChips";
+import { PayrollReportContextHeader } from "./PayrollReportContextHeader";
+import { PayrollReportKpiBand } from "./PayrollReportKpiBand";
+import { PayrollReportHistoryStrip } from "./PayrollReportHistoryStrip";
 import { usePayrollReportReadiness } from "@/hooks/payroll/usePayrollReportReadiness";
 import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
 
@@ -194,10 +197,26 @@ function ViewerInner() {
       }
       return out;
     });
-    return {
+    // Attach server-build hints so `PrintPreviewDialog` and PDF export take
+    // the SERVER-BUILD path in `render-report` (not the lossy prebuilt
+    // path that re-ships client rows). This is the fix for "table shows N
+    // rows but Preview PDF is empty": we now regenerate the dataset on the
+    // server from the same reportType + period the table used, guaranteeing
+    // the PDF matches what the user sees. CSV/Excel still use `rows` below.
+    const cfg: ExportConfig & {
+      reportType?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      businessId?: string;
+      filters?: Record<string, unknown>;
+    } = {
       title: definition?.label ?? String(reportKey),
-      companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
+      reportType: reportKey,
+      dateFrom,
+      dateTo,
+      businessId: currentBusiness?.id,
+      filters: { branchId: filters.branchId ?? null },
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(
         new Date(dateTo),
         "MMM d, yyyy",
@@ -211,7 +230,19 @@ function ViewerInner() {
       rows: exportRows,
       sheetName: definition?.label ?? String(reportKey),
     };
-  }, [rows, columns, reportKey, definition, dateFrom, dateTo, currentOrg, canSeeMoney]);
+    return cfg;
+  }, [
+    rows,
+    columns,
+    reportKey,
+    definition,
+    dateFrom,
+    dateTo,
+    currentOrg,
+    currentBusiness?.id,
+    filters.branchId,
+    canSeeMoney,
+  ]);
 
   if (defsLoading) {
     return (
@@ -275,6 +306,13 @@ function ViewerInner() {
         </ReportFilters>
       }
     >
+      <PayrollReportContextHeader
+        definition={definition}
+        organizationId={currentOrg?.id}
+        businessId={currentBusiness?.id}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+      />
       <PayrollReportMetadataBand
         definition={definition}
         dateFrom={dateFrom}
@@ -286,6 +324,14 @@ function ViewerInner() {
         dependencies={definition.dependencies ?? []}
         readiness={readiness}
       />
+      {!isPackArtifact && rows.length > 0 && (
+        <PayrollReportKpiBand
+          definition={definition}
+          columns={columns}
+          rows={rows}
+          canSeeMoney={canSeeMoney}
+        />
+      )}
       {isPackArtifact ? (
         <PackArtifactPanel
           definition={definition}
@@ -300,6 +346,11 @@ function ViewerInner() {
           canSeeMoney={canSeeMoney}
         />
       )}
+      <PayrollReportHistoryStrip
+        organizationId={currentOrg?.id}
+        businessId={currentBusiness?.id}
+        reportKey={reportKey}
+      />
     </ReportPageLayout>
   );
 }
