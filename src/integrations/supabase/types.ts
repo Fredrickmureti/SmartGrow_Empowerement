@@ -69875,32 +69875,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      upsert_organization_invitation:
-        | {
-            Args: {
-              p_email: string
-              p_expires_days?: number
-              p_invited_by?: string
-              p_organization_id: string
-              p_permission_group_ids?: string[]
-              p_role: Database["public"]["Enums"]["app_role"]
-              p_user_type?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_email: string
-              p_employee_id?: string
-              p_expires_days?: number
-              p_invited_by?: string
-              p_organization_id: string
-              p_permission_group_ids?: string[]
-              p_role: Database["public"]["Enums"]["app_role"]
-              p_user_type?: string
-            }
-            Returns: Json
-          }
+      upsert_organization_invitation: {
+        Args: {
+          p_email: string
+          p_employee_id?: string
+          p_expires_days?: number
+          p_invited_by?: string
+          p_organization_id: string
+          p_permission_group_ids?: string[]
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_user_type?: string
+        }
+        Returns: Json
+      }
       upsert_pos_security_settings: {
         Args: { p_branch_id: string; p_business_id: string; p_updates: Json }
         Returns: {
