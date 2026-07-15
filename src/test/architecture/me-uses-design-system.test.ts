@@ -30,6 +30,11 @@ describe("ESS portal uses the design-system PageHeader primitive", () => {
 
   for (const file of files) {
     if (MIGRATION_TODO.has(file)) continue;
+    // Routed record-form pages (`*New.tsx`) use `RecordFormShell` (with
+    // its own `RecordHeader`) or an existing WorkflowSheet — they must
+    // NOT render a second `PageHeader`. Skip them here; the DetailSheet
+    // / RecordFormShell tests below still cover them.
+    if (/New\.tsx$/.test(file)) continue;
     it(`${file} imports PageHeader from @/design-system`, () => {
       const src = readFileSync(join(ME_DIR, file), "utf8");
       // Skip pure re-export shells.
@@ -40,6 +45,7 @@ describe("ESS portal uses the design-system PageHeader primitive", () => {
       expect(src).not.toMatch(/<h1[^>]*text-2xl[^>]*font-bold\s+tracking-tight/);
     });
   }
+
 
   it("MePortalLayout no longer renders the retired MeSubNav duplicate", () => {
     const src = readFileSync(
