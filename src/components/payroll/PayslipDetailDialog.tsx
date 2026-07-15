@@ -53,6 +53,12 @@ interface Props {
    * sub-breakdowns in line explainers. Default false (admin).
    */
   portalMode?: boolean;
+  /**
+   * Container variant. "dialog" (default) keeps the admin drill-down modal;
+   * "sheet" opens as a right-side DetailSheet — the pattern the ESS portal
+   * (/me/*) uses everywhere else.
+   */
+  variant?: "dialog" | "sheet";
 }
 
 function fmt(n: number | null | undefined, currency?: string, hide?: boolean) {
