@@ -1,101 +1,64 @@
+## Audit of the previous agent's ESS work
 
-# ESS Portal — Design System Consistency Audit & Remediation
+I walked every claim in `docs/design-system/audit/ess-portal.md` against the actual source.
 
-## What I inspected
+**Verified complete (previous agent's claims hold up):**
+- Shell rebuild in `src/components/me/MePortalLayout.tsx` (rail + topbar + grouped nav, `MeSubNav` retired).
+- All 20 "Pending" pages in the audit **are in fact migrated** to `PageHeader` + `PageBody` from `@/design-system` — including MyTalent, MyGoals, MyReviews, MyCompetencies, MyDevelopmentPlan, MyOneOnOnes(+Detail), MyFeedback, MyLearning* cluster, MyTeam*, MySettings, MyTaxCertificates, MyExitClearance. The Wave B tail is functionally done; only the *bookkeeping* was never updated.
+- KPI strips on MyLeave and MyPayslips (last agent's final message) — confirmed.
+- `ManagerTriageBanner` on MyTimesheets — **already present** at `src/pages/timesheets/MyTimesheets.tsx:150`, contrary to the audit doc which lists it as pending.
 
-- Shell: `src/apps/me/MeApp.tsx`, `src/components/me/MePortalLayout.tsx`, `src/components/me/MeSubNav.tsx`, `src/components/me/EmployeeLinkRequired.tsx`.
-- All 28 pages under `src/pages/me/` (~4,800 LOC).
-- Compared against platform patterns already in production: `src/design-system/primitives/*` (PageHeader, PageBody, EmptyState, FilterBar, Section, DetailSheet, RecordFormShell, StatusBadge, LoadingState, ErrorState), `src/components/hr/` (KpiStrip, ManagerTriageBanner, SavedViewMenu, StatusFilterChips), and reference pages: `TimesheetApprovals`, `EmployeeProfile`, `Employees`, `Departments`, HR documents/contracts/lifecycle.
-- Audit doc source of truth: `docs/design-system/audit/employees.md`.
+**Confirmed still outstanding (Wave C):**
+1. `src/test/architecture/me-uses-design-system.test.ts` allowlist and `docs/design-system/audit/ess-portal.md` "Pending" table are stale — 20 pages listed as pending are actually migrated. Guardrail is currently useless (every migrated page is exempt from the check).
+2. `MyLoans` KPI section is hand-rolled `<Card>` triplets (`src/pages/me/MyLoans.tsx:99-130`), not the shared `KpiStrip`.
+3. `MyTimesheets` has no `KpiStrip` (only the manager banner).
+4. `MyLeave` still opens `LeaveRequestForm` as a `Dialog` (`src/pages/me/MyLeave.tsx:180`). Platform standard for record-shaped forms is `RecordFormShell` behind a route (`/me/leave/new`).
+5. `MyShifts`, `MyLearningPage`, `MyOneOnOnes` still import from `@/components/ui/dialog` for what look like record-form / detail interactions — need to be triaged: confirm → `AlertDialog`, form → routed `RecordFormShell`, peek → `DetailSheet`.
+6. No shared HR status map — `MyPayslips`, `MyLoans`, `MyLeave`, `MyShifts`, `MyDocuments` each redefine their own tone/palette maps for status badges.
+7. `MyTalent` (line 140) and `MyTeamTalent` (line 195) hand-roll KPI cards with `text-2xl` — not caught by the lint rule because they aren't `<h1>`, but they're the same drift the lint targets. Should adopt shared KPI presentation.
 
-## Findings — the ESS portal is materially drifted
+**Out of scope (as declared, leaving alone):** router migration, business-logic in `/me` hooks, feature scope for Talent/Learning, entitlements/session.
 
-### 1. Zero design-system primitive adoption (highest-impact drift)
-- `rg -l "@/design-system/primitives" src/pages/me` → **0 files**.
-- Every `/me/*` page hand-rolls `<h1 className="text-2xl font-bold tracking-tight">…</h1>` + subtitle instead of `<PageHeader>` / `<PageBody>`. Meanwhile Employees, Departments, Job Positions, Work Locations, Timesheets, HR Docs, Contracts, Lifecycle, Payroll reports have all migrated (see audit doc).
-- No page uses `EmptyState`, `LoadingState`, `ErrorState`, `Section`, `FilterBar`, or `StatusBadge` primitives — each page inlines its own `<Skeleton>` grid, its own "no data" card, and its own colored `<Badge>` map.
+## Plan
 
-### 2. Bespoke chrome instead of the shadcn Sidebar pattern
-- `MePortalLayout` hand-rolls a `<header>` + `<aside w-60>` + mobile `<Sheet>`. The rest of the platform standardises on `SidebarProvider` / `Sidebar` / `SidebarTrigger` (see the sidebar knowledge in project rules). Result: different collapse behaviour, no icon-collapsed mini-rail, no active-state semantics from the Sidebar primitive.
+### Phase 1 — Close the bookkeeping gap (fast, high-signal)
+- Empty `MIGRATION_TODO` in `src/test/architecture/me-uses-design-system.test.ts` so the guardrail actually enforces PageHeader on every `/me/*` page going forward. If the test then fails for any file, that's a real regression I'll fix in the same phase.
+- Update `docs/design-system/audit/ess-portal.md`:
+  - Move the 20 rows to Done.
+  - Mark `MyTimesheets` ManagerTriageBanner as Done.
+  - Rewrite the "Follow-on work" section to reflect the actual remaining items below.
 
-### 3. Duplicated navigation surface inside the portal
-- `MePortalLayout` renders a 14-item left rail **and** `MeSubNav` renders a horizontal grouped sub-nav on the same page. The rest of the platform uses one primary rail + one contextual sub-nav (`AttendanceSubNav`, `LeaveSubNav`, `TimesheetsSubNav`, `EmployeesSubNav`) — never both listing the same destinations.
+### Phase 2 — KPI parity on list surfaces
+- Replace `MyLoans` bespoke KPI cards with `KpiStrip` from `@/components/hr/KpiStrip` (the same primitive already used on `MyLeave` / `MyPayslips`).
+- Add a `KpiStrip` to `src/pages/timesheets/MyTimesheets.tsx` scoped to self-service mode (via `useSelfService`) — hours submitted / approved / draft this period.
+- Replace the hand-rolled KPI grids in `MyTalent` and `MyTeamTalent` with `KpiStrip` so they stop drifting.
 
-### 4. Legacy dialogs where the platform moved to routed sheets/pages
-- Dialog imports found in `MyShifts.tsx`, `MyLearningPage.tsx`, `MyOneOnOnes.tsx`; inline "showRequestForm" popovers in `MyLeave.tsx`.
-- Platform standard for record create/edit is `RecordFormShell` routed pages (see `EmployeeNewPage`, `DepartmentCreatePage`, `WorkLocationEditPage`, etc.). Detail peeks use `DetailSheet`. ESS uses neither.
+### Phase 3 — Shared HR status map
+- Create `src/components/hr/hrStatusMap.ts`: a single `{ status → { tone, label } }` map for HR record statuses (approved/pending/rejected/draft/paid/cancelled/…) returning `StatusBadge` tones (`neutral/info/success/warning/danger/accent`).
+- Refactor `MyPayslips`, `MyLoans`, `MyLeave`, `MyShifts`, `MyDocuments` to consume it via the design-system `StatusBadge`. No behavioural change.
 
-### 5. Status badges reinvented per page
-- Each of `MyLeave`, `MyPayslips`, `MyDocuments`, `MyShifts`, `MyLoans` defines a local `statusBadge`/`StatusBadge` function with its own colour map. Primitive `StatusBadge` exists and is used elsewhere.
+### Phase 4 — Interaction-pattern parity (dialog → sheet/route)
+- `MyLeave`: promote the request flow to a route `/me/leave/new` (react-router-dom, matching current routing) mounted on `RecordFormShell`. Keep `LeaveRequestForm` as the field body; retire the Dialog wrapper on `MyLeave`.
+- `MyShifts`, `MyLearningPage`, `MyOneOnOnes`:
+  - `MyOneOnOnes` `ScheduleDialog` → routed `/me/one-on-ones/new` on `RecordFormShell` (record-shaped).
+  - `MyLearningPage` `CompleteDialog` → keep as `AlertDialog` (pure confirm); `CourseContentDialog` → `DetailSheet` (detail peek).
+  - `MyShifts` dialogs → triage per the same rubric (confirms stay `AlertDialog`, detail peeks → `DetailSheet`).
 
-### 6. KPI band inconsistency
-- `KpiStrip` is the platform's approved-count / pending-count strip (used in `TimesheetApprovals`, attendance & leave approvals). ESS ignores it — `MyLeave` hand-rolls balance cards, `MyPayslips` has no summary, `MeHome` uses custom tiles.
+### Phase 5 — Enforcement additions
+- Extend `eslint-rules/no-hand-rolled-me-header.js` (or a sibling rule) to also flag `text-2xl font-semibold` / `text-2xl font-bold` blocks used as KPI values inside `/me/*` — catches the MyTalent/MyTeamTalent-style drift the current rule misses.
+- Add an assertion to `me-uses-design-system.test.ts` that no `/me/*` page imports `@/components/ui/dialog` for record-shaped forms (allowlist only pure confirmations).
 
-### 7. Header action zoning
-- No page uses the `PageHeader` `actions` slot. Buttons float in ad-hoc flex rows (`MyLeave` right-aligned button; `MyPayslips` `ReportExportButtons` mid-body). Export/print/history affordances are missing on pages where they belong (`MyPayslips` has export; `MyLoans`/`MyDocuments` don't).
+### Technical notes
+- All changes stay on `react-router-dom` — no TanStack Router migration.
+- No changes to `/me` data hooks or business logic.
+- New shared modules live in the platform's existing homes: `src/components/hr/` for the status map, existing `KpiStrip`, existing `RecordFormShell`.
+- Every file touched will be verified against `tsgo` and the arch tests before I close the phase.
 
-### 8. Loading/empty/error states are one-off per page
-- `Skeleton` blocks are copy-pasted; empty states range from a plain `<Card>` sentence to nothing at all. `EmployeeLinkRequired` is the one shared empty state and is correctly reused — that's the pattern to extend everywhere.
+### Deliverables per phase
+- Phase 1: allowlist emptied, audit doc rewritten, `hr-suite-wave-c.test.ts` still green.
+- Phase 2: KpiStrip on MyLoans, MyTimesheets, MyTalent, MyTeamTalent.
+- Phase 3: `hrStatusMap.ts` + 5 pages refactored.
+- Phase 4: 2 new routes (`/me/leave/new`, `/me/one-on-ones/new`), 3 files with dialog imports removed or replaced.
+- Phase 5: 2 guardrail extensions.
 
-### 9. Sub-app registration
-- `MeApp` is not registered as an app under `src/apps` in the way `Contacts`/`CRM`/`Finance` are (they export `App` + `Layout`). Not user-visible, but confirms the portal predates the current app-shell convention.
-
-## Remediation plan
-
-### Wave A — Shell parity (foundation)
-1. Rebuild `MePortalLayout` on `SidebarProvider` + `Sidebar` (shadcn) with `collapsible="icon"` so the rail collapses to icons like every other app.
-2. Delete the horizontal `MeSubNav` — the rail is the single nav surface, matching every other app. Remove imports from `MePortalLayout`.
-3. Keep the "Back to workspace" affordance for internal users; keep `NotificationBell`, `ThemeToggle`, user menu.
-4. Ensure the shell wraps main content in `PageBody` sizing so all pages inherit consistent gutters.
-
-### Wave B — Primitive adoption across all 28 pages
-For every `/me/*` page, replace:
-- Hand-rolled header block → `<PageHeader title=… subtitle=… actions={…} />`.
-- Body wrapper → `<PageBody>`.
-- Loading blocks → `<LoadingState />` (skeleton preset).
-- Empty blocks → `<EmptyState />` (or `EmployeeLinkRequired` when applicable).
-- Error blocks → `<ErrorState />`.
-- Per-page filter rows → `<FilterBar />` with `SavedViewMenu` / `StatusFilterChips` where a list has status.
-- Local `statusBadge` helpers → shared `<StatusBadge />` primitive with a single semantic status map contributed to `src/design-system/primitives/StatusBadge.tsx` (or a small `hr-status-map.ts` alongside it if it doesn't already exist).
-
-Priority order (largest surfaces first):
-1. `MeHome`, `MyLeave`, `MyPayslips`, `MyAttendance`, `MyTimesheets`, `MyLoans`, `MyDocuments`, `MyShifts`.
-2. `MyOnboarding`, `MyExitClearance`, `MyTaxCertificates`, `MySettings`.
-3. Talent cluster: `MyTalent`, `MyGoals`, `MyGoalDetail`, `MyReviews`, `MyReviewDetail`, `MyCompetencies`, `MyDevelopmentPlan`, `MyOneOnOnes`, `MyOneOnOneDetail`, `MyFeedback`.
-4. Learning cluster: `MyLearningPage`, `MyLearningCatalog`, `MyLearningPathsPage`, `MyQuizPlayerPage`.
-5. Team cluster: `MyTeamPage`, `MyTeamTalent`, `MyTeamLearningPage`.
-
-### Wave C — Interaction pattern parity
-1. `MyLeave` request form: convert the inline `showRequestForm` state into a routed page `/me/leave/new` backed by `RecordFormShell`, mirroring how HR creates records elsewhere. Keep the confirm/cancel affordances the shell provides; discard the local dialog.
-2. `MyShifts`, `MyLearningPage`, `MyOneOnOnes` dialog imports: audit each — pure confirms stay as `AlertDialog`; record-shaped forms become routed `RecordFormShell` pages; detail peeks use `DetailSheet`.
-3. Add KPI band to list surfaces: `KpiStrip` on `MyLeave` (balance / pending / used / accruing), `MyTimesheets` (this-week hours / pending / approved / rejected), `MyLoans` (outstanding / next installment / paid), `MyPayslips` (YTD gross / net / tax / last pay).
-4. Standardise export/print affordances via `ReportExportButtons` in `PageHeader.actions` on `MyPayslips`, `MyTaxCertificates`, `MyLoans`, `MyDocuments`, `MyAttendance`, `MyTimesheets`.
-5. Adopt `ManagerTriageBanner` uniformly on any /me page that already has a manager-facing counterpart (already present on `MyLeave`; add to `MyTimesheets` and `MyAttendance` where the user is also a manager).
-
-### Wave D — Guardrails so drift can't return
-1. New ESLint rule `eslint-rules/no-hand-rolled-me-header.js` — flags `<h1 className*="text-2xl font-bold tracking-tight">` inside `src/pages/me/` (must use `PageHeader`).
-2. Architecture test `src/test/architecture/me-uses-design-system.test.ts` — asserts every `src/pages/me/*.tsx` imports at least `PageHeader` from `@/design-system/primitives`.
-3. Extend `docs/design-system/audit/` with `docs/design-system/audit/ess-portal.md` mirroring the Employees audit table (row per surface, status column).
-
-### Out of scope
-- Business logic in the /me hooks (`useMyDocuments`, `useLeaveRequests`, etc.) — reads/writes unchanged.
-- Talent/Learning feature surface — only their presentation.
-- Router migration (react-router-dom → TanStack Router) — the whole app is on react-router-dom today; migrating just /me would break parity, not restore it.
-- Notifications wiring, entitlement gating logic, session/auth flows — behaviour is correct today.
-
-## Technical notes
-
-- `MeApp.tsx` uses `react-router-dom` `Routes/Route`; keep it. The Sidebar rebuild lives in `MePortalLayout` only.
-- `SidebarProvider` requires the outer `<div>` to be `w-full` (already covered by our shell rules).
-- Shared status map: add `src/design-system/primitives/status-maps/hr.ts` if not present, so leave/payslip/loan/document statuses share one source. Reuse in admin HR pages as well to close a latent duplication there.
-- Routed forms replacing dialogs: register redirects for any deep link that today opens the dialog (e.g. `?action=new`) so bookmarks and cross-links keep working — mirror the pattern used in Wave 13 for Departments.
-
-## Verification
-
-1. `rg -l "@/design-system/primitives/PageHeader" src/pages/me` returns all 28 pages.
-2. `rg "text-2xl font-bold tracking-tight" src/pages/me` returns 0 matches.
-3. `rg -l "@/components/ui/dialog" src/pages/me` returns only pages where a plain confirm dialog is genuinely needed (documented allowlist).
-4. New arch test passes; new ESLint rule flags no violations.
-5. Manual walk-through: navigating between `/hr/*` (admin) and `/me/*` (portal) shows identical page-header treatment, identical sub-nav treatment, identical empty/loading/error states, identical status badge palette, identical record-create ergonomics.
-
-Estimated size: ~28 page refactors + 1 shell rewrite + 1 sub-nav deletion + 1 ESLint rule + 1 arch test + 1 audit doc. Each page refactor is presentation-only and small (<40 LOC per file on average).
+Say the word and I'll execute phases 1→5 in order.
