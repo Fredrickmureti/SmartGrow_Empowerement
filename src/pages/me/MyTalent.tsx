@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Target, ChevronRight, AlertCircle, ClipboardList, Award, PenTool, MessageSquare, CalendarClock } from "lucide-react";
 import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
+import { KpiStrip } from "@/components/hr/KpiStrip";
 
 export default function MyTalent() {
   const { user } = useAuth();
