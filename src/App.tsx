@@ -279,7 +279,6 @@ const App = () => (
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
                             <Route path="/demo" element={<Demo />} />
-                           <Route path="/demo" element={<Demo />} />
                            <Route path="/resources" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourcesIndex /></Suspense></ProtectedRoute>} />
                            <Route path="/resources/:id" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourceDetail /></Suspense></ProtectedRoute>} />
                            <Route path="/forgot-password" element={<RedirectIfAuthenticated><ForgotPassword /></RedirectIfAuthenticated>} />
