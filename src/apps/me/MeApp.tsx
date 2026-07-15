@@ -27,7 +27,9 @@ const MeHome = lazy(() => import("@/pages/me/MeHome"));
 // longer mounted under /me/* — it carried admin-flavoured affordances
 // (e.g. "Add me as an employee") that leaked to regular portal users.
 const MyPayslips = lazy(() => import("@/pages/me/MyPayslips"));
-const MyProfile = lazy(() => import("@/pages/hr/MyProfile"));
+const MyProfile = lazy(() => import("@/pages/me/MyProfilePage"));
+const MyAccount = lazy(() => import("@/pages/me/MyAccount"));
+const MyNotifications = lazy(() => import("@/pages/me/MyNotifications"));
 const MyLeave = lazy(() => import("@/pages/me/MyLeave"));
 const Timesheets = lazy(() => import("@/pages/timesheets/MyTimesheets"));
 const MyAttendance = lazy(() => import("@/pages/me/MyAttendance"));
@@ -207,16 +209,20 @@ export default function MeApp() {
           }
         />
 
-        {/* My Settings — portal-safe settings page (replaces /settings for
-            portal users). Exposes only account profile + links to other
-            self-service surfaces. No Apps / Subscriptions / Admin. */}
+        {/* My Account — identity, password, preferences (User Account owner). */}
+        <Route
+          path="account"
+          element={<Lazy module="My Account"><MyAccount /></Lazy>}
+        />
+        {/* Legacy /me/settings alias — thin index page linking to profile + account. */}
         <Route
           path="settings"
-          element={
-            <Lazy module="My Settings">
-              <MySettings />
-            </Lazy>
-          }
+          element={<Lazy module="My Settings"><MySettings /></Lazy>}
+        />
+        {/* Notifications inside the portal shell (no more exits to /notifications). */}
+        <Route
+          path="notifications"
+          element={<Lazy module="Notifications"><MyNotifications /></Lazy>}
         />
 
         {/* My Talent — goals, reviews, competencies, development plans (employee view) */}

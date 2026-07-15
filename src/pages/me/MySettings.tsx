@@ -1,84 +1,69 @@
 /**
- * MySettings — portal-user-safe settings page at `/me/settings`.
+ * MySettings — thin index page for `/me/settings`.
  *
- * Replaces the generic `/settings` hub for portal users. Exposes ONLY
- * self-service surfaces: account profile (name, phone, avatar) and a
- * link into the HR employee profile when one exists. No Apps panel,
- * no Subscriptions, no Billing, no Admin Management, no organization
- * switcher, no Studio, no Audit Logs.
+ * The old MySettings embedded the workspace-user profile editor
+ * (`UserProfilePage`) inline, which blurred the boundary between the
+ * HR employee record and the user account. That inline editor has been
+ * split off:
+ *   - `/me/profile` — HR employee record + employee-managed personal
+ *     contact fields (owned by `employees`).
+ *   - `/me/account` — Identity & User Account: sign-in email, password,
+ *     preferences (owned by `auth.users` + `profiles`).
  *
- * Internal users land here too if they navigate to `/me/settings`
- * directly, but they can still reach the full Settings hub via
- * `/settings/workspace` from the business shell. This page is the
- * canonical settings surface inside the My Workspace portal.
+ * This page is now a lightweight hub that points users at the correct
+ * surface for what they want to change. It is kept as `/me/settings`
+ * for back-compat; the primary nav uses "Profile" and "Account".
  */
-
 import { Link } from "react-router-dom";
-import { ArrowRight, User as UserIcon, Bell, Lock } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import UserProfilePage from "@/pages/settings/UserProfilePage";
+import { ArrowRight, User as UserIcon, Bell, KeyRound } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { PageHeader, PageBody } from "@/design-system";
+
+const TILES = [
+  {
+    to: "/me/profile",
+    label: "My profile",
+    description: "HR record + personal contact details",
+    Icon: UserIcon,
+  },
+  {
+    to: "/me/account",
+    label: "My account",
+    description: "Sign-in, password, preferences",
+    Icon: KeyRound,
+  },
+  {
+    to: "/me/notifications",
+    label: "Notifications",
+    description: "Inbox and alert settings",
+    Icon: Bell,
+  },
+];
 
 export default function MySettings() {
   return (
     <>
-      <PageHeader title="Settings" description="Your account profile and personal preferences." />
+      <PageHeader title="Settings" description="Manage your workspace profile and account." />
       <PageBody>
-      {/* Quick links to related self-service surfaces */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Link
-          to="/me/profile"
-          className="group rounded-lg border bg-card p-4 hover:bg-accent transition-colors flex items-start gap-3"
-        >
-          <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <UserIcon className="h-4 w-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">My HR profile</p>
-            <p className="text-xs text-muted-foreground">Employment details</p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-        </Link>
-        <Link
-          to="/notifications"
-          className="group rounded-lg border bg-card p-4 hover:bg-accent transition-colors flex items-start gap-3"
-        >
-          <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <Bell className="h-4 w-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">Notifications</p>
-            <p className="text-xs text-muted-foreground">Inbox &amp; alerts</p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-        </Link>
-        <a
-          href="https://supabase.com/dashboard"
-          onClick={(e) => e.preventDefault()}
-          className="group rounded-lg border bg-card p-4 opacity-50 cursor-not-allowed flex items-start gap-3"
-          title="Contact your administrator to reset your password"
-        >
-          <div className="h-9 w-9 rounded-md bg-muted text-muted-foreground flex items-center justify-center shrink-0">
-            <Lock className="h-4 w-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">Password</p>
-            <p className="text-xs text-muted-foreground">Contact your admin</p>
-          </div>
-        </a>
-      </div>
-
-      {/* Profile editor — uses the existing account profile page,
-          which is portal-safe (no business-app affordances). */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Account profile</CardTitle>
-          <CardDescription>Name, phone and avatar shown across the workspace.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <UserProfilePage />
-        </CardContent>
-      </Card>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {TILES.map(({ to, label, description, Icon }) => (
+            <Card key={to} className="p-0">
+              <Link
+                to={to}
+                className="group flex items-start gap-3 p-4 hover:bg-accent rounded-lg transition-colors"
+              >
+                <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{label}</p>
+                  <p className="text-xs text-muted-foreground">{description}</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </Link>
+            </Card>
+          ))}
+        </div>
       </PageBody>
     </>
   );

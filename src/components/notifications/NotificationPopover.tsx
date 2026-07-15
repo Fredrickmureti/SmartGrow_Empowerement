@@ -94,7 +94,12 @@ export function NotificationPopover({ onClose }: NotificationPopoverProps) {
               <Trash2 className="h-4 w-4 mr-1" />
               Clear all
             </Button>
-            <Link to="/notifications" onClick={onClose}>
+            <Link
+              to={typeof window !== "undefined" && window.location.pathname.startsWith("/me")
+                ? "/me/notifications"
+                : "/notifications"}
+              onClick={onClose}
+            >
               <Button variant="ghost" size="sm">
                 View all
               </Button>
