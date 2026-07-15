@@ -97,15 +97,13 @@ export default function MyAttendance() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Attendance</h1>
-        <p className="text-sm text-muted-foreground">
-          Clock in/out, review your month, and follow your requests.
-        </p>
-      </div>
-
-      {/* B4: Manager triage banner — surfaces pending team approvals so a
+    <>
+      <PageHeader
+        title="My Attendance"
+        description="Clock in/out, review your month, and follow your requests."
+      />
+      <PageBody>
+        {/* B4: Manager triage banner — surfaces pending team approvals so a
           team lead doesn't need to leave the personal portal to notice them.
           Permission/total gating is also re-checked by the banner itself,
           but the outer guard preserves the architecture invariant. */}
@@ -194,6 +192,7 @@ export default function MyAttendance() {
           }}
         />
       )}
-    </div>
+      </PageBody>
+    </>
   );
 }
