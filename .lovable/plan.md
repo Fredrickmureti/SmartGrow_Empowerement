@@ -1,66 +1,82 @@
-# Why you're seeing "multiple invitations" and no email
+## Verified current state
 
-## What I actually see in the database
-
-For `nkathavictor26@gmail.com` there is exactly **one** invitation row in `organization_invitations` (id `b838056d…`, created 21:05, `accepted_at = null`). Each time you click "Send invitation" the server-side `upsert_organization_invitation` RPC finds that existing pending row and **refreshes it** (extends `expires_at`, keeps the same token) instead of creating a duplicate. That is by design — it's what prevents the "Someone else updated this record" 23505 error we used to hit.
-
-So you are *not* creating multiple invitations. You are re-triggering the send on the same invitation. The toast wording "Invitation refreshed and resent to …" is what's making it feel like new invites keep piling up.
-
-## Why the email never arrives
-
-`platform_email_logs` is empty for this recipient. Not one row — meaning `send-email` was **never actually called**. Every single POST to `send-invitation-email` in the edge-function analytics returned **404** ("Invitation not found").
-
-Root cause (already patched in the previous turn): `send-invitation-email/index.ts` was selecting a column that doesn't exist —
-
-```
-.select(`… organization_id, business_id, organization:organizations(id, name)`)
+```text
+Employee
+  -> organization_invitations(employee_id, permission_group_ids, role, user_type)
+  -> accept_organization_invitation_atomic
+  -> user_roles + member_permission_groups
+  -> employees.user_id link
+  -> employee_lifecycle_events + audit_logs
+  -> /me self-service and manager-scoped workflows
 ```
 
-`organization_invitations` has no `business_id` column (verified against `information_schema`). PostgREST rejected the query, `invError` was truthy, the handler returned 404 "Invitation not found", and the client toast said "Invitation refreshed and resent" because the invite *row* was upserted successfully — the email step just failed silently.
+**Facts already verified in the live database/source:**
+- Fredrick has exactly one pending invitation row, linked to employee `5449cd48-bbf2-42da-a279-907ac2dfc9ce`; repeated sends refresh the same invite, not create duplicates.
+- `platform_email_logs` has no rows for `nkathavictor26@gmail.com`, so the email sender is not being reached.
+- Local `send-invitation-email` source already removed the invalid `business_id` select and now has better error surfacing, but the user is still seeing the old `{"error":"Invitation not found"}` behavior.
+- The live database has both the old 7-argument and new 8-argument `upsert_organization_invitation` overloads. The 8-arg version supports `employee_id` and lifecycle events; the old overload is architectural drift.
+- The live `get_linkable_users_for_employee` body is already disambiguated (`candidate_user_id`, `linked_user_id`, `admin_user_id`), so the original ambiguous `user_id` defect appears fixed in DB shape, but still needs runtime/caller verification.
 
-## What is still wrong even after that patch
+## Implementation plan
 
-Two behaviour bugs remain and explain why you had zero visibility:
+### 1. Convert `.lovable/plan.md` into a lightweight execution tracker
+- Replace the stale handoff narrative with a concise verified/unverified checklist.
+- Record only operational facts, blockers, and remaining tasks; no large architecture document.
 
-1. **The 404 handler swallows the real Postgres error.** `invError.message` is never logged and never returned; it's replaced with the string `"Invitation not found"`. Any future schema drift will look identical to a genuine missing invitation.
-2. **The client treats an email-send failure as success.** In `EmployeeInviteDialog.tsx` the `supabase.functions.invoke("send-invitation-email", …)` result is not inspected — `invoke` does **not** throw on non-2xx responses, so a 404/500 from the function slips through the `try/catch` and the toast still says "Invitation sent". That is why you saw success toasts while nothing ever left the platform.
+### 2. Fix the current invitation email failure at the deployed edge layer
+- Deploy the current `send-invitation-email` edge function so live behavior matches source.
+- Call it with Fredrick’s existing invitation ID using an authenticated session.
+- Verify one of two outcomes:
+  - success path: `send-email` runs and `platform_email_logs` gets a row; or
+  - real failure path: the function returns/logs the actual provider/config error instead of masking it as “Invitation not found”.
+- If `send-email` fails, inspect that function’s logs and sender configuration next; do not alter invitation semantics to hide delivery failure.
 
-## Plan
+### 3. Remove invitation RPC overload drift safely
+- Add a database migration to drop the obsolete 7-argument `upsert_organization_invitation` overload after confirming no current caller requires it.
+- Keep the canonical 8-argument RPC as the single write entry point for employee-linked invitations.
+- Update/extend regression tests so the old overload cannot reappear silently.
 
-### 1. Verify the phantom-column fix actually deployed
+### 4. Harden invitation resend UX and diagnostics
+- Verify `EmployeeInviteDialog` always passes `p_employee_id` and always inspects `supabase.functions.invoke` errors.
+- Preserve the enterprise semantics:
+  - portal invitations may carry no access groups;
+  - internal invitations may specify access groups;
+  - missing internal groups falls back during acceptance to the default internal group.
+- Make the UI distinguish “invitation saved but email failed” from “email sent”.
+- Show the existing pending invitation state where the employee action surface can see that only one invite exists.
 
-Call `send-invitation-email` once with the existing invitation id and confirm it now reaches `send-email` and produces a `platform_email_logs` row with `status='sent'` (or a real Resend error). If it's still 404, the fix didn't roll out and we redeploy.
+### 5. Runtime-verify employee linking architecture
+- Exercise `get_linkable_users_for_employee` through the real UI/session path.
+- Verify `EmployeeLinkDialog` uses only the server-side candidate RPC and does not read identity tables directly.
+- Verify `link_employee_to_user` / `unlink_employee_from_user` remain the only employee `user_id` write paths and still emit lifecycle events.
+- If the ambiguous `user_id` error still appears at runtime, fix the deployed function body/migration state rather than patching the dialog.
 
-### 2. Stop silently swallowing errors in `send-invitation-email`
+### 6. Regression protection
+- Add/adjust tests for:
+  - canonical invitation RPC signature only;
+  - no direct `employees.user_id` mutations from app code;
+  - invite send failure surfaces to the user;
+  - pending invite reuse does not duplicate rows;
+  - employee lifecycle events are emitted for invite, accept, link, unlink, revoke.
 
-- `console.error("[send-invitation-email] load invite failed", invError)` before the 404 return.
-- Return the real reason in the JSON body (`{ error: "invitation_lookup_failed", details: invError.message }`) with the status that matches (`404` only when `data` is null with no error; `500` when `invError` is set).
-- Also `console.error` any `sendErr` coming back from `send-email` — right now those are only surfaced as JSON to the caller.
+### 7. Final validation
+- Re-send Fredrick’s invitation once.
+- Confirm:
+  - still one pending invitation row;
+  - `expires_at` refreshed;
+  - `platform_email_logs` contains the send or a real provider rejection;
+  - browser toast reflects the true outcome;
+  - no recurrence of `permission_group_ids` NOT NULL or ambiguous `user_id` errors.
 
-### 3. Make the client surface the real failure
+## Architectural direction to preserve
 
-In `EmployeeInviteDialog.tsx`:
+```text
+Employee is the HCM person record.
+User/Auth is the system identity.
+Invitation is the provisioning event between them.
+Permission groups/access groups grant internal application capabilities.
+Portal users get employee self-service without being treated as internal staff.
+Lifecycle events are business events and must remain auditable.
+```
 
-- After `invoke("send-invitation-email", …)`, read `error` and, when it's a `FunctionsHttpError`, pull `await error.context.text()` for the real body.
-- On email-send failure show `toast.error("Invitation saved but email failed: <reason>")` instead of the current success toast — so the next time this breaks you see it in one click, not five.
-
-### 4. Fix the "multiple invitations" perception
-
-- When `upsert_organization_invitation` returns `status = 'reused'`, change the toast to "Invitation to <email> was already pending — resent the same link." That is what actually happened; there is still only one invite row.
-- Show the single pending invitation (with `created_at` and `expires_at`) in the employee sidebar so you can see it hasn't been duplicated.
-
-### 5. Sanity-check the Resend sender
-
-`resend_from_email = support@accrualflow.systems`. If the `accrualflow.systems` domain is verified in Resend, this is fine. If not, Resend will 403 for any recipient other than the workspace owner and we'll see it in `platform_email_logs.error_message` once step 2 is in place. No change needed if the domain is already verified — the point is that after step 2 you'll actually *see* that error instead of guessing.
-
-## Out of scope
-
-- Rewriting the invitation acceptance flow.
-- Changing `upsert_organization_invitation` semantics (reuse-and-refresh is correct enterprise behaviour).
-- Swapping Resend for another provider.
-
-## Technical details
-
-- Files touched: `supabase/functions/send-invitation-email/index.ts`, `src/components/employees/EmployeeInviteDialog.tsx`. No migrations.
-- No DB schema changes; the phantom-column reference is the only remaining artefact and it is already removed in the current file.
-- After deploy, verify against `platform_email_logs` (`status`, `error_message`) and edge analytics (POST 200 instead of 404) before declaring it fixed.
+No table merge, no Employee/User collapse, no client-side identity assembly, and no silent email-send success.
