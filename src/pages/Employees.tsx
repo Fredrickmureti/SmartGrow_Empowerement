@@ -748,6 +748,21 @@ export default function Employees() {
 // with a live pending-count badge. Uses head-only count so it is cheap.
 // ---------------------------------------------------------------------------
 
+function useChangeRequestsCount() {
+  return useQuery({
+    queryKey: ["hr-profile-change-requests-pending-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("employee_profile_change_requests" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (error) throw error;
+      return count ?? 0;
+    },
+    refetchInterval: 60_000,
+  });
+}
+
 function ChangeRequestsBadgeButton() {
   const nav = useNavigate();
   const { data: count } = useChangeRequestsCount();
