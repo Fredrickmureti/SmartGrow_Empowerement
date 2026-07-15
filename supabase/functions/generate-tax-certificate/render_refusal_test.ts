@@ -4,7 +4,13 @@
 // index.ts so contract drift trips the test.
 import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-interface FakeTemplate { code: string; body: any; }
+interface FakeTemplate { code: string; display_name?: string; body: any; }
+
+function isCertificateOfServiceTemplate(template: FakeTemplate): boolean {
+  const code = String(template?.code ?? template?.body?.code ?? "").toUpperCase();
+  const displayName = String(template?.display_name ?? template?.body?.display_name ?? "");
+  return code === "CERT_OF_SERVICE" || code === "CERTIFICATE_OF_SERVICE" || /certificate\s+of\s+service/i.test(displayName);
+}
 
 // Extracted mirror of the refusal branch in index.ts.
 function evaluateDocumentContract(template: FakeTemplate): { ok: boolean; hasData: boolean; nodesPresent: string[] } {
@@ -18,7 +24,7 @@ function evaluateDocumentContract(template: FakeTemplate): { ok: boolean; hasDat
   };
   nodes.forEach(walk);
   const hasData = types.has("matrix") || types.has("table") || types.has("grid");
-  return { ok: nodes.length > 0 && hasData, hasData, nodesPresent: Array.from(types) };
+  return { ok: nodes.length > 0 && (hasData || isCertificateOfServiceTemplate(template)), hasData, nodesPresent: Array.from(types) };
 }
 
 Deno.test("empty document refuses", () => {
@@ -70,4 +76,14 @@ Deno.test("document with only text nodes refuses", () => {
     body: { schema_version: 4, document: [{ type: "heading" }, { type: "rich_text" }, { type: "signature_strip" }] },
   });
   assertEquals(r.ok, false);
+});
+
+Deno.test("Certificate of Service text-only document passes without fake payroll matrix", () => {
+  const r = evaluateDocumentContract({
+    code: "CERT_OF_SERVICE",
+    display_name: "Certificate of Service",
+    body: { schema_version: 3, document: [{ type: "identity_strip" }, { type: "section" }, { type: "signature_strip" }] },
+  });
+  assertEquals(r.ok, true);
+  assertEquals(r.hasData, false);
 });
