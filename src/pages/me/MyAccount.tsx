@@ -66,6 +66,11 @@ export default function MyAccount() {
           {/* Password */}
           <PasswordCard />
 
+          {/* Recent sign-in activity */}
+          <LoginHistoryCard />
+
+
+
           {/* Preferences */}
           <Card>
             <CardHeader>
