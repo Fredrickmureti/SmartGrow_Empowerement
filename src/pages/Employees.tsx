@@ -9,7 +9,9 @@ import { normalizeError } from "@/services/resilience";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Plus, Search, Users, Loader2, UserCheck, UserX, Briefcase, Upload, LayoutGrid, List as ListIcon, AlertTriangle, ChevronDown, Zap } from "lucide-react";
+import { Plus, Search, Users, Loader2, UserCheck, UserX, Briefcase, Upload, LayoutGrid, List as ListIcon, AlertTriangle, ChevronDown, Zap, Bell as ChangeRequestBell } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Badge as ChangeRequestBadge } from "@/components/ui/badge";
 
 import { useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import type { EmployeeFormData } from "@/components/employees/EmployeeFormDialog";
