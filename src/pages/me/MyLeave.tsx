@@ -13,12 +13,13 @@
 import { useEffect, useState } from "react";
 import { useDrillDownAnchor } from "@/hooks/payroll/useDrillDownAnchor";
 import { format } from "date-fns";
-import { CalendarOff, Plus, Inbox } from "lucide-react";
+import { CalendarOff, Plus, Inbox, CalendarClock, CheckCircle2, Hourglass, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader, PageBody } from "@/design-system";
+import { KpiStrip } from "@/components/hr/KpiStrip";
 
 import { ManagerTriageBanner } from "@/components/hr/ManagerTriageBanner";
 import { LeaveRequestForm } from "@/components/leave/LeaveRequestForm";
@@ -69,6 +70,19 @@ export default function MyLeave() {
     .filter((r) => !pending.includes(r))
     .slice(0, 20);
 
+  // Aggregate balance totals for the KPI strip. Days-based, matching the
+  // per-type LeaveBalanceCard rows below (which still show per-type detail).
+  const totals = balances.reduce(
+    (acc, b) => {
+      acc.allocated += Number(b.allocated) || 0;
+      acc.used += Number(b.used) || 0;
+      acc.pending += Number(b.pending) || 0;
+      return acc;
+    },
+    { allocated: 0, used: 0, pending: 0 },
+  );
+  const remaining = Math.max(totals.allocated - totals.used - totals.pending, 0);
+
   return (
     <>
       <PageHeader
@@ -84,6 +98,15 @@ export default function MyLeave() {
       <PageBody>
         {/* Manager triage — same primitive used on /me/attendance and /me/timesheets */}
         <ManagerTriageBanner module="leave" />
+
+      <KpiStrip
+        tiles={[
+          { key: "remaining", label: "Days remaining", value: remaining, icon: Wallet, tone: "emerald", hint: "across all leave types" },
+          { key: "used", label: "Days used", value: totals.used, icon: CheckCircle2, tone: "neutral" },
+          { key: "pending", label: "Pending", value: pending.length, icon: Hourglass, tone: pending.length ? "amber" : "neutral", hint: "requests awaiting approval" },
+          { key: "upcoming", label: "Upcoming", value: upcoming.length, icon: CalendarClock, tone: "sky", hint: "approved & scheduled" },
+        ]}
+      />
 
       {/* Balances strip */}
       <section>
