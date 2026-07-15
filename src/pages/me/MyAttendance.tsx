@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ManagerTriageBanner } from "@/components/hr/ManagerTriageBanner";
+import { PageHeader, PageBody } from "@/design-system";
 import { AttendanceClockWidget } from "@/components/attendance/AttendanceClockWidget";
 import { CorrectionRequestDialog } from "@/components/attendance/CorrectionRequestDialog";
 import { MyAttendanceCalendar } from "@/components/attendance/MyAttendanceCalendar";
