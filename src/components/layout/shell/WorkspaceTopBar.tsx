@@ -162,6 +162,7 @@ export function WorkspaceTopBar({ app, nav, onOpenMobileNav }: WorkspaceTopBarPr
         >
           <Sparkles className="h-4 w-4" />
         </Button>
+        <ResourceCenterLauncher />
         <NotificationBell />
         <ThemeToggle collapsed />
         <button
