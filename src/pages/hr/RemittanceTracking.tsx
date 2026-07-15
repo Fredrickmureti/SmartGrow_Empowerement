@@ -302,7 +302,7 @@ export default function RemittanceTracking() {
         })()}
       </div>
 
-      <Tabs defaultValue="liabilities" className="space-y-4">
+      <Tabs defaultValue={initialTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="liabilities">Liabilities</TabsTrigger>
           <TabsTrigger value="returns">Returns</TabsTrigger>
