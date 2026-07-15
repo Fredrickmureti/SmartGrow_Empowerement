@@ -10,6 +10,8 @@ interface InvitationEmailRequest {
   invitationId: string;
 }
 
+type UserLimitResult = boolean | { allowed?: boolean; reason?: string; message?: string } | null;
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -132,21 +134,6 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Server-side user count enforcement
-    const { data: limitCheck, error: limitError } = await supabase
-      .rpc("check_user_limit", { p_org_id: invitation.organization_id });
-
-    if (limitError) {
-      console.error("User limit check error:", limitError);
-    } else if (limitCheck && !limitCheck.allowed) {
-      return new Response(JSON.stringify({ 
-        error: limitCheck.message || "User limit reached for your plan." 
-      }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     // Fetch settings needed for the email BODY only. The From-line,
     // Reply-To, and transport credentials are owned by `send-email` + the
     // shared sender-identity resolver (ADR 0023).
@@ -160,13 +147,6 @@ const handler = async (req: Request): Promise<Response> => {
       return acc;
     }, {});
 
-    if (!settingsMap.resend_api_key) {
-      return new Response(JSON.stringify({ error: "Email provider not configured" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const platformName = settingsMap.platform_name || "AccrualFlow";
     const websiteUrl = settingsMap.website_url || "https://accrualflow.systems";
 
@@ -174,6 +154,52 @@ const handler = async (req: Request): Promise<Response> => {
     const orgName = org?.name || "an organization";
     const roleName = invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1);
     const acceptUrl = `${websiteUrl}/accept-invitation?token=${invitation.token}`;
+
+    // Server-side user count enforcement. The live DB function signature is
+    // `check_user_limit(_org_id uuid)`. Calling it with `p_org_id` makes
+    // PostgREST fail before email dispatch, which is exactly why the UI could
+    // claim a resend while no invitation was delivered.
+    const { data: limitCheck, error: limitError } = await supabase
+      .rpc("check_user_limit", { _org_id: invitation.organization_id });
+
+    if (limitError) {
+      console.error("[send-invitation-email] user limit check failed", {
+        organization_id: invitation.organization_id,
+        code: (limitError as any).code,
+        message: limitError.message,
+        details: (limitError as any).details,
+        hint: (limitError as any).hint,
+      });
+      return new Response(JSON.stringify({
+        error: "user_limit_check_failed",
+        details: limitError.message,
+        accept_url: acceptUrl,
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const limit = limitCheck as UserLimitResult;
+    const limitAllowed = typeof limit === "boolean" ? limit : limit?.allowed;
+    if (limitAllowed === false) {
+      return new Response(JSON.stringify({ 
+        error: typeof limit === "object" && limit
+          ? limit.message || limit.reason || "User limit reached for your plan."
+          : "User limit reached for your plan.",
+        accept_url: acceptUrl,
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!settingsMap.resend_api_key) {
+      return new Response(JSON.stringify({ error: "Email provider not configured" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const expiresDate = new Date(invitation.expires_at).toLocaleDateString("en-US", {
       year: "numeric",
@@ -284,13 +310,13 @@ const handler = async (req: Request): Promise<Response> => {
         message: sendErr.message,
       });
       return new Response(
-        JSON.stringify({ error: "email_send_failed", details: sendErr.message }),
+        JSON.stringify({ error: "email_send_failed", details: sendErr.message, accept_url: acceptUrl }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
 
-    return new Response(JSON.stringify({ success: true, id: (sendData as any)?.id }), {
+    return new Response(JSON.stringify({ success: true, id: (sendData as any)?.id, accept_url: acceptUrl }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

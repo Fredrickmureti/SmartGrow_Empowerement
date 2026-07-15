@@ -16,7 +16,12 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePermissionGroups } from "@/hooks/usePermissionGroups";
 import { cn } from "@/lib/utils";
-import { sendInvitationEmailOrThrow } from "@/lib/invitations/sendInvitationEmail";
+import {
+  buildInvitationAcceptUrl,
+  copyInvitationLink,
+  InvitationEmailError,
+  sendInvitationEmailOrThrow,
+} from "@/lib/invitations/sendInvitationEmail";
 import { normalizeError } from "@/services/resilience";
 import {
   WorkflowSheet,
@@ -104,6 +109,7 @@ export function EmployeeInviteDialog({
       );
       if (rpcError) throw rpcError;
       const result = rpcData as { status: string; invitation_id?: string; token?: string };
+      let acceptUrl = buildInvitationAcceptUrl(result.token);
 
       if (result.status === "already_member") {
         toast.info(`${email} is already a member of this organization.`);
@@ -126,21 +132,48 @@ export function EmployeeInviteDialog({
       // non-2xx function responses.
       let emailFailureReason: string | null = null;
       try {
-        await sendInvitationEmailOrThrow(result.invitation_id);
+        const delivery = await sendInvitationEmailOrThrow(result.invitation_id);
+        acceptUrl = delivery.acceptUrl || acceptUrl;
       } catch (emailErr: any) {
         emailFailureReason = emailErr?.message ?? "network_error";
+        if (emailErr instanceof InvitationEmailError) {
+          acceptUrl = emailErr.acceptUrl || acceptUrl;
+        }
         console.error("[invite] send-invitation-email failed", emailErr);
       }
 
       if (emailFailureReason) {
         toast.error(
           `Invitation saved for ${email}, but the email did not send: ${emailFailureReason.slice(0, 240)}`,
+          acceptUrl
+            ? {
+                action: {
+                  label: "Copy link",
+                  onClick: () => void copyInvitationLink(acceptUrl).then(
+                    () => toast.success("Invitation link copied"),
+                    () => toast.error("Could not copy invitation link"),
+                  ),
+                },
+                duration: 12000,
+              }
+            : undefined,
         );
       } else {
         toast.success(
           result.status === "reused"
-            ? `Resent the existing invitation to ${email} — no duplicate created.`
+            ? `Invitation email resent to ${email}`
             : `Invitation sent to ${email}`,
+          acceptUrl
+            ? {
+                action: {
+                  label: "Copy link",
+                  onClick: () => void copyInvitationLink(acceptUrl).then(
+                    () => toast.success("Invitation link copied"),
+                    () => toast.error("Could not copy invitation link"),
+                  ),
+                },
+              }
+            : undefined,
         );
       }
       onSuccess();
