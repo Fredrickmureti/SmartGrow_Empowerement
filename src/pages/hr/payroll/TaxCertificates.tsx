@@ -11,6 +11,7 @@ import { normalizeError } from "@/services/resilience";
  * certificate supersedes (audit trail preserved) and re-creates a fresh one.
  */
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Card,
   CardContent,
