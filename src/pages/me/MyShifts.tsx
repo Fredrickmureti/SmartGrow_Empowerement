@@ -76,7 +76,11 @@ export default function MyShifts() {
         </CardHeader>
         <CardContent className={upcoming.length === 0 ? "min-h-[220px] flex items-center justify-center" : undefined}>
           {upcoming.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No upcoming shifts.</p>
+            <EmptyState
+              icon={CalendarClock}
+              title="No shifts scheduled"
+              description="You have no assigned shifts in the next 60 days. Your roster will appear here once your manager publishes it."
+            />
           ) : (
             <div className="space-y-2">
               {upcoming.map((a) => (
