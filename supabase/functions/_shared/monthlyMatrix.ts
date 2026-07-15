@@ -54,7 +54,13 @@ export function pivotToMonthlyMatrix(
 ): MonthlyMatrixRow[] {
   const byMonth = new Map<number, MonthlyMatrixRow>();
   for (let m = 1; m <= 12; m++) {
-    const seed: MonthlyMatrixRow = { month_index: m };
+    // Keep both keys intentionally:
+    // - `month_index` is the ADR-0060 canonical resolver field.
+    // - `month` is the template-facing field used by existing P9 matrix
+    //   bodies whose first column is `{ key: "month", format: "month_short" }`.
+    // Without this alias the monthly rows exist, but the visible Month cell
+    // renders blank because the compiler looks up `row.month`.
+    const seed: MonthlyMatrixRow = { month_index: m, month: m };
     for (const rc of ruleCodes) seed[rc] = 0;
     byMonth.set(m, seed);
   }

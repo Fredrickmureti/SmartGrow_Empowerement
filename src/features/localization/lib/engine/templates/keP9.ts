@@ -65,23 +65,48 @@ const theme: Theme = {
 // Column definitions (data plane).
 const columns: GridNode["columns"] = [
   { id: "month",  width: "18mm",   align: "left",  format: "month_short", nowrap: true },
-  { id: "col_a",  width: "1fr",    align: "right", format: "number" },
-  { id: "col_b",  width: "1fr",    align: "right", format: "number" },
-  { id: "col_c",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_a",  width: "1fr",    align: "right", format: "number", source_key: "basic" },
+  { id: "col_b",  width: "1fr",    align: "right", format: "number", source_key: "non_cash_benefits" },
+  { id: "col_c",  width: "1fr",    align: "right", format: "number", source_key: "housing_benefit" },
   { id: "col_d",  width: "1fr",    align: "right", format: "number" },
   { id: "col_e1", width: "1fr",    align: "right", format: "number" },
-  { id: "col_e2", width: "1fr",    align: "right", format: "number" },
+  { id: "col_e2", width: "1fr",    align: "right", format: "number", source_key: "nssf" },
   { id: "col_e3", width: "1fr",    align: "right", format: "number" },
-  { id: "col_f",  width: "1fr",    align: "right", format: "number" },
-  { id: "col_g",  width: "1fr",    align: "right", format: "number" },
-  { id: "col_h",  width: "1fr",    align: "right", format: "number" },
-  { id: "col_i",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_f",  width: "1fr",    align: "right", format: "number", source_key: "housing_levy" },
+  { id: "col_g",  width: "1fr",    align: "right", format: "number", source_key: "shif" },
+  { id: "col_h",  width: "1fr",    align: "right", format: "number", source_key: "prmf" },
+  { id: "col_i",  width: "1fr",    align: "right", format: "number", source_key: "mortgage_interest_relief_base" },
   { id: "col_j",  width: "1fr",    align: "right", format: "number" },
   { id: "col_k",  width: "1fr",    align: "right", format: "number" },
   { id: "col_l",  width: "1fr",    align: "right", format: "number" },
-  { id: "col_m",  width: "1fr",    align: "right", format: "number" },
-  { id: "col_n",  width: "1fr",    align: "right", format: "number" },
-  { id: "col_o",  width: "1fr",    align: "right", format: "number" },
+  { id: "col_m",  width: "1fr",    align: "right", format: "number", source_key: "personal_relief" },
+  { id: "col_n",  width: "1fr",    align: "right", format: "number", source_key: "insurance_relief" },
+  { id: "col_o",  width: "1fr",    align: "right", format: "number", source_key: "paye" },
+];
+
+const ruleCodes = [
+  "basic",
+  "housing_allowance",
+  "transport_allowance",
+  "non_cash_benefits",
+  "housing_benefit",
+  "nssf",
+  "housing_levy",
+  "shif",
+  "prmf",
+  "mortgage_interest_relief_base",
+  "paye",
+  "personal_relief",
+  "insurance_relief",
+];
+
+const derivedColumns: NonNullable<GridNode["derived_columns"]> = [
+  { key: "col_d", expr: "sum", args: ["col_a", "housing_allowance", "transport_allowance", "col_b", "col_c"] },
+  { key: "col_e1", expr: "pct", args: ["col_a", 0.3] },
+  { key: "col_e3", expr: "min", args: ["col_e1", "col_e2", 30000] },
+  { key: "col_j", expr: "sum", args: ["col_e3", "col_f", "col_g", "col_h", "col_i"] },
+  { key: "col_k", expr: "sub", args: ["col_d", "col_j"] },
+  { key: "col_l", expr: "sum", args: ["col_o", "col_m", "col_n"] },
 ];
 
 // Header stack — 4 rows. Cell-level colspan/rowspan mirrors the KRA form.
@@ -190,6 +215,9 @@ const totalRow: GridFooterCell[] = [
 const grid: GridNode = {
   type: "grid",
   columns,
+  rule_codes: ruleCodes,
+  derived_columns: derivedColumns,
+  amount_field: "employee_amount",
   header_rows: [headerRow_LabelUnit, headerRow_Unit, headerRow_Letters, headerRow_Notes],
   data_rows: { bind: "p9.months" },
   footer_rows: [totalRow],
