@@ -25,6 +25,7 @@ import {
   Users, Target, AlertTriangle, ClipboardCheck, BookOpen, Heart,
   MessageSquare, CalendarClock, ArrowRight
 } from "lucide-react";
+import { PageHeader, PageBody } from "@/design-system";
 
 interface ReportRow {
   id: string;
@@ -99,18 +100,18 @@ export default function MyTeamTalent() {
   const empty = !isLoading && !rollup;
 
   return (
-    <div className="container max-w-6xl py-6 space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Team Talent</h1>
-          <p className="text-sm text-muted-foreground">Goal health, reviews, and development across your direct reports.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm"><Link to="/me/one-on-ones"><CalendarClock className="h-4 w-4 mr-1" />1:1s</Link></Button>
-          <Button asChild variant="outline" size="sm"><Link to="/me/talent/feedback"><MessageSquare className="h-4 w-4 mr-1" />Feedback</Link></Button>
-        </div>
-      </div>
-
+    <>
+      <PageHeader
+        title="Team talent"
+        description="Goal health, reviews, and development across your direct reports."
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm"><Link to="/me/one-on-ones"><CalendarClock className="h-4 w-4 mr-1" />1:1s</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link to="/me/talent/feedback"><MessageSquare className="h-4 w-4 mr-1" />Feedback</Link></Button>
+          </>
+        }
+      />
+      <PageBody>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard icon={<Users className="h-4 w-4" />} label="Team size" value={rollup?.team_size ?? 0} />
         <MetricCard icon={<Target className="h-4 w-4" />} label="Active goals" value={rollup?.active_goals ?? 0} subtitle={rollup?.at_risk_goals ? `${rollup.at_risk_goals} at risk` : undefined} subtitleTone={rollup?.at_risk_goals ? "warn" : undefined} />
@@ -179,7 +180,8 @@ export default function MyTeamTalent() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </PageBody>
+    </>
   );
 }
 
