@@ -79,7 +79,7 @@ export default function RemittanceTracking() {
   const queryClient = useQueryClient();
   const { accounts } = useAccounts();
 
-  // Deep-link support: /hr/payroll/statutory-remittances?template=NSSF_RET&from=2026-01-01&to=2026-07-31
+  // Deep-link support: /hr/remittances?template=NSSF_RET&from=2026-01-01&to=2026-07-31
   // is used by the Reporting Centre to hand off pack-artifact statutory reports
   // to the workflow that actually generates them. Honour those params so the
   // page lands on the Returns tab with the correct template + year preselected.
