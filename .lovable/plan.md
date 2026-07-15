@@ -1,57 +1,84 @@
-# KE P9 Certificate — finish the handover
 
-## Findings (audit of prior work)
+## Root cause (investigated end-to-end)
 
-1. **Renderer + source template are already correct.** `src/features/localization/lib/engine/templates/keP9.ts` (schema v4) is the intended fix:
-   - `topHeader` (APPENDIX 2A / KRA / TAX DEDUCTION CARD / YEAR) lives **in document flow**, not in `page_master.header` — so no clipping.
-   - `page_master` only defines a `footer`; no running header → no repeat on later pages.
-   - The grid unit row emits `Kshs.` for **all 17 amount columns A–O** (line 147).
-   - IMPORTANT block is not force-`keep_together`.
-   - Compile tests in `src/test/localization/ke-p9-v10.compile.test.ts` already assert all of the above and pass against the source module.
+The 422 from `generate-tax-certificate` for **Annual Earnings Statement** is not a transport / auth / RPC failure. It is a **structural refusal** from the edge function's own contract check.
 
-2. **The DB copy of the template was never updated to that source.** Row `localization_pack_certificate_templates.id = 8426e8da-f9c9-48cc-9d60-2dad85566e5c` (`code = P9`, `schema_version = 4`) still contains the **old body with a `page_master.header`** running header (APPENDIX 2A / KRA / ISO 9001 columns) — this is precisely the header that visibly clips in `Systems.pdf` and pushes content onto a blank second page.
+Trace:
 
-3. **The last two publishes did not touch the P9 body:**
-   - v10.1.4 (2026‑07‑15 08:31) → `jsonb_set` on `document[3].derived_columns` only.
-   - v10.1.5 (2026‑07‑15 09:01) → tightened the `enforce_certificate_template_structure` trigger; no body change.
-   Net effect: since the trigger now enforces structure, the update must satisfy it (identity + data + signature blocks). The current source template already does (identity_row nodes, grid = monthly_breakdown/totals, importantBlock closure).
+1. Client — `useTaxCertificates.ts:260` calls `generate-tax-certificate` with `template_code: "ANNUAL_EARNINGS_STATEMENT"`.
+2. Edge function loads the template row from `localization_pack_certificate_templates` (`id 822e9bbd-…`, `pack_id NULL` — the generic/global fallback).
+3. It runs `validateCanonicalSourceNode(...)` on every `matrix` node in `body.document`.
+4. The matrix at `document[3]` has data columns `gross, benefits, deductions, tax, net` and:
+   - no `matrix.rule_codes`,
+   - no `columns[*].source_key`,
+   - no `derived_columns`.
+5. Branch at `index.ts:104-112` fires → `businessError(422, "TEMPLATE_STRUCTURAL_INVALID", reason_code: MATRIX_NO_RULE_CODES)`.
 
-4. **Pack state:** `localization_packs` KE is at `10.1.5`. `pack_versions` shows 10.1.1 → 10.1.5 all `published`. No `2026.8.1` exists; that name from the earlier draft SQL should be discarded — we continue the `10.1.x` sequence the publisher has been using.
+This is exactly the latent bug **ADR-0061** warned about:
 
-5. **Renderer / PDF pipeline itself is not the bug.** Browser preview via paged.js and edge compile mirror are in parity (`certificate-engine.mirror-parity.test.ts`). Once the DB body matches the source, both preview and `generate-tax-certificate` will render the correct layout.
+> "The same mis-binding pattern exists latently on other certificates rewritten in the same migration (Ghana `GH_PAYE_EMPLOYEE_ANNUAL`, the generic `ANNUAL_EARNINGS_STATEMENT`) and can recur on any future pack."
 
-## What to do
+The template body currently in the DB (migration `20260713001927_…`) declares columns but never tells the matrix engine which `payslip_lines` rule codes/categories to pivot. The engine correctly refuses rather than silently emitting zeros. The refusal is right; the template is wrong.
 
-Single migration + version bump. No renderer, engine, or template‑source edits.
+## Why "just bind rule_codes" is not enough
 
-### 1. Replace DB body with the current source template
+`ANNUAL_EARNINGS_STATEMENT` has `pack_id IS NULL` — it is the **country-neutral generic** certificate. Real rule codes are country-specific (`paye`, `shif`, `nssf`, `housing_levy`, `nita`…). Hardcoding Kenya codes here would break Ghana, Rwanda, etc.
 
-- Serialize `KE_P9_V3_TEMPLATE` (from `src/features/localization/lib/engine/templates/keP9.ts`) to JSON.
-- In a new Supabase migration, `UPDATE public.localization_pack_certificate_templates SET body = '<literal jsonb>'::jsonb, updated_at = now() WHERE id = '8426e8da-f9c9-48cc-9d60-2dad85566e5c';`
-- The `enforce_certificate_template_structure` trigger will validate; body already satisfies required identity/data/signature semantics via the identity rows, grid (monthly_breakdown + totals), and closing block.
+`monthlyMatrix.ts` today only pivots by `rule_code`. `payroll_employee_monthly_breakdown` already returns `category` per row (`earning`, `deduction`, `statutory_employee`, `statutory_employer`, `relief`), but the pivot ignores it. So today there is **no country-neutral way** to express "sum all earnings" or "sum all statutory deductions" in a matrix.
 
-### 2. Bump pack version
+## Fix — two coordinated changes
 
-- `UPDATE public.localization_packs SET version = '10.1.6', updated_at = now() WHERE id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';`
-- Insert a matching `pack_versions` row (`version = '10.1.6'`, `status = 'published'`, `published_at = now()`, `pack_id = <KE pack id>`) mirroring the shape of the 10.1.5 row.
+### 1. Engine: add category aggregation to `monthlyMatrix` (small, additive)
 
-### 3. Verify
+`supabase/functions/_shared/monthlyMatrix.ts`:
 
-- Run `vitest` targeted at `src/test/localization/ke-p9-v10.compile.test.ts` and `certificate-engine.*.test.ts` (should still pass — no code changed).
-- Re-query the DB row: `body->'page_master'->'header'` must be `NULL`; `jsonb_array_length(body->'document')` = 10; count of `Kshs.` unit cells in the grid header = 17.
-- Regenerate the certificate for a sample tenant via `generate-tax-certificate` and confirm: single landscape page, top heading visible, `Kshs.` under every amount column, no blank middle page.
+- Extend `pivotToMonthlyMatrix` to additionally accumulate per-category totals into synthetic column keys of the form `cat:<category>` on each monthly row (`cat:earning`, `cat:deduction`, `cat:statutory_employee`, `cat:statutory_employer`, `cat:relief`).
+- `applyDerivedColumns` already resolves any string arg via `row[key]`, so `derived_columns` expressions can reference `cat:earning` etc. with zero further changes.
+- `collectMatrixRuleCodes` and the validator: treat any `cat:*` token that appears as a `derived_columns` arg as "resolved" (add to the accepted-symbols set in `certificateMatrix.ts::collectDerivedArgOffences` and mirror the same in `generate-tax-certificate/index.ts::validateCanonicalSourceNode` — the validator already recognises "raw rule_code" and "derived key"; we add "category token").
+- Mirror the browser-side lint (`src/features/localization/lib/engine/*` if it duplicates the check) so the editor stays in parity.
 
-## What NOT to do
+This is intentionally a small, orthogonal extension — it does not change existing pack behaviour. Any pack that does not use `cat:*` tokens is unaffected.
 
-- Do **not** re-run the earlier draft SQL from `.lovable/plan.md` (it targeted a non-existent `2026.8.1` sequence and pre-dates the 10.1.5 trigger tightening).
-- Do **not** edit `keP9.ts`, `compile.ts` (browser or edge mirror), `resolver.ts`, `types.ts`, `certificateRenderer.ts`, or `generate-tax-certificate` — the source of truth already models the official KRA layout.
-- Do **not** introduce Kenya-specific logic in the engine or renderer. All fixes stay in pack data.
+### 2. Republish `ANNUAL_EARNINGS_STATEMENT` body
 
-## Technical details
+New migration (data-only `UPDATE` on `localization_pack_certificate_templates` where `code='ANNUAL_EARNINGS_STATEMENT' AND pack_id IS NULL`) that rewrites `body.document[3]` (the matrix) with:
 
-- Table: `public.localization_pack_certificate_templates`
-- Template row id: `8426e8da-f9c9-48cc-9d60-2dad85566e5c` (code `P9`, pack KE)
-- Pack row id: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`
-- New pack version: `10.1.6`
-- Body payload: the full serialized `KE_P9_V3_TEMPLATE` object (schema_version 4, paper A4 landscape, page_master with footer only, 10 document nodes).
-- Trigger to satisfy: `enforce_certificate_template_structure` (added in migration `20260715090135`).
+- `"rule_codes": []` (explicit empty — signals "no raw rule_code columns, all data via derived").
+- `"derived_columns"`:
+  - `gross` → `sum(cat:earning)` (amount_field `employee_amount`)
+  - `benefits` → `sum(cat:earning)` minus a `basic` fallback, or simply `sum(cat:earning)` if the pack does not distinguish (decision below)
+  - `deductions` → `sum(cat:statutory_employee, cat:deduction)`
+  - `tax` → `sum(cat:statutory_employee)` filtered to income-tax rule codes is NOT possible generically; instead we bind `tax` via a **new** matrix-level directive `"tax_source": "cat:tax"` or drop the `tax` column from the generic template and keep it in country-specific packs. The plan chooses to **drop `tax` from the generic template** and leave tax reporting to the country-specific certificates (P9A, GH_PAYE_EMPLOYEE_ANNUAL). Rationale: "income tax" is not a country-neutral concept and cannot be safely aggregated without a pack-authored classifier.
+  - `net` → `sub(gross, deductions)`
+- `columns[]` correspondingly: `month`, `gross`, `benefits`, `deductions`, `net` — each data column keyed to a derived key (so the "column has no source_key AND not in derived_columns" branch is satisfied).
+- `footer.sum_columns` updated to match.
+
+The YTD summary section stays as-is (it already reads pre-aggregated `totals.gross_pay` / `totals.deductions` / `totals.net_pay` from the payload, not from the matrix).
+
+Open question for you before the migration is written — **do we drop the Income Tax column entirely from the generic template, or do we introduce a `cat:tax` category by reclassifying `paye`/`income_tax` rule codes across packs?** The former is a 1-line drop; the latter is a wider pack-side change.
+
+### 3. Guard tests
+
+- Extend `src/test/architecture/statutory-templates-must-bind-canonical-sources.test.ts` to accept `cat:*` tokens as valid canonical bindings.
+- Add a new architecture test: `ANNUAL_EARNINGS_STATEMENT` body must have `derived_columns.length > 0` (regression pin against the exact bug we just found).
+- Add a Deno test alongside `monthlyMatrix_test.ts` covering the new `cat:*` synthetic keys.
+
+## Files touched
+
+```text
+supabase/functions/_shared/monthlyMatrix.ts          (engine — add cat:* keys)
+supabase/functions/_shared/certificateMatrix.ts      (validator — accept cat:*)
+supabase/functions/generate-tax-certificate/index.ts (mirror validator change)
+supabase/migrations/<new>_republish_annual_earnings.sql (data-only body update)
+src/test/architecture/statutory-templates-must-bind-canonical-sources.test.ts
+src/test/architecture/<new>-annual-earnings-canonical-binding.test.ts
+supabase/functions/_shared/monthlyMatrix_test.ts
+```
+
+No client-side / hook / renderer changes are required — the resolver, matrix engine, and PDF pipeline already handle derived columns; we're only widening what a derived arg can reference.
+
+## Out of scope
+
+- Kenya P9A (already fixed in pack 10.1.6).
+- Ghana `GH_PAYE_EMPLOYEE_ANNUAL` (same latent bug per ADR-0061 — a separate follow-up; call out but do not fix here unless you approve).
+- Any change to `compute-payroll`, `payslip_lines`, `payroll_employee_ytd_rollup`, or the certificate PDF renderer.
