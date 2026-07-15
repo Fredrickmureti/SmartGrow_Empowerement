@@ -116,6 +116,7 @@ export default function MyProfilePage() {
       <PageBody>
         <div className="space-y-4">
           <HrRecordCard profile={data} />
+          <MyChangeRequestsStrip employeeId={data.id} />
           <PersonalDetailsCard profile={data} onSaved={refresh} />
           <EmergencyContactCard profile={data} onSaved={refresh} />
           <BankAndIdCard profile={data} />
