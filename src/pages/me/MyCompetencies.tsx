@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Award, Send } from "lucide-react";
+import { PageHeader, PageBody, EmptyState } from "@/design-system";
 
 export default function MyCompetencies() {
   const { currentEmployee } = useCurrentEmployee();
@@ -45,19 +46,22 @@ export default function MyCompetencies() {
 
   if (!currentEmployee) {
     return (
-      <Card>
-        <CardHeader><CardTitle>My competencies</CardTitle><CardDescription>Requires a linked employee profile.</CardDescription></CardHeader>
-      </Card>
+      <>
+        <PageHeader title="My competencies" description="Requires a linked employee profile." />
+        <PageBody>
+          <EmptyState icon={Award} title="No linked employee record" description="Ask your HR admin to link your account to your employee profile." />
+        </PageBody>
+      </>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2"><Award className="h-5 w-5" /> My competencies</h1>
-        <p className="text-sm text-muted-foreground">Rate yourself against the skills that matter for your role. Your manager will review and finalise.</p>
-      </div>
-
+    <>
+      <PageHeader
+        title="My competencies"
+        description="Rate yourself against the skills that matter for your role. Your manager will review and finalise."
+      />
+      <PageBody>
       <Card>
         <CardHeader><CardTitle className="text-base">Proficiency scale</CardTitle></CardHeader>
         <CardContent className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs">
@@ -71,7 +75,7 @@ export default function MyCompetencies() {
       </Card>
 
       {relevant.length === 0 ? (
-        <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No competencies have been assigned to your role yet. Ask your manager or HR.</CardContent></Card>
+        <EmptyState icon={Award} title="No competencies assigned" description="Your role has no competencies mapped yet. Ask your manager or HR." />
       ) : relevant.map((c) => {
         const a = assessments.find((x) => x.competency_id === c.id);
         const required = requiredLevelFor(requirements, c.id, null, currentEmployee.department_id);
@@ -96,7 +100,8 @@ export default function MyCompetencies() {
           />
         );
       })}
-    </div>
+      </PageBody>
+    </>
   );
 }
 

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ChevronRight, Target } from "lucide-react";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 export default function MyGoals() {
   const { currentEmployee } = useCurrentEmployee();
@@ -16,18 +17,12 @@ export default function MyGoals() {
   if (!currentEmployee) return null;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">My Goals</h1>
-        <p className="text-sm text-muted-foreground">All goals assigned to you. Click any goal to update progress or read feedback.</p>
-      </div>
-
-      {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> :
+    <>
+      <PageHeader title="My goals" description="All goals assigned to you. Click any goal to update progress or read feedback." />
+      <PageBody>
+      {isLoading ? <LoadingState /> :
        goals.length === 0 ? (
-        <Card><CardContent className="py-10 text-center">
-          <Target className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-50" />
-          <p className="text-sm text-muted-foreground">You have no goals yet.</p>
-        </CardContent></Card>
+        <EmptyState icon={Target} title="No goals yet" description="Your manager will assign goals when the current cycle opens." />
       ) : (
         <div className="grid gap-2">
           {goals.map((g) => (
@@ -57,6 +52,7 @@ export default function MyGoals() {
           ))}
         </div>
       )}
-    </div>
+      </PageBody>
+    </>
   );
 }

@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useMyExitClearance, type MyExitClearanceItem } from "@/hooks/hr/useMyExitClearance";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 function itemBadge(item: MyExitClearanceItem) {
   if (item.status === "cleared") {
@@ -58,43 +59,31 @@ export default function MyExitClearance() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-1/3" />
-        <Skeleton className="h-40 w-full" />
-      </div>
+      <>
+        <PageHeader title="My exit clearance" description="Progress on the clearance items each department must sign off before your final payslip can be released." />
+        <PageBody><LoadingState /></PageBody>
+      </>
     );
   }
 
   if (clearances.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <LogOut className="h-5 w-5" />
-            My Exit Clearance
-          </CardTitle>
-          <CardDescription>
-            You don't have an active exit-clearance record. If you believe this is wrong, please
-            contact HR.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <>
+        <PageHeader title="My exit clearance" description="Track your departure sign-offs from each department." />
+        <PageBody>
+          <EmptyState icon={LogOut} title="No active exit-clearance record" description="If you believe this is wrong, please contact HR." />
+        </PageBody>
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <LogOut className="h-6 w-6" />
-          My Exit Clearance
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Progress on the clearance items each department must sign off before your final payslip
-          can be released.
-        </p>
-      </div>
-
+    <>
+      <PageHeader
+        title="My exit clearance"
+        description="Progress on the clearance items each department must sign off before your final payslip can be released."
+      />
+      <PageBody>
       {clearances.map((c) => {
         const total = c.items.length;
         const cleared = c.items.filter((i) => i.status === "cleared").length;
@@ -152,6 +141,7 @@ export default function MyExitClearance() {
           </Card>
         );
       })}
-    </div>
+      </PageBody>
+    </>
   );
 }

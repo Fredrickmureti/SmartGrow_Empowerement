@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FeedbackComposer, KudosComposer } from "@/components/talent/FeedbackComposer";
 import { Check, MessageSquare, Sparkles, ThumbsUp } from "lucide-react";
+import { PageHeader, PageBody, EmptyState as DSEmptyState } from "@/design-system";
 
 const TYPE_BADGE: Record<string, string> = {
   praise: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
@@ -40,23 +41,21 @@ export default function MyFeedback() {
 
   if (!currentEmployee) {
     return (
-      <Card><CardHeader><CardTitle>Feedback</CardTitle><CardDescription>Feedback needs a linked employee record.</CardDescription></CardHeader></Card>
+      <>
+        <PageHeader title="Feedback" description="Feedback needs a linked employee record." />
+        <PageBody><DSEmptyState icon={MessageSquare} title="No linked employee record" description="Ask your HR admin to link your account." /></PageBody>
+      </>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2"><MessageSquare className="h-5 w-5" /> Feedback</h1>
-          <p className="text-sm text-muted-foreground">Continuous praise, constructive feedback, and kudos with your team.</p>
-        </div>
-        <div className="flex gap-2">
-          <FeedbackComposer />
-          <KudosComposer />
-        </div>
-      </div>
-
+    <>
+      <PageHeader
+        title="Feedback"
+        description="Continuous praise, constructive feedback, and kudos with your team."
+        actions={<><FeedbackComposer /><KudosComposer /></>}
+      />
+      <PageBody>
       <Tabs defaultValue="received">
         <TabsList>
           <TabsTrigger value="received">Received {unread > 0 ? <Badge variant="destructive" className="ml-2 px-1.5">{unread}</Badge> : null}</TabsTrigger>
@@ -125,7 +124,8 @@ export default function MyFeedback() {
           ))}
         </TabsContent>
       </Tabs>
-    </div>
+      </PageBody>
+    </>
   );
 }
 

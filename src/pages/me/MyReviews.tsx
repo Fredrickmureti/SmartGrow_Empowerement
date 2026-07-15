@@ -12,6 +12,7 @@ import { useReviews, type ReviewStatus } from "@/hooks/useReviews";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardList, ChevronRight, Inbox } from "lucide-react";
+import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 
 const STATUS_VARIANT: Record<ReviewStatus, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "outline", in_progress: "secondary", submitted: "default",
@@ -30,20 +31,14 @@ export default function MyReviews() {
   );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2"><ClipboardList className="h-5 w-5" /> My reviews</h1>
-        <p className="text-sm text-muted-foreground">Reviews you need to complete, plus reviews about you.</p>
-      </div>
-
+    <>
+      <PageHeader title="My reviews" description="Reviews you need to complete, plus reviews about you." />
+      <PageBody>
       <section>
         <h2 className="text-sm font-semibold mb-2">Reviews to complete</h2>
-        {l1 ? <p className="text-sm text-muted-foreground">Loading…</p> :
+        {l1 ? <LoadingState rows={2} /> :
          toFill.length === 0 ? (
-          <Card><CardContent className="py-8 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
-            <Inbox className="h-8 w-8 text-muted-foreground" />
-            <p>Nothing to fill in right now.</p>
-          </CardContent></Card>
+          <EmptyState icon={Inbox} title="Nothing to fill in right now" />
         ) : (
           <div className="grid gap-2">
             {toFill.map((r) => (
@@ -62,9 +57,9 @@ export default function MyReviews() {
 
       <section>
         <h2 className="text-sm font-semibold mb-2">About me</h2>
-        {l2 ? <p className="text-sm text-muted-foreground">Loading…</p> :
+        {l2 ? <LoadingState rows={2} /> :
          otherAboutMe.length === 0 ? (
-          <Card><CardContent className="py-6 text-center text-sm text-muted-foreground">No reviews about you yet.</CardContent></Card>
+          <EmptyState icon={ClipboardList} title="No reviews about you yet" />
         ) : (
           <div className="grid gap-2">
             {otherAboutMe.map((r) => (
@@ -80,6 +75,7 @@ export default function MyReviews() {
           </div>
         )}
       </section>
-    </div>
+      </PageBody>
+    </>
   );
 }
