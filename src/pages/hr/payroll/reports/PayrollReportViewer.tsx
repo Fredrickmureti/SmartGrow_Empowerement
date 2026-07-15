@@ -14,7 +14,7 @@
  * change to this file: it only requires a `payroll_report_definitions`
  * row and (for non-`table` previews) a preview component.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -68,7 +68,8 @@ function ViewerInner() {
   );
 
   const { data: defs, isLoading: defsLoading } = usePayrollReportDefinitions(
-    (currentBusiness as any)?.country_code ?? null,
+    currentOrg?.id ?? null,
+    currentBusiness?.id ?? null,
   );
   const definition: PayrollReportDefinition | undefined = useMemo(
     () => defs?.find((d) => d.reportKey === reportKey),
@@ -77,6 +78,38 @@ function ViewerInner() {
 
   const isPackArtifact =
     !!definition?.dataSource && definition.dataSource.startsWith("pack_artifact.");
+
+  // Lifecycle-aware default period: for reports gated on `payroll_approved`,
+  // snap the initial period to the latest approved payroll run instead of
+  // the current calendar month. This is the single largest cause of
+  // "empty report" complaints mid-month. Runs once per (org, business,
+  // reportKey) and only if the user hasn't already picked a period via
+  // the shared ReportFilterContext.
+  const defaultedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!definition || !currentOrg?.id) return;
+    if (filters.dateFrom || filters.dateTo) return;
+    if (!(definition.dependencies ?? []).includes("payroll_approved")) return;
+    const cacheKey = `${currentOrg.id}:${currentBusiness?.id ?? ""}:${definition.reportKey}`;
+    if (defaultedRef.current === cacheKey) return;
+    defaultedRef.current = cacheKey;
+    (async () => {
+      let q = (supabase as any)
+        .from("payroll_runs")
+        .select("period_start, period_end")
+        .eq("organization_id", currentOrg.id)
+        .not("approved_at", "is", null)
+        .order("approved_at", { ascending: false })
+        .limit(1);
+      if (currentBusiness?.id) q = q.eq("business_id", currentBusiness.id);
+      const { data: r } = await q;
+      const row = Array.isArray(r) && r[0] ? r[0] : null;
+      if (row?.period_start && row?.period_end) {
+        setDateFrom(row.period_start);
+        setDateTo(row.period_end);
+      }
+    })().catch(() => undefined);
+  }, [definition, currentOrg?.id, currentBusiness?.id, filters.dateFrom, filters.dateTo]);
 
   const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: [

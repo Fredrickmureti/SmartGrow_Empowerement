@@ -182,7 +182,7 @@ export function useExecutiveStats() {
       ]);
 
       const businesses = (bizRes.data || []).filter((b: any) => b);
-      const contacts = (contactRes.data ?? []) as Array<{
+      const contacts = (contactRes.data ?? []) as unknown as Array<{
         id: string;
         created_at: string;
         business_id: string | null;

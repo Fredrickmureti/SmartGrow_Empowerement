@@ -67000,6 +67000,41 @@ export type Database = {
         Args: { p_business_id: string; p_organization_id: string }
         Returns: Json
       }
+      payroll_report_definitions_for_tenant: {
+        Args: { p_business_id?: string; p_organization_id: string }
+        Returns: {
+          artifact_generator: string | null
+          category: string
+          country_code: string | null
+          created_at: string
+          data_source: string
+          dependencies: string[]
+          description: string | null
+          export_formats: Json
+          feature_flag: string | null
+          id: string
+          is_active: boolean
+          label: string
+          localization_pack_id: string | null
+          metadata: Json
+          owner_kind: string
+          owner_ref: string | null
+          parameters: Json
+          period_selector: Json
+          preview_kind: string
+          report_key: string
+          scope: string
+          sort_order: number
+          spec: Json
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "payroll_report_definitions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       payroll_report_definitions_sync_from_packs: {
         Args: never
         Returns: undefined
