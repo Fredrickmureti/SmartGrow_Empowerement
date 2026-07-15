@@ -85,6 +85,11 @@ export function collectDerivedArgOffences(matrixNode: any): MatrixDerivedArgOffe
     for (const a of args) {
       if (typeof a === "number") continue;
       const s = String(a);
+      // `cat:<category>` tokens are always resolvable — they are synthesised
+      // per-row by `pivotToMonthlyMatrix` from `payslip_lines.category`.
+      // This is the country-neutral aggregation channel used by generic
+      // certificates (e.g. ANNUAL_EARNINGS_STATEMENT).
+      if (s.startsWith("cat:")) continue;
       if (columnKeys.has(s) || derivedKeysSoFar.has(s) || ruleCodes.has(s)) continue;
       offences.push({ derived_key: String(d?.key ?? `#${idx}`), arg: s, index: idx });
     }
@@ -92,6 +97,27 @@ export function collectDerivedArgOffences(matrixNode: any): MatrixDerivedArgOffe
   });
   return offences;
 }
+
+/**
+ * Does this matrix declare any category-aggregate reference (`cat:*`) in
+ * its `derived_columns` args? When it does, the generator must call
+ * `payroll_employee_monthly_breakdown` with `p_rule_codes = NULL` so every
+ * payslip_line row (across all rule_codes) contributes to the category
+ * rollups. Country-neutral templates rely on this.
+ */
+export function matrixUsesCategoryAggregation(matrixNode: any): boolean {
+  const derived: any[] = Array.isArray(matrixNode?.derived_columns)
+    ? matrixNode.derived_columns
+    : [];
+  for (const d of derived) {
+    const args = Array.isArray(d?.args) ? d.args : [];
+    for (const a of args) {
+      if (typeof a === "string" && a.startsWith("cat:")) return true;
+    }
+  }
+  return false;
+}
+
 
 /**
  * Pivot raw monthly rule-code rows into semantic matrix rows keyed by the

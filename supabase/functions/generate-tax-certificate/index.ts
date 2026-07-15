@@ -15,7 +15,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { compile as compileCertificateHtml } from "../_shared/certificate-engine/compile.ts";
-import { buildMatrixRows, collectDerivedArgOffences, collectMatrixRuleCodes, sumMatrixColumn } from "../_shared/certificateMatrix.ts";
+import { buildMatrixRows, collectDerivedArgOffences, collectMatrixRuleCodes, matrixUsesCategoryAggregation, sumMatrixColumn } from "../_shared/certificateMatrix.ts";
 import { type CertificateTemplateV3 } from "../_shared/certificate-engine/types.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody } from "../_shared/renderTemplateBody.ts";
@@ -101,7 +101,8 @@ function validateCanonicalSourceNode(params: {
   const sourceKeys: string[] = cols.map((c: any) => c?.source_key ? String(c.source_key) : "").filter(Boolean);
   const derivedKeys = new Set<string>(Array.isArray(node.derived_columns) ? node.derived_columns.map((d: any) => String(d?.key ?? "")) : []);
 
-  if (dataCols.length > 0 && explicitCodes.length === 0 && sourceKeys.length === 0) {
+  const derivedEntries: any[] = Array.isArray(node.derived_columns) ? node.derived_columns : [];
+  if (dataCols.length > 0 && explicitCodes.length === 0 && sourceKeys.length === 0 && derivedEntries.length === 0) {
     return businessError(
       422,
       "TEMPLATE_STRUCTURAL_INVALID",
@@ -110,6 +111,7 @@ function validateCanonicalSourceNode(params: {
       { template_code: templateCode, template_source: templateSource, contract: `${kind}.rule_codes`, reason_code: `${kind.toUpperCase()}_NO_RULE_CODES` },
     );
   }
+
 
   const unbound = dataCols
     .filter((c: any) => !c.source_key && !derivedKeys.has(matrixColumnKey(c)))
@@ -744,15 +746,20 @@ Deno.serve(async (req) => {
           });
           for (const dataNode of dataNodes) {
             const codes = collectMatrixRuleCodes(dataNode);
+            const wantsAllRows = matrixUsesCategoryAggregation(dataNode);
             let v3Monthly: any[] = [];
-            if (codes.length) {
+            if (codes.length || wantsAllRows) {
               const { data: mm } = await admin.rpc("payroll_employee_monthly_breakdown", {
                 p_year: body.fiscal_year,
                 p_employee_id: emp.id,
-                p_rule_codes: codes,
+                // NULL → return every payslip_line row (all rule_codes)
+                // so category rollups (`cat:earning`, `cat:statutory_employee`,
+                // …) can be aggregated by `pivotToMonthlyMatrix`.
+                p_rule_codes: wantsAllRows ? null : codes,
               });
               v3Monthly = (mm ?? []) as any[];
             }
+
             const matrixRows = buildMatrixRows(v3Monthly, dataNode);
             // Bind the rows at the template's rows_binding path (dot path).
             const bindingPath = dataNode.type === "grid"
