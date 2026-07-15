@@ -202,18 +202,5 @@ export default function MyTeamTalent() {
   );
 }
 
-function MetricCard({
-  icon, label, value, subtitle, tone, subtitleTone,
-}: { icon: React.ReactNode; label: string; value: number; subtitle?: string; tone?: "warn"; subtitleTone?: "warn" }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">{icon}{label}</div>
-        <div className={`text-2xl font-semibold mt-1 ${tone === "warn" ? "text-amber-600" : ""}`}>{value}</div>
-        {subtitle && (
-          <div className={`text-xs mt-0.5 ${subtitleTone === "warn" ? "text-amber-600" : "text-muted-foreground"}`}>{subtitle}</div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+
+
