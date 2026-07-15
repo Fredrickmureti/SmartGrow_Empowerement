@@ -67,6 +67,79 @@ interface RollupRow {
 const STORAGE_BUCKET = "documents";
 const CERTIFICATE_RENDERER_VERSION = "certificate-engine-v3-html-2026-07-12.1";
 
+function walkDocumentNodes(nodes: any[], visit: (node: any) => void): void {
+  const walk = (n: any) => {
+    if (!n || typeof n !== "object") return;
+    visit(n);
+    if (Array.isArray(n.children)) n.children.forEach(walk);
+    if (Array.isArray(n.column_children)) {
+      n.column_children.forEach((col: any) => Array.isArray(col) && col.forEach(walk));
+    }
+  };
+  nodes.forEach(walk);
+}
+
+function matrixColumnKey(c: any): string {
+  return String(c?.key ?? c?.bind_key ?? c?.id ?? "");
+}
+
+function isMonthColumn(c: any): boolean {
+  const key = matrixColumnKey(c);
+  return key === "month" || key === "month_index" || String(c?.format ?? "").toLowerCase() === "month_short";
+}
+
+function validateCanonicalSourceNode(params: {
+  node: any;
+  templateCode: string;
+  templateSource: string;
+  kind: "matrix" | "grid";
+}): Response | null {
+  const { node, templateCode, templateSource, kind } = params;
+  const cols: any[] = Array.isArray(node.columns) ? node.columns : [];
+  const dataCols = cols.filter((c) => matrixColumnKey(c) && !isMonthColumn(c));
+  const explicitCodes: string[] = Array.isArray(node.rule_codes) ? node.rule_codes.map((x: any) => String(x)).filter(Boolean) : [];
+  const sourceKeys: string[] = cols.map((c: any) => c?.source_key ? String(c.source_key) : "").filter(Boolean);
+  const derivedKeys = new Set<string>(Array.isArray(node.derived_columns) ? node.derived_columns.map((d: any) => String(d?.key ?? "")) : []);
+
+  if (dataCols.length > 0 && explicitCodes.length === 0 && sourceKeys.length === 0) {
+    return businessError(
+      422,
+      "TEMPLATE_STRUCTURAL_INVALID",
+      `Certificate template "${templateCode}" has a ${kind} with no rule-code bindings (source_key / rule_codes) and no derived columns; every data column would render as zero.`,
+      `Republish the localization pack so the ${kind} declares \`rule_codes\` at the node level and/or \`source_key\` on each data column that maps to a canonical payroll rule.`,
+      { template_code: templateCode, template_source: templateSource, contract: `${kind}.rule_codes`, reason_code: `${kind.toUpperCase()}_NO_RULE_CODES` },
+    );
+  }
+
+  const unbound = dataCols
+    .filter((c: any) => !c.source_key && !derivedKeys.has(matrixColumnKey(c)))
+    .map((c: any) => matrixColumnKey(c));
+  if (unbound.length > 0) {
+    return businessError(
+      422,
+      "TEMPLATE_STRUCTURAL_INVALID",
+      `Certificate template "${templateCode}" has ${kind} column(s) with no canonical binding: ${unbound.join(", ")}.`,
+      "Bind each data column via `source_key` (canonical rule code) or a `derived_columns` entry keyed to the column. Statutory templates must never render unbound zeros.",
+      { template_code: templateCode, template_source: templateSource, contract: `${kind}.columns`, reason_code: `${kind.toUpperCase()}_COLUMN_UNBOUND`, unbound_columns: unbound },
+    );
+  }
+
+  return null;
+}
+
+function writeRowsAtPath(payload: Record<string, any>, path: string, rows: any[]): void {
+  const parts = path.split(".").filter(Boolean);
+  if (parts.length === 0) return;
+  let cursor: any = payload;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (typeof cursor[parts[i]] !== "object" || cursor[parts[i]] == null) {
+      cursor[parts[i]] = {};
+    }
+    cursor = cursor[parts[i]];
+  }
+  cursor[parts[parts.length - 1]] = rows;
+}
+
 async function sha256Hex(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(value ?? null));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -269,13 +342,9 @@ Deno.serve(async (req) => {
       // v4 documents nest data-bearing nodes inside section / columns
       // wrappers. Walk the tree so `grid` inside a `section` still counts
       // as a data-bearing node — otherwise every non-flat pack refuses.
-      const walk = (n: any) => {
-        if (!n || typeof n !== "object") return;
+      walkDocumentNodes(nodes, (n) => {
         if (n.type) types.add(String(n.type));
-        if (Array.isArray(n.children)) n.children.forEach(walk);
-        if (Array.isArray(n.column_children)) n.column_children.forEach((col: any) => Array.isArray(col) && col.forEach(walk));
-      };
-      nodes.forEach(walk);
+      });
       // v3: `matrix` / `table`. v4: `grid` (cell-level control, replaces matrix).
       const hasData = types.has("matrix") || types.has("table") || types.has("grid");
       if (nodes.length === 0 || !hasData) {
@@ -321,42 +390,18 @@ Deno.serve(async (req) => {
       // this is the class-level fix that prevents this defect from
       // recurring across every localization pack and future certificate.
       const matrixNodes: any[] = [];
-      const walkForMatrix = (n: any) => {
-        if (!n || typeof n !== "object") return;
+      const gridNodes: any[] = [];
+      walkDocumentNodes(nodes, (n) => {
         if (n.type === "matrix") matrixNodes.push(n);
-        if (Array.isArray(n.children)) n.children.forEach(walkForMatrix);
-        if (Array.isArray(n.column_children)) n.column_children.forEach((col: any) => Array.isArray(col) && col.forEach(walkForMatrix));
-      };
-      (Array.isArray(template?.body?.document) ? template.body.document : []).forEach(walkForMatrix);
+        if (n.type === "grid") gridNodes.push(n);
+      });
       for (const m of matrixNodes) {
-        const cols: any[] = Array.isArray(m.columns) ? m.columns : [];
-        const dataCols = cols.filter((c) => c && c.key && c.key !== "month" && String(c.format ?? "").toLowerCase() !== "month_short");
-        const explicitCodes: string[] = Array.isArray(m.rule_codes) ? m.rule_codes.map((x: any) => String(x)).filter(Boolean) : [];
-        const sourceKeys: string[] = cols.map((c: any) => c?.source_key ? String(c.source_key) : "").filter(Boolean);
-        const derivedKeys = new Set<string>(Array.isArray(m.derived_columns) ? m.derived_columns.map((d: any) => String(d?.key ?? "")) : []);
-
-        if (dataCols.length > 0 && explicitCodes.length === 0 && sourceKeys.length === 0) {
-          return businessError(
-            422,
-            "TEMPLATE_STRUCTURAL_INVALID",
-            `Certificate template "${template.code}" has a matrix with no rule-code bindings (source_key / rule_codes) and no derived columns; every data column would render as zero.`,
-            "Republish the localization pack so the matrix declares `rule_codes` at the matrix level and/or `source_key` on each data column that maps to a canonical payroll rule.",
-            { template_code: template.code, template_source: templateSource, contract: "matrix.rule_codes", reason_code: "MATRIX_NO_RULE_CODES" },
-          );
-        }
-
-        const unbound = dataCols
-          .filter((c: any) => !c.source_key && !derivedKeys.has(String(c.key)))
-          .map((c: any) => String(c.key));
-        if (unbound.length > 0) {
-          return businessError(
-            422,
-            "TEMPLATE_STRUCTURAL_INVALID",
-            `Certificate template "${template.code}" has matrix column(s) with no canonical binding: ${unbound.join(", ")}.`,
-            "Bind each data column via `source_key` (canonical rule code) or a `derived_columns` entry keyed to the column. Statutory templates must never render unbound zeros.",
-            { template_code: template.code, template_source: templateSource, contract: "matrix.columns", reason_code: "MATRIX_COLUMN_UNBOUND", unbound_columns: unbound },
-          );
-        }
+        const invalid = validateCanonicalSourceNode({ node: m, templateCode: template.code, templateSource, kind: "matrix" });
+        if (invalid) return invalid;
+      }
+      for (const g of gridNodes) {
+        const invalid = validateCanonicalSourceNode({ node: g, templateCode: template.code, templateSource, kind: "grid" });
+        if (invalid) return invalid;
       }
     }
 
@@ -669,12 +714,13 @@ Deno.serve(async (req) => {
         // applying the pack's derived columns. The country's tax math lives
         // entirely in the pack-authored matrix node — this code is generic.
         if (isV3EngineTemplate(template)) {
-          const doc = Array.isArray((template.body as any).document)
-            ? (template.body as any).document
-            : [];
-          const matrixNode = doc.find((n: any) => n?.type === "matrix");
-          if (matrixNode) {
-            const codes = collectMatrixRuleCodes(matrixNode);
+          const doc = Array.isArray((template.body as any).document) ? (template.body as any).document : [];
+          const dataNodes: any[] = [];
+          walkDocumentNodes(doc, (n) => {
+            if (n?.type === "matrix" || n?.type === "grid") dataNodes.push(n);
+          });
+          for (const dataNode of dataNodes) {
+            const codes = collectMatrixRuleCodes(dataNode);
             let v3Monthly: any[] = [];
             if (codes.length) {
               const { data: mm } = await admin.rpc("payroll_employee_monthly_breakdown", {
@@ -684,23 +730,17 @@ Deno.serve(async (req) => {
               });
               v3Monthly = (mm ?? []) as any[];
             }
-            const matrixRows = buildMatrixRows(v3Monthly, matrixNode);
+            const matrixRows = buildMatrixRows(v3Monthly, dataNode);
             // Bind the rows at the template's rows_binding path (dot path).
-            const bindingPath = String(matrixNode.rows_binding ?? "matrix.rows");
-            const parts = bindingPath.split(".");
-            let cursor: any = enginePayload as any;
-            for (let i = 0; i < parts.length - 1; i++) {
-              if (typeof cursor[parts[i]] !== "object" || cursor[parts[i]] == null) {
-                cursor[parts[i]] = {};
-              }
-              cursor = cursor[parts[i]];
-            }
-            cursor[parts[parts.length - 1]] = matrixRows;
+            const bindingPath = dataNode.type === "grid"
+              ? String(dataNode.data_rows?.bind ?? "grid.rows")
+              : String(dataNode.rows_binding ?? "matrix.rows");
+            writeRowsAtPath(enginePayload as any, bindingPath, matrixRows);
             // Summary totals the template binds (Col. K / Col. O).
             (enginePayload as any).totals = {
               ...(enginePayload as any).totals,
-              chargeable_pay: sumMatrixColumn(matrixRows, "chargeable_pay"),
-              paye: sumMatrixColumn(matrixRows, "paye_net"),
+              chargeable_pay: sumMatrixColumn(matrixRows, "chargeable_pay") || sumMatrixColumn(matrixRows, "col_k"),
+              paye: sumMatrixColumn(matrixRows, "paye_net") || sumMatrixColumn(matrixRows, "col_o"),
             };
           }
         }
