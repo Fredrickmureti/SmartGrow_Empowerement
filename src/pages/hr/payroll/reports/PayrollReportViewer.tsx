@@ -43,7 +43,10 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { usePermissions } from "@/hooks/usePermissions";
 
 import { PayrollReportPreview } from "./previews/PayrollReportPreview";
+import { PackArtifactPanel } from "./previews/PackArtifactPanel";
 import { PayrollReportMetadataBand } from "./PayrollReportMetadataBand";
+import { PayrollReportReadinessChips } from "./PayrollReportReadinessChips";
+import { usePayrollReportReadiness } from "@/hooks/payroll/usePayrollReportReadiness";
 import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
 
 function ViewerInner() {
