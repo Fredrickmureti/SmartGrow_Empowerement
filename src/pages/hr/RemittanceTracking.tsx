@@ -12,6 +12,7 @@ import { normalizeError } from "@/services/resilience";
  * are surfaced with a banner — they had no GL impact when first recorded.
  */
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,19 @@ export default function RemittanceTracking() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { accounts } = useAccounts();
+
+  // Deep-link support: /hr/payroll/statutory-remittances?template=NSSF_RET&from=2026-01-01&to=2026-07-31
+  // is used by the Reporting Centre to hand off pack-artifact statutory reports
+  // to the workflow that actually generates them. Honour those params so the
+  // page lands on the Returns tab with the correct template + year preselected.
+  const [searchParams] = useSearchParams();
+  const deepLinkTemplate = searchParams.get("template") ?? undefined;
+  const deepLinkFrom = searchParams.get("from") ?? undefined;
+  const deepLinkYear = deepLinkFrom
+    ? Number(deepLinkFrom.slice(0, 4)) || undefined
+    : undefined;
+  const initialTab = deepLinkTemplate ? "returns" : "liabilities";
+
 
   const [statusFilter, setStatusFilter] = useState<string>("outstanding");
   const [authorityFilter, setAuthorityFilter] = useState<string>("all");
@@ -288,7 +302,7 @@ export default function RemittanceTracking() {
         })()}
       </div>
 
-      <Tabs defaultValue="liabilities" className="space-y-4">
+      <Tabs defaultValue={initialTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="liabilities">Liabilities</TabsTrigger>
           <TabsTrigger value="returns">Returns</TabsTrigger>
@@ -485,7 +499,7 @@ export default function RemittanceTracking() {
       {/* Record Payment Dialog */}
         </TabsContent>
         <TabsContent value="returns" className="mt-0">
-          <ReturnsTab />
+          <ReturnsTab initialTemplateCode={deepLinkTemplate} initialYear={deepLinkYear} />
         </TabsContent>
       </Tabs>
 

@@ -11,6 +11,7 @@ import { normalizeError } from "@/services/resilience";
  * certificate supersedes (audit trail preserved) and re-creates a fresh one.
  */
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -97,10 +98,22 @@ function StatTile({
 }
 
 export default function TaxCertificates() {
-  const [templateCode, setTemplateCode] = useState<string>("");
-  const [fiscalYear, setFiscalYear] = useState<number>(CURRENT_YEAR - 1);
+  // Deep-link support from the Reporting Centre pack-artifact hand-off:
+  // /hr/payroll/tax-certificates?template=P9&from=2025-01-01
+  const [searchParams] = useSearchParams();
+  const deepLinkTemplate = searchParams.get("template") ?? "";
+  const deepLinkFrom = searchParams.get("from");
+  const deepLinkYear = deepLinkFrom
+    ? Number(deepLinkFrom.slice(0, 4)) || null
+    : null;
+
+  const [templateCode, setTemplateCode] = useState<string>(deepLinkTemplate);
+  const [fiscalYear, setFiscalYear] = useState<number>(
+    deepLinkYear ?? CURRENT_YEAR - 1,
+  );
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
   const [regenerate, setRegenerate] = useState(false);
+
 
   const templatesQ = useCertificateTemplates();
   const employeesQ = useEmployees();
