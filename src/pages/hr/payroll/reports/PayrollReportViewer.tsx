@@ -94,9 +94,14 @@ function ViewerInner() {
     if (defaultedRef.current === cacheKey) return;
     defaultedRef.current = cacheKey;
     (async () => {
+      // Canonical columns on `payroll_runs` are `pay_period_start` /
+      // `pay_period_end`. Selecting the non-existent `period_start` /
+      // `period_end` silently made this effect a no-op, leaving reports
+      // stuck on the current calendar month and appearing empty whenever
+      // the tenant had no approved run in that window.
       let q = (supabase as any)
         .from("payroll_runs")
-        .select("period_start, period_end")
+        .select("pay_period_start, pay_period_end")
         .eq("organization_id", currentOrg.id)
         .not("approved_at", "is", null)
         .order("approved_at", { ascending: false })
@@ -104,9 +109,9 @@ function ViewerInner() {
       if (currentBusiness?.id) q = q.eq("business_id", currentBusiness.id);
       const { data: r } = await q;
       const row = Array.isArray(r) && r[0] ? r[0] : null;
-      if (row?.period_start && row?.period_end) {
-        setDateFrom(row.period_start);
-        setDateTo(row.period_end);
+      if (row?.pay_period_start && row?.pay_period_end) {
+        setDateFrom(row.pay_period_start);
+        setDateTo(row.pay_period_end);
       }
     })().catch(() => undefined);
   }, [definition, currentOrg?.id, currentBusiness?.id, filters.dateFrom, filters.dateTo]);
