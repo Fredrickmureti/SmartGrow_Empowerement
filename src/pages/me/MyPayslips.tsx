@@ -9,7 +9,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Download, Eye, FileText, Loader2 } from "lucide-react";
+import { Download, Eye, FileText, Loader2, Wallet, Receipt, TrendingUp, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { PageHeader, PageBody } from "@/design-system";
+import { KpiStrip } from "@/components/hr/KpiStrip";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { PayslipDetailDialog } from "@/components/payroll/PayslipDetailDialog";
@@ -153,6 +154,25 @@ export default function MyPayslips() {
     [payslips, currentEmployee, currentOrg?.name],
   );
 
+  // YTD summary derived from the loaded payslips (already scoped to the
+  // current employee by RLS). Uses the fiscal-year-agnostic calendar year;
+  // matches the same tone as the platform payroll dashboards.
+  const ytd = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const thisYear = payslips.filter((p) => {
+      const d = p.payroll_run?.pay_period_end ?? (p as any).created_at;
+      return d ? new Date(d).getFullYear() === y : false;
+    });
+    const sum = (fn: (p: PayslipWithRun) => number) => thisYear.reduce((a, p) => a + (Number(fn(p)) || 0), 0);
+    return {
+      gross: sum((p) => p.gross_pay),
+      net: sum((p) => p.net_pay),
+      deductions: sum((p) => p.total_deductions),
+      count: thisYear.length,
+    };
+  }, [payslips]);
+
   if (empLoading) {
     return (
       <div className="p-6 max-w-6xl mx-auto space-y-4">
@@ -178,6 +198,14 @@ export default function MyPayslips() {
         }
       />
       <PageBody>
+        <KpiStrip
+          tiles={[
+            { key: "ytd-net", label: "YTD net pay", value: formatCurrency(ytd.net), icon: Wallet, tone: "emerald", hint: `${ytd.count} payslip${ytd.count === 1 ? "" : "s"} this year` },
+            { key: "ytd-gross", label: "YTD gross", value: formatCurrency(ytd.gross), icon: TrendingUp, tone: "sky" },
+            { key: "ytd-deductions", label: "YTD deductions", value: formatCurrency(ytd.deductions), icon: Receipt, tone: "neutral" },
+            { key: "count", label: "Payslips issued", value: payslips.length, icon: Calendar, tone: "neutral", hint: "all time" },
+          ]}
+        />
         <Card>
         <CardHeader>
           <CardTitle className="text-base">Payslip history</CardTitle>
