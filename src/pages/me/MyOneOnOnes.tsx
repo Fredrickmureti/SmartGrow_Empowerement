@@ -3,7 +3,7 @@
  * manager. Also surfaces the manager view if the current user manages
  * other employees (combined list, role-tagged per row).
  */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useOneOnOnes } from "@/hooks/useContinuousPerformance";
@@ -11,10 +11,6 @@ import { useEmployees } from "@/hooks/useEmployees";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarClock, Plus, ChevronRight } from "lucide-react";
 import { PageHeader, PageBody, EmptyState } from "@/design-system";
 
