@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { Mail, UserPlus, Shield } from "lucide-react";
