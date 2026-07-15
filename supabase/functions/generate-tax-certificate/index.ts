@@ -15,7 +15,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
 import { assertStatutoryPaper } from "../_shared/pdf/index.ts";
 import { compile as compileCertificateHtml } from "../_shared/certificate-engine/compile.ts";
-import { buildMatrixRows, collectDerivedArgOffences, collectMatrixRuleCodes, sumMatrixColumn } from "../_shared/certificateMatrix.ts";
+import { buildMatrixRows, collectDerivedArgOffences, collectMatrixRuleCodes, matrixUsesCategoryAggregation, sumMatrixColumn } from "../_shared/certificateMatrix.ts";
 import { type CertificateTemplateV3 } from "../_shared/certificate-engine/types.ts";
 import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody } from "../_shared/renderTemplateBody.ts";
