@@ -70,6 +70,8 @@ import AdminLogin from "./pages/admin/AdminLogin";
 import AdminProfile from "./pages/admin/AdminProfile";
 import AdminAcceptInvitation from "./pages/admin/AdminAcceptInvitation";
 import Demo from "./pages/Demo";
+const ResourcesIndex = lazy(() => import("./pages/resources/ResourcesIndex"));
+const ResourceDetail = lazy(() => import("./pages/resources/ResourceDetail"));
 import OnboardingSetup from "./pages/OnboardingSetup";
 import NotFound from "./pages/NotFound";
 import HelpCenter from "./pages/HelpCenter";
@@ -277,7 +279,10 @@ const App = () => (
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
                             <Route path="/demo" element={<Demo />} />
-                            <Route path="/forgot-password" element={<RedirectIfAuthenticated><ForgotPassword /></RedirectIfAuthenticated>} />
+                           <Route path="/resources" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourcesIndex /></Suspense></ProtectedRoute>} />
+                           <Route path="/resources/:id" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourceDetail /></Suspense></ProtectedRoute>} />
+                           <Route path="/forgot-password" element={<RedirectIfAuthenticated><ForgotPassword /></RedirectIfAuthenticated>} />
+
                             <Route path="/reset-password" element={<RedirectIfAuthenticated allowRecoveryHash><ResetPassword /></RedirectIfAuthenticated>} />
                             <Route path="/accept-invitation" element={<AcceptInvitation />} />
                             <Route path="/accept-ownership/:token" element={<AcceptOwnership />} />

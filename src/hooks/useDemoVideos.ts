@@ -3,6 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 
+export type DemoVideoAudience = "public" | "authenticated";
+export type DemoVideoDifficulty = "intro" | "deep-dive";
+
 export interface DemoVideo {
   id: string;
   title: string;
@@ -17,6 +20,12 @@ export interface DemoVideo {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  /** Product area the video belongs to (matches AppDefinition.id). null = platform-wide / getting-started. */
+  app_key: string | null;
+  /** "public" = visible on marketing /demo. "authenticated" = signed-in only. */
+  audience: DemoVideoAudience;
+  /** Optional learning-track tag. */
+  difficulty: DemoVideoDifficulty | null;
 }
 
 export interface CreateDemoVideoInput {
@@ -27,6 +36,9 @@ export interface CreateDemoVideoInput {
   category?: string;
   duration_seconds?: number;
   is_published?: boolean;
+  app_key?: string | null;
+  audience?: DemoVideoAudience;
+  difficulty?: DemoVideoDifficulty | null;
 }
 
 export function useDemoVideos(publicOnly = false) {
