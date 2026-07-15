@@ -418,3 +418,76 @@ function TextField({ label, value, onChange }: { label: string; value: string; o
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// My change requests — pending HR reviews submitted by this employee
+// ---------------------------------------------------------------------------
+
+function MyChangeRequestsStrip({ employeeId }: { employeeId: string }) {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["my-profile-change-requests", employeeId],
+    enabled: !!employeeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_profile_change_requests" as any)
+        .select("id, field_key, new_value, status, reason, created_at, review_note, reviewed_at")
+        .eq("employee_id", employeeId)
+        .in("status", ["pending", "rejected"])
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; field_key: string; new_value: any; status: string;
+        reason: string | null; created_at: string; review_note: string | null; reviewed_at: string | null;
+      }>;
+    },
+  });
+
+  const cancel = async (id: string) => {
+    const { error } = await supabase
+      .from("employee_profile_change_requests" as any)
+      .update({ status: "cancelled" })
+      .eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Request cancelled.");
+    qc.invalidateQueries({ queryKey: ["my-profile-change-requests"] });
+  };
+
+  if (isLoading || !data || data.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Send className="h-4 w-4" /> My change requests
+        </CardTitle>
+        <CardDescription>Requests submitted to HR for review.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        {data.map((r) => {
+          const label = HR_CHANGE_REQUEST_FIELDS.find((f) => f.key === r.field_key)?.label ?? r.field_key;
+          const newVal = typeof r.new_value === "string" ? r.new_value : JSON.stringify(r.new_value);
+          return (
+            <div key={r.id} className="flex items-start justify-between gap-3 border-b last:border-b-0 pb-2 last:pb-0">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{label}</span>
+                  <Badge variant={r.status === "pending" ? "secondary" : "destructive"}>{r.status}</Badge>
+                </div>
+                <div className="text-xs text-muted-foreground truncate">
+                  Proposed: {newVal}
+                </div>
+                {r.reason && <div className="text-xs text-muted-foreground">Reason: {r.reason}</div>}
+                {r.review_note && <div className="text-xs text-muted-foreground">HR note: {r.review_note}</div>}
+              </div>
+              {r.status === "pending" && (
+                <Button size="sm" variant="ghost" onClick={() => cancel(r.id)}>Cancel</Button>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
