@@ -10,7 +10,7 @@
  * losing the workspace chrome.
  */
 import { lazy } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { PermissionProtectedRoute } from "@/components/auth/PermissionProtectedRoute";
 import { PAYROLL_APP } from "@/lib/apps/registry";
 import { PlatformShell } from "@/components/layout/shell/PlatformShell";
@@ -41,6 +41,11 @@ function gate(node: React.ReactNode, permission: string) {
       <PortalOrSubscriptionGate>{node}</PortalOrSubscriptionGate>
     </PermissionProtectedRoute>
   );
+}
+
+function RedirectToRemittances() {
+  const { search } = useLocation();
+  return <Navigate to={`/hr/remittances${search}`} replace />;
 }
 
 // Lazy wrappers for the named exports inside sections.tsx
@@ -88,6 +93,10 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           <Route path="reports"              element={gate(<LazyRoute module="Reporting Centre"><Reports /></LazyRoute>, "viewPayroll")} />
           <Route path="reports/:reportKey"   element={gate(<LazyRoute module="Report Viewer"><ReportViewer /></LazyRoute>, "viewPayroll")} />
           <Route path="tax-certificates"     element={gate(<LazyRoute module="Tax Certificates"><TaxCertificates /></LazyRoute>, "viewPayroll")} />
+          <Route path="statutory-remittances" element={<RedirectToRemittances />} />
+          <Route path="statutory-remittances/*" element={<RedirectToRemittances />} />
+          <Route path="remittances"          element={<RedirectToRemittances />} />
+          <Route path="remittances/*"        element={<RedirectToRemittances />} />
           <Route path="configuration/templates" element={gate(<LazyRoute module="Templates"><Templates /></LazyRoute>, "managePayroll")} />
           <Route path="configuration/localization" element={gate(<LazyRoute module="Localization"><Localization /></LazyRoute>, "managePayroll")} />
           <Route path="configuration"        element={gate(<LazyRoute module="Configuration"><Configuration /></LazyRoute>, "managePayroll")} />

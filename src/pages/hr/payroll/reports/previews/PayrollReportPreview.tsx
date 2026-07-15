@@ -72,7 +72,7 @@ function TablePreview({ columns, rows, canSeeMoney }: Props) {
       navigate(`/hr/payroll/runs/${meta.sourceDocId}`);
     else if (meta.sourceDocType === "payroll_liability" && meta.ruleCode)
       navigate(
-        `/hr/payroll/remittances?ruleCode=${encodeURIComponent(meta.ruleCode)}`,
+        `/hr/remittances?ruleCode=${encodeURIComponent(meta.ruleCode)}`,
       );
   };
   return (
