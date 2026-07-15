@@ -60,22 +60,28 @@ Additional per-page primitives already in place:
       opting-in when they next surface a status pill.
 
 
-### Dialog → sheet / route triage
-- [ ] `MyLeave` — `LeaveRequestForm` Dialog → routed `/me/leave/new`
-      on `RecordFormShell`.
-- [ ] `MyOneOnOnes` — `ScheduleDialog` → routed `/me/one-on-ones/new`
-      on `RecordFormShell`.
-- [ ] `MyLearningPage` — `CourseContentDialog` → `DetailSheet`;
-      `CompleteDialog` stays as `AlertDialog` (pure confirm).
-- [ ] `MyShifts` — triage each Dialog per the same rubric.
+### Dialog → sheet / route triage — done
+- [x] `MyLeave` — `LeaveRequestForm` promoted to routed `/me/leave/new`
+      (WorkflowSheet-based; sheet closes back to `/me/leave`).
+- [x] `MyOneOnOnes` — `ScheduleDialog` retired; new
+      `/me/one-on-ones/new` on `RecordFormShell` is the record-create
+      surface.
+- [x] `MyLearningPage` — `CourseContentDialog` and `CompleteDialog`
+      both moved to `DetailSheet` (+ `FooterActionBar` anchor="sheet").
+- [x] `MyShifts` — shift-swap Dialog moved to `DetailSheet`.
+- [x] Zero `@/components/ui/dialog` imports remain in `src/pages/me/*`
+      (enforced by the arch test below).
 
-### Enforcement additions
-- [ ] Extend `no-hand-rolled-me-header` (or add a sibling rule) to
-      flag `text-2xl font-semibold|bold` KPI values under
-      `src/pages/me/*`.
-- [ ] Extend `me-uses-design-system.test.ts` to reject
-      `@/components/ui/dialog` imports for record-shaped forms
-      (allow-list confirmations only).
+### Enforcement additions — done
+- [x] `no-hand-rolled-me-header` now also flags any
+      `text-2xl font-(semibold|bold)` KPI value block anywhere in
+      `src/pages/me/*` — the drift that used to slip past the h1 check.
+- [x] `me-uses-design-system.test.ts` extended with two new suites:
+      one asserts no page imports `@/components/ui/dialog` (record
+      forms must be `RecordFormShell` / `DetailSheet` / `WorkflowSheet`);
+      one mirrors the ESLint KPI check statically so CI catches it
+      even when the editor doesn't run ESLint.
+
 
 ## Out of scope
 
