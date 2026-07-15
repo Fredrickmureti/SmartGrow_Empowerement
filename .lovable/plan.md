@@ -1,90 +1,66 @@
-# Employee Identity Lifecycle — execution tracker
+# Why you're seeing "multiple invitations" and no email
 
-Source of truth is the codebase + `supabase/tests/*`. This file is a short
-handoff, not a design doc.
+## What I actually see in the database
 
-## Architecture (verified against implementation)
+For `nkathavictor26@gmail.com` there is exactly **one** invitation row in `organization_invitations` (id `b838056d…`, created 21:05, `accepted_at = null`). Each time you click "Send invitation" the server-side `upsert_organization_invitation` RPC finds that existing pending row and **refreshes it** (extends `expires_at`, keeps the same token) instead of creating a duplicate. That is by design — it's what prevents the "Someone else updated this record" 23505 error we used to hit.
+
+So you are *not* creating multiple invitations. You are re-triggering the send on the same invitation. The toast wording "Invitation refreshed and resent to …" is what's making it feel like new invites keep piling up.
+
+## Why the email never arrives
+
+`platform_email_logs` is empty for this recipient. Not one row — meaning `send-email` was **never actually called**. Every single POST to `send-invitation-email` in the edge-function analytics returned **404** ("Invitation not found").
+
+Root cause (already patched in the previous turn): `send-invitation-email/index.ts` was selecting a column that doesn't exist —
 
 ```
-employees ──(FK employee_id)──> organization_invitations ──(accept)──> auth.users
-    │                                     │                              │
-    │                                     ▼                              ▼
-    │                         permission_group_ids[]         user_roles + member_permission_groups
-    │                                     │
-    │                                     ▼
-    └───────── employees.user_id (nullable back-link) ◄─── link_employee_to_user
-                                                      ◄─── accept_organization_invitation_atomic
+.select(`… organization_id, business_id, organization:organizations(id, name)`)
 ```
 
-- Employee ≠ User is preserved.
-- Single atomic acceptor: `accept_organization_invitation_atomic`.
-- Portal ↔ internal isolation: `prevent_portal_group_assignment` trigger.
-- Invitation → employee is now an explicit FK, with email-fallback preserved
-  for external (non-employee) invites like an outside accountant.
+`organization_invitations` has no `business_id` column (verified against `information_schema`). PostgREST rejected the query, `invError` was truthy, the handler returned 404 "Invitation not found", and the client toast said "Invitation refreshed and resent" because the invite *row* was upserted successfully — the email step just failed silently.
 
-## Phase 1 — RPC defect fixes (DONE)
+## What is still wrong even after that patch
 
-| Function                              | Fix                                                                                             |
-|---------------------------------------|-------------------------------------------------------------------------------------------------|
-| `get_linkable_users_for_employee`     | Renamed CTE columns to `linked_user_id`/`admin_user_id`/`candidate_user_id`; ambiguity removed. |
-| `upsert_organization_invitation`      | `COALESCE(p_permission_group_ids, ARRAY[]::uuid[])` honours the `NOT NULL DEFAULT '{}'` column. |
+Two behaviour bugs remain and explain why you had zero visibility:
 
-Guards: `supabase/tests/get_linkable_users_for_employee_test.sql`,
-`supabase/tests/upsert_organization_invitation_test.sql`.
+1. **The 404 handler swallows the real Postgres error.** `invError.message` is never logged and never returned; it's replaced with the string `"Invitation not found"`. Any future schema drift will look identical to a genuine missing invitation.
+2. **The client treats an email-send failure as success.** In `EmployeeInviteDialog.tsx` the `supabase.functions.invoke("send-invitation-email", …)` result is not inspected — `invoke` does **not** throw on non-2xx responses, so a 404/500 from the function slips through the `try/catch` and the toast still says "Invitation sent". That is why you saw success toasts while nothing ever left the platform.
 
-## Phase 2 — Identity events as first-class lifecycle rows (DONE)
+## Plan
 
-- Added enum values on `employee_lifecycle_event_type`:
-  `user_invited`, `user_invitation_revoked`, `user_invitation_accepted`,
-  `user_linked`, `user_unlinked`.
-- Added `organization_invitations.employee_id uuid REFERENCES employees(id)
-  ON DELETE SET NULL`; partial unique index enforces one open invite per
-  employee. Backfilled where the email uniquely resolves.
-- RPCs now emit lifecycle rows:
-  - `upsert_organization_invitation` — accepts `p_employee_id` (defaults to
-    NULL, resolves from email otherwise), emits `user_invited` (or the
-    `reused: true` variant on refresh).
-  - `accept_organization_invitation_atomic` — resolves employee via FK
-    first, email fallback second, emits `user_invitation_accepted` and, on
-    successful link, `user_linked`.
-  - `link_employee_to_user` — emits `user_linked` with `forced` flag.
-  - `unlink_employee_from_user` — emits `user_unlinked`.
-  - New `revoke_organization_invitation` RPC — soft-invalidates a pending
-    invite (expires_at in the past) and emits `user_invitation_revoked`.
-- `EmployeeInviteDialog` passes `p_employee_id` and no longer writes
-  `user_access_status`.
+### 1. Verify the phantom-column fix actually deployed
 
-Guard: `supabase/tests/employee_identity_events_test.sql`.
+Call `send-invitation-email` once with the existing invitation id and confirm it now reaches `send-email` and produces a `platform_email_logs` row with `status='sent'` (or a real Resend error). If it's still 404, the fix didn't roll out and we redeploy.
 
-## Phase 3 — Derived `user_access_status` (DONE)
+### 2. Stop silently swallowing errors in `send-invitation-email`
 
-- `compute_employee_user_access_status(employee_id)` returns
-  `active | invited | none` from (`employees.user_id`,
-  `organization_invitations` open state).
-- BEFORE INSERT/UPDATE trigger on `employees` derives the value on every
-  row touch.
-- AFTER trigger on `organization_invitations` (INSERT/UPDATE of accepted_at,
-  expires_at, employee_id, email / DELETE) refreshes the affected employee
-  row(s), keying on FK first and email second.
-- Employees backfilled once at migration time.
-- `EmployeeInviteDialog` and `EmployeeHRSettings` no longer write
-  `user_access_status`. Reads unchanged; types.ts unchanged.
+- `console.error("[send-invitation-email] load invite failed", invError)` before the 404 return.
+- Return the real reason in the JSON body (`{ error: "invitation_lookup_failed", details: invError.message }`) with the status that matches (`404` only when `data` is null with no error; `500` when `invError` is set).
+- Also `console.error` any `sendErr` coming back from `send-email` — right now those are only surfaced as JSON to the caller.
 
-Guard: `supabase/tests/employee_user_access_status_derived_test.sql`.
+### 3. Make the client surface the real failure
 
-## Out of scope (still)
+In `EmployeeInviteDialog.tsx`:
 
-- Merging Employee ↔ User tables.
-- Reshaping permission groups / portal↔internal isolation.
-- UI redesign of the Employee actions menu.
-- Payroll / Time Off / Attendance / Recruitment.
+- After `invoke("send-invitation-email", …)`, read `error` and, when it's a `FunctionsHttpError`, pull `await error.context.text()` for the real body.
+- On email-send failure show `toast.error("Invitation saved but email failed: <reason>")` instead of the current success toast — so the next time this breaks you see it in one click, not five.
 
-## Verification order
+### 4. Fix the "multiple invitations" perception
 
-1. Migration applied → linter noise is pre-existing project-wide, not from
-   these functions.
-2. pgTAP: run the four test files above; all must pass.
-3. Playwright smoke: invite an employee with no permission groups selected
-   → invitation row created with `permission_group_ids = '{}'` and
-   `employee_id` populated; open Link User dialog → list loads with no
-   ambiguity error; timeline shows the corresponding lifecycle events.
+- When `upsert_organization_invitation` returns `status = 'reused'`, change the toast to "Invitation to <email> was already pending — resent the same link." That is what actually happened; there is still only one invite row.
+- Show the single pending invitation (with `created_at` and `expires_at`) in the employee sidebar so you can see it hasn't been duplicated.
+
+### 5. Sanity-check the Resend sender
+
+`resend_from_email = support@accrualflow.systems`. If the `accrualflow.systems` domain is verified in Resend, this is fine. If not, Resend will 403 for any recipient other than the workspace owner and we'll see it in `platform_email_logs.error_message` once step 2 is in place. No change needed if the domain is already verified — the point is that after step 2 you'll actually *see* that error instead of guessing.
+
+## Out of scope
+
+- Rewriting the invitation acceptance flow.
+- Changing `upsert_organization_invitation` semantics (reuse-and-refresh is correct enterprise behaviour).
+- Swapping Resend for another provider.
+
+## Technical details
+
+- Files touched: `supabase/functions/send-invitation-email/index.ts`, `src/components/employees/EmployeeInviteDialog.tsx`. No migrations.
+- No DB schema changes; the phantom-column reference is the only remaining artefact and it is already removed in the current file.
+- After deploy, verify against `platform_email_logs` (`status`, `error_message`) and edge analytics (POST 200 instead of 404) before declaring it fixed.
