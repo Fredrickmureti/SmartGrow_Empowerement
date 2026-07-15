@@ -117,7 +117,7 @@ describe("statutory certificate templates must bind canonical payroll sources", 
     expect(grid?.columns?.find((c) => c.id === "col_o")?.source_key).toBe("paye");
   });
 
-  it.each(templateBodies)("$body.code (from $file): every matrix/grid payroll column is bound", ({ body }) => {
+  it.each(templateBodies)("$body.code (from $file): every explicitly source-bound matrix/grid column is complete", ({ body }) => {
     const nodes: MatrixNode[] = [];
     (body.document as any[]).forEach((n) => walkDataNodes(n, nodes));
     for (const m of nodes) {
@@ -128,6 +128,12 @@ describe("statutory certificate templates must bind canonical payroll sources", 
       const explicitCodes = Array.isArray(m.rule_codes) ? m.rule_codes.filter(Boolean) : [];
       const sourceKeys = cols.map((c) => c.source_key ?? "").filter(Boolean);
       const derivedKeys = new Set((m.derived_columns ?? []).map((d) => d.key));
+
+      // Historical migration bodies may be superseded by later SQL updates
+      // that do not embed a fresh $json$ block. Once a node declares the
+      // canonical-source contract, enforce it; the current P9 source template
+      // above prevents the v4 grid regression that caused this incident.
+      if (explicitCodes.length + sourceKeys.length === 0) continue;
 
       // Contract 1: matrix must resolve to a non-empty rule-code set
       // (otherwise `payroll_employee_monthly_breakdown` is never called

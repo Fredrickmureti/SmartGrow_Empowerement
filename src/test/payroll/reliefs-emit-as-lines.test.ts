@@ -36,7 +36,7 @@ describe("Reliefs surfaced as payslip_lines (ADR-0062 addendum)", () => {
     // Not taxable.
     expect(win).toMatch(/false,\s*\n\s*"relief"/);
     // Provenance stamp.
-    expect(win).toMatch(/parent_rule_code:\s*code/);
+    expect(win).toMatch(/parent_rule_code:\s*parentRuleCode/);
     expect(win).toMatch(/computed_from:\s*"bracket_trace"/);
   });
 
