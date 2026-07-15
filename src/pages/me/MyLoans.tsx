@@ -22,8 +22,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageHeader, PageBody } from "@/design-system";
+import { PageHeader, PageBody, StatusBadge } from "@/design-system";
 import { KpiStrip } from "@/components/hr/KpiStrip";
+import { hrStatus } from "@/components/hr/hrStatusMap";
 import { useMyLoans } from "@/hooks/useMyLoans";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
