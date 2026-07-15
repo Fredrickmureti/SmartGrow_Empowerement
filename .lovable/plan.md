@@ -1,80 +1,103 @@
-## Root Cause (proven)
 
-The payroll engine is correct. The Kenya P9/P9A **localization pack template** is mis-bound.
+# Personal Relief still zero on P9 — engine-side fix
 
-**Evidence:**
-- `compute-payroll/index.ts:3705-3735` emits Personal Relief and Insurance Relief as first-class `payslip_lines` rows (`rule_code='personal_relief'`/`'insurance_relief'`, `category='relief'`), and PAYE (`rule_code='paye'`) is persisted **already net of relief** (`index.ts:402-404`). A trigger propagates these into `payroll_employee_ytd`.
-- The certificate resolver + matrix engine (`certificateMatrix.ts`, `monthlyMatrix.ts`, `certificateSourceResolver.ts`) can expose any `rule_code` when the template declares `source_key` / `rule_codes` / `derived_columns` — proven by migration `20260712112645`, which wires exactly that.
-- Migration `20260713001927` rewrote P9A as a v3 `document/matrix` body but **stripped `source_key`, `rule_codes`, and `derived_columns`** from columns `col_m` (Personal Relief), `col_n` (Insurance Relief), `col_o` (PAYE), plus `col_d` (Gross), `col_k` (Chargeable), `col_l` (Tax Charged).
-- A competing correctly-wired body exists but is `schema_version: 2` (`body.blocks`), which `isV3EngineTemplate()` in `generate-tax-certificate/index.ts:79-82` rejects for the matrix path → the legacy renderer runs and has no notion of reliefs / derived PAYE.
-- Result: `collectMatrixRuleCodes()` returns an incomplete set, the monthly breakdown RPC is never asked for `personal_relief`/`insurance_relief`, and those columns seed to 0. PAYE column shows whatever is bound (either 0 or the pre-relief figure), never the relief-adjusted net.
+## What's happening
 
-**Classification:** (A) pack mis-binding, compounded by schema-version drift. Not (B) resolver, not (C) engine persistence, not (D) generator reconstruction.
+The P9 template bindings we shipped last round are correct. The reason
+column M (Personal Relief) is still 0.00 on Fredrick Mureti's May P9 is
+that the underlying payslip_lines row **does not exist** — for anyone,
+on any run.
 
-**Blast radius:**
-- P9A: all six matrix columns (D, K, L, M, N, O) are unwired in the live body.
-- `GH_PAYE_EMPLOYEE_ANNUAL` and `ANNUAL_EARNINGS_STATEMENT` were rewritten in the same migration with the same shape → same latent defect class.
-- Any future annual statutory certificate is exposed to the same silent-zero failure mode because the matrix engine defaults missing columns to 0 instead of erroring.
-- Payslips are unaffected — they read `payslip_lines` directly, bypassing the certificate resolver.
+Evidence from the connected database:
 
-## Fix Location
+- `payslips.paye_before_relief = 20,092.32` and `paye = 17,692.32`
+  → engine correctly applied `personal_relief = 2,400.00`.
+- `SELECT COUNT(*) FROM payslip_lines WHERE rule_code='personal_relief'`
+  → **0 rows** across the entire tenant.
+- `payslips.compute_breakdown -> 'bracket_traces'` is `NULL` on the May
+  run, so the informational relief-line emitter in `compute-payroll`
+  (which is gated on the in-memory bracket-trace map) never ran on any
+  historical payroll.
 
-**Primary — Localization pack only** (Kenya P9A template body). No engine, no resolver, no persistence changes.
+ADR-0061 says the P9 matrix reads Personal / Insurance Relief only from
+`payslip_lines`, so the template cannot recover this — the engine has
+to write it.
 
-**Secondary — generator hardening** (`generate-tax-certificate`): treat a v3 `matrix` node whose `collectMatrixRuleCodes()` yields an empty set as a structural error, same class as the existing `TEMPLATE_STRUCTURAL_INVALID` refusal. This converts this entire class of future authoring regressions into a loud CI/runtime failure instead of a silent zero on a filed statutory document.
+## Fix (three coordinated changes)
 
-## Implementation Plan
+### 1. Engine: always emit relief lines when a progressive tax rule ran
 
-### Step 1 — Republish the KE P9A template (schema_version 3, correctly wired)
+`supabase/functions/compute-payroll/index.ts`
 
-New migration that inserts a new `pack_versions` row for the Kenya pack (bumped minor version) and upserts a new `localization_pack_certificate_templates` row for code `P9A` whose `body` is a `schema_version: 3` `document` containing a `matrix` node with:
+- Stop gating relief-line emission on the `__bracket_traces_by_rule_name`
+  side-map. Emit `personal_relief` / `insurance_relief` payslip_lines
+  directly from the `bracketTraceSink` we already build per employee
+  (same source that feeds `paye_before_relief`), so every payroll run
+  going forward persists relief lines as `category='relief'`,
+  `rule_type='relief'`, positive amounts, informational (do not affect
+  totals).
+- Keep the emission country-agnostic: driven purely by whatever
+  `trace.personal_relief` / `trace.insurance_relief` the progressive rule
+  reported. No literal country / rule_code branches added.
+- Add a unit test in `supabase/functions/compute-payroll/` asserting
+  that a run with `personal_relief=2400` produces exactly one
+  `personal_relief` payslip_line of amount 2400.
 
-- `col_d Gross Pay` — `source_key: 'gross_pay'` derived from `sum(rule_codes where category='earning')` **or** the explicit `gross_pay` rule if the engine emits one; matches migration `20260712112645`.
-- `col_k Chargeable Pay` — `derived_columns: chargeable_pay = gross_pay − sum(pre-tax deductions)` (per the existing derived-column pattern).
-- `col_l Tax Charged (gross tax, pre-relief)` — `derived_columns: paye_gross = sum(paye_net, personal_relief, insurance_relief)`.
-- `col_m Personal Relief` — `source_key: 'personal_relief'`.
-- `col_n Insurance Relief` — `source_key: 'insurance_relief'`.
-- `col_o PAYE (net)` — `source_key: 'paye'`.
-- `rule_codes` at the matrix level lists the full superset so `collectMatrixRuleCodes()` returns them and the monthly breakdown RPC fetches them.
-- `totals.chargeable_pay` and `totals.paye` bindings kept.
+### 2. Backfill: reconstruct relief lines for historical payslips
 
-### Step 2 — Pack version + upgrade path
+Migration `supabase/migrations/<ts>_backfill_relief_payslip_lines.sql`:
 
-- Insert a new `pack_versions` row (e.g. bump patch) referencing the corrected template body.
-- Rely on the existing `pack_upgrade_proposals` / pack migration machinery (`pack_migration_log`) to roll installed tenants forward — same mechanism used by the `20260713*` migrations. No bespoke upgrade code.
-- Preserve `template_body_hash` invalidation so previously generated certificates remain immutable (per ADR-0060) while new generations use the fixed body.
+- For every payslip where `paye_before_relief IS NOT NULL` and no
+  `personal_relief` payslip_line exists, insert a
+  `personal_relief` line with amount = `paye_before_relief - paye_line_amount`
+  (this equals the exact relief the engine deducted, since PAYE net is
+  what's stored as the paye payslip_line).
+- Same logic for `insurance_relief` where the trace exists on the
+  payslip's `compute_breakdown`; when absent, skip (relief was 0).
+- `source` JSON is stamped `{ backfill: true, from: 'paye_before_relief', adr: '0062' }`
+  for provenance.
+- Idempotent (`ON CONFLICT DO NOTHING` on payslip_id + rule_code).
+- Ships GRANTs are unchanged — we're inserting into an existing table.
 
-### Step 3 — Generator hardening (defense in depth, non–Kenya-specific)
+### 3. Pack bump: publish `KE 2026.5.1`
 
-In `supabase/functions/generate-tax-certificate/index.ts`, at the matrix-detection block (~lines 621-656), after `collectMatrixRuleCodes(matrixNode)`:
+Even though the template body is unchanged, the KE pack needs a version
+row so `propose-localization-upgrades` fans out an upgrade the user can
+accept in-app (consistent with the D1 invariant test on migrations
+that touch pack contents). The bump carries release notes explaining
+"Personal Relief / Insurance Relief now sourced from persisted
+payslip_lines (engine fix + backfill)".
 
-- If the returned set is empty AND the matrix has data columns, throw `TEMPLATE_STRUCTURAL_INVALID` with code `MATRIX_NO_RULE_CODES` (mirroring the existing structural-refusal pattern at lines 251-311).
-- If a matrix column has neither `source_key`, `rule_codes`, nor a `derived_columns` entry, refuse with `MATRIX_COLUMN_UNBOUND`.
+Migration inserts:
+- one row into `pack_versions` (`ke`, `2026.5.1`, status=`published`)
+- companion insert into `pack_migration_log` for auditability
 
-These are country-agnostic checks on the pack contract — they don't encode Kenya rules.
+## Verification
 
-### Step 4 — Architecture guard tests
+After the migration runs:
 
-- `src/test/architecture/statutory-templates-must-bind-canonical-sources.test.ts` — static walk of every `localization_pack_certificate_templates` seed/migration row with a `matrix` node; fails if any column lacks `source_key` / `rule_codes` / `derived_columns` binding, or if the matrix's `rule_codes` set is empty.
-- `src/test/architecture/generate-tax-certificate-refuses-unbound-matrix.test.ts` — asserts the generator throws `MATRIX_NO_RULE_CODES` / `MATRIX_COLUMN_UNBOUND` for a stub template with an unwired matrix column. Prevents the guard from being weakened.
-- pgTAP test under `supabase/tests/` that renders a KE P9A for a synthetic payslip with known `personal_relief`, `insurance_relief`, and net `paye` values and asserts M/N/O in the generated payload match the `payslip_lines` values exactly (invariant: **P9 must equal payslip, always**).
+1. Re-query `payslip_lines` for Fredrick Mureti's May payslip →
+   expect a `personal_relief` row of 2,400.00.
+2. `payroll_employee_ytd_rollup` for FY 2026 → `personal_relief` totals
+   non-zero.
+3. Regenerate the P9 → column M shows 2,400.00 per month, column L =
+   O + M + N reconciles, footer totals update.
+4. New payroll run (any month) → engine writes both `paye` and
+   `personal_relief` payslip_lines without needing the backfill path.
 
-### Step 5 — ADR
+## Out of scope
 
-New `docs/adr/00XX-statutory-templates-consume-canonical-payroll-facts.md` recording the invariant: statutory certificate templates MUST bind to `payslip_lines` rule codes via `source_key` / `rule_codes` / `derived_columns`; generators MUST NOT reconstruct payroll; unbound matrix columns are a structural error, not a silent zero. This ADR governs all future localization packs (KE, GH, and all others).
+- No template body change (the ADR-0061 bindings are already correct).
+- No changes to the resolver, matrix pivot, or generator refusal logic
+  shipped last round.
+- No country-specific logic — the engine fix is generic across any
+  progressive tax rule that reports reliefs.
 
 ## Files touched
 
-- `supabase/migrations/<new>_ke_p9a_template_rebind.sql` — new pack version + corrected template body.
-- `supabase/functions/generate-tax-certificate/index.ts` — matrix-binding structural guards.
-- `src/test/architecture/statutory-templates-must-bind-canonical-sources.test.ts` — new.
-- `src/test/architecture/generate-tax-certificate-refuses-unbound-matrix.test.ts` — new.
-- `supabase/tests/ke_p9a_matches_payslip_lines_test.sql` — new.
-- `docs/adr/00XX-statutory-templates-consume-canonical-payroll-facts.md` — new.
-
-## Explicitly NOT touched
-
-- `supabase/functions/compute-payroll/**` — engine is correct.
-- `payslip_lines`, `payroll_employee_ytd`, `payroll_tax_certificates` schemas — persistence is correct.
-- Resolver source code (`resolver.ts`, `certificateMatrix.ts`, `monthlyMatrix.ts`) — capability exists; the defect is upstream in the pack body.
-- No Kenya-specific logic added to the platform; no hardcoded Personal/Insurance Relief anywhere; the P9 template is corrected via canonical bindings, not by patching numbers into place.
+```text
+supabase/functions/compute-payroll/index.ts                (edit)
+supabase/functions/compute-payroll/relief-lines.test.ts    (new)
+supabase/migrations/<ts>_backfill_relief_payslip_lines.sql (new, via migration tool)
+supabase/migrations/<ts>_publish_ke_2026_5_1.sql           (new, via migration tool)
+```
