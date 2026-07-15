@@ -137,6 +137,52 @@ runtime guards under `src/test/localization/` prevent regression:
   new mismatch error.
 
 
+## Addendum — Relief surfacing on payslip_lines (2026-07-15)
+
+A KE P9 tax deduction card was rendering column M (Personal Relief) = 0
+and column L (Tax Charged) = the post-relief PAYE, even though the
+engine WAS correctly applying the 2,400/mo personal relief mandated by
+the Income Tax Act (visible in `payslips.paye_before_relief` and in the
+`paye` payslip_line's `source.personal_relief`).
+
+**Root cause:** reliefs were only stamped inside the parent tax line's
+`source` jsonb. Nothing was ever written to `payslip_lines` under
+`rule_code = 'personal_relief'` / `'insurance_relief'`, so the P9
+template's per-column `source_key` lookups against the monthly
+rule-code stream (via `payroll_employee_monthly_breakdown`) resolved to
+zero. The template mapping and the fiscal rule parameters were both
+correct — the emission was missing.
+
+**Contract:** any `bracket_progressive` rule that applies reliefs MUST
+emit each non-zero relief as its own informational `payslip_line`:
+
+- `rule_code`: the relief's stable code (`personal_relief`,
+  `insurance_relief`, …), matching the pack `reliefs[].code`.
+- `rule_type` = `category` = `"relief"`.
+- `employee_amount`: **positive** magnitude of the relief applied.
+  Positive lets pack-authored derived columns like
+  `paye_gross = sum(paye_net, personal_relief, insurance_relief)`
+  reconstruct the pre-relief tax without pack-side sign gymnastics.
+- `taxable` = `false`.
+- `statutory_rule_id`: the parent tax rule (so drill-down maps back to
+  the same fiscal rule).
+- `source.parent_rule_code`: the parent tax rule's code; `computed_from:
+  "bracket_trace"` so provenance is explicit.
+
+**Non-effect on totals:** relief lines are informational only. The
+parent tax line already carries the post-relief `employee_amount` that
+drives net pay. Downstream aggregations that sum `payslip_lines` by
+category `deduction` / `statutory_employee` never see these rows.
+`deductionsDetail`, `payslips.net_pay`, GL postings, and remittance
+totals are byte-identical before and after this change.
+
+**Enforcement:** guarded by
+`src/test/payroll/reliefs-emit-as-lines.test.ts` (engine emits both
+lines with the correct shape when the bracket trace carries reliefs)
+and `src/test/payroll/paye-net-unchanged.test.ts` (parent PAYE amount
+and deductionsDetail are unchanged).
+
+
 ## References
 
 - `.lovable/plan.md` — investigation and fix plan (2026-07-14).
