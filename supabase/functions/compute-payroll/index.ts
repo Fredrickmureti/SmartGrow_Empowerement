@@ -3693,48 +3693,68 @@ Deno.serve(async (req) => {
           };
         }
         pushLine(code, cat, ruleName, Number(amt), 0, false, statRule?.rule_type || ruleName, lineSource, statRule?.id ?? null, ref);
-        // Surface reliefs applied inside this bracket_progressive rule as
-        // separate INFORMATIONAL payslip_lines. Country-agnostic: driven
-        // purely by the bracket trace which any progressive rule produces.
-        // Positive amounts so pack-authored derived columns like
-        // `paye_gross = sum(paye_net, personal_relief, insurance_relief)`
-        // reconstruct the pre-relief tax without pack changes.
-        // These lines are category='relief' / rule_type='relief' so they
-        // never enter deduction totals; the parent tax line still carries
-        // the post-relief amount that drives net pay. See ADR-0062.
-        if (trace) {
-          const personalRelief = Number(trace.personal_relief) || 0;
-          const insuranceRelief = Number(trace.insurance_relief) || 0;
-          if (personalRelief > 0) {
-            pushLine(
-              "personal_relief",
-              "relief",
-              "Personal Relief",
-              personalRelief,
-              0,
-              false,
-              "relief",
-              { parent_rule_code: code, computed_from: "bracket_trace" },
-              statRule?.id ?? null,
-              { kind: "statutory_rule", code: "personal_relief", statutory_rule_id: statRule?.id ?? null, pack_version_id: (statRule as any)?.pack_version_id ?? null, rule_code: "personal_relief", label: "Personal relief (informational)" },
-            );
-          }
-          if (insuranceRelief > 0) {
-            pushLine(
-              "insurance_relief",
-              "relief",
-              "Insurance Relief",
-              insuranceRelief,
-              0,
-              false,
-              "relief",
-              { parent_rule_code: code, computed_from: "bracket_trace" },
-              statRule?.id ?? null,
-              { kind: "statutory_rule", code: "insurance_relief", statutory_rule_id: statRule?.id ?? null, pack_version_id: (statRule as any)?.pack_version_id ?? null, rule_code: "insurance_relief", label: "Insurance relief (informational)" },
-            );
+      }
+      // ADR-0062: emit `personal_relief` / `insurance_relief` payslip_lines
+      // independently of the deductionsDetail walk. Statutory certificates
+      // (P9A, and any future country's annual employee statement) resolve
+      // these figures ONLY from payslip_lines per ADR-0061 — so they must
+      // exist whenever the progressive tax rule reported a non-zero relief,
+      // regardless of whether the tax-line loop above had a matching
+      // bracket trace keyed by rule_name. Country-agnostic: sourced purely
+      // from what the progressive rule wrote into `bracketTracesByRuleName`.
+      // Positive amounts, category='relief', informational — never enter
+      // deduction totals. Aggregates across multiple progressive rules if
+      // a country ever ships more than one.
+      {
+        let personalReliefSum = 0;
+        let insuranceReliefSum = 0;
+        let parentRuleCode: string | null = null;
+        let parentStatutoryRuleId: string | null = null;
+        let parentPackVersionId: string | null = null;
+        for (const [rName, t] of Object.entries(bracketTracesByRuleName)) {
+          const pr = Number((t as any)?.personal_relief) || 0;
+          const ir = Number((t as any)?.insurance_relief) || 0;
+          if (pr > 0 || ir > 0) {
+            personalReliefSum += pr;
+            insuranceReliefSum += ir;
+            if (!parentRuleCode) {
+              const parentRule = statutoryRuleByName[rName];
+              parentRuleCode = codeFromRule(parentRule, rName);
+              parentStatutoryRuleId = parentRule?.id ?? null;
+              parentPackVersionId = (parentRule as any)?.pack_version_id ?? null;
+            }
           }
         }
+        if (personalReliefSum > 0) {
+          pushLine(
+            "personal_relief",
+            "relief",
+            "Personal Relief",
+            Math.round(personalReliefSum * 100) / 100,
+            0,
+            false,
+            "relief",
+            { parent_rule_code: parentRuleCode, computed_from: "bracket_trace" },
+            parentStatutoryRuleId,
+            { kind: "statutory_rule", code: "personal_relief", statutory_rule_id: parentStatutoryRuleId, pack_version_id: parentPackVersionId, rule_code: "personal_relief", label: "Personal relief (informational)" },
+          );
+        }
+        if (insuranceReliefSum > 0) {
+          pushLine(
+            "insurance_relief",
+            "relief",
+            "Insurance Relief",
+            Math.round(insuranceReliefSum * 100) / 100,
+            0,
+            false,
+            "relief",
+            { parent_rule_code: parentRuleCode, computed_from: "bracket_trace" },
+            parentStatutoryRuleId,
+            { kind: "statutory_rule", code: "insurance_relief", statutory_rule_id: parentStatutoryRuleId, pack_version_id: parentPackVersionId, rule_code: "insurance_relief", label: "Insurance relief (informational)" },
+          );
+        }
       }
+
       // Turn C: garnishment lines (priority-ordered)
       for (const gl of garnishmentLineMeta) {
         pushLine(gl.code, "garnishment", gl.label, gl.amount, 0, false, "garnishment", { garnishment_id: gl.id }, null, { kind: "garnishment", code: gl.code, garnishment_id: gl.id, label: gl.label });
