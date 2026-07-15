@@ -33,6 +33,8 @@ import {
   ArrowLeft,
   Target,
   GraduationCap,
+  Bell,
+  KeyRound,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -110,8 +112,9 @@ const NAV_GROUPS: NavGroupDef[] = [
   {
     label: "Account",
     items: [
-      { to: "/me/profile",  label: "Profile",     icon: UserIcon },
-      { to: "/me/settings", label: "My settings", icon: Settings },
+      { to: "/me/profile",        label: "Profile",       icon: UserIcon },
+      { to: "/me/account",        label: "Account",       icon: KeyRound },
+      { to: "/me/notifications",  label: "Notifications", icon: Bell },
     ],
   },
 ];
