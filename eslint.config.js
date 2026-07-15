@@ -19,6 +19,7 @@ import noRawZplOutsidePrinting from "./eslint-rules/no-raw-zpl-outside-printing.
 import noDirectEmployeesBranchWrite from "./eslint-rules/no-direct-employees-branch-write.js";
 import noPayslipLinesInCertificates from "./eslint-rules/no-payslip-lines-in-certificates.js";
 import noDialogCrudInAdmin from "./eslint-rules/no-dialog-crud-in-admin.js";
+import noHandRolledMeHeader from "./eslint-rules/no-hand-rolled-me-header.js";
 
 
 export default tseslint.config(
@@ -51,6 +52,7 @@ export default tseslint.config(
           "no-direct-employees-branch-write": noDirectEmployeesBranchWrite,
           "no-payslip-lines-in-certificates": noPayslipLinesInCertificates,
           "no-dialog-crud-in-admin": noDialogCrudInAdmin,
+          "no-hand-rolled-me-header": noHandRolledMeHeader,
         },
       },
     },
