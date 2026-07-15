@@ -65,3 +65,41 @@ Deno.test("projectMonthlyMatrix — end-to-end pivot + derived", () => {
   assertEquals(m[2].half_basic, 25000);
   assertEquals(m[0].half_basic, 0);
 });
+
+Deno.test("pivotToMonthlyMatrix — category rollup (cat:*) aggregates every row regardless of ruleCodes", () => {
+  const rows = [
+    { month_index: 1, rule_code: "basic",       category: "earning",            employee_amount: 50000, employer_amount: 0, taxable_amount: 50000 },
+    { month_index: 1, rule_code: "housing_all", category: "earning",            employee_amount: 10000, employer_amount: 0, taxable_amount: 10000 },
+    { month_index: 1, rule_code: "paye",        category: "statutory_employee", employee_amount:  8000, employer_amount: 0, taxable_amount: 0 },
+    { month_index: 1, rule_code: "shif",        category: "statutory_employee", employee_amount:  1000, employer_amount: 0, taxable_amount: 0 },
+    { month_index: 1, rule_code: "nssf_vol",    category: "deduction",          employee_amount:   500, employer_amount: 0, taxable_amount: 0 },
+  ];
+  // ruleCodes is intentionally empty — category rollups must still work,
+  // this is exactly the country-neutral certificate scenario.
+  const m = pivotToMonthlyMatrix(rows, []);
+  assertEquals(m[0]["cat:earning"], 60000);
+  assertEquals(m[0]["cat:statutory_employee"], 9000);
+  assertEquals(m[0]["cat:deduction"], 500);
+  // Every other month seeds to zero for known categories.
+  assertEquals(m[5]["cat:earning"], 0);
+  assertEquals(m[5]["cat:statutory_employee"], 0);
+});
+
+Deno.test("applyDerivedColumns — resolves cat:* args", () => {
+  const rows = pivotToMonthlyMatrix(
+    [
+      { month_index: 1, rule_code: "basic", category: "earning", employee_amount: 100, employer_amount: 0, taxable_amount: 100 },
+      { month_index: 1, rule_code: "paye",  category: "statutory_employee", employee_amount: 20, employer_amount: 0, taxable_amount: 0 },
+    ],
+    [],
+  );
+  const out = applyDerivedColumns(rows, [
+    { key: "gross",      expr: "sum", args: ["cat:earning"] },
+    { key: "deductions", expr: "sum", args: ["cat:statutory_employee", "cat:deduction"] },
+    { key: "net",        expr: "sub", args: ["gross", "deductions"] },
+  ]);
+  assertEquals(out[0].gross, 100);
+  assertEquals(out[0].deductions, 20);
+  assertEquals(out[0].net, 80);
+});
+
