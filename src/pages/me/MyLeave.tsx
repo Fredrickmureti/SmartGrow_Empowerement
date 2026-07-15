@@ -166,8 +166,6 @@ export default function MyLeave() {
           />
         </TabsContent>
       </Tabs>
-
-      <LeaveRequestForm open={showRequestForm} onOpenChange={setShowRequestForm} />
       </PageBody>
     </>
   );
