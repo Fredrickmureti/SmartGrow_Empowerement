@@ -36,7 +36,7 @@ function stringFromNode(node) {
   return null;
 }
 
-module.exports = {
+export default {
   meta: {
     type: "problem",
     docs: { description: "Disallow /me pages linking or navigating into /hr, /settings, or /notifications shells." },
