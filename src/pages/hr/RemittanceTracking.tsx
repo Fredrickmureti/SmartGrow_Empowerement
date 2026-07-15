@@ -499,7 +499,7 @@ export default function RemittanceTracking() {
       {/* Record Payment Dialog */}
         </TabsContent>
         <TabsContent value="returns" className="mt-0">
-          <ReturnsTab />
+          <ReturnsTab initialTemplateCode={deepLinkTemplate} initialYear={deepLinkYear} />
         </TabsContent>
       </Tabs>
 
