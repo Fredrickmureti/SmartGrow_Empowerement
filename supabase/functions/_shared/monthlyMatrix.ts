@@ -46,13 +46,34 @@ export interface MonthlyMatrixRow {
   [key: string]: number | string;
 }
 
-/** Map a rule_code stream + explicit rule_codes to a 12-row matrix. */
+/** Map a rule_code stream + explicit rule_codes to a 12-row matrix.
+ *
+ * In addition to per-rule-code columns, every monthly row also exposes
+ * category-aggregate columns keyed `cat:<category>` (e.g. `cat:earning`,
+ * `cat:statutory_employee`). These synthetic keys are the country-neutral
+ * escape hatch used by generic certificate templates (e.g.
+ * ANNUAL_EARNINGS_STATEMENT) that cannot hardcode country-specific rule
+ * codes but still need to sum "all earnings", "all deductions", etc.
+ * `derived_columns` args reference them the same way as rule codes.
+ */
 export function pivotToMonthlyMatrix(
   rows: MonthlyRuleCodeRow[],
   ruleCodes: string[],
   amountField: "employee_amount" | "employer_amount" | "taxable_amount" = "employee_amount",
 ): MonthlyMatrixRow[] {
   const byMonth = new Map<number, MonthlyMatrixRow>();
+  // Categories we always seed to 0 so downstream derived_columns that
+  // reference a category with no matching payslip_lines row still resolve
+  // to a numeric 0 instead of undefined (which argValue would also treat
+  // as 0, but seeding keeps the row shape predictable for tests + PDF).
+  const SEED_CATEGORIES = [
+    "earning",
+    "deduction",
+    "statutory_employee",
+    "statutory_employer",
+    "relief",
+    "benefit",
+  ];
   for (let m = 1; m <= 12; m++) {
     // Keep both keys intentionally:
     // - `month_index` is the ADR-0060 canonical resolver field.
@@ -62,6 +83,7 @@ export function pivotToMonthlyMatrix(
     // renders blank because the compiler looks up `row.month`.
     const seed: MonthlyMatrixRow = { month_index: m, month: m };
     for (const rc of ruleCodes) seed[rc] = 0;
+    for (const cat of SEED_CATEGORIES) seed[`cat:${cat}`] = 0;
     byMonth.set(m, seed);
   }
   for (const r of rows) {
@@ -70,10 +92,19 @@ export function pivotToMonthlyMatrix(
     const row = byMonth.get(m)!;
     const key = r.rule_code;
     if (!(key in row)) row[key] = 0;
-    row[key] = (Number(row[key]) || 0) + (Number((r as any)[amountField]) || 0);
+    const amt = Number((r as any)[amountField]) || 0;
+    row[key] = (Number(row[key]) || 0) + amt;
+    // Category rollup — every row contributes to its `cat:<category>` key,
+    // regardless of whether its rule_code was requested in `ruleCodes`.
+    const cat = (r as any).category ? String((r as any).category) : "";
+    if (cat) {
+      const catKey = `cat:${cat}`;
+      row[catKey] = (Number(row[catKey]) || 0) + amt;
+    }
   }
   return Array.from(byMonth.values());
 }
+
 
 function argValue(row: MonthlyMatrixRow, a: string | number): number {
   if (typeof a === "number") return a;
