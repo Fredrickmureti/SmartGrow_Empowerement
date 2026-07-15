@@ -20,6 +20,8 @@ Employee
 - The live database now has only the canonical 8-argument `upsert_organization_invitation` overload. The obsolete 7-argument overload was dropped.
 - The live `get_linkable_users_for_employee` body is already disambiguated (`candidate_user_id`, `linked_user_id`, `admin_user_id`), so the original ambiguous `user_id` defect appears fixed in DB shape, but still needs runtime/caller verification.
 - Direct unauthenticated `send-invitation-email` invocation returns 401 as expected; authenticated runtime verification is blocked in the sandbox because this project uses external unmanaged auth.
+- A database trigger now blocks direct `employees.user_id` inserts/updates unless the write is marked by a sanctioned identity lifecycle RPC.
+- `accept_organization_invitation_atomic` now preserves the newly-created-member path and marks employee linking as a sanctioned identity lifecycle source.
 
 ## Implementation plan
 
@@ -56,6 +58,8 @@ Employee
 - Verify `EmployeeLinkDialog` uses only the server-side candidate RPC and does not read identity tables directly.
 - Verify `link_employee_to_user` / `unlink_employee_from_user` remain the only employee `user_id` write paths and still emit lifecycle events.
 - DB shape verified; authenticated runtime verification remains pending because no preview JWT is available in this sandbox.
+- DONE: added DB-level enforcement so direct `employees.user_id` writes cannot bypass `link_employee_to_user`, `unlink_employee_from_user`, `accept_organization_invitation_atomic`, or `link_self_as_employee`.
+- DONE: corrected invitation acceptance to avoid relying on volatile PL/pgSQL `FOUND` state after inserting/updating `user_roles`; this preserves employee linking for newly provisioned invitees.
 
 ### 6. Regression protection — DONE/PARTIAL
 - Add/adjust tests for:
@@ -63,7 +67,8 @@ Employee
   - no direct `employees.user_id` mutations from app code;
   - DONE: invite send failure surfaces to the user via shared helper;
   - existing: pending invite reuse does not duplicate rows;
-  - existing: employee lifecycle events are emitted for invite, accept, link, unlink, revoke.
+  - existing: employee lifecycle events are emitted for invite, accept, link, unlink, revoke;
+  - DONE: DB trigger and acceptance RPC source-marker checks added to the pgTAP guard.
 
 ### 7. Final validation — PENDING USER RUNTIME RETRY
 - Re-send Fredrick’s invitation once from the app session.
