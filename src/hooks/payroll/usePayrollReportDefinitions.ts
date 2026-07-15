@@ -52,6 +52,34 @@ export interface PayrollReportParameters {
   [k: string]: unknown;
 }
 
+export type PayrollReportDataSource =
+  | "payroll_engine.payslips"
+  | "payroll_engine.payslip_lines"
+  | "payroll_engine.payroll_liabilities"
+  | "payroll_engine.payroll_work_entries"
+  | "finance.journal_entries"
+  | "pack_artifact.statutory_return"
+  | "pack_artifact.tax_certificate"
+  | "remittance.payroll_remittances"
+  | "audit.payslip_events";
+
+export type PayrollReportDependency =
+  | "payroll_approved"
+  | "gl_posted"
+  | "remittance_filed";
+
+export type PayrollPeriodSelectorKind =
+  | "run"
+  | "month"
+  | "quarter"
+  | "tax_year"
+  | "custom";
+
+export interface PayrollPeriodSelector {
+  primary: PayrollPeriodSelectorKind;
+  allowed: PayrollPeriodSelectorKind[];
+}
+
 export interface PayrollReportDefinition {
   id: string;
   reportKey: string;
@@ -68,6 +96,10 @@ export interface PayrollReportDefinition {
   exportFormats: PayrollReportExportFormat[];
   parameters: PayrollReportParameters;
   metadata: Record<string, unknown>;
+  dataSource: PayrollReportDataSource;
+  periodSelector: PayrollPeriodSelector;
+  dependencies: PayrollReportDependency[];
+  artifactGenerator: string | null;
 }
 
 const CATEGORY_LABEL: Record<PayrollReportCategory, string> = {
