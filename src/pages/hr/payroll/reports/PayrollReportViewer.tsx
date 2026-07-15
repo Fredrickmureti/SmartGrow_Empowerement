@@ -46,6 +46,9 @@ import { PayrollReportPreview } from "./previews/PayrollReportPreview";
 import { PackArtifactPanel } from "./previews/PackArtifactPanel";
 import { PayrollReportMetadataBand } from "./PayrollReportMetadataBand";
 import { PayrollReportReadinessChips } from "./PayrollReportReadinessChips";
+import { PayrollReportContextHeader } from "./PayrollReportContextHeader";
+import { PayrollReportKpiBand } from "./PayrollReportKpiBand";
+import { PayrollReportHistoryStrip } from "./PayrollReportHistoryStrip";
 import { usePayrollReportReadiness } from "@/hooks/payroll/usePayrollReportReadiness";
 import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
 
