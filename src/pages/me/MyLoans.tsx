@@ -32,35 +32,11 @@ import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
 import { RequestLoanWizard } from "@/components/loans/RequestLoanWizard";
 import type { EmployeeLoan } from "@/hooks/useEmployeeLoans";
 
-const STATUS_LABEL: Record<string, string> = {
-  requested: "Awaiting HR review",
-  pending_approval: "Pending approval",
-  rejected: "Rejected",
-  draft: "Draft",
-  active: "Active",
-  completed: "Completed",
-  cancelled: "Cancelled",
-  suspended: "Suspended",
-};
-
-const STATUS_STYLE: Record<string, string> = {
-  requested: "bg-amber-500/10 text-amber-700 border-amber-500/20",
-  pending_approval: "bg-amber-500/10 text-amber-700 border-amber-500/20",
-  active: "bg-primary/10 text-primary border-primary/20",
-  completed: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
-  rejected: "bg-destructive/10 text-destructive border-destructive/20",
-  cancelled: "bg-muted text-muted-foreground",
-  suspended: "bg-amber-500/10 text-amber-700 border-amber-500/20",
-  draft: "bg-muted text-muted-foreground",
-};
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge variant="outline" className={STATUS_STYLE[status] ?? ""}>
-      {STATUS_LABEL[status] ?? status}
-    </Badge>
-  );
+function LoanStatusBadge({ status }: { status: string }) {
+  const meta = hrStatus(status);
+  return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
 }
+
 
 export default function MyLoans() {
   const { currentEmployee, isLoading: empLoading } = useCurrentEmployee();
