@@ -12,6 +12,7 @@
  */
 import { useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { DetailSheet } from "@/design-system";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +53,12 @@ interface Props {
    * sub-breakdowns in line explainers. Default false (admin).
    */
   portalMode?: boolean;
+  /**
+   * Container variant. "dialog" (default) keeps the admin drill-down modal;
+   * "sheet" opens as a right-side DetailSheet — the pattern the ESS portal
+   * (/me/*) uses everywhere else.
+   */
+  variant?: "dialog" | "sheet";
 }
 
 function fmt(n: number | null | undefined, currency?: string, hide?: boolean) {
@@ -80,6 +87,7 @@ export function PayslipDetailDialog({
   description,
   payslip,
   portalMode = false,
+  variant = "dialog",
 }: Props) {
   const { data: lines = [], isLoading } = usePayslipLines(open && payslipId ? payslipId : undefined);
   const { data: header } = usePayslipHeader(open && payslipId ? payslipId : undefined);
@@ -111,6 +119,166 @@ export function PayslipDetailDialog({
       ? `${fmtDate(payslip.payroll_run.pay_period_start)} – ${fmtDate(payslip.payroll_run.pay_period_end)}`
       : payslip?.payroll_run?.payroll_number ?? "";
 
+  const body = (
+    <>
+      {/* Phase 4 P3 — correction-link banner (superseded / corrects). */}
+      {payslipId && <PayslipCorrectionBanner payslipId={payslipId} />}
+
+      {/* Localization-aware employer / employee / statutory-ID header */}
+      {header && <PayslipHeader header={header} portalMode={portalMode} />}
+
+      {/* Summary header — visible whenever payslip totals are provided */}
+      {payslip && (
+        <div className="grid gap-3 grid-cols-3">
+          <Card>
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-xs text-muted-foreground font-normal">Gross earnings</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <p className="text-xl font-bold tabular-nums">{fmt(payslip.gross_pay, currency, hide)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-xs text-muted-foreground font-normal">Deductions</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <p className="text-xl font-bold tabular-nums text-destructive">
+                {fmt(payslip.total_deductions, currency, hide)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-primary/30 bg-primary/[0.03]">
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-xs text-muted-foreground font-normal">Net pay</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <p className="text-xl font-bold tabular-nums text-primary">{fmt(payslip.net_pay, currency, hide)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : lines.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-6 text-center">
+          No line detail available for this payslip.
+        </p>
+      ) : portalMode ? (
+        <div className="space-y-4">
+          <Section
+            title="Earnings"
+            rows={grouped.earnings}
+            currency={currency}
+            hide={hide}
+            hideEmployer
+            amountKey="employee_amount"
+            accent="text-foreground"
+            employeeId={header?.employee?.id}
+          />
+          <Section
+            title="Deductions"
+            rows={[...grouped.deductions]}
+            currency={currency}
+            hide={hide}
+            hideEmployer
+            amountKey="employee_amount"
+            accent="text-destructive"
+            negate
+            employeeId={header?.employee?.id}
+          />
+          {payslip && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between px-1">
+                <span className="text-sm font-medium">Net pay</span>
+                <span className="text-lg font-bold tabular-nums text-primary">
+                  {fmt(payslip.net_pay, currency, hide)}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Code</TableHead>
+              <TableHead>Label</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead className="text-right">Employee</TableHead>
+              <TableHead className="text-right">Employer</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(lines as any[]).map((l) => (
+              <TableRow key={l.id}>
+                <TableCell className="font-mono text-xs">{l.rule_code}</TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-1.5">
+                    {l.label}
+                    <PayslipLineExplainer line={l} hideAmounts={hide} currency={currency} employeeId={header?.employee?.id} />
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {l.category && <Badge variant="outline" className="text-[10px]">{l.category}</Badge>}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{fmt(l.employee_amount, currency, hide)}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmt(l.employer_amount, currency, hide)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {!portalMode && payslipId && (
+        <div className="mt-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+            History
+          </h4>
+          <PayslipEventsTimeline payslipId={payslipId} />
+        </div>
+      )}
+    </>
+  );
+
+  const combinedDescription = (
+    <>
+      {description ?? defaultDescription}
+      {periodLabel ? <span className="ml-1 text-foreground/80">· {periodLabel}</span> : null}
+    </>
+  );
+
+  const headerActions =
+    !portalMode && payslipId ? (
+      <ReprintButton
+        kind="receipt"
+        documentKind="payslip"
+        sourceDocType="payslip"
+        sourceDocId={payslipId}
+        documentNumber={payslip?.payroll_run?.payroll_number ?? undefined}
+        receiptData={{ kind: "payslip", payslipId }}
+      />
+    ) : null;
+
+  if (variant === "sheet") {
+    return (
+      <DetailSheet
+        open={open}
+        onOpenChange={onOpenChange}
+        title={title}
+        description={combinedDescription}
+        headerActions={headerActions}
+        size="lg"
+      >
+        <div className="flex flex-col gap-4 px-6 py-4">{body}</div>
+      </DetailSheet>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
@@ -118,150 +286,12 @@ export function PayslipDetailDialog({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <DialogTitle>{title}</DialogTitle>
-              <DialogDescription>
-                {description ?? defaultDescription}
-                {periodLabel ? <span className="ml-1 text-foreground/80">· {periodLabel}</span> : null}
-              </DialogDescription>
+              <DialogDescription>{combinedDescription}</DialogDescription>
             </div>
-            {!portalMode && payslipId && (
-              <ReprintButton
-                kind="receipt"
-                documentKind="payslip"
-                sourceDocType="payslip"
-                sourceDocId={payslipId}
-                documentNumber={payslip?.payroll_run?.payroll_number ?? undefined}
-                receiptData={{ kind: "payslip", payslipId }}
-              />
-            )}
+            {headerActions}
           </div>
         </DialogHeader>
-
-        {/* Phase 4 P3 — correction-link banner (superseded / corrects). */}
-        {payslipId && <PayslipCorrectionBanner payslipId={payslipId} />}
-
-        {/* Localization-aware employer / employee / statutory-ID header */}
-        {header && <PayslipHeader header={header} portalMode={portalMode} />}
-
-        {/* Summary header — visible whenever payslip totals are provided */}
-        {payslip && (
-          <div className="grid gap-3 grid-cols-3">
-            <Card>
-              <CardHeader className="p-3 pb-1">
-                <CardTitle className="text-xs text-muted-foreground font-normal">Gross earnings</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <p className="text-xl font-bold tabular-nums">{fmt(payslip.gross_pay, currency, hide)}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="p-3 pb-1">
-                <CardTitle className="text-xs text-muted-foreground font-normal">Deductions</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <p className="text-xl font-bold tabular-nums text-destructive">
-                  {fmt(payslip.total_deductions, currency, hide)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/30 bg-primary/[0.03]">
-              <CardHeader className="p-3 pb-1">
-                <CardTitle className="text-xs text-muted-foreground font-normal">Net pay</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <p className="text-xl font-bold tabular-nums text-primary">{fmt(payslip.net_pay, currency, hide)}</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : lines.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">
-            No line detail available for this payslip.
-          </p>
-        ) : portalMode ? (
-          // Portal — grouped Earnings / Deductions sections. Employer
-          // contributions intentionally hidden (enterprise standard).
-          <div className="space-y-4">
-            <Section
-              title="Earnings"
-              rows={grouped.earnings}
-              currency={currency}
-              hide={hide}
-              hideEmployer
-              amountKey="employee_amount"
-              accent="text-foreground"
-              employeeId={header?.employee?.id}
-            />
-            <Section
-              title="Deductions"
-              rows={[...grouped.deductions]}
-              currency={currency}
-              hide={hide}
-              hideEmployer
-              amountKey="employee_amount"
-              accent="text-destructive"
-              negate
-              employeeId={header?.employee?.id}
-            />
-            {payslip && (
-              <>
-                <Separator />
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-sm font-medium">Net pay</span>
-                  <span className="text-lg font-bold tabular-nums text-primary">
-                    {fmt(payslip.net_pay, currency, hide)}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          // Admin — full Employee + Employer columns
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Label</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Employee</TableHead>
-                <TableHead className="text-right">Employer</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(lines as any[]).map((l) => (
-                <TableRow key={l.id}>
-                  <TableCell className="font-mono text-xs">{l.rule_code}</TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center gap-1.5">
-                      {l.label}
-                      <PayslipLineExplainer line={l} hideAmounts={hide} currency={currency} employeeId={header?.employee?.id} />
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {l.category && <Badge variant="outline" className="text-[10px]">{l.category}</Badge>}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(l.employee_amount, currency, hide)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(l.employer_amount, currency, hide)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-
-        {/* Phase 4 P2 — append-only lifecycle journal. Hidden in portal mode
-            to keep self-service simple; admins see the full audit trail. */}
-        {!portalMode && payslipId && (
-          <div className="mt-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-              History
-            </h4>
-            <PayslipEventsTimeline payslipId={payslipId} />
-          </div>
-        )}
+        <div className="flex flex-col gap-4">{body}</div>
       </DialogContent>
     </Dialog>
   );
