@@ -27,7 +27,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageHeader, PageBody, Section } from "@/design-system";
+import { PageHeader, PageBody } from "@/design-system";
 import { PayslipDetailDialog } from "@/components/payroll/PayslipDetailDialog";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useLeaveAllocations, type LeaveBalance } from "@/hooks/leave/useLeaveAllocations";
