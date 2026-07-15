@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Loader2, 
@@ -385,13 +386,17 @@ export default function Team() {
           : `Invitation sent to ${inviteEmail}`,
       variant: emailFailureReason ? "destructive" : undefined,
       action: acceptUrl
-        ? {
-            label: "Copy link",
-            onClick: () => void copyInvitationLink(acceptUrl).then(
+        ? (
+            <ToastAction
+              altText="Copy invitation link"
+              onClick={() => void copyInvitationLink(acceptUrl).then(
               () => toast({ title: "Invitation link copied" }),
               () => toast({ title: "Copy failed", variant: "destructive" }),
-            ),
-          }
+            )}
+            >
+              Copy link
+            </ToastAction>
+          )
         : undefined,
     });
 
@@ -407,7 +412,7 @@ export default function Team() {
     if (!existingInvitation) return;
     
     setShowDuplicateDialog(false);
-    await handleResendInvitation(existingInvitation.id, existingInvitation.email);
+    await handleResendInvitation(existingInvitation.id, existingInvitation.email, existingInvitation.token);
     setExistingInvitation(null);
     setShowInviteDialog(false);
     setInviteEmail("");
@@ -424,13 +429,17 @@ export default function Team() {
         title: "Invitation resent",
         description: `Invitation email resent to ${email}`,
         action: acceptUrl
-          ? {
-              label: "Copy link",
-              onClick: () => void copyInvitationLink(acceptUrl).then(
+          ? (
+              <ToastAction
+                altText="Copy invitation link"
+                onClick={() => void copyInvitationLink(acceptUrl).then(
                 () => toast({ title: "Invitation link copied" }),
                 () => toast({ title: "Copy failed", variant: "destructive" }),
-              ),
-            }
+              )}
+              >
+                Copy link
+              </ToastAction>
+            )
           : undefined,
       });
     } catch (error: any) {
@@ -443,13 +452,17 @@ export default function Team() {
         description: normalizeError(error).message || "Failed to resend invitation email",
         variant: "destructive",
         action: acceptUrl
-          ? {
-              label: "Copy link",
-              onClick: () => void copyInvitationLink(acceptUrl).then(
+          ? (
+              <ToastAction
+                altText="Copy invitation link"
+                onClick={() => void copyInvitationLink(acceptUrl).then(
                 () => toast({ title: "Invitation link copied" }),
                 () => toast({ title: "Copy failed", variant: "destructive" }),
-              ),
-            }
+              )}
+              >
+                Copy link
+              </ToastAction>
+            )
           : undefined,
       });
     } finally {

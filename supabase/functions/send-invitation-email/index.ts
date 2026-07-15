@@ -134,6 +134,19 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
+    // Fetch settings needed for the email BODY only. The From-line,
+    // Reply-To, and transport credentials are owned by `send-email` + the
+    // shared sender-identity resolver (ADR 0023).
+    const { data: settings } = await supabase
+      .from("platform_settings")
+      .select("setting_key, setting_value")
+      .in("setting_key", ["resend_api_key", "platform_name", "website_url"]);
+
+    const settingsMap = (settings || []).reduce((acc: Record<string, string>, s) => {
+      if (s.setting_value) acc[s.setting_key] = s.setting_value;
+      return acc;
+    }, {});
+
     const platformName = settingsMap.platform_name || "AccrualFlow";
     const websiteUrl = settingsMap.website_url || "https://accrualflow.systems";
 
@@ -180,19 +193,6 @@ const handler = async (req: Request): Promise<Response> => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // Fetch settings needed for the email BODY only. The From-line,
-    // Reply-To, and transport credentials are owned by `send-email` + the
-    // shared sender-identity resolver (ADR 0023).
-    const { data: settings } = await supabase
-      .from("platform_settings")
-      .select("setting_key, setting_value")
-      .in("setting_key", ["resend_api_key", "platform_name", "website_url"]);
-
-    const settingsMap = (settings || []).reduce((acc: Record<string, string>, s) => {
-      if (s.setting_value) acc[s.setting_key] = s.setting_value;
-      return acc;
-    }, {});
 
     if (!settingsMap.resend_api_key) {
       return new Response(JSON.stringify({ error: "Email provider not configured" }), {
