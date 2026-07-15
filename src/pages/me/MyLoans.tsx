@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, PageBody } from "@/design-system";
+import { KpiStrip } from "@/components/hr/KpiStrip";
 import { useMyLoans } from "@/hooks/useMyLoans";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
