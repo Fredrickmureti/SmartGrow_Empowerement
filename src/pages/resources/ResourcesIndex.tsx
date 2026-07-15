@@ -11,7 +11,8 @@ import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system"
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Play, Search } from "lucide-react";
+import { ArrowLeft, BookOpen, Play, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useDemoVideos, type DemoVideo } from "@/hooks/useDemoVideos";
 import {
   RESOURCE_APP_OPTIONS,
@@ -120,6 +121,13 @@ export default function ResourcesIndex() {
       <PageHeader
         title="Resource center"
         description="Product tours, tutorials, and getting-started guides for every part of the platform."
+        actions={
+          <Button variant="outline" asChild>
+            <Link to="/home">
+              <ArrowLeft className="mr-1 h-4 w-4" /> Back to workspace
+            </Link>
+          </Button>
+        }
       />
       <PageBody>
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
