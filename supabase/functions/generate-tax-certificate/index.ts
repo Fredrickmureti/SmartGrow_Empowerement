@@ -101,7 +101,8 @@ function validateCanonicalSourceNode(params: {
   const sourceKeys: string[] = cols.map((c: any) => c?.source_key ? String(c.source_key) : "").filter(Boolean);
   const derivedKeys = new Set<string>(Array.isArray(node.derived_columns) ? node.derived_columns.map((d: any) => String(d?.key ?? "")) : []);
 
-  if (dataCols.length > 0 && explicitCodes.length === 0 && sourceKeys.length === 0) {
+  const derivedEntries: any[] = Array.isArray(node.derived_columns) ? node.derived_columns : [];
+  if (dataCols.length > 0 && explicitCodes.length === 0 && sourceKeys.length === 0 && derivedEntries.length === 0) {
     return businessError(
       422,
       "TEMPLATE_STRUCTURAL_INVALID",
@@ -110,6 +111,7 @@ function validateCanonicalSourceNode(params: {
       { template_code: templateCode, template_source: templateSource, contract: `${kind}.rule_codes`, reason_code: `${kind.toUpperCase()}_NO_RULE_CODES` },
     );
   }
+
 
   const unbound = dataCols
     .filter((c: any) => !c.source_key && !derivedKeys.has(matrixColumnKey(c)))
