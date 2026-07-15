@@ -28,6 +28,7 @@ const MAP: Record<string, HrStatusMeta> = {
   requested:        { tone: "warning", label: "Awaiting review" },
   pending:          { tone: "warning", label: "Pending" },
   pending_approval: { tone: "warning", label: "Pending approval" },
+  pending_second_approval: { tone: "warning", label: "Awaiting final approval" },
   submitted:        { tone: "info",    label: "Submitted" },
   in_review:        { tone: "info",    label: "In review" },
   approved:         { tone: "success", label: "Approved" },
