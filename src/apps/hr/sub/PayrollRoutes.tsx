@@ -55,7 +55,8 @@ const PaymentsFiles     = lazy(() => import("@/pages/hr/payroll/PayrollPaymentsS
 const PaymentsRegister  = lazy(() => import("@/pages/hr/payroll/PayrollPaymentsSubViews").then(m => ({ default: m.PayrollPaymentsRegisterPage })));
 const Configuration     = lazy(() => import("@/pages/hr/payroll/sections").then(m => ({ default: m.PayrollConfigurationPage })));
 const Schedules         = lazy(() => import("@/pages/hr/payroll/sections").then(m => ({ default: m.PayrollSchedulesPage })));
-const Reports           = lazy(() => import("@/pages/hr/payroll/sections").then(m => ({ default: m.PayrollReportsPage })));
+const Reports           = lazy(() => import("@/pages/hr/payroll/reports/ReportingCentre").then(m => ({ default: m.PayrollReportingCentre })));
+const ReportViewer      = lazy(() => import("@/pages/hr/payroll/reports/PayrollReportViewer").then(m => ({ default: m.PayrollReportViewer })));
 const SalaryStructures  = lazy(() => import("@/pages/hr/payroll/sections").then(m => ({ default: m.PayrollSalaryStructuresPage })));
 const AccountMapping    = lazy(() => import("@/pages/hr/payroll/sections").then(m => ({ default: m.PayrollAccountMappingPage })));
 const Setup             = lazy(() => import("@/pages/hr/payroll/Setup").then(m => ({ default: m.PayrollSetupPage })));
@@ -84,7 +85,8 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           <Route path="payments/failed"      element={gate(<LazyRoute module="Failed Payments"><PaymentsFailed /></LazyRoute>, "viewPayroll")} />
           <Route path="payments/files"       element={gate(<LazyRoute module="Bank Export Files"><PaymentsFiles /></LazyRoute>, "viewPayroll")} />
           <Route path="payments/register"    element={gate(<LazyRoute module="Payments Register"><PaymentsRegister /></LazyRoute>, "viewPayroll")} />
-          <Route path="reports"              element={gate(<LazyRoute module="Reports"><Reports /></LazyRoute>, "viewPayroll")} />
+          <Route path="reports"              element={gate(<LazyRoute module="Reporting Centre"><Reports /></LazyRoute>, "viewPayroll")} />
+          <Route path="reports/:reportKey"   element={gate(<LazyRoute module="Report Viewer"><ReportViewer /></LazyRoute>, "viewPayroll")} />
           <Route path="tax-certificates"     element={gate(<LazyRoute module="Tax Certificates"><TaxCertificates /></LazyRoute>, "viewPayroll")} />
           <Route path="configuration/templates" element={gate(<LazyRoute module="Templates"><Templates /></LazyRoute>, "managePayroll")} />
           <Route path="configuration/localization" element={gate(<LazyRoute module="Localization"><Localization /></LazyRoute>, "managePayroll")} />
