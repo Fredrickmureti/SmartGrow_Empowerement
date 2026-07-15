@@ -63,6 +63,7 @@ import {
   UserPlus, 
   Mail, 
   Clock, 
+  Copy,
   RefreshCw, 
   Trash2, 
   MoreHorizontal,
@@ -78,7 +79,12 @@ import { Database } from "@/integrations/supabase/types";
 import { EditRoleDialog } from "@/components/team/EditRoleDialog";
 import { RemoveMemberDialog } from "@/components/team/RemoveMemberDialog";
 import { BranchAssignmentDialog } from "@/components/team/BranchAssignmentDialog";
-import { sendInvitationEmailOrThrow } from "@/lib/invitations/sendInvitationEmail";
+import {
+  buildInvitationAcceptUrl,
+  copyInvitationLink,
+  InvitationEmailError,
+  sendInvitationEmailOrThrow,
+} from "@/lib/invitations/sendInvitationEmail";
 import { BusinessAccessDialog } from "@/components/team/BusinessAccessDialog";
 import { PromoteToInternalDialog } from "@/components/team/PromoteToInternalDialog";
 import { AssignGroupDialog } from "@/components/team/AssignGroupDialog";
@@ -101,6 +107,7 @@ interface Invitation {
   id: string;
   email: string;
   role: AppRole;
+  token?: string | null;
   created_at: string;
   expires_at: string;
   accepted_at: string | null;
@@ -339,7 +346,7 @@ export default function Team() {
       },
     );
     if (rpcError) throw rpcError;
-    const result = rpcData as { status: string; invitation_id?: string; user_id?: string };
+    const result = rpcData as { status: string; invitation_id?: string; user_id?: string; token?: string };
 
     if (result.status === "already_member") {
       toast({
@@ -351,11 +358,16 @@ export default function Team() {
     }
 
     let emailFailureReason: string | null = null;
+    let acceptUrl = buildInvitationAcceptUrl(result.token);
     if (result.invitation_id) {
       try {
-        await sendInvitationEmailOrThrow(result.invitation_id);
+        const delivery = await sendInvitationEmailOrThrow(result.invitation_id);
+        acceptUrl = delivery.acceptUrl || acceptUrl;
       } catch (emailError: any) {
         emailFailureReason = emailError?.message ?? "unknown_error";
+        if (emailError instanceof InvitationEmailError) {
+          acceptUrl = emailError.acceptUrl || acceptUrl;
+        }
         console.error("Failed to send invitation email:", emailError);
       }
     }
@@ -369,9 +381,18 @@ export default function Team() {
       description: emailFailureReason
         ? `The invitation was saved for ${inviteEmail}, but the email did not send: ${emailFailureReason.slice(0, 220)}`
         : result.status === "reused"
-          ? `Invitation to ${inviteEmail} was already pending — resent the same link.`
+          ? `Invitation email resent to ${inviteEmail}.`
           : `Invitation sent to ${inviteEmail}`,
       variant: emailFailureReason ? "destructive" : undefined,
+      action: acceptUrl
+        ? {
+            label: "Copy link",
+            onClick: () => void copyInvitationLink(acceptUrl).then(
+              () => toast({ title: "Invitation link copied" }),
+              () => toast({ title: "Copy failed", variant: "destructive" }),
+            ),
+          }
+        : undefined,
     });
 
     setShowInviteDialog(false);
@@ -393,21 +414,43 @@ export default function Team() {
     setInviteRole("internal");
   };
 
-  const handleResendInvitation = async (invitationId: string, email: string) => {
+  const handleResendInvitation = async (invitationId: string, email: string, token?: string | null) => {
     setResendingId(invitationId);
     try {
-      await sendInvitationEmailOrThrow(invitationId);
+      const delivery = await sendInvitationEmailOrThrow(invitationId);
+      const acceptUrl = delivery.acceptUrl || buildInvitationAcceptUrl(token);
 
       toast({
         title: "Invitation resent",
         description: `Invitation email resent to ${email}`,
+        action: acceptUrl
+          ? {
+              label: "Copy link",
+              onClick: () => void copyInvitationLink(acceptUrl).then(
+                () => toast({ title: "Invitation link copied" }),
+                () => toast({ title: "Copy failed", variant: "destructive" }),
+              ),
+            }
+          : undefined,
       });
     } catch (error: any) {
+      const acceptUrl = error instanceof InvitationEmailError
+        ? error.acceptUrl || buildInvitationAcceptUrl(token)
+        : buildInvitationAcceptUrl(token);
       console.error("Failed to resend invitation:", error);
       toast({
         title: "Error",
         description: normalizeError(error).message || "Failed to resend invitation email",
         variant: "destructive",
+        action: acceptUrl
+          ? {
+              label: "Copy link",
+              onClick: () => void copyInvitationLink(acceptUrl).then(
+                () => toast({ title: "Invitation link copied" }),
+                () => toast({ title: "Copy failed", variant: "destructive" }),
+              ),
+            }
+          : undefined,
       });
     } finally {
       setResendingId(null);
@@ -1136,7 +1179,7 @@ export default function Team() {
                                   openUpgradeModal("team_management");
                                   return;
                                 }
-                                handleResendInvitation(invite.id, invite.email);
+                                handleResendInvitation(invite.id, invite.email, invite.token);
                               }}
                               disabled={resendingId === invite.id || revokingId === invite.id}
                             >
@@ -1148,6 +1191,24 @@ export default function Team() {
                                   Resend
                                 </>
                               )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                if (isReadOnly) {
+                                  openUpgradeModal("team_management");
+                                  return;
+                                }
+                                void copyInvitationLink(buildInvitationAcceptUrl(invite.token)).then(
+                                  () => toast({ title: "Invitation link copied" }),
+                                  () => toast({ title: "Copy failed", variant: "destructive" }),
+                                );
+                              }}
+                              disabled={!invite.token || resendingId === invite.id || revokingId === invite.id}
+                            >
+                              <Copy className="mr-1 h-4 w-4" />
+                              Copy link
                             </Button>
                             <Button
                               variant="ghost"
