@@ -195,4 +195,14 @@ export default tseslint.config(
       "local/no-dialog-crud-in-admin": "error",
     },
   },
+
+  // ESS Portal (Wave A/B) — every /me/* page must consume the design-system
+  // PageHeader primitive. Editor-time flag; the arch test
+  // `me-uses-design-system.test.ts` is the authoritative guard in CI.
+  {
+    files: ["src/pages/me/**/*.{ts,tsx}"],
+    rules: {
+      "local/no-hand-rolled-me-header": "error",
+    },
+  },
 );
