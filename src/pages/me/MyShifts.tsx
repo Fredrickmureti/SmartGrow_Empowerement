@@ -124,9 +124,13 @@ export default function MyShifts() {
         <CardHeader>
           <CardTitle>Swap requests</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className={swaps.length === 0 ? "min-h-[220px] flex items-center justify-center" : undefined}>
           {swaps.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No swap requests.</p>
+            <EmptyState
+              icon={ArrowLeftRight}
+              title="No swap requests"
+              description="Swap requests you send or receive will show up here with their approval status."
+            />
           ) : (
             <div className="space-y-2">
               {swaps.map((s) => {
