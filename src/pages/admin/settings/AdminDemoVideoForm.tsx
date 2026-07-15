@@ -73,6 +73,9 @@ export function AdminDemoVideoForm({ mode }: AdminDemoVideoFormProps) {
     thumbnail_url: "",
     category: "general",
     is_published: false,
+    app_key: null,
+    audience: "public",
+    difficulty: null,
   });
 
   useEffect(() => {
@@ -84,6 +87,9 @@ export function AdminDemoVideoForm({ mode }: AdminDemoVideoFormProps) {
       thumbnail_url: existing.thumbnail_url ?? "",
       category: existing.category,
       is_published: existing.is_published,
+      app_key: existing.app_key ?? null,
+      audience: existing.audience ?? "public",
+      difficulty: existing.difficulty ?? null,
     });
   }, [mode, existing]);
 
