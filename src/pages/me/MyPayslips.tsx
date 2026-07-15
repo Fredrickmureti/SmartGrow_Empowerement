@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { Download, Eye, FileText, Loader2, Wallet, Receipt, TrendingUp, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import {
   Table,
   TableBody,
