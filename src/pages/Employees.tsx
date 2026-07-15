@@ -745,25 +745,10 @@ export default function Employees() {
 // ChangeRequestsBadgeButton — link into the HR profile-change review queue
 // with a live pending-count badge. Uses head-only count so it is cheap.
 // ---------------------------------------------------------------------------
-import { useQuery as useQueryChangeReqs } from "@tanstack/react-query";
-import { Bell as BellIcon } from "lucide-react";
-import { supabase as supabaseChangeReqs } from "@/integrations/supabase/client";
-import { Badge as BadgeChangeReqs } from "@/components/ui/badge";
 
 function ChangeRequestsBadgeButton() {
   const nav = useNavigate();
-  const { data: count } = useQueryChangeReqs({
-    queryKey: ["hr-profile-change-requests-pending-count"],
-    queryFn: async () => {
-      const { count, error } = await supabaseChangeReqs
-        .from("employee_profile_change_requests" as any)
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending");
-      if (error) throw error;
-      return count ?? 0;
-    },
-    refetchInterval: 60_000,
-  });
+  const { data: count } = useChangeRequestsCount();
 
   return (
     <Button
@@ -771,12 +756,12 @@ function ChangeRequestsBadgeButton() {
       onClick={() => nav("/hr/employees/change-requests")}
       className="relative"
     >
-      <BellIcon className="mr-2 h-4 w-4" />
+      <ChangeRequestBell className="mr-2 h-4 w-4" />
       Change requests
       {count && count > 0 ? (
-        <BadgeChangeReqs variant="destructive" className="ml-2 h-5 px-1.5 text-[10px]">
+        <ChangeRequestBadge variant="destructive" className="ml-2 h-5 px-1.5 text-[10px]">
           {count}
-        </BadgeChangeReqs>
+        </ChangeRequestBadge>
       ) : null}
     </Button>
   );
