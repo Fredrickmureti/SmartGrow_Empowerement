@@ -308,6 +308,56 @@ Deno.serve(async (req) => {
           },
         );
       }
+
+      // Matrix-binding contract (country-agnostic). A v3 `matrix` node must
+      // resolve to a non-empty rule-code set AND every non-derived data
+      // column must be bound to a canonical source (rule_code via
+      // `source_key`, membership in `rule_codes`, or a derived expression).
+      //
+      // Without this guard, a pack that ships a matrix stripped of
+      // `source_key` / `rule_codes` / `derived_columns` (as happened with
+      // KE P9A in migration 20260713001927) silently emits a zero-filled
+      // column on a filed statutory document. Refuse loudly instead —
+      // this is the class-level fix that prevents this defect from
+      // recurring across every localization pack and future certificate.
+      const matrixNodes: any[] = [];
+      const walkForMatrix = (n: any) => {
+        if (!n || typeof n !== "object") return;
+        if (n.type === "matrix") matrixNodes.push(n);
+        if (Array.isArray(n.children)) n.children.forEach(walkForMatrix);
+        if (Array.isArray(n.column_children)) n.column_children.forEach((col: any) => Array.isArray(col) && col.forEach(walkForMatrix));
+      };
+      (Array.isArray(template?.body?.document) ? template.body.document : []).forEach(walkForMatrix);
+      for (const m of matrixNodes) {
+        const cols: any[] = Array.isArray(m.columns) ? m.columns : [];
+        const dataCols = cols.filter((c) => c && c.key && c.key !== "month" && String(c.format ?? "").toLowerCase() !== "month_short");
+        const explicitCodes: string[] = Array.isArray(m.rule_codes) ? m.rule_codes.map((x: any) => String(x)).filter(Boolean) : [];
+        const sourceKeys: string[] = cols.map((c: any) => c?.source_key ? String(c.source_key) : "").filter(Boolean);
+        const derivedKeys = new Set<string>(Array.isArray(m.derived_columns) ? m.derived_columns.map((d: any) => String(d?.key ?? "")) : []);
+
+        if (dataCols.length > 0 && explicitCodes.length === 0 && sourceKeys.length === 0) {
+          return businessError(
+            422,
+            "TEMPLATE_STRUCTURAL_INVALID",
+            `Certificate template "${template.code}" has a matrix with no rule-code bindings (source_key / rule_codes) and no derived columns; every data column would render as zero.`,
+            "Republish the localization pack so the matrix declares `rule_codes` at the matrix level and/or `source_key` on each data column that maps to a canonical payroll rule.",
+            { template_code: template.code, template_source: templateSource, contract: "matrix.rule_codes", reason_code: "MATRIX_NO_RULE_CODES" },
+          );
+        }
+
+        const unbound = dataCols
+          .filter((c: any) => !c.source_key && !derivedKeys.has(String(c.key)))
+          .map((c: any) => String(c.key));
+        if (unbound.length > 0) {
+          return businessError(
+            422,
+            "TEMPLATE_STRUCTURAL_INVALID",
+            `Certificate template "${template.code}" has matrix column(s) with no canonical binding: ${unbound.join(", ")}.`,
+            "Bind each data column via `source_key` (canonical rule code) or a `derived_columns` entry keyed to the column. Statutory templates must never render unbound zeros.",
+            { template_code: template.code, template_source: templateSource, contract: "matrix.columns", reason_code: "MATRIX_COLUMN_UNBOUND", unbound_columns: unbound },
+          );
+        }
+      }
     }
 
 
