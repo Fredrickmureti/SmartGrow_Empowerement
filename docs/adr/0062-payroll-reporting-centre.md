@@ -61,6 +61,21 @@ Payroll Reports is a **Reporting Centre**, not a page. It is composed of:
 5. **Localization packs publish, they do not hardcode.** Country
    statutory reports (P9, P9A, PAYE, NSSF, SHIF, AHL, …) surface only
    because a pack inserted rows into `payroll_report_definitions`.
+6. **Tenant-scoped discovery.** The Reports centre never reads
+   `payroll_report_definitions` directly. It calls the security-definer
+   RPC `payroll_report_definitions_for_tenant(org, business)` which
+   joins the registry against `installed_localization_packs` — a report
+   whose owning pack is not installed is invisible to that tenant. A
+   Kenya workspace CANNOT see Ghana's SSNIT / PAYE reports, regardless
+   of `country_code` on the business. Regression guard:
+   `src/test/payroll/reports-tenant-scoping.test.ts` forbids direct
+   table reads and any `country_code` filter in the reports UI.
+7. **Lifecycle-aware defaults.** When a report declares
+   `payroll_approved` as a dependency, the viewer snaps the initial
+   `dateFrom` / `dateTo` to the latest approved payroll run's
+   `pay_period_start` / `pay_period_end`. The current calendar month is
+   never a safe default for approval-gated reports — mid-month it
+   yields empty output even when data exists.
 
 ## Consequences
 
