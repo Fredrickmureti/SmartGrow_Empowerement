@@ -1,232 +1,95 @@
-# Payroll Reports — Architecture Audit & Remediation
 
-## Phase 1 — Architecture Map (as-built today)
+# Payroll Report Viewer — Enterprise Rebuild + Empty-PDF Fix
 
-```text
-UI: /hr/payroll/reports  (src/pages/hr/payroll/reports)
-    ├── ReportingCentre.tsx        tabs: Overview | Library | Scheduled | History
-    ├── panels/OverviewPanel       reads usePayrollReportDefinitions + usePayrollReportRuns
-    ├── panels/LibraryPanel        reads usePayrollReportDefinitions, groupByOwner
-    └── PayrollReportViewer.tsx    /hr/payroll/reports/:reportKey
-             │
-             ▼
-Frontend catalogue hook
-    src/hooks/payroll/usePayrollReportDefinitions.ts
-      SELECT * FROM payroll_report_definitions WHERE is_active
-      client-side filter: (!r.country_code || !ctx || r.country_code === ctx)
-      ctx = currentBusiness.country_code  ← ONLY signal used
-             │
-             ▼
-Registry table (GLOBAL, no tenant scoping columns)
-    payroll_report_definitions
-      built-in rows (country_code = NULL, owner_kind = payroll_engine/finance/…)
-      pack rows    (country_code = 'KE' | 'GH' | …, owner_kind = 'localization_pack',
-                    localization_pack_id, owner_ref → template)
-             ▲
-             │ populated by
-    payroll_report_definitions_sync_from_packs()
-      Iterates EVERY row of localization_packs (not installed_localization_packs).
-      Every pack that exists in the platform → its templates become rows here.
-             │
-             ▼
-Renderer / artifact engines
-    render-report                (payroll engine data reports)
-    generate-statutory-return    (pack-owned returns)
-    generate-tax-certificate     (pack-owned certificates)
+## The two problems
 
-Installed-pack truth (NEVER consulted by the reports UI)
-    installed_localization_packs  (organization_id, business_id, pack_id, pack_version)
-```
+1. **The page is not enterprise-grade.** `/hr/payroll/reports/:reportKey` today is: title → filter card → a tiny metadata band ("Owner / Period / Rows / Generated") → a bare table whose first line is literally "3 rows". No KPI cards, no context, no relationship to the payroll run that produced the data, no drill-downs, no readiness explanation surface, no export/print affordance grouping. It looks like a debug page.
+2. **Preview PDF is empty on every report.** The table shows 3 rows, but "Preview" opens a blank PDF. This is not a per-report bug; it's a wiring bug in how the viewer feeds the PDF pipeline. Reproduced mentally on Employer Contributions and Employee Earnings; the same code path serves every payroll report.
 
-## Phase 2 — Report Discovery, Evidenced
+## Root cause of the empty PDF
 
-The reports page discovers reports **only** via
-`payroll_report_definitions`. Evidence: `src/hooks/payroll/usePayrollReportDefinitions.ts:203-213`
-is the sole query. `installed_localization_packs` is not read anywhere
-under `src/pages/hr/payroll/reports/` (`rg` confirmed).
+- The viewer's JSON fetch (`render-report … format:"json"`) returns `{ columns, data }` where `columns[i].key` are the server's canonical keys (e.g. `rule_code`, `employer_amount`, `employee_name`, `gross_pay`).
+- `getExportConfig()` in `PayrollReportViewer.tsx` builds `ExportConfig.rows` by doing `out[c.key] = row[c.key]` for each column. That's fine only if the JSON rows use identical keys. For several payroll reports the server returns `snake_case` in `columns` but the row objects also carry a `_meta` block, and some columns are computed keys (e.g. `total`, `ytd_*`) that don't exist on the raw row — those cells become `null`.
+- `PrintPreviewDialog` decides between "server-build" and "prebuilt" mode using `sb.reportType && sb.dateFrom && sb.dateTo`. Our export config sets none of them, so it always takes the prebuilt path — it re-sends the client's (partially null) rows to `render-report`, which faithfully renders a PDF with empty cells, or drops rows that have every visible column null, producing the "empty PDF" the user sees.
+- Net: we're round-tripping through PDF using a lossy client projection instead of asking the server to render its own dataset. That's the architectural mistake to fix, not a per-report column fix.
 
-- Reads every active row (built-in + all pack-published).
-- Does NOT read `installed_localization_packs`.
-- Merges built-in and pack rows via one `SELECT`, then filters by
-  `country_code` string against `currentBusiness.country_code`.
-- No feature flags, no per-tenant scoping, no ownership scoping.
+## Fix strategy
 
-## Phase 3 — Root Cause of Ghana Reports Showing in Kenya
+Two independent changes, done together:
 
-Two independent defects compound:
+### A. Make the PDF come from the server, from the same query as the table
 
-1. **Registry is not tenant-scoped.** `payroll_report_definitions` has no
-   `organization_id` / `business_id`. `sync_from_packs()`
-   (migration `20260715142251_…`) fans out **every** pack in
-   `localization_packs` — including the Ghana skeleton pack seeded by
-   `20260601110615_…` — into global rows. Any tenant reading the table
-   sees every country's pack reports.
-2. **Country filter is weak and wrong-signal.** In
-   `usePayrollReportDefinitions` the filter is
-   `!r.country_code || !countryCode || r.country_code === countryCode`.
-   When `currentBusiness.country_code` is `null`/undefined (the common
-   case — `businesses.country_code` is not required on setup), the
-   short-circuit `!countryCode` returns **every** row including Ghana.
-   Even when the field is populated, using the business's country
-   attribute — not the set of packs the tenant installed — is the wrong
-   invariant: a Kenya business could install a Ghana pack, or a
-   multi-country org could install several.
+1. In `PayrollReportViewer.getExportConfig`, attach server-build hints so `PrintPreviewDialog` and `exportToPDF` take the server path:
+   - `reportType: reportKey`
+   - `dateFrom`, `dateTo`
+   - `businessId`
+   - `filters: { branchId }`
+   - Keep `columns` + `rows` as a fallback for CSV/Excel (those still need client data), but the PDF/print branch now always calls `render-report` in server-build mode with `format: "pdf"`.
+2. Verify `PrintPreviewDialog` already forwards those hints (it does, lines 68-78) — no change there.
+3. Result: preview PDF is generated by the same code path that populated the table, so "3 rows in table" ↔ "3 rows in PDF" is guaranteed. No more per-report column-key drift.
+4. Add a regression test in `src/test/payroll/` that asserts every payroll report definition's `ExportConfig` produced by the viewer carries `reportType`, `dateFrom`, `dateTo`, and `businessId`.
 
-The correct invariant: a pack-owned report is visible **iff** its
-`localization_pack_id` appears in `installed_localization_packs` for the
-current (organization_id, business_id). Built-in rows
-(`owner_kind ≠ 'localization_pack'`, `country_code IS NULL`) are always
-visible.
+### B. Turn the viewer into a real enterprise report page
 
-## Phase 4 — Empty-Report Root Causes
+Replace the current body layout with a structured page that follows the same anatomy Workday / Oracle Fusion / NetSuite use for a single report. Nothing about localization scoping or the tenant-filtered registry changes; this is purely the presentation layer above the already-tenant-scoped definition.
 
-Reviewed viewer + panels:
-
-- The viewer dispatches all non-pack reports to
-  `render-report` with `dateFrom = startOfMonth(now)`, `dateTo = endOfMonth(now)`.
-  It never resolves a **payroll run** or **payroll period**, so
-  `payroll_register`, `payroll_summary`, `employee_earnings`,
-  `statutory_liabilities` and `employer_contributions` return empty
-  when the current calendar month has no approved run (typical
-  mid-month).
-- No lifecycle-aware messaging: a report gated on
-  `payroll_approved` (see `dependencies` column) shows "No data"
-  instead of "No approved payroll run in this period — open Payroll →
-  Approvals".
-- `statutory_liabilities` never surfaces already-generated returns from
-  `payroll_remittances` / `payroll_return_runs` — it only re-queries
-  `payroll_liabilities` through `render-report`.
-- Certificates panel (`PackArtifactPanel`) is fine when a period is
-  chosen but has no "latest tax year" default.
-
-## Phase 5 — Ownership & Localization Model (target)
-
-Two report classes, hard-separated in the registry:
-
-- **Platform reports** — `owner_kind ∈ {payroll_engine, finance,
-  management, audit, hr}`, `country_code IS NULL`,
-  `localization_pack_id IS NULL`. Always visible.
-- **Localization reports** — `owner_kind = 'localization_pack'`,
-  `country_code NOT NULL`, `localization_pack_id NOT NULL`. Visible
-  **only** if `(org, business)` has that `pack_id` in
-  `installed_localization_packs`.
-
-The registry stays global (single source of truth for definitions), but
-**visibility is derived per tenant** via a security-definer RPC that
-joins to `installed_localization_packs`. Client code stops filtering by
-`country_code`.
-
-## Phase 6 — Business-Event Lifecycle Mapping
-
-The `dependencies` column already models this (`payroll_approved`,
-`gl_posted`, `remittance_filed`) and `payroll_report_readiness` RPC
-already exists (migration `20260715142251`). The UI currently ignores
-readiness for empty-state messaging and for period defaulting. The plan
-wires it in.
-
-Event → newly-available reports:
+New layout, top to bottom:
 
 ```text
-run approved       → register, summary, employee_earnings,
-                     employer_contributions, statutory_liabilities,
-                     pack returns, pack certificates
-GL posted          → payroll_gl_posting, branch/department cost
-remittance filed   → statutory_liabilities (now with filed status),
-                     audit trail entries
+┌ Header ──────────────────────────────────────────────────────────┐
+│ Employer Contributions           [Owner: Payroll Engine]         │
+│ Employer-side statutory contributions.                           │
+│ Source run: Jun 2026 Payroll  ·  Approved 3 Jul 2026 by A. Doe   │
+│                              [Export ▾] [Preview] [All reports]  │
+├ Filters ─────────────────────────────────────────────────────────┤
+│ [Period ▾ latest approved run]  [Branch ▾]  [Compare period ▾]   │
+├ Readiness ───────────────────────────────────────────────────────┤
+│ [payroll_approved ✓]  [liabilities_posted ✓]  [gl_posted —]      │
+├ KPI band (report-type aware) ────────────────────────────────────┤
+│ [Total Employer Cost]  [# Contributions]  [Avg / Employee]  [Δ vs prev period] │
+├ Body ────────────────────────────────────────────────────────────┤
+│  • grouped/summary table (definition.previewKind drives it)      │
+│  • row click → payslip / run / remittance drill-down             │
+├ Footer ──────────────────────────────────────────────────────────┤
+│ Generated 15 Jul 2026 17:57 · Pack v2.3 · Template v4            │
+│ [History ▾ last 5 runs]                                          │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## Phase 7 — Enterprise IA (adopted principles, not copied UI)
+Concrete component work:
 
-From Workday / Oracle HCM / SAP SuccessFactors / Odoo / Dynamics 365 the
-consistent principles are: (a) reports have declared **owners** and
-**data domains**; (b) statutory/country reports are contributed by
-country extensions and appear only when the extension is enabled for
-the legal entity; (c) each report declares its **required upstream
-event** and the shell communicates readiness; (d) generated artifacts
-are first-class ("Latest run" surfaces before "Run new"). Our existing
-registry columns (`owner_kind`, `dependencies`, `preview_kind`,
-`export_formats`) already support this — the fix is scoping + surfacing,
-not new columns.
+1. **`PayrollReportContextHeader`** (new): resolves the latest approved run for the current period and shows run label, approval date, approver, run id (deep link to `/hr/payroll/runs/:id`). If there is no approved run in range, shows a neutral "No approved run in this period — showing empty dataset" banner instead of the generic `isEmpty` state.
+2. **`PayrollReportKpiBand`** (new): reads a `kpis?: KpiSpec[]` slice off `payroll_report_definitions.metadata` (already a `jsonb` column). Each KPI is `{ key, label, agg: "sum"|"avg"|"count"|"delta", format }`. Renders 3–4 metric cards computed from the rows the viewer already has. Falls back to a sensible generic (row count, sum of first money column) when the definition doesn't declare KPIs, so every existing report gets a band immediately with zero DB changes. New reports opt into their own KPIs by populating `metadata.kpis`.
+3. **`PayrollReportPreview`** — keep the switch on `previewKind`, but drop the "3 rows" text from `TablePreview` (that string is what the user saw and hated). Row count moves into the KPI band; the table shows just the data with sticky header, zebra striping, and right-aligned money.
+4. **`PayrollReportHistoryStrip`** (new, collapsible): last 5 rows from `payroll_report_runs` for this `reportKey` + tenant, each a link that re-opens the viewer with those exact filters.
+5. **Empty-state semantics**: distinguish three cases so the page stops looking broken:
+   - No approved run in period → context-header banner + neutral empty table (not `FileX2`).
+   - Approved run exists, dataset genuinely empty → current `FileX2` empty state, but with a "Why?" popover that reads from `payroll_report_readiness`.
+   - Data present → normal render.
+6. **Header actions**: consolidate `Export` (Excel/CSV) + `Preview` (PDF) + `Print` into the existing `ReportExportButtons`; add an `Email report` item so the surface matches the rest of the reporting centre.
 
----
+## Files touched
 
-## Implementation Roadmap
+- `src/pages/hr/payroll/reports/PayrollReportViewer.tsx` — layout rebuild, `getExportConfig` carries server-build hints.
+- `src/pages/hr/payroll/reports/previews/PayrollReportPreview.tsx` — drop "N rows" line, tidy `TablePreview`.
+- `src/pages/hr/payroll/reports/PayrollReportContextHeader.tsx` (new).
+- `src/pages/hr/payroll/reports/PayrollReportKpiBand.tsx` (new).
+- `src/pages/hr/payroll/reports/PayrollReportHistoryStrip.tsx` (new).
+- `src/test/payroll/reports-viewer-contract.test.ts` (new) — regression for the ExportConfig server-build hints.
 
-### R1. Tenant-scoped visibility (blocks the leak) — DB
+No DB migration, no changes to `render-report`, no changes to tenant scoping.
 
-Add a security-definer RPC `payroll_report_definitions_for_tenant(p_org uuid, p_business uuid)` that returns:
+## Out of scope
 
-- every active row where `owner_kind <> 'localization_pack'`, plus
-- every active row where `owner_kind = 'localization_pack'`
-  AND `localization_pack_id IN (SELECT pack_id FROM installed_localization_packs WHERE organization_id = p_org AND (business_id = p_business OR business_id IS NULL))`.
+- The tenant-scoped registry, localization ownership, `payroll_report_definitions_for_tenant` RPC, and the Ghana/Kenya isolation — those landed already and are covered by `src/test/payroll/reports-tenant-scoping.test.ts`.
+- Per-report bespoke KPI wiring beyond the generic band; individual reports can declare `metadata.kpis` in follow-up work without touching the viewer.
 
-No changes to `payroll_report_definitions` shape. Grants: `authenticated, service_role`.
+## Verification
 
-### R2. Frontend catalogue — replace filter with RPC
-
-`usePayrollReportDefinitions` stops taking `countryCode`, takes
-`(orgId, businessId)`, and calls the RPC. Callers in
-`LibraryPanel`, `OverviewPanel`, `PayrollReportViewer` updated
-accordingly. Remove the `!r.country_code || …` client filter entirely.
-
-### R3. Viewer 404-on-unavailable
-
-If the RPC does not return the requested `:reportKey`, the viewer
-renders a "This report is not available for the current company —
-install the country pack in Localization to enable it" state instead
-of an empty preview. Prevents deep-link bypass.
-
-### R4. Lifecycle-aware empty states & defaults
-
-- Viewer default period: for reports depending on `payroll_approved`,
-  default `dateFrom/dateTo` to the last approved run's period (query
-  `payroll_runs` ordered by `approved_at desc limit 1`) instead of the
-  current calendar month.
-- Empty-state text driven by `payroll_report_readiness`: e.g. "No
-  approved payroll run in this period" with a link to
-  `/hr/payroll/approvals`.
-- `statutory_liabilities` preview: augment `render-report` result
-  with the matching `payroll_remittances` / `payroll_return_runs`
-  rows so filed artifacts are downloadable inline. (Preview-level
-  augmentation only — no changes to the generators.)
-
-### R5. Regression guards (architecture tests)
-
-Add three tests under `src/test/payroll/`:
-
-1. **DB test** (pgTAP or SQL-in-vitest): calling
-   `payroll_report_definitions_for_tenant` for an org with only the KE
-   pack installed returns zero rows where `country_code = 'GH'`.
-2. **Source guard**: `rg` fails the build if any file in
-   `src/pages/hr/payroll/reports/` or
-   `src/hooks/payroll/usePayrollReportDefinitions*.ts` references
-   `payroll_report_definitions` directly (must go through the RPC).
-3. **Source guard**: the sync function name
-   `payroll_report_definitions_sync_from_packs` is only referenced
-   from migrations and pack-install/uninstall handlers — never from
-   `src/`.
-
-### R6. Docs
-
-Update `docs/adr/0062-payroll-reporting-centre.md` with a new
-"Invariant 6: pack-owned reports are scoped by
-`installed_localization_packs`, not by `businesses.country_code`" and
-link to the RPC.
-
----
-
-## Deliverables Checklist
-
-- [ ] Architecture map (this doc)
-- [ ] Root cause: Ghana in Kenya = global registry + weak country filter
-- [ ] Root cause: empty reports = calendar-month default + no readiness surfacing
-- [ ] Ownership model: platform vs localization, enforced via `installed_localization_packs`
-- [ ] Localization isolation via new RPC (R1) + UI switch (R2, R3)
-- [ ] Lifecycle wiring (R4) using existing `dependencies` + `payroll_report_readiness`
-- [ ] Enterprise comparison summarised (Phase 7)
-- [ ] Regression guards (R5)
-- [ ] ADR-0062 invariant (R6)
-
-Non-goals for this phase: rich matrix/pivot preview, scheduled reports
-from viewer, failure records + retry — deferred (already listed as
-follow-ups in ADR-0062).
+1. Load `/hr/payroll/reports/employer_contributions` in a Kenya tenant with an approved June run.
+   - Header shows the June run link, KPI band shows total employer cost + count, table shows the 3 rows without the "3 rows" chrome.
+2. Click Preview → PDF renders with all 3 rows and money columns populated (server-build path).
+3. Load `/hr/payroll/reports/employee_earnings` with the same tenant — same three sections, table populated, PDF non-empty.
+4. Load any report with no approved run in the selected period — context-header banner appears; empty table is neutral; Preview PDF shows the report header and an empty dataset, not a blank page.
+5. Run `bunx vitest run src/test/payroll/reports-viewer-contract.test.ts` — passes.
+6. Run `bunx vitest run src/test/payroll/reports-tenant-scoping.test.ts` — still passes (no regression in localization scoping).
