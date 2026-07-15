@@ -28,6 +28,7 @@ import { TimesheetDayView } from "@/components/timesheets/TimesheetDayView";
 import { getWeekStart, getWeeklyHoursTarget } from "@/lib/datetime/weekStart";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
 import { ManagerTriageBanner } from "@/components/hr/ManagerTriageBanner";
+import { KpiStrip } from "@/components/hr/KpiStrip";
 
 export default function MyTimesheets() {
   const [searchParams] = useSearchParams();
