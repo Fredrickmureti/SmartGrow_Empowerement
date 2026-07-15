@@ -408,9 +408,14 @@ export async function buildPayrollReport(
       return { data: rows, summary: { total_overtime: rows.reduce((s, r) => s + r.amount, 0) } };
     }
     case "payroll_variance": {
-      // Compare each payroll run against the immediately preceding run
-      // (chronological by pay_period_end) — gross, deductions, net,
-      // employer cost, headcount, with absolute and percent deltas.
+      // Phase 5e — variance must compare within the same pay schedule.
+      //
+      // The prior implementation ordered every run by `pay_period_end`
+      // regardless of schedule, so a fortnightly supplemental run could
+      // be diffed against a monthly primary run — mathematically meaningless.
+      // We now group runs by `pay_schedule_id` (nullable, treated as its
+      // own bucket), order within each bucket chronologically, and emit
+      // deltas only against the previous run in the same bucket.
       const runTotals = new Map<string, { gross: number; ded: number; net: number; employer: number; count: number }>();
       for (const p of payslips) {
         const k = p.payroll_run_id;
@@ -422,28 +427,38 @@ export async function buildPayrollReport(
         cur.count += 1;
         runTotals.set(k, cur);
       }
-      const ordered = runs
-        .filter((r: any) => runTotals.has(r.id))
-        .sort((a: any, b: any) => String(a.pay_period_end).localeCompare(String(b.pay_period_end)));
+      const bySchedule = new Map<string, any[]>();
+      for (const r of runs as any[]) {
+        if (!runTotals.has(r.id)) continue;
+        const key = r.pay_schedule_id ?? "__none__";
+        const arr = bySchedule.get(key) ?? [];
+        arr.push(r);
+        bySchedule.set(key, arr);
+      }
       const pct = (curr: number, prev: number) =>
         prev === 0 ? (curr === 0 ? 0 : 100) : ((curr - prev) / prev) * 100;
-      const rows = ordered.map((r: any, idx: number) => {
-        const t = runTotals.get(r.id)!;
-        const prev = idx > 0 ? runTotals.get(ordered[idx - 1].id) : undefined;
-        const row = {
-          payroll_number: r.payroll_number ?? "—",
-          period: `${r.pay_period_start} → ${r.pay_period_end}`,
-          headcount: t.count,
-          gross: t.gross,
-          net_pay: t.net,
-          employer_cost: t.employer,
-          gross_delta: prev ? t.gross - prev.gross : 0,
-          gross_delta_pct: prev ? Number(pct(t.gross, prev.gross).toFixed(2)) : 0,
-          net_delta: prev ? t.net - prev.net : 0,
-          net_delta_pct: prev ? Number(pct(t.net, prev.net).toFixed(2)) : 0,
-        };
-        return withMeta(row, { sourceDocType: "payroll_run", sourceDocId: r.id });
-      });
+      const rows: any[] = [];
+      for (const [, group] of bySchedule) {
+        group.sort((a: any, b: any) =>
+          String(a.pay_period_end).localeCompare(String(b.pay_period_end)));
+        group.forEach((r: any, idx: number) => {
+          const t = runTotals.get(r.id)!;
+          const prev = idx > 0 ? runTotals.get(group[idx - 1].id) : undefined;
+          const row = {
+            payroll_number: r.payroll_number ?? "—",
+            period: `${r.pay_period_start} → ${r.pay_period_end}`,
+            headcount: t.count,
+            gross: t.gross,
+            net_pay: t.net,
+            employer_cost: t.employer,
+            gross_delta: prev ? t.gross - prev.gross : 0,
+            gross_delta_pct: prev ? Number(pct(t.gross, prev.gross).toFixed(2)) : 0,
+            net_delta: prev ? t.net - prev.net : 0,
+            net_delta_pct: prev ? Number(pct(t.net, prev.net).toFixed(2)) : 0,
+          };
+          rows.push(withMeta(row, { sourceDocType: "payroll_run", sourceDocId: r.id }));
+        });
+      }
       return { data: rows, summary: {} };
     }
     default:
