@@ -120,6 +120,12 @@ function mergeTheme(theme: Theme | undefined): Required<Theme> {
 
 function buildCss(pf: PaperFormat, t: Required<Theme>): string {
   const size = `${pf.size} ${pf.orientation}`;
+  // Running header/footer live inside the @page margin box, so the effective
+  // top/bottom margin must reserve at least header_height/footer_height
+  // (+2mm breathing room) or the running content gets clipped at the paper
+  // edge. Country-agnostic: applies to every template.
+  const effTop = Math.max(pf.margin_top, pf.header_height + 2);
+  const effBottom = Math.max(pf.margin_bottom, pf.footer_height + 2);
   const zebraSel = t.zebra === "none" ? "none-selector-never-matches" :
     t.zebra === "odd" ? "tbody tr:nth-child(odd) td" : "tbody tr:nth-child(even) td";
   return `
@@ -144,7 +150,7 @@ function buildCss(pf: PaperFormat, t: Required<Theme>): string {
 }
 @page {
   size: ${size};
-  margin: ${pf.margin_top}mm ${pf.margin_right}mm ${pf.margin_bottom}mm ${pf.margin_left}mm;
+  margin: ${effTop}mm ${pf.margin_right}mm ${effBottom}mm ${pf.margin_left}mm;
   @top-center { content: element(pageHeader); }
   @bottom-center { content: element(pageFooter); }
 }
