@@ -68,7 +68,8 @@ function ViewerInner() {
   );
 
   const { data: defs, isLoading: defsLoading } = usePayrollReportDefinitions(
-    (currentBusiness as any)?.country_code ?? null,
+    currentOrg?.id ?? null,
+    currentBusiness?.id ?? null,
   );
   const definition: PayrollReportDefinition | undefined = useMemo(
     () => defs?.find((d) => d.reportKey === reportKey),

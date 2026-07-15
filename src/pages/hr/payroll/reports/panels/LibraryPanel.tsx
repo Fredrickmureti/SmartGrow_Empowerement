@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Search, ArrowRight } from "lucide-react";
 
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useOrganization } from "@/hooks/useOrganization";
 import {
   usePayrollReportDefinitions,
   groupPayrollReportsByOwner,
@@ -53,9 +54,11 @@ function ReportRow({ d }: { d: PayrollReportDefinition }) {
 }
 
 export function LibraryPanel() {
+  const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { data: defs, isLoading } = usePayrollReportDefinitions(
-    (currentBusiness as any)?.country_code ?? null,
+    currentOrg?.id ?? null,
+    currentBusiness?.id ?? null,
   );
   const [q, setQ] = useState("");
 

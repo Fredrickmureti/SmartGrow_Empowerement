@@ -34,7 +34,8 @@ export function OverviewPanel() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { data: defs } = usePayrollReportDefinitions(
-    (currentBusiness as any)?.country_code ?? null,
+    currentOrg?.id ?? null,
+    currentBusiness?.id ?? null,
   );
   const { data: runs } = usePayrollReportRuns({
     organizationId: currentOrg?.id ?? null,
