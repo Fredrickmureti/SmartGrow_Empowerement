@@ -3693,6 +3693,47 @@ Deno.serve(async (req) => {
           };
         }
         pushLine(code, cat, ruleName, Number(amt), 0, false, statRule?.rule_type || ruleName, lineSource, statRule?.id ?? null, ref);
+        // Surface reliefs applied inside this bracket_progressive rule as
+        // separate INFORMATIONAL payslip_lines. Country-agnostic: driven
+        // purely by the bracket trace which any progressive rule produces.
+        // Positive amounts so pack-authored derived columns like
+        // `paye_gross = sum(paye_net, personal_relief, insurance_relief)`
+        // reconstruct the pre-relief tax without pack changes.
+        // These lines are category='relief' / rule_type='relief' so they
+        // never enter deduction totals; the parent tax line still carries
+        // the post-relief amount that drives net pay. See ADR-0062.
+        if (trace) {
+          const personalRelief = Number(trace.personal_relief) || 0;
+          const insuranceRelief = Number(trace.insurance_relief) || 0;
+          if (personalRelief > 0) {
+            pushLine(
+              "personal_relief",
+              "relief",
+              "Personal Relief",
+              personalRelief,
+              0,
+              false,
+              "relief",
+              { parent_rule_code: code, computed_from: "bracket_trace" },
+              statRule?.id ?? null,
+              { kind: "statutory_rule", code: "personal_relief", statutory_rule_id: statRule?.id ?? null, pack_version_id: (statRule as any)?.pack_version_id ?? null, rule_code: "personal_relief", label: "Personal relief (informational)" },
+            );
+          }
+          if (insuranceRelief > 0) {
+            pushLine(
+              "insurance_relief",
+              "relief",
+              "Insurance Relief",
+              insuranceRelief,
+              0,
+              false,
+              "relief",
+              { parent_rule_code: code, computed_from: "bracket_trace" },
+              statRule?.id ?? null,
+              { kind: "statutory_rule", code: "insurance_relief", statutory_rule_id: statRule?.id ?? null, pack_version_id: (statRule as any)?.pack_version_id ?? null, rule_code: "insurance_relief", label: "Insurance relief (informational)" },
+            );
+          }
+        }
       }
       // Turn C: garnishment lines (priority-ordered)
       for (const gl of garnishmentLineMeta) {
