@@ -26,6 +26,7 @@ import {
   MessageSquare, CalendarClock, ArrowRight
 } from "lucide-react";
 import { PageHeader, PageBody } from "@/design-system";
+import { KpiStrip } from "@/components/hr/KpiStrip";
 
 interface ReportRow {
   id: string;
