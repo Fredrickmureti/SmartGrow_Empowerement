@@ -66,13 +66,16 @@ export function pivotToMonthlyMatrix(
   // reference a category with no matching payslip_lines row still resolve
   // to a numeric 0 instead of undefined (which argValue would also treat
   // as 0, but seeding keeps the row shape predictable for tests + PDF).
+  // Match the actual `payslip_lines.category` enum values persisted by
+  // `compute-payroll`. `benefit` is NOT a real category — it was a
+  // premature guess. Any new category added to the payroll engine must
+  // be mirrored here so templates can address it as `cat:<name>`.
   const SEED_CATEGORIES = [
     "earning",
     "deduction",
     "statutory_employee",
     "statutory_employer",
     "relief",
-    "benefit",
   ];
   for (let m = 1; m <= 12; m++) {
     // Keep both keys intentionally:
