@@ -53,6 +53,7 @@ import { Badge } from "@/components/ui/badge";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { PackagingSelect } from "@/components/products/PackagingSelect";
+import { useProductTrackingFlags } from "@/hooks/useProductTrackingFlags";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
