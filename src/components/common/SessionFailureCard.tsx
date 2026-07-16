@@ -16,7 +16,7 @@
  *
  * Industry rule: never rewrite the URL for a transient/server error.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, LogOut, RefreshCw, Loader2, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,10 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
 import { connectivityManager, type ConnectivityStatus } from "@/services/resilience/ConnectivityManager";
+import { normalizeError, type ErrorKind } from "@/services/resilience/ErrorNormalizer";
 
 interface SessionFailureCardProps {
-  error?: Error | null;
+  error?: (Error & { kind?: ErrorKind }) | null;
 }
 
 export function SessionFailureCard({ error }: SessionFailureCardProps) {
