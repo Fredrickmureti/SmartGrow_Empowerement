@@ -505,7 +505,7 @@ export function ReturnTemplateEditor({
           </div>
         </section>
 
-        <section className="space-y-2">
+        <section id="rt-section-statuses" className="space-y-2">
           <h3 className="text-sm font-semibold">Payslip statuses</h3>
           <p className="text-xs text-muted-foreground">
             Which finalized payslip statuses are eligible. Default: approved, validated, and paid; payment is a separate remittance settlement workflow.
@@ -524,7 +524,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── Columns ───────────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-columns" className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Columns <span className="text-destructive">*</span></h3>
             <Button type="button" variant="outline" size="sm" onClick={addColumn}>
@@ -584,7 +584,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── Group by ──────────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-groupby" className="space-y-2">
           <h3 className="text-sm font-semibold">Group by</h3>
           <div className="flex gap-3">
             <label className="flex items-center gap-2 text-sm">
@@ -605,7 +605,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── Totals ────────────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-totals" className="space-y-2">
           <h3 className="text-sm font-semibold">Totals row</h3>
           <p className="text-xs text-muted-foreground">
             Numeric columns to sum at the bottom of the return. Only numeric-source columns
@@ -630,7 +630,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── Reconciliation ────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-reconciliation" className="space-y-2">
           <h3 className="text-sm font-semibold">Reconciliation (optional)</h3>
           <p className="text-xs text-muted-foreground">
             Compare the projected total against an existing payroll-liability total for a single
@@ -645,7 +645,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── v2 section-based renderer (opt-in) ────────────────── */}
-        <section className="space-y-2 rounded-lg border bg-muted/10 p-4">
+        <section id="rt-section-v2" className="space-y-2 rounded-lg border bg-muted/10 p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold flex items-center gap-2">
