@@ -331,234 +331,233 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     }));
   }, [v3Body.document]);
 
+  // ── Reusable rail: document outline ────────────────────────────────────
+  const rail = (
+    <ScrollArea className="h-full">
+      <div className="border-b px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Outline · {documentNodes.length}
+      </div>
+      <div className="p-1 text-sm">
+        {documentNodes.length === 0 && (
+          <div className="px-2 py-3 text-xs text-muted-foreground">
+            Empty document. Use <span className="font-medium">Insert</span> to add your first node.
+          </div>
+        )}
+        {documentNodes.map((n) => {
+          const active = selectedNodeId === n.id;
+          return (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => handleSelectNode(n.id)}
+              className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition-colors ${
+                active ? "bg-primary/10 text-foreground" : "hover:bg-muted"
+              }`}
+            >
+              <span className="inline-block w-14 shrink-0 text-[10px] uppercase text-muted-foreground">
+                {n.type}
+              </span>
+              <span className="truncate">{n.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </ScrollArea>
+  );
+
+  // ── Toolbar: undo/redo + Insert + Theme ────────────────────────────────
+  const toolbar = (
+    <>
+      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">
+        <Undo2 className="h-3.5 w-3.5" />
+      </Button>
+      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">
+        <Redo2 className="h-3.5 w-3.5" />
+      </Button>
+      <div className="mx-1 h-4 w-px bg-border" />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-7 gap-1">
+            <Plus className="h-3.5 w-3.5" /> Insert
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Text</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => insertNode("heading")}><TypeIcon className="mr-2 h-3.5 w-3.5" /> Heading</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertNode("rich_text")}><TypeIcon className="mr-2 h-3.5 w-3.5" /> Paragraph</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertNode("list")}>List</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Fields</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => insertNode("label_fill")}>Label + fill</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertNode("field_row")}>Field row</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertNode("key_value")}>Key / value</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Layout</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => insertNode("grid")}><TableIcon className="mr-2 h-3.5 w-3.5" /> Table (grid)</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertNode("columns")}><LayoutIcon className="mr-2 h-3.5 w-3.5" /> Columns region</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertNode("section")}>Section group</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertNode("spacer")}>Spacer</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertNode("page_break")}>Page break</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Statutory</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => insertNode("legal_notice")}>Legal notice</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertNode("signature_strip")}>Signature strip</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <div className="mx-1 h-4 w-px bg-border" />
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-7 gap-1" title="Edit pack theme tokens">
+            <Palette className="h-3.5 w-3.5" /> Theme
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" side="bottom" className="p-0 w-auto">
+          <ThemeInspector
+            value={(v3Body as any).theme as Theme | undefined}
+            onChange={(nextTheme) => commitBody({ ...v3Body, theme: nextTheme } as V3Body)}
+          />
+        </PopoverContent>
+      </Popover>
+      <div className="mx-2 flex items-center gap-1 text-xs text-muted-foreground">
+        <Layers className="h-3.5 w-3.5" /> {documentNodes.length} nodes
+      </div>
+    </>
+  );
+
+  // ── Editor pane: inspectors + metadata ────────────────────────────────
+  const editorPane = (
+    <div ref={inspectorScrollRef} className="h-full min-h-0">
+      <ScrollArea className="h-full">
+        <div className="mx-auto w-full max-w-3xl space-y-4 p-4">
+          {editMetadata && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4" /> Legal metadata
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Statutory authority *</Label>
+                  <Select value={meta.authority_id ?? ""} onValueChange={(v) => setMeta({ ...meta, authority_id: v || null })}>
+                    <SelectTrigger><SelectValue placeholder="Select authority…" /></SelectTrigger>
+                    <SelectContent>
+                      {(authoritiesQuery.data ?? []).map((a: any) => (
+                        <SelectItem key={a.id} value={a.id}>{a.display_name} ({a.code})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Issued to</Label>
+                  <Select value={meta.issued_to} onValueChange={(v) => setMeta({ ...meta, issued_to: v as any })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="employee">Employee</SelectItem>
+                      <SelectItem value="employer">Employer</SelectItem>
+                      <SelectItem value="both">Both</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-xs">Legal reference *</Label>
+                  <Input value={meta.legal_reference ?? ""} onChange={(e) => setMeta({ ...meta, legal_reference: e.target.value || null })} placeholder="e.g. Income Tax Act, section…" />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-xs">Regulation citation</Label>
+                  <Input value={meta.regulation_citation ?? ""} onChange={(e) => setMeta({ ...meta, regulation_citation: e.target.value || null })} placeholder="e.g. Section 37 — deduction of tax from emoluments" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Effective date *</Label>
+                  <Input type="date" value={meta.effective_date ?? ""} onChange={(e) => setMeta({ ...meta, effective_date: e.target.value || null })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Sunset date</Label>
+                  <Input type="date" value={meta.sunset_date ?? ""} onChange={(e) => setMeta({ ...meta, sunset_date: e.target.value || null })} />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-xs">Revision notes</Label>
+                  <Textarea rows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
+                </div>
+                <div className="flex items-center gap-2 md:col-span-2">
+                  <Switch checked={meta.approval_required} onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })} />
+                  <Label className="text-xs">Requires approval before issuance</Label>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {editMetadata && (
+            <OutputsCard value={meta.outputs} onChange={(next) => setMeta({ ...meta, outputs: next })} surface="certificate" />
+          )}
+
+          <CertificateV3Editor
+            templateCode={initial.template_code}
+            body={v3Body}
+            onChange={(next) => commitBody(next)}
+            onValidityChange={setV3Validation}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={(id) => setSelectedNodeId(id)}
+          />
+
+          <TemplateFieldInspector
+            packId={packId}
+            body={liveBody}
+            onValidityChange={({ unresolved }) => { unresolvedRef.current = unresolved; }}
+          />
+
+          {(metaErrors.length > 0 || bodyErrors.length > 0) && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Save is blocked</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc pl-5 text-xs">
+                  {[...metaErrors, ...bodyErrors].map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+
+  // ── Preview pane: rendered document canvas ────────────────────────────
+  const previewPane = (
+    <CertificatePreviewPane
+      templateCode={initial.template_code}
+      displayName={initial.template_code}
+      body={liveBody}
+      selectedNodeId={selectedNodeId}
+      onSelectNode={(id) => handleSelectNode(id)}
+      onNodeAction={handleNodeAction}
+      onReorder={handleReorder}
+      onEditText={handleEditText}
+      onInsertAfter={handleInsertAfter}
+    />
+  );
+
+  const footerBar = (
+    <div className="flex items-center justify-end gap-2">
+      {onCancel && <Button variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>}
+      <Button onClick={doSave} disabled={busy || !canSave()}>
+        {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />} Save template
+      </Button>
+    </div>
+  );
+
   return (
     <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
-      {/* Top toolbar ribbon — Insert / Structure / Theme. This is the
-          Word/Excel-style command surface publishers expect on a
-          design-driven page. */}
-      <div className="flex items-center gap-1 border-b bg-card/70 px-3 py-1.5">
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">
-          <Undo2 className="h-3.5 w-3.5" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">
-          <Redo2 className="h-3.5 w-3.5" />
-        </Button>
-        <div className="mx-1 h-4 w-px bg-border" />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 gap-1">
-              <Plus className="h-3.5 w-3.5" /> Insert
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Text</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => insertNode("heading")}><TypeIcon className="mr-2 h-3.5 w-3.5" /> Heading</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertNode("rich_text")}><TypeIcon className="mr-2 h-3.5 w-3.5" /> Paragraph</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertNode("list")}>List</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Fields</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => insertNode("label_fill")}>Label + fill</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertNode("field_row")}>Field row</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertNode("key_value")}>Key / value</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Layout</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => insertNode("grid")}><TableIcon className="mr-2 h-3.5 w-3.5" /> Table (grid)</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertNode("columns")}><LayoutIcon className="mr-2 h-3.5 w-3.5" /> Columns region</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertNode("section")}>Section group</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertNode("spacer")}>Spacer</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertNode("page_break")}>Page break</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Statutory</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => insertNode("legal_notice")}>Legal notice</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertNode("signature_strip")}>Signature strip</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <div className="mx-1 h-4 w-px bg-border" />
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 gap-1" title="Document outline">
-              <ListTree className="h-3.5 w-3.5" /> Outline
-              <span className="ml-1 text-[10px] text-muted-foreground">{documentNodes.length}</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" side="bottom" className="p-0 w-80">
-            <div className="border-b px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Outline
-            </div>
-            <ScrollArea className="max-h-[420px]">
-              <div className="p-1 text-sm">
-                {documentNodes.length === 0 && (
-                  <div className="px-2 py-3 text-xs text-muted-foreground">
-                    Empty document. Use <span className="font-medium">Insert</span> to add your first node.
-                  </div>
-                )}
-                {documentNodes.map((n) => {
-                  const active = selectedNodeId === n.id;
-                  return (
-                    <button
-                      key={n.id}
-                      type="button"
-                      onClick={() => handleSelectNode(n.id)}
-                      className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition-colors ${
-                        active ? "bg-primary/10 text-foreground" : "hover:bg-muted"
-                      }`}
-                    >
-                      <span className="inline-block w-14 shrink-0 text-[10px] uppercase text-muted-foreground">
-                        {n.type}
-                      </span>
-                      <span className="truncate">{n.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </PopoverContent>
-        </Popover>
-        <div className="mx-1 h-4 w-px bg-border" />
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 gap-1" title="Edit pack theme tokens">
-              <Palette className="h-3.5 w-3.5" /> Theme
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" side="bottom" className="p-0 w-auto">
-            <ThemeInspector
-              value={(v3Body as any).theme as Theme | undefined}
-              onChange={(nextTheme) => commitBody({ ...v3Body, theme: nextTheme } as V3Body)}
-            />
-          </PopoverContent>
-        </Popover>
-        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-          <Layers className="h-3.5 w-3.5" /> {documentNodes.length} nodes
-        </div>
-      </div>
-
-      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 gap-0 p-3">
-        {/* Canvas — the rendered document is the source of truth. */}
-        <ResizablePanel defaultSize={60} minSize={35}>
-          <div className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
-            <CertificatePreviewPane
-              templateCode={initial.template_code}
-              displayName={initial.template_code}
-              body={liveBody}
-              selectedNodeId={selectedNodeId}
-              onSelectNode={(id) => handleSelectNode(id)}
-              onNodeAction={handleNodeAction}
-              onReorder={handleReorder}
-              onEditText={handleEditText}
-              onInsertAfter={handleInsertAfter}
-            />
-          </div>
-        </ResizablePanel>
-
-        <ResizableHandle withHandle className="mx-2" />
-
-        {/* Inspector — legal metadata + structured node editors. */}
-        <ResizablePanel defaultSize={40} minSize={25}>
-          <div ref={inspectorScrollRef} className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
-            <ScrollArea className="h-full">
-              <div className="space-y-4 p-3">
-                {editMetadata && (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4" /> Legal metadata
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Statutory authority *</Label>
-                        <Select value={meta.authority_id ?? ""} onValueChange={(v) => setMeta({ ...meta, authority_id: v || null })}>
-                          <SelectTrigger><SelectValue placeholder="Select authority…" /></SelectTrigger>
-                          <SelectContent>
-                            {(authoritiesQuery.data ?? []).map((a: any) => (
-                              <SelectItem key={a.id} value={a.id}>{a.display_name} ({a.code})</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Issued to</Label>
-                        <Select value={meta.issued_to} onValueChange={(v) => setMeta({ ...meta, issued_to: v as any })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="employee">Employee</SelectItem>
-                            <SelectItem value="employer">Employer</SelectItem>
-                            <SelectItem value="both">Both</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1 md:col-span-2">
-                        <Label className="text-xs">Legal reference *</Label>
-                        <Input value={meta.legal_reference ?? ""} onChange={(e) => setMeta({ ...meta, legal_reference: e.target.value || null })} placeholder="e.g. Income Tax Act, section…" />
-                      </div>
-                      <div className="space-y-1 md:col-span-2">
-                        <Label className="text-xs">Regulation citation</Label>
-                        <Input value={meta.regulation_citation ?? ""} onChange={(e) => setMeta({ ...meta, regulation_citation: e.target.value || null })} placeholder="e.g. Section 37 — deduction of tax from emoluments" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Effective date *</Label>
-                        <Input type="date" value={meta.effective_date ?? ""} onChange={(e) => setMeta({ ...meta, effective_date: e.target.value || null })} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Sunset date</Label>
-                        <Input type="date" value={meta.sunset_date ?? ""} onChange={(e) => setMeta({ ...meta, sunset_date: e.target.value || null })} />
-                      </div>
-                      <div className="space-y-1 md:col-span-2">
-                        <Label className="text-xs">Revision notes</Label>
-                        <Textarea rows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
-                      </div>
-                      <div className="flex items-center gap-2 md:col-span-2">
-                        <Switch checked={meta.approval_required} onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })} />
-                        <Label className="text-xs">Requires approval before issuance</Label>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {editMetadata && (
-                  <OutputsCard value={meta.outputs} onChange={(next) => setMeta({ ...meta, outputs: next })} surface="certificate" />
-                )}
-
-                <CertificateV3Editor
-                  templateCode={initial.template_code}
-                  body={v3Body}
-                  onChange={(next) => commitBody(next)}
-                  onValidityChange={setV3Validation}
-                  selectedNodeId={selectedNodeId}
-                  onSelectNode={(id) => setSelectedNodeId(id)}
-                />
-
-                <TemplateFieldInspector
-                  packId={packId}
-                  body={liveBody}
-                  onValidityChange={({ unresolved }) => { unresolvedRef.current = unresolved; }}
-                />
-
-                {(metaErrors.length > 0 || bodyErrors.length > 0) && (
-                  <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Save is blocked</AlertTitle>
-                    <AlertDescription>
-                      <ul className="list-disc pl-5 text-xs">
-                        {[...metaErrors, ...bodyErrors].map((e, i) => <li key={i}>{e}</li>)}
-                      </ul>
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-
-      {/* Action bar */}
-      <div className="flex items-center justify-end gap-2 border-t bg-background px-3 py-2">
-        {onCancel && <Button variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>}
-        <Button onClick={doSave} disabled={busy || !canSave()}>
-          {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />} Save template
-        </Button>
-      </div>
+      <AuthoringWorkspace
+        workspaceId={`certificate-template:${initial.template_code}`}
+        toolbar={toolbar}
+        rail={rail}
+        editor={editorPane}
+        preview={previewPane}
+        footer={footerBar}
+        defaultMode="split"
+        onSave={doSave}
+      />
     </div>
   );
 }
