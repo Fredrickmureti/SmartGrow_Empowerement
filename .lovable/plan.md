@@ -78,3 +78,49 @@ Line editors on these five surfaces get lot/serial pickers, gated by product fla
 1. Phase D.3 UI wiring — "Import ASN" action on Purchase Orders index / new `/inventory/inbound-shipments` list, composing `useImport(ASN_IMPORT_FIELDS)` + `createAsnBatchImportHandler`.
 2. Phase E–H — variants, import split, lot genealogy, GS1 parsing (one ADR each).
 3. Phase 5 ambient — retire `warehouse_stock` once `check_stock_quant_drift` returns empty 14 consecutive days.
+
+---
+
+## ✅ Phase A.3 — Delivered (2026-07-16)
+
+- **Primitives:**
+  - `src/hooks/useProductTrackingFlags.ts` — batched read of
+    `is_lot_tracked` / `is_expiry_tracked` / `is_serial_tracked`,
+    `staleTime: 60s`, one round-trip per visible product set.
+  - `src/components/inventory/SerialPickerPopover.tsx` — reads
+    `stock_serials` where `status='in_stock'` scoped by business +
+    product (+ warehouse when supplied); multi-select up to
+    `requiredQty`; filter input; `excludeIds` for cross-line dedupe.
+  - `src/components/inventory/OutboundLineTracking.tsx` — shared cell
+    that resolves business + warehouse from `BusinessContext` /
+    `BranchContext.currentBranch.default_warehouse_id`, reads the
+    tracking flags, and renders `LotPickerPopover` when
+    `is_lot_tracked`, `SerialPickerPopover` when `is_serial_tracked`,
+    both when both flags are on, nothing when neither. Renders nothing
+    when `productId` is missing or `quantity <= 0`.
+- **Integration sites (four outbound editors):**
+  - `src/components/invoices/InvoiceLineRow.tsx` — covers
+    `InvoiceCreatePage` (desktop) and `InvoiceEditPage`.
+  - `src/features/sales/credit-notes/CreditNoteCreatePage.tsx`
+  - `src/features/sales/returns/SalesReturnCreatePage.tsx`
+  - `src/features/sales/delivery-notes/DeliveryNoteCreatePage.tsx`
+    (bound to `quantity_delivered`).
+- **Architecture guard:**
+  `src/test/architecture/outbound-lot-serial-ui.test.ts` pins the
+  primitives' contracts and asserts each of the four outbound editors
+  imports and mounts `<OutboundLineTracking productId={…} />`. **17/17**
+  tests pass. Combined inventory-foundation guard surface: **72/72**.
+- **No migrations, no RPC changes, no schema changes.**
+
+### Deferred out of Phase A.3 (handed to the next agent)
+
+1. **GRN serial capture.** Requires a new
+   `create_stock_serials_from_receipt` RPC + migration + wizard step.
+   Surface-only capture would create silent post-time failures, so this
+   is intentionally split into its own ADR + migration turn.
+2. **Persist picker output.** Backend still accepts posts without user-
+   picked lots for lot-tracked (FEFO auto-fallback) and rejects them
+   for serial-tracked. Wiring `onLotChange` / `onSerialChange` into
+   each outbound page's line-item shape so the picker output is
+   authoritative rather than advisory is the next incremental step —
+   it can land per-page without changing the shared primitives.
