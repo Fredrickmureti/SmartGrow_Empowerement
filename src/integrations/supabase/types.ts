@@ -49980,7 +49980,7 @@ export type Database = {
           parent_location_id: string | null
           updated_at: string
           usage: Database["public"]["Enums"]["stock_location_usage"]
-          warehouse_id: string
+          warehouse_id: string | null
         }
         Insert: {
           branch_id?: string | null
@@ -49997,7 +49997,7 @@ export type Database = {
           parent_location_id?: string | null
           updated_at?: string
           usage?: Database["public"]["Enums"]["stock_location_usage"]
-          warehouse_id: string
+          warehouse_id?: string | null
         }
         Update: {
           branch_id?: string | null
@@ -50014,7 +50014,7 @@ export type Database = {
           parent_location_id?: string | null
           updated_at?: string
           usage?: Database["public"]["Enums"]["stock_location_usage"]
-          warehouse_id?: string
+          warehouse_id?: string | null
         }
         Relationships: [
           {
