@@ -42195,6 +42195,7 @@ export type Database = {
           is_expiry_tracked: boolean
           is_lot_tracked: boolean
           is_sample_data: boolean
+          is_serial_tracked: boolean
           is_weighted: boolean | null
           min_age: number | null
           min_order_quantity: number | null
@@ -42246,6 +42247,7 @@ export type Database = {
           is_expiry_tracked?: boolean
           is_lot_tracked?: boolean
           is_sample_data?: boolean
+          is_serial_tracked?: boolean
           is_weighted?: boolean | null
           min_age?: number | null
           min_order_quantity?: number | null
@@ -42297,6 +42299,7 @@ export type Database = {
           is_expiry_tracked?: boolean
           is_lot_tracked?: boolean
           is_sample_data?: boolean
+          is_serial_tracked?: boolean
           is_weighted?: boolean | null
           min_age?: number | null
           min_order_quantity?: number | null
@@ -50644,6 +50647,92 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_serials: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          current_location_id: string | null
+          current_warehouse_id: string | null
+          id: string
+          last_movement_id: string | null
+          lot_number: string | null
+          notes: string | null
+          organization_id: string
+          product_id: string
+          received_at: string | null
+          serial_number: string
+          shipped_at: string | null
+          status: Database["public"]["Enums"]["stock_serial_status"]
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          current_location_id?: string | null
+          current_warehouse_id?: string | null
+          id?: string
+          last_movement_id?: string | null
+          lot_number?: string | null
+          notes?: string | null
+          organization_id: string
+          product_id: string
+          received_at?: string | null
+          serial_number: string
+          shipped_at?: string | null
+          status?: Database["public"]["Enums"]["stock_serial_status"]
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          current_location_id?: string | null
+          current_warehouse_id?: string | null
+          id?: string
+          last_movement_id?: string | null
+          lot_number?: string | null
+          notes?: string | null
+          organization_id?: string
+          product_id?: string
+          received_at?: string | null
+          serial_number?: string
+          shipped_at?: string | null
+          status?: Database["public"]["Enums"]["stock_serial_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_serials_current_location_id_fkey"
+            columns: ["current_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_serials_current_location_id_fkey"
+            columns: ["current_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "stock_serials_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_serials_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -71980,6 +72069,12 @@ export type Database = {
         | "receive"
         | "inspection"
         | "virtual"
+      stock_serial_status:
+        | "in_stock"
+        | "reserved"
+        | "shipped"
+        | "returned"
+        | "scrapped"
       training_enrollment_status:
         | "enrolled"
         | "in_progress"
@@ -72643,6 +72738,13 @@ export const Constants = {
         "receive",
         "inspection",
         "virtual",
+      ],
+      stock_serial_status: [
+        "in_stock",
+        "reserved",
+        "shipped",
+        "returned",
+        "scrapped",
       ],
       training_enrollment_status: [
         "enrolled",
