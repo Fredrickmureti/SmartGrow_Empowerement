@@ -419,7 +419,6 @@ export function ReturnTemplateEditor({
   // as a PDF at runtime — surfacing the toggle in those cases misled
   // publishers (e.g. `P10 (iTax CSV)` previewed as an empty PDF).
   const showPdfSections = (meta.submission_format?.kind ?? null) === "pdf";
-  if (showPdfSections) activeSections.push({ id: "rt-section-v2", label: "PDF layout" });
   if (mode === "tenant") activeSections.push({ id: "rt-section-override", label: "Override reason" });
 
   const editorScrollRef = useRef<HTMLDivElement>(null);
