@@ -821,7 +821,7 @@ function MatrixEditor({ node, onChange }: { node: any; onChange: (n: any) => voi
         </div>
         {cols.map((c, i) => (
           <div key={i} className="grid grid-cols-[70px_1fr_50px_54px_64px_auto] gap-1 px-1 py-1 items-center border-b last:border-b-0">
-            <Input className="h-7 text-[11px] font-mono" value={c.key ?? ""} onChange={(e) => patchCol(i, { ...c, key: e.target.value })} />
+            <CodeField value={c.key ?? ""} onChange={(v) => patchCol(i, { ...c, key: v })} />
             <div className="flex gap-1">
               <ValueEditor value={c.header} onChange={(v) => patchCol(i, { ...c, header: v })} placeholder="Header" />
               <Input className="h-7 w-10 text-[11px] text-center" value={c.sub_header?.value ?? ""} onChange={(e) => patchCol(i, { ...c, sub_header: { kind: "literal", value: e.target.value } })} placeholder="A" />
