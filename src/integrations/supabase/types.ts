@@ -50140,6 +50140,7 @@ export type Database = {
           business_id: string
           created_at: string
           created_by: string | null
+          destination_location_id: string | null
           id: string
           is_sample_data: boolean
           lot_number: string | null
@@ -50154,6 +50155,7 @@ export type Database = {
           reference_id: string | null
           reference_type: string | null
           serial_number: string | null
+          source_location_id: string | null
           source_packaging_id: string | null
           source_uom_id: string | null
           unit_cost: number | null
@@ -50164,6 +50166,7 @@ export type Database = {
           business_id: string
           created_at?: string
           created_by?: string | null
+          destination_location_id?: string | null
           id?: string
           is_sample_data?: boolean
           lot_number?: string | null
@@ -50178,6 +50181,7 @@ export type Database = {
           reference_id?: string | null
           reference_type?: string | null
           serial_number?: string | null
+          source_location_id?: string | null
           source_packaging_id?: string | null
           source_uom_id?: string | null
           unit_cost?: number | null
@@ -50188,6 +50192,7 @@ export type Database = {
           business_id?: string
           created_at?: string
           created_by?: string | null
+          destination_location_id?: string | null
           id?: string
           is_sample_data?: boolean
           lot_number?: string | null
@@ -50202,6 +50207,7 @@ export type Database = {
           reference_id?: string | null
           reference_type?: string | null
           serial_number?: string | null
+          source_location_id?: string | null
           source_packaging_id?: string | null
           source_uom_id?: string | null
           unit_cost?: number | null
@@ -50235,6 +50241,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_destination_location_id_fkey"
+            columns: ["destination_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "stock_movements_migration_session_id_fkey"
@@ -50276,6 +50289,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_source_location_id_fkey"
+            columns: ["source_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
             referencedColumns: ["id"]
           },
           {
