@@ -338,9 +338,15 @@ export function AuthoringWorkspace({
           <div className="min-w-0 flex-1 p-3">{mainAndPreview()}</div>
         </div>
 
+        {statusBar && (
+          <div className="border-t bg-muted/30 px-3 py-1 text-[11px] text-muted-foreground">
+            {statusBar}
+          </div>
+        )}
         {footer && (
           <div className="border-t bg-background px-3 py-2">{footer}</div>
         )}
+
       </div>
     </TooltipProvider>
   );
