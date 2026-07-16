@@ -689,7 +689,7 @@ export function ReturnTemplateEditor({
                       {s.type === "statutory_footnote" && (
                         <div>
                           <Label className="text-[10px]">Footnote body</Label>
-                          <Textarea rows={3} value={s.body ?? ""} onChange={(e) => patch({ body: e.target.value })} />
+                          <AutoGrowTextarea minRows={3} value={s.body ?? ""} onChange={(e) => patch({ body: e.target.value })} />
                         </div>
                       )}
                       {s.type === "employee_line_grid" && (
