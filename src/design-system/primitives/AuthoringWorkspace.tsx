@@ -76,8 +76,11 @@ interface AuthoringWorkspaceProps {
 }
 
 
+// Bump the version suffix when the mode set changes so old persisted
+// values (e.g. pre-overlay "split") don't override the new default.
+const PERSIST_VERSION = "v2";
 function persistedKey(workspaceId: string, suffix: string) {
-  return `authoring-workspace:${workspaceId}:${suffix}`;
+  return `authoring-workspace:${PERSIST_VERSION}:${workspaceId}:${suffix}`;
 }
 
 function readMode(workspaceId: string, fallback: WorkspaceLayoutMode): WorkspaceLayoutMode {
