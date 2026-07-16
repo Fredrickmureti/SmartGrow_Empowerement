@@ -938,7 +938,7 @@ export function ReturnTemplateEditor({
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
+    <div className="flex min-h-[600px] flex-1 min-h-0 flex-col bg-background">
       <AuthoringWorkspace
         workspaceId={`return-template:${templateCode}`}
         toolbar={toolbar}
