@@ -466,7 +466,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <Label className="text-xs">Regulation citation</Label>
-                  <Input value={meta.regulation_citation ?? ""} onChange={(e) => setMeta({ ...meta, regulation_citation: e.target.value || null })} placeholder="e.g. Section 37 — deduction of tax from emoluments" />
+                  <ExpandableTextField value={meta.regulation_citation ?? ""} onChange={(v) => setMeta({ ...meta, regulation_citation: v || null })} placeholder="e.g. Section 37 — deduction of tax from emoluments" dialogTitle="Regulation citation" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Effective date *</Label>
