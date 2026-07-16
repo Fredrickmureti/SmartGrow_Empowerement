@@ -49,9 +49,60 @@ Cross-checked `.lovable/plan.md` claims against the codebase:
 - RPC stays idempotent via existing transfer status guards; no new idempotency key needed.
 - Follows CREATE → GRANT → RLS → POLICY order for any new object; migration is RPC-only so no new tables expected.
 
-## First deliverable if approved
+## ✅ Phase C — Split stock transfers (delivered 2026-07-16)
 
-1. ADR 0068.
-2. Migration rewriting `complete_stock_transfer` to emit `transfer_out` + `transfer_in`.
-3. `src/test/architecture/split-transfer.test.ts`.
-4. Plan-log update.
+- **ADR:** `docs/adr/0068-split-stock-transfers.md`
+- **Migration:** helper `get_business_transit_location(uuid)` +
+  full rewrite of `approve_stock_transfer_atomic` and
+  `complete_stock_transfer_atomic`.
+- **Directional tokens:** every emitted `stock_movements` row from a
+  transfer RPC now carries `movement_type = 'transfer_out'` (negative
+  legs) or `'transfer_in'` (positive legs). The legacy generic
+  `'transfer'` token is no longer emitted — historical rows stay valid
+  and the `_maintain_warehouse_stock_lots` + on-hand rebuild views
+  already tolerate both.
+- **Location provenance:** each movement stamps `source_location_id` /
+  `destination_location_id`:
+  - Source-warehouse dispatch: source = source WH default location.
+  - Into transit: destination = **business virtual transit location**
+    (Phase 4 / ADR 0065), not the in-transit warehouse's default.
+  - Out of transit: source = business virtual transit location.
+  - Destination receipt: destination = dest WH default location.
+- **`stock_quants` shadow** now accumulates in-transit inventory on the
+  canonical business transit location. The physical in-transit warehouse
+  remains the `warehouse_id` anchor only because `stock_movements.warehouse_id`
+  is still NOT NULL (removable in Phase 5).
+- **Architecture guard:** `src/test/architecture/split-transfer.test.ts`
+  pins directional tokens, location stamping, and helper usage on both
+  RPCs. 10/10 tests pass. Combined inventory guard surface: 18/18 green.
+- **No `warehouse_stock` schema change.** Phase 5 drift gate unchanged.
+
+## ⏭ Next up
+
+Same priority order as before:
+
+1. **Phase A.3 · UI plumbing** — lot/serial pickers on invoice /
+   credit-note / sales-return / delivery-note / GRN line editors.
+   Backend already enforces; this prevents users from hitting the guard
+   mid-post. Reuse the existing POS `LotPickerPopover`; add a
+   `SerialPickerPopover` reading `stock_serials WHERE status='in_stock'`.
+2. **Phase D · ASN / inbound shipments** — ADR 0069, `inbound_shipments`
+   + `inbound_shipment_items`, `goods_receipt_discrepancies`, GRN wizard
+   prefill from ASN, CSV EDI-856 stand-in.
+3. **Phase E–H** — variants, import split, lot genealogy, GS1 parsing.
+   Each stands alone with its own ADR.
+4. **Ambient · Phase 5 drift gate** — retire `warehouse_stock` once
+   `check_stock_quant_drift` returns empty 14 consecutive days.
+
+## Ground truth for the next agent
+
+- Transfer RPCs are now the reference implementation for directional
+  movement types + location stamping. Copy this pattern for any future
+  cross-location movement (manufacturing WIP, subcontract, RMA).
+- The business transit location is now a first-class ledger anchor —
+  read via `get_business_transit_location(business_id)`, never via
+  ad-hoc `stock_locations` queries.
+- If you add another location-crossing RPC, populate both
+  `source_location_id` and `destination_location_id` so the Phase-2
+  quants shadow books proper double-entry. Setting only one is
+  supported (single-side move) but should be intentional.
