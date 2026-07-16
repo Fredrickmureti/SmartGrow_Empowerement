@@ -654,7 +654,7 @@ export function BankExportTemplatesEditor({ packId }: { packId: string | null })
   );
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
+    <div className="flex flex-1 min-h-[600px] min-h-0 flex-col bg-background">
       <AuthoringWorkspace
         workspaceId={`bank-export:${packId}:${draft?.format_code || "list"}`}
         toolbar={toolbar}

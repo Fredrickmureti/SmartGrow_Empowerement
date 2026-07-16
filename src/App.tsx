@@ -115,6 +115,7 @@ import {
   AdminDemoRequests,
   AdminLocalizationPacks,
   AdminLocalizationCertificateEdit,
+  AdminLocalizationReturnEdit,
   AdminInfrastructure,
   AdminOrganizationDetail,
   AdminOrganizationSubscription,
@@ -702,6 +703,7 @@ const App = () => (
                               <Route path="localization-packs/:id" element={<LazyRoute module="Localization Pack"><AdminLocalizationPackDetailPage /></LazyRoute>} />
                               <Route path="localization-packs/:id/publish" element={<LazyRoute module="Publish Localization Pack Version"><AdminLocalizationPackPublishPage /></LazyRoute>} />
                               <Route path="localization-packs/:packId/certificates/:templateId/edit" element={<LazyRoute module="Certificate Template Editor"><AdminLocalizationCertificateEdit /></LazyRoute>} />
+                              <Route path="localization-packs/:packId/returns/:templateId/edit" element={<LazyRoute module="Return Template Editor"><AdminLocalizationReturnEdit /></LazyRoute>} />
                               <Route path="infrastructure" element={<LazyRoute module="Infrastructure"><AdminInfrastructure /></LazyRoute>} />
                               <Route path="plan-builder" element={<LazyRoute module="Plan Builder"><AdminPlanBuilder /></LazyRoute>} />
                               <Route path="plan-builder/plans/new" element={<LazyRoute module="Create Plan"><AdminPlanCreatePage /></LazyRoute>} />

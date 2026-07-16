@@ -372,27 +372,37 @@ export function AuthoringWorkspace({
         </ResizablePanelGroup>
       );
     }
-    // Overlay — editor keeps natural width, preview drawer floats on right.
+    // Overlay — editor keeps its FULL natural width. Preview drawer
+    // floats absolutely over the right edge (shadow + soft backdrop),
+    // and the drag handle is anchored to the drawer's left edge so
+    // resizing only moves the drawer — never the editor.
     return (
-      <div ref={overlayContainerRef} className="relative flex h-full w-full min-w-0 items-stretch gap-0">
+      <div ref={overlayContainerRef} className="relative flex h-full w-full min-w-0 items-stretch">
         <div className="min-w-0 flex-1">
           <PaneShell>{editor}</PaneShell>
         </div>
         <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize preview drawer"
-          onPointerDown={onOverlayHandlePointerDown}
-          className="group relative mx-1 w-1.5 shrink-0 cursor-col-resize rounded bg-border/60 transition-colors hover:bg-primary/60"
-          title="Drag to resize preview"
-        >
-          <div className="pointer-events-none absolute inset-y-0 -inset-x-1" />
-        </div>
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 z-[1] bg-gradient-to-l from-background/40 to-transparent"
+          style={{ width: `${overlayPreviewPx + 24}px`, maxWidth: "80%" }}
+        />
         <div
-          className="shrink-0"
+          className="absolute inset-y-0 right-0 z-[2] flex items-stretch shadow-[-8px_0_24px_-12px_rgba(0,0,0,0.25)]"
           style={{ width: `${overlayPreviewPx}px`, maxWidth: "80%" }}
         >
-          <PaneShell>{preview}</PaneShell>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize preview drawer"
+            onPointerDown={onOverlayHandlePointerDown}
+            className="group relative -ml-1 w-2 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/30"
+            title="Drag to resize preview"
+          >
+            <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded bg-border/70 group-hover:bg-primary/70" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <PaneShell>{preview}</PaneShell>
+          </div>
         </div>
       </div>
     );
