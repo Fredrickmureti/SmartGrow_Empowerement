@@ -746,6 +746,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("visibilitychange", handler);
   }, [user, sessionError, fetchSessionData]);
 
+  // Connectivity recovery: whenever the ConnectivityManager transitions
+  // to `online` and we're either stuck in a fatal bootstrap error or
+  // currently waiting for the network, kick off another attempt. This
+  // is the missing piece that made "workspace couldn't load" terminal.
+  useEffect(() => {
+    if (!user) return;
+    let firstFire = true;
+    const unsub = connectivityManager.subscribe((status) => {
+      // The manager fires-once with the current state on subscribe; skip
+      // that so we only act on real transitions.
+      if (firstFire) {
+        firstFire = false;
+        return;
+      }
+      if (status !== "online") return;
+      if (sessionError || sessionRecovery.status === "waiting_for_network") {
+        void fetchSessionData(true);
+      }
+    });
+    return unsub;
+  }, [user, sessionError, sessionRecovery.status, fetchSessionData]);
+
+
   // Realtime: auto-refresh session when org subscription fields change
   useEffect(() => {
     if (!currentOrgId || !user) return;
