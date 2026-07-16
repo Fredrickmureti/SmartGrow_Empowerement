@@ -53,6 +53,7 @@ import { Badge } from "@/components/ui/badge";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { PackagingSelect } from "@/components/products/PackagingSelect";
+import { useProductTrackingFlags } from "@/hooks/useProductTrackingFlags";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -83,6 +84,14 @@ interface ReceiptLine {
   quantity_to_receive: number;
   lot_number: string;
   serial_number: string;
+  // Phase A.5 — per-unit serials for is_serial_tracked products.
+  // When the line's product is serial-tracked, this array MUST have
+  // exactly `quantity_to_receive` unique non-empty entries; the
+  // submit handler expands the line into that many single-qty
+  // goods_receipt_items rows so the stock_movements trigger
+  // (`enforce_serial_on_movement`, ADR-0067) upserts one row into
+  // stock_serials per unit.
+  serial_numbers: string[];
   notes: string;
   packaging_id: string | null;
   display_uom_id: string | null;
@@ -219,6 +228,7 @@ export default function GoodsReceiptWizardPage() {
             quantity_to_receive: prefillQty,
             lot_number: asnMatch?.expected_lot_number ?? "",
             serial_number: "",
+            serial_numbers: [],
             notes: "",
             packaging_id: asnMatch?.expected_packaging_id ?? null,
             display_uom_id: asnMatch?.display_uom_id ?? null,
@@ -260,6 +270,38 @@ export default function GoodsReceiptWizardPage() {
     () => receiptLines.reduce((sum, l) => sum + (l.quantity_to_receive || 0), 0),
     [receiptLines],
   );
+
+  // Phase A.5 — resolve tracking flags for every product in the receipt so
+  // the receive step can render a per-unit serial capture for
+  // is_serial_tracked lines. One batched round-trip per page load.
+  const productIdsInReceipt = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          receiptLines
+            .map((l) => l.product_id)
+            .filter((id): id is string => !!id),
+        ),
+      ),
+    [receiptLines],
+  );
+  const { get: getTrackingFlags } = useProductTrackingFlags(productIdsInReceipt);
+
+  /** Serial-tracked lines whose serial_numbers[] does not yet match qty. */
+  const serialCaptureIncomplete = useMemo(() => {
+    return receiptLines.some((l) => {
+      if (!l.product_id || l.quantity_to_receive <= 0) return false;
+      if (!getTrackingFlags(l.product_id).is_serial_tracked) return false;
+      const cleaned = (l.serial_numbers ?? [])
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const unique = new Set(cleaned);
+      return (
+        cleaned.length !== Math.round(l.quantity_to_receive) ||
+        unique.size !== cleaned.length
+      );
+    });
+  }, [receiptLines, getTrackingFlags]);
 
   const updateLine = (index: number, field: keyof ReceiptLine, value: any) => {
     setReceiptLines((prev) => {
@@ -352,6 +394,24 @@ export default function GoodsReceiptWizardPage() {
         });
         return;
       }
+      // Phase A.5 — serial-tracked lines must carry one unique serial per unit.
+      if (line.product_id && getTrackingFlags(line.product_id).is_serial_tracked) {
+        const cleaned = (line.serial_numbers ?? []).map((s) => s.trim()).filter(Boolean);
+        const unique = new Set(cleaned);
+        if (
+          cleaned.length !== Math.round(line.quantity_to_receive) ||
+          unique.size !== cleaned.length
+        ) {
+          toast({
+            title: "Serial numbers required",
+            description: `"${line.description}" is serial-tracked — enter ${Math.round(
+              line.quantity_to_receive,
+            )} unique serial number(s) before posting.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
     }
 
     setIsSubmitting(true);
@@ -387,21 +447,43 @@ export default function GoodsReceiptWizardPage() {
         .single();
       if (receiptError) throw receiptError;
 
-      const receiptItems = linesToReceive.map((line, idx) => ({
-        goods_receipt_id: receipt.id,
-        purchase_order_item_id: line.po_item_id || null,
-        product_id: line.product_id,
-        description: line.description,
-        quantity_ordered: line.quantity_ordered,
-        quantity_received: line.quantity_to_receive,
-        lot_number: line.lot_number || null,
-        serial_number: line.serial_number || null,
-        notes: line.notes || null,
-        sort_order: idx,
-        packaging_id: line.packaging_id,
-        display_uom_id: line.display_uom_id,
-        display_quantity: line.display_quantity,
-      }));
+      // Phase A.5 — for serial-tracked lines, split into N single-qty rows
+      // so `enforce_serial_on_movement` upserts one stock_serial per unit.
+      const receiptItems = linesToReceive.flatMap((line, idx) => {
+        const isSerial =
+          !!line.product_id && getTrackingFlags(line.product_id).is_serial_tracked;
+        const base = {
+          goods_receipt_id: receipt.id,
+          purchase_order_item_id: line.po_item_id || null,
+          product_id: line.product_id,
+          description: line.description,
+          quantity_ordered: line.quantity_ordered,
+          lot_number: line.lot_number || null,
+          notes: line.notes || null,
+          packaging_id: line.packaging_id,
+          display_uom_id: line.display_uom_id,
+          display_quantity: line.display_quantity,
+        };
+        if (isSerial) {
+          const serials = (line.serial_numbers ?? [])
+            .map((s) => s.trim())
+            .filter(Boolean);
+          return serials.map((sn, subIdx) => ({
+            ...base,
+            quantity_received: 1,
+            serial_number: sn,
+            sort_order: idx * 1000 + subIdx,
+          }));
+        }
+        return [
+          {
+            ...base,
+            quantity_received: line.quantity_to_receive,
+            serial_number: line.serial_number || null,
+            sort_order: idx,
+          },
+        ];
+      });
       const { data: insertedItems, error: itemsError } = await supabase
         .from("goods_receipt_items")
         .insert(receiptItems)
@@ -527,7 +609,7 @@ export default function GoodsReceiptWizardPage() {
   }
 
   const setupValid = !!warehouseId;
-  const receiveValid = totalToReceive > 0;
+  const receiveValid = totalToReceive > 0 && !serialCaptureIncomplete;
 
   const nextDisabled =
     (activeStep === "setup" && !setupValid) ||
@@ -698,6 +780,7 @@ export default function GoodsReceiptWizardPage() {
                     <TableHead className="text-center">Receive now</TableHead>
                     <TableHead>Pack</TableHead>
                     <TableHead>Lot #</TableHead>
+                    <TableHead>Serial numbers</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -706,6 +789,20 @@ export default function GoodsReceiptWizardPage() {
                       line.quantity_ordered - line.quantity_previously_received;
                     const isFullyReceived =
                       line.quantity_previously_received >= line.quantity_ordered;
+                    const trackingFlags = line.product_id
+                      ? getTrackingFlags(line.product_id)
+                      : { is_lot_tracked: false, is_expiry_tracked: false, is_serial_tracked: false };
+                    const requiredSerials = trackingFlags.is_serial_tracked
+                      ? Math.round(line.quantity_to_receive)
+                      : 0;
+                    const enteredSerials = (line.serial_numbers ?? [])
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    const uniqueSerials = new Set(enteredSerials);
+                    const serialsValid =
+                      !trackingFlags.is_serial_tracked ||
+                      (enteredSerials.length === requiredSerials &&
+                        uniqueSerials.size === enteredSerials.length);
                     return (
                       <TableRow key={index} className={isFullyReceived ? "opacity-50" : ""}>
                         <TableCell>
@@ -755,6 +852,39 @@ export default function GoodsReceiptWizardPage() {
                             disabled={isFullyReceived}
                             className="w-28"
                           />
+                        </TableCell>
+                        <TableCell>
+                          {trackingFlags.is_serial_tracked ? (
+                            <div className="space-y-1">
+                              <Textarea
+                                placeholder={`One serial per line (${requiredSerials} required)`}
+                                value={(line.serial_numbers ?? []).join("\n")}
+                                onChange={(e) =>
+                                  updateLine(
+                                    index,
+                                    "serial_numbers",
+                                    e.target.value.split(/\r?\n/),
+                                  )
+                                }
+                                disabled={isFullyReceived || requiredSerials <= 0}
+                                className="min-h-[64px] w-56 font-mono text-xs"
+                              />
+                              <div
+                                className={
+                                  "text-[10px] tabular-nums " +
+                                  (serialsValid
+                                    ? "text-muted-foreground"
+                                    : "text-destructive")
+                                }
+                              >
+                                {enteredSerials.length}/{requiredSerials} entered
+                                {uniqueSerials.size !== enteredSerials.length &&
+                                  " · duplicates"}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
