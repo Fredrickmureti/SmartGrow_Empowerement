@@ -65,8 +65,15 @@ interface AuthoringWorkspaceProps {
   onSave?: () => void;
   /** Optional J / K node navigation (only fires when not typing). */
   onNavigateNode?: (direction: WorkspaceNavDirection) => void;
-  /** Optional pop-out — surfaces an "open in new window" button in the toolbar. */
-  onPopOutPreview?: () => void;
+  /**
+   * Optional pop-out. When the handler returns the child `Window` (or a
+   * Promise of it), the workspace enters "detached preview" mode: the
+   * in-app preview pane is hidden so the editor gets 100 % of the
+   * surface, and a re-attach control replaces the pop-out button.
+   * When the child window closes the workspace auto-restores the
+   * inline preview.
+   */
+  onPopOutPreview?: () => Window | null | void | Promise<Window | null | void>;
   className?: string;
 }
 
@@ -147,12 +154,39 @@ export function AuthoringWorkspace({
     try { window.localStorage.setItem(persistedKey(workspaceId, "bottom-preview-px"), String(bottomPreviewPx)); } catch {}
   }, [workspaceId, bottomPreviewPx]);
 
+  // Detached-preview window (pop-out). While non-null the inline preview
+  // is suppressed so the editor gets the whole surface and the toolbar
+  // shows a re-attach control instead of the pop-out button. A cheap
+  // poll auto-clears the state when the child window is closed by the
+  // user (there's no cross-window "closed" event).
+  const [detachedWindow, setDetachedWindow] = useState<Window | null>(null);
+  useEffect(() => {
+    if (!detachedWindow) return;
+    const id = window.setInterval(() => {
+      if (detachedWindow.closed) {
+        setDetachedWindow(null);
+      }
+    }, 700);
+    return () => window.clearInterval(id);
+  }, [detachedWindow]);
+  // Best-effort: close the child when the parent unloads so a stale
+  // pop-out doesn't linger after the publisher navigates away.
+  useEffect(() => {
+    if (!detachedWindow) return;
+    const onUnload = () => { try { detachedWindow.close(); } catch { /* ignore */ } };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [detachedWindow]);
+
+  const isDetached = !!detachedWindow;
   const hasPreview = !!preview;
   const hasRail = !!rail;
-  // Resolve effective visibility from mode.
-  const showEditor = mode !== "preview";
-  const showPreview = hasPreview && (mode === "overlay" || mode === "split" || mode === "preview" || mode === "bottom");
-  const showRail = hasRail && railOpen && mode !== "focus" && mode !== "preview";
+  // Resolve effective visibility from mode. When the preview is detached
+  // into its own window the inline preview is suppressed entirely so the
+  // editor gets 100 % of the workspace surface.
+  const showEditor = isDetached ? true : mode !== "preview";
+  const showPreview = !isDetached && hasPreview && (mode === "overlay" || mode === "split" || mode === "preview" || mode === "bottom");
+  const showRail = hasRail && railOpen && mode !== "focus" && (isDetached || mode !== "preview");
 
   // Global keyboard shortcuts. Skip when the user is typing into a field
   // so their input keystrokes are never hijacked.
@@ -287,25 +321,51 @@ export function AuthoringWorkspace({
         {onPopOutPreview && hasPreview && (
           <>
             <div className="mx-1 h-4 w-px bg-border" />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={onPopOutPreview}
-                  aria-label="Open preview in a new window"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Pop out preview</TooltipContent>
-            </Tooltip>
+            {isDetached ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-7 gap-1.5 px-2 text-[11px]"
+                    onClick={() => {
+                      try { detachedWindow?.close(); } catch { /* ignore */ }
+                      setDetachedWindow(null);
+                    }}
+                    aria-label="Re-attach preview"
+                  >
+                    <PanelRightOpen className="h-3.5 w-3.5" />
+                    Re-attach preview
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Close the pop-out and bring the preview back in</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    onClick={async () => {
+                      const result = await onPopOutPreview();
+                      if (result && typeof (result as Window).closed === "boolean") {
+                        setDetachedWindow(result as Window);
+                      }
+                    }}
+                    aria-label="Detach preview into a new window"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Detach preview to its own window (live-syncs)</TooltipContent>
+              </Tooltip>
+            )}
           </>
         )}
       </div>
     ),
-    [hasPreview, hasRail, mode, railOpen, onPopOutPreview],
+    [hasPreview, hasRail, mode, railOpen, onPopOutPreview, isDetached, detachedWindow],
   );
 
   // Overlay-mode drag handling — moves ONLY the preview edge; editor keeps
@@ -466,7 +526,7 @@ export function AuthoringWorkspace({
           )}
           <div className="relative min-w-0 min-h-0 flex-1">
             {mainAndPreview()}
-            {hasPreview && mode === "editor" && (
+            {hasPreview && !isDetached && mode === "editor" && (
               <button
                 type="button"
                 onClick={() => setMode("overlay")}
@@ -477,6 +537,23 @@ export function AuthoringWorkspace({
                 <Eye className="h-3.5 w-3.5" />
                 <span className="[writing-mode:vertical-rl] rotate-180">Preview</span>
               </button>
+            )}
+            {isDetached && (
+              <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-2 rounded-full border bg-card/95 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                Preview detached — live syncing
+                <button
+                  type="button"
+                  onClick={() => { try { detachedWindow?.focus(); } catch { /* ignore */ } }}
+                  className="pointer-events-auto rounded px-1.5 py-0.5 text-[10px] font-medium text-foreground/80 hover:bg-accent hover:text-foreground"
+                  aria-label="Focus detached preview window"
+                >
+                  Focus window
+                </button>
+              </div>
             )}
           </div>
         </div>

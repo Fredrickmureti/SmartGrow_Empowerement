@@ -216,9 +216,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     });
   }, [v3Body, meta, editMetadata, initial.template_code]);
 
-  const handlePopOutPreview = () => {
-    openPreviewWindow("certificate", initial.template_code);
-  };
+  const handlePopOutPreview = () => openPreviewWindow("certificate", initial.template_code);
 
   const metaErrors: string[] = [];
   if (editMetadata) {

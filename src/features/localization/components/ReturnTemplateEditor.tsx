@@ -394,9 +394,7 @@ export function ReturnTemplateEditor({
     });
   }, [body, meta.legal_reference, meta.regulation_citation, templateCode]);
 
-  const handlePopOutPreview = () => {
-    openPreviewWindow("return", templateCode);
-  };
+  const handlePopOutPreview = () => openPreviewWindow("return", templateCode);
 
   const handleSave = async () => {
     setBusy(true);
