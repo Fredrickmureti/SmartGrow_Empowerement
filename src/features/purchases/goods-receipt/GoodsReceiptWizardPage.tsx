@@ -853,6 +853,39 @@ export default function GoodsReceiptWizardPage() {
                             className="w-28"
                           />
                         </TableCell>
+                        <TableCell>
+                          {trackingFlags.is_serial_tracked ? (
+                            <div className="space-y-1">
+                              <Textarea
+                                placeholder={`One serial per line (${requiredSerials} required)`}
+                                value={(line.serial_numbers ?? []).join("\n")}
+                                onChange={(e) =>
+                                  updateLine(
+                                    index,
+                                    "serial_numbers",
+                                    e.target.value.split(/\r?\n/),
+                                  )
+                                }
+                                disabled={isFullyReceived || requiredSerials <= 0}
+                                className="min-h-[64px] w-56 font-mono text-xs"
+                              />
+                              <div
+                                className={
+                                  "text-[10px] tabular-nums " +
+                                  (serialsValid
+                                    ? "text-muted-foreground"
+                                    : "text-destructive")
+                                }
+                              >
+                                {enteredSerials.length}/{requiredSerials} entered
+                                {uniqueSerials.size !== enteredSerials.length &&
+                                  " · duplicates"}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
