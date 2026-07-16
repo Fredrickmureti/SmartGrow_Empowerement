@@ -27,6 +27,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea, CodeField, ExpandableTextField } from "@/design-system/primitives/inputs";
+
 import { Loader2, AlertTriangle, FileText, Plus, Trash2, ArrowUp, ArrowDown, X, ShieldCheck, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { validatePayload } from "../hooks";
