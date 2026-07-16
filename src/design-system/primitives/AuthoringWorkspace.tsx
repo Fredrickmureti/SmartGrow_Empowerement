@@ -526,7 +526,7 @@ export function AuthoringWorkspace({
           )}
           <div className="relative min-w-0 min-h-0 flex-1">
             {mainAndPreview()}
-            {hasPreview && mode === "editor" && (
+            {hasPreview && !isDetached && mode === "editor" && (
               <button
                 type="button"
                 onClick={() => setMode("overlay")}
@@ -537,6 +537,23 @@ export function AuthoringWorkspace({
                 <Eye className="h-3.5 w-3.5" />
                 <span className="[writing-mode:vertical-rl] rotate-180">Preview</span>
               </button>
+            )}
+            {isDetached && (
+              <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-2 rounded-full border bg-card/95 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                Preview detached — live syncing
+                <button
+                  type="button"
+                  onClick={() => { try { detachedWindow?.focus(); } catch { /* ignore */ } }}
+                  className="pointer-events-auto rounded px-1.5 py-0.5 text-[10px] font-medium text-foreground/80 hover:bg-accent hover:text-foreground"
+                  aria-label="Focus detached preview window"
+                >
+                  Focus window
+                </button>
+              </div>
             )}
           </div>
         </div>
