@@ -584,7 +584,7 @@ function GridEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
         </div>
         <div>
           <Label className="text-[10px]">Data rows — bind (array path)</Label>
-          <Input className="h-7 text-xs font-mono" value={dataRows.bind ?? ""} onChange={(e) => set({ data_rows: { ...dataRows, bind: e.target.value } })} placeholder="e.g. rows.items" />
+          <CodeField value={dataRows.bind ?? ""} onChange={(v) => set({ data_rows: { ...dataRows, bind: v } })} placeholder="e.g. rows.items" />
         </div>
         <div>
           <Label className="text-[10px]">Border</Label>
