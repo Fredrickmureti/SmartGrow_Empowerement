@@ -22,6 +22,7 @@ import {
   Warehouse,
   Scale,
   CalendarClock,
+  Truck,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
