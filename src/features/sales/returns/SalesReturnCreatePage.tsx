@@ -528,7 +528,6 @@ export default function SalesReturnCreatePage() {
                       productId={item.product_id ?? null}
                       quantity={item.quantity}
                     />
-                    </div>
                   </CardContent>
                 </Card>
               ))}
