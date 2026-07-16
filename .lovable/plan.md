@@ -1,161 +1,141 @@
 
-# Localization Publishing & Tenant Editor — Architectural Audit
+# Localization Editor — Workspace Audit & Redesign Plan
 
-## 1. What the codebase actually looks like today
+## 1. What exists today
 
-Contrary to the premise of "two parallel editors", most of the stack is already unified. The real problems are narrower — a few surface-level divergences and one storage-model split — not a duplicated engine.
+`CertificateTemplateEditor.tsx` (587 lines) is the canonical shell mounted by both admin and tenant via `CertificateEditorPage`. Current shape:
 
-### 1.1 Shared foundation (single source of truth)
+- Fixed height container `h-[calc(100vh-8rem)]` with a top toolbar strip, a horizontal `ResizablePanelGroup` (Editor 60% / Preview 40%, min 35/25), and a footer save bar.
+- Left pane: node tree + `CertificateV3Editor` (1030 lines) — per-primitive inspectors (grid, list, label_fill, field_row, columns, page_break) plus `GridDesigner`, `ThemeInspector`, `TokenAwareTextarea`.
+- Right pane: `CertificatePreviewPane` (paged.js iframe).
+- Sibling editors (`TemplateEditor`, `ReturnTemplateEditor`, reference editors under `components/reference/*`) mount inside `PackEditorShell` tabs and do **not** share the same workspace chrome — they are plain stacked forms.
 
-Everything under `src/features/localization/` is consumed by BOTH platform-admin and tenant surfaces. It exposes an `EditorMode = "admin" | "tenant"` flag that gates capabilities inside shared components:
+The `ResizablePanel` primitive is already present, but nothing else in the workspace treats itself as a real IDE: no docking, no focus modes, no persistence, no keyboard workflow, and the inspector inputs are the same shadcn `<Input>` used in settings pages.
 
-| Layer | Module | Used by admin? | Used by tenant? |
-|---|---|---|---|
-| Editor shell | `components/PackEditorShell.tsx` | ✅ `AdminLocalizationPackDetailPage` | ✅ `pages/hr/payroll/Localization.tsx` |
-| Entity tabs (rules, tokens, templates, governance, health) | `components/PackEntityTabs.tsx` | ✅ | ✅ |
-| Certificate editor | `CertificateTemplateEditor` + `CertificateV3Editor` + `GridDesigner` + `ThemeInspector` | ✅ | ✅ (indirect via `TemplateEditor`) |
-| Return template editor | `ReturnTemplateEditor.tsx` | ✅ | ✅ |
-| Preview pipeline | `PreviewPanel`, `CertificatePreviewPane`, `ReturnPreviewPane`, `CertificateHtmlSurface` | ✅ | ✅ |
-| Rendering engine | `lib/engine/compile.ts` (+ Deno mirror at `supabase/functions/_shared/certificate-engine/compile.ts`, parity-tested) | ✅ | ✅ |
-| Validation | `validate-localization-payload` edge fn + `hooks.validatePayload` | ✅ | ✅ |
-| Data hooks | `hooks/usePack.ts`, `usePackTokens`, `useTokenRegistryAdmin`, `usePublisherGrants` | ✅ | ✅ (RLS-scoped) |
-| Diff / version compare | `PackDiffView`, `VersionCompareCard` | ✅ | ✅ |
+## 2. UX audit — findings
 
-There is **one** editor, **one** renderer, **one** preview engine, **one** validator, **one** state model. The engine even has a browser↔edge byte-parity test (`certificate-engine.mirror-parity.test.ts`). This is much closer to the "Localization Engine → Editor → Renderer → Preview → Validation → Publishing → Overrides" target than the brief implies.
+### A. Layout & workspace flexibility
+1. Half-width editor is the wrong default for grid/table/expression authoring. Preview always visible steals horizontal room the grid designer needs the most.
+2. Split ratio is not persisted; every reload resets to 60/40.
+3. There is no way to hide either pane, pop the preview out, dock it to the bottom (better for landscape statutory forms like KE P9 A4-landscape), or enter a distraction-free editor/preview-only mode.
+4. Fixed `h-[calc(100vh-8rem)]` breaks on smaller laptops and short viewports (inspector scrolls inside a scroll inside a scroll).
+5. Node tree lives inside the editor pane's scroll region — it competes with the inspector for vertical space instead of being its own dockable rail.
+6. Sibling editors in `PackEditorShell` tabs (returns, tax templates, account templates, bank exports, garnishments, statutory authorities) do not share this shell at all — inconsistent authoring experience across the pack.
 
-### 1.2 Real divergences (the actual debt)
+### B. Input & control usability
+1. All string inputs are the standard shadcn `<Input>` — single line, no horizontal auto-grow, no expand-to-dialog affordance. Long label_fill labels, token expressions, and bind_keys get clipped.
+2. `TokenAwareTextarea` is used in some places but not consistently — expressions and formulas in `TemplateFieldInspector`, mapping editors, and grid cell `bind_key` fields fall back to plain inputs.
+3. Grid designer cell inspectors are stacked vertically inside the narrow right column of the editor pane → double-nested horizontal squeeze.
+4. No monospaced font for machine values (codes, tokens, bind keys, JSON), no code-editor affordances (bracket matching, wrap toggle) for the few JSON-shaped fields that remain.
+5. No "expand this field" popover/dialog pattern for long values (labels, notes, legal text, expressions).
+6. Textareas are not resizable and don't auto-grow.
+7. Inspector density is uniform — required, common, and advanced properties share the same weight; nothing collapses.
 
-Four issues are genuine and worth fixing. Nothing else in the audit checklist is a real duplication.
+### C. Preview
+1. Always-on right dock; no bottom-dock option (natural fit for landscape statutory forms).
+2. No zoom/fit/page controls surfaced at the workspace level; no "preview only" fullscreen.
+3. No pop-out to a second window (real value for dual-monitor authors comparing scanned statutory PDFs to the rendered output).
 
-**D1 — Two mount patterns for the certificate editor.**
-Admin certificate editing was recently moved to a dedicated full-page route (`AdminLocalizationCertificateEdit.tsx`, direct mount of `CertificateTemplateEditor`) to give the Canvas + Inspector + Metadata full viewport. Tenants still edit certificates inside a `WorkflowSheet` drawer opened from `Templates.tsx` via the wrapper `TemplateEditor`. Same component underneath, but tenants get a cramped drawer for a full-page design surface. Publishers and tenants also arrive at the editor through completely different navigation flows.
+### D. Navigation & keyboard
+1. No global shortcuts (⌘S save, ⌘P toggle preview, ⌘B toggle tree, ⌘⇧F focus mode, ⌘/ toggle inspector).
+2. Node tree click is the only way to move between nodes; no arrow-key traversal, no next/prev-node hotkeys.
+3. Save button lives only in the footer — no dirty indicator, no keyboard save, no autosave draft.
 
-**D2 — Tenant has TWO parallel pages for the same concept.**
-- `pages/hr/payroll/Localization.tsx` mounts `PackEditorShell mode="tenant"` (the unified path with rules, tokens, versions, upgrade proposals).
-- `pages/hr/payroll/Templates.tsx` is a separate, override-only UI for certificate + return templates. It reimplements pack/template listing, "customized vN / out-of-date" state chips, override CRUD, and reset-to-default — none of which is coordinated with the shell's Templates tab.
+### E. Cross-cutting
+1. Same problems repeat in `TemplateEditor` (rules), `ReturnTemplateEditor`, and every reference-data editor because they don't share a shell. Any fix must be a reusable primitive, not a one-off in the certificate editor.
 
-This is where "duplicated components" perception comes from: two tenant entry points, two navigation models, two mental models for the same underlying rows. Admin has one entry point (`PackEditorShell` + the cert full-page).
+## 3. Reference patterns worth borrowing
 
-**D3 — Storage-model split isn't documented in the shell.**
-Admin edits `localization_pack_*` rows directly (immutable-on-publish). Tenant edits go to `payroll_certificate_template_overrides` / `payroll_return_template_overrides` via `useTemplateOverrides`. The shell's tenant mode does not currently expose this override lifecycle inside the Templates tab — that's why `Templates.tsx` exists as a workaround. There is no shared "override resolver" hook that the shell can call to render "pack default / customized vN / out-of-date" pills.
+- **VS Code**: activity bar + collapsible side panels + bottom panel + command palette + persisted layout + focus (Zen) mode.
+- **Figma**: left tree + center canvas + right inspector, all three independently collapsible; inspector fields with inline expand-to-popover for long values.
+- **Google Docs / Word**: preview *is* the editor (single canvas), inspector rides on the side — a mode we should offer for WYSIWYG authoring later, but not the default here because our editor is structural.
+- **Notion / Odoo Studio**: property panels that collapse into accordions with "Advanced" progressive disclosure.
+- **ERPNext Print Format Builder**: dockable preview, JSON drawer.
+- **Adobe Acrobat / Power BI**: bottom-dock preview for landscape documents; pop-out preview window.
 
-**D4 — Publishing UX asymmetry.**
-`AdminLocalizationPackPublishPage` (436 lines) is a dedicated publish workflow. The publish dialog inside `PackEditorShell` is a lightweight WorkflowSheet. They target the same edge function but present different reviewer surfaces (diagnostics panel, health, lint gate) — worth consolidating so the shell's Publish action opens the same review surface.
+Principles taken (not visuals):
+- Three independently resizable/collapsible regions.
+- Layout state persists per user.
+- Every long-text field has an "expand" escape hatch.
+- Progressive disclosure separates required from advanced.
+- Keyboard is a first-class input device.
 
-### 1.3 What is NOT duplicated (dispelling the audit checklist)
+## 4. Proposed workspace model
 
-- **Rendering engine**: single `compile.ts` mirrored to Deno with byte-parity tests. Guarded by `no-country-tokens`, `no-payslip-lines-in-certificates` ESLint rules and architecture tests.
-- **Preview**: single `CertificateHtmlSurface` (paged.js iframe) used by both preview panes.
-- **Validation**: single edge function + shared JSON-Schema registry (`pack_rule_type_schemas`).
-- **Diff / versioning**: single `PackDiffView` + `VersionCompareCard` + `pack_upgrade_proposals` flow.
-- **Governance**: single `PublisherGovernanceEditor` reading `pack_publisher_grants`.
-- **Token registry**: single `pack_token_registry` with `pack_id IS NULL` for platform, per-pack rows for country packs.
-- **Theme**: `template.theme` is the single presentation surface — engine reads CSS variables only.
-
-The `docs/adr/0056-localization-publisher-parity.md` and `mem://features/certificate-rendering` already document these invariants.
-
-## 2. Enterprise-pattern reference (short)
-
-Odoo, Dynamics 365, NetSuite and Salesforce all converge on the same pattern:
-- **One authoring surface** with role-gated capabilities (Odoo Studio; D365 Power Apps maker portal; Salesforce Setup with Profile-gated actions).
-- **Layered data model**: base pack (immutable, versioned) + tenant overlay (mutable, upgrade-aware). Odoo's `ir.model.data noupdate` + Studio customizations; Salesforce's Managed Package + Subscriber Overrides; SAP's Client 000 vs Client 100.
-- **Upgrade proposals**: publisher ships a new version, tenants get a diff-driven acceptance queue (Salesforce Package Upgrades; Odoo module upgrade with `--i18n-overwrite` opt-outs). We already implement this via `pack_upgrade_proposals`.
-- **Preview parity**: the preview MUST run the exact filing/print pipeline (SAP Smart Forms, Odoo QWeb, Workday BIRT). We already do — same `compile()` in browser and edge.
-- **Publisher certification / 4-eyes**: enterprise tier only (ADR 0056 P2.d). Deferred, correctly.
-
-Our architecture already matches these patterns — the gap is UX consistency, not engine plurality.
-
-## 3. Target architecture (delta from today)
-
-Keep the current engine untouched. Collapse the surface into one entry per role:
+A reusable `AuthoringWorkspace` primitive under `src/design-system/primitives/` composed of:
 
 ```text
-                    ┌─────────────────────────────────────────────┐
-                    │        PackEditorShell (single shell)       │
-                    │  mode = admin | tenant                      │
-                    │                                             │
-                    │  ┌──── Pack list ────┐ ┌── Version rail ──┐ │
-                    │  │                   │ │                  │ │
-                    │  │                   │ │  Entity tabs:    │ │
-                    │  │                   │ │   Rules          │ │
-                    │  │                   │ │   Templates ◄────┼─┼── new: override-aware
-                    │  │                   │ │     · pack row   │ │    ("Default / Customized vN /
-                    │  │                   │ │     · overrides  │ │     Out-of-date") — same tab
-                    │  │                   │ │   Certificates   │ │    for admin + tenant
-                    │  │                   │ │   Returns        │ │
-                    │  │                   │ │   Governance     │ │
-                    │  │                   │ │   Health         │ │
-                    │  │                   │ │   Publish (same  │ │
-                    │  │                   │ │     review UI)   │ │
-                    │  └───────────────────┘ └──────────────────┘ │
-                    └─────────────────────────────────────────────┘
-                                        │
-                                        ▼
-                    ┌─────────────────────────────────────────────┐
-                    │  Editor route (full-page) — shared by both  │
-                    │  /localization/:packId/:kind/:code/edit     │
-                    │    · admin  → writes pack row               │
-                    │    · tenant → writes override row           │
-                    │  Same CertificateTemplateEditor /           │
-                    │  ReturnTemplateEditor components.           │
-                    └─────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│  WorkspaceTopBar  (title · breadcrumbs · layout modes · save)      │
+├──────────┬─────────────────────────────────┬───────────────────────┤
+│          │                                 │                       │
+│  LEFT    │   MAIN EDITOR                   │  PREVIEW  (dockable)  │
+│  RAIL    │   (grid designer / inspector)    │  right | bottom |     │
+│  (tree)  │                                 │  popout | hidden      │
+│          │                                 │                       │
+│ collapse │  resizable ◀━━▶                 │  resizable ◀━━▶       │
+├──────────┴─────────────────────────────────┴───────────────────────┤
+│  Footer / status bar (dirty · shortcuts · validation counts)       │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-Key rules:
-- No more sheet-vs-full-page split. Both roles get the full-page editor route.
-- `Templates.tsx` (tenant) is deleted; its override lifecycle moves into `PackEntityTabs` (Templates/Certificates/Returns tabs) behind a shared `useResolvedTemplate(kind, code)` hook that returns `{ effective, source: 'pack'|'override', outOfDate }`.
-- `AdminLocalizationPackPublishPage` becomes the same "Publish review" panel the shell already opens — one component, one entry.
-- Capabilities are gated inside shared components by `mode` and `pack_publisher_grants` — never by rendering a different tree.
+Features:
+- **Three panels**: left rail (node tree / outline), main (inspector + designer), preview.
+- **Layout modes** in the top bar: `Split` (default) · `Editor only` · `Preview only` · `Focus` (hide rail + preview) · `Bottom preview` (dock preview under editor for landscape docs).
+- **Resizable + persisted**: sizes stored per-user in localStorage keyed by workspace id; restored on reopen; sensible min/max.
+- **Preview options**: dock right, dock bottom, pop-out (new window with a small mirror route), fullscreen, zoom/fit controls.
+- **Keyboard**: ⌘S save · ⌘B tree · ⌘/ inspector · ⌘⇧P preview · ⌘⇧F focus · J/K next/prev node.
+- **Command palette hook** (uses existing `CommandPaletteProvider`) with workspace-scoped actions.
 
-## 4. Phased plan (debt removal, not stacking)
+## 5. Reusable input primitives
 
-Each phase is independently shippable and leaves the codebase healthier than it found it. No new engine. No new preview. No new validator.
+New primitives under `src/design-system/primitives/inputs/`:
 
-**Phase 1 — Unify the editor mount (D1)**
-- Extract the full-page route shell from `AdminLocalizationCertificateEdit.tsx` into `src/features/localization/routes/CertificateEditorRoute.tsx`.
-- Add a matching tenant route `/settings/payroll/localization/:packId/certificates/:code/edit` that mounts the same route component with `mode="tenant"` and swaps the persistence adapter to the override hook.
-- Update `PackEntityTabs` "Edit" actions to navigate to this route for both modes; drop the `WorkflowSheet` mount path for certificates.
-- Same treatment for return templates (`ReturnTemplateEditor`).
-- Guard test: architecture test that fails if `CertificateTemplateEditor` / `ReturnTemplateEditor` is mounted inside a `WorkflowSheet` anywhere.
+- `<AutoGrowInput>` — single-line, grows horizontally to content with min/max, keeps cursor visible; used for labels, codes, bind keys.
+- `<ExpandableTextField>` — input + "expand" icon → dialog/popover with a large resizable textarea; used for legal notes, long labels, descriptions.
+- `<AutoGrowTextarea>` — content-height textarea with a drag handle; word-wrap toggle.
+- `<CodeField>` — monospaced, optional token highlighting; wraps `TokenAwareTextarea` for expression/token fields; used for bind_key, sum_of, format, expressions.
+- `<InspectorSection>` — accordion with `defaultCollapsed` for Advanced; persists per section id.
 
-**Phase 2 — Override-aware Templates tab (D2 + D3)**
-- Introduce `useResolvedTemplate(kind, code)` in `features/localization/hooks/` that joins pack row + override row and returns `{ body, layout, source, packVersion, isOutOfDate, overrideId? }`.
-- Extend `PackEntityTabs` Templates/Certificates/Returns tabs to render the "Default / Customized vN / Out-of-date" pill and Reset action currently in `Templates.tsx`.
-- Delete `src/pages/hr/payroll/Templates.tsx`; redirect `/hr/payroll/templates` → `/hr/payroll/localization` (which already mounts `PackEditorShell`).
-- Update navs (`src/apps/hr/shared/navs.ts`) and remove `TemplateOverride`-specific UI code that becomes dead.
+Every certificate inspector, grid cell inspector, `TemplateFieldInspector`, mapping editor, and reference-data editor migrates to these primitives so the fix is systemic, not per-field.
 
-**Phase 3 — One publish review surface (D4)**
-- Convert `AdminLocalizationPackPublishPage` into `PackPublishReview` living in `features/localization/components/`.
-- Shell's Publish action opens it (drawer OR route — pick one; route recommended for parity with Phase 1).
-- Route `/admin-management/localization-packs/:packId/publish` remains, but renders the same component the shell opens.
-- Health, diagnostics, lint gate, diff-since-last-published all consolidated into that component's tabs — remove the mini publish dialog inside the shell.
+## 6. Phased implementation
 
-**Phase 4 — Guardrails**
-- Architecture test enforcing `PackEditorShell` is the sole entry point for pack listing/versions (fails if another page queries `localization_packs` directly for a listing UI).
-- Architecture test enforcing tenant + admin routes both mount the same editor route component.
-- Update `docs/adr/0056` with the "single shell" invariant so future work doesn't re-fork.
-- Update `mem://features/certificate-rendering` to add: "PackEditorShell is the only pack authoring surface; role differences are `mode` + `pack_publisher_grants`, never a parallel component tree."
+**Phase 1 — Workspace shell primitive (foundation)**
+- Build `AuthoringWorkspace` + `useWorkspaceLayout` hook (persistence, modes, shortcuts) in `src/design-system/primitives/`.
+- Full test coverage: layout persistence, keyboard shortcuts, mode transitions.
+- No feature-editor changes yet.
 
-**Deferred (already tracked in ADR 0056 P2.a–d, do not fold in here)**
-- Dependency graph, semantic diff, end-to-end pack simulator, 4-eyes review.
+**Phase 2 — Adopt in `CertificateTemplateEditor`**
+- Replace current `ResizablePanelGroup` with `AuthoringWorkspace`.
+- Extract node tree into the left rail.
+- Add layout mode switcher, persistence, pop-out preview route.
+- Remove fixed `h-[calc(100vh-8rem)]`; use natural flex fill from `CertificateEditorPage`.
 
-## 5. Technical notes
+**Phase 3 — Input primitive rollout**
+- Ship the input primitives listed in §5.
+- Migrate `CertificateV3Editor` inspectors, `GridDesigner` cell inspectors, `ThemeInspector`, `TemplateFieldInspector`.
+- Introduce `InspectorSection` with Advanced collapsed by default (theme letter spacing, zebra, heading case, etc.).
 
-- No engine, preview, validator, storage-schema or edge-function changes are required for Phases 1–3. Only routing, `PackEntityTabs`, and a new resolver hook.
-- Override write paths (`useSaveTemplateOverride`, `useResetTemplateOverride`) stay as-is; they become internal implementations of the resolver hook's mutation surface.
-- `WorkflowSheet` is retained for smaller edits (rule form, token form, governance grants) — the sheet-vs-page rule becomes "canvas surfaces → route, form surfaces → sheet".
-- ESLint / architecture tests to add:
-  - `no-workflowsheet-wrapping-canvas-editor`
-  - `single-pack-shell-entry`
-- Estimated code delta: ~700 lines deleted (`Templates.tsx` + duplicated publish page glue), ~250 lines added (resolver hook + route wiring + tests). Net reduction.
+**Phase 4 — Cross-editor consistency**
+- Migrate `TemplateEditor` (rules), `ReturnTemplateEditor`, and every editor under `components/reference/*` to mount inside `AuthoringWorkspace` (with preview panel hidden when a live preview isn't meaningful — the layout still gives them the same input primitives, top bar, and keyboard model).
 
-## 6. Non-goals for this plan
+**Phase 5 — Polish**
+- Command palette actions ("Focus mode", "Dock preview bottom", "Pop out preview", "Next / Previous node", "Toggle Advanced").
+- Status bar: dirty indicator, validation counts, last-saved timestamp.
+- Docs update in `mem/features/certificate-rendering.md` + `docs/design-system.md`.
 
-- Not touching the rendering engine, Theme, AST v3/v4, GridDesigner, or paged.js pipeline.
-- Not changing RLS, pack storage, or the upgrade-proposal model.
-- Not implementing ADR 0056 P2 items (dependency graph, semantic diff, simulator, 4-eyes).
-- Not adding new preview surfaces (mobile / thermal / multi-currency) — separate track if requested.
+## 7. Technical notes
 
-## 7. Answer to the framing question
+- Use existing `@/components/ui/resizable` (react-resizable-panels); it already supports `autoSaveId` — use it for persistence instead of hand-rolling localStorage where possible.
+- Pop-out preview: a new lightweight route `/localization/preview-window/:sessionId` that subscribes to a `BroadcastChannel` the main editor publishes AST to; no server work.
+- Keyboard: reuse `useHotkeys` pattern already in the codebase (`CommandPaletteProvider`).
+- No changes to compile engine, AST, `paged.js` pipeline, or persistence adapters — this is a workspace/chrome/input redesign only, respecting the certificate-rendering constraint memory.
+- Country-agnostic invariant untouched; no engine files edited.
 
-**Are Platform Admin and Tenant on the same architecture?** Yes — one engine, one editor family, one preview, one validator, one publishing pipeline, one governance model. The perceived duplication is three UX-level divergences (D1, D2, D4) and one missing resolver hook (D3). This plan removes all four without rebuilding anything.
+## 8. Out of scope (explicit)
+
+- Compile engine, AST v3/v4, paged.js pipeline, `keP9.ts`.
+- Server-side PDF (Phase D remains deferred).
+- Business logic in any editor — inputs change shape, not what they persist.
+- Visual redesign of the app-level chrome (topbar, sidebar) — workspace shell is scoped to the editor page.
