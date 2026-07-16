@@ -228,12 +228,20 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         notes: notes || null,
         metadata: editMetadata ? meta : undefined,
       });
+      // Refresh the dirty baseline so the status bar clears immediately.
+      try {
+        initialSnapshotRef.current = JSON.stringify({
+          b: liveBody, m: editMetadata ? meta : null, n: notes || "",
+        });
+      } catch { /* leave old baseline */ }
+      setLastSavedAt(Date.now());
     } catch (e: any) {
       toast.error(e?.message ?? "Save failed");
     } finally {
       setBusy(false);
     }
   };
+
 
   // Full-viewport 3-pane layout: Canvas (live rendered document, source
   // of truth) · Inspector (structured node editors + legal metadata) ·
