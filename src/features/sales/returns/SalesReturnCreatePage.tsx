@@ -19,6 +19,7 @@ import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useCurrency } from "@/hooks/useCurrency";
+import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
 import { Button } from "@/components/ui/button";
 import {
   Form,

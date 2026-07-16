@@ -16,6 +16,7 @@ import { z } from "zod";
 import { useDeliveryNotes } from "@/hooks/useDeliveryNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
 import { Button } from "@/components/ui/button";
 import {
   Form,
