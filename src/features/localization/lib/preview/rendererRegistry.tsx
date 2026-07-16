@@ -14,6 +14,7 @@ import type { ReactElement } from "react";
 import { AlertCircle } from "lucide-react";
 import { CertificatePreviewPane } from "../../components/CertificatePreviewPane";
 import { ReturnPreviewPane } from "../../components/ReturnPreviewPane";
+import { ReturnFormatPreview } from "../../components/preview/ReturnFormatPreview";
 import {
   SpreadsheetPreviewPane,
   type SpreadsheetPreviewProps,
@@ -109,17 +110,19 @@ export function resolvePopOutRenderer(kind: PreviewKind, payload: PreviewPayload
         />
       );
     case "return": {
-      const meta = (payload.meta ?? {}) as { submission_format?: { kind?: ReturnFormatKind } };
-      const body = payload.body as any;
-      const declared = meta.submission_format?.kind ?? null;
-      const formatKind: ReturnFormatKind = declared ?? "csv";
-      const descriptor = resolveReturnRenderer(formatKind);
-      return descriptor.render({
-        templateCode: payload.templateCode,
-        displayName: payload.displayName,
-        body,
-        meta,
-      });
+      // Delegate to the same component used inside the editor so the
+      // pop-out window builds spreadsheetProps, resolves outputs[], and
+      // renders the "no output declared" alert identically. Prevents
+      // the SpreadsheetPreviewPane `rows.length` crash that occurred
+      // when the descriptor was invoked without precomputed props.
+      return (
+        <ReturnFormatPreview
+          templateCode={payload.templateCode}
+          displayName={payload.displayName}
+          body={(payload.body ?? {}) as any}
+          meta={(payload.meta ?? {}) as any}
+        />
+      );
     }
     case "bank-export":
     case "garnishment":
