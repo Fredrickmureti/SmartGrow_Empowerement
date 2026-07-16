@@ -28,8 +28,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { AutoGrowTextarea, CodeField, ExpandableTextField } from "@/design-system/primitives/inputs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { AuthoringWorkspace, type WorkspaceNavDirection } from "@/design-system/primitives/AuthoringWorkspace";
+import { useRef } from "react";
 
-import { Loader2, AlertTriangle, FileText, Plus, Trash2, ArrowUp, ArrowDown, X, ShieldCheck, Building2 } from "lucide-react";
+import {
+  Loader2, AlertTriangle, FileText, Plus, Trash2, ArrowUp, ArrowDown, X, ShieldCheck, Building2,
+  CircleDot, CircleCheck, CircleAlert, Layers,
+} from "lucide-react";
 import { toast } from "sonner";
 import { validatePayload } from "../hooks";
 import { usePackTokens, type PackTokenOption } from "../hooks/usePackTokens";
@@ -38,6 +44,7 @@ import { OutputsCard } from "./OutputsCard";
 import { PreviewPanel } from "./PreviewPanel";
 import { ReturnPreviewPane } from "./ReturnPreviewPane";
 import type { EditorMode } from "../types";
+import { openPreviewWindow, publishPreview } from "../lib/previewBroadcast";
 
 // v2 section vocabulary — mirrors _shared/pdf/returnRenderer.ts. Order
 // here drives the UI dropdown; renderer accepts any subset in any order.
