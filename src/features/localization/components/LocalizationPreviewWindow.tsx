@@ -9,109 +9,14 @@
  */
 import { useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
-import { CertificatePreviewPane } from "./CertificatePreviewPane";
-import { ReturnFormatPreview } from "./preview/ReturnFormatPreview";
-import { SpreadsheetPreviewPane, type SpreadsheetPreviewProps } from "./preview/SpreadsheetPreviewPane";
-import { EntityInspectorPane, type EntityInspectorPaneProps } from "./preview/EntityInspectorPane";
 import {
   readPreview,
   subscribePreview,
   type PreviewKind,
   type PreviewPayload,
 } from "../lib/previewBroadcast";
+import { resolvePopOutRenderer } from "../lib/preview/rendererRegistry";
 
-interface Props {
-  kind: string;
-  templateCode: string;
-}
-
-const VALID_KINDS: PreviewKind[] = [
-  "certificate",
-  "return",
-  "bank-export",
-  "garnishment",
-  "token-registry",
-  "statutory-authority",
-  "pack-requirements",
-  "publisher-governance",
-];
-
-function isValidKind(k: string): k is PreviewKind {
-  return (VALID_KINDS as string[]).includes(k);
-}
-
-export function LocalizationPreviewWindow({ kind, templateCode }: Props) {
-  const validKind = isValidKind(kind) ? kind : null;
-  const [payload, setPayload] = useState<PreviewPayload | null>(() =>
-    validKind ? readPreview(validKind, templateCode) : null,
-  );
-
-  useEffect(() => {
-    if (!validKind) return;
-    // Re-read on mount (handles the race where the parent broadcast
-    // fires before we subscribe).
-    setPayload(readPreview(validKind, templateCode));
-    const stop = subscribePreview(validKind, templateCode, (next) => setPayload(next));
-    // Also set the tab title so a publisher with several pop-outs can tell them apart.
-    try { document.title = `${templateCode} — preview`; } catch { /* ignore */ }
-    return stop;
-  }, [validKind, templateCode]);
-
-  if (!validKind) {
-    return (
-      <EmptyState message={`Unknown preview kind "${kind}". Expected "certificate" or "return".`} />
-    );
-  }
-  if (!payload) {
-    return (
-      <EmptyState message="Waiting for the editor window to broadcast the current draft…" />
-    );
-  }
-
-  return (
-    <div className="h-screen w-screen overflow-hidden bg-muted/20 p-4">
-      <div className="mx-auto h-full max-w-5xl overflow-hidden rounded-lg border bg-background shadow-sm">
-        <PopOutBody kind={validKind} payload={payload} />
-      </div>
-    </div>
-  );
-}
-
-function PopOutBody({ kind, payload }: { kind: PreviewKind; payload: PreviewPayload }) {
-  switch (kind) {
-    case "certificate":
-      return (
-        <CertificatePreviewPane
-          templateCode={payload.templateCode}
-          displayName={payload.displayName ?? payload.templateCode}
-          body={payload.body}
-          meta={payload.meta as any}
-        />
-      );
-    case "return":
-      return (
-        <ReturnFormatPreview
-          templateCode={payload.templateCode}
-          displayName={payload.displayName ?? payload.templateCode}
-          body={payload.body as any}
-          meta={payload.meta as any}
-        />
-      );
-    case "bank-export":
-    case "token-registry":
-    case "garnishment":
-      // Editors serialise a `SpreadsheetPreviewProps` object into
-      // `payload.body` — render it verbatim so the pop-out and the
-      // in-workspace preview look identical.
-      return <SpreadsheetPreviewPane {...(payload.body as SpreadsheetPreviewProps)} />;
-    case "statutory-authority":
-    case "pack-requirements":
-    case "publisher-governance":
-      return <EntityInspectorPane {...(payload.body as EntityInspectorPaneProps)} />;
-    default:
-      return <EmptyState message={`No renderer for preview kind "${kind}".`} />;
-  }
-}
 
 function EmptyState({ message }: { message: string }) {
   return (
