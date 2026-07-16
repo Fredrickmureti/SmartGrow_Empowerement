@@ -79,24 +79,43 @@ export function ReturnsTab({ initialTemplateCode, initialYear }: ReturnsTabProps
    const [historyRun, setHistoryRun] = useState<ReturnRun | null>(null);
    const recordAck = useRecordReturnAcknowledgement();
 
+   const [searchParams, setSearchParams] = useSearchParams();
+   const urlTemplate = searchParams.get("template") ?? "";
+   const urlFrom = searchParams.get("from");
+   const urlYear = urlFrom ? Number(urlFrom.slice(0, 4)) || null : null;
+
    const { data: templates = [], isLoading: loadingTpl } = useReturnTemplates();
    const { data: hasInstalledPack = false } = useHasInstalledLocalizationPack();
-   const [templateCode, setTemplateCode] = useState<string>(initialTemplateCode ?? "");
+   const [templateCode, setTemplateCode] = useState<string>(
+     urlTemplate || initialTemplateCode || "",
+   );
    // Adopt an incoming deep-link template code once the templates list arrives.
    useEffect(() => {
-     if (!initialTemplateCode) return;
-     if (templateCode === initialTemplateCode) return;
-     if (templates.some((t) => t.code === initialTemplateCode)) {
-       setTemplateCode(initialTemplateCode);
+     const incoming = urlTemplate || initialTemplateCode;
+     if (!incoming) return;
+     if (templateCode === incoming) return;
+     if (templates.some((t) => t.code === incoming)) {
+       setTemplateCode(incoming);
      }
-   }, [initialTemplateCode, templates, templateCode]);
+   }, [urlTemplate, initialTemplateCode, templates, templateCode]);
    const activeTpl = useMemo(
      () => templates.find((t) => t.code === templateCode) ?? templates[0],
      [templates, templateCode],
    );
 
    const currentYear = new Date().getUTCFullYear();
-   const [year, setYear] = useState<number>(initialYear ?? currentYear);
+   const [year, setYear] = useState<number>(urlYear ?? initialYear ?? currentYear);
+
+   // Persist template + year to URL so refresh keeps the selection.
+   useEffect(() => {
+     const next = new URLSearchParams(searchParams);
+     if (templateCode) next.set("template", templateCode);
+     else next.delete("template");
+     next.set("from", `${year}-01-01`);
+     if (next.toString() !== searchParams.toString()) {
+       setSearchParams(next, { replace: true });
+     }
+   }, [templateCode, year, searchParams, setSearchParams]);
   const periodOptions = useMemo(() => {
     if (!activeTpl) return [] as Array<{ idx: number; label: string }>;
     if (activeTpl.period === "monthly") {
