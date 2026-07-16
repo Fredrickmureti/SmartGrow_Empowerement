@@ -11,6 +11,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { BrandedLoader } from "@/components/common/BrandedLoader";
 import { usePlatformIdentity } from "@/contexts/PlatformIdentityContext";
+import { MfaChallengeGate } from "@/components/auth/MfaChallengeGate";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -34,5 +35,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/admin-management" replace />;
   }
 
-  return <>{children}</>;
+  // Enforce AAL2 whenever the user has a verified TOTP factor. Invisible
+  // for tenants without 2FA enrolled.
+  return <MfaChallengeGate>{children}</MfaChallengeGate>;
 }
