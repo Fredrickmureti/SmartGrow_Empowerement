@@ -43,6 +43,7 @@ import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import { OutputsCard } from "./OutputsCard";
 import { PreviewPanel } from "./PreviewPanel";
 import { ReturnPreviewPane } from "./ReturnPreviewPane";
+import { ReturnFormatPreview } from "./preview/ReturnFormatPreview";
 import type { EditorMode } from "../types";
 import { openPreviewWindow, publishPreview } from "../lib/previewBroadcast";
 
