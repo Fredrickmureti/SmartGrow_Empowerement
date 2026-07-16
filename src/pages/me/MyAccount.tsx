@@ -44,32 +44,18 @@ export default function MyAccount() {
       />
       <PageBody>
         <div className="space-y-4">
-          {/* Sign-in identity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Mail className="h-4 w-4" /> Sign-in email
-              </CardTitle>
-              <CardDescription>
-                Your login identity. Changing this requires a verification email.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm">
-              <div className="flex items-center gap-3">
-                <span>{user?.email}</span>
-                <Badge variant="secondary">Managed by identity</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                To change your sign-in email, contact your workspace administrator.
-              </p>
-            </CardContent>
-          </Card>
+          {/* Sign-in identity (self-service email change) */}
+          <EmailChangeCard />
 
           {/* Password */}
           <PasswordCard />
 
+          {/* Two-step verification */}
+          <MfaEnrollmentCard />
+
           {/* Recent sign-in activity */}
           <LoginHistoryCard />
+
 
 
 
