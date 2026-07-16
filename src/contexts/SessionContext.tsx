@@ -459,77 +459,185 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [sessionError, setSessionError] = useState<Error | null>(null);
+  const [sessionRecovery, setSessionRecovery] = useState<SessionRecoveryState>({
+    status: "idle",
+    attempt: 0,
+    lastErrorKind: null,
+  });
 
   // Track user ID to prevent refetching on token refresh
   const lastUserIdRef = useRef<string | null>(null);
   const hasFetchedRef = useRef(false);
   const postOnboardingRetriedRef = useRef(false);
+  // Guards against overlapping bootstrap loops (e.g. user re-focuses tab
+  // while a reconnect-triggered retry is already inflight).
+  const inflightBootstrapRef = useRef(false);
+  // Set when the current bootstrap loop should abort (e.g. user changed).
+  const bootstrapEpochRef = useRef(0);
 
-  // Helper: single RPC attempt + payload normalization.
-  const attemptFetch = useCallback(async (userId: string): Promise<SessionData> => {
-    const { data, error } = await supabase.rpc("get_user_session_data", {
-      p_user_id: userId,
+  // Helper: single RPC attempt through the resilience layer so this
+  // critical bootstrap path feeds ConnectivityManager and normalizes
+  // errors the same way as every other query in the app.
+  const attemptFetch = useCallback(
+    async (
+      userId: string,
+    ): Promise<{ session: SessionData | null; error: NormalizedError | null }> => {
+      const { data, error } = await safeRpc(
+        supabase.rpc("get_user_session_data", { p_user_id: userId }),
+        { timeoutMs: 20_000 },
+      );
+      if (error) return { session: null, error };
+      return { session: normalizeSessionPayload(data, userId), error: null };
+    },
+    [],
+  );
+
+  // Wait until the ConnectivityManager reports online, with a hard cap so
+  // we never wedge forever on a stale offline flag.
+  const waitForOnline = useCallback(async (timeoutMs = 60_000): Promise<void> => {
+    if (connectivityManager.getStatus() === "online") return;
+    await new Promise<void>((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        unsubscribe();
+        resolve();
+      };
+      const unsubscribe = connectivityManager.subscribe((s) => {
+        if (s === "online") finish();
+      });
+      const timer = setTimeout(finish, timeoutMs);
     });
-    if (error) throw error;
-    return normalizeSessionPayload(data, userId);
   }, []);
 
-  // Fetch all session data in ONE call, with bounded retry.
-  // Returns the fetched session (or null) so callers can safely use fresh data.
+  // Fetch all session data in ONE call, with resilient retry that
+  // honors ConnectivityManager and refreshes an expired auth token
+  // before giving up.
+  //
+  // Retry budget: 6 attempts with jittered exponential backoff, capped
+  // at ~15s per wait. Only transient kinds (offline/timeout/server_unavailable)
+  // consume retries; auth_expired triggers a one-shot token refresh and
+  // is not counted; deterministic kinds (permission_denied/validation)
+  // fail fast. When retries are exhausted we still set `sessionError`,
+  // but we ALSO leave a connectivity subscription armed so the next
+  // online transition restarts the bootstrap automatically.
   const fetchSessionData = useCallback(
     async (isBackground = false): Promise<SessionData | null> => {
       if (!user?.id) {
         setSessionData(null);
         setIsLoading(false);
         setIsRefreshing(false);
+        setSessionRecovery({ status: "idle", attempt: 0, lastErrorKind: null });
         return null;
       }
 
-      if (!isBackground) {
-        setIsLoading(true);
-      } else {
-        setIsRefreshing(true);
-      }
+      if (inflightBootstrapRef.current) return null;
+      inflightBootstrapRef.current = true;
+      const epoch = ++bootstrapEpochRef.current;
+      const isStillCurrent = () => epoch === bootstrapEpochRef.current;
 
-      // Bounded exponential backoff: 0ms, 400ms, 1200ms.
-      const delays = [0, 400, 1200];
-      let lastError: unknown = null;
+      if (!isBackground) setIsLoading(true);
+      else setIsRefreshing(true);
+
+      const MAX_ATTEMPTS = 6;
+      const BACKOFF_MS = [0, 500, 1500, 4000, 8000, 15000];
+      const RETRYABLE = new Set<NormalizedError["kind"]>([
+        "offline",
+        "timeout",
+        "server_unavailable",
+      ]);
+
       let session: SessionData | null = null;
+      let lastError: NormalizedError | null = null;
+      let authRefreshTried = false;
 
-      for (let attempt = 0; attempt < delays.length; attempt++) {
-        if (delays[attempt] > 0) {
-          await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
-        }
-        try {
-          session = await attemptFetch(user.id);
-          lastError = null;
-          break;
-        } catch (err) {
-          lastError = err;
+      try {
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          if (!isStillCurrent()) return null;
+
+          // If we're known offline, park here instead of burning attempts.
+          if (connectivityManager.getStatus() === "offline") {
+            setSessionRecovery({
+              status: "waiting_for_network",
+              attempt: attempt + 1,
+              lastErrorKind: lastError?.kind ?? "offline",
+            });
+            await waitForOnline();
+            if (!isStillCurrent()) return null;
+          }
+
+          const wait = BACKOFF_MS[attempt] ?? 15000;
+          if (wait > 0) {
+            const jitter = Math.random() * 300;
+            setSessionRecovery({
+              status: "retrying",
+              attempt: attempt + 1,
+              lastErrorKind: lastError?.kind ?? null,
+            });
+            await new Promise((r) => setTimeout(r, wait + jitter));
+            if (!isStillCurrent()) return null;
+          } else {
+            setSessionRecovery({
+              status: "retrying",
+              attempt: attempt + 1,
+              lastErrorKind: null,
+            });
+          }
+
+          const { session: got, error } = await attemptFetch(user.id);
+          if (!isStillCurrent()) return null;
+
+          if (!error) {
+            session = got;
+            lastError = null;
+            break;
+          }
+
+          lastError = error;
           console.warn(
-            `[SessionContext] get_user_session_data attempt ${attempt + 1} failed:`,
-            err,
+            `[SessionContext] get_user_session_data attempt ${attempt + 1} failed (${error.kind}):`,
+            error.cause ?? error.message,
           );
+
+          // Expired JWT: try one token refresh, then retry without
+          // consuming an additional slot.
+          if (error.kind === "auth_expired" && !authRefreshTried) {
+            authRefreshTried = true;
+            try {
+              await supabase.auth.refreshSession();
+            } catch (err) {
+              console.warn("[SessionContext] refreshSession failed:", err);
+            }
+            attempt--; // don't count this attempt
+            continue;
+          }
+
+          // Fail fast on deterministic errors — retrying won't help.
+          if (!RETRYABLE.has(error.kind)) break;
         }
+      } finally {
+        inflightBootstrapRef.current = false;
       }
 
       if (!session) {
-        // All retries exhausted. Preserve last-known-good sessionData
-        // (if any) and surface an explicit error so guards can render a
-        // failure card instead of a misleading empty state.
-        const error =
-          lastError instanceof Error
-            ? lastError
-            : new Error(
-                typeof lastError === "string"
-                  ? lastError
-                  : "Failed to load session data",
-              );
-        setSessionError(error);
+        // Surface the normalized error but keep last-known-good sessionData
+        // untouched (SessionContext already never overwrites on failure).
+        const surfaced = new Error(lastError?.message ?? "Failed to load session data");
+        (surfaced as Error & { kind?: string }).kind = lastError?.kind;
+        setSessionError(surfaced);
+        setSessionRecovery({
+          status: connectivityManager.getStatus() === "offline" ? "waiting_for_network" : "idle",
+          attempt: MAX_ATTEMPTS,
+          lastErrorKind: lastError?.kind ?? null,
+        });
         setIsLoading(false);
         setIsRefreshing(false);
         return null;
       }
+
+
 
       // Post-onboarding race guard: if the user metadata says onboarding
       // is complete but we see zero memberships, the `user_roles` row
