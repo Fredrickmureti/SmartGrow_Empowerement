@@ -115,6 +115,7 @@ import {
   AdminDemoRequests,
   AdminLocalizationPacks,
   AdminLocalizationCertificateEdit,
+  AdminLocalizationReturnEdit,
   AdminInfrastructure,
   AdminOrganizationDetail,
   AdminOrganizationSubscription,
