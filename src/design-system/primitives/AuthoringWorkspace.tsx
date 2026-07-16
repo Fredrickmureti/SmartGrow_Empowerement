@@ -154,12 +154,39 @@ export function AuthoringWorkspace({
     try { window.localStorage.setItem(persistedKey(workspaceId, "bottom-preview-px"), String(bottomPreviewPx)); } catch {}
   }, [workspaceId, bottomPreviewPx]);
 
+  // Detached-preview window (pop-out). While non-null the inline preview
+  // is suppressed so the editor gets the whole surface and the toolbar
+  // shows a re-attach control instead of the pop-out button. A cheap
+  // poll auto-clears the state when the child window is closed by the
+  // user (there's no cross-window "closed" event).
+  const [detachedWindow, setDetachedWindow] = useState<Window | null>(null);
+  useEffect(() => {
+    if (!detachedWindow) return;
+    const id = window.setInterval(() => {
+      if (detachedWindow.closed) {
+        setDetachedWindow(null);
+      }
+    }, 700);
+    return () => window.clearInterval(id);
+  }, [detachedWindow]);
+  // Best-effort: close the child when the parent unloads so a stale
+  // pop-out doesn't linger after the publisher navigates away.
+  useEffect(() => {
+    if (!detachedWindow) return;
+    const onUnload = () => { try { detachedWindow.close(); } catch { /* ignore */ } };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [detachedWindow]);
+
+  const isDetached = !!detachedWindow;
   const hasPreview = !!preview;
   const hasRail = !!rail;
-  // Resolve effective visibility from mode.
-  const showEditor = mode !== "preview";
-  const showPreview = hasPreview && (mode === "overlay" || mode === "split" || mode === "preview" || mode === "bottom");
-  const showRail = hasRail && railOpen && mode !== "focus" && mode !== "preview";
+  // Resolve effective visibility from mode. When the preview is detached
+  // into its own window the inline preview is suppressed entirely so the
+  // editor gets 100 % of the workspace surface.
+  const showEditor = isDetached ? true : mode !== "preview";
+  const showPreview = !isDetached && hasPreview && (mode === "overlay" || mode === "split" || mode === "preview" || mode === "bottom");
+  const showRail = hasRail && railOpen && mode !== "focus" && (isDetached || mode !== "preview");
 
   // Global keyboard shortcuts. Skip when the user is typing into a field
   // so their input keystrokes are never hijacked.
