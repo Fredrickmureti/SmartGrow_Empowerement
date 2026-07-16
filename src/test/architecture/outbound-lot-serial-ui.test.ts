@@ -35,8 +35,10 @@ describe("Phase A.3 — SerialPickerPopover primitive", () => {
     expect(src).toMatch(/\.eq\("business_id"/);
     expect(src).toMatch(/\.eq\("product_id"/);
   });
-  it("scopes the query by warehouse_id when supplied", () => {
-    expect(src).toMatch(/\.eq\("warehouse_id",\s*warehouseId\)/);
+  it("scopes the query by current_warehouse_id when supplied", () => {
+    // stock_serials.current_warehouse_id is the canonical column (ADR 0067);
+    // legacy stock_serials.warehouse_id does not exist.
+    expect(src).toMatch(/\.eq\("current_warehouse_id",\s*warehouseId\)/);
   });
 });
 
