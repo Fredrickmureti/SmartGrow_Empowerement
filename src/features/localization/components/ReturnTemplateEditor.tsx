@@ -752,43 +752,13 @@ export function ReturnTemplateEditor({
                   );
                 })}
               </div>
-              <div className="pt-2">
-                <ReturnPreviewPane
-                  templateCode={templateCode}
-                  displayName={templateCode}
-                  body={{
-                    renderer: "v2-returns",
-                    sections: (body.sections ?? []).map((s) => {
-                      if (s.type === "employee_line_grid" && !s.columns?.length) {
-                        return {
-                          ...s,
-                          columns: body.columns.map((c) => ({
-                            key: c.key,
-                            header: c.label,
-                            format: c.format === "currency" ? "money" : "text",
-                            align: c.format === "currency" ? "right" : "left",
-                          })),
-                        };
-                      }
-                      return s;
-                    }),
-                  }}
-                  meta={{
-                    legal_reference: meta.legal_reference,
-                    regulation_citation: meta.regulation_citation,
-                  }}
-                />
-              </div>
             </div>
           )}
         </section>
 
-        <PreviewPanel body={denormalizeBody(body)} packId={packId ?? null} title="Statutory return preview" />
-
-
         {/* ── Tenant override audit reason ──────────────────────── */}
         {mode === "tenant" && (
-          <section className="space-y-1">
+          <section id="rt-section-override" className="space-y-1">
             <Label className="text-xs">Reason for override <span className="text-destructive">*</span> (≥10 chars)</Label>
             <ExpandableTextField value={notes} onChange={(v) => setNotes(v)} placeholder="e.g. Add new branch column for 2026 SHIF return" dialogTitle="Reason for override" />
           </section>
@@ -812,16 +782,160 @@ export function ReturnTemplateEditor({
             </AlertDescription>
           </Alert>
         )}
+      </>
+  );
+  const editorPane = (
+    <ScrollArea className="h-full">
+      <div ref={editorScrollRef} className="mx-auto w-full max-w-4xl space-y-6 p-4">
+        {editorFormBody}
+      </div>
+    </ScrollArea>
+  );
+  const previewPane = body.renderer === "v2-returns" ? (
+    <ReturnPreviewPane
+      templateCode={templateCode}
+      displayName={templateCode}
+      body={{
+        renderer: "v2-returns",
+        sections: (body.sections ?? []).map((s) => {
+          if (s.type === "employee_line_grid" && !s.columns?.length) {
+            return {
+              ...s,
+              columns: body.columns.map((c) => ({
+                key: c.key,
+                header: c.label,
+                format: c.format === "currency" ? "money" : "text",
+                align: c.format === "currency" ? "right" : "left",
+              })),
+            };
+          }
+          return s;
+        }),
+      }}
+      meta={{
+        legal_reference: meta.legal_reference,
+        regulation_citation: meta.regulation_citation,
+      }}
+    />
+  ) : (
+    <PreviewPanel body={denormalizeBody(body)} packId={packId ?? null} title="Statutory return preview" />
+  );
 
-        <div className="flex justify-end gap-2 pt-2">
-          {onCancel && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
-          <Button onClick={handleSave} disabled={busy || errors.length > 0}>
-            {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-            Save return template
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+  const toolbar = (
+    <>
+      <FileText className="h-4 w-4 text-muted-foreground" />
+      <span className="text-sm font-semibold">
+        {mode === "admin" ? "Statutory return template" : "Statutory return override"}
+      </span>
+      <code className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{templateCode}</code>
+      <Badge variant="outline" className="text-[10px] gap-1">
+        {mode === "admin" ? "Publisher" : "Tenant override"}
+      </Badge>
+      <div className="mx-1 h-4 w-px bg-border" />
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Switch
+          checked={body.renderer === "v2-returns"}
+          onCheckedChange={(v) => setBody({ ...body, renderer: v ? "v2-returns" : null })}
+        />
+        v2 renderer
+      </label>
+    </>
+  );
+
+  const rail = (
+    <ScrollArea className="h-full">
+      <div className="border-b px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Sections · {activeSections.length}
+      </div>
+      <div className="p-1 text-sm">
+        {activeSections.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => scrollToSection(s.id)}
+            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition-colors hover:bg-muted"
+          >
+            <span className="truncate">{s.label}</span>
+          </button>
+        ))}
+      </div>
+    </ScrollArea>
+  );
+
+  const footerBar = (
+    <div className="flex items-center justify-end gap-2">
+      {onCancel && <Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button>}
+      <Button onClick={handleSave} disabled={busy || errors.length > 0}>
+        {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+        Save return template
+      </Button>
+    </div>
+  );
+
+  // Cheap JSON-compare against the initial snapshot.
+  const isDirty = (() => {
+    try {
+      const current = JSON.stringify({
+        b: denormalizeBody(body), m: editMetadata ? meta : null, n: notes || "",
+      });
+      return current !== initialSnapshotRef.current;
+    } catch { return true; }
+  })();
+  const totalIssues = errors.length + warnings.length;
+
+  const statusBar = (
+    <div className="flex items-center gap-4">
+      <span className="flex items-center gap-1.5">
+        {isDirty ? (
+          <><CircleDot className="h-3 w-3 text-amber-500" /> Unsaved changes</>
+        ) : (
+          <><CircleCheck className="h-3 w-3 text-emerald-500" />
+            {lastSavedAt ? `Saved ${new Date(lastSavedAt).toLocaleTimeString()}` : "All changes saved"}
+          </>
+        )}
+      </span>
+      <span className="flex items-center gap-1.5">
+        {totalIssues > 0 ? (
+          <><CircleAlert className="h-3 w-3 text-destructive" /> {totalIssues} issue{totalIssues === 1 ? "" : "s"}</>
+        ) : (
+          <><CircleCheck className="h-3 w-3 text-emerald-500" /> No issues</>
+        )}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <Layers className="h-3 w-3" /> {body.columns.length} column{body.columns.length === 1 ? "" : "s"}
+      </span>
+      <span className="ml-auto hidden text-[10px] uppercase tracking-wide text-muted-foreground/70 md:inline">
+        ⌘S save · ⌘B outline · ⌘⇧P preview · ⌘⇧F focus · J / K next / prev section
+      </span>
+    </div>
+  );
+
+  const handleNavigateSection = (direction: WorkspaceNavDirection) => {
+    if (activeSections.length === 0) return;
+    const currentIdx = activeSectionIdxRef.current;
+    const nextIdx = direction === "next"
+      ? Math.min(currentIdx + 1, activeSections.length - 1)
+      : Math.max(currentIdx - 1, 0);
+    activeSectionIdxRef.current = nextIdx;
+    scrollToSection(activeSections[nextIdx].id);
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
+      <AuthoringWorkspace
+        workspaceId={`return-template:${templateCode}`}
+        toolbar={toolbar}
+        rail={rail}
+        editor={editorPane}
+        preview={previewPane}
+        footer={footerBar}
+        statusBar={statusBar}
+        defaultMode="split"
+        onSave={handleSave}
+        onNavigateNode={handleNavigateSection}
+        onPopOutPreview={handlePopOutPreview}
+      />
+    </div>
   );
 }
 
