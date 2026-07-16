@@ -222,7 +222,7 @@ export function ReturnFormatPreview(props: Props) {
   }
 
   if (formats.length === 1) {
-    return <>{renderSingle(formats[0], props, hasV2)}</>;
+    return <>{renderSingle(formats[0], props)}</>;
   }
 
   return (
@@ -236,7 +236,7 @@ export function ReturnFormatPreview(props: Props) {
       </TabsList>
       {formats.map((f) => (
         <TabsContent key={f} value={f} className="min-h-0 flex-1 outline-none">
-          {renderSingle(f, props, hasV2)}
+          {renderSingle(f, props)}
         </TabsContent>
       ))}
     </Tabs>
