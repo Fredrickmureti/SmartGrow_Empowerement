@@ -65523,6 +65523,10 @@ export type Database = {
               status: string
             }[]
           }
+      get_business_transit_location: {
+        Args: { p_business_id: string }
+        Returns: string
+      }
       get_commercial_timeline: {
         Args: { _before?: string; _limit?: number; _org_id: string }
         Returns: {
