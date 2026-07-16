@@ -16,6 +16,7 @@ import { z } from "zod";
 import { useDeliveryNotes } from "@/hooks/useDeliveryNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -368,6 +369,10 @@ export default function DeliveryNoteCreatePage() {
                         <Input value={c.total.toFixed(2)} readOnly className="bg-muted/40" />
                       </div>
                     </div>
+                    <OutboundLineTracking
+                      productId={item.product_id ?? null}
+                      quantity={item.quantity_delivered}
+                    />
                   </div>
                 );
               })}

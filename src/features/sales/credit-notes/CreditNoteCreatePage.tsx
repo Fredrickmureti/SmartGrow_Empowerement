@@ -20,6 +20,7 @@ import { computeLine } from "@/lib/invoiceLineMath";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { normalizeError } from "@/services/resilience";
 import { format } from "date-fns";
+import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -380,6 +381,10 @@ export default function CreditNoteCreatePage() {
                       Line total: {formatCurrency(item.line_total + item.tax_amount)}
                     </span>
                   </div>
+                  <OutboundLineTracking
+                    productId={item.product_id ?? null}
+                    quantity={item.quantity}
+                  />
                 </CardContent>
               </Card>
             ))}

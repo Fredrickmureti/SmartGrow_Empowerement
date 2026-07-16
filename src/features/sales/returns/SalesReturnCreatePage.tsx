@@ -19,6 +19,7 @@ import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useCurrency } from "@/hooks/useCurrency";
+import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -523,6 +524,10 @@ export default function SalesReturnCreatePage() {
                         Line total: {formatCurrency(item.quantity * item.unit_price + item.tax_amount)}
                       </span>
                     </div>
+                    <OutboundLineTracking
+                      productId={item.product_id ?? null}
+                      quantity={item.quantity}
+                    />
                   </CardContent>
                 </Card>
               ))}

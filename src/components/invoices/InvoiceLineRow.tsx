@@ -25,6 +25,7 @@ import {
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { PackagingSelect } from "@/components/products/PackagingSelect";
+import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
 
 export interface InvoiceLineItemShape {
   product_id?: string;
@@ -129,6 +130,10 @@ function InvoiceLineRowInner({
             customerId={customerId ?? null}
             onChange={(next) => onUpdate(index, next)}
             disabled={!!isSubmitting}
+          />
+          <OutboundLineTracking
+            productId={item.product_id ?? null}
+            quantity={item.quantity}
           />
         </div>
       </TableCell>
