@@ -869,6 +869,7 @@ export function ReturnTemplateEditor({
         legal_reference: meta.legal_reference,
         regulation_citation: meta.regulation_citation,
         submission_format: meta.submission_format,
+        outputs: meta.outputs,
       }}
       packId={packId ?? null}
     />
