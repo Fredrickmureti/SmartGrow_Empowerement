@@ -34,6 +34,11 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
+import {
+  lotNumberFromAllocations,
+  serialNumberFromRows,
+} from "@/components/inventory/outboundLineTrackingUtils";
 
 type LineItem = Omit<CreditNoteItem, "id" | "credit_note_id"> & { id?: string };
 
@@ -381,6 +386,16 @@ export default function CreditNoteEditPage() {
                       Line total: {formatCurrency(item.line_total + item.tax_amount)}
                     </span>
                   </div>
+                  <OutboundLineTracking
+                    productId={item.product_id ?? null}
+                    quantity={item.quantity}
+                    onLotChange={(allocs) =>
+                      updateLineItem(index, "lot_number" as any, lotNumberFromAllocations(allocs))
+                    }
+                    onSerialChange={(_ids, rows) =>
+                      updateLineItem(index, "serial_number" as any, serialNumberFromRows(rows))
+                    }
+                  />
                 </CardContent>
               </Card>
             ))}

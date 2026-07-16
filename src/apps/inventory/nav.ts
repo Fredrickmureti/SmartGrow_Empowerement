@@ -22,6 +22,7 @@ import {
   Warehouse,
   Scale,
   CalendarClock,
+  Truck,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
@@ -33,6 +34,7 @@ export const INVENTORY_NAV: WorkspaceNav = {
         { to: "/inventory-app/dashboard", label: "Overview", icon: LayoutGrid, end: true },
         { to: "/inventory-app/products", label: "Products", icon: Package },
         { to: "/inventory-app/stock", label: "Stock", icon: Boxes },
+        { to: "/inventory-app/inbound-shipments", label: "Inbound (ASN)", icon: Truck },
         { to: "/inventory-app/transfers", label: "Transfers", icon: ArrowLeftRight },
         { to: "/inventory-app/replenishment", label: "Replenishment", icon: RefreshCw },
         { to: "/inventory-app/forecast", label: "Forecast", icon: TrendingUp },
