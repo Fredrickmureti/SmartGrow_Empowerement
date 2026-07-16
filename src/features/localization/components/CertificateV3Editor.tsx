@@ -625,7 +625,7 @@ function GridEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
               <label className="flex items-center gap-1 text-[10px]">
                 <input type="checkbox" checked={!!c.nowrap} onChange={(e) => patchCol(i, { ...c, nowrap: e.target.checked })} /> nowrap
               </label>
-              <Input className="h-7 flex-1 text-[11px] font-mono" value={c.bind_key ?? ""} onChange={(e) => patchCol(i, { ...c, bind_key: e.target.value || undefined })} placeholder="bind_key (default = id)" />
+              <CodeField value={c.bind_key ?? ""} onChange={(v) => patchCol(i, { ...c, bind_key: v || undefined })} placeholder="bind_key (default = id)" />
             </div>
             <div className="flex">
               <Button size="sm" variant="ghost" className="h-6 w-5 p-0" onClick={() => moveCol(i, -1)} disabled={i === 0}><ArrowUp className="h-3 w-3" /></Button>
