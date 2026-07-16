@@ -1,61 +1,97 @@
-## Verification of prior work (Phase 1)
+# Inventory Foundation — Execution Log & Roadmap
 
-Cross-checked `.lovable/plan.md` against the tree. Everything the prior engineer marked complete is genuinely present:
+_Last updated: handoff checkpoint after Phase G._
 
-- ADRs 0064–0069 all on disk (stock_locations/quants, transit/quarantine, downstream lot-serial stamping, serialised inventory, split transfers, inbound-shipments/ASN).
-- Inventory architecture guards present and named as claimed: `outbound-lot-serial-ui`, `grn-serial-capture`, `grn-asn-prefill`, `asn-csv-import`, `outbound-lot-stamping`, `serial-tracking`, `inbound-shipments`, plus the branch/adjustment/dashboard guards.
-- Primitives all exist: `LotPickerPopover`, `SerialPickerPopover`, `OutboundLineTracking`, `outboundLineTrackingUtils.ts`, `useProductTrackingFlags`.
-- ASN backend real: `createAsnBatchImportHandler` + `ASN_IMPORT_FIELDS` in `src/lib/importConfigs/`, `inbound_shipments` referenced by GRN wizard and guards.
-- GRN wizard has ASN prefill + serial capture wiring.
+## ✅ Completed (verified, guards green)
 
-**Verdict: Phases 1–4, A.1–A.5, B, C, D, D.2 are real.** No shallow patches found. The two genuine gaps confirmed:
+### Phase 1 — Verification of prior work
+- ADRs 0064–0069 present on disk.
+- 92 inventory-foundation architecture guards inherited green.
+- Primitives verified: `LotPickerPopover`, `SerialPickerPopover`, `OutboundLineTracking`, `outboundLineTrackingUtils.ts`, `useProductTrackingFlags`.
+- ASN backend verified: `createAsnBatchImportHandler` + `ASN_IMPORT_FIELDS` in `src/lib/importConfigs/`, GRN wizard has ASN prefill + serial capture.
 
-1. **Phase D.3 has no UI.** `inbound_shipments` is only referenced by the GRN wizard, the import handler, and tests — there is no page, no route, and no entry point on Purchase Orders that lets an operator import an ASN or view expected shipments. The whole ASN import pipeline is dark to end users.
-2. **Edit-surface pickers.** `OutboundLineTracking` is mounted only on the four **create** pages. `InvoiceEditPage`, `CreditNoteEditPage`, delivery note edit, and sales-return edit can still author lot/serial-tracked lines without a picker, so post-time DB rejection is the only guard on the edit path.
+### Phase A.6 — Edit-path picker parity
+- `InvoiceEditPage` already covered via shared `InvoiceLineRow` (verified).
+- `CreditNoteEditPage.tsx` — `OutboundLineTracking` mounted on edit path.
+- `SerialPickerPopover` bug fix: `warehouse_id` → `current_warehouse_id` (actual column on `stock_serials`); guard updated.
+- **Scope note:** `SalesReturnEditPage.tsx` and `DeliveryNoteEditPage.tsx` **do not exist** in this codebase — sales returns & delivery notes are create-only today. Create-surface pickers already cover their full lifecycle. If edit pages are ever built, A.6 must be revisited.
 
-Everything else on the deferred list (SO line editor, Phase E–H, warehouse_stock retirement) is correctly deferred and not blocking.
+### Phase D.3 — ASN Inbound Shipments UI
+- `src/pages/inventory/InboundShipments.tsx` — list view, status filter, CSV Import action wired to `createAsnBatchImportHandler` + `ImportWizard`.
+- `src/pages/inventory/InboundShipmentDetail.tsx` — header, lines, "Start Goods Receipt" deep-links to GRN wizard via `?po=` contract.
+- Routes registered in `src/apps/inventory/routes.tsx`.
+- Nav entry "Inbound (ASN)" added in `src/apps/inventory/nav.ts` under Operations.
+- Guard: `src/test/architecture/inbound-shipments-ui.test.ts` (10 tests).
 
-## Phase A.6 + D.3 — what to build now
+### Phase G — Lot Genealogy & Traceability View
+- **ADR 0070** — `docs/adr/0070-lot-genealogy-traceability.md`.
+- `src/pages/inventory/Lots.tsx` — index of `stock_lots`, filters (product, supplier, expiry).
+- `src/pages/inventory/LotDetail.tsx` — origin (supplier + GRN), on-hand distribution per warehouse (net), chronological movement timeline with resolved `reference_type` labels.
+- Canonical traceability query pinned: `business_id + product_id + lot_number` on `stock_movements`.
+- Routes + nav entry "Lots & Traceability" registered.
+- Guard: `src/test/architecture/lot-genealogy-ui.test.ts` (11 tests).
 
-### D.3 — ASN inbound-shipments UI (primary)
+**Current guard surface: 112/112 green.**
 
-Enterprise-critical: today the ASN pipeline is invisible to operators. Deliverables:
+---
 
-1. **New route** `/inventory/inbound-shipments` — list view of `inbound_shipments` for the current business + branch, columns: reference, supplier, expected_date, status (`expected` / `partially_received` / `received` / `cancelled`), linked PO, linked GRN count. Server data via existing query patterns (Supabase select with joins to `contacts` + `purchase_orders`).
-2. **Inbound Shipment detail page** `/inventory/inbound-shipments/$id` — header + `inbound_shipment_items` table (product, expected qty, lot, expiry), plus an action "Start Goods Receipt" that deep-links into `GoodsReceiptWizardPage` prefilled from this shipment (path already supported by the wizard's ASN prefill).
-3. **"Import ASN" action** — button on both the new inbound-shipments list and the Purchase Orders index, opens the existing CSV import dialog composed from `useImport(ASN_IMPORT_FIELDS)` + `createAsnBatchImportHandler`. No new import machinery.
-4. **Navigation entry** — sidebar link under Inventory → Inbound Shipments; keep purchase-orders nav intact.
-5. **Architecture guard** `src/test/architecture/inbound-shipments-ui.test.ts` — asserts the new routes exist, that the list imports `inbound_shipments` reader, that the Import ASN dialog imports `createAsnBatchImportHandler` + `ASN_IMPORT_FIELDS`, and that the detail page's "Start GRN" button navigates to the GRN wizard with the shipment id in the URL contract used by the existing prefill guard.
+## ⏭️ Deferred — remaining pillars (in vision order)
 
-### A.6 — Edit-path picker wiring (secondary, same turn)
+### Phase H — GS1 AI (Application Identifier) parsing on scanner input  ⬅ **NEXT**
+**Why next:** highest enterprise-retail leverage; unlocks single-scan capture of GTIN + batch + expiry + serial on inbound and outbound flows. Keeps momentum on the traceability spine we just completed.
 
-Mount `OutboundLineTracking` on the four edit surfaces and route their line state through the same `onLotChange` / `onSerialChange` callbacks the create pages use. Extend the existing update-hook whitelists so `lot_number`, `serial_number`, and (for delivery notes) `lot_allocations` propagate on update, matching the insert side.
+Deliverables:
+- `src/lib/gs1/parseGs1.ts` — parse GS1-128 / DataMatrix payloads (AIs: `01` GTIN, `10` batch/lot, `17` expiry YYMMDD, `21` serial, `310n` weight, `30` count, plus FNC1 handling).
+- Hook `useGs1Scanner` — wraps existing scan input, returns structured `{ gtin, lot, expiry, serial, quantity }`.
+- Wire into: GRN wizard line entry, `LotPickerPopover`, `SerialPickerPopover`, POS scan input.
+- ADR 0071 — GS1 barcode doctrine.
+- Guard: `src/test/architecture/gs1-parsing.test.ts` (parser table-tests + integration mount points).
 
-Files touched (additive — no schema, no RPC, no migrations):
-- `src/features/sales/invoices/…EditPage.tsx` (or `InvoiceLineRow.tsx` already covers it — verify during implementation and only wire what's missing)
-- `src/features/sales/credit-notes/CreditNoteEditPage.tsx`
-- `src/features/sales/returns/SalesReturnEditPage.tsx`
-- `src/features/sales/delivery-notes/DeliveryNoteEditPage.tsx`
-- Update-side whitelists in `useInvoices`, `useCreditNotes`, `useSalesReturns`, `useDeliveryNotes`.
+### Phase E — Product Variants
+- Variant axis model (size/color/etc.), variant SKU generation, price/stock per variant, barcode per variant.
+- ADR 0072. Migrations required. Not additive — schema touch.
 
-Extends `outbound-lot-serial-ui.test.ts` to pin the edit-surface mounts as well as the create-surface ones (31 → ~40 tests).
+### Phase F — Product Import Split
+Split the monolithic product importer into six focused importers:
+1. Product master
+2. Barcodes
+3. Batch/Lot
+4. Warehouse Stock
+5. Price lists
+6. Supplier links
 
-### Explicitly deferred (unchanged from prior plan)
+Each with its own `importConfig`, batch handler, and guard. ADR 0073.
 
-- Sales-order line editor (SO doesn't move stock; cosmetic).
-- Phase E — variants; Phase F — import file split (Product / Barcode / Batch / Warehouse Stock / Price / Supplier); Phase G — lot genealogy view; Phase H — GS1 AI parsing on scan input. Each gets its own ADR + turn.
-- Phase 5 ambient — retire `warehouse_stock` after 14 consecutive empty `check_stock_quant_drift` runs.
+### Phase 5 (ambient) — `warehouse_stock` retirement
+- Precondition: 14 consecutive clean `check_stock_quant_drift` runs.
+- Once green: drop `warehouse_stock`, redirect any residual readers to `stock_quants`. Migration + ADR 0074.
 
-## Success criteria
+### Explicitly out of scope (cosmetic / non-blocking)
+- Sales-order line editor lot/serial pickers (SO doesn't move stock).
+- Edit pages for sales returns & delivery notes (don't exist; would be net-new features, not wiring).
 
-- Operator can import an ASN CSV from the UI, see the expected shipment in `/inventory/inbound-shipments`, click "Start GRN", and the wizard prefills every line with product/qty/lot/expiry from that shipment.
-- All four outbound edit pages render the lot/serial picker for tracked products, and the persisted `lot_number` / `serial_number` / `lot_allocations` survive update round-trips.
-- Combined inventory-foundation guard surface grows from 92 tests to ~110 tests, all green.
-- No migrations, no RPC changes, no `types.ts` edits.
+---
 
-## Technical notes
+## 🎯 Next execution — Phase H (GS1 parsing)
 
-- Route files follow the flat `inventory.inbound-shipments.tsx` + `inventory.inbound-shipments.$id.tsx` convention (TanStack Start file-based routing).
-- Queries scoped by `business_id` + optional branch, following the `readOnHand` / branch-filter pattern already pinned by `inventory-branch-filter.test.ts`.
-- Import dialog reuses the existing `useImport` hook — no new UI library, no new import framework.
-- Edit-surface wiring is additive; if `InvoiceLineRow` already covers `InvoiceEditPage` via shared render, only the guard is extended for that surface.
+**Files to create:**
+- `src/lib/gs1/parseGs1.ts` + `src/lib/gs1/aiTable.ts`
+- `src/lib/gs1/useGs1Scanner.ts`
+- `docs/adr/0071-gs1-scanner-parsing.md`
+- `src/test/architecture/gs1-parsing.test.ts`
+- Unit tests for parser table.
+
+**Files to modify (wire scanner):**
+- `src/features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx` (line scan input)
+- `src/components/inventory/LotPickerPopover.tsx` (accept scanned lot+expiry)
+- `src/components/inventory/SerialPickerPopover.tsx` (accept scanned serial)
+- Any POS scan input in `src/features/pos/` (verify surface first).
+
+**Success criteria:**
+- Single scan of a GS1-128 label on GRN populates GTIN → product resolve, lot, expiry in one action.
+- Parser handles FNC1 group separator + fixed-length vs variable-length AIs correctly.
+- Guard surface grows 112 → ~125 tests, all green.
+- No schema changes, no RPC changes.
+
+**Pick-up instruction for the next engineer:**
+Start with `parseGs1.ts` + its unit table (pure function, no UI). Land ADR 0071 in the same turn. Wire scanner hook into GRN wizard first (highest-value surface), then pickers. Do NOT touch product-variant or import-split work until Phase H is guarded green.
