@@ -66,7 +66,7 @@ export function createAsnBatchImportHandler(ctx: AsnImportContext): BatchImportF
       const key = String(row.shipment_number || "").trim();
       if (!key) {
         results.skipped += 1;
-        results.errors.push({ row: idx + 1, message: "Missing shipment_number" });
+        results.errors.push(__ASNERR__);
         return;
       }
       if (!groups.has(key)) groups.set(key, []);
@@ -115,7 +115,7 @@ export function createAsnBatchImportHandler(ctx: AsnImportContext): BatchImportF
       }
       if (groupError) {
         results.skipped += groupRows.length;
-        results.errors.push({ row: shipmentNumber as any, message: groupError });
+        results.errors.push(__ASNERR__);
         continue;
       }
 
