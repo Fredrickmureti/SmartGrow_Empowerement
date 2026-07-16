@@ -49,17 +49,21 @@ describe("ADR-0069 · inbound shipments + GRN discrepancies", () => {
       });
 
       it("policies scope through user_can_access_business + can_access_branch", () => {
-        // Both policies (_select and _write) must reference the canonical predicates.
         const selectPolicy = new RegExp(
-          `CREATE\\s+POLICY\\s+${table}_select[\\s\\S]*?user_can_access_business[\\s\\S]*?can_access_branch`,
-          "i",
-        );
-        const writePolicy = new RegExp(
-          `CREATE\\s+POLICY\\s+${table}_write[\\s\\S]*?user_can_access_business[\\s\\S]*?can_access_branch[\\s\\S]*?user_has_module_permission\\([^)]*'inventory'[^)]*'write'\\)`,
+          `CREATE\\s+POLICY\\s+${table}_select[\\s\\S]*?FOR\\s+SELECT[\\s\\S]*?user_can_access_business[\\s\\S]*?can_access_branch`,
           "i",
         );
         expect(sql).toMatch(selectPolicy);
+
+        const writePolicy = new RegExp(
+          `CREATE\\s+POLICY\\s+${table}_write[\\s\\S]*?FOR\\s+ALL`,
+          "i",
+        );
         expect(sql).toMatch(writePolicy);
+        // Write policy must also gate on the inventory-write module permission.
+        expect(sql).toMatch(
+          new RegExp(`${table}_write[\\s\\S]*?user_has_module_permission\\([^)]*'inventory'[^)]*'write'`, "i"),
+        );
       });
     });
   }
