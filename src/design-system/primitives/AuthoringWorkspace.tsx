@@ -245,10 +245,30 @@ export function AuthoringWorkspace({
             />
           </>
         )}
+        {onPopOutPreview && hasPreview && (
+          <>
+            <div className="mx-1 h-4 w-px bg-border" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={onPopOutPreview}
+                  aria-label="Open preview in a new window"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Pop out preview</TooltipContent>
+            </Tooltip>
+          </>
+        )}
       </div>
     ),
-    [hasPreview, hasRail, mode, railOpen],
+    [hasPreview, hasRail, mode, railOpen, onPopOutPreview],
   );
+
 
   // Render the main + preview split. In `bottom` mode we swap to a
   // vertical PanelGroup; in editor/preview/focus modes only one panel
