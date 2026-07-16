@@ -447,21 +447,43 @@ export default function GoodsReceiptWizardPage() {
         .single();
       if (receiptError) throw receiptError;
 
-      const receiptItems = linesToReceive.map((line, idx) => ({
-        goods_receipt_id: receipt.id,
-        purchase_order_item_id: line.po_item_id || null,
-        product_id: line.product_id,
-        description: line.description,
-        quantity_ordered: line.quantity_ordered,
-        quantity_received: line.quantity_to_receive,
-        lot_number: line.lot_number || null,
-        serial_number: line.serial_number || null,
-        notes: line.notes || null,
-        sort_order: idx,
-        packaging_id: line.packaging_id,
-        display_uom_id: line.display_uom_id,
-        display_quantity: line.display_quantity,
-      }));
+      // Phase A.5 — for serial-tracked lines, split into N single-qty rows
+      // so `enforce_serial_on_movement` upserts one stock_serial per unit.
+      const receiptItems = linesToReceive.flatMap((line, idx) => {
+        const isSerial =
+          !!line.product_id && getTrackingFlags(line.product_id).is_serial_tracked;
+        const base = {
+          goods_receipt_id: receipt.id,
+          purchase_order_item_id: line.po_item_id || null,
+          product_id: line.product_id,
+          description: line.description,
+          quantity_ordered: line.quantity_ordered,
+          lot_number: line.lot_number || null,
+          notes: line.notes || null,
+          packaging_id: line.packaging_id,
+          display_uom_id: line.display_uom_id,
+          display_quantity: line.display_quantity,
+        };
+        if (isSerial) {
+          const serials = (line.serial_numbers ?? [])
+            .map((s) => s.trim())
+            .filter(Boolean);
+          return serials.map((sn, subIdx) => ({
+            ...base,
+            quantity_received: 1,
+            serial_number: sn,
+            sort_order: idx * 1000 + subIdx,
+          }));
+        }
+        return [
+          {
+            ...base,
+            quantity_received: line.quantity_to_receive,
+            serial_number: line.serial_number || null,
+            sort_order: idx,
+          },
+        ];
+      });
       const { data: insertedItems, error: itemsError } = await supabase
         .from("goods_receipt_items")
         .insert(receiptItems)
