@@ -524,6 +524,11 @@ export default function SalesReturnCreatePage() {
                         Line total: {formatCurrency(item.quantity * item.unit_price + item.tax_amount)}
                       </span>
                     </div>
+                    <OutboundLineTracking
+                      productId={item.product_id ?? null}
+                      quantity={item.quantity}
+                    />
+                    </div>
                   </CardContent>
                 </Card>
               ))}
