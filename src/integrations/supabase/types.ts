@@ -66181,6 +66181,10 @@ export type Database = {
         }
         Returns: string
       }
+      log_identity_email_change_intent: {
+        Args: { p_new_email: string; p_reason?: string }
+        Returns: undefined
+      }
       log_pos_error: {
         Args: {
           p_business_id: string
@@ -68755,6 +68759,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_mfa_lifecycle_event: {
+        Args: { p_action: string; p_factor_type?: string }
+        Returns: undefined
+      }
       record_multi_bill_payment: {
         Args: {
           _allocations: Json
@@ -71198,6 +71206,9 @@ export type Database = {
         | "profile_change_requested"
         | "profile_change_approved"
         | "profile_change_rejected"
+        | "identity_email_change_requested"
+        | "mfa_enrolled"
+        | "mfa_unenrolled"
       employee_lifecycle_status:
         | "draft"
         | "active"
@@ -71823,6 +71834,9 @@ export const Constants = {
         "profile_change_requested",
         "profile_change_approved",
         "profile_change_rejected",
+        "identity_email_change_requested",
+        "mfa_enrolled",
+        "mfa_unenrolled",
       ],
       employee_lifecycle_status: [
         "draft",

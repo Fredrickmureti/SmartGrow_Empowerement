@@ -15,7 +15,7 @@
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Mail, Lock, Palette, LogOut, ShieldAlert, History } from "lucide-react";
+import { Loader2, Lock, Palette, LogOut, ShieldAlert, History } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +27,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { EmailChangeCard } from "@/components/me/EmailChangeCard";
+import { MfaEnrollmentCard } from "@/components/me/MfaEnrollmentCard";
 import { toast } from "sonner";
 
 export default function MyAccount() {
@@ -42,32 +44,18 @@ export default function MyAccount() {
       />
       <PageBody>
         <div className="space-y-4">
-          {/* Sign-in identity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Mail className="h-4 w-4" /> Sign-in email
-              </CardTitle>
-              <CardDescription>
-                Your login identity. Changing this requires a verification email.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm">
-              <div className="flex items-center gap-3">
-                <span>{user?.email}</span>
-                <Badge variant="secondary">Managed by identity</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                To change your sign-in email, contact your workspace administrator.
-              </p>
-            </CardContent>
-          </Card>
+          {/* Sign-in identity (self-service email change) */}
+          <EmailChangeCard />
 
           {/* Password */}
           <PasswordCard />
 
+          {/* Two-step verification */}
+          <MfaEnrollmentCard />
+
           {/* Recent sign-in activity */}
           <LoginHistoryCard />
+
 
 
 
