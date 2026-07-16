@@ -40,6 +40,8 @@ const UomManagement = lazy(() => import("@/pages/inventory/UomManagement"));
 const AdjustmentNew = lazy(() => import("@/pages/inventory/AdjustmentNew"));
 const ProductNew = lazy(() => import("@/pages/inventory/ProductNew"));
 const ProductEdit = lazy(() => import("@/pages/inventory/ProductEdit"));
+const InboundShipments = lazy(() => import("@/pages/inventory/InboundShipments"));
+const InboundShipmentDetail = lazy(() => import("@/pages/inventory/InboundShipmentDetail"));
 
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
