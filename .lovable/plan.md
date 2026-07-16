@@ -238,3 +238,102 @@ Wire the transfer completion path to emit `transfer_out`
   migration.
 - The linter's ~1800 "Security Definer View" errors are pre-existing
   project-wide noise; ignore unless the count grows on your migration.
+
+---
+
+# Handoff snapshot — agent #3 (2026-07-16)
+
+## What has been delivered end-to-end
+
+| Phase | Status | Artifact |
+|---|---|---|
+| Step 1 · Phases 1–4 (locations & quants, transit + quarantine) | ✅ verified against `pg_catalog` | migrations `20260716210212` → `211651`, ADRs 0064–0065 |
+| Phase A.1 — downstream lot/serial columns + recall view | ✅ delivered | migration `20260716214819_*`, ADR 0066 |
+| Phase A.2 — RPC propagation + posting-time enforcement (lots) | ✅ delivered | migration `20260716215210_*`, guard `outbound-lot-stamping.test.ts` |
+| Phase B — serialised inventory (schema + ledger + serial enforcement) | ✅ delivered | migration `20260716215647_*`, ADR 0067, guard `serial-tracking.test.ts` |
+| Phase 5 — retire `warehouse_stock` | ⏸ gated on 14 clean days of `check_stock_quant_drift` |
+
+Architecture guards passing: 8 / 8
+(`bunx vitest run src/test/architecture/outbound-lot-stamping.test.ts src/test/architecture/serial-tracking.test.ts`).
+
+## Ground truth for the next agent
+
+- `stock_movements` already has `lot_number`, `serial_number`,
+  `source_location_id`, `destination_location_id`. No further columns
+  needed on the movement table for A/B/C.
+- Outbound line tables (`invoice_items`, `sales_order_items`,
+  `sales_return_items`, `credit_note_items`) all carry
+  `lot_number` + `serial_number`. POS + delivery-note lines already did.
+- Posting-time guard `enforce_downstream_lot_stamping` gates on BOTH
+  `is_lot_tracked` (missing `lot_number`) AND `is_serial_tracked`
+  (missing `serial_number`) for `invoices`, `credit_notes`,
+  `sales_returns`. Extend the same trigger — do not clone it.
+- Movement-time guard `enforce_serial_on_movement` rejects serial-tracked
+  `stock_movements` without a serial and upserts `stock_serials`.
+- Canonical recall view: `v_lot_downstream_consumption` (POS + DN +
+  invoice + return + credit note). Add new outbound doc types by
+  UNION-ing into this view, not by creating parallel views.
+- Authoritative on-hand today is still `warehouse_stock`;
+  `stock_quants` is a live shadow. Do not switch readers yet.
+
+## What I would execute next (in priority order)
+
+### Next 1 — Phase C · split-transfer adoption (movement engine ⚠)
+**Why now:** the transit location and `v_stock_on_hand` filter already
+exist (Phase 4). This is a small, high-leverage refactor that finally
+makes in-transit stock a real ledger state instead of a convention.
+
+Concrete steps:
+1. Read `src/hooks/inventory/useStockTransfers.ts` + the
+   `create_stock_transfer` / `complete_stock_transfer` RPCs
+   (search: `rg -n "stock_transfer" supabase/migrations`).
+2. New migration: `complete_stock_transfer` becomes a wrapper that emits
+   two movements per line in one transaction —
+   `transfer_out` (source default location → business transit location,
+   resolved via `get_business_transit_location(business_id)`),
+   `transfer_in` (transit → destination default location).
+3. Direct/instant transfers keep a single caller signature — the RPC
+   fires both movements atomically. In-transit transfers stop at step 1
+   and complete on receipt.
+4. Add `src/test/architecture/split-transfer.test.ts` pinning the
+   two-movement contract.
+5. Verify `v_warehouse_stock_effective` still nets out (should — it
+   already excludes transit).
+
+### Next 2 — Phase A.3 · UI plumbing for lot/serial pickers
+Presentation-only, ship per screen. Reuse the existing POS
+`LotPickerPopover`. Add a `SerialPickerPopover` (new) that lists
+`stock_serials WHERE product_id = ? AND status = 'in_stock' AND
+business_id = ?`. Wire into: invoice line editor, credit-note line
+editor, sales-return line editor, delivery-note line editor, GRN line
+editor. Backend already enforces — this just prevents users from hitting
+the guard mid-post.
+
+### Next 3 — Phase D · ASN / inbound shipments (goods receipt ⚠)
+Depends on Phase A being live (it is). Follow the plan section above:
+ADR 0068, `inbound_shipments` + `inbound_shipment_items` tables,
+`goods_receipt_discrepancies`, GRN wizard prefill from ASN, CSV import
+as EDI-856 stand-in.
+
+### Then — Phase E (variants, own ADR), F (import split), G (lot
+### genealogy), H (GS1 parsing)
+Each is a standalone ADR-first project. Do not batch.
+
+### Ambient — Phase 5 drift gate
+Once every day for the next two weeks, sample
+`SELECT * FROM check_stock_quant_drift(<biz_id>)` for the top
+production tenants. When it returns empty for 14 consecutive days,
+schedule the `warehouse_stock` retirement PR: drop the write triggers,
+repoint remaining readers to `v_stock_on_hand`, then drop the table.
+
+## Files worth reading first on takeover
+
+- `.lovable/plan.md` (this file — full history)
+- `docs/adr/0064` through `0067` (the enforceable contracts)
+- Latest migrations (Phase A/B): `20260716214819`, `20260716215210`,
+  `20260716215647`
+- `src/test/architecture/outbound-lot-stamping.test.ts` +
+  `serial-tracking.test.ts` (the guard surface — if you break these,
+  you're breaking a contract)
+- `src/hooks/inventory/useStockQuants.ts` (the current on-hand reader
+  pattern; mirror it for `useStockSerials`)
