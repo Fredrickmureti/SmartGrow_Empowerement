@@ -117,7 +117,7 @@ export function SpreadsheetPreviewPane({
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="break-all text-xs">{error}</AlertDescription>
           </Alert>
-        ) : columns.length === 0 ? (
+        ) : safeColumns.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded border border-dashed bg-muted/20 p-6 text-center text-xs text-muted-foreground">
             No columns configured yet — bind at least one token in the editor
             to see how the exported file will look.
@@ -128,7 +128,7 @@ export function SpreadsheetPreviewPane({
               <thead className="sticky top-0 z-10 bg-muted/50 backdrop-blur">
                 {showRuler && (
                   <tr className="border-b text-[9px] text-muted-foreground/70">
-                    {columns.map((c, i) => (
+                    {safeColumns.map((c, i) => (
                       <th
                         key={`ruler-${i}`}
                         className="border-r px-2 py-0.5 text-left last:border-r-0"
@@ -139,7 +139,7 @@ export function SpreadsheetPreviewPane({
                   </tr>
                 )}
                 <tr className="border-b">
-                  {columns.map((c, i) => (
+                  {safeColumns.map((c, i) => (
                     <th
                       key={`h-${i}`}
                       className={cn(
@@ -170,16 +170,16 @@ export function SpreadsheetPreviewPane({
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && (
+                {safeRows.length === 0 && (
                   <tr>
-                    <td colSpan={columns.length} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                    <td colSpan={safeColumns.length} className="px-3 py-6 text-center text-xs text-muted-foreground">
                       No sample rows.
                     </td>
                   </tr>
                 )}
-                {rows.map((row, ri) => (
+                {safeRows.map((row, ri) => (
                   <tr key={`r-${ri}`} className="border-b last:border-b-0 odd:bg-muted/10">
-                    {columns.map((c, ci) => (
+                    {safeColumns.map((c, ci) => (
                       <td
                         key={`c-${ri}-${ci}`}
                         className={cn(
@@ -208,7 +208,7 @@ export function SpreadsheetPreviewPane({
 
         <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
           <span>{totalRows} sample row{totalRows === 1 ? "" : "s"}</span>
-          <span>{columns.length} column{columns.length === 1 ? "" : "s"}</span>
+          <span>{safeColumns.length} column{safeColumns.length === 1 ? "" : "s"}</span>
           {delimiter && <span>delim: <code className="rounded bg-muted px-1">{delimiter === "\t" ? "\\t" : delimiter}</code></span>}
           {encoding && <span>encoding: <code className="rounded bg-muted px-1">{encoding}</code></span>}
           {fileExtension && <span>ext: <code className="rounded bg-muted px-1">.{fileExtension}</code></span>}
