@@ -25,10 +25,11 @@ describe("resolveReturnRenderer", () => {
     expect(typeof d.render).toBe("function");
   });
 
-  it("switches the pdf descriptor id when v2-sections are present", () => {
-    const plain = resolveReturnRenderer("pdf");
-    const withSections = resolveReturnRenderer("pdf", { hasV2Sections: true });
-    expect(plain.id).not.toBe(withSections.id);
+  it("returns the shared HTML/paged.js descriptor for pdf returns", () => {
+    // The legacy v2-returns section renderer was retired in ADR 0063,
+    // so pdf returns always resolve through the single `return/pdf`
+    // descriptor (returnToAst → CertificateHtmlSurface).
+    expect(resolveReturnRenderer("pdf").id).toBe("return/pdf");
   });
 });
 
