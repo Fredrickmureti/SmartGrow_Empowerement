@@ -13,6 +13,7 @@ import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ScanTokenRouteImport } from './routes/scan.$token'
 import { Route as PosScanTokenRouteImport } from './routes/pos.scan.$token'
+import { Route as LocalizationPreviewKindTemplateCodeRouteImport } from './routes/localization.preview.$kind.$templateCode'
 import { Route as ApiPublicAttendanceIngestRouteImport } from './routes/api/public/attendance.ingest'
 
 const SplatRoute = SplatRouteImport.update({
@@ -35,6 +36,12 @@ const PosScanTokenRoute = PosScanTokenRouteImport.update({
   path: '/pos/scan/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocalizationPreviewKindTemplateCodeRoute =
+  LocalizationPreviewKindTemplateCodeRouteImport.update({
+    id: '/localization/preview/$kind/$templateCode',
+    path: '/localization/preview/$kind/$templateCode',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAttendanceIngestRoute =
   ApiPublicAttendanceIngestRouteImport.update({
     id: '/api/public/attendance/ingest',
@@ -48,6 +55,7 @@ export interface FileRoutesByFullPath {
   '/scan/$token': typeof ScanTokenRoute
   '/pos/scan/$token': typeof PosScanTokenRoute
   '/api/public/attendance/ingest': typeof ApiPublicAttendanceIngestRoute
+  '/localization/preview/$kind/$templateCode': typeof LocalizationPreviewKindTemplateCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -55,6 +63,7 @@ export interface FileRoutesByTo {
   '/scan/$token': typeof ScanTokenRoute
   '/pos/scan/$token': typeof PosScanTokenRoute
   '/api/public/attendance/ingest': typeof ApiPublicAttendanceIngestRoute
+  '/localization/preview/$kind/$templateCode': typeof LocalizationPreviewKindTemplateCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -63,6 +72,7 @@ export interface FileRoutesById {
   '/scan/$token': typeof ScanTokenRoute
   '/pos/scan/$token': typeof PosScanTokenRoute
   '/api/public/attendance/ingest': typeof ApiPublicAttendanceIngestRoute
+  '/localization/preview/$kind/$templateCode': typeof LocalizationPreviewKindTemplateCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -72,6 +82,7 @@ export interface FileRouteTypes {
     | '/scan/$token'
     | '/pos/scan/$token'
     | '/api/public/attendance/ingest'
+    | '/localization/preview/$kind/$templateCode'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -79,6 +90,7 @@ export interface FileRouteTypes {
     | '/scan/$token'
     | '/pos/scan/$token'
     | '/api/public/attendance/ingest'
+    | '/localization/preview/$kind/$templateCode'
   id:
     | '__root__'
     | '/'
@@ -86,6 +98,7 @@ export interface FileRouteTypes {
     | '/scan/$token'
     | '/pos/scan/$token'
     | '/api/public/attendance/ingest'
+    | '/localization/preview/$kind/$templateCode'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,6 +107,7 @@ export interface RootRouteChildren {
   ScanTokenRoute: typeof ScanTokenRoute
   PosScanTokenRoute: typeof PosScanTokenRoute
   ApiPublicAttendanceIngestRoute: typeof ApiPublicAttendanceIngestRoute
+  LocalizationPreviewKindTemplateCodeRoute: typeof LocalizationPreviewKindTemplateCodeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -126,6 +140,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PosScanTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/localization/preview/$kind/$templateCode': {
+      id: '/localization/preview/$kind/$templateCode'
+      path: '/localization/preview/$kind/$templateCode'
+      fullPath: '/localization/preview/$kind/$templateCode'
+      preLoaderRoute: typeof LocalizationPreviewKindTemplateCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/attendance/ingest': {
       id: '/api/public/attendance/ingest'
       path: '/api/public/attendance/ingest'
@@ -142,6 +163,8 @@ const rootRouteChildren: RootRouteChildren = {
   ScanTokenRoute: ScanTokenRoute,
   PosScanTokenRoute: PosScanTokenRoute,
   ApiPublicAttendanceIngestRoute: ApiPublicAttendanceIngestRoute,
+  LocalizationPreviewKindTemplateCodeRoute:
+    LocalizationPreviewKindTemplateCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

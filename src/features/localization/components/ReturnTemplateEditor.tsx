@@ -28,8 +28,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { AutoGrowTextarea, CodeField, ExpandableTextField } from "@/design-system/primitives/inputs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { AuthoringWorkspace, type WorkspaceNavDirection } from "@/design-system/primitives/AuthoringWorkspace";
+import { useRef } from "react";
 
-import { Loader2, AlertTriangle, FileText, Plus, Trash2, ArrowUp, ArrowDown, X, ShieldCheck, Building2 } from "lucide-react";
+import {
+  Loader2, AlertTriangle, FileText, Plus, Trash2, ArrowUp, ArrowDown, X, ShieldCheck, Building2,
+  CircleDot, CircleCheck, CircleAlert, Layers,
+} from "lucide-react";
 import { toast } from "sonner";
 import { validatePayload } from "../hooks";
 import { usePackTokens, type PackTokenOption } from "../hooks/usePackTokens";
@@ -38,6 +44,7 @@ import { OutputsCard } from "./OutputsCard";
 import { PreviewPanel } from "./PreviewPanel";
 import { ReturnPreviewPane } from "./ReturnPreviewPane";
 import type { EditorMode } from "../types";
+import { openPreviewWindow, publishPreview } from "../lib/previewBroadcast";
 
 // v2 section vocabulary — mirrors _shared/pdf/returnRenderer.ts. Order
 // here drives the UI dropdown; renderer accepts any subset in any order.
@@ -357,6 +364,40 @@ export function ReturnTemplateEditor({
     [body.columns, numericByValue],
   );
 
+  // ── Dirty tracking ─────────────────────────────────────────────────
+  // Snapshot the initial body+meta+notes; every render compares against
+  // it to power the AuthoringWorkspace status bar.
+  const initialSnapshotRef = useRef<string>("");
+  if (initialSnapshotRef.current === "") {
+    try {
+      initialSnapshotRef.current = JSON.stringify({
+        b: initial.body ?? null,
+        m: editMetadata ? meta : null,
+        n: initial.notes ?? "",
+      });
+    } catch { initialSnapshotRef.current = "__init__"; }
+  }
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+
+  // ── Pop-out preview broadcast ─────────────────────────────────────
+  useEffect(() => {
+    publishPreview({
+      kind: "return",
+      templateCode,
+      body: denormalizeBody(body),
+      meta: {
+        legal_reference: meta.legal_reference,
+        regulation_citation: meta.regulation_citation,
+      },
+      displayName: templateCode,
+      updatedAt: Date.now(),
+    });
+  }, [body, meta.legal_reference, meta.regulation_citation, templateCode]);
+
+  const handlePopOutPreview = () => {
+    openPreviewWindow("return", templateCode);
+  };
+
   const handleSave = async () => {
     setBusy(true);
     try {
@@ -373,6 +414,12 @@ export function ReturnTemplateEditor({
         notes: notes || null,
         ...(editMetadata ? { metadata: meta } : {}),
       });
+      try {
+        initialSnapshotRef.current = JSON.stringify({
+          b: payload, m: editMetadata ? meta : null, n: notes || "",
+        });
+      } catch { /* keep old baseline */ }
+      setLastSavedAt(Date.now());
       toast.success("Return template saved");
     } catch (e: any) {
       toast.error(normalizeError(e).message ?? "Save failed");
@@ -381,36 +428,57 @@ export function ReturnTemplateEditor({
     }
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <FileText className="h-4 w-4" />
-          {mode === "admin" ? "Statutory return template" : "Statutory return override"} —{" "}
-          <code className="text-xs">{templateCode}</code>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+  // ── Section outline for the workspace rail (only shows sections that
+  // are actually rendered given current mode/metadata flags). Kept in
+  // render order so J / K walks the sections top-to-bottom.
+  const activeSections: Array<{ id: string; label: string }> = [];
+  if (editMetadata) {
+    activeSections.push({ id: "rt-section-identification", label: "Identification" });
+    activeSections.push({ id: "rt-section-outputs", label: "Outputs" });
+  }
+  activeSections.push({ id: "rt-section-filters", label: "Rule codes" });
+  activeSections.push({ id: "rt-section-statuses", label: "Payslip statuses" });
+  activeSections.push({ id: "rt-section-columns", label: "Columns" });
+  activeSections.push({ id: "rt-section-groupby", label: "Group by" });
+  activeSections.push({ id: "rt-section-totals", label: "Totals" });
+  activeSections.push({ id: "rt-section-reconciliation", label: "Reconciliation" });
+  activeSections.push({ id: "rt-section-v2", label: "v2 renderer" });
+  if (mode === "tenant") activeSections.push({ id: "rt-section-override", label: "Override reason" });
 
+  const editorScrollRef = useRef<HTMLDivElement>(null);
+  const activeSectionIdxRef = useRef<number>(0);
+  const scrollToSection = (id: string) => {
+    const idx = activeSections.findIndex((s) => s.id === id);
+    if (idx >= 0) activeSectionIdxRef.current = idx;
+    const el = editorScrollRef.current?.querySelector(`#${CSS.escape(id)}`) as HTMLElement | null;
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const editorFormBody = (
+      <>
         {editMetadata && (
-          <MetadataSection
-            meta={meta}
-            onChange={setMeta}
-            authorities={authoritiesQuery.data ?? []}
-            authoritiesLoading={authoritiesQuery.isLoading}
-          />
+          <div id="rt-section-identification">
+            <MetadataSection
+              meta={meta}
+              onChange={setMeta}
+              authorities={authoritiesQuery.data ?? []}
+              authoritiesLoading={authoritiesQuery.isLoading}
+            />
+          </div>
         )}
 
         {editMetadata && (
-          <OutputsCard
-            value={meta.outputs}
-            onChange={(next) => setMeta({ ...meta, outputs: next })}
-            surface="return"
-          />
+          <div id="rt-section-outputs">
+            <OutputsCard
+              value={meta.outputs}
+              onChange={(next) => setMeta({ ...meta, outputs: next })}
+              surface="return"
+            />
+          </div>
         )}
 
         {/* ── Filters ───────────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-filters" className="space-y-2">
 
           <h3 className="text-sm font-semibold">Rule codes <span className="text-destructive">*</span></h3>
           <p className="text-xs text-muted-foreground">
@@ -454,7 +522,7 @@ export function ReturnTemplateEditor({
           </div>
         </section>
 
-        <section className="space-y-2">
+        <section id="rt-section-statuses" className="space-y-2">
           <h3 className="text-sm font-semibold">Payslip statuses</h3>
           <p className="text-xs text-muted-foreground">
             Which finalized payslip statuses are eligible. Default: approved, validated, and paid; payment is a separate remittance settlement workflow.
@@ -473,7 +541,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── Columns ───────────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-columns" className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Columns <span className="text-destructive">*</span></h3>
             <Button type="button" variant="outline" size="sm" onClick={addColumn}>
@@ -533,7 +601,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── Group by ──────────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-groupby" className="space-y-2">
           <h3 className="text-sm font-semibold">Group by</h3>
           <div className="flex gap-3">
             <label className="flex items-center gap-2 text-sm">
@@ -554,7 +622,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── Totals ────────────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-totals" className="space-y-2">
           <h3 className="text-sm font-semibold">Totals row</h3>
           <p className="text-xs text-muted-foreground">
             Numeric columns to sum at the bottom of the return. Only numeric-source columns
@@ -579,7 +647,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── Reconciliation ────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-reconciliation" className="space-y-2">
           <h3 className="text-sm font-semibold">Reconciliation (optional)</h3>
           <p className="text-xs text-muted-foreground">
             Compare the projected total against an existing payroll-liability total for a single
@@ -594,7 +662,7 @@ export function ReturnTemplateEditor({
         </section>
 
         {/* ── v2 section-based renderer (opt-in) ────────────────── */}
-        <section className="space-y-2 rounded-lg border bg-muted/10 p-4">
+        <section id="rt-section-v2" className="space-y-2 rounded-lg border bg-muted/10 p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -701,43 +769,13 @@ export function ReturnTemplateEditor({
                   );
                 })}
               </div>
-              <div className="pt-2">
-                <ReturnPreviewPane
-                  templateCode={templateCode}
-                  displayName={templateCode}
-                  body={{
-                    renderer: "v2-returns",
-                    sections: (body.sections ?? []).map((s) => {
-                      if (s.type === "employee_line_grid" && !s.columns?.length) {
-                        return {
-                          ...s,
-                          columns: body.columns.map((c) => ({
-                            key: c.key,
-                            header: c.label,
-                            format: c.format === "currency" ? "money" : "text",
-                            align: c.format === "currency" ? "right" : "left",
-                          })),
-                        };
-                      }
-                      return s;
-                    }),
-                  }}
-                  meta={{
-                    legal_reference: meta.legal_reference,
-                    regulation_citation: meta.regulation_citation,
-                  }}
-                />
-              </div>
             </div>
           )}
         </section>
 
-        <PreviewPanel body={denormalizeBody(body)} packId={packId ?? null} title="Statutory return preview" />
-
-
         {/* ── Tenant override audit reason ──────────────────────── */}
         {mode === "tenant" && (
-          <section className="space-y-1">
+          <section id="rt-section-override" className="space-y-1">
             <Label className="text-xs">Reason for override <span className="text-destructive">*</span> (≥10 chars)</Label>
             <ExpandableTextField value={notes} onChange={(v) => setNotes(v)} placeholder="e.g. Add new branch column for 2026 SHIF return" dialogTitle="Reason for override" />
           </section>
@@ -761,16 +799,160 @@ export function ReturnTemplateEditor({
             </AlertDescription>
           </Alert>
         )}
+      </>
+  );
+  const editorPane = (
+    <ScrollArea className="h-full">
+      <div ref={editorScrollRef} className="mx-auto w-full max-w-4xl space-y-6 p-4">
+        {editorFormBody}
+      </div>
+    </ScrollArea>
+  );
+  const previewPane = body.renderer === "v2-returns" ? (
+    <ReturnPreviewPane
+      templateCode={templateCode}
+      displayName={templateCode}
+      body={{
+        renderer: "v2-returns",
+        sections: (body.sections ?? []).map((s) => {
+          if (s.type === "employee_line_grid" && !s.columns?.length) {
+            return {
+              ...s,
+              columns: body.columns.map((c) => ({
+                key: c.key,
+                header: c.label,
+                format: c.format === "currency" ? "money" : "text",
+                align: c.format === "currency" ? "right" : "left",
+              })),
+            };
+          }
+          return s;
+        }),
+      }}
+      meta={{
+        legal_reference: meta.legal_reference,
+        regulation_citation: meta.regulation_citation,
+      }}
+    />
+  ) : (
+    <PreviewPanel body={denormalizeBody(body)} packId={packId ?? null} title="Statutory return preview" />
+  );
 
-        <div className="flex justify-end gap-2 pt-2">
-          {onCancel && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
-          <Button onClick={handleSave} disabled={busy || errors.length > 0}>
-            {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-            Save return template
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+  const toolbar = (
+    <>
+      <FileText className="h-4 w-4 text-muted-foreground" />
+      <span className="text-sm font-semibold">
+        {mode === "admin" ? "Statutory return template" : "Statutory return override"}
+      </span>
+      <code className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{templateCode}</code>
+      <Badge variant="outline" className="text-[10px] gap-1">
+        {mode === "admin" ? "Publisher" : "Tenant override"}
+      </Badge>
+      <div className="mx-1 h-4 w-px bg-border" />
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Switch
+          checked={body.renderer === "v2-returns"}
+          onCheckedChange={(v) => setBody({ ...body, renderer: v ? "v2-returns" : null })}
+        />
+        v2 renderer
+      </label>
+    </>
+  );
+
+  const rail = (
+    <ScrollArea className="h-full">
+      <div className="border-b px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Sections · {activeSections.length}
+      </div>
+      <div className="p-1 text-sm">
+        {activeSections.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => scrollToSection(s.id)}
+            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition-colors hover:bg-muted"
+          >
+            <span className="truncate">{s.label}</span>
+          </button>
+        ))}
+      </div>
+    </ScrollArea>
+  );
+
+  const footerBar = (
+    <div className="flex items-center justify-end gap-2">
+      {onCancel && <Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button>}
+      <Button onClick={handleSave} disabled={busy || errors.length > 0}>
+        {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+        Save return template
+      </Button>
+    </div>
+  );
+
+  // Cheap JSON-compare against the initial snapshot.
+  const isDirty = (() => {
+    try {
+      const current = JSON.stringify({
+        b: denormalizeBody(body), m: editMetadata ? meta : null, n: notes || "",
+      });
+      return current !== initialSnapshotRef.current;
+    } catch { return true; }
+  })();
+  const totalIssues = errors.length + warnings.length;
+
+  const statusBar = (
+    <div className="flex items-center gap-4">
+      <span className="flex items-center gap-1.5">
+        {isDirty ? (
+          <><CircleDot className="h-3 w-3 text-amber-500" /> Unsaved changes</>
+        ) : (
+          <><CircleCheck className="h-3 w-3 text-emerald-500" />
+            {lastSavedAt ? `Saved ${new Date(lastSavedAt).toLocaleTimeString()}` : "All changes saved"}
+          </>
+        )}
+      </span>
+      <span className="flex items-center gap-1.5">
+        {totalIssues > 0 ? (
+          <><CircleAlert className="h-3 w-3 text-destructive" /> {totalIssues} issue{totalIssues === 1 ? "" : "s"}</>
+        ) : (
+          <><CircleCheck className="h-3 w-3 text-emerald-500" /> No issues</>
+        )}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <Layers className="h-3 w-3" /> {body.columns.length} column{body.columns.length === 1 ? "" : "s"}
+      </span>
+      <span className="ml-auto hidden text-[10px] uppercase tracking-wide text-muted-foreground/70 md:inline">
+        ⌘S save · ⌘B outline · ⌘⇧P preview · ⌘⇧F focus · J / K next / prev section
+      </span>
+    </div>
+  );
+
+  const handleNavigateSection = (direction: WorkspaceNavDirection) => {
+    if (activeSections.length === 0) return;
+    const currentIdx = activeSectionIdxRef.current;
+    const nextIdx = direction === "next"
+      ? Math.min(currentIdx + 1, activeSections.length - 1)
+      : Math.max(currentIdx - 1, 0);
+    activeSectionIdxRef.current = nextIdx;
+    scrollToSection(activeSections[nextIdx].id);
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
+      <AuthoringWorkspace
+        workspaceId={`return-template:${templateCode}`}
+        toolbar={toolbar}
+        rail={rail}
+        editor={editorPane}
+        preview={previewPane}
+        footer={footerBar}
+        statusBar={statusBar}
+        defaultMode="split"
+        onSave={handleSave}
+        onNavigateNode={handleNavigateSection}
+        onPopOutPreview={handlePopOutPreview}
+      />
+    </div>
   );
 }
 
