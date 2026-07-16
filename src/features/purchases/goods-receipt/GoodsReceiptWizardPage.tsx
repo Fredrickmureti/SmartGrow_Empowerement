@@ -661,6 +661,20 @@ export default function GoodsReceiptWizardPage() {
             }
           >
             <div className="space-y-3">
+              {activeShipment && (
+                <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">ASN</Badge>
+                    <span className="font-medium">{activeShipment.shipment_number}</span>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {activeShipment.status.replace("_", " ")}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Quantities and lot numbers prefilled from the shipment. Adjust any line where the physical delivery differs — over/short quantities are logged as discrepancies on post.
+                  </p>
+                </div>
+              )}
               <BarcodeInputField
                 value={scanCode}
                 onChange={setScanCode}
