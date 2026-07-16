@@ -321,25 +321,51 @@ export function AuthoringWorkspace({
         {onPopOutPreview && hasPreview && (
           <>
             <div className="mx-1 h-4 w-px bg-border" />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={onPopOutPreview}
-                  aria-label="Open preview in a new window"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Pop out preview</TooltipContent>
-            </Tooltip>
+            {isDetached ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-7 gap-1.5 px-2 text-[11px]"
+                    onClick={() => {
+                      try { detachedWindow?.close(); } catch { /* ignore */ }
+                      setDetachedWindow(null);
+                    }}
+                    aria-label="Re-attach preview"
+                  >
+                    <PanelRightOpen className="h-3.5 w-3.5" />
+                    Re-attach preview
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Close the pop-out and bring the preview back in</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    onClick={async () => {
+                      const result = await onPopOutPreview();
+                      if (result && typeof (result as Window).closed === "boolean") {
+                        setDetachedWindow(result as Window);
+                      }
+                    }}
+                    aria-label="Detach preview into a new window"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Detach preview to its own window (live-syncs)</TooltipContent>
+              </Tooltip>
+            )}
           </>
         )}
       </div>
     ),
-    [hasPreview, hasRail, mode, railOpen, onPopOutPreview],
+    [hasPreview, hasRail, mode, railOpen, onPopOutPreview, isDetached, detachedWindow],
   );
 
   // Overlay-mode drag handling — moves ONLY the preview edge; editor keeps
