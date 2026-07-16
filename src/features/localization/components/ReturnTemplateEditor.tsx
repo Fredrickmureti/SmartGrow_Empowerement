@@ -687,26 +687,6 @@ export function ReturnTemplateEditor({
       displayName={templateCode}
       body={{
         ...denormalizeBody(body),
-        // Ensure v2 sections carry over when opted in.
-        ...(body.renderer === "v2-returns"
-          ? {
-              renderer: "v2-returns",
-              sections: (body.sections ?? []).map((s) => {
-                if (s.type === "employee_line_grid" && !s.columns?.length) {
-                  return {
-                    ...s,
-                    columns: body.columns.map((c) => ({
-                      key: c.key,
-                      header: c.label,
-                      format: c.format === "currency" ? "money" : "text",
-                      align: c.format === "currency" ? "right" : "left",
-                    })),
-                  };
-                }
-                return s;
-              }),
-            }
-          : {}),
       }}
       meta={{
         legal_reference: meta.legal_reference,
