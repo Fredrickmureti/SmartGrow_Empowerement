@@ -651,6 +651,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       ) {
         postOnboardingRetriedRef.current = true;
         await new Promise((resolve) => setTimeout(resolve, 600));
+        // Park if the network dropped during the 600ms wait — burning
+        // this single retry slot on a known-offline attempt would waste
+        // the post-onboarding recovery window.
+        if (connectivityManager.getStatus() === "offline") {
+          await waitForOnline();
+        }
+        if (!isStillCurrent()) return null;
         const { session: retried, error: retriedErr } = await attemptFetch(user.id);
         if (retriedErr) {
           console.warn("[SessionContext] post-onboarding retry failed:", retriedErr.cause ?? retriedErr.message);
