@@ -34,6 +34,11 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
+import {
+  lotNumberFromAllocations,
+  serialNumberFromRows,
+} from "@/components/inventory/outboundLineTrackingUtils";
 
 type LineItem = Omit<CreditNoteItem, "id" | "credit_note_id"> & { id?: string };
 
