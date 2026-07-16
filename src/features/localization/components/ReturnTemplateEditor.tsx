@@ -52,26 +52,6 @@ import {
   clearPreview,
 } from "../lib/previewBroadcast";
 
-// v2 section vocabulary — mirrors _shared/pdf/returnRenderer.ts. Order
-// here drives the UI dropdown; renderer accepts any subset in any order.
-const RETURN_SECTION_TYPES = [
-  { value: "employer_header",      label: "Employer header" },
-  { value: "period_band",          label: "Period band" },
-  { value: "employee_line_grid",   label: "Employee line grid" },
-  { value: "employer_totals",      label: "Employer totals" },
-  { value: "reconciliation_block", label: "Reconciliation block" },
-  { value: "signature_block",      label: "Signature block" },
-  { value: "statutory_footnote",   label: "Statutory footnote" },
-  { value: "remittance_summary",   label: "Remittance summary" },
-] as const;
-
-type ReturnSectionSpec = {
-  type: string;
-  title?: string;
-  columns?: Array<{ key: string; header?: string; align?: "left" | "right"; format?: "money" | "text" }>;
-  body?: string;
-};
-
 // First-class metadata (Slice A columns on
 // localization_pack_return_templates). Edited via the metadata section
 // below; persisted by callers through the extended onSave contract.
