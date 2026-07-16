@@ -373,14 +373,7 @@ export function ReturnTemplateEditor({
   const handleSave = async () => {
     setBusy(true);
     try {
-      // For PDF returns, the section renderer is implicit — auto-stamp
-      // the `renderer: "v2-returns"` flag so publishers no longer need
-      // to toggle it. Non-PDF returns strip it defensively.
-      const isPdf = (meta.submission_format?.kind ?? null) === "pdf";
-      const derivedBody: ReturnBody = isPdf
-        ? { ...body, renderer: "v2-returns" }
-        : { ...body, renderer: null, sections: [] };
-      const payload = denormalizeBody(derivedBody);
+      const payload = denormalizeBody(body);
       const r = await validatePayload({ kind: "return_template", body: payload });
       if (!r.valid) { setErrors(r.errors); setWarnings(r.warnings); toast.error("Fix errors before saving"); return; }
       if (mode === "tenant" && (notes ?? "").trim().length < 10) {
