@@ -43,7 +43,12 @@ import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
 import type { Theme } from "../lib/engine/types";
 import { OutputsCard } from "./OutputsCard";
-import { openPreviewWindow, publishPreview } from "../lib/previewBroadcast";
+import {
+  openPreviewWindow,
+  publishPreview,
+  publishPreviewHeartbeat,
+  clearPreview,
+} from "../lib/previewBroadcast";
 import {
   CertificateV3Editor,
   defaultV3Body,
@@ -215,6 +220,19 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
       updatedAt: Date.now(),
     });
   }, [v3Body, meta, editMetadata, initial.template_code]);
+
+  // Heartbeat every 5s so the pop-out can render an "Editor closed"
+  // state once the parent goes away. Clean up + explicit clear on
+  // unmount prevents stale-payload flashes when the same code opens
+  // again in a new tab.
+  useEffect(() => {
+    const code = initial.template_code;
+    const t = window.setInterval(() => publishPreviewHeartbeat("certificate", code), 5000);
+    return () => {
+      window.clearInterval(t);
+      clearPreview("certificate", code);
+    };
+  }, [initial.template_code]);
 
   const handlePopOutPreview = () => openPreviewWindow("certificate", initial.template_code);
 

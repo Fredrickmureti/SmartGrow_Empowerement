@@ -68,6 +68,7 @@ const Setup             = lazy(() => import("@/pages/hr/payroll/Setup").then(m =
 const TaxCertificates   = lazy(() => import("@/pages/hr/payroll/TaxCertificates"));
 const Templates         = lazy(() => import("@/pages/hr/payroll/Templates"));
 const CertificateTemplateEdit = lazy(() => import("@/pages/hr/payroll/PayrollCertificateTemplateEdit"));
+const ReturnTemplateEdit = lazy(() => import("@/pages/hr/payroll/PayrollReturnTemplateEdit"));
 const Localization      = lazy(() => import("@/pages/hr/payroll/Localization"));
 
 export function PayrollApp({ surface }: PayrollAppProps) {
@@ -100,6 +101,7 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           <Route path="remittances/*"        element={<RedirectToRemittances />} />
           <Route path="configuration/templates" element={gate(<LazyRoute module="Templates"><Templates /></LazyRoute>, "managePayroll")} />
           <Route path="configuration/templates/certificates/:code/edit" element={gate(<LazyRoute module="Certificate Template Editor"><CertificateTemplateEdit /></LazyRoute>, "managePayroll")} />
+          <Route path="configuration/templates/returns/:code/edit" element={gate(<LazyRoute module="Return Template Editor"><ReturnTemplateEdit /></LazyRoute>, "managePayroll")} />
           <Route path="configuration/localization" element={gate(<LazyRoute module="Localization"><Localization /></LazyRoute>, "managePayroll")} />
           <Route path="configuration"        element={gate(<LazyRoute module="Configuration"><Configuration /></LazyRoute>, "managePayroll")} />
           <Route path="setup"                element={gate(<LazyRoute module="Setup"><Setup /></LazyRoute>, "managePayroll")} />

@@ -45,7 +45,12 @@ import { PreviewPanel } from "./PreviewPanel";
 import { ReturnPreviewPane } from "./ReturnPreviewPane";
 import { ReturnFormatPreview } from "./preview/ReturnFormatPreview";
 import type { EditorMode } from "../types";
-import { openPreviewWindow, publishPreview } from "../lib/previewBroadcast";
+import {
+  openPreviewWindow,
+  publishPreview,
+  publishPreviewHeartbeat,
+  clearPreview,
+} from "../lib/previewBroadcast";
 
 // v2 section vocabulary — mirrors _shared/pdf/returnRenderer.ts. Order
 // here drives the UI dropdown; renderer accepts any subset in any order.
@@ -396,12 +401,27 @@ export function ReturnTemplateEditor({
     });
   }, [body, meta.legal_reference, meta.regulation_citation, meta.submission_format, templateCode]);
 
+  useEffect(() => {
+    const t = window.setInterval(() => publishPreviewHeartbeat("return", templateCode), 5000);
+    return () => {
+      window.clearInterval(t);
+      clearPreview("return", templateCode);
+    };
+  }, [templateCode]);
+
   const handlePopOutPreview = () => openPreviewWindow("return", templateCode);
 
   const handleSave = async () => {
     setBusy(true);
     try {
-      const payload = denormalizeBody(body);
+      // For PDF returns, the section renderer is implicit — auto-stamp
+      // the `renderer: "v2-returns"` flag so publishers no longer need
+      // to toggle it. Non-PDF returns strip it defensively.
+      const isPdf = (meta.submission_format?.kind ?? null) === "pdf";
+      const derivedBody: ReturnBody = isPdf
+        ? { ...body, renderer: "v2-returns" }
+        : { ...body, renderer: null, sections: [] };
+      const payload = denormalizeBody(derivedBody);
       const r = await validatePayload({ kind: "return_template", body: payload });
       if (!r.valid) { setErrors(r.errors); setWarnings(r.warnings); toast.error("Fix errors before saving"); return; }
       if (mode === "tenant" && (notes ?? "").trim().length < 10) {
@@ -447,7 +467,7 @@ export function ReturnTemplateEditor({
   // as a PDF at runtime — surfacing the toggle in those cases misled
   // publishers (e.g. `P10 (iTax CSV)` previewed as an empty PDF).
   const showPdfSections = (meta.submission_format?.kind ?? null) === "pdf";
-  if (showPdfSections) activeSections.push({ id: "rt-section-v2", label: "PDF section layout" });
+  if (showPdfSections) activeSections.push({ id: "rt-section-v2", label: "PDF layout" });
   if (mode === "tenant") activeSections.push({ id: "rt-section-override", label: "Override reason" });
 
   const editorScrollRef = useRef<HTMLDivElement>(null);
@@ -673,28 +693,25 @@ export function ReturnTemplateEditor({
             <div>
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                PDF section layout
+                PDF layout
               </h3>
               <p className="text-xs text-muted-foreground">
-                Compose the paper-return PDF from the section vocabulary
-                below (employer header, period band, employee line grid,
-                totals, reconciliation, signature, footnote, remittance).
-                Only shown because this return declares a PDF submission
-                format. CSV, XLSX, XML and JSON returns do not use this
-                layout.
+                This return is filed as a PDF (see <em>Outputs</em>).
+                Compose the page from the section vocabulary below —
+                employer header, period band, employee grid, totals,
+                reconciliation, signature, footnote, remittance. Only
+                shown for PDF returns; CSV/XLSX/XML/JSON returns render
+                directly from the columns above.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={body.renderer === "v2-returns"}
-                onCheckedChange={(v) =>
-                  setBody({ ...body, renderer: v ? "v2-returns" : null })
-                }
-              />
-              <Label className="text-xs">Enable section layout</Label>
-            </div>
           </div>
-          {body.renderer === "v2-returns" && (
+          {(() => {
+            // PDF returns implicitly use the section renderer. The old
+            // opt-in toggle is retired — declaring a PDF output IS the
+            // opt-in. We still stamp `renderer: "v2-returns"` on save so
+            // the runtime picks the paged renderer.
+            return true;
+          })() && (
             <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-xs uppercase text-muted-foreground">Sections</Label>
@@ -852,6 +869,7 @@ export function ReturnTemplateEditor({
         legal_reference: meta.legal_reference,
         regulation_citation: meta.regulation_citation,
         submission_format: meta.submission_format,
+        outputs: meta.outputs,
       }}
       packId={packId ?? null}
     />

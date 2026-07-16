@@ -7,12 +7,17 @@
  * All renderer selection lives in `lib/preview/rendererRegistry` — this
  * component only prepares inputs and delegates.
  */
+import { useEffect, useMemo, useState } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { FileWarning } from "lucide-react";
 import {
   SpreadsheetPreviewColumn,
   type SpreadsheetPreviewProps,
 } from "./SpreadsheetPreviewPane";
 import {
   resolveReturnRenderer,
+  describeReturnFormat,
   type ReturnFormatKind,
 } from "../../lib/preview/rendererRegistry";
 import {
@@ -42,11 +47,19 @@ interface ReturnBodyLike {
   sections?: unknown[];
 }
 
+interface OutputEntry {
+  format: string;
+  role?: string;
+  label?: string | null;
+  filename?: string | null;
+}
+
 interface Meta {
   legal_reference?: string | null;
   regulation_citation?: string | null;
   authority_name?: string | null;
   submission_format?: ReturnSubmissionFormatSpec | null;
+  outputs?: OutputEntry[] | null;
 }
 
 interface Props {
@@ -122,19 +135,40 @@ function buildSpreadsheetProps(
   };
 }
 
-export function ReturnFormatPreview({ templateCode, displayName, body, meta, packId }: Props) {
-  const declared = meta?.submission_format?.kind ?? null;
-  const hasV2 = body.renderer === "v2-returns" && Array.isArray(body.sections);
-  // Declared format wins; otherwise the v2 flag forces PDF; otherwise a
-  // template with just `columns[]` is a tabular CSV export — NOT a PDF.
-  const formatKind: ReturnFormatKind = declared ?? (hasV2 ? "pdf" : "csv");
+const SUPPORTED_FORMATS: ReadonlySet<string> = new Set(["csv", "xlsx", "xml", "json", "pdf"]);
 
+/**
+ * Derive the effective renderable formats from `meta.outputs[]`
+ * (ground truth per ADR 0063). Falls back to `meta.submission_format`
+ * or the implicit CSV/PDF split for legacy rows.
+ */
+function resolveFormats(meta: Meta | null | undefined, hasV2: boolean): ReturnFormatKind[] {
+  const outputs = (meta?.outputs ?? []).filter((o) => SUPPORTED_FORMATS.has(o.format));
+  if (outputs.length) {
+    // Preserve author order; deduplicate.
+    const seen = new Set<string>();
+    const list: ReturnFormatKind[] = [];
+    for (const o of outputs) {
+      if (seen.has(o.format)) continue;
+      seen.add(o.format);
+      list.push(o.format as ReturnFormatKind);
+    }
+    return list;
+  }
+  const declared = meta?.submission_format?.kind ?? null;
+  return [declared ?? (hasV2 ? "pdf" : "csv")];
+}
+
+function renderSingle(
+  formatKind: ReturnFormatKind,
+  { templateCode, displayName, body, meta, packId }: Props,
+  hasV2: boolean,
+) {
   const descriptor = resolveReturnRenderer(formatKind, { hasV2Sections: hasV2 });
   const spreadsheetProps =
     formatKind === "csv" || formatKind === "xlsx"
       ? buildSpreadsheetProps(body, meta, formatKind)
       : undefined;
-
   return descriptor.render({
     templateCode,
     displayName,
@@ -143,6 +177,74 @@ export function ReturnFormatPreview({ templateCode, displayName, body, meta, pac
     packId,
     spreadsheetProps,
   });
+}
+
+function tabStorageKey(templateCode: string) {
+  return `lz.preview.return.tab.${templateCode}`;
+}
+
+export function ReturnFormatPreview(props: Props) {
+  const { templateCode, body, meta } = props;
+  const hasV2 = body.renderer === "v2-returns" && Array.isArray(body.sections);
+  const formats = useMemo(() => resolveFormats(meta, hasV2), [meta, hasV2]);
+
+  const declaredNothing =
+    (!meta?.outputs || meta.outputs.length === 0) && !meta?.submission_format?.kind;
+
+  // Persist the selected tab per (templateCode) so a publisher who
+  // returns to the editor lands on the same output they inspected last.
+  const [active, setActive] = useState<string>(() => {
+    if (typeof window === "undefined") return formats[0];
+    try {
+      const stored = window.localStorage.getItem(tabStorageKey(templateCode));
+      if (stored && formats.includes(stored as ReturnFormatKind)) return stored;
+    } catch { /* ignore */ }
+    return formats[0];
+  });
+  useEffect(() => {
+    if (!formats.includes(active as ReturnFormatKind)) setActive(formats[0]);
+  }, [formats, active]);
+  useEffect(() => {
+    try { window.localStorage.setItem(tabStorageKey(templateCode), active); } catch { /* ignore */ }
+  }, [templateCode, active]);
+
+  if (declaredNothing) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-6">
+        <Alert className="max-w-md">
+          <FileWarning className="h-4 w-4" />
+          <AlertTitle>No output format declared</AlertTitle>
+          <AlertDescription className="text-xs">
+            Add at least one output in the <em>Outputs</em> section — the
+            preview will render the primary output. CSV/XLSX show a
+            spreadsheet, XML/JSON show a serialised payload, PDF
+            renders through the shared paged pipeline.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (formats.length === 1) {
+    return <>{renderSingle(formats[0], props, hasV2)}</>;
+  }
+
+  return (
+    <Tabs value={active} onValueChange={setActive} className="flex h-full min-h-0 flex-col">
+      <TabsList className="mx-4 mt-3 self-start">
+        {formats.map((f) => (
+          <TabsTrigger key={f} value={f} className="text-xs">
+            {describeReturnFormat(f)}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {formats.map((f) => (
+        <TabsContent key={f} value={f} className="min-h-0 flex-1 outline-none">
+          {renderSingle(f, props, hasV2)}
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
 }
 
 export default ReturnFormatPreview;

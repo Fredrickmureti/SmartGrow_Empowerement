@@ -21,6 +21,8 @@ import noPayslipLinesInCertificates from "./eslint-rules/no-payslip-lines-in-cer
 import noDialogCrudInAdmin from "./eslint-rules/no-dialog-crud-in-admin.js";
 import noHandRolledMeHeader from "./eslint-rules/no-hand-rolled-me-header.js";
 import noShellLeakFromMe from "./eslint-rules/no-shell-leak-from-me.js";
+import noPdfLibInLocalizationPreview from "./eslint-rules/no-pdf-lib-in-localization-preview.js";
+import noCountryFixtureInSharedPreview from "./eslint-rules/no-country-fixture-in-shared-preview.js";
 
 
 export default tseslint.config(
@@ -55,6 +57,8 @@ export default tseslint.config(
           "no-dialog-crud-in-admin": noDialogCrudInAdmin,
           "no-hand-rolled-me-header": noHandRolledMeHeader,
           "no-shell-leak-from-me": noShellLeakFromMe,
+          "no-pdf-lib-in-localization-preview": noPdfLibInLocalizationPreview,
+          "no-country-fixture-in-shared-preview": noCountryFixtureInSharedPreview,
         },
       },
     },
@@ -206,6 +210,29 @@ export default tseslint.config(
     rules: {
       "local/no-hand-rolled-me-header": "error",
       "local/no-shell-leak-from-me": "error",
+    },
+  },
+  // ADR 0063 — one renderer per localization artefact type. No pdf-lib
+  // in localization preview/renderer code (returns and certificates
+  // share the certificate-engine paged compile pipeline). No country-
+  // prefixed fixtures in shared preview code (a Ghana publisher must
+  // not see Kenya PINs).
+  {
+    files: [
+      "src/features/localization/**/*.{ts,tsx}",
+      "supabase/functions/_shared/certificate-engine/**/*.ts",
+    ],
+    rules: {
+      "local/no-pdf-lib-in-localization-preview": "error",
+    },
+  },
+  {
+    files: [
+      "src/features/localization/components/preview/**/*.{ts,tsx}",
+      "src/features/localization/lib/preview/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "local/no-country-fixture-in-shared-preview": "error",
     },
   },
 );

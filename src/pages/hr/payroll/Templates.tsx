@@ -14,16 +14,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { WorkflowSheet } from "@/components/workflow/WorkflowSheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Loader2, Pencil, RotateCcw, AlertTriangle } from "lucide-react";
-import { ReturnTemplateEditor } from "@/features/localization";
 import { useCertificateTemplates } from "@/hooks/payroll/useTaxCertificates";
 import { useReturnTemplates } from "@/hooks/payroll/useStatutoryReturns";
 import {
   useTemplateOverrides,
-  useSaveTemplateOverride,
   useResetTemplateOverride,
   type TemplateOverride,
 } from "@/hooks/payroll/useTemplateOverrides";
@@ -79,7 +76,6 @@ function TemplatesPanel({ kind }: { kind: Kind }) {
     return m;
   }, [overrides]);
 
-  const [editing, setEditing] = useState<PackRow | null>(null);
   const [resetting, setResetting] = useState<string | null>(null);
 
   const isLoading = (kind === "certificate" ? certQ.isLoading : retQ.isLoading) || overridesQ.isLoading;
@@ -161,9 +157,11 @@ function TemplatesPanel({ kind }: { kind: Kind }) {
                         size="sm"
                         variant="outline"
                         onClick={() =>
-                          kind === "certificate"
-                            ? navigate(`/hr/payroll/configuration/templates/certificates/${encodeURIComponent(p.code)}/edit`)
-                            : setEditing(p)
+                          navigate(
+                            kind === "certificate"
+                              ? `/hr/payroll/configuration/templates/certificates/${encodeURIComponent(p.code)}/edit`
+                              : `/hr/payroll/configuration/templates/returns/${encodeURIComponent(p.code)}/edit`,
+                          )
                         }
                       >
                         <Pencil className="h-3 w-3 mr-1" />
@@ -183,90 +181,8 @@ function TemplatesPanel({ kind }: { kind: Kind }) {
         )}
       </CardContent>
 
-      {editing && (
-        <OverrideEditor
-          kind={kind}
-          pack={editing}
-          existing={overrideByCode.get(editing.code) ?? null}
-          onClose={() => setEditing(null)}
-        />
-      )}
-
       <ResetConfirm kind={kind} code={resetting} onClose={() => setResetting(null)} />
     </Card>
-  );
-}
-
-function OverrideEditor({
-  kind,
-  pack,
-  existing,
-  onClose,
-}: {
-  kind: Kind;
-  pack: PackRow;
-  existing: TemplateOverride | null;
-  onClose: () => void;
-}) {
-  const save = useSaveTemplateOverride(kind);
-
-  const handleSave = async ({ body, layout, notes }: { body: any; layout: string | null; notes: string | null }) => {
-    const reason = (notes ?? "").trim();
-    if (reason.length < 10) {
-      toast.error("Reason (notes) must be at least 10 characters — used for the audit log.");
-      throw new Error("Reason too short");
-    }
-    try {
-      await save.mutateAsync({
-        template_code: pack.code,
-        body,
-        layout: kind === "certificate" ? layout : null,
-        notes: reason,
-        base_pack_id: pack.pack_id,
-        base_template_updated_at: pack.updated_at!,
-      });
-      toast.success("Override saved");
-      onClose();
-    } catch (e: any) {
-      toast.error(normalizeError(e).message ?? "Failed to save override");
-      throw e;
-    }
-  };
-
-  return (
-    <WorkflowSheet
-      open
-      onOpenChange={(o) => !o && onClose()}
-      size="2xl"
-      title={`${existing ? "Edit override" : "Create override"} — ${pack.display_name}`}
-      description={
-        kind === "return"
-          ? "Edit filters, columns, group-by and totals for this statutory return. The runtime reads exactly these fields — no JSON. Saved overrides apply to this business only; the pack template stays untouched."
-          : "Edit the certificate content as named blocks (header / body / totals / signature / custom). Use Insert token to reference employee, run or organization data — the preview shows exactly what will render. Saved overrides apply to this business only; the pack template stays untouched."
-      }
-    >
-      {kind === "return" ? (
-        <ReturnTemplateEditor
-          mode="tenant"
-          packId={pack.pack_id}
-          templateCode={pack.code}
-          initial={{
-            template_code: pack.code,
-            body: existing?.body ?? pack.body,
-            layout: null,
-            notes: existing?.notes ?? "",
-          }}
-          onSave={handleSave}
-          onCancel={onClose}
-        />
-      ) : (
-        // Certificate tenant overrides are handled via full-page navigation
-        // to `PayrollCertificateTemplateEdit` (see TemplatesPanel row action).
-        // This branch is unreachable — retained as a defensive no-op to keep
-        // OverrideEditor total for the union of Kind values.
-        null
-      )}
-    </WorkflowSheet>
   );
 }
 

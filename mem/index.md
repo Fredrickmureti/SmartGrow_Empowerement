@@ -9,6 +9,14 @@ Every visual choice (typography, rule weight, header shading, zebra) is expresse
 
 Statutory paper allowlist covers A3/A4/Letter/Legal × portrait+landscape. Which paper is legal for a specific filing is pack metadata — not `_shared/pdf/index.ts`.
 
+Localization previews (certificates AND statutory returns) resolve through `resolveReturnRenderer` / `resolvePopOutRenderer` in `src/features/localization/lib/preview/rendererRegistry.tsx`. No ad-hoc `switch` on submission_format outside the registry. `meta.outputs[]` is the ground truth for renderer selection; `submission_format.kind` is the legacy fallback. See ADR 0063.
+
+pdf-lib is forbidden in localization preview/renderer code. Returns render through the certificate-engine `compile()` → paged.js pipeline via `buildReturnAstTemplate` (`src/features/localization/lib/preview/returnToAst.ts`). Enforced by ESLint `no-pdf-lib-in-localization-preview`. Server-side PDF for returns still uses `_shared/pdf/returnRenderer.ts` pending Cloudflare Browser Rendering.
+
+Shared preview code (`components/preview/**`, `lib/preview/**`) is country-agnostic. The only sample fixture is `samplePayload.ts` (`SAMPLE_PAYROLL_ROWS`, `SAMPLE_RETURN_PAYLOAD`). Country-specific values come from `pack_token_registry.sample_value`. Enforced by ESLint `no-country-fixture-in-shared-preview`.
+
+Tenant and admin edit templates through the SAME full-page shells (`CertificateEditorPage`, `ReturnEditorPage`); the only differences are the persistence adapter, legal-metadata edit rights, and publish vs override.
+
 ## Memories
 - [Certificate rendering](mem://features/certificate-rendering) — Engine AST versions, node primitives, theme system, KE P9 blueprint mapping.
 - [ESS identity portal](mem://features/ess-identity-portal) — Ownership matrix (HR vs identity vs employee-managed), change-request RPCs, /me/* shell integrity guards.

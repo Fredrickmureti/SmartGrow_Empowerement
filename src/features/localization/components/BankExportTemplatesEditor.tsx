@@ -40,7 +40,7 @@ import { normalizeError } from "@/services/resilience";
 import { AuthoringWorkspace } from "@/design-system/primitives/AuthoringWorkspace";
 import { SpreadsheetPreviewPane, type SpreadsheetPreviewProps, type SpreadsheetPreviewColumn } from "./preview/SpreadsheetPreviewPane";
 import { openPreviewWindow, publishPreview } from "../lib/previewBroadcast";
-import { KE_RETURN_PREVIEW_PAYLOAD } from "../lib/fixtures/keReturnFixture";
+import { SAMPLE_RETURN_PAYLOAD } from "../lib/preview/samplePayload";
 
 const BUILDER_KINDS = [
   { value: "csv_columns", label: "CSV — columns" },
@@ -101,13 +101,13 @@ const SAMPLE_SPECS: Record<string, any> = {
   vendor_specific: { serializer: "equity_ibiz", version: "1.0" },
 };
 
-// ── Token resolver against the shared KE payroll fixture ─────────────
+// ── Token resolver against the shared country-agnostic sample ────────
 // Bank-export tokens are simple dotted paths (`employee.bank_account_number`,
-// `system.net_pay`, `period.code`). We reuse the same fixture that powers
-// the return preview so publishers see consistent sample data across the
-// whole workspace.
+// `system.net_pay`, `period.code`). We reuse the same country-agnostic
+// sample payload that powers every localization preview so publishers see
+// consistent data across the workspace, regardless of the pack's country.
 function resolveBankExportToken(token: string, rowIdx: number): string | number | null {
-  const p = KE_RETURN_PREVIEW_PAYLOAD;
+  const p = SAMPLE_RETURN_PAYLOAD;
   const row = p.rows[rowIdx % p.rows.length];
   const [ns, key] = token.split(".");
   if (!ns || !key) return null;
@@ -174,7 +174,7 @@ function buildBankExportPreview(input: {
       numeric: /amount|net|pay|gross|tax/i.test(String(c.token ?? "")),
       format: c.format ?? null,
     }));
-    const rows = KE_RETURN_PREVIEW_PAYLOAD.rows.map((_row, ri) =>
+    const rows = SAMPLE_RETURN_PAYLOAD.rows.map((_row, ri) =>
       cols.map((c) => (c.token ? resolveBankExportToken(c.token, ri) : "")),
     );
     const warnings: string[] = [];
@@ -189,7 +189,7 @@ function buildBankExportPreview(input: {
       encoding: "utf-8",
       fileExtension: file_extension || "csv",
       warnings,
-      footnote: "Sample rows come from the shared KE payroll fixture.",
+      footnote: "Sample rows come from the shared country-agnostic sample.",
     };
   }
 
@@ -203,7 +203,7 @@ function buildBankExportPreview(input: {
       width: f.length,
       format: f.format ?? f.pad ?? null,
     }));
-    const rows = KE_RETURN_PREVIEW_PAYLOAD.rows.map((_row, ri) =>
+    const rows = SAMPLE_RETURN_PAYLOAD.rows.map((_row, ri) =>
       fields.map((f) => {
         if (!f.token) return "";
         const raw = resolveBankExportToken(f.token, ri);
