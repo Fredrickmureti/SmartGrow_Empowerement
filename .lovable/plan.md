@@ -1,80 +1,59 @@
 
-# Resilience Audit: Workspace Bootstrap & Connectivity Recovery
+## Verification of the previous agent's claims
 
-Per your instructions, Phase 1 is a **codebase-evidenced investigation, not a fix**. I've done enough reading to state the root cause with confidence and scope the audit; nothing gets changed until you approve.
+I inspected the two files it says it changed and cross-referenced them with the resilience layer.
 
-## 1. Root cause (evidence-backed, not assumed)
+**What actually shipped and works**
 
-The error card comes from `src/components/common/SessionFailureCard.tsx`, rendered by `src/components/auth/OnboardingGuard.tsx` when `useWorkspaceRouting()` returns `status: "error"`. That status is set exclusively from `sessionError` in `src/contexts/SessionContext.tsx`.
+- `src/contexts/SessionContext.tsx` (1124 lines) — the bootstrap RPC now runs through `safeRpc` with a 20s timeout, retries 6× with jittered backoff `[0, 500, 1500, 4000, 8000, 15000] ms`, parks in `waiting_for_network` when `connectivityManager.getStatus() === "offline"`, does a one-shot `auth.refreshSession()` on `auth_expired` without consuming an attempt, fails fast on `permission_denied` / `validation`, guards overlapping loops with `inflightBootstrapRef` + `bootstrapEpochRef`, and exposes a `sessionRecovery: { status, attempt, lastErrorKind }` state. A dedicated effect subscribes to `connectivityManager` and, on every real `offline → online` transition, re-runs `fetchSessionData(true)` — this is the missing wire that made the previous state terminal. A visibility-change effect also retries on tab refocus when there's a live `sessionError`.
+- `src/components/common/SessionFailureCard.tsx` (165 lines) — subscribes to the manager, distinguishes offline/waiting vs retrying vs terminal, shows non-alarming copy for transient states, and only shows the destructive "We couldn't load your workspace" card when the failure is genuinely non-recoverable.
+- `ConnectivityManager.subscribe()` does fire-once with the current state; the `firstFire` gate in `SessionContext` correctly ignores that seed so we don't loop on mount.
 
-Reading `SessionContext.fetchSessionData` (lines 449–513):
+**Verdict:** the reported symptom (brief network drop during load → fatal workspace card) is genuinely fixed for the session-bootstrap path. This is not just cosmetic — the state machine actually drives recovery.
 
-- Session bootstrap = a single RPC `get_user_session_data`.
-- Retry budget = **3 attempts total** over delays `[0, 400ms, 1200ms]` (~1.6s total).
-- The RPC is called via **raw** `supabase.rpc(...)` — **not** `safeRpc` / `safeQueryRetry` from `src/services/resilience/supabaseSafe.ts`. So this critical path bypasses the platform's own resilience wrapper, its timeout race, its offline short-circuit, and its `ConnectivityManager.reportFailure/Success` feedback.
-- After the 3rd failure it sets `sessionError` and returns. There is **no listener on `connectivityManager`** in `SessionContext` (grep confirms: zero references). So when the browser comes back online, nothing re-runs the bootstrap. Recovery requires the user to click "Try again" or reload — exactly what you're seeing.
-- `refreshSession` (line 834) exists but is only ever fired by the SessionFailureCard button or manual org flows.
+## Gaps the previous agent deferred (or didn't notice)
 
-So the diagnosis is not "one failed request poisons state" in an abstract sense — it's concretely:
+The previous message itself admits three deliverables are outstanding. My audit adds a few more:
 
-> **Bootstrap uses a bespoke 1.6-second retry loop that is not wired to the connectivity state machine, so a network blip that outlasts ~1.6s becomes a terminal error until the user intervenes.**
+1. **Lifecycle map doc is missing.** The prompt explicitly asked for a written map of auth → session → workspace → org → business → permissions → config → connectivity → recovery. Nothing was written to `docs/architecture/`.
+2. **Phase C not started.** Many raw `supabase.from(...).select(...)` / `supabase.rpc(...)` call sites still bypass `safeQuery` / `safeRpc`, so they don't feed `ConnectivityManager` and their errors reach the UI un-normalized. Representative examples from a quick scan: `useInstalledApps`, `useWorkspaceContextReady`, org/business resolution, and the generic `useSalesDocumentRecord` peek hook (surfaces raw `error.message`). Until these adopt the resilience layer, other pages can still crash into fatal states on a network blip even though the session bootstrap now recovers.
+3. **No global `ConnectivityBanner`.** `docs/architecture/RESILIENCE.md` requires a single global affordance (offline / degraded / realtime-degraded). `ConnectivityProvider` exists but I can't find the banner mounted in `__root.tsx`. Users get no "you're offline" strip; only the session card communicates offline state, and only during initial load.
+4. **`SessionFailureCard` still renders `error?.message` verbatim** in the terminal branch (line 158). That leaks raw server text and violates the `no-raw-error-message-in-toast` intent (and its user-facing spirit). Should render the normalized `title`/`message` from `NormalizedError`, not the raw one — the `Error` we throw carries `kind`, but the normalized message is lost.
+5. **Post-onboarding retry path** still calls `attemptFetch` once with no connectivity check. If the user goes offline in the 600 ms window, the retry runs and burns without parking. Small, but the pattern should mirror the main loop.
+6. **No regression tests.** The prompt asked for a regression validation. `src/test/resilience/*` covers `ConnectivityManager` and `ErrorNormalizer` but not the SessionContext recovery loop or the SessionFailureCard state machine. A Playwright drop-network scenario is also missing.
+7. **Realtime + workspace hydration parity.** `useInstalledApps` cache invariants documented in `docs/architecture/PWA_HYDRATION.md` assume a resilient fetch. Right now on cold offline start with a stale cache, the workspace can render "activate" instead of the loader if the fetch throws un-normalized. Needs `safeQuery` adoption inside `useInstalledApps`.
 
-Additional weaknesses observed while tracing:
+## Plan
 
-- `ConnectivityManager` (`src/services/resilience/ConnectivityManager.ts`) is well-built (browser + Electron + probe, degraded/offline/online, dedup, realtime grace window) but is **only consumed opportunistically**. `SessionContext`, `OnboardingGuard`, and `useWorkspaceRouting` don't read it. It's currently "decorative" for the bootstrap path — exactly the failure mode you asked to check.
-- `SessionFailureCard` has no auto-retry timer, no "waiting for connection" state, and doesn't distinguish `offline` from `server_unavailable` from `auth_expired` (all normalized kinds already exist in `ErrorNormalizer`).
-- `OnboardingGuard` uses `react-router-dom` navigation, but the rest of the stack is TanStack Router — worth flagging during the audit for consistency, not part of this fix's scope.
-- `attemptFetch` throws on any RPC error including `PGRST301` (JWT expired). That currently counts as one of the 3 attempts and yields a generic failure card instead of triggering a session refresh.
-- No last-known-good fallback: even if we previously had a valid `sessionData`, a failed *refresh* replaces nothing but still leaves `sessionError` set — the routing selector already handles the "stale sessionData wins" case correctly (`useWorkspaceRouting` line ~76), so refresh failures don't strand users; only the *initial* bootstrap does.
+### Phase A — Close the documentation and UI gaps (small, high-signal)
 
-## 2. Full audit still to perform (Phase 1 deliverables)
+1. Write `docs/architecture/CONNECTIVITY_LIFECYCLE.md`: end-to-end map from app boot → auth → session RPC → org/business resolution → install-state hydration → UI, annotated with the failure classes (`offline / timeout / auth_expired / permission_denied / server_unavailable / unknown`) and which layer owns recovery at each step. This is the audit deliverable the prompt asked for.
+2. Mount `<ConnectivityBanner />` once in `src/routes/__root.tsx` (or the closest global layout for this project's TanStack Start tree) inside `<ConnectivityProvider>`. Three modes as per `RESILIENCE.md`: offline (red, "You're offline since HH:MM"), degraded (amber), realtime-degraded (subtle "Live updates paused"). Suppress per-feature reconnect toasts elsewhere.
+3. Fix `SessionFailureCard` terminal branch to render `NormalizedError.title` + a curated `message` (never raw). Attach the `kind` on the thrown `Error` (already done) and look it up in the card.
 
-Before touching code I will produce, as documents under `docs/audit/`:
+### Phase B — Extend recovery beyond session bootstrap
 
-1. **Lifecycle map**: launch → auth (`AuthContext`) → session RPC → org resolution → business resolution → entitlements → app shell → background queries. Annotated with: which step uses `safeQuery`, which uses raw supabase, which listens to `connectivityManager`, which has retry, which has a fatal branch.
-2. **Error-classification matrix**: enumerate every terminal UI (SessionFailureCard, NoWorkspaceEmptyState, route error boundaries, TanStack Query error components) and map which `NormalizedError.kind` values reach them. Today most paths collapse everything to "fatal".
-3. **Retry inventory**: grep every `supabase.rpc`, `supabase.from`, `supabase.functions.invoke`, `fetch(` in `src/contexts/`, `src/hooks/`, `src/providers/`, `src/features/`. Tag each as `safe` (uses supabaseSafe), `raw+retry`, `raw+no-retry`. Expected finding: bootstrap + several hot providers are raw + no retry.
-4. **Connectivity-consumer inventory**: everywhere `connectivityManager.subscribe/isOnline/probe` is used. Confirm which surfaces actually react to online→offline→online transitions.
-5. **Workspace-recovery trace**: prove whether the app can, in principle, recover without a reload after the terminal card renders (spoiler from the code read: no — only the manual button path).
-6. **Comparison note** vs. Odoo web client, QuickBooks Online, Xero, Microsoft 365, Slack, Notion, Shopify Admin, Stripe Dashboard on: offline banner vs. fatal screen, auto-reconnect, queued mutations, session-refresh-on-visibility, exponential backoff caps, jittered retry, per-request vs. per-boundary error handling. Cited where public docs/observations exist.
+4. Migrate the hottest post-auth fetchers to `safeQuery` / `safeQueryRetry` so a mid-app blip behaves like the session bootstrap:
+   - `useInstalledApps` (respects the cache-TTL contract in `PWA_HYDRATION.md`).
+   - Workspace context readiness (`useWorkspaceContextReady`) and any org/business resolver hooks it depends on.
+   - `useSalesDocumentRecord` peek hook — replace raw `error.message` with a normalized error and let callers render the resilient state.
+   These are the paths most likely to reproduce the "fatal on blip" symptom on non-initial navigation.
+5. Wire `connectivityManager` into the post-onboarding retry inside `SessionContext.fetchSessionData` so it parks on offline instead of burning the single retry slot.
 
-All conclusions will be linked back to file:line evidence.
+### Phase C — Regression coverage
 
-## 3. Phased remediation (only after you approve Phase 1)
+6. Add `src/test/resilience/session-recovery.test.ts`: mocks `supabase.rpc` and `connectivityManager`, asserts the state machine transitions `retrying → waiting_for_network → retrying → idle` across an offline→online cycle, that `auth_expired` triggers exactly one `refreshSession` and does not consume an attempt, and that `permission_denied` fails fast.
+7. Add `src/test/resilience/session-failure-card.test.tsx`: renders the card with the three `sessionRecovery` states and asserts copy + iconography + button disabled state.
+8. Add a Playwright scenario under `/tmp/browser/session-recovery/` that (a) navigates to a protected page, (b) toggles `context.setOffline(true)` mid-load, (c) confirms the "Waiting for connection" card renders, (d) toggles offline back off, (e) confirms the workspace mounts without a reload. Capture screenshots for the deliverable.
 
-Nothing below is implemented yet — it's the shape of the fix so you can push back on scope.
+### Phase D — Deliverables report
 
-**Phase A — Bootstrap resilience (fixes the reported symptom):**
-- Route `fetchSessionData` through `safeRpc` with a longer, jittered exponential backoff (e.g. 5 attempts, cap ~30s, honoring `connectivityManager` status so we don't burn attempts while `offline`).
-- Subscribe `SessionContext` to `connectivityManager`: on `offline → online` transition, if `sessionError && !sessionData`, auto-retry the bootstrap.
-- Distinguish error kinds before setting `sessionError`: `auth_expired` → force `supabase.auth.refreshSession()` then retry once; `offline`/`timeout`/`server_unavailable` → keep retrying in the background; only truly non-retryable errors set the fatal `sessionError`.
-- Preserve last-known-good `sessionData` across refresh failures (already partly true; make it explicit).
+9. Publish a short `docs/audit/2026-07-connectivity-hardening.md` summarizing: root cause (session bootstrap loop was bounded and had no reconnect subscription; other paths still bypass resilience), evidence lines, the lifecycle map, gaps closed vs deferred, and the enterprise SaaS pattern comparison the prompt requested (Odoo/QuickBooks/Xero/Notion approach: unbounded retry + state-machine + banner + preserved user context — matches what we now implement for session, still expanding for the rest).
 
-**Phase B — `SessionFailureCard` UX:**
-- Replace terminal card with a state-aware surface: "Reconnecting… (attempt N)" while offline/degraded, "Server unavailable, retrying" for 5xx, current fatal card only for genuine unrecoverable states (e.g. account disabled). Keep sign-out escape hatch.
-- No forced page reloads, no arbitrary delays, no `try/catch` swallowing — all decisions come from `NormalizedError.kind` + `ConnectivityManager` state.
+## Technical details
 
-**Phase C — System-wide consistency:**
-- Migrate remaining raw supabase calls in bootstrap-critical providers (`AuthContext`, `usePlatformAdmin`, business/branding loaders, installed-apps hydration) to `safeQuery`/`safeQueryRetry`.
-- Adopt a shared `useAutoRetryOnReconnect(queryKey)` helper so feature-level queries (Sales, POS, Payroll, etc.) invalidate on `offline → online` without each module re-implementing it.
-- Add an app-wide connectivity banner (non-blocking, top strip) instead of full-screen crashes for transient states, following the Slack/Notion pattern.
-
-**Phase D — Regression proof:**
-- Vitest units covering: bootstrap retries while `connectivityManager` reports `offline`, auto-recovery on transition to `online`, `auth_expired` triggers refresh-then-retry, last-known-good preservation.
-- A Playwright script that boots the app, toggles `context.setOffline(true)` mid-bootstrap for 10s, then `false`, and asserts the app reaches the dashboard without a reload and without the SessionFailureCard becoming terminal.
-- Manual walk-through checklist across Auth, Dashboard, Sales, Purchases, Inventory, Finance, POS, Payroll, HR, Notifications, Settings.
-
-## 4. Deliverables ordering
-
-1. Audit documents (Section 2) checked into `docs/audit/`.
-2. Phase A + B code changes (the actual user-visible fix).
-3. Phase C rollout as follow-up PRs per module to keep diffs reviewable.
-4. Phase D tests land with the code that makes them pass.
-
-## 5. What I will NOT do
-
-- No error suppression, no blanket try/catch, no forced `location.reload()`, no arbitrary sleeps, no hiding the failure card behind a spinner.
-- No changes to `src/integrations/supabase/types.ts`, no schema changes proposed here (this is a client-side resilience fix).
-- No rewrite of `ConnectivityManager` — it's sound; the gap is consumers, not the manager.
-
-Approve this plan and I'll start by producing the audit documents in Section 2, then implement Phase A + B against the evidence they surface.
+- Do **not** rewrite `SessionContext` — the previous implementation is architecturally sound. Only touch it for the post-onboarding retry parking and (optionally) to also invalidate `queryClient` after a recovery to refresh downstream caches without a reload.
+- Retry policy stays the closed set `{offline, timeout, server_unavailable}` from `supabaseSafe.RETRYABLE_KINDS`. Never extend this to auth/permission/validation.
+- Banner must not layer on top of the session card — when both would render, the session card wins (it's the more specific state). Enforce with a single provider owning the render.
+- No forced reloads anywhere. No `window.location.reload()`. No `setTimeout(..., N)` outside the backoff computation.
+- Query keys touched by `useInstalledApps` continue to obey the `installed-apps-cache-v2-<orgId>` envelope from `PWA_HYDRATION.md` — `safeQuery` wraps the network call, it does not change the cache contract.
