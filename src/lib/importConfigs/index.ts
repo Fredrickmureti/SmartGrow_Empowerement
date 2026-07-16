@@ -11,3 +11,5 @@ export { PAYMENT_IMPORT_FIELDS } from "./paymentImportConfig";
 export { ESTIMATE_IMPORT_FIELDS } from "./estimateImportConfig";
 export { SALES_ORDER_IMPORT_FIELDS } from "./salesOrderImportConfig";
 export { PURCHASE_ORDER_IMPORT_FIELDS } from "./purchaseOrderImportConfig";
+export { ASN_IMPORT_FIELDS } from "./asnImportConfig";
+export { createAsnBatchImportHandler } from "./asnImportBatch";
