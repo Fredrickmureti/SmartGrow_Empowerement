@@ -402,9 +402,10 @@ export default function GoodsReceiptWizardPage() {
         display_uom_id: line.display_uom_id,
         display_quantity: line.display_quantity,
       }));
-      const { error: itemsError } = await supabase
+      const { data: insertedItems, error: itemsError } = await supabase
         .from("goods_receipt_items")
-        .insert(receiptItems);
+        .insert(receiptItems)
+        .select("id, purchase_order_item_id, product_id, quantity_received");
       if (itemsError) throw itemsError;
 
       const { data: rpcRes, error: rpcErr } = await supabase.rpc(
@@ -416,6 +417,53 @@ export default function GoodsReceiptWizardPage() {
       if (!result?.success) {
         throw new Error(result?.error || "Failed to complete goods receipt");
       }
+
+      // Phase D.2 · ASN reconciliation: transition shipment + log discrepancies
+      if (activeShipment) {
+        const itemIdByPoItem: Record<string, string> = {};
+        for (const row of insertedItems ?? []) {
+          if (row.purchase_order_item_id) itemIdByPoItem[row.purchase_order_item_id] = row.id;
+        }
+        const discrepancies: any[] = [];
+        for (const line of linesToReceive) {
+          if (!line.inbound_shipment_item_id || line.expected_quantity == null) continue;
+          const received = Number(line.quantity_to_receive) || 0;
+          const expected = Number(line.expected_quantity) || 0;
+          if (received === expected) continue;
+          const dtype = received < expected ? "short" : "over";
+          discrepancies.push({
+            organization_id: currentOrg.id,
+            business_id: currentBusiness?.id || wh.business_id,
+            branch_id: wh.branch_id,
+            goods_receipt_id: receipt.id,
+            goods_receipt_item_id: itemIdByPoItem[line.po_item_id] ?? null,
+            inbound_shipment_item_id: line.inbound_shipment_item_id,
+            product_id: line.product_id,
+            expected_quantity: expected,
+            received_quantity: received,
+            discrepancy_type: dtype,
+            resolution: "pending",
+            created_by: user.id,
+            notes: `Auto-logged from ASN ${activeShipment.shipment_number}`,
+          });
+        }
+        if (discrepancies.length > 0) {
+          const { error: discErr } = await supabase
+            .from("goods_receipt_discrepancies")
+            .insert(discrepancies);
+          if (discErr) {
+            console.error("Failed to log ASN discrepancies:", discErr);
+          }
+        }
+        const { error: shipErr } = await supabase
+          .from("inbound_shipments")
+          .update({ status: "received", received_at: new Date().toISOString() })
+          .eq("id", activeShipment.id);
+        if (shipErr) {
+          console.error("Failed to transition ASN to received:", shipErr);
+        }
+      }
+
 
       await supabase.from("audit_logs").insert({
         organization_id: currentOrg.id,
