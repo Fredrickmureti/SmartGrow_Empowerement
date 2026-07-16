@@ -57,10 +57,11 @@ describe("localization certificate editor shell", () => {
     const offenders: string[] = [];
     for (const file of pageFiles) {
       const src = readFileSync(file, "utf8");
-      if (
-        /from ["']@\/features\/localization\/components\/CertificateTemplateEditor["']/.test(src) ||
-        /from ["']\.\.\/\.\.\/features\/localization\/components\/CertificateTemplateEditor["']/.test(src)
-      ) {
+      // Allow `import type` — types don't cause runtime mount duplication.
+      const valueImport = new RegExp(
+        String.raw`import\s+(?!type\s)\{[^}]*CertificateTemplateEditor[^}]*\}\s+from\s+["'][^"']*CertificateTemplateEditor["']`,
+      );
+      if (valueImport.test(src)) {
         offenders.push(file.replace(ROOT + "/", ""));
       }
     }
