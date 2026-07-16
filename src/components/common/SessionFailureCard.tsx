@@ -117,7 +117,17 @@ export function SessionFailureCard({ error }: SessionFailureCardProps) {
   // Persistent failure: server responded with something we can't recover
   // from automatically (e.g. auth_invalid, permission_denied on the RPC,
   // or an unknown server error after the retry budget). Offer explicit
-  // manual retry and sign-out.
+  // manual retry and sign-out. Copy is driven by the normalized error
+  // catalog — we never render `error.message` verbatim.
+  const normalized = useMemo(() => {
+    const kind = error?.kind ?? sessionRecovery.lastErrorKind ?? undefined;
+    if (kind) {
+      // Round-trip through the catalog to get canonical title/message.
+      return normalizeError({ kind, message: "" });
+    }
+    return normalizeError(error ?? new Error("Session unavailable"));
+  }, [error, sessionRecovery.lastErrorKind]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -125,11 +135,8 @@ export function SessionFailureCard({ error }: SessionFailureCardProps) {
           <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-3">
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>
-          <CardTitle>We couldn't load your workspace</CardTitle>
-          <CardDescription>
-            Something went wrong while loading your account. This is usually
-            temporary.
-          </CardDescription>
+          <CardTitle>{normalized.title}</CardTitle>
+          <CardDescription>{normalized.message}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Button onClick={handleRetry} disabled={busy !== null} className="w-full">
@@ -154,11 +161,6 @@ export function SessionFailureCard({ error }: SessionFailureCardProps) {
             )}
             Sign out
           </Button>
-          {error?.message ? (
-            <p className="text-xs text-muted-foreground text-center pt-2 break-words">
-              {error.message}
-            </p>
-          ) : null}
         </CardContent>
       </Card>
     </div>
