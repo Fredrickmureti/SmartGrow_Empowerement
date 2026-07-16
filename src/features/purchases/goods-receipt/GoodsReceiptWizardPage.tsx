@@ -84,6 +84,14 @@ interface ReceiptLine {
   quantity_to_receive: number;
   lot_number: string;
   serial_number: string;
+  // Phase A.5 — per-unit serials for is_serial_tracked products.
+  // When the line's product is serial-tracked, this array MUST have
+  // exactly `quantity_to_receive` unique non-empty entries; the
+  // submit handler expands the line into that many single-qty
+  // goods_receipt_items rows so the stock_movements trigger
+  // (`enforce_serial_on_movement`, ADR-0067) upserts one row into
+  // stock_serials per unit.
+  serial_numbers: string[];
   notes: string;
   packaging_id: string | null;
   display_uom_id: string | null;
