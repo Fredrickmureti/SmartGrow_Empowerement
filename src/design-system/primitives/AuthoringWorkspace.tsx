@@ -309,7 +309,9 @@ export function AuthoringWorkspace({
   );
 
   // Overlay-mode drag handling — moves ONLY the preview edge; editor keeps
-  // its width. Uses a pointer capture so the drag survives fast moves.
+  // its width. Drag past the collapse threshold hides the preview entirely
+  // (mode → "editor"), leaving only a floating restore tab.
+  const COLLAPSE_PX = 140;
   const overlayContainerRef = useRef<HTMLDivElement | null>(null);
   const onOverlayHandlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
@@ -317,19 +319,25 @@ export function AuthoringWorkspace({
     if (!container) return;
     target.setPointerCapture(e.pointerId);
     const containerRect = container.getBoundingClientRect();
+    let latest = overlayPreviewPx;
     const move = (ev: PointerEvent) => {
       const fromRight = containerRect.right - ev.clientX;
-      const clamped = Math.max(320, Math.min(fromRight, containerRect.width));
-      setOverlayPreviewPx(clamped);
+      latest = Math.max(0, Math.min(fromRight, containerRect.width));
+      setOverlayPreviewPx(Math.max(240, latest));
     };
     const up = () => {
       target.releasePointerCapture(e.pointerId);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      if (latest < COLLAPSE_PX) {
+        // Snap-collapse: hide preview but remember a sensible restore size.
+        setOverlayPreviewPx(Math.max(overlayPreviewPx, 560));
+        setMode("editor");
+      }
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
-  }, []);
+  }, [overlayPreviewPx]);
 
   const onBottomHandlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
@@ -337,19 +345,25 @@ export function AuthoringWorkspace({
     if (!container) return;
     target.setPointerCapture(e.pointerId);
     const containerRect = container.getBoundingClientRect();
+    let latest = bottomPreviewPx;
     const move = (ev: PointerEvent) => {
       const fromBottom = containerRect.bottom - ev.clientY;
-      const clamped = Math.max(260, Math.min(fromBottom, containerRect.height));
-      setBottomPreviewPx(clamped);
+      latest = Math.max(0, Math.min(fromBottom, containerRect.height));
+      setBottomPreviewPx(Math.max(200, latest));
     };
     const up = () => {
       target.releasePointerCapture(e.pointerId);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      if (latest < COLLAPSE_PX) {
+        setBottomPreviewPx(Math.max(bottomPreviewPx, 480));
+        setMode("editor");
+      }
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
-  }, []);
+  }, [bottomPreviewPx]);
+
 
   // Render the main + preview split. In `bottom` mode we swap to a
   // vertical PanelGroup; in `overlay` mode the editor keeps its natural
