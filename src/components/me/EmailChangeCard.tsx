@@ -38,9 +38,7 @@ export function EmailChangeCard() {
   const pendingEmail = (user as any)?.new_email ?? null;
 
   const currentAuthEmail = user?.email ?? "";
-  const currentWorkEmail = employee?.work_email ?? null;
-  const workEmailDiffers =
-    !!currentWorkEmail && currentWorkEmail.toLowerCase() !== currentAuthEmail.toLowerCase();
+
 
   const submit = async () => {
     const target = newEmail.trim().toLowerCase();
