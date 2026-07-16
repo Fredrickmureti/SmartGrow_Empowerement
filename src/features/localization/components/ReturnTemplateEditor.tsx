@@ -389,11 +389,12 @@ export function ReturnTemplateEditor({
       meta: {
         legal_reference: meta.legal_reference,
         regulation_citation: meta.regulation_citation,
+        submission_format: meta.submission_format,
       },
       displayName: templateCode,
       updatedAt: Date.now(),
     });
-  }, [body, meta.legal_reference, meta.regulation_citation, templateCode]);
+  }, [body, meta.legal_reference, meta.regulation_citation, meta.submission_format, templateCode]);
 
   const handlePopOutPreview = () => openPreviewWindow("return", templateCode);
 
