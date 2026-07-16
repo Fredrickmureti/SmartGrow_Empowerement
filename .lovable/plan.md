@@ -77,32 +77,79 @@ Cross-checked `.lovable/plan.md` claims against the codebase:
   RPCs. 10/10 tests pass. Combined inventory guard surface: 18/18 green.
 - **No `warehouse_stock` schema change.** Phase 5 drift gate unchanged.
 
+## ✅ Phase D — Inbound shipments (ASN) schema (delivered 2026-07-16)
+
+- **ADR:** `docs/adr/0069-inbound-shipments-asn.md`
+- **Migration:** three tables + three enums with canonical inventory
+  RLS shape (`user_can_access_business` + `can_access_branch` +
+  `user_has_module_permission(..., 'inventory', 'write')` on writes;
+  branch/business scope on reads):
+  - `inbound_shipments` — ASN header (PO link, vendor, carrier, tracking,
+    `expected_arrival_at`, lifecycle `draft → dispatched → in_transit →
+    arrived → received → cancelled`).
+  - `inbound_shipment_items` — vendor-declared expected qty / lot /
+    expiry / manufacture date / packaging per product; optional back-ref
+    to a specific `purchase_order_items` row.
+  - `goods_receipt_discrepancies` — normalised over / short / damaged /
+    wrong_item / expired / quality_hold ledger against a
+    `goods_receipts` row; optional link to the ASN line that predicted
+    the quantity; resolution enum
+    (`pending / vendor_credit / insurance_claim / accept_and_move_on /
+    return_to_vendor`).
+- **Enums:** `inbound_shipment_status`,
+  `goods_receipt_discrepancy_type`, `goods_receipt_discrepancy_resolution`.
+- **updated_at** triggers on all three tables via
+  `public._set_updated_at()`.
+- **Architecture guard:** `src/test/architecture/inbound-shipments.test.ts`
+  pins table creation, GRANT + RLS + policy shape, enum coverage, and
+  FK linkage. 17/17 tests pass. Combined inventory guard surface: **35/35**.
+- **No changes** to `purchase_orders`, `goods_receipts`, `stock_movements`,
+  `warehouse_stock`, or any existing RPC. GRN authoring today keeps
+  every capability; ASN + discrepancies are additive.
+
 ## ⏭ Next up
 
-Same priority order as before:
-
-1. **Phase A.3 · UI plumbing** — lot/serial pickers on invoice /
+1. **Phase D.2 · GRN wizard prefill from ASN** (application code).
+   When a PO has one or more `dispatched` / `in_transit` inbound
+   shipments, the wizard should:
+   - Prefill line quantities from `inbound_shipment_items.expected_quantity`.
+   - Prefill `lot_number` / `expiry_date` / `manufacture_date` from
+     `expected_*`.
+   - On post: transition the ASN to `received` and land a
+     `goods_receipt_discrepancies` row for every line where the received
+     qty ≠ expected qty (default `resolution = 'pending'`).
+   - No new backend contract — this is orchestration over existing RPCs.
+2. **Phase D.3 · ASN CSV import** (EDI-856 stand-in). One-to-one mapping
+   between CSV columns and `inbound_shipment_items` fields. Optional
+   until a real customer needs it.
+3. **Phase A.3 · UI plumbing** — lot/serial pickers on invoice /
    credit-note / sales-return / delivery-note / GRN line editors.
    Backend already enforces; this prevents users from hitting the guard
    mid-post. Reuse the existing POS `LotPickerPopover`; add a
    `SerialPickerPopover` reading `stock_serials WHERE status='in_stock'`.
-2. **Phase D · ASN / inbound shipments** — ADR 0069, `inbound_shipments`
-   + `inbound_shipment_items`, `goods_receipt_discrepancies`, GRN wizard
-   prefill from ASN, CSV EDI-856 stand-in.
-3. **Phase E–H** — variants, import split, lot genealogy, GS1 parsing.
+4. **Phase E–H** — variants, import split, lot genealogy, GS1 parsing.
    Each stands alone with its own ADR.
-4. **Ambient · Phase 5 drift gate** — retire `warehouse_stock` once
+5. **Ambient · Phase 5 drift gate** — retire `warehouse_stock` once
    `check_stock_quant_drift` returns empty 14 consecutive days.
 
 ## Ground truth for the next agent
 
-- Transfer RPCs are now the reference implementation for directional
-  movement types + location stamping. Copy this pattern for any future
-  cross-location movement (manufacturing WIP, subcontract, RMA).
-- The business transit location is now a first-class ledger anchor —
+- Transfer RPCs are the reference implementation for directional
+  movement types + location stamping (ADR 0068). Copy this pattern for
+  any future cross-location movement (manufacturing WIP, subcontract,
+  RMA).
+- The business transit location is a first-class ledger anchor —
   read via `get_business_transit_location(business_id)`, never via
   ad-hoc `stock_locations` queries.
 - If you add another location-crossing RPC, populate both
   `source_location_id` and `destination_location_id` so the Phase-2
   quants shadow books proper double-entry. Setting only one is
   supported (single-side move) but should be intentional.
+- ASN is the canonical pre-GRN signal (ADR 0069). Never author a
+  discrepancy row directly against a `goods_receipts` line without
+  linking it back to the receipt (`goods_receipt_id`) — that's the
+  invariant every downstream vendor-credit / insurance-claim workflow
+  will assume.
+- Inventory-foundation architecture guards live at
+  `src/test/architecture/{outbound-lot-stamping,serial-tracking,split-transfer,inbound-shipments}.test.ts`.
+  Do not weaken them; extend them when you add new contracts.
