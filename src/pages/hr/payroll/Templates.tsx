@@ -8,6 +8,7 @@ import { normalizeError } from "@/services/resilience";
  * ≥10-char reason and write a row to audit_logs via DB trigger.
  */
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
