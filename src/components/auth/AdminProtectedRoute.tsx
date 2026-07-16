@@ -5,6 +5,7 @@ import { BrandedLoader } from "@/components/common/BrandedLoader";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminInlineMfaSetup } from "@/components/admin/AdminInlineMfaSetup";
+import { MfaChallengeGate } from "@/components/auth/MfaChallengeGate";
 import { resolvePostLoginDestination } from "@/lib/auth/postLoginRedirect";
 
 interface AdminProtectedRouteProps {
