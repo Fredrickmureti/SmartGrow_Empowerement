@@ -35,6 +35,9 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { safeRpc } from "@/services/resilience/supabaseSafe";
+import { connectivityManager } from "@/services/resilience/ConnectivityManager";
+import type { NormalizedError } from "@/services/resilience/ErrorNormalizer";
 
 // Types for session data returned by get_user_session_data RPC.
 // Identity fields (base_currency, address, tax_id, email, phone, etc.)
