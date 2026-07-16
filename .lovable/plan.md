@@ -105,3 +105,75 @@ Phase 5 (retire `warehouse_stock`) proceeds whenever `check_stock_quant_drift` h
 2. ADR 0066 + migration for Phase A (downstream lot/serial stamping), including the four column additions, deferrable constraint trigger, RPC updates, backfill, and pgTAP + architecture tests.
 
 Nothing else changes in this first turn. Phases B and C follow in separate PRs, each with its own ADR.
+
+---
+
+# Execution log
+
+## Prior work (verified 2026-07-16, agent handoff #2)
+
+Step 1 "Locations & bins" Phases 1–4 were delivered by the previous agent
+and verified against `pg_catalog` + filesystem:
+
+- ADRs `0064-stock-locations-and-quants.md` and
+  `0065-phase-4-transit-quarantine-locations.md` present.
+- Migrations `20260716210212`, `210630`, `210823`, `211651` applied.
+- Tables `stock_locations`, `stock_quants` created; `stock_movements`
+  gained `source_location_id` + `destination_location_id`.
+- Views `v_stock_on_hand`, `v_warehouse_stock_effective`,
+  `v_location_summary` present.
+- RPC `check_stock_quant_drift(uuid)` present.
+- Triggers: `trg_maintain_stock_quants` on `stock_movements` and
+  `trg_lot_quarantine_emit_movements` on `lot_quarantine` (prior log
+  called these `_maintain_stock_quants` and `_emit_quarantine_movements`
+  — cosmetic naming drift, no functional impact).
+- Hook `src/hooks/inventory/useStockQuants.ts` present.
+
+`warehouse_stock` remains authoritative. Phase 5 (retire it) stays gated
+on 14 consecutive clean days of `check_stock_quant_drift`.
+
+## ✅ Phase A.1 — Downstream lot/serial stamping (schema + recall view)
+
+- **ADR:** `docs/adr/0066-downstream-lot-serial-stamping.md`
+- **Migration:** `supabase/migrations/20260716214838_*.sql`
+- **Delivered:**
+  - `lot_number text` + `serial_number text` on `invoice_items`,
+    `sales_order_items`, `sales_return_items`, `credit_note_items`
+    (POS and delivery-note lines already had them).
+  - Partial indexes on each new column.
+  - Canonical two-way recall view `v_lot_downstream_consumption`
+    unioning POS transactions, delivery notes, invoices, sales returns,
+    and credit notes with `document_type`, `document_number`,
+    `contact_id`, `occurred_at`, `quantity`, `business_id`,
+    `organization_id`.
+  - `GRANT SELECT` on the view to `authenticated` + `service_role`.
+- **Zero writer change.** Additive only.
+- **Verify:** `SELECT * FROM v_lot_downstream_consumption LIMIT 1` runs
+  clean. Stamp a lot on a POS line → row appears immediately.
+
+## ⏭ Next up — Phase A.2: enforcement + RPC wiring
+
+1. Extend `confirm_invoice_atomic`, `confirm_credit_note_atomic`,
+   `approve_sales_return_atomic`, `confirm_sales_order_atomic` to thread
+   each line's `lot_number` / `serial_number` to the emitted
+   `stock_movements` (reuse `consume_lots_atomic` for FEFO).
+2. Add `CONSTRAINT TRIGGER ... INITIALLY DEFERRED` on each of the four
+   tables: for lot/serial-tracked products on posted documents, the
+   corresponding column must be non-null at commit. Drafts / cancelled
+   exempt.
+3. Add `src/test/architecture/outbound-lot-stamping.test.ts` asserting
+   every outbound RPC forwards the lot to the ledger.
+4. Do NOT relax the trigger for UI screens without an ADR amendment.
+
+## Guardrails for the next agent
+
+- Do NOT modify `warehouse_stock` triggers or drop the table until the
+  drift gate is met.
+- Do NOT edit `src/integrations/supabase/types.ts` — regenerated after
+  each migration.
+- New readers use `v_stock_on_hand` / `useStockQuants` for on-hand and
+  `v_lot_downstream_consumption` for recall.
+- Every new inventory-affecting table needs GRANT + RLS in the same
+  migration.
+- The linter's ~1800 "Security Definer View" errors are pre-existing
+  project-wide noise; ignore unless the count grows on your migration.

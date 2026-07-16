@@ -8640,9 +8640,11 @@ export type Database = {
           id: string
           is_sample_data: boolean
           line_total: number
+          lot_number: string | null
           packaging_id: string | null
           product_id: string | null
           quantity: number
+          serial_number: string | null
           sort_order: number | null
           tax_amount: number | null
           tax_rate: number | null
@@ -8658,9 +8660,11 @@ export type Database = {
           id?: string
           is_sample_data?: boolean
           line_total: number
+          lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
           quantity?: number
+          serial_number?: string | null
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
@@ -8676,9 +8680,11 @@ export type Database = {
           id?: string
           is_sample_data?: boolean
           line_total?: number
+          lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
           quantity?: number
+          serial_number?: string | null
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
@@ -19555,11 +19561,13 @@ export type Database = {
           invoice_id: string
           is_sample_data: boolean
           line_total: number
+          lot_number: string | null
           milestone_id: string | null
           packaging_id: string | null
           product_id: string | null
           project_id: string | null
           quantity: number
+          serial_number: string | null
           sort_order: number | null
           task_id: string | null
           tax_amount: number | null
@@ -19580,11 +19588,13 @@ export type Database = {
           invoice_id: string
           is_sample_data?: boolean
           line_total: number
+          lot_number?: string | null
           milestone_id?: string | null
           packaging_id?: string | null
           product_id?: string | null
           project_id?: string | null
           quantity?: number
+          serial_number?: string | null
           sort_order?: number | null
           task_id?: string | null
           tax_amount?: number | null
@@ -19605,11 +19615,13 @@ export type Database = {
           invoice_id?: string
           is_sample_data?: boolean
           line_total?: number
+          lot_number?: string | null
           milestone_id?: string | null
           packaging_id?: string | null
           product_id?: string | null
           project_id?: string | null
           quantity?: number
+          serial_number?: string | null
           sort_order?: number | null
           task_id?: string | null
           tax_amount?: number | null
@@ -46916,6 +46928,7 @@ export type Database = {
           id: string
           is_sample_data: boolean
           line_total: number
+          lot_number: string | null
           packaging_id: string | null
           product_id: string | null
           project_id: string | null
@@ -46923,6 +46936,7 @@ export type Database = {
           quantity_backordered: number | null
           quantity_fulfilled: number | null
           sales_order_id: string
+          serial_number: string | null
           sort_order: number | null
           task_id: string | null
           tax_amount: number | null
@@ -46940,6 +46954,7 @@ export type Database = {
           id?: string
           is_sample_data?: boolean
           line_total: number
+          lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
           project_id?: string | null
@@ -46947,6 +46962,7 @@ export type Database = {
           quantity_backordered?: number | null
           quantity_fulfilled?: number | null
           sales_order_id: string
+          serial_number?: string | null
           sort_order?: number | null
           task_id?: string | null
           tax_amount?: number | null
@@ -46964,6 +46980,7 @@ export type Database = {
           id?: string
           is_sample_data?: boolean
           line_total?: number
+          lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
           project_id?: string | null
@@ -46971,6 +46988,7 @@ export type Database = {
           quantity_backordered?: number | null
           quantity_fulfilled?: number | null
           sales_order_id?: string
+          serial_number?: string | null
           sort_order?: number | null
           task_id?: string | null
           tax_amount?: number | null
@@ -47222,11 +47240,13 @@ export type Database = {
           invoice_item_id: string | null
           is_sample_data: boolean
           line_total: number
+          lot_number: string | null
           packaging_id: string | null
           product_id: string | null
           quantity: number
           return_reason: string | null
           sales_return_id: string
+          serial_number: string | null
           sort_order: number | null
           tax_amount: number | null
           tax_rate: number | null
@@ -47243,11 +47263,13 @@ export type Database = {
           invoice_item_id?: string | null
           is_sample_data?: boolean
           line_total: number
+          lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
           quantity?: number
           return_reason?: string | null
           sales_return_id: string
+          serial_number?: string | null
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
@@ -47264,11 +47286,13 @@ export type Database = {
           invoice_item_id?: string | null
           is_sample_data?: boolean
           line_total?: number
+          lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
           quantity?: number
           return_reason?: string | null
           sales_return_id?: string
+          serial_number?: string | null
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
@@ -59415,6 +59439,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_lot_downstream_consumption: {
+        Row: {
+          business_id: string | null
+          contact_id: string | null
+          counterparty_user_id: string | null
+          document_id: string | null
+          document_number: string | null
+          document_type: string | null
+          lot_number: string | null
+          occurred_at: string | null
+          organization_id: string | null
+          product_id: string | null
+          quantity: number | null
+          serial_number: string | null
+          source_table: string | null
+        }
+        Relationships: []
       }
       v_lots_expiring_soon: {
         Row: {
