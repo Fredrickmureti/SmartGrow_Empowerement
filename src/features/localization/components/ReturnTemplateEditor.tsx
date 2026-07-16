@@ -857,6 +857,16 @@ export function ReturnTemplateEditor({
     />
   );
 
+  const formatChipLabel = (() => {
+    const k = meta.submission_format?.kind;
+    if (k === "csv") return "CSV";
+    if (k === "xlsx") return "XLSX";
+    if (k === "xml") return "XML";
+    if (k === "json") return "JSON";
+    if (k === "pdf") return "PDF";
+    return "Format not set";
+  })();
+
   const toolbar = (
     <>
       <FileText className="h-4 w-4 text-muted-foreground" />
@@ -868,13 +878,9 @@ export function ReturnTemplateEditor({
         {mode === "admin" ? "Publisher" : "Tenant override"}
       </Badge>
       <div className="mx-1 h-4 w-px bg-border" />
-      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Switch
-          checked={body.renderer === "v2-returns"}
-          onCheckedChange={(v) => setBody({ ...body, renderer: v ? "v2-returns" : null })}
-        />
-        v2 renderer
-      </label>
+      <Badge variant="secondary" className="text-[10px]" title="Declared submission format — drives the preview renderer">
+        {formatChipLabel}
+      </Badge>
     </>
   );
 
