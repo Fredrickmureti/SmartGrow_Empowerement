@@ -297,6 +297,10 @@ const App = () => (
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
                             <Route path="/demo" element={<Demo />} />
+                            {/* Localization pop-out preview — public route (same-origin
+                                localStorage/BroadcastChannel from the opener is the auth). */}
+                            <Route path="/localization/preview/:kind/:templateCode" element={<LocalizationPreviewRoute />} />
+
                            <Route path="/resources" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourcesIndex /></Suspense></ProtectedRoute>} />
                            <Route path="/resources/:id" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourceDetail /></Suspense></ProtectedRoute>} />
                            <Route path="/forgot-password" element={<RedirectIfAuthenticated><ForgotPassword /></RedirectIfAuthenticated>} />
