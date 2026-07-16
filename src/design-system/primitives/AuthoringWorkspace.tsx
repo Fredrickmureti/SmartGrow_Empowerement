@@ -60,12 +60,19 @@ interface AuthoringWorkspaceProps {
   preview?: ReactNode;
   /** Sticky footer (save bar). Optional. */
   footer?: ReactNode;
+  /** Status strip rendered along the bottom (dirty / validation / hints). */
+  statusBar?: ReactNode;
   /** Default mode; overridden by persisted value. */
   defaultMode?: WorkspaceLayoutMode;
   /** Optional save handler bound to ⌘S / Ctrl+S. */
   onSave?: () => void;
+  /** Optional J / K node navigation (only fires when not typing). */
+  onNavigateNode?: (direction: WorkspaceNavDirection) => void;
+  /** Optional pop-out — surfaces an "open in new window" button in the toolbar. */
+  onPopOutPreview?: () => void;
   className?: string;
 }
+
 
 function persistedKey(workspaceId: string, suffix: string) {
   return `authoring-workspace:${workspaceId}:${suffix}`;
