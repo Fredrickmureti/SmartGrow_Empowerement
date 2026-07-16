@@ -154,15 +154,9 @@ export function EmailChangeCard() {
               className="mt-0.5"
             />
             <span>
-              Also request HR to update my work email on my employee record
-              {workEmailDiffers ? (
-                <>
-                  {" "}
-                  (currently <b>{currentWorkEmail}</b>)
-                </>
-              ) : null}
-              .
+              Also request HR to update my work email on my employee record.
             </span>
+
           </label>
         ) : null}
 
