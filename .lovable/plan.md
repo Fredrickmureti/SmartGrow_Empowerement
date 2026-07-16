@@ -134,19 +134,57 @@ Cross-checked `.lovable/plan.md` claims against the codebase:
 - **Backward compatibility:** POs without an ASN receive the previous
   behaviour verbatim (fill remaining, no shipment or discrepancy writes).
 
+## ✅ Phase D.3 — ASN CSV import (delivered 2026-07-16)
+
+- **Field config:** `src/lib/importConfigs/asnImportConfig.ts` exports
+  `ASN_IMPORT_FIELDS` — canonical `FieldDefinition[]` covering the ASN
+  header (`shipment_number`, `po_number`, `vendor_name`, `carrier`,
+  `tracking_number`, `dispatched_at`, `expected_arrival`) and the line
+  detail (`product_sku`, `expected_quantity`, `expected_lot_number`,
+  `expected_expiry_date`, `expected_manufacture_date`, `notes`).
+- **Batch handler:** `src/lib/importConfigs/asnImportBatch.ts` exports
+  `createAsnBatchImportHandler(ctx)` returning a `BatchImportFn`
+  compatible with the existing `useImport` hook.
+  - Groups rows by `shipment_number` (one CSV row = one line).
+  - Idempotent: pre-checks existing `shipment_number` per business and
+    skips duplicates as import errors, not RLS failures.
+  - Resolves every SKU up-front via a caller-supplied `AsnProductResolver`;
+    unknown SKUs skip the whole shipment cleanly (no partial inserts).
+  - Optional `resolvePoByNumber` closure to backfill
+    `purchase_orders.id` when the CSV carries a PO reference.
+  - Header insert is followed by line insert; a line-insert failure
+    rolls the header back so no orphan shipments remain.
+  - Tenant scoping (`organization_id`, `business_id`, `branch_id`) is
+    passed explicitly and stamped on every row, so RLS accepts writes
+    without service-role escalation.
+- **Barrel:** `src/lib/importConfigs/index.ts` now re-exports
+  `ASN_IMPORT_FIELDS` + `createAsnBatchImportHandler`.
+- **Architecture guard:** `src/test/architecture/asn-csv-import.test.ts`
+  pins the field set, grouping contract, duplicate check, SKU
+  resolution, tenant-scoped header insert, line insert shape, and
+  header-rollback-on-line-failure. 11/11 tests pass. Combined
+  inventory-foundation guard surface: **55/55**.
+- **UI wiring:** deferred by design. Any page can bolt this into the
+  existing `useImport` flow with `useImport(ASN_IMPORT_FIELDS)` +
+  `startImport(createAsnBatchImportHandler({ ... }))`. Follows the same
+  pattern as `PurchaseOrders.tsx` line ~199.
+
 ## ⏭ Next up
 
-1. **Phase D.3 · ASN CSV import** (EDI-856 stand-in). One-to-one mapping
-   between CSV columns and `inbound_shipment_items` fields. Optional
-   until a real customer needs it.
-3. **Phase A.3 · UI plumbing** — lot/serial pickers on invoice /
+1. **Phase A.3 · UI plumbing** — lot/serial pickers on invoice /
    credit-note / sales-return / delivery-note / GRN line editors.
    Backend already enforces; this prevents users from hitting the guard
    mid-post. Reuse the existing POS `LotPickerPopover`; add a
    `SerialPickerPopover` reading `stock_serials WHERE status='in_stock'`.
-4. **Phase E–H** — variants, import split, lot genealogy, GS1 parsing.
+2. **Phase D.3 UI wiring** — surface an "Import ASN" action on the
+   Purchase Orders index (or a new `/inventory/inbound-shipments` list
+   page). Compose `useImport(ASN_IMPORT_FIELDS)` with
+   `createAsnBatchImportHandler`. Needs a `ProductResolver` that
+   pulls SKUs scoped to the current business (mirror
+   `ContactResolver` in `PurchaseOrders.tsx`).
+3. **Phase E–H** — variants, import split, lot genealogy, GS1 parsing.
    Each stands alone with its own ADR.
-5. **Ambient · Phase 5 drift gate** — retire `warehouse_stock` once
+4. **Ambient · Phase 5 drift gate** — retire `warehouse_stock` once
    `check_stock_quant_drift` returns empty 14 consecutive days.
 
 ## Ground truth for the next agent
@@ -167,6 +205,17 @@ Cross-checked `.lovable/plan.md` claims against the codebase:
   linking it back to the receipt (`goods_receipt_id`) — that's the
   invariant every downstream vendor-credit / insurance-claim workflow
   will assume.
+- The GRN wizard (`GoodsReceiptWizardPage.tsx`) is the reference
+  implementation for ASN → GRN reconciliation (Phase D.2). When you
+  add ANY new receiving surface, reuse the same three-step contract:
+  (a) load active shipment by PO, (b) prefill from `expected_*`,
+  (c) on post transition to `received` + insert
+  `goods_receipt_discrepancies` for any qty delta.
+- ASN imports go through `createAsnBatchImportHandler` (Phase D.3).
+  Do not hand-write insert loops against `inbound_shipments` —
+  the handler owns idempotency, SKU resolution, and header rollback.
 - Inventory-foundation architecture guards live at
-  `src/test/architecture/{outbound-lot-stamping,serial-tracking,split-transfer,inbound-shipments}.test.ts`.
+  `src/test/architecture/{outbound-lot-stamping,serial-tracking,split-transfer,inbound-shipments,grn-asn-prefill,asn-csv-import}.test.ts`.
   Do not weaken them; extend them when you add new contracts.
+  Current surface: 55/55 tests, all green.
+
