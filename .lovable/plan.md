@@ -1,74 +1,80 @@
-# Localization Preview Consolidation — Resume & Finish
 
-## Verification of prior agent's work
+# Resilience Audit: Workspace Bootstrap & Connectivity Recovery
 
-**Phase A — Partially done**
-- ✅ Legacy `TemplateEditor.tsx` deleted; export removed from `src/features/localization/index.ts`.
-- ❌ Tenant return override still opens inline in `WorkflowSheet` at `src/pages/hr/payroll/Templates.tsx` (lines 187–269). Must route through `ReturnEditorPage` like certificates already do.
-- ❌ "Section-based renderer (v2)" toggle + section vocabulary UI still present in `ReturnTemplateEditor.tsx` (lines 143, 226, 689–697, 831). Must be retired as part of Phase C, but the misleading toolbar toggle and label should be replaced immediately with a read-only "PDF layout" section shown only when the primary output is `pdf`.
+Per your instructions, Phase 1 is a **codebase-evidenced investigation, not a fix**. I've done enough reading to state the root cause with confidence and scope the audit; nothing gets changed until you approve.
 
-**Phase B — Done**
-- ✅ `lib/preview/rendererRegistry.tsx` with `resolveReturnRenderer` + `resolvePopOutRenderer` + `describeReturnFormat`.
-- ✅ `lib/preview/samplePayload.ts` (country-agnostic).
-- ✅ `components/preview/SerialisedPayloadPreview.tsx` extracted.
-- ✅ `ReturnFormatPreview` and `LocalizationPreviewWindow` delegate to the registry.
-- Gap: no unit tests for the registry yet (plan §4 Phase B calls them out).
+## 1. Root cause (evidence-backed, not assumed)
 
-**Phases C–F — Not started.** `keReturnFixture` still imported by `ReturnPreviewPane` and `BankExportTemplatesEditor`. `renderer: "v2-returns"` still a live code path. No ESLint guardrails. No pop-out coverage for the other 6 editor tabs.
+The error card comes from `src/components/common/SessionFailureCard.tsx`, rendered by `src/components/auth/OnboardingGuard.tsx` when `useWorkspaceRouting()` returns `status: "error"`. That status is set exclusively from `sessionError` in `src/contexts/SessionContext.tsx`.
 
-## Work to complete (no deferrals)
+Reading `SessionContext.fetchSessionData` (lines 449–513):
 
-### 1. Finish Phase A
-- Add a tenant route `PayrollReturnTemplateEdit` that mounts `ReturnEditorPage` with an override persistence adapter (mirror `PayrollCertificateTemplateEdit`).
-- In `pages/hr/payroll/Templates.tsx`: for `kind === "return"` rows, `navigate()` to the new tenant edit route instead of opening `WorkflowSheet`. Remove the return branch from `OverrideEditor`; keep the sheet only for non-editor entities if any remain (otherwise delete `OverrideEditor` entirely and the `WorkflowSheet` import).
-- Rewrite the v2 toolbar in `ReturnTemplateEditor.tsx`: replace the toggle with a computed, read-only "PDF layout" panel that appears **only** when `resolvePrimaryOutput(meta).format === "pdf"`. Copy: "This return is filed as a PDF. Section vocabulary defines page layout." No user-facing "v2" label.
+- Session bootstrap = a single RPC `get_user_session_data`.
+- Retry budget = **3 attempts total** over delays `[0, 400ms, 1200ms]` (~1.6s total).
+- The RPC is called via **raw** `supabase.rpc(...)` — **not** `safeRpc` / `safeQueryRetry` from `src/services/resilience/supabaseSafe.ts`. So this critical path bypasses the platform's own resilience wrapper, its timeout race, its offline short-circuit, and its `ConnectivityManager.reportFailure/Success` feedback.
+- After the 3rd failure it sets `sessionError` and returns. There is **no listener on `connectivityManager`** in `SessionContext` (grep confirms: zero references). So when the browser comes back online, nothing re-runs the bootstrap. Recovery requires the user to click "Try again" or reload — exactly what you're seeing.
+- `refreshSession` (line 834) exists but is only ever fired by the SessionFailureCard button or manual org flows.
 
-### 2. Phase C — Retire pdf-lib and `v2-returns` (data + code migration in one PR)
-- Introduce return AST reusing certificate v3 primitives (`grid`, `field_row`, `columns`, `label_fill`, `page_break`). Add `schema_version: 1` to `ReturnBody` alongside a `nodes: Node[]` field.
-- Add `compileReturn()` that wraps `lib/engine/compile.ts` with a return-flavoured theme; render via a shared `PagedHtmlSurface` (rename from `CertificateHtmlSurface`; keep re-export shim for one release).
-- New `ReturnHtmlSurface` (thin wrapper) replaces `ReturnPreviewPane`; registry `return/pdf` case switches to it.
-- Data migration `supabase/migrations/…_migrate_v2_returns_to_ast.sql`: for every `payroll_return_template` where `body->>'renderer' = 'v2-returns'`, transform each `sections[]` element into the equivalent AST node (`field_row` for identity strip, `grid` for tabular sections), write to `body.nodes`, drop `renderer` and `sections`. Assert row count parity before commit.
-- Delete: `lib/pdf/returnRenderer.ts`, `supabase/functions/_shared/pdf/returnRenderer.ts`, `lib/fixtures/keReturnFixture.ts`, `components/ReturnPreviewPane.tsx`, `renderer` + `sections` fields from `ReturnBody` type.
-- Update `BankExportTemplatesEditor.tsx` (3 sites) to use `SAMPLE_PAYROLL_ROWS` from `samplePayload.ts`.
-- Byte-parity test extending `certificate-engine.mirror-parity.test.ts` for the return fixture.
+So the diagnosis is not "one failed request poisons state" in an abstract sense — it's concretely:
 
-### 3. Phase B follow-up — unit tests for registry
-- `resolveReturnRenderer.test.ts`: one case per formatKind (csv/xlsx/xml/json/pdf) asserting descriptor id + component identity.
-- `resolvePopOutRenderer.test.ts`: one case per `PreviewKind`, including the "invalid kind" empty state.
+> **Bootstrap uses a bespoke 1.6-second retry loop that is not wired to the connectivity state machine, so a network blip that outlasts ~1.6s becomes a terminal error until the user intervenes.**
 
-### 4. Phase D — Broadcast coverage + lifecycle
-- Wire `publishPreview()` in: `BankExportTemplatesEditor`, `GarnishmentsEditor`, `TokenRegistryEditor`, `StatutoryAuthoritiesEditor`, `PackRequirementsEditor`, `PublisherGovernanceEditor`. Use the entity's canonical code as `templateCode`.
-- Add `clearPreview(kind, templateCode)` to `previewBroadcast.ts`; call on editor unmount.
-- Add `heartbeat` message in the broadcast writer (every 5s); pop-out shows "Editor closed" if no heartbeat for 15s.
-- Show the "Pop out preview" button on every tab whose editor publishes.
+Additional weaknesses observed while tracing:
 
-### 5. Phase E — Guardrails + docs
-- ESLint rule `eslint-rules/no-pdf-lib-in-localization-preview.js`: forbid `pdf-lib` import under `src/features/localization/` and `supabase/functions/_shared/certificate-engine/`.
-- ESLint rule `eslint-rules/no-country-fixture-in-shared-preview.js`: forbid `ke*Fixture` / country-prefixed fixture imports under `components/preview/**` and `lib/preview/**`.
-- Wire both rules into `.eslintrc` and add a test file per rule under `eslint-rules/__tests__/`.
-- Architecture test: extend `src/__tests__/architecture.fiscal-country-agnostic.test.ts` to assert no country token appears in `lib/preview/**` or `components/preview/**`.
-- ADR `docs/adr/0063-localization-preview-renderer-registry.md` documenting the target architecture, renderer dispatch rule, and retirement of `v2-returns`.
-- Update `mem://features/certificate-rendering` → rename memory to `localization-rendering` and note returns share the pipeline. Add Core rule: "Localization previews resolve through `resolveRenderer`; no ad-hoc switches. pdf-lib is forbidden in localization code."
+- `ConnectivityManager` (`src/services/resilience/ConnectivityManager.ts`) is well-built (browser + Electron + probe, degraded/offline/online, dedup, realtime grace window) but is **only consumed opportunistically**. `SessionContext`, `OnboardingGuard`, and `useWorkspaceRouting` don't read it. It's currently "decorative" for the bootstrap path — exactly the failure mode you asked to check.
+- `SessionFailureCard` has no auto-retry timer, no "waiting for connection" state, and doesn't distinguish `offline` from `server_unavailable` from `auth_expired` (all normalized kinds already exist in `ErrorNormalizer`).
+- `OnboardingGuard` uses `react-router-dom` navigation, but the rest of the stack is TanStack Router — worth flagging during the audit for consistency, not part of this fix's scope.
+- `attemptFetch` throws on any RPC error including `PGRST301` (JWT expired). That currently counts as one of the 3 attempts and yields a generic failure card instead of triggering a session refresh.
+- No last-known-good fallback: even if we previously had a valid `sessionData`, a failed *refresh* replaces nothing but still leaves `sessionError` set — the routing selector already handles the "stale sessionData wins" case correctly (`useWorkspaceRouting` line ~76), so refresh failures don't strand users; only the *initial* bootstrap does.
 
-### 6. Phase F — Enterprise polish
-- "Format not declared" empty state in `ReturnFormatPreview` with a button that focuses `OutputsCard`.
-- Multi-output tabs: when `meta.outputs.length > 1`, render a `<Tabs>` above the preview, one entry per output; renderer picked via registry per tab.
-- Persist selected output tab per `(persona, kind, templateCode)` in `localStorage` under `lz.preview.tab.<hash>`.
+## 2. Full audit still to perform (Phase 1 deliverables)
 
-## Order of execution
+Before touching code I will produce, as documents under `docs/audit/`:
 
-1. Phase A finish (routes + toolbar rewrite) — smallest, unblocks tenant-return parity.
-2. Registry unit tests (Phase B follow-up).
-3. Phase C — data migration + AST + delete pdf-lib pipeline (largest single PR-equivalent).
-4. Phase D — broadcast coverage.
-5. Phase E — guardrails + ADR + memory.
-6. Phase F — polish.
+1. **Lifecycle map**: launch → auth (`AuthContext`) → session RPC → org resolution → business resolution → entitlements → app shell → background queries. Annotated with: which step uses `safeQuery`, which uses raw supabase, which listens to `connectivityManager`, which has retry, which has a fatal branch.
+2. **Error-classification matrix**: enumerate every terminal UI (SessionFailureCard, NoWorkspaceEmptyState, route error boundaries, TanStack Query error components) and map which `NormalizedError.kind` values reach them. Today most paths collapse everything to "fatal".
+3. **Retry inventory**: grep every `supabase.rpc`, `supabase.from`, `supabase.functions.invoke`, `fetch(` in `src/contexts/`, `src/hooks/`, `src/providers/`, `src/features/`. Tag each as `safe` (uses supabaseSafe), `raw+retry`, `raw+no-retry`. Expected finding: bootstrap + several hot providers are raw + no retry.
+4. **Connectivity-consumer inventory**: everywhere `connectivityManager.subscribe/isOnline/probe` is used. Confirm which surfaces actually react to online→offline→online transitions.
+5. **Workspace-recovery trace**: prove whether the app can, in principle, recover without a reload after the terminal card renders (spoiler from the code read: no — only the manual button path).
+6. **Comparison note** vs. Odoo web client, QuickBooks Online, Xero, Microsoft 365, Slack, Notion, Shopify Admin, Stripe Dashboard on: offline banner vs. fatal screen, auto-reconnect, queued mutations, session-refresh-on-visibility, exponential backoff caps, jittered retry, per-request vs. per-boundary error handling. Cited where public docs/observations exist.
 
-Each step ends with `bunx vitest run` on the touched suites plus `tsgo` on the touched files; the Phase C step additionally runs the mirror-parity and architecture suites.
+All conclusions will be linked back to file:line evidence.
 
-## Technical notes
+## 3. Phased remediation (only after you approve Phase 1)
 
-- `PagedHtmlSurface` rename keeps a `CertificateHtmlSurface` re-export until every import migrates in the same PR to avoid a two-step deprecation.
-- The migration SQL must be idempotent (`WHERE body ? 'renderer'`) and paired with a `pack_audit_log` row per row rewritten so publishers can trace it.
-- Broadcast heartbeat uses the same `BroadcastChannel`; no new transport.
-- New ESLint rules follow the existing pattern in `eslint-rules/no-payslip-lines-in-certificates.js`.
+Nothing below is implemented yet — it's the shape of the fix so you can push back on scope.
+
+**Phase A — Bootstrap resilience (fixes the reported symptom):**
+- Route `fetchSessionData` through `safeRpc` with a longer, jittered exponential backoff (e.g. 5 attempts, cap ~30s, honoring `connectivityManager` status so we don't burn attempts while `offline`).
+- Subscribe `SessionContext` to `connectivityManager`: on `offline → online` transition, if `sessionError && !sessionData`, auto-retry the bootstrap.
+- Distinguish error kinds before setting `sessionError`: `auth_expired` → force `supabase.auth.refreshSession()` then retry once; `offline`/`timeout`/`server_unavailable` → keep retrying in the background; only truly non-retryable errors set the fatal `sessionError`.
+- Preserve last-known-good `sessionData` across refresh failures (already partly true; make it explicit).
+
+**Phase B — `SessionFailureCard` UX:**
+- Replace terminal card with a state-aware surface: "Reconnecting… (attempt N)" while offline/degraded, "Server unavailable, retrying" for 5xx, current fatal card only for genuine unrecoverable states (e.g. account disabled). Keep sign-out escape hatch.
+- No forced page reloads, no arbitrary delays, no `try/catch` swallowing — all decisions come from `NormalizedError.kind` + `ConnectivityManager` state.
+
+**Phase C — System-wide consistency:**
+- Migrate remaining raw supabase calls in bootstrap-critical providers (`AuthContext`, `usePlatformAdmin`, business/branding loaders, installed-apps hydration) to `safeQuery`/`safeQueryRetry`.
+- Adopt a shared `useAutoRetryOnReconnect(queryKey)` helper so feature-level queries (Sales, POS, Payroll, etc.) invalidate on `offline → online` without each module re-implementing it.
+- Add an app-wide connectivity banner (non-blocking, top strip) instead of full-screen crashes for transient states, following the Slack/Notion pattern.
+
+**Phase D — Regression proof:**
+- Vitest units covering: bootstrap retries while `connectivityManager` reports `offline`, auto-recovery on transition to `online`, `auth_expired` triggers refresh-then-retry, last-known-good preservation.
+- A Playwright script that boots the app, toggles `context.setOffline(true)` mid-bootstrap for 10s, then `false`, and asserts the app reaches the dashboard without a reload and without the SessionFailureCard becoming terminal.
+- Manual walk-through checklist across Auth, Dashboard, Sales, Purchases, Inventory, Finance, POS, Payroll, HR, Notifications, Settings.
+
+## 4. Deliverables ordering
+
+1. Audit documents (Section 2) checked into `docs/audit/`.
+2. Phase A + B code changes (the actual user-visible fix).
+3. Phase C rollout as follow-up PRs per module to keep diffs reviewable.
+4. Phase D tests land with the code that makes them pass.
+
+## 5. What I will NOT do
+
+- No error suppression, no blanket try/catch, no forced `location.reload()`, no arbitrary sleeps, no hiding the failure card behind a spinner.
+- No changes to `src/integrations/supabase/types.ts`, no schema changes proposed here (this is a client-side resilience fix).
+- No rewrite of `ConnectivityManager` — it's sound; the gap is consumers, not the manager.
+
+Approve this plan and I'll start by producing the audit documents in Section 2, then implement Phase A + B against the evidence they surface.
