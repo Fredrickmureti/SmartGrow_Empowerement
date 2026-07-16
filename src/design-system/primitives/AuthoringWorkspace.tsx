@@ -459,12 +459,26 @@ export function AuthoringWorkspace({
         <div className="flex min-h-0 flex-1">
           {showRail && (
             <>
-              <aside className="w-64 shrink-0 border-r bg-card/40">
+              <aside className="w-56 shrink-0 border-r bg-card/40 xl:w-64 2xl:w-72">
                 <div className="h-full min-h-0 overflow-hidden">{rail}</div>
               </aside>
             </>
           )}
-          <div className="min-w-0 min-h-0 flex-1">{mainAndPreview()}</div>
+          <div className="relative min-w-0 min-h-0 flex-1">
+            {mainAndPreview()}
+            {hasPreview && mode === "editor" && (
+              <button
+                type="button"
+                onClick={() => setMode("overlay")}
+                className="absolute right-0 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 rounded-l-md border border-r-0 bg-card px-2 py-3 text-[11px] font-medium text-muted-foreground shadow-md hover:bg-accent hover:text-foreground"
+                aria-label="Show preview"
+                title="Show preview"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span className="[writing-mode:vertical-rl] rotate-180">Preview</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {statusBar && (
