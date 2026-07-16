@@ -18,11 +18,6 @@
  * shell owns layout state, persistence and shortcuts.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -76,9 +71,9 @@ interface AuthoringWorkspaceProps {
 }
 
 
-// Bump the version suffix when the mode set changes so old persisted
-// values (e.g. pre-overlay "split") don't override the new default.
-const PERSIST_VERSION = "v2";
+// Bump the version suffix when layout semantics change so old persisted
+// split ratios / drawer sizes don't keep users trapped in cramped previews.
+const PERSIST_VERSION = "v3";
 function persistedKey(workspaceId: string, suffix: string) {
   return `authoring-workspace:${PERSIST_VERSION}:${workspaceId}:${suffix}`;
 }
@@ -129,7 +124,13 @@ export function AuthoringWorkspace({
   // Overlay-mode preview width (px). Editor keeps its natural width; only
   // the preview drawer resizes.
   const [overlayPreviewPx, setOverlayPreviewPx] = useState<number>(
-    () => readNumber(workspaceId, "overlay-preview-px", 520),
+    () => readNumber(workspaceId, "overlay-preview-px", 760),
+  );
+  // Bottom-mode preview height (px). It is an overlay sheet, not a vertical
+  // split, so dragging grows the preview over the editor instead of shrinking
+  // the editor into a tiny strip.
+  const [bottomPreviewPx, setBottomPreviewPx] = useState<number>(
+    () => readNumber(workspaceId, "bottom-preview-px", 760),
   );
 
   // Persist mode / rail state
@@ -142,6 +143,9 @@ export function AuthoringWorkspace({
   useEffect(() => {
     try { window.localStorage.setItem(persistedKey(workspaceId, "overlay-preview-px"), String(overlayPreviewPx)); } catch {}
   }, [workspaceId, overlayPreviewPx]);
+  useEffect(() => {
+    try { window.localStorage.setItem(persistedKey(workspaceId, "bottom-preview-px"), String(bottomPreviewPx)); } catch {}
+  }, [workspaceId, bottomPreviewPx]);
 
   const hasPreview = !!preview;
   const hasRail = !!rail;
@@ -254,7 +258,7 @@ export function AuthoringWorkspace({
               current={mode}
               value="split"
               icon={<Columns2 className="h-3.5 w-3.5" />}
-              label="Split 50/50 (resizes editor too)"
+              label="Wide side preview"
               onSelect={setMode}
             />
             <LayoutModeButton
@@ -315,8 +319,28 @@ export function AuthoringWorkspace({
     const containerRect = container.getBoundingClientRect();
     const move = (ev: PointerEvent) => {
       const fromRight = containerRect.right - ev.clientX;
-      const clamped = Math.max(280, Math.min(fromRight, Math.max(300, containerRect.width - 480)));
+      const clamped = Math.max(320, Math.min(fromRight, containerRect.width));
       setOverlayPreviewPx(clamped);
+    };
+    const up = () => {
+      target.releasePointerCapture(e.pointerId);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }, []);
+
+  const onBottomHandlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const container = overlayContainerRef.current;
+    if (!container) return;
+    target.setPointerCapture(e.pointerId);
+    const containerRect = container.getBoundingClientRect();
+    const move = (ev: PointerEvent) => {
+      const fromBottom = containerRect.bottom - ev.clientY;
+      const clamped = Math.max(260, Math.min(fromBottom, containerRect.height));
+      setBottomPreviewPx(clamped);
     };
     const up = () => {
       target.releasePointerCapture(e.pointerId);
@@ -340,76 +364,73 @@ export function AuthoringWorkspace({
     if (!showEditor) {
       return <PaneShell>{preview}</PaneShell>;
     }
-    if (mode === "bottom") {
-      return (
-        <ResizablePanelGroup
-          direction="vertical"
-          autoSaveId={persistedKey(workspaceId, "main-v")}
-          className="h-full w-full gap-0"
-        >
-          <ResizablePanel defaultSize={60} minSize={20}>
-            <PaneShell>{editor}</PaneShell>
-          </ResizablePanel>
-          <ResizableHandle withHandle className="my-2" />
-          <ResizablePanel defaultSize={40} minSize={15}>
-            <PaneShell>{preview}</PaneShell>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      );
-    }
-    if (mode === "split") {
-      // 50/50 seesaw — editor and preview share space; user opts in.
-      return (
-        <ResizablePanelGroup
-          direction="horizontal"
-          autoSaveId={persistedKey(workspaceId, "main-h")}
-          className="h-full w-full gap-0"
-        >
-          <ResizablePanel defaultSize={60} minSize={30}>
-            <PaneShell>{editor}</PaneShell>
-          </ResizablePanel>
-          <ResizableHandle withHandle className="mx-2" />
-          <ResizablePanel defaultSize={40} minSize={20}>
-            <PaneShell>{preview}</PaneShell>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      );
-    }
+    const isBottom = mode === "bottom";
+    const isWideSide = mode === "split";
     // Overlay — editor keeps its FULL natural width. Preview drawer
-    // floats absolutely over the right edge (shadow + soft backdrop),
-    // and the drag handle is anchored to the drawer's left edge so
-    // resizing only moves the drawer — never the editor.
+    // floats over the editor (right or bottom), and the drag handle is
+    // anchored to the preview edge so resizing only moves the preview —
+    // never the editor.
     return (
       <div ref={overlayContainerRef} className="relative flex h-full w-full min-w-0 items-stretch">
         <div className="min-w-0 flex-1">
           <PaneShell>{editor}</PaneShell>
         </div>
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 z-[1] bg-gradient-to-l from-background/40 to-transparent"
-          style={{ width: `${overlayPreviewPx + 24}px`, maxWidth: "80%" }}
-        />
-        <div
-          className="absolute inset-y-0 right-0 z-[2] flex items-stretch shadow-[-8px_0_24px_-12px_rgba(0,0,0,0.25)]"
-          style={{ width: `${overlayPreviewPx}px`, maxWidth: "80%" }}
-        >
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize preview drawer"
-            onPointerDown={onOverlayHandlePointerDown}
-            className="group relative -ml-1 w-2 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/30"
-            title="Drag to resize preview"
-          >
-            <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded bg-border/70 group-hover:bg-primary/70" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <PaneShell>{preview}</PaneShell>
-          </div>
-        </div>
+        {isBottom ? (
+          <>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t from-background/45 to-transparent"
+              style={{ height: `min(100%, ${bottomPreviewPx + 24}px)` }}
+            />
+            <div
+              className="absolute inset-x-0 bottom-0 z-[2] flex flex-col shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)]"
+              style={{ height: `min(100%, ${bottomPreviewPx}px)` }}
+            >
+              <div
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Resize bottom preview"
+                onPointerDown={onBottomHandlePointerDown}
+                className="group relative -mt-1 h-2 shrink-0 cursor-row-resize bg-transparent transition-colors hover:bg-primary/30"
+                title="Drag to resize preview"
+              >
+                <div className="pointer-events-none absolute left-0 top-1/2 h-0.5 w-full -translate-y-1/2 rounded bg-border/70 group-hover:bg-primary/70" />
+              </div>
+              <div className="min-h-0 flex-1">
+                <PaneShell>{preview}</PaneShell>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 z-[1] bg-gradient-to-l from-background/40 to-transparent"
+              style={{ width: `min(100%, ${overlayPreviewPx + 24}px)` }}
+            />
+            <div
+              className="absolute inset-y-0 right-0 z-[2] flex items-stretch shadow-[-8px_0_24px_-12px_rgba(0,0,0,0.25)]"
+              style={{ width: `min(100%, ${isWideSide ? Math.max(overlayPreviewPx, 900) : overlayPreviewPx}px)` }}
+            >
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize preview drawer"
+                onPointerDown={onOverlayHandlePointerDown}
+                className="group relative -ml-1 w-2 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/30"
+                title="Drag to resize preview"
+              >
+                <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded bg-border/70 group-hover:bg-primary/70" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <PaneShell>{preview}</PaneShell>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
-  }, [editor, preview, hasPreview, mode, showEditor, showPreview, workspaceId, overlayPreviewPx, onOverlayHandlePointerDown]);
+  }, [editor, preview, hasPreview, mode, showEditor, showPreview, overlayPreviewPx, bottomPreviewPx, onOverlayHandlePointerDown, onBottomHandlePointerDown]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -429,7 +450,7 @@ export function AuthoringWorkspace({
               </aside>
             </>
           )}
-          <div className="min-w-0 min-h-0 flex-1 p-3">{mainAndPreview()}</div>
+          <div className="min-w-0 min-h-0 flex-1">{mainAndPreview()}</div>
         </div>
 
         {statusBar && (
