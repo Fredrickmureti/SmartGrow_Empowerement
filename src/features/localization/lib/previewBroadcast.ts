@@ -36,6 +36,20 @@ export interface PreviewPayload {
   updatedAt: number;
 }
 
+/**
+ * Heartbeat envelope — the editor emits this every ~5s so the pop-out
+ * can distinguish "editor still open, no edits" from "editor closed".
+ * Payload does not carry `body`; consumers keep the last real payload.
+ */
+export interface PreviewHeartbeat {
+  __kind: "heartbeat";
+  kind: PreviewKind;
+  templateCode: string;
+  at: number;
+}
+
+export type PreviewMessage = PreviewPayload | PreviewHeartbeat;
+
 function storageKey(kind: PreviewKind, templateCode: string) {
   return `localization-preview:${kind}:${templateCode}`;
 }
@@ -61,6 +75,40 @@ export function publishPreview(payload: PreviewPayload) {
   }
 }
 
+/**
+ * Clear the persisted preview payload for a given (kind, templateCode).
+ * The editor calls this on unmount so a freshly opened pop-out for the
+ * SAME template does not flash the previous session's stale draft
+ * before the first live update arrives.
+ */
+export function clearPreview(kind: PreviewKind, templateCode: string) {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.removeItem(storageKey(kind, templateCode)); } catch { /* ignore */ }
+  if (typeof BroadcastChannel !== "undefined") {
+    try {
+      const ch = new BroadcastChannel(channelName(kind, templateCode));
+      const msg: PreviewHeartbeat = { __kind: "heartbeat", kind, templateCode, at: -1 };
+      ch.postMessage(msg);
+      ch.close();
+    } catch { /* ignore */ }
+  }
+}
+
+/**
+ * Emit a heartbeat so a pop-out can display "Editor closed" when the
+ * heartbeat stops. Cheap — no `body` payload, only a timestamp.
+ */
+export function publishPreviewHeartbeat(kind: PreviewKind, templateCode: string) {
+  if (typeof window === "undefined") return;
+  if (typeof BroadcastChannel === "undefined") return;
+  try {
+    const ch = new BroadcastChannel(channelName(kind, templateCode));
+    const msg: PreviewHeartbeat = { __kind: "heartbeat", kind, templateCode, at: Date.now() };
+    ch.postMessage(msg);
+    ch.close();
+  } catch { /* ignore */ }
+}
+
 export function readPreview(kind: PreviewKind, templateCode: string): PreviewPayload | null {
   if (typeof window === "undefined") return null;
   try {
@@ -78,6 +126,7 @@ export function subscribePreview(
   kind: PreviewKind,
   templateCode: string,
   onUpdate: (payload: PreviewPayload) => void,
+  onHeartbeat?: (h: PreviewHeartbeat) => void,
 ): () => void {
   if (typeof window === "undefined") return () => {};
   const key = storageKey(kind, templateCode);
@@ -95,8 +144,13 @@ export function subscribePreview(
     try {
       ch = new BroadcastChannel(channelName(kind, templateCode));
       ch.onmessage = (e) => {
-        const payload = e.data as PreviewPayload;
-        if (payload && typeof payload === "object") onUpdate(payload);
+        const msg = e.data as PreviewMessage;
+        if (!msg || typeof msg !== "object") return;
+        if ((msg as PreviewHeartbeat).__kind === "heartbeat") {
+          onHeartbeat?.(msg as PreviewHeartbeat);
+        } else {
+          onUpdate(msg as PreviewPayload);
+        }
       };
     } catch { ch = null; }
   }
