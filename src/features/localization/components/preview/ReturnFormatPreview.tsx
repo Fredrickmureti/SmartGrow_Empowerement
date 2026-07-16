@@ -184,8 +184,16 @@ export function ReturnFormatPreview(props: Props) {
   const { templateCode, body, meta } = props;
   const formats = useMemo(() => resolveFormats(meta), [meta]);
 
+  // Only treat the template as "unrenderable" when there is truly
+  // nothing to preview — no declared outputs, no submission_format,
+  // AND no columns bound. Legacy return templates (imported before the
+  // Outputs section existed) often have columns but no outputs[] — we
+  // default those to CSV so the publisher still sees a live preview.
+  const hasBoundColumns = Array.isArray(body?.columns) && body.columns.length > 0;
   const declaredNothing =
-    (!meta?.outputs || meta.outputs.length === 0) && !meta?.submission_format?.kind;
+    (!meta?.outputs || meta.outputs.length === 0) &&
+    !meta?.submission_format?.kind &&
+    !hasBoundColumns;
 
   // Persist the selected tab per (templateCode) so a publisher who
   // returns to the editor lands on the same output they inspected last.
