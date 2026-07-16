@@ -66,6 +66,7 @@ export default function PayrollTemplates() {
 }
 
 function TemplatesPanel({ kind }: { kind: Kind }) {
+  const navigate = useNavigate();
   const certQ = useCertificateTemplates();
   const retQ = useReturnTemplates();
   const overridesQ = useTemplateOverrides(kind);
