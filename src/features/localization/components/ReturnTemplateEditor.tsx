@@ -364,6 +364,40 @@ export function ReturnTemplateEditor({
     [body.columns, numericByValue],
   );
 
+  // ── Dirty tracking ─────────────────────────────────────────────────
+  // Snapshot the initial body+meta+notes; every render compares against
+  // it to power the AuthoringWorkspace status bar.
+  const initialSnapshotRef = useRef<string>("");
+  if (initialSnapshotRef.current === "") {
+    try {
+      initialSnapshotRef.current = JSON.stringify({
+        b: initial.body ?? null,
+        m: editMetadata ? meta : null,
+        n: initial.notes ?? "",
+      });
+    } catch { initialSnapshotRef.current = "__init__"; }
+  }
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+
+  // ── Pop-out preview broadcast ─────────────────────────────────────
+  useEffect(() => {
+    publishPreview({
+      kind: "return",
+      templateCode,
+      body: denormalizeBody(body),
+      meta: {
+        legal_reference: meta.legal_reference,
+        regulation_citation: meta.regulation_citation,
+      },
+      displayName: templateCode,
+      updatedAt: Date.now(),
+    });
+  }, [body, meta.legal_reference, meta.regulation_citation, templateCode]);
+
+  const handlePopOutPreview = () => {
+    openPreviewWindow("return", templateCode);
+  };
+
   const handleSave = async () => {
     setBusy(true);
     try {
@@ -380,6 +414,12 @@ export function ReturnTemplateEditor({
         notes: notes || null,
         ...(editMetadata ? { metadata: meta } : {}),
       });
+      try {
+        initialSnapshotRef.current = JSON.stringify({
+          b: payload, m: editMetadata ? meta : null, n: notes || "",
+        });
+      } catch { /* keep old baseline */ }
+      setLastSavedAt(Date.now());
       toast.success("Return template saved");
     } catch (e: any) {
       toast.error(normalizeError(e).message ?? "Save failed");
