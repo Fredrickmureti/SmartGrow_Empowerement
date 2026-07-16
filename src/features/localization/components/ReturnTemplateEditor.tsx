@@ -440,24 +440,28 @@ export function ReturnTemplateEditor({
       <CardContent className="space-y-6">
 
         {editMetadata && (
-          <MetadataSection
-            meta={meta}
-            onChange={setMeta}
-            authorities={authoritiesQuery.data ?? []}
-            authoritiesLoading={authoritiesQuery.isLoading}
-          />
+          <div id="rt-section-identification">
+            <MetadataSection
+              meta={meta}
+              onChange={setMeta}
+              authorities={authoritiesQuery.data ?? []}
+              authoritiesLoading={authoritiesQuery.isLoading}
+            />
+          </div>
         )}
 
         {editMetadata && (
-          <OutputsCard
-            value={meta.outputs}
-            onChange={(next) => setMeta({ ...meta, outputs: next })}
-            surface="return"
-          />
+          <div id="rt-section-outputs">
+            <OutputsCard
+              value={meta.outputs}
+              onChange={(next) => setMeta({ ...meta, outputs: next })}
+              surface="return"
+            />
+          </div>
         )}
 
         {/* ── Filters ───────────────────────────────────────────── */}
-        <section className="space-y-2">
+        <section id="rt-section-filters" className="space-y-2">
 
           <h3 className="text-sm font-semibold">Rule codes <span className="text-destructive">*</span></h3>
           <p className="text-xs text-muted-foreground">
