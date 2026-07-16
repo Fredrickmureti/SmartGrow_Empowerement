@@ -341,9 +341,13 @@ function ChangeRequestDialog({
     if (!value.trim()) { toast.error("Please enter the new value."); return; }
     setSaving(true);
     try {
+      // NOTE: supabase-js already JSON-encodes RPC args once. Passing the raw
+      // trimmed string here yields a jsonb string like "Bob" (no double-encoding).
+      // Previously JSON.stringify(value) produced jsonb "\"Bob\"" which surfaced
+      // with quotes after the review RPC's `#>>'{}'` extraction.
       const { error } = await supabase.rpc("submit_profile_change_request" as any, {
         p_field_key: field,
-        p_new_value: JSON.stringify(value),
+        p_new_value: value.trim(),
         p_reason: reason || null,
       });
       if (error) throw error;
