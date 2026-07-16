@@ -1,73 +1,66 @@
+# Complete remaining ESS identity work — MFA enforcement at login
 
-# ESS identity portal — verification + deferred items
+## Audit result
 
-## Phase 1 — Independent verification (no code changes)
+I verified the previous agent's claims against the repo:
 
-Audit every claim in `mem/features/ess-identity-portal.md` against the codebase and runtime. Anything that fails drops into Phase 2 before the new work starts.
+- Migration RPCs (`log_identity_email_change_intent`, `record_mfa_lifecycle_event`), lifecycle events (`identity_email_change_requested`, `mfa_enrolled`, `mfa_unenrolled`), and `work_email` whitelist — reflected in `mem/features/ess-identity-portal.md`.
+- `/me/account` cards `EmailChangeCard` and `MfaEnrollmentCard` exist (`src/components/me/MfaEnrollmentCard.tsx` present).
+- HR queue `work_email` label — in `EmployeeChangeRequestsPage`.
+- pgTAP test file `supabase/tests/employee_profile_change_requests_test.sql` present.
+- ESLint `no-shell-leak-from-me`, arch test, `/hr/MyProfile.tsx` redirect shim — all present.
 
-1. **Routing bounce killed** — Playwright: sign in → click Profile → assert URL sticks on `/me/profile` and the HR card renders. Confirm `/hr/MyProfile` is a redirect-only shim.
-2. **DB ownership boundaries** — read both change-request migrations end-to-end. Verify:
-   - `employee_profile_change_requests`: `WITH CHECK (false)` on direct INSERT, RLS (self+HR select, self cancel pending), GRANTs.
-   - `v_my_employee_profile`: `security_invoker`, masks `national_id` + `bank_account_number`.
-   - `update_own_employee_personal`: whitelist matches ownership matrix.
-   - `submit_profile_change_request`: HR-field whitelist + bank payroll lock (draft/calculating/review/approved) + emits `profile_change_requested` + HR notification fanout.
-   - `review_profile_change_request`: role-gated, whitelisted diff, emits approved/rejected lifecycle event + notifies employee.
-3. **HR review surface** — `/hr/employees/change-requests` approve/reject/notes; 60s pending badge on `/hr/employees`.
-4. **ESS surfaces** — `/me/profile` (HR read-only, Personal/Emergency editable, Bank/IDs masked + CTA, My-requests strip with cancel); `/me/account` (email read-only, password self-service, theme, sign-out, sign-in activity); `/me/notifications` renders inside `MePortalLayout`.
-5. **Guardrails** — `no-shell-leak-from-me` registered in `eslint.config.js` and passes repo-wide; `src/test/architecture/ess-portal-shell.test.ts` green; memory doc matches reality.
+**Only remaining item from the previous plan:** MFA enforcement at login. `EnhancedLoginForm` and `Login.tsx` have zero references to `mfa`, `aal`, or `challenge`. Users can enroll TOTP on `/me/account` but the login flow never challenges them, so AAL stays at `aal1` and enrolled 2FA is decorative.
 
-Report deltas before writing code. Any gap becomes a Phase 2 item.
+## What to build
 
-## Phase 2 — Deferred items (implement)
+An AAL2 gate that runs after a successful password/PIN sign-in, before the app admits the user into `/me/*` or `/hr/*`.
 
-### A. Self-service email change
+### 1. Post-login MFA challenge component
 
-Business event: employee changes their sign-in email. Two systems are affected — Supabase auth (identity) and `employees.work_email` (HR). They must stay decoupled: auth email flips only after Supabase's own double-confirm; the HR field only flips after HR approval.
+New `src/components/auth/MfaChallengeGate.tsx`:
 
-- DB: extend `employee_profile_change_requests.field_name` whitelist to include `work_email`; add optional `identity_email_change_requested_at` column on the request row for the audit trail. New RPC `request_identity_email_change(new_email text)` wraps `supabase.auth.updateUser({ email })` server-side reasoning: emit `identity_email_change_requested` lifecycle event + notification to HR admins. (Actual email verification stays client-side via `supabase.auth.updateUser` since that's the only path that sends Supabase's verification mail; the RPC just logs intent + fans out notifications.)
-- Client: `/me/account` — new "Change sign-in email" card. Two-step:
-  1. `supabase.auth.updateUser({ email: newEmail })` → tell user to confirm both mailboxes.
-  2. If `newEmail !== employee.work_email`, call `submit_profile_change_request('work_email', newEmail, reason)` so HR reviews the payroll/records-side change independently.
-- HR: existing `/hr/employees/change-requests` queue already handles it — add `work_email` to the field label map + reviewer copy.
-- Guard: block the flow while the account has an unconfirmed pending email change (`supabase.auth.getUser()` exposes `new_email`); show pending banner + resend/cancel.
+- On mount, call `supabase.auth.mfa.listFactors()`.
+- If the user has any `verified` TOTP factor AND `supabase.auth.mfa.getAuthenticatorAssuranceLevel()` returns `{ currentLevel: 'aal1', nextLevel: 'aal2' }`, render a 6-digit code form.
+- Submit → `mfa.challenge({ factorId })` then `mfa.verify({ factorId, challengeId, code })`. On success, resolve gate.
+- Provide a "Sign out" escape hatch (no bypass — if user cannot produce a code, they must contact HR admin to reset, matching the documented recovery posture).
+- Error surfaces use existing toast primitive; no raw error messages.
 
-### B. MFA / TOTP enrollment on `/me/account`
+### 2. Wire the gate into the app shell
 
-Pure Supabase Auth MFA (no schema changes; `auth.mfa_*` is managed).
-- New "Two-step verification" card on `/me/account`:
-  - List factors (`supabase.auth.mfa.listFactors()`).
-  - Enroll: `mfa.enroll({ factorType: 'totp' })` → render QR (`totp.qr_code`) + manual secret → `mfa.challenge` + `mfa.verify` with 6-digit code → success toast + refresh factors.
-  - Unenroll: `mfa.unenroll({ factorId })` behind a confirm dialog.
-  - Recovery codes: Supabase doesn't mint them natively; show explanatory copy that admins can reset via HR if the device is lost (matches current "contact admin" posture). No custom recovery-code table.
-- Auth flow: extend login step to call `mfa.challenge` + prompt for code when `assuranceLevel === 'aal1' && nextLevel === 'aal2'`. Route unchanged; the login form handles the extra step.
-- Lifecycle: emit `mfa_enrolled` / `mfa_unenrolled` into `employee_lifecycle_events` via a small RPC `record_mfa_lifecycle_event(action text)` so HR has an audit trail (Supabase's own `auth.audit_log_entries` is not queryable from the app).
-- Enum: add `mfa_enrolled`, `mfa_unenrolled` to `employee_lifecycle_event_type`.
+In `src/App.tsx` (or the nearest authenticated boundary that already wraps `/me/*` and `/hr/*`):
 
-### C. pgTAP shape tests for the three change-request RPCs
+- After the existing session check, before rendering protected routes, evaluate AAL.
+- If `currentLevel === 'aal1'` and a verified factor exists → render `<MfaChallengeGate />` instead of the routed children.
+- Once verified (session upgraded to aal2), render children normally.
+- Public routes (`/login`, `/auth/*`, `/reset-password`) bypass the gate.
 
-New `supabase/tests/employee_profile_change_requests_test.sql` — schema-shape only, matches the style of `employee_pii_masking_test.sql`:
-- `employee_profile_change_requests` exists, RLS enabled, expected policies present.
-- `v_my_employee_profile` exists, is a view, `security_invoker=true`, masks the two PII columns.
-- Each RPC exists with expected signature; `submit_profile_change_request` + `review_profile_change_request` are SECURITY DEFINER; `update_own_employee_personal` is SECURITY INVOKER.
-- RPC bodies contain the expected lifecycle event emits (`profile_change_requested/approved/rejected`) and HR-notification fanout, mirroring the pattern already used in `employee_identity_events_test.sql`.
-- Extend `employee_identity_events_test.sql` (or add a sibling) to assert the two new enum values for MFA and the `identity_email_change_requested` event.
+This avoids touching `EnhancedLoginForm` / `PINLoginForm` directly (per the deferred-note guidance about not destabilising the PIN-aware login), and cleanly covers both entry paths plus session restoration on refresh.
 
-## Phase 3 — Memory + docs
+### 3. Admin login parity
 
-- Update `mem/features/ess-identity-portal.md`: drop the three "deferred" bullets, add: email-change flow (identity + HR halves), MFA enrollment surface + login step, new lifecycle events, pgTAP shape tests.
-- No ADR needed — this stays inside the existing ESS identity ownership model.
+`AdminInlineMfaSetup` / `AdminMfaStatus` already exist for admin enrollment. Reuse the same `MfaChallengeGate` for `AdminProtectedRoute` so admin sessions also require AAL2 when a factor is enrolled. No new admin-specific challenge UI.
+
+### 4. Audit + memory
+
+- No new DB migration needed — Supabase owns `auth.mfa_*` and lifecycle audit already fires from `record_mfa_lifecycle_event` on enroll/unenroll. A successful challenge does not need a lifecycle event (it's a routine sign-in), but we will append it to `login_history` if the existing sign-in path already writes there; otherwise skip to avoid scope creep.
+- Update `mem/features/ess-identity-portal.md`: move the MFA-enforcement bullet out of "Deferred" into the shipped section, referencing `MfaChallengeGate`.
 
 ## Out of scope
 
-- Rewriting `/me/*` visual design beyond what the new cards need.
-- Any change to `/hr/*` beyond adding `work_email` to the reviewer field labels.
-- SSO / external IdP integration.
-- Custom recovery-code storage (defer until users actually ask).
+- Custom recovery-code storage (remains HR-admin reset, per prior decision).
+- WebAuthn / passkeys.
+- Forcing enrollment for privileged roles — enforcement only fires when a factor is already verified.
 
-## Technical notes
+## Files touched
 
-- Email-change: Supabase's `updateUser({ email })` requires double-opt-in — new address must confirm and (by default) old address must confirm too. Keep that default on.
-- MFA verify at login: `signInWithPassword` returns `aal1`; call `mfa.listFactors()` and if a verified TOTP factor exists, force `mfa.challenge` before treating the session as authenticated. Guard in the auth callback so `/me/*` and `/hr/*` layouts don't render pre-`aal2`.
-- Enum additions: single migration, `ALTER TYPE ... ADD VALUE IF NOT EXISTS` for each of `mfa_enrolled`, `mfa_unenrolled`, `identity_email_change_requested`.
-- All new RPCs: `SECURITY DEFINER`, `SET search_path = public`, GRANT EXECUTE to `authenticated` only.
-- pgTAP file lives under `supabase/tests/` and follows the `BEGIN; SELECT plan(N); ... ROLLBACK;` shape already established.
+- **New:** `src/components/auth/MfaChallengeGate.tsx`
+- **Edit:** `src/App.tsx` (or the current authenticated shell) — insert gate
+- **Edit:** `src/components/auth/AdminProtectedRoute.tsx` — reuse gate
+- **Edit:** `mem/features/ess-identity-portal.md` — move item out of Deferred
+
+## Verification
+
+- Typecheck clean.
+- Manual: enroll TOTP on `/me/account`, sign out, sign back in → challenge appears; correct code → lands on `/me`; wrong code → error, no session upgrade; sign-out escape works.
+- User without a verified factor sees no change (gate short-circuits).

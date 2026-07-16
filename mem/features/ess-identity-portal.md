@@ -39,11 +39,15 @@ type: feature
 - `/hr/MyProfile.tsx` is a redirect-only shim to `/me/profile`.
 - pgTAP shape test `supabase/tests/employee_profile_change_requests_test.sql` — asserts the change-request table + RLS + masked view + RPC signatures + lifecycle-event emits.
 
+## Login-side MFA enforcement
+- `src/components/auth/MfaChallengeGate.tsx` wraps `ProtectedRoute` (tenant) and `AdminProtectedRoute` (platform admin). On session establish it calls `supabase.auth.mfa.getAuthenticatorAssuranceLevel()`; when `currentLevel=aal1` and a verified TOTP factor exists, it renders a 6-digit code form and calls `mfa.challenge` → `mfa.verify` to upgrade the session to `aal2` before rendering children. Users without a verified factor pass through unchanged. Recovery from lost device is via HR admin reset — no bypass in the gate.
+
 ## Audit trail & notifications
 - Lifecycle event types on `employee_lifecycle_event_type`: `profile_change_requested`, `profile_change_approved`, `profile_change_rejected`, `identity_email_change_requested`, `mfa_enrolled`, `mfa_unenrolled`.
 - `submit_profile_change_request` and `log_identity_email_change_intent` fan out to every admin/super_admin/owner via `notifications`.
 - `review_profile_change_request` notifies the requesting employee (if user-linked), linking back to `/me/profile`.
 
 ## Deferred (not currently built)
-- MFA enforcement at login: enrollment surface ships, but the login form does not yet auto-challenge for verified factors. Follow-up should extend `EnhancedLoginForm` (or add a post-session guard) to require AAL2 before entering `/me/*` or `/hr/*` when a verified factor exists.
 - Custom recovery-code storage — deferred; lost devices are reset by HR admin.
+- WebAuthn / passkeys — not implemented.
+- Forcing TOTP enrollment for tenant users (admins already require it via `AdminProtectedRoute`); tenant enrollment stays opt-in on `/me/account`.
