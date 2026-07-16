@@ -1,28 +1,23 @@
 /**
- * AdminLocalizationCertificateEdit — dedicated full-page route for editing
- * a single certificate template inside a localization pack.
+ * AdminLocalizationCertificateEdit — thin admin wrapper around the
+ * shared `<CertificateEditorPage />` route (see
+ * `src/features/localization/routes/CertificateEditorPage.tsx`).
  *
- * Phase 2.1 of the certificate publishing audit: the certificate editor
- * used to open inside a right-side `WorkflowSheet` drawer, which cramped
- * the Canvas + Inspector + Metadata into a modal panel. Publishers now
- * navigate to `/admin-management/localization-packs/:packId/certificates/:templateId/edit`
- * and get the whole viewport for the design surface, with a page-level
- * header and back link — the same treatment tenants get for creating an
- * invoice.
+ * Owns only the admin-side data adapter: it reads the pack row directly
+ * from `localization_pack_certificate_templates` and writes the same row
+ * on save. Tenant editing mounts the SAME page shell with an
+ * override-writing adapter (Phase 2).
  *
- * The Sheet-based path is retained for return templates and non-admin
- * mounts; only admin-mode certificate editing routes here (see
- * `PackEntityTabs`).
+ * The old page shell (header + loading states) used to live here. It was
+ * hoisted into the shared feature so admin and tenant cannot drift.
  */
 import { useMemo } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CertificateTemplateEditor, type CertificateTemplateMetadata } from "@/features/localization/components/CertificateTemplateEditor";
+import { CertificateEditorPage } from "@/features/localization/routes";
+import type { CertificateTemplateMetadata } from "@/features/localization/components/CertificateTemplateEditor";
 
 const CERT_TABLE = "localization_pack_certificate_templates";
 
@@ -143,71 +138,33 @@ export default function AdminLocalizationCertificateEdit() {
   const loading = packQuery.isLoading || templateQuery.isLoading;
   const notFound = !loading && (!packQuery.data || !templateQuery.data);
 
-  return (
-    <div className="flex h-screen min-h-0 flex-col bg-background">
-      {/* Page header — this is a dedicated page, not a drawer. */}
-      <header className="flex items-center justify-between gap-3 border-b bg-card/60 px-4 py-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <Button asChild variant="ghost" size="sm" className="h-8">
-            <Link to={backHref}>
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Back to pack
-            </Link>
-          </Button>
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">
-              {templateQuery.data?.display_name ?? "Certificate template"}
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {packQuery.data && (
-                <>
-                  <Badge variant="outline" className="text-[10px]">
-                    {packQuery.data.country_code}
-                  </Badge>
-                  <span className="truncate">{packQuery.data.name}</span>
-                  <span>·</span>
-                  <span>v{packQuery.data.version}</span>
-                </>
-              )}
-              {templateQuery.data && (
-                <>
-                  <span>·</span>
-                  <code className="text-[10px]">{templateQuery.data.code}</code>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+  const header = templateQuery.data && packQuery.data
+    ? {
+        templateName: templateQuery.data.display_name,
+        templateCode: templateQuery.data.code,
+        packName: packQuery.data.name,
+        countryCode: packQuery.data.country_code,
+        packVersion: packQuery.data.version,
+      }
+    : null;
 
-      <main className="flex min-h-0 flex-1 flex-col">
-        {loading && (
-          <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading template…
-          </div>
-        )}
-        {notFound && (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            Template not found. <Link className="ml-2 underline" to={backHref}>Return to pack</Link>
-          </div>
-        )}
-        {!loading && !notFound && initial && (
-          <CertificateTemplateEditor
-            mode="admin"
-            packId={packId}
-            templateCode={initial.template_code}
-            initial={initial}
-            onCancel={() => navigate(backHref)}
-            onSave={async (next) => {
-              await update.mutateAsync({
-                body: next.body,
-                layout: next.layout,
-                metadata: next.metadata,
-              });
-            }}
-          />
-        )}
-      </main>
-    </div>
+  return (
+    <CertificateEditorPage
+      mode="admin"
+      packId={packId}
+      backHref={backHref}
+      onCancel={() => navigate(backHref)}
+      loading={loading}
+      notFound={notFound}
+      header={header}
+      initial={initial}
+      onSave={async (next) => {
+        await update.mutateAsync({
+          body: next.body,
+          layout: next.layout,
+          metadata: next.metadata,
+        });
+      }}
+    />
   );
 }

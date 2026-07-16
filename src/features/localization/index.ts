@@ -27,3 +27,13 @@ export { PackHealthPanel } from "./components/PackHealthPanel";
 export { TaxTemplatesEditor } from "./components/reference/TaxTemplatesEditor";
 export { AccountTemplatesEditor } from "./components/reference/AccountTemplatesEditor";
 export { RemittanceSchedulesEditor } from "./components/reference/RemittanceSchedulesEditor";
+
+// Full-page editor route shells — the SAME page component mounts under
+// both admin and tenant routes. Callers wire up the persistence adapter
+// (pack row vs override row); the page shell itself never forks.
+export { CertificateEditorPage } from "./routes";
+export type {
+  CertificateEditorInitial,
+  CertificateEditorSaveInput,
+  CertificateEditorHeader,
+} from "./routes";
