@@ -614,10 +614,15 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
         entity="template"
         mode="edit"
         title={`Edit template${editing ? ` — ${editing.display_name}` : ""}`}
-        // Certificate authoring is a design-driven surface — full viewport,
-        // never a right-side drawer split three ways. Return templates keep
-        // the wider drawer until they migrate to the same shell.
-        size={table === "localization_pack_certificate_templates" ? "full" : undefined}
+        // Certificate + return admin editing runs on dedicated
+        // full-page routes above — this Sheet only fires now for
+        // tenant overrides. Keep the wide size for those.
+        size={
+          table === "localization_pack_certificate_templates" ||
+          table === "localization_pack_return_templates"
+            ? "full"
+            : undefined
+        }
         hideFooter
       >
         {editing && (table === "localization_pack_return_templates" ? (
