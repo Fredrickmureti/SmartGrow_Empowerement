@@ -74,12 +74,11 @@ export function resolveReturnRenderer(formatKind: ReturnFormatKind, opts?: { has
       };
     case "pdf":
     default:
-      // NOTE: pdf-lib section-renderer is Phase C removal territory.
-      // Until the return-AST → paged.js migration lands, PDF returns
-      // still flow through `ReturnPreviewPane`. New code MUST NOT add
-      // pdf-lib call sites — see ESLint rule (Phase E).
+      // PDF returns render through the shared HTML + paged.js pipeline
+      // (see returnToAst → CertificateHtmlSurface). pdf-lib is banned
+      // from localization code — see ESLint rule.
       return {
-        id: opts?.hasV2Sections ? "return/pdf-v2-sections" : "return/pdf-tabular-fallback",
+        id: "return/pdf",
         formatKind: "pdf",
         render: ({ templateCode, displayName, body, meta }) => (
           <ReturnPreviewPane
@@ -113,9 +112,8 @@ export function resolvePopOutRenderer(kind: PreviewKind, payload: PreviewPayload
       const meta = (payload.meta ?? {}) as { submission_format?: { kind?: ReturnFormatKind } };
       const body = payload.body as any;
       const declared = meta.submission_format?.kind ?? null;
-      const hasV2 = body?.renderer === "v2-returns" && Array.isArray(body?.sections);
-      const formatKind: ReturnFormatKind = declared ?? (hasV2 ? "pdf" : "csv");
-      const descriptor = resolveReturnRenderer(formatKind, { hasV2Sections: hasV2 });
+      const formatKind: ReturnFormatKind = declared ?? "csv";
+      const descriptor = resolveReturnRenderer(formatKind);
       return descriptor.render({
         templateCode: payload.templateCode,
         displayName: payload.displayName,
