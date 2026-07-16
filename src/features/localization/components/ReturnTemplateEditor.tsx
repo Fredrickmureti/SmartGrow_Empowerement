@@ -428,17 +428,34 @@ export function ReturnTemplateEditor({
     }
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <FileText className="h-4 w-4" />
-          {mode === "admin" ? "Statutory return template" : "Statutory return override"} —{" "}
-          <code className="text-xs">{templateCode}</code>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+  // ── Section outline for the workspace rail (only shows sections that
+  // are actually rendered given current mode/metadata flags). Kept in
+  // render order so J / K walks the sections top-to-bottom.
+  const activeSections: Array<{ id: string; label: string }> = [];
+  if (editMetadata) {
+    activeSections.push({ id: "rt-section-identification", label: "Identification" });
+    activeSections.push({ id: "rt-section-outputs", label: "Outputs" });
+  }
+  activeSections.push({ id: "rt-section-filters", label: "Rule codes" });
+  activeSections.push({ id: "rt-section-statuses", label: "Payslip statuses" });
+  activeSections.push({ id: "rt-section-columns", label: "Columns" });
+  activeSections.push({ id: "rt-section-groupby", label: "Group by" });
+  activeSections.push({ id: "rt-section-totals", label: "Totals" });
+  activeSections.push({ id: "rt-section-reconciliation", label: "Reconciliation" });
+  activeSections.push({ id: "rt-section-v2", label: "v2 renderer" });
+  if (mode === "tenant") activeSections.push({ id: "rt-section-override", label: "Override reason" });
 
+  const editorScrollRef = useRef<HTMLDivElement>(null);
+  const activeSectionIdxRef = useRef<number>(0);
+  const scrollToSection = (id: string) => {
+    const idx = activeSections.findIndex((s) => s.id === id);
+    if (idx >= 0) activeSectionIdxRef.current = idx;
+    const el = editorScrollRef.current?.querySelector(`#${CSS.escape(id)}`) as HTMLElement | null;
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const editorFormBody = (
+      <>
         {editMetadata && (
           <div id="rt-section-identification">
             <MetadataSection
