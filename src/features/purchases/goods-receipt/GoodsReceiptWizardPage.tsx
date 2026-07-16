@@ -228,6 +228,7 @@ export default function GoodsReceiptWizardPage() {
             quantity_to_receive: prefillQty,
             lot_number: asnMatch?.expected_lot_number ?? "",
             serial_number: "",
+            serial_numbers: [],
             notes: "",
             packaging_id: asnMatch?.expected_packaging_id ?? null,
             display_uom_id: asnMatch?.display_uom_id ?? null,
