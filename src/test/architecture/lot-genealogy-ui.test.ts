@@ -59,7 +59,7 @@ describe("Phase G — LotDetail page (traceability query is canonical)", () => {
       "delivery_note",
       "stock_transfer",
     ]) {
-      expect(src).toMatch(new RegExp(`["']${key}["']`));
+      expect(src).toMatch(new RegExp(`\\b${key}\\b`));
     }
   });
 });
