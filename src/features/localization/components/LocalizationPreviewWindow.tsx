@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
-import { ReturnPreviewPane } from "./ReturnPreviewPane";
+import { ReturnFormatPreview } from "./preview/ReturnFormatPreview";
 import { SpreadsheetPreviewPane, type SpreadsheetPreviewProps } from "./preview/SpreadsheetPreviewPane";
 import { EntityInspectorPane, type EntityInspectorPaneProps } from "./preview/EntityInspectorPane";
 import {
