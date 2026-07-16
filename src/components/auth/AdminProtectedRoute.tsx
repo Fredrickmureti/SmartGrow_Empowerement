@@ -95,5 +95,6 @@ export function AdminProtectedRoute({ children }: AdminProtectedRouteProps) {
     );
   }
 
-  return <>{children}</>;
+  // Enrolled — challenge for AAL2 if the current session is still aal1.
+  return <MfaChallengeGate>{children}</MfaChallengeGate>;
 }
