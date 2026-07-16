@@ -27,7 +27,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function EmailChangeCard() {
   const { user } = useAuth();
-  const { employee } = useCurrentEmployee();
+  const { currentEmployee: employee } = useCurrentEmployee();
   const [newEmail, setNewEmail] = useState("");
   const [reason, setReason] = useState("");
   const [alsoUpdateWorkEmail, setAlsoUpdateWorkEmail] = useState(true);
