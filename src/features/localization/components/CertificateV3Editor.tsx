@@ -185,11 +185,11 @@ export function ValueEditor({ value, onChange, placeholder }: {
       </Button>
       {isBinding ? (
         <>
-          <Input
-            className="h-7 text-xs font-mono"
+          <CodeField
+            className="h-7"
             placeholder="payload.path e.g. employer.name"
             value={(v as any).path ?? ""}
-            onChange={(e) => onChange({ ...v, kind: "binding", path: e.target.value } as Value)}
+            onChange={(next) => onChange({ ...v, kind: "binding", path: next } as Value)}
           />
           <Select
             value={(v as any).format ?? "text"}
@@ -202,11 +202,11 @@ export function ValueEditor({ value, onChange, placeholder }: {
           </Select>
         </>
       ) : (
-        <Input
-          className="h-7 text-xs"
-          placeholder={placeholder ?? "Static text"}
+        <ExpandableTextField
           value={String((v as any).value ?? "")}
-          onChange={(e) => onChange({ kind: "literal", value: e.target.value })}
+          onChange={(next) => onChange({ kind: "literal", value: next })}
+          placeholder={placeholder ?? "Static text"}
+          dialogTitle="Edit literal text"
         />
       )}
     </div>
