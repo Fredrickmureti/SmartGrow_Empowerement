@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
-import { ReturnPreviewPane } from "./ReturnPreviewPane";
+import { ReturnFormatPreview } from "./preview/ReturnFormatPreview";
 import { SpreadsheetPreviewPane, type SpreadsheetPreviewProps } from "./preview/SpreadsheetPreviewPane";
 import { EntityInspectorPane, type EntityInspectorPaneProps } from "./preview/EntityInspectorPane";
 import {
@@ -90,10 +90,10 @@ function PopOutBody({ kind, payload }: { kind: PreviewKind; payload: PreviewPayl
       );
     case "return":
       return (
-        <ReturnPreviewPane
+        <ReturnFormatPreview
           templateCode={payload.templateCode}
           displayName={payload.displayName ?? payload.templateCode}
-          body={payload.body}
+          body={payload.body as any}
           meta={payload.meta as any}
         />
       );

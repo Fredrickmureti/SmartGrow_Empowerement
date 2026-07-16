@@ -43,6 +43,7 @@ import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import { OutputsCard } from "./OutputsCard";
 import { PreviewPanel } from "./PreviewPanel";
 import { ReturnPreviewPane } from "./ReturnPreviewPane";
+import { ReturnFormatPreview } from "./preview/ReturnFormatPreview";
 import type { EditorMode } from "../types";
 import { openPreviewWindow, publishPreview } from "../lib/previewBroadcast";
 
@@ -388,11 +389,12 @@ export function ReturnTemplateEditor({
       meta: {
         legal_reference: meta.legal_reference,
         regulation_citation: meta.regulation_citation,
+        submission_format: meta.submission_format,
       },
       displayName: templateCode,
       updatedAt: Date.now(),
     });
-  }, [body, meta.legal_reference, meta.regulation_citation, templateCode]);
+  }, [body, meta.legal_reference, meta.regulation_citation, meta.submission_format, templateCode]);
 
   const handlePopOutPreview = () => openPreviewWindow("return", templateCode);
 
@@ -806,34 +808,44 @@ export function ReturnTemplateEditor({
       </div>
     </ScrollArea>
   );
-  const previewPane = body.renderer === "v2-returns" ? (
-    <ReturnPreviewPane
+  // Route the live preview by the template's declared submission format
+  // (csv / xlsx / xml / json / pdf). Falls back to a spreadsheet view
+  // for column-only bodies so CSV/XLSX returns like KE P10 no longer
+  // render as an empty PDF.
+  const previewPane = (
+    <ReturnFormatPreview
       templateCode={templateCode}
       displayName={templateCode}
       body={{
-        renderer: "v2-returns",
-        sections: (body.sections ?? []).map((s) => {
-          if (s.type === "employee_line_grid" && !s.columns?.length) {
-            return {
-              ...s,
-              columns: body.columns.map((c) => ({
-                key: c.key,
-                header: c.label,
-                format: c.format === "currency" ? "money" : "text",
-                align: c.format === "currency" ? "right" : "left",
-              })),
-            };
-          }
-          return s;
-        }),
+        ...denormalizeBody(body),
+        // Ensure v2 sections carry over when opted in.
+        ...(body.renderer === "v2-returns"
+          ? {
+              renderer: "v2-returns",
+              sections: (body.sections ?? []).map((s) => {
+                if (s.type === "employee_line_grid" && !s.columns?.length) {
+                  return {
+                    ...s,
+                    columns: body.columns.map((c) => ({
+                      key: c.key,
+                      header: c.label,
+                      format: c.format === "currency" ? "money" : "text",
+                      align: c.format === "currency" ? "right" : "left",
+                    })),
+                  };
+                }
+                return s;
+              }),
+            }
+          : {}),
       }}
       meta={{
         legal_reference: meta.legal_reference,
         regulation_citation: meta.regulation_citation,
+        submission_format: meta.submission_format,
       }}
+      packId={packId ?? null}
     />
-  ) : (
-    <PreviewPanel body={denormalizeBody(body)} packId={packId ?? null} title="Statutory return preview" />
   );
 
   const toolbar = (
