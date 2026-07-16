@@ -807,7 +807,7 @@ function MatrixEditor({ node, onChange }: { node: any; onChange: (n: any) => voi
       <div className="grid grid-cols-2 gap-2">
         <div>
           <Label className="text-[10px]">Rows binding (array path)</Label>
-          <Input className="h-7 text-xs font-mono" value={node.rows_binding ?? ""} onChange={(e) => set({ rows_binding: e.target.value })} placeholder="e.g. rows.items" />
+          <CodeField value={node.rows_binding ?? ""} onChange={(v) => set({ rows_binding: v })} placeholder="e.g. rows.items" />
         </div>
         <div>
           <Label className="text-[10px]">Title</Label>
