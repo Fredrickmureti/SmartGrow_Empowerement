@@ -10,7 +10,7 @@ import { normalizeError } from "@/services/resilience";
  * Status badges: issued / superseded / draft. Re-generating an issued
  * certificate supersedes (audit trail preserved) and re-creates a fresh one.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Card,
@@ -100,7 +100,7 @@ function StatTile({
 export default function TaxCertificates() {
   // Deep-link support from the Reporting Centre pack-artifact hand-off:
   // /hr/payroll/tax-certificates?template=P9&from=2025-01-01
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const deepLinkTemplate = searchParams.get("template") ?? "";
   const deepLinkFrom = searchParams.get("from");
   const deepLinkYear = deepLinkFrom
@@ -113,6 +113,20 @@ export default function TaxCertificates() {
   );
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
   const [regenerate, setRegenerate] = useState(false);
+
+  // Persist template + fiscal year in URL search params so a page refresh
+  // (or deep-link share) preserves the operator's selection.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (templateCode) next.set("template", templateCode);
+    else next.delete("template");
+    next.set("from", `${fiscalYear}-01-01`);
+    // Only write if something actually changed to avoid render loops.
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [templateCode, fiscalYear, searchParams, setSearchParams]);
+
 
 
   const templatesQ = useCertificateTemplates();
