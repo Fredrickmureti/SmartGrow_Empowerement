@@ -666,19 +666,22 @@ export function ReturnTemplateEditor({
           />
         </section>
 
-        {/* ── v2 section-based renderer (opt-in) ────────────────── */}
+        {/* ── PDF section layout (only for PDF-format returns) ──── */}
+        {showPdfSections && (
         <section id="rt-section-v2" className="space-y-2 rounded-lg border bg-muted/10 p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                Section-based renderer (v2)
+                PDF section layout
               </h3>
               <p className="text-xs text-muted-foreground">
-                When enabled, the PDF is drawn from the section vocabulary
+                Compose the paper-return PDF from the section vocabulary
                 below (employer header, period band, employee line grid,
                 totals, reconciliation, signature, footnote, remittance).
-                Same renderer runs server-side and in the preview.
+                Only shown because this return declares a PDF submission
+                format. CSV, XLSX, XML and JSON returns do not use this
+                layout.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -688,7 +691,7 @@ export function ReturnTemplateEditor({
                   setBody({ ...body, renderer: v ? "v2-returns" : null })
                 }
               />
-              <Label className="text-xs">Enable v2 renderer</Label>
+              <Label className="text-xs">Enable section layout</Label>
             </div>
           </div>
           {body.renderer === "v2-returns" && (
@@ -777,6 +780,7 @@ export function ReturnTemplateEditor({
             </div>
           )}
         </section>
+        )}
 
         {/* ── Tenant override audit reason ──────────────────────── */}
         {mode === "tenant" && (
