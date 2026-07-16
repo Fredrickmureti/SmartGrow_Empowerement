@@ -180,3 +180,47 @@ operator's chosen lots and serials to the DB.
 3. **InvoiceEditPage / CreditNoteEditPage / edit paths.** The picker
    currently mounts inside the create surfaces; edit surfaces would
    need the same wiring + an update-time hook whitelist review.
+
+---
+
+## ✅ Phase A.5 — Delivered (2026-07-16)
+
+**GRN serial capture** — `GoodsReceiptWizardPage` now enforces the
+ADR-0067 contract on the receiving side so `enforce_serial_on_movement`
+(the trigger that upserts `stock_serials` from every serial-tracked
+`stock_movements` row) always sees exactly one serial per unit.
+
+- **Wizard state:** `ReceiptLine` extended with `serial_numbers: string[]`.
+- **Flag resolution:** batched `useProductTrackingFlags` over every
+  distinct `product_id` in the receipt — one round-trip per page load.
+- **Receive step UI:** new "Serial numbers" column renders a
+  one-per-line textarea for `is_serial_tracked` products with a
+  `entered/required` counter and duplicate detection.
+- **Gate:** `receiveValid = totalToReceive > 0 && !serialCaptureIncomplete`
+  so Next / Submit are blocked until every serial-tracked line has
+  the exact count of unique non-empty serials.
+- **Submit expander:** serial-tracked lines are flat-mapped into N
+  single-qty `goods_receipt_items` rows, each with one distinct
+  `serial_number`. Non-serial lines keep the existing single-row
+  shape. The atomic RPC path (`complete_goods_receipt_atomic`) is
+  unchanged — no client-side `stock_movements` writes.
+- **Architecture guard:** `src/test/architecture/grn-serial-capture.test.ts`
+  — 6 tests. Combined inventory-foundation guard surface: **92/92**.
+- **No migrations, no RPC changes, no schema changes** required.
+  The pre-existing `enforce_serial_on_movement` trigger already
+  handles idempotent `stock_serials` upserts once the movement rows
+  carry per-unit serials.
+
+### Still outstanding
+
+1. **Sales-order line editor.** SO doesn't move stock (delivery
+   handles that), so tracking widgets there are cosmetic — low
+   priority.
+2. **InvoiceEditPage / CreditNoteEditPage / edit paths.** Picker
+   currently mounts on create surfaces only.
+3. **Phase D.3 UI wiring** — "Import ASN" action on POs / new
+   `/inventory/inbound-shipments` list.
+4. **Phase E–H** — variants, import split, lot genealogy, GS1 (one
+   ADR each).
+5. **Phase 5 ambient** — retire `warehouse_stock` once
+   `check_stock_quant_drift` returns empty 14 consecutive days.
