@@ -84,8 +84,10 @@ export function SpreadsheetPreviewPane({
   footnote,
   className,
 }: SpreadsheetPreviewProps) {
-  const totalRows = rows.length;
-  const unresolvedCount = columns.filter((c) => c.unresolved).length;
+  const safeColumns: SpreadsheetPreviewColumn[] = Array.isArray(columns) ? columns : [];
+  const safeRows: Array<Array<string | number | null | undefined>> = Array.isArray(rows) ? rows : [];
+  const totalRows = safeRows.length;
+  const unresolvedCount = safeColumns.filter((c) => c.unresolved).length;
 
   return (
     <Card className={cn("flex h-full min-h-0 w-full flex-col overflow-hidden border-0 shadow-none", className)}>
