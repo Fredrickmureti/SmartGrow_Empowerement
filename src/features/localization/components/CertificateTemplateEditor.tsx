@@ -43,6 +43,7 @@ import { useStatutoryAuthorities } from "../hooks/useStatutoryAuthorities";
 import type { EditorMode } from "../types";
 import type { Theme } from "../lib/engine/types";
 import { OutputsCard } from "./OutputsCard";
+import { openPreviewWindow, publishPreview } from "../lib/previewBroadcast";
 import {
   CertificateV3Editor,
   defaultV3Body,
@@ -199,6 +200,25 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   }, [v3Body]);
 
   const liveBody = v3Body;
+
+  // ── Pop-out preview broadcast ──────────────────────────────────────────
+  // Mirror the live draft into localStorage + BroadcastChannel so a
+  // pop-out `/localization/preview/certificate/<code>` window paints the
+  // same document every keystroke.
+  useEffect(() => {
+    publishPreview({
+      kind: "certificate",
+      templateCode: initial.template_code,
+      body: v3Body,
+      meta: editMetadata ? meta : null,
+      displayName: initial.template_code,
+      updatedAt: Date.now(),
+    });
+  }, [v3Body, meta, editMetadata, initial.template_code]);
+
+  const handlePopOutPreview = () => {
+    openPreviewWindow("certificate", initial.template_code);
+  };
 
   const metaErrors: string[] = [];
   if (editMetadata) {
@@ -640,6 +660,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         defaultMode="split"
         onSave={doSave}
         onNavigateNode={handleNavigateNode}
+        onPopOutPreview={handlePopOutPreview}
       />
     </div>
   );
