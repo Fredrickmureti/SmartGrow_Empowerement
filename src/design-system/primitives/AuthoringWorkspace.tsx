@@ -33,6 +33,7 @@ import {
   SquarePen,
   Eye,
   Focus as FocusIcon,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,9 @@ export type WorkspaceLayoutMode =
   | "preview"        // editor hidden
   | "bottom"         // preview docked under editor (landscape docs)
   | "focus";         // rail + preview hidden, editor takes everything
+
+export type WorkspaceNavDirection = "next" | "prev";
+
 
 interface AuthoringWorkspaceProps {
   /** Stable id — used for persisted panel sizes and layout mode. */
