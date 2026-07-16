@@ -99,6 +99,7 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           <Route path="remittances"          element={<RedirectToRemittances />} />
           <Route path="remittances/*"        element={<RedirectToRemittances />} />
           <Route path="configuration/templates" element={gate(<LazyRoute module="Templates"><Templates /></LazyRoute>, "managePayroll")} />
+          <Route path="configuration/templates/certificates/:code/edit" element={gate(<LazyRoute module="Certificate Template Editor"><CertificateTemplateEdit /></LazyRoute>, "managePayroll")} />
           <Route path="configuration/localization" element={gate(<LazyRoute module="Localization"><Localization /></LazyRoute>, "managePayroll")} />
           <Route path="configuration"        element={gate(<LazyRoute module="Configuration"><Configuration /></LazyRoute>, "managePayroll")} />
           <Route path="setup"                element={gate(<LazyRoute module="Setup"><Setup /></LazyRoute>, "managePayroll")} />
