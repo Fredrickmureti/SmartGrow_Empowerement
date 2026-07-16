@@ -345,8 +345,9 @@ function NodeEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
       return (
         <div className="space-y-1">
           <ValueEditor value={node.title} onChange={(v) => set({ title: v })} placeholder="Title" />
-          <Textarea
-            className="text-xs" rows={3}
+          <AutoGrowTextarea
+            className="text-xs"
+            minRows={3}
             value={(node.paragraphs ?? []).map((p: any) => p?.value ?? "").join("\n")}
             onChange={(e) => set({ paragraphs: e.target.value.split("\n").map((l) => ({ kind: "literal", value: l })) })}
             placeholder="One paragraph per line"
