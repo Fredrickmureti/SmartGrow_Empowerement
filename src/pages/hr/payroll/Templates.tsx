@@ -157,7 +157,15 @@ function TemplatesPanel({ kind }: { kind: Kind }) {
                       )}
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button size="sm" variant="outline" onClick={() => setEditing(p)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          kind === "certificate"
+                            ? navigate(`/hr/payroll/configuration/templates/certificates/${encodeURIComponent(p.code)}/edit`)
+                            : setEditing(p)
+                        }
+                      >
                         <Pencil className="h-3 w-3 mr-1" />
                         {ov ? "Edit override" : "Override"}
                       </Button>
