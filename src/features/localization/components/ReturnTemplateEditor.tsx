@@ -442,7 +442,12 @@ export function ReturnTemplateEditor({
   activeSections.push({ id: "rt-section-groupby", label: "Group by" });
   activeSections.push({ id: "rt-section-totals", label: "Totals" });
   activeSections.push({ id: "rt-section-reconciliation", label: "Reconciliation" });
-  activeSections.push({ id: "rt-section-v2", label: "v2 renderer" });
+  // "PDF section layout" is only meaningful when the declared submission
+  // format is a PDF paper return. CSV/XLSX/XML/JSON returns never render
+  // as a PDF at runtime — surfacing the toggle in those cases misled
+  // publishers (e.g. `P10 (iTax CSV)` previewed as an empty PDF).
+  const showPdfSections = (meta.submission_format?.kind ?? null) === "pdf";
+  if (showPdfSections) activeSections.push({ id: "rt-section-v2", label: "PDF section layout" });
   if (mode === "tenant") activeSections.push({ id: "rt-section-override", label: "Override reason" });
 
   const editorScrollRef = useRef<HTMLDivElement>(null);
@@ -661,19 +666,22 @@ export function ReturnTemplateEditor({
           />
         </section>
 
-        {/* ── v2 section-based renderer (opt-in) ────────────────── */}
+        {/* ── PDF section layout (only for PDF-format returns) ──── */}
+        {showPdfSections && (
         <section id="rt-section-v2" className="space-y-2 rounded-lg border bg-muted/10 p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                Section-based renderer (v2)
+                PDF section layout
               </h3>
               <p className="text-xs text-muted-foreground">
-                When enabled, the PDF is drawn from the section vocabulary
+                Compose the paper-return PDF from the section vocabulary
                 below (employer header, period band, employee line grid,
                 totals, reconciliation, signature, footnote, remittance).
-                Same renderer runs server-side and in the preview.
+                Only shown because this return declares a PDF submission
+                format. CSV, XLSX, XML and JSON returns do not use this
+                layout.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -683,7 +691,7 @@ export function ReturnTemplateEditor({
                   setBody({ ...body, renderer: v ? "v2-returns" : null })
                 }
               />
-              <Label className="text-xs">Enable v2 renderer</Label>
+              <Label className="text-xs">Enable section layout</Label>
             </div>
           </div>
           {body.renderer === "v2-returns" && (
@@ -772,6 +780,7 @@ export function ReturnTemplateEditor({
             </div>
           )}
         </section>
+        )}
 
         {/* ── Tenant override audit reason ──────────────────────── */}
         {mode === "tenant" && (
@@ -848,6 +857,16 @@ export function ReturnTemplateEditor({
     />
   );
 
+  const formatChipLabel = (() => {
+    const k = meta.submission_format?.kind;
+    if (k === "csv") return "CSV";
+    if (k === "xlsx") return "XLSX";
+    if (k === "xml") return "XML";
+    if (k === "json") return "JSON";
+    if (k === "pdf") return "PDF";
+    return "Format not set";
+  })();
+
   const toolbar = (
     <>
       <FileText className="h-4 w-4 text-muted-foreground" />
@@ -859,13 +878,9 @@ export function ReturnTemplateEditor({
         {mode === "admin" ? "Publisher" : "Tenant override"}
       </Badge>
       <div className="mx-1 h-4 w-px bg-border" />
-      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Switch
-          checked={body.renderer === "v2-returns"}
-          onCheckedChange={(v) => setBody({ ...body, renderer: v ? "v2-returns" : null })}
-        />
-        v2 renderer
-      </label>
+      <Badge variant="secondary" className="text-[10px]" title="Declared submission format — drives the preview renderer">
+        {formatChipLabel}
+      </Badge>
     </>
   );
 

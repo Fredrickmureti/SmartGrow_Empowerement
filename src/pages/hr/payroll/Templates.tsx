@@ -18,7 +18,7 @@ import { WorkflowSheet } from "@/components/workflow/WorkflowSheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Loader2, Pencil, RotateCcw, AlertTriangle } from "lucide-react";
-import { TemplateEditor, ReturnTemplateEditor } from "@/features/localization";
+import { ReturnTemplateEditor } from "@/features/localization";
 import { useCertificateTemplates } from "@/hooks/payroll/useTaxCertificates";
 import { useReturnTemplates } from "@/hooks/payroll/useStatutoryReturns";
 import {
@@ -260,19 +260,11 @@ function OverrideEditor({
           onCancel={onClose}
         />
       ) : (
-        <TemplateEditor
-          mode="tenant"
-          packId={pack.pack_id}
-          templateCode={pack.code}
-          initial={{
-            template_code: pack.code,
-            body: existing?.body ?? pack.body,
-            layout: existing?.layout ?? pack.layout ?? null,
-            notes: existing?.notes ?? "",
-          }}
-          onSave={handleSave}
-          onCancel={onClose}
-        />
+        // Certificate tenant overrides are handled via full-page navigation
+        // to `PayrollCertificateTemplateEdit` (see TemplatesPanel row action).
+        // This branch is unreachable — retained as a defensive no-op to keep
+        // OverrideEditor total for the union of Kind values.
+        null
       )}
     </WorkflowSheet>
   );
