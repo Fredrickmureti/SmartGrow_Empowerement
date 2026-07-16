@@ -1,178 +1,107 @@
 
-# Inventory Foundation — Architectural Verdicts
+# Inventory Foundation — Verification + Continuation
 
-Scope: is the inventory engine capable of being the single source of truth for POS, Purchasing, Warehouse, Finance, Sales, Returns, Manufacturing? Evidence drawn from `products`, `product_identifiers`, `product_packaging`, `units_of_measure`, `warehouses`, `warehouse_stock`, `warehouse_stock_lots`, `stock_movements`, `stock_lots`, `stock_adjustments`, `stock_transfers`, `stock_reservations`, `goods_receipts`, `cost_layers`, plus surfaces in `src/hooks/useInventory.ts`, `src/lib/inventory/*`, `src/features/purchases/goods-receipt`, ADRs 0001/0002/0016/0023/0024/0025/0026/0035.
+## Phase 0 — Verification of prior engineer's work (done in this turn)
 
-Legend: ✅ correct · ⚠ needs improvement · ❌ architecturally wrong.
+Prior artifact: `.lovable/plan.md` (audit verdicts + execution log for Step 1 "Locations & bins", Phases 1–4).
 
-## 1. Product master — ⚠
-Rich (49 cols) with categories, suppliers, base UoM (immutable via trigger — ADR-0035), lot/expiry flags, cost method AVCO (ADR-0002). Weaknesses:
-- No first-class **variant/parent-template** model (color/size matrix). Variants are today flattened to distinct products, blocking retail apparel/SKU-explosion workflows enterprise ERPs (Odoo `product.template`/`product.product`, Dynamics dimensions) rely on.
-- No **serial-controlled** flag or serial ledger table. `is_lot_tracked`/`is_expiry_tracked` exist; serial does not. Blocks electronics, medical devices, warranty/RMA.
-- No **product lifecycle state** (draft/active/discontinued/blocked) beyond `is_active`. No effective-dated attribute history.
-- Brands, attributes, retail vs wholesale scoping present only as ad-hoc columns, not as a controlled taxonomy.
+Verified directly against DB + filesystem:
 
-## 2. Barcode / identifier architecture — ✅ (with one gap)
-`product_identifiers` with `(business_id, code_norm, kind)` unique constraint + `packaging_id` FK (pack-scoped barcode) is enterprise-shaped. Supports multiple codes, kind (EAN/UPC/GTIN/internal/supplier), and per-pack barcodes (carton/pallet via packaging rows). Regression tests exist (`product_identifiers_unique_shape_test.sql`).
-- ⚠ Missing: explicit `supplier_id` on identifier rows (supplier-specific barcode aliasing) and GS1 AI parsing (weight-embedded, lot-embedded, expiry-embedded barcodes). Needed for pharmacy/FMCG at scale.
-
-## 3. Multi-unit inventory — ✅
-ADR-0024 + `products.base_uom_id` immutable + `product_packaging` factor-based + `formatQty` helpers + `enforce_product_uom_category` trigger. Base is source of truth, packs are presentation. Per-pack pricing is derived. This is correctly modelled — a genuine strength.
-
-## 4. Warehouse / location model — ❌ (foundational gap)
-Only `warehouses` (18 cols, branch-scoped) exists. There are **no zones, aisles, bins, or storage locations**. `warehouse_stock` aggregates at warehouse level; per-lot balances exist but no per-bin. Consequences:
-- Cannot support WMS putaway, pick paths, bin-level cycle counts, or 3PL directives.
-- Cannot model quarantine/damaged/staging as locations (today they'd be separate warehouses — a hack).
-- Every enterprise WMS (SAP EWM, D365 WHS, NetSuite WMS, Odoo Enterprise) treats **stock quant = (product, location, lot, package, owner)**. We only carry (product, warehouse, lot). This is the single biggest structural gap.
-
-## 5. Batch / lot architecture — ⚠ (correct core, thin metadata)
-`stock_lots` + `warehouse_stock_lots` + trigger-maintained per-lot balances + FEFO RPCs (`resolve_fefo_lots`, `consume_lots_atomic`) + drift view (ADR-0025). Core is right.
-- ⚠ `stock_lots` lacks first-class `manufacture_date`, `supplier_lot_ref`, `country_of_origin`, `certificate_of_analysis` link — required for pharma/food traceability.
-- ⚠ No **lot genealogy** (parent lot → child lot from repack/manufacturing). Blocks two-way recall (upstream + downstream).
-- ✅ `lot_quarantine` table exists but is not wired to a location/status state machine.
-
-## 6. Serial numbers — ❌
-No `stock_serials` table, no `is_serial_tracked` column, no serial movement ledger. Serialised inventory is entirely unsupported. Must be added before we claim ERP parity.
-
-## 7. Goods Receipt / receiving — ⚠
-`goods_receipts` + `goods_receipt_items` + wizard UI + `complete_goods_receipt_atomic` RPC. PO-linked receiving works, partial receipts are modelled (`backorders` table exists), branch-stamped moves are enforced. Gaps:
-- ❌ **No ASN / EDI 856 / inbound-shipment model.** Nothing represents "supplier has shipped, expect these lots on this date." Enterprise receiving reconciles GRN against ASN, not PO directly.
-- ⚠ No **receiving discrepancy** first-class object (over/short/damaged captured as movement notes, not as a structured claim record).
-- ⚠ No **quality inspection** step between GRN and available stock (would need `lot_quarantine` + location state).
-- ✅ Cross-dock and returns-to-vendor supported via `purchase_returns`.
-
-## 8. Import architecture — ❌
-Migration UI at `src/components/migration/steps/MigrationStepInventory.tsx` mixes concerns. Enterprise pattern separates: Product Master, Identifiers/Barcodes, Packaging, Opening Balances, Lots, Price Lists, Supplier catalogs — each idempotent, keyed, and reversible. Current design conflates them, which will not scale to multi-thousand-SKU onboardings.
-
-## 9. Traceability — ⚠
-Given the ledger + lot balances + reference_type/reference_id on `stock_movements`, upstream trace (which supplier, PO, GRN produced this lot) is answerable. Downstream trace (which customer/invoice/POS transaction consumed a lot) is **partially** answerable: `pos_transaction_items`, `invoice_items`, `delivery_note_items` do not consistently stamp `lot_number`. Full recall (`Which customers bought Batch A?`) is not reliably supported today.
-
-## 10. Stock movement engine — ✅ (with one policy issue)
-Single `stock_movements` table + `recordStockMovement` helper + branch trigger + AVCO cost layers + reservation table + adjustment reversal via `reverse_stock_adjustment_atomic` (ADR-0016). Movement types: purchase, sale, pos_sale, pos_return, adjustment, return_in, return_out, transfer, opening, receipt, delivery, scrap, count.
-- ⚠ `transfer` collapses two logical events (issue + receive) into one type. Enterprise ERPs model `transfer_out` and `transfer_in` separately so in-transit stock is a real state. Today in-transit is implicit.
-- ⚠ No `manufacturing_consumption` / `manufacturing_output` types. Adding manufacturing later will require broadening the enum.
-
-## 11. Integration seams — ✅
-Sales, Purchases, POS, Finance all route through `stock_movements` with branch-derived triggers (`inventory-verdict.md` audit is current). Inventory is behaving as SoT for quantity and value. This is the healthiest part of the stack.
-
-## 12. Realtime & offline — ✅
-`RealtimeSyncProvider` subscribes finance-critical inventory tables in one channel; POS has SQLite offline mirror. Sound.
-
----
-
-# Verdict summary
-
-| Area | Verdict |
+| Claim | Result |
 |---|---|
-| Product master | ⚠ (no variants, no serial, thin lifecycle) |
-| Identifiers / barcodes | ✅ (needs supplier-aliasing + GS1 parsing) |
-| Multi-UoM | ✅ |
-| Warehouse locations / bins | ❌ **foundational gap** |
-| Lot / batch | ⚠ (thin metadata, no genealogy) |
-| Serial numbers | ❌ |
-| Goods receipt / ASN | ⚠ (no ASN, no QC step) |
-| Import architecture | ❌ (monolithic) |
-| Traceability | ⚠ (downstream lot stamping incomplete) |
-| Movement engine | ✅ (split transfer, add mfg types) |
-| Cross-module integration | ✅ |
+| ADR 0064 + 0065 present | ✅ files exist |
+| 4 migrations `20260716210212` / `210630` / `210823` / `211651` | ✅ present |
+| `stock_locations`, `stock_quants` tables | ✅ exist |
+| `stock_movements.source_location_id` + `.destination_location_id` | ✅ exist |
+| Views `v_stock_on_hand`, `v_warehouse_stock_effective`, `v_location_summary` | ✅ all 3 exist |
+| `check_stock_quant_drift` RPC | ✅ exists |
+| Trigger maintaining quants from movements | ✅ exists as `trg_maintain_stock_quants` (log calls it `_maintain_stock_quants` — cosmetic naming drift) |
+| Quarantine → movement trigger | ✅ exists as `trg_lot_quarantine_emit_movements` (log calls it `_emit_quarantine_movements`) |
+| `useStockQuants` hook | ✅ present |
 
-**Overall:** the inventory *ledger* is enterprise-shaped and safe (AVCO, lot-aware, branch-isolated, reversible, drift-monitored). The *master data & warehouse topology* are retail-shaped and will not scale to WMS/manufacturing without three structural additions: **locations/bins**, **serials**, and **inbound shipments (ASN)**. Variants and lot genealogy are the next tier.
+Verdict on prior work: **Phases 1–4 are genuinely delivered.** The only defect is documentation drift (trigger names in the log don't match `pg_trigger`). No functional issues. `warehouse_stock` remains authoritative; quants ledger is a live shadow. Phase 5 is drift-gated (14 clean days) and correctly deferred.
 
----
+Also re-confirmed the audit's ⚠ on traceability: only `pos_transaction_items` and `delivery_note_items` carry `lot_number`/`serial_number`; `invoice_items`, `sales_order_items`, `sales_return_items`, `credit_note_items` do **not** — so "which customer bought Batch A?" is unanswerable for non-POS sales today. This is the single most valuable remaining gap.
 
-# Recommended sequencing (no code yet — for approval)
+Action: update `.lovable/plan.md` with a "verification stamp" section and correct the two trigger names, so the next agent inherits accurate ground truth.
 
-Only structural work. No screen patches.
+## What we execute next
 
-1. **Locations & bins**: introduce `stock_locations` (warehouse → zone → bin, typed: internal/quarantine/staging/transit/customer/vendor/scrap). Migrate `warehouse_stock` → `stock_quants (product, location, lot, package_id?, owner_id?)`. This is invasive but unlocks WMS, QC, in-transit, and correct quarantine.
-2. **Serial numbers**: `stock_serials`, `products.is_serial_tracked`, movement-level serial linkage.
-3. **ASN / inbound shipments**: `inbound_shipments` + `inbound_shipment_items` between PO and GRN; wire GRN wizard to reconcile against ASN.
-4. **Product variants**: promote `products` to a template/variant pair (or attribute-matrix on the existing row) — decide via ADR before implementing.
-5. **Downstream lot stamping**: enforce `lot_number` on `invoice_items`, `delivery_note_items`, `pos_transaction_items` for lot-tracked products; back-fill migration; RLS test.
-6. **Split transfer events**: `transfer_out`/`transfer_in` with an in-transit location.
-7. **Import architecture**: split monolithic importer into six idempotent pipelines (Master, Identifiers, Packaging, Opening Balances, Lots, Price Lists).
-8. **Lot genealogy + richer lot metadata**: parent/child lot links, manufacture date, supplier lot ref, CoA storage.
-9. **GS1 barcode parsing + supplier-aliased identifiers**.
+Phase 5 (retiring `warehouse_stock`) is deliberately deferred until the drift gate is met. The parallel tracks listed in the log are ready. We sequence them by **enterprise-value × prerequisite depth**, not by log order:
 
-Each step is a separate ADR + migration + focused PR. No step should be started before the previous one's ADR is approved.
+```text
+     ┌── A. Downstream lot/serial stamping ──► two-way recall ✅
+Now ─┤
+     ├── B. Serial-tracked inventory (schema + ledger)
+     └── C. Split-transfer adoption (transit location already exists)
 
-## Deliverable of this audit
-This document is the deliverable. Audit complete; execution begins below.
+Then ─── D. ASN / inbound shipments (between PO and GRN)
+Then ─── E. Product variants (ADR-first)
+Later ── F. Import architecture split, lot genealogy, GS1 parsing
+```
 
----
+A, B, C are independent and each closes a ❌/⚠ from the audit. D depends on A landing so ASN lots flow into stamped downstream documents. E is large and needs its own ADR before code.
 
-# Execution log (for the next agent)
+### Phase A — Downstream lot/serial stamping (closes traceability ⚠)
+**Goal:** for every lot- or serial-tracked product, every outbound sales-side document line records the exact lot/serial consumed, so recall queries return real customer results.
 
-Progress on Step 1 (Locations & bins). Each phase is an approved+applied migration. Verify by reading the linked ADR and the migration SQL, then re-running the checks below before continuing.
+1. ADR 0066 "Downstream lot/serial stamping contract" — one page.
+2. Migration:
+   - Add `lot_number text`, `serial_number text`, `packaging_id uuid` to `invoice_items`, `sales_order_items`, `sales_return_items`, `credit_note_items` (only the columns missing).
+   - Add a deferrable per-row constraint trigger: for a line whose product is `is_lot_tracked` or `is_serial_tracked`, the corresponding column must be non-null at commit.
+   - Extend the atomic RPCs that emit `stock_movements` from these documents (invoice confirm, sales-return post, credit-note apply) to pass the line's lot/serial through — reuse `consume_lots_atomic` where FEFO applies.
+   - Backfill migration: for existing lot-tracked outbound lines, either stamp from the linked `stock_movements.lot_number` or mark as "legacy — unknown lot" (never silently null).
+3. Recall view: `v_lot_downstream_consumption(lot_number)` → customer, document, quantity, timestamp.
+4. Tests: pgTAP covers the constraint trigger for each of the four tables + one architecture test that every outbound RPC forwards the lot.
 
-## ✅ Phase 1 — `stock_locations` + `stock_quants` shadow ledger
-- **ADR:** `docs/adr/0064-stock-locations-and-quants.md`
-- **Migration:** `supabase/migrations/20260716210212_*.sql`
-- **Delivered:**
-  - `stock_locations` (hierarchical, `location_type` + `location_usage` enums, RLS mirrors warehouses)
-  - `stock_quants` (`product_id, location_id, lot_number, package_id, owner_id, quantity, reserved_quantity`, unique idx on those 5 keys)
-  - AFTER-INSERT trigger `_maintain_stock_quants` on `stock_movements` (routes into warehouse default location if no source/dest stamped)
-  - `stock_quant_drift_view` for Phase 2 gating
-  - Default `STOCK` location seeded per existing warehouse
-  - Backfill from `warehouse_stock_lots` (via `stock_lots.lot_number`) + `warehouse_stock` (NULL-lot rows for non-lot SKUs)
-- **Zero consumer change.** `warehouse_stock` remains authoritative.
-- **Verify:** `SELECT COUNT(*) FROM stock_locations WHERE is_default;` should equal `SELECT COUNT(*) FROM warehouses;`. Quants row count should be ≥ warehouse_stock row count.
+Explicitly out of scope in A: changing how POS stamps lots (already correct) or how goods receipts stamp lots (already correct).
 
-## ✅ Phase 2 — writers stamp `source_location_id` / `destination_location_id`
-- **Migration:** `supabase/migrations/20260716210630_*.sql`
-- **Delivered:**
-  - `stock_movements.source_location_id`, `stock_movements.destination_location_id` (nullable + indexed)
-  - `_maintain_stock_quants` upgraded to double-entry when both locations stamped, single-sided when one, Phase-1 fallback otherwise
-- **Fully back-compat.** No writer had to change.
-- **Verify:** insert a test movement → confirm quants change on both sides when locations stamped.
+### Phase B — Serial-tracked inventory (closes serials ❌)
+1. ADR 0067 "Serialised inventory".
+2. Migration:
+   - `products.is_serial_tracked boolean not null default false`.
+   - `stock_serials(serial_number, product_id, lot_number nullable, status enum{in_stock,reserved,shipped,returned,scrapped}, current_location_id, business_id, organization_id, created_at, updated_at)`.
+   - Trigger on `stock_movements` for serial-tracked SKUs: reject moves without `serial_number`; maintain `stock_serials.status` + `current_location_id`.
+   - `serial_number text` on the same outbound line tables as Phase A (already covered when both phases share the same migration wave).
+3. UI is out of scope for this phase; only schema + engine.
 
-## ✅ Phase 3 — read views + drift RPC + app hook
-- **Migration:** `supabase/migrations/20260716210823_*.sql`
-- **Frontend:** `src/hooks/inventory/useStockQuants.ts`
-- **Delivered:**
-  - `v_stock_on_hand` (canonical per-product/location/lot with `available_quantity`)
-  - `v_warehouse_stock_effective` (aggregated back to warehouse shape — one-line swap for `warehouse_stock` later)
-  - `v_location_summary` (per-location totals)
-  - `check_stock_quant_drift(business_id uuid)` SECURITY DEFINER RPC — returns products where `warehouse_stock` disagrees with quants; empty = clean
-  - Hooks: `useStockQuants`, `useLocationSummary`, `useStockQuantDrift`
-- **New features MUST use `useStockQuants`.** Legacy readers untouched.
-- **Verify:** `SELECT * FROM check_stock_quant_drift('<business_id>')` should return zero rows on a clean tenant.
+### Phase C — Split-transfer adoption (closes movement engine ⚠)
+Phase 4 seeded the virtual transit location and documented the convention. Now wire the transfer completion path:
+1. Refactor `useWarehouses` / `useStockTransfers` completion RPC to emit:
+   - `transfer_out` (source warehouse default location → business transit location) on submit.
+   - `transfer_in` (transit → destination warehouse default location) on receipt.
+2. Legacy single `transfer` RPC becomes a thin wrapper that fires both in one transaction — no caller change required for direct transfers, but in-transit is now a real ledger state.
+3. `v_stock_on_hand` already filters transit correctly; verify `v_warehouse_stock_effective` still nets out.
 
-## ✅ Phase 4 — transit locations, quarantine wiring, split-transfer convention
-- **ADR:** `docs/adr/0065-phase-4-transit-quarantine-locations.md`
-- **Migration:** `supabase/migrations/20260716211711_*.sql`
-- **Delivered:**
-  - `stock_locations.warehouse_id` now nullable (only when `location_type='transit'`)
-  - One **virtual transit location per business** seeded (unique partial idx)
-  - One **quarantine location per warehouse** seeded (unique partial idx)
-  - Trigger `_emit_quarantine_movements` on `lot_quarantine`: emits `quarantine_hold` (storage→quarantine) on new hold and `quarantine_release` (quarantine→storage) on release. Phase 2 quant trigger handles the double-entry — QC hold now enforces stock unavailability at the ledger, not just the UI.
-  - Split-transfer convention documented (`transfer_out` / `transfer_in`). `movement_type` is `text`, so no enum migration needed. Existing atomic `transfer` remains valid until callers migrate.
-- **Verify:** every business has exactly one transit location; every warehouse has exactly one quarantine location; inserting `lot_quarantine` row with `status='quarantined'` produces a `quarantine_hold` movement and matching quant delta.
+### Phase D — ASN / inbound shipments (closes goods receipt ⚠)
+1. ADR 0068 "Inbound shipments and ASN reconciliation".
+2. New tables `inbound_shipments` (PO-linked, carrier, expected_arrival, status) and `inbound_shipment_items` (product, expected_qty, expected_lot, expected_expiry).
+3. GRN wizard: if an ASN exists for the PO, prefill lines from ASN; discrepancies (`over/short/damaged`) captured on `goods_receipt_discrepancies` (new).
+4. CSV upload of ASN as a pragmatic EDI-856 stand-in (real EDI is a partner project).
 
-## ⏭ Next up — Phase 5: retire `warehouse_stock`
-- **Gate:** 14 consecutive days of `check_stock_quant_drift(...)` returning empty across all production businesses.
-- **Plan (draft, needs ADR 0066):**
-  1. Drop `_maintain_warehouse_stock` trigger.
-  2. Rename `warehouse_stock` → `warehouse_stock_deprecated_YYYYMMDD`.
-  3. Create view `warehouse_stock` derived from `stock_quants` (preserve column shape).
-  4. After one more clean week, drop the deprecated table.
-  5. Migrate readers off the compat view onto `v_stock_on_hand` module by module (POS, purchasing, sales, reports).
-- **Do not start Phase 5 until drift log is clean.**
+### Later (own ADRs, one at a time)
+- Phase E: product variants (`product.template`/`product.product` split vs attribute-matrix).
+- Phase F: import architecture split (Master / Identifiers / Packaging / Opening Balances / Lots / Price Lists / Suppliers).
+- Phase G: lot genealogy + manufacture_date/supplier_lot_ref/CoA metadata.
+- Phase H: GS1 barcode parsing + supplier-aliased identifiers.
 
-## Parallel tracks still open (any order)
-- Step 2: **serials** (`stock_serials`, `products.is_serial_tracked`, movement serial linkage)
-- Step 3: **ASN / inbound shipments** between PO and GRN
-- Step 4: **product variants** (template/variant model)
-- Step 5: **downstream lot stamping** (`invoice_items`, `delivery_note_items`, `pos_transaction_items`) — required for two-way recall
-- Step 6: **split-transfer adoption** — wire `useWarehouses` transfer completion to emit `transfer_out` on `in_transit` and `transfer_in` on `completed` (schema already supports this)
-- Step 7: **import architecture** split
-- Step 8: **lot genealogy + richer metadata**
-- Step 9: **GS1 barcode parsing + supplier-aliased identifiers**
+Phase 5 (retire `warehouse_stock`) proceeds whenever `check_stock_quant_drift` has been empty for 14 consecutive days across production tenants — no user-visible work, so it is not gated on Phases A–H.
 
-## Guardrails for the next agent
-- Do NOT modify `warehouse_stock` triggers or drop the table until the drift gate is met.
-- Do NOT edit `src/integrations/supabase/types.ts` — it is regenerated after each migration.
-- New readers use `v_stock_on_hand` / `useStockQuants`, not `warehouse_stock`.
-- Every new inventory-affecting table needs GRANT + RLS in the same migration.
-- Linter shows ~1799 "Security Definer View" errors project-wide — pre-existing noise, unrelated to this work.
+## Technical details
 
+- **Migrations:** every new public-schema table follows the mandatory CREATE → GRANT → RLS → POLICY order. `service_role` gets full grants; `authenticated` gets scoped grants gated by `user_can_access_business` + `can_access_branch` + `user_has_module_permission(... 'inventory' ...)`.
+- **Backfill safety:** all backfills are idempotent and log a row into a per-phase audit table so rollback is a single DELETE.
+- **No `warehouse_stock` schema changes** in Phases A–D. The quants ledger stays a shadow until the drift gate clears.
+- **No edits to `src/integrations/supabase/types.ts`** — regenerated post-migration.
+- **Movement enum:** `movement_type` is already `text`, so `transfer_out`, `transfer_in`, `serial_transfer`, and future manufacturing types add without an enum migration.
+- **Architecture guards:** new tests under `src/test/architecture/`:
+  - `outbound-lot-stamping.test.ts` — every outbound RPC threads `lot_number` for lot-tracked products.
+  - `serial-tracking.test.ts` — every insert into `stock_movements` for a serial-tracked product includes `serial_number`.
+- **Documentation:** update `.lovable/plan.md` after each phase closes — the log is the handoff contract, not a scratchpad.
+
+## First deliverable if approved
+
+1. Verification-stamp update to `.lovable/plan.md` (corrects trigger names, adds "Phase 0 verified" section).
+2. ADR 0066 + migration for Phase A (downstream lot/serial stamping), including the four column additions, deferrable constraint trigger, RPC updates, backfill, and pgTAP + architecture tests.
+
+Nothing else changes in this first turn. Phases B and C follow in separate PRs, each with its own ADR.
