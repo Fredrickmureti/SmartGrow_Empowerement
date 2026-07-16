@@ -37,7 +37,8 @@ export { FilterBar } from "./primitives/FilterBar";
 export { ActionBar } from "./primitives/ActionBar";
 export { DetailLayout } from "./primitives/DetailLayout";
 export { AuthoringWorkspace } from "./primitives/AuthoringWorkspace";
-export type { WorkspaceLayoutMode } from "./primitives/AuthoringWorkspace";
+export type { WorkspaceLayoutMode, WorkspaceNavDirection } from "./primitives/AuthoringWorkspace";
+
 
 // Authoring input primitives — shared by every advanced editor
 // (Localization Editor, form designers, template editors). Adopt these

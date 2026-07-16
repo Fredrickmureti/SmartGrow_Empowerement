@@ -33,6 +33,7 @@ import {
   SquarePen,
   Eye,
   Focus as FocusIcon,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,9 @@ export type WorkspaceLayoutMode =
   | "preview"        // editor hidden
   | "bottom"         // preview docked under editor (landscape docs)
   | "focus";         // rail + preview hidden, editor takes everything
+
+export type WorkspaceNavDirection = "next" | "prev";
+
 
 interface AuthoringWorkspaceProps {
   /** Stable id — used for persisted panel sizes and layout mode. */
@@ -56,12 +60,19 @@ interface AuthoringWorkspaceProps {
   preview?: ReactNode;
   /** Sticky footer (save bar). Optional. */
   footer?: ReactNode;
+  /** Status strip rendered along the bottom (dirty / validation / hints). */
+  statusBar?: ReactNode;
   /** Default mode; overridden by persisted value. */
   defaultMode?: WorkspaceLayoutMode;
   /** Optional save handler bound to ⌘S / Ctrl+S. */
   onSave?: () => void;
+  /** Optional J / K node navigation (only fires when not typing). */
+  onNavigateNode?: (direction: WorkspaceNavDirection) => void;
+  /** Optional pop-out — surfaces an "open in new window" button in the toolbar. */
+  onPopOutPreview?: () => void;
   className?: string;
 }
+
 
 function persistedKey(workspaceId: string, suffix: string) {
   return `authoring-workspace:${workspaceId}:${suffix}`;
@@ -91,8 +102,11 @@ export function AuthoringWorkspace({
   editor,
   preview,
   footer,
+  statusBar,
   defaultMode = "split",
   onSave,
+  onNavigateNode,
+  onPopOutPreview,
   className,
 }: AuthoringWorkspaceProps) {
   const [mode, setMode] = useState<WorkspaceLayoutMode>(() => readMode(workspaceId, defaultMode));
@@ -121,16 +135,31 @@ export function AuthoringWorkspace({
       const typing =
         !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
       const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
-      const key = e.key.toLowerCase();
 
       // ⌘S — save (allowed even while typing)
-      if (key === "s" && !e.shiftKey && onSave) {
+      if (meta && e.key.toLowerCase() === "s" && !e.shiftKey && onSave) {
         e.preventDefault();
         onSave();
         return;
       }
       if (typing) return;
+
+      // J / K — next / previous node (no modifier). Ignore inside inputs.
+      if (!meta && onNavigateNode) {
+        if (e.key === "j" || e.key === "ArrowDown" && e.altKey) {
+          e.preventDefault();
+          onNavigateNode("next");
+          return;
+        }
+        if (e.key === "k" || e.key === "ArrowUp" && e.altKey) {
+          e.preventDefault();
+          onNavigateNode("prev");
+          return;
+        }
+      }
+
+      if (!meta) return;
+      const key = e.key.toLowerCase();
 
       // ⌘B — toggle rail
       if (key === "b" && !e.shiftKey && hasRail) {
@@ -153,7 +182,8 @@ export function AuthoringWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [hasPreview, hasRail, onSave]);
+  }, [hasPreview, hasRail, onSave, onNavigateNode]);
+
 
   const layoutControls = useMemo(
     () => (
@@ -215,10 +245,30 @@ export function AuthoringWorkspace({
             />
           </>
         )}
+        {onPopOutPreview && hasPreview && (
+          <>
+            <div className="mx-1 h-4 w-px bg-border" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={onPopOutPreview}
+                  aria-label="Open preview in a new window"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Pop out preview</TooltipContent>
+            </Tooltip>
+          </>
+        )}
       </div>
     ),
-    [hasPreview, hasRail, mode, railOpen],
+    [hasPreview, hasRail, mode, railOpen, onPopOutPreview],
   );
+
 
   // Render the main + preview split. In `bottom` mode we swap to a
   // vertical PanelGroup; in editor/preview/focus modes only one panel
@@ -288,9 +338,15 @@ export function AuthoringWorkspace({
           <div className="min-w-0 flex-1 p-3">{mainAndPreview()}</div>
         </div>
 
+        {statusBar && (
+          <div className="border-t bg-muted/30 px-3 py-1 text-[11px] text-muted-foreground">
+            {statusBar}
+          </div>
+        )}
         {footer && (
           <div className="border-t bg-background px-3 py-2">{footer}</div>
         )}
+
       </div>
     </TooltipProvider>
   );

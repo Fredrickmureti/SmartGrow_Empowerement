@@ -14,7 +14,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AuthoringWorkspace } from "@/design-system/primitives/AuthoringWorkspace";
+import { AuthoringWorkspace, type WorkspaceNavDirection } from "@/design-system/primitives/AuthoringWorkspace";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,8 +32,9 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertTriangle, Loader2, ShieldCheck, Plus, Layers, Type as TypeIcon, Table as TableIcon,
-  Layout as LayoutIcon, Palette, Undo2, Redo2, ListTree,
+  Layout as LayoutIcon, Palette, Undo2, Redo2, ListTree, CircleDot, CircleCheck, CircleAlert,
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { TemplateFieldInspector } from "./TemplateFieldInspector";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
@@ -129,6 +131,23 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const unresolvedRef = useRef<string[]>([]);
   const authoritiesQuery = useStatutoryAuthorities(editMetadata ? packId : null);
 
+  // ── Dirty tracking ────────────────────────────────────────────────────
+  // Cheap identity of the initial body + metadata, captured once. Every
+  // status-bar render compares against the live values. Not a hot path
+  // (serialisation is small and only when publishers stop typing).
+  const initialSnapshotRef = useRef<string>("");
+  if (initialSnapshotRef.current === "") {
+    try {
+      initialSnapshotRef.current = JSON.stringify({
+        b: initial.body ?? null,
+        m: editMetadata ? meta : null,
+        n: initial.notes ?? "",
+      });
+    } catch { initialSnapshotRef.current = "__init__"; }
+  }
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+
+
   // ── Undo / redo history ────────────────────────────────────────────────
   // Every AST mutation goes through `commitBody(next)` which snapshots the
   // previous body onto the past stack and clears future. `undo` / `redo`
@@ -209,12 +228,20 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         notes: notes || null,
         metadata: editMetadata ? meta : undefined,
       });
+      // Refresh the dirty baseline so the status bar clears immediately.
+      try {
+        initialSnapshotRef.current = JSON.stringify({
+          b: liveBody, m: editMetadata ? meta : null, n: notes || "",
+        });
+      } catch { /* leave old baseline */ }
+      setLastSavedAt(Date.now());
     } catch (e: any) {
       toast.error(e?.message ?? "Save failed");
     } finally {
       setBusy(false);
     }
   };
+
 
   // Full-viewport 3-pane layout: Canvas (live rendered document, source
   // of truth) · Inspector (structured node editors + legal metadata) ·
@@ -547,6 +574,59 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     </div>
   );
 
+  // J / K node navigation — walk the top-level document nodes in order.
+  const handleNavigateNode = (direction: WorkspaceNavDirection) => {
+    if (documentNodes.length === 0) return;
+    const currentIdx = documentNodes.findIndex((n) => n.id === selectedNodeId);
+    let nextIdx: number;
+    if (currentIdx === -1) {
+      nextIdx = direction === "next" ? 0 : documentNodes.length - 1;
+    } else {
+      nextIdx = direction === "next"
+        ? Math.min(currentIdx + 1, documentNodes.length - 1)
+        : Math.max(currentIdx - 1, 0);
+    }
+    handleSelectNode(documentNodes[nextIdx].id);
+  };
+
+  // Dirty flag — cheap JSON compare against the baseline snapshot.
+  const isDirty = (() => {
+    try {
+      const current = JSON.stringify({
+        b: liveBody, m: editMetadata ? meta : null, n: notes || "",
+      });
+      return current !== initialSnapshotRef.current;
+    } catch { return true; }
+  })();
+  const totalErrors = metaErrors.length + bodyErrors.length;
+
+  const statusBar = (
+    <div className="flex items-center gap-4">
+      <span className="flex items-center gap-1.5">
+        {isDirty ? (
+          <><CircleDot className="h-3 w-3 text-amber-500" /> Unsaved changes</>
+        ) : (
+          <><CircleCheck className="h-3 w-3 text-emerald-500" />
+            {lastSavedAt ? `Saved ${new Date(lastSavedAt).toLocaleTimeString()}` : "All changes saved"}
+          </>
+        )}
+      </span>
+      <span className="flex items-center gap-1.5">
+        {totalErrors > 0 ? (
+          <><CircleAlert className="h-3 w-3 text-destructive" /> {totalErrors} issue{totalErrors === 1 ? "" : "s"}</>
+        ) : (
+          <><CircleCheck className="h-3 w-3 text-emerald-500" /> No issues</>
+        )}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <Layers className="h-3 w-3" /> {documentNodes.length} node{documentNodes.length === 1 ? "" : "s"}
+      </span>
+      <span className="ml-auto hidden text-[10px] uppercase tracking-wide text-muted-foreground/70 md:inline">
+        ⌘S save · ⌘B outline · ⌘⇧P preview · ⌘⇧F focus · J / K next / prev node
+      </span>
+    </div>
+  );
+
   return (
     <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
       <AuthoringWorkspace
@@ -556,11 +636,14 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         editor={editorPane}
         preview={previewPane}
         footer={footerBar}
+        statusBar={statusBar}
         defaultMode="split"
         onSave={doSave}
+        onNavigateNode={handleNavigateNode}
       />
     </div>
   );
+
 }
 
 // Best-effort label for outline entries — pulls the first literal we can

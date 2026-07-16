@@ -27,6 +27,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea, CodeField, ExpandableTextField } from "@/design-system/primitives/inputs";
+
 import { Loader2, AlertTriangle, FileText, Plus, Trash2, ArrowUp, ArrowDown, X, ShieldCheck, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { validatePayload } from "../hooks";
@@ -687,7 +689,7 @@ export function ReturnTemplateEditor({
                       {s.type === "statutory_footnote" && (
                         <div>
                           <Label className="text-[10px]">Footnote body</Label>
-                          <Textarea rows={3} value={s.body ?? ""} onChange={(e) => patch({ body: e.target.value })} />
+                          <AutoGrowTextarea minRows={3} value={s.body ?? ""} onChange={(e) => patch({ body: e.target.value })} />
                         </div>
                       )}
                       {s.type === "employee_line_grid" && (
@@ -737,7 +739,7 @@ export function ReturnTemplateEditor({
         {mode === "tenant" && (
           <section className="space-y-1">
             <Label className="text-xs">Reason for override <span className="text-destructive">*</span> (≥10 chars)</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Add new branch column for 2026 SHIF return" />
+            <ExpandableTextField value={notes} onChange={(v) => setNotes(v)} placeholder="e.g. Add new branch column for 2026 SHIF return" dialogTitle="Reason for override" />
           </section>
         )}
 
@@ -924,9 +926,8 @@ function MetadataSection({
           </div>
           <div className="col-span-8">
             <Label className="text-xs">Options (JSON)</Label>
-            <Textarea
-              rows={3}
-              className="font-mono text-xs"
+            <AutoGrowTextarea monospace
+              minRows={3}
               value={fmt.options ? JSON.stringify(fmt.options, null, 2) : ""}
               onChange={(e) => {
                 const raw = e.target.value.trim();
@@ -941,15 +942,15 @@ function MetadataSection({
               placeholder='e.g. { "delimiter": ",", "encoding": "utf-8", "header": true }'
             />
           </div>
+
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
           <Label className="text-xs">Digital signature spec (JSON)</Label>
-          <Textarea
-            rows={4}
-            className="font-mono text-xs"
+          <AutoGrowTextarea monospace
+            minRows={4}
             value={jsonText(meta.digital_signature_spec)}
             onChange={(e) => onJsonChange("digital_signature_spec", e.target.value)}
             placeholder='{ "method": "xmldsig", "cert_authority": "…", "hash_alg": "SHA-256" }'
@@ -957,9 +958,8 @@ function MetadataSection({
         </div>
         <div>
           <Label className="text-xs">Acknowledgement spec (JSON)</Label>
-          <Textarea
-            rows={4}
-            className="font-mono text-xs"
+          <AutoGrowTextarea monospace
+            minRows={4}
             value={jsonText(meta.acknowledgement_spec)}
             onChange={(e) => onJsonChange("acknowledgement_spec", e.target.value)}
             placeholder='{ "mode": "async", "envelope_schema": "…" }'
@@ -967,15 +967,15 @@ function MetadataSection({
         </div>
         <div>
           <Label className="text-xs">API endpoint spec (JSON)</Label>
-          <Textarea
-            rows={4}
-            className="font-mono text-xs"
+          <AutoGrowTextarea monospace
+            minRows={4}
             value={jsonText(meta.api_endpoint_spec)}
             onChange={(e) => onJsonChange("api_endpoint_spec", e.target.value)}
             placeholder='{ "url_template": "https://…", "auth_scheme": "oauth2", "payload_schema_ref": "…" }'
           />
         </div>
       </div>
+
     </section>
   );
 }
