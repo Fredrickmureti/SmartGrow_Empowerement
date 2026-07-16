@@ -11,6 +11,7 @@ export const AdminEmailCenter = lazy(() => import("@/pages/admin/AdminEmailCente
 export const AdminDemoRequests = lazy(() => import("@/pages/admin/AdminDemoRequests"));
 export const AdminLocalizationPacks = lazy(() => import("@/pages/admin/AdminLocalizationPacks"));
 export const AdminLocalizationCertificateEdit = lazy(() => import("@/pages/admin/AdminLocalizationCertificateEdit"));
+export const AdminLocalizationReturnEdit = lazy(() => import("@/pages/admin/AdminLocalizationReturnEdit"));
 export const AdminInfrastructure = lazy(() => import("@/pages/admin/AdminInfrastructure"));
 export const AdminOrganizationDetail = lazy(() => import("@/pages/admin/AdminOrganizationDetail"));
 export const AdminOrgEntitlementOverrideCreatePage = lazy(() => import("@/pages/admin/organizations/AdminOrgEntitlementOverrideCreatePage"));
