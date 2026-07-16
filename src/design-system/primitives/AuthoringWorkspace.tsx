@@ -102,8 +102,11 @@ export function AuthoringWorkspace({
   editor,
   preview,
   footer,
+  statusBar,
   defaultMode = "split",
   onSave,
+  onNavigateNode,
+  onPopOutPreview,
   className,
 }: AuthoringWorkspaceProps) {
   const [mode, setMode] = useState<WorkspaceLayoutMode>(() => readMode(workspaceId, defaultMode));
@@ -132,16 +135,31 @@ export function AuthoringWorkspace({
       const typing =
         !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
       const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
-      const key = e.key.toLowerCase();
 
       // ⌘S — save (allowed even while typing)
-      if (key === "s" && !e.shiftKey && onSave) {
+      if (meta && e.key.toLowerCase() === "s" && !e.shiftKey && onSave) {
         e.preventDefault();
         onSave();
         return;
       }
       if (typing) return;
+
+      // J / K — next / previous node (no modifier). Ignore inside inputs.
+      if (!meta && onNavigateNode) {
+        if (e.key === "j" || e.key === "ArrowDown" && e.altKey) {
+          e.preventDefault();
+          onNavigateNode("next");
+          return;
+        }
+        if (e.key === "k" || e.key === "ArrowUp" && e.altKey) {
+          e.preventDefault();
+          onNavigateNode("prev");
+          return;
+        }
+      }
+
+      if (!meta) return;
+      const key = e.key.toLowerCase();
 
       // ⌘B — toggle rail
       if (key === "b" && !e.shiftKey && hasRail) {
@@ -164,7 +182,8 @@ export function AuthoringWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [hasPreview, hasRail, onSave]);
+  }, [hasPreview, hasRail, onSave, onNavigateNode]);
+
 
   const layoutControls = useMemo(
     () => (
