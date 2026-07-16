@@ -789,6 +789,20 @@ export default function GoodsReceiptWizardPage() {
                       line.quantity_ordered - line.quantity_previously_received;
                     const isFullyReceived =
                       line.quantity_previously_received >= line.quantity_ordered;
+                    const trackingFlags = line.product_id
+                      ? getTrackingFlags(line.product_id)
+                      : { is_lot_tracked: false, is_expiry_tracked: false, is_serial_tracked: false };
+                    const requiredSerials = trackingFlags.is_serial_tracked
+                      ? Math.round(line.quantity_to_receive)
+                      : 0;
+                    const enteredSerials = (line.serial_numbers ?? [])
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    const uniqueSerials = new Set(enteredSerials);
+                    const serialsValid =
+                      !trackingFlags.is_serial_tracked ||
+                      (enteredSerials.length === requiredSerials &&
+                        uniqueSerials.size === enteredSerials.length);
                     return (
                       <TableRow key={index} className={isFullyReceived ? "opacity-50" : ""}>
                         <TableCell>
