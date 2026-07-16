@@ -49964,6 +49964,75 @@ export type Database = {
           },
         ]
       }
+      stock_locations: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          location_type: Database["public"]["Enums"]["stock_location_type"]
+          name: string
+          organization_id: string
+          parent_location_id: string | null
+          updated_at: string
+          usage: Database["public"]["Enums"]["stock_location_usage"]
+          warehouse_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          location_type?: Database["public"]["Enums"]["stock_location_type"]
+          name: string
+          organization_id: string
+          parent_location_id?: string | null
+          updated_at?: string
+          usage?: Database["public"]["Enums"]["stock_location_usage"]
+          warehouse_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          location_type?: Database["public"]["Enums"]["stock_location_type"]
+          name?: string
+          organization_id?: string
+          parent_location_id?: string | null
+          updated_at?: string
+          usage?: Database["public"]["Enums"]["stock_location_usage"]
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_locations_parent_location_id_fkey"
+            columns: ["parent_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_locations_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_lots: {
         Row: {
           business_id: string
@@ -50300,6 +50369,83 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: []
+      }
+      stock_quants: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          id: string
+          location_id: string
+          lot_number: string | null
+          organization_id: string
+          owner_id: string | null
+          package_id: string | null
+          product_id: string
+          quantity: number
+          reserved_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          id?: string
+          location_id: string
+          lot_number?: string | null
+          organization_id: string
+          owner_id?: string | null
+          package_id?: string | null
+          product_id: string
+          quantity?: number
+          reserved_quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          id?: string
+          location_id?: string
+          lot_number?: string | null
+          organization_id?: string
+          owner_id?: string | null
+          package_id?: string | null
+          product_id?: string
+          quantity?: number
+          reserved_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_quants_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_quants_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_quants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_quants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stock_reservations: {
         Row: {
@@ -57231,6 +57377,38 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_quant_drift_view: {
+        Row: {
+          drift: number | null
+          product_id: string | null
+          quant_qty: number | null
+          warehouse_id: string | null
+          warehouse_stock_qty: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -71549,6 +71727,24 @@ export type Database = {
         | "total"
         | "taxable"
         | "count"
+      stock_location_type:
+        | "internal"
+        | "quarantine"
+        | "staging"
+        | "transit"
+        | "customer"
+        | "vendor"
+        | "scrap"
+        | "production"
+        | "view"
+      stock_location_usage:
+        | "storage"
+        | "pick"
+        | "pack"
+        | "ship"
+        | "receive"
+        | "inspection"
+        | "virtual"
       training_enrollment_status:
         | "enrolled"
         | "in_progress"
@@ -72192,6 +72388,26 @@ export const Constants = {
         "total",
         "taxable",
         "count",
+      ],
+      stock_location_type: [
+        "internal",
+        "quarantine",
+        "staging",
+        "transit",
+        "customer",
+        "vendor",
+        "scrap",
+        "production",
+        "view",
+      ],
+      stock_location_usage: [
+        "storage",
+        "pick",
+        "pack",
+        "ship",
+        "receive",
+        "inspection",
+        "virtual",
       ],
       training_enrollment_status: [
         "enrolled",
