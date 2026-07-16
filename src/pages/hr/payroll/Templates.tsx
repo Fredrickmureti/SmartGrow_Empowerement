@@ -8,6 +8,7 @@ import { normalizeError } from "@/services/resilience";
  * ≥10-char reason and write a row to audit_logs via DB trigger.
  */
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,7 @@ export default function PayrollTemplates() {
 }
 
 function TemplatesPanel({ kind }: { kind: Kind }) {
+  const navigate = useNavigate();
   const certQ = useCertificateTemplates();
   const retQ = useReturnTemplates();
   const overridesQ = useTemplateOverrides(kind);
@@ -155,7 +157,15 @@ function TemplatesPanel({ kind }: { kind: Kind }) {
                       )}
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button size="sm" variant="outline" onClick={() => setEditing(p)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          kind === "certificate"
+                            ? navigate(`/hr/payroll/configuration/templates/certificates/${encodeURIComponent(p.code)}/edit`)
+                            : setEditing(p)
+                        }
+                      >
                         <Pencil className="h-3 w-3 mr-1" />
                         {ov ? "Edit override" : "Override"}
                       </Button>
