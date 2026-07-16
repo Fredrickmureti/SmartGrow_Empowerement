@@ -85,26 +85,27 @@ export function CertificatePreviewPane({ templateCode, displayName, body, select
 
   return (
     <Card className="flex h-full min-h-0 w-full flex-col overflow-hidden border-0 shadow-none">
-      <CardHeader className="shrink-0 pb-2 flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-sm flex items-center gap-2">
-          <FileText className="h-4 w-4" /> Live preview
-        </CardTitle>
-        <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-2 py-1">
+        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <FileText className="h-3.5 w-3.5" /> Live preview
+        </div>
+        <div className="flex items-center gap-1.5">
           {unresolved.length > 0 && (
-            <Badge variant="destructive" className="text-[10px]">
-              {unresolved.length} unresolved binding{unresolved.length > 1 ? "s" : ""}
+            <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+              {unresolved.length} unresolved
             </Badge>
           )}
           <Button
             type="button"
             size="sm"
-            variant="outline"
+            variant="ghost"
+            className="h-6 px-2 text-xs"
             onClick={() => surfaceRef.current?.print()}
           >
-            <Printer className="h-3.5 w-3.5 mr-1" /> Save as PDF
+            <Printer className="h-3 w-3 mr-1" /> PDF
           </Button>
         </div>
-      </CardHeader>
+      </div>
       <CardContent className="flex min-h-0 flex-1 flex-col overflow-auto p-2">
         {error ? (
           <Alert variant="destructive">
