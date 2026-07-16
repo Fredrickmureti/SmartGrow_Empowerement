@@ -87,6 +87,19 @@ interface ReceiptLine {
   packaging_id: string | null;
   display_uom_id: string | null;
   display_quantity: number | null;
+  // Phase D.2 · ASN prefill provenance
+  inbound_shipment_item_id: string | null;
+  expected_quantity: number | null;
+  expected_expiry_date: string | null;
+  expected_manufacture_date: string | null;
+}
+
+interface ActiveShipment {
+  id: string;
+  shipment_number: string;
+  status: string;
+  items_by_po_item: Record<string, any>;
+  items_by_product: Record<string, any>;
 }
 
 export default function GoodsReceiptWizardPage() {
