@@ -739,7 +739,7 @@ export function ReturnTemplateEditor({
         {mode === "tenant" && (
           <section className="space-y-1">
             <Label className="text-xs">Reason for override <span className="text-destructive">*</span> (≥10 chars)</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Add new branch column for 2026 SHIF return" />
+            <ExpandableTextField value={notes} onChange={(v) => setNotes(v)} placeholder="e.g. Add new branch column for 2026 SHIF return" dialogTitle="Reason for override" />
           </section>
         )}
 
