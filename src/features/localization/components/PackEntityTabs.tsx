@@ -564,16 +564,20 @@ function TemplatesTable({ mode, packId, table, label, embedded = false }: { mode
                 variant="ghost"
                 title="Edit"
                 onClick={() => {
-                  // Certificate authoring runs on a dedicated full-page
-                  // route (Phase 2.1) — publishers deserve the whole
-                  // viewport, not a right-side drawer. Returns still open
-                  // in the Sheet until they migrate to the same pattern.
-                  if (
-                    mode === "admin" &&
-                    table === "localization_pack_certificate_templates"
-                  ) {
+                  // Certificate + Return templates open on dedicated
+                  // full-page routes — both are heavy authoring surfaces
+                  // that need the whole viewport, not a right-side
+                  // drawer. Tenant edits still open in the Sheet until
+                  // tenant override routes land.
+                  if (mode === "admin" && table === "localization_pack_certificate_templates") {
                     navigate(
                       `/admin-management/localization-packs/${packId}/certificates/${r.id}/edit`,
+                    );
+                    return;
+                  }
+                  if (mode === "admin" && table === "localization_pack_return_templates") {
+                    navigate(
+                      `/admin-management/localization-packs/${packId}/returns/${r.id}/edit`,
                     );
                     return;
                   }
