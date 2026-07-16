@@ -67,6 +67,7 @@ const AccountMapping    = lazy(() => import("@/pages/hr/payroll/sections").then(
 const Setup             = lazy(() => import("@/pages/hr/payroll/Setup").then(m => ({ default: m.PayrollSetupPage })));
 const TaxCertificates   = lazy(() => import("@/pages/hr/payroll/TaxCertificates"));
 const Templates         = lazy(() => import("@/pages/hr/payroll/Templates"));
+const CertificateTemplateEdit = lazy(() => import("@/pages/hr/payroll/PayrollCertificateTemplateEdit"));
 const Localization      = lazy(() => import("@/pages/hr/payroll/Localization"));
 
 export function PayrollApp({ surface }: PayrollAppProps) {
