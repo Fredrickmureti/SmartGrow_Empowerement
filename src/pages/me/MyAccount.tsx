@@ -15,7 +15,7 @@
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Mail, Lock, Palette, LogOut, ShieldAlert, History } from "lucide-react";
+import { Loader2, Lock, Palette, LogOut, ShieldAlert, History } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
