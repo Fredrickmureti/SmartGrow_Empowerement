@@ -42,6 +42,8 @@ const ProductNew = lazy(() => import("@/pages/inventory/ProductNew"));
 const ProductEdit = lazy(() => import("@/pages/inventory/ProductEdit"));
 const InboundShipments = lazy(() => import("@/pages/inventory/InboundShipments"));
 const InboundShipmentDetail = lazy(() => import("@/pages/inventory/InboundShipmentDetail"));
+const Lots = lazy(() => import("@/pages/inventory/Lots"));
+const LotDetail = lazy(() => import("@/pages/inventory/LotDetail"));
 
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
@@ -307,6 +309,28 @@ export function InventoryApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Inbound Shipment">
                 <InboundShipmentDetail />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Lots & Traceability (ADR 0070) */}
+        <Route
+          path="lots"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Lots">
+                <Lots />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="lots/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Lot Detail">
+                <LotDetail />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }

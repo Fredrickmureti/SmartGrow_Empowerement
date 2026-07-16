@@ -35,6 +35,7 @@ export const INVENTORY_NAV: WorkspaceNav = {
         { to: "/inventory-app/products", label: "Products", icon: Package },
         { to: "/inventory-app/stock", label: "Stock", icon: Boxes },
         { to: "/inventory-app/inbound-shipments", label: "Inbound (ASN)", icon: Truck },
+        { to: "/inventory-app/lots", label: "Lots & Traceability", icon: Boxes },
         { to: "/inventory-app/transfers", label: "Transfers", icon: ArrowLeftRight },
         { to: "/inventory-app/replenishment", label: "Replenishment", icon: RefreshCw },
         { to: "/inventory-app/forecast", label: "Forecast", icon: TrendingUp },
