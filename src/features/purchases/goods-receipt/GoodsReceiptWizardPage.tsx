@@ -394,6 +394,24 @@ export default function GoodsReceiptWizardPage() {
         });
         return;
       }
+      // Phase A.5 — serial-tracked lines must carry one unique serial per unit.
+      if (line.product_id && getTrackingFlags(line.product_id).is_serial_tracked) {
+        const cleaned = (line.serial_numbers ?? []).map((s) => s.trim()).filter(Boolean);
+        const unique = new Set(cleaned);
+        if (
+          cleaned.length !== Math.round(line.quantity_to_receive) ||
+          unique.size !== cleaned.length
+        ) {
+          toast({
+            title: "Serial numbers required",
+            description: `"${line.description}" is serial-tracked — enter ${Math.round(
+              line.quantity_to_receive,
+            )} unique serial number(s) before posting.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
     }
 
     setIsSubmitting(true);
