@@ -128,6 +128,7 @@ export default function GoodsReceiptWizardPage() {
   const [po, setPo] = useState<PurchaseOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [activeShipment, setActiveShipment] = useState<ActiveShipment | null>(null);
 
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -136,7 +137,7 @@ export default function GoodsReceiptWizardPage() {
   const [scanFlash, setScanFlash] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load PO
+  // Load PO + any active ASN (Phase D.2)
   useEffect(() => {
     if (!poId) {
       setLoading(false);
@@ -153,34 +154,89 @@ export default function GoodsReceiptWizardPage() {
         .eq("id", poId)
         .maybeSingle();
       if (cancelled) return;
-      if (error) setLoadError(error.message);
-      else if (!data) setLoadError("Purchase order not found.");
-      else {
-        const loaded = data as unknown as PurchaseOrder;
-        setPo(loaded);
-        setReceiptLines(
-          (loaded.items ?? []).map((item) => ({
+      if (error) {
+        setLoadError(error.message);
+        setLoading(false);
+        return;
+      }
+      if (!data) {
+        setLoadError("Purchase order not found.");
+        setLoading(false);
+        return;
+      }
+      const loaded = data as unknown as PurchaseOrder;
+      setPo(loaded);
+
+      // Look for an active ASN linked to this PO. Prefer dispatched/in_transit,
+      // fall back to draft. Ignore already-received / cancelled shipments.
+      const { data: shipments } = await supabase
+        .from("inbound_shipments")
+        .select("id, shipment_number, status, dispatched_at, expected_arrival_at, items:inbound_shipment_items(*)")
+        .eq("purchase_order_id", poId)
+        .in("status", ["draft", "dispatched", "in_transit"])
+        .order("dispatched_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+
+      const shipment = (shipments ?? []).find((s: any) =>
+        ["dispatched", "in_transit"].includes(s.status),
+      ) ?? (shipments ?? [])[0] ?? null;
+
+      const byPoItem: Record<string, any> = {};
+      const byProduct: Record<string, any> = {};
+      if (shipment) {
+        for (const it of (shipment as any).items ?? []) {
+          if (it.purchase_order_item_id) byPoItem[it.purchase_order_item_id] = it;
+          if (it.product_id) byProduct[it.product_id] = it;
+        }
+        setActiveShipment({
+          id: shipment.id,
+          shipment_number: shipment.shipment_number,
+          status: shipment.status,
+          items_by_po_item: byPoItem,
+          items_by_product: byProduct,
+        });
+      } else {
+        setActiveShipment(null);
+      }
+
+      setReceiptLines(
+        (loaded.items ?? []).map((item) => {
+          const asnMatch =
+            (item.id && byPoItem[item.id]) ||
+            (item.product_id && byProduct[item.product_id]) ||
+            null;
+          const remaining = item.quantity - (item.quantity_received || 0);
+          const expected = asnMatch ? Number(asnMatch.expected_quantity) : null;
+          const prefillQty =
+            expected != null ? Math.min(Math.max(expected, 0), remaining) : remaining;
+          return {
             po_item_id: item.id || "",
             product_id: item.product_id,
             description: item.description,
             quantity_ordered: item.quantity,
             quantity_previously_received: item.quantity_received || 0,
-            quantity_to_receive: item.quantity - (item.quantity_received || 0),
-            lot_number: "",
+            quantity_to_receive: prefillQty,
+            lot_number: asnMatch?.expected_lot_number ?? "",
             serial_number: "",
             notes: "",
-            packaging_id: null,
-            display_uom_id: null,
-            display_quantity: null,
-          })),
-        );
-      }
+            packaging_id: asnMatch?.expected_packaging_id ?? null,
+            display_uom_id: asnMatch?.display_uom_id ?? null,
+            display_quantity: asnMatch?.display_quantity ?? null,
+            inbound_shipment_item_id: asnMatch?.id ?? null,
+            expected_quantity: expected,
+            expected_expiry_date: asnMatch?.expected_expiry_date ?? null,
+            expected_manufacture_date: asnMatch?.expected_manufacture_date ?? null,
+          };
+        }),
+      );
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [poId]);
+
 
   const goToStep = useCallback(
     (step: StepId) => {
