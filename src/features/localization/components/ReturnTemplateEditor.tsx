@@ -947,7 +947,7 @@ export function ReturnTemplateEditor({
         preview={previewPane}
         footer={footerBar}
         statusBar={statusBar}
-        defaultMode="split"
+        defaultMode="overlay"
         onSave={handleSave}
         onNavigateNode={handleNavigateSection}
         onPopOutPreview={handlePopOutPreview}
