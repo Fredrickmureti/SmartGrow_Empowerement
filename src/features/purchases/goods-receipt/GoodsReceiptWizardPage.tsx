@@ -780,6 +780,7 @@ export default function GoodsReceiptWizardPage() {
                     <TableHead className="text-center">Receive now</TableHead>
                     <TableHead>Pack</TableHead>
                     <TableHead>Lot #</TableHead>
+                    <TableHead>Serial numbers</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
