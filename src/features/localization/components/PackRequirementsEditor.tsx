@@ -26,6 +26,8 @@ import { toast } from "sonner";
 import { LocalizationFormShell } from "./_shared/LocalizationFormShell";
 import { WorkflowSheetSection, WorkflowSheetGrid, WorkflowField } from "@/components/workflow/WorkflowSheet";
 import { normalizeError } from "@/services/resilience";
+import { LocalizationEntityWorkspace } from "./_shared/LocalizationEntityWorkspace";
+import type { SpreadsheetPreviewProps } from "./preview/SpreadsheetPreviewPane";
 
 const SCOPES = [
   { value: "employee_field", label: "Employee field" },
@@ -140,7 +142,36 @@ export function PackRequirementsEditor({ packId }: { packId: string }) {
     onError: (e) => toast.error(normalizeError(e).message ?? "Delete failed"),
   });
 
-  return (
+  const previewProps: SpreadsheetPreviewProps = {
+    title: "Onboarding & payroll requirements",
+    formatLabel: `${rows.length} requirement${rows.length === 1 ? "" : "s"}`,
+    columns: [
+      { header: "Key" },
+      { header: "Label" },
+      { header: "Scope" },
+      { header: "Module" },
+      { header: "Type" },
+      { header: "Required" },
+      { header: "Blocks onboarding" },
+      { header: "Blocks payroll" },
+      { header: "Status" },
+    ],
+    rows: rows.map((r) => [
+      r.requirement_key,
+      r.label,
+      r.scope,
+      r.module,
+      r.data_type,
+      r.is_required ? "yes" : "no",
+      r.blocks_onboarding ? "yes" : "—",
+      r.blocks_payroll ? "yes" : "—",
+      r.is_active ? "active" : "inactive",
+    ]),
+    footnote: "Rows project into blocking findings for the readiness engine and onboarding checklist.",
+  };
+
+  const editorContent = (
+    <div className="flex h-full min-h-0 flex-col overflow-auto p-3">
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -320,5 +351,27 @@ export function PackRequirementsEditor({ packId }: { packId: string }) {
         </LocalizationFormShell>
       )}
     </Card>
+    </div>
+  );
+
+  return (
+    <LocalizationEntityWorkspace
+      workspaceId={`pack-requirements:${packId}`}
+      kind="pack-requirements"
+      templateCode={packId}
+      displayName="Pack requirements"
+      preview={{ pane: "spreadsheet", props: previewProps }}
+      editor={editorContent}
+      statusBar={
+        <div className="flex items-center gap-4">
+          <span>{rows.length} requirement{rows.length === 1 ? "" : "s"}</span>
+          <span>{rows.filter((r) => r.blocks_payroll).length} block payroll</span>
+          <span>{rows.filter((r) => r.blocks_onboarding).length} block onboarding</span>
+          <span className="ml-auto hidden md:inline text-[10px] uppercase tracking-wide text-muted-foreground/70">
+            ⌘B outline · ⌘⇧P preview · ⌘⇧F focus
+          </span>
+        </div>
+      }
+    />
   );
 }
