@@ -131,6 +131,23 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const unresolvedRef = useRef<string[]>([]);
   const authoritiesQuery = useStatutoryAuthorities(editMetadata ? packId : null);
 
+  // ── Dirty tracking ────────────────────────────────────────────────────
+  // Cheap identity of the initial body + metadata, captured once. Every
+  // status-bar render compares against the live values. Not a hot path
+  // (serialisation is small and only when publishers stop typing).
+  const initialSnapshotRef = useRef<string>("");
+  if (initialSnapshotRef.current === "") {
+    try {
+      initialSnapshotRef.current = JSON.stringify({
+        b: initial.body ?? null,
+        m: editMetadata ? meta : null,
+        n: initial.notes ?? "",
+      });
+    } catch { initialSnapshotRef.current = "__init__"; }
+  }
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+
+
   // ── Undo / redo history ────────────────────────────────────────────────
   // Every AST mutation goes through `commitBody(next)` which snapshots the
   // previous body onto the past stack and clears future. `undo` / `redo`
