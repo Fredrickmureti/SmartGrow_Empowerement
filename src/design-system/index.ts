@@ -39,6 +39,18 @@ export { DetailLayout } from "./primitives/DetailLayout";
 export { AuthoringWorkspace } from "./primitives/AuthoringWorkspace";
 export type { WorkspaceLayoutMode } from "./primitives/AuthoringWorkspace";
 
+// Authoring input primitives — shared by every advanced editor
+// (Localization Editor, form designers, template editors). Adopt these
+// instead of raw <Input>/<Textarea> so long values are always visible
+// and long-form content has an escape hatch to a dialog.
+export {
+  AutoGrowInput,
+  AutoGrowTextarea,
+  ExpandableTextField,
+  CodeField,
+  InspectorSection,
+} from "./primitives/inputs";
+
 // Record-interaction primitives — object pages, sheets, wizards, forms.
 // These are the enterprise UX standard extracted from the HR/Payroll
 // redesign. Every substantial business record (Invoice, PO, GRN, Product,
