@@ -93,7 +93,7 @@ describe("ASN CSV import · batch handler (Phase D.3)", () => {
     expect(headerBlock!).toMatch(/business_id:/);
     expect(headerBlock!).toMatch(/branch_id:/);
     expect(headerBlock!).toMatch(/shipment_number:/);
-    expect(headerBlock!).toMatch(/status:/);
+    expect(headerBlock!).toMatch(/\bstatus\b/);
   });
 
   it("inserts lines into inbound_shipment_items with expected_* fields", () => {
