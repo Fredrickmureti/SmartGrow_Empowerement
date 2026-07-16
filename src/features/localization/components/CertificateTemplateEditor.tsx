@@ -574,6 +574,59 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
     </div>
   );
 
+  // J / K node navigation — walk the top-level document nodes in order.
+  const handleNavigateNode = (direction: WorkspaceNavDirection) => {
+    if (documentNodes.length === 0) return;
+    const currentIdx = documentNodes.findIndex((n) => n.id === selectedNodeId);
+    let nextIdx: number;
+    if (currentIdx === -1) {
+      nextIdx = direction === "next" ? 0 : documentNodes.length - 1;
+    } else {
+      nextIdx = direction === "next"
+        ? Math.min(currentIdx + 1, documentNodes.length - 1)
+        : Math.max(currentIdx - 1, 0);
+    }
+    handleSelectNode(documentNodes[nextIdx].id);
+  };
+
+  // Dirty flag — cheap JSON compare against the baseline snapshot.
+  const isDirty = (() => {
+    try {
+      const current = JSON.stringify({
+        b: liveBody, m: editMetadata ? meta : null, n: notes || "",
+      });
+      return current !== initialSnapshotRef.current;
+    } catch { return true; }
+  })();
+  const totalErrors = metaErrors.length + bodyErrors.length;
+
+  const statusBar = (
+    <div className="flex items-center gap-4">
+      <span className="flex items-center gap-1.5">
+        {isDirty ? (
+          <><CircleDot className="h-3 w-3 text-amber-500" /> Unsaved changes</>
+        ) : (
+          <><CircleCheck className="h-3 w-3 text-emerald-500" />
+            {lastSavedAt ? `Saved ${new Date(lastSavedAt).toLocaleTimeString()}` : "All changes saved"}
+          </>
+        )}
+      </span>
+      <span className="flex items-center gap-1.5">
+        {totalErrors > 0 ? (
+          <><CircleAlert className="h-3 w-3 text-destructive" /> {totalErrors} issue{totalErrors === 1 ? "" : "s"}</>
+        ) : (
+          <><CircleCheck className="h-3 w-3 text-emerald-500" /> No issues</>
+        )}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <Layers className="h-3 w-3" /> {documentNodes.length} node{documentNodes.length === 1 ? "" : "s"}
+      </span>
+      <span className="ml-auto hidden text-[10px] uppercase tracking-wide text-muted-foreground/70 md:inline">
+        ⌘S save · ⌘B outline · ⌘⇧P preview · ⌘⇧F focus · J / K next / prev node
+      </span>
+    </div>
+  );
+
   return (
     <div className="flex h-[calc(100vh-8rem)] min-h-[600px] flex-col bg-background">
       <AuthoringWorkspace
@@ -583,11 +636,14 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         editor={editorPane}
         preview={previewPane}
         footer={footerBar}
+        statusBar={statusBar}
         defaultMode="split"
         onSave={doSave}
+        onNavigateNode={handleNavigateNode}
       />
     </div>
   );
+
 }
 
 // Best-effort label for outline entries — pulls the first literal we can
