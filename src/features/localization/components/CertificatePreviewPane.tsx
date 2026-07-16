@@ -84,8 +84,8 @@ export function CertificatePreviewPane({ templateCode, displayName, body, select
   };
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+    <Card className="flex h-full min-h-0 w-full flex-col overflow-hidden border-0 shadow-none">
+      <CardHeader className="shrink-0 pb-2 flex-row items-center justify-between space-y-0">
         <CardTitle className="text-sm flex items-center gap-2">
           <FileText className="h-4 w-4" /> Live preview
         </CardTitle>
@@ -105,7 +105,7 @@ export function CertificatePreviewPane({ templateCode, displayName, body, select
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 p-2">
+      <CardContent className="flex min-h-0 flex-1 flex-col overflow-auto p-2">
         {error ? (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -127,7 +127,7 @@ export function CertificatePreviewPane({ templateCode, displayName, body, select
             onInsertAfter={onInsertAfter}
           />
         )}
-        <div className="text-[10px] text-muted-foreground pt-2">
+        <div className="shrink-0 pt-2 text-[10px] text-muted-foreground">
           Click any element in the preview to jump to its editor on the right —
           the rendered document is the source of truth for what you're editing.
         </div>
