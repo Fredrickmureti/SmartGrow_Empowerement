@@ -43,8 +43,6 @@ interface ReturnBodyLike {
   columns?: ReturnColumn[];
   totals?: string[];
   filters?: { rule_codes?: string[] };
-  renderer?: string | null;
-  sections?: unknown[];
 }
 
 interface OutputEntry {
@@ -142,7 +140,7 @@ const SUPPORTED_FORMATS: ReadonlySet<string> = new Set(["csv", "xlsx", "xml", "j
  * (ground truth per ADR 0063). Falls back to `meta.submission_format`
  * or the implicit CSV/PDF split for legacy rows.
  */
-function resolveFormats(meta: Meta | null | undefined, hasV2: boolean): ReturnFormatKind[] {
+function resolveFormats(meta: Meta | null | undefined): ReturnFormatKind[] {
   const outputs = (meta?.outputs ?? []).filter((o) => SUPPORTED_FORMATS.has(o.format));
   if (outputs.length) {
     // Preserve author order; deduplicate.
@@ -156,15 +154,14 @@ function resolveFormats(meta: Meta | null | undefined, hasV2: boolean): ReturnFo
     return list;
   }
   const declared = meta?.submission_format?.kind ?? null;
-  return [declared ?? (hasV2 ? "pdf" : "csv")];
+  return [declared ?? "csv"];
 }
 
 function renderSingle(
   formatKind: ReturnFormatKind,
   { templateCode, displayName, body, meta, packId }: Props,
-  hasV2: boolean,
 ) {
-  const descriptor = resolveReturnRenderer(formatKind, { hasV2Sections: hasV2 });
+  const descriptor = resolveReturnRenderer(formatKind);
   const spreadsheetProps =
     formatKind === "csv" || formatKind === "xlsx"
       ? buildSpreadsheetProps(body, meta, formatKind)
@@ -185,8 +182,7 @@ function tabStorageKey(templateCode: string) {
 
 export function ReturnFormatPreview(props: Props) {
   const { templateCode, body, meta } = props;
-  const hasV2 = body.renderer === "v2-returns" && Array.isArray(body.sections);
-  const formats = useMemo(() => resolveFormats(meta, hasV2), [meta, hasV2]);
+  const formats = useMemo(() => resolveFormats(meta), [meta]);
 
   const declaredNothing =
     (!meta?.outputs || meta.outputs.length === 0) && !meta?.submission_format?.kind;
@@ -226,7 +222,7 @@ export function ReturnFormatPreview(props: Props) {
   }
 
   if (formats.length === 1) {
-    return <>{renderSingle(formats[0], props, hasV2)}</>;
+    return <>{renderSingle(formats[0], props)}</>;
   }
 
   return (
@@ -240,7 +236,7 @@ export function ReturnFormatPreview(props: Props) {
       </TabsList>
       {formats.map((f) => (
         <TabsContent key={f} value={f} className="min-h-0 flex-1 outline-none">
-          {renderSingle(f, props, hasV2)}
+          {renderSingle(f, props)}
         </TabsContent>
       ))}
     </Tabs>

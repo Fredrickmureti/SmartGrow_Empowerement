@@ -1,11 +1,10 @@
 /**
- * returnToAst — compile a statutory-return body (columns + optional
- * `renderer:"v2-returns"` sections) into a country-agnostic
+ * returnToAst — compile a statutory-return body (columns + totals +
+ * optional reconciliation) into a country-agnostic
  * `CertificateTemplateV3`. This lets the return editor render its PDF
  * preview through the SAME HTML + CSS Paged Media pipeline the
- * certificate engine uses, retiring the hand-drawn pdf-lib renderer
- * from the preview surface (see mem://features/certificate-rendering
- * Core rule: no pdf-lib in localization previews).
+ * certificate engine uses; the legacy pdf-lib section renderer (the
+ * old `renderer:"v2-returns"` opt-in) has been retired.
  *
  * The engine stays country-agnostic — this adapter is one of the two
  * shared clients (the other is the certificate template loader). Any
@@ -31,19 +30,10 @@ interface ReturnColumn {
   width?: number;
 }
 
-interface ReturnSection {
-  type: string;
-  title?: string;
-  body?: string;
-  columns?: Array<{ key: string; header?: string; format?: string; align?: "left" | "right" | "center" }>;
-}
-
 interface ReturnBodyLike {
   columns?: ReturnColumn[];
   totals?: string[];
   reconciliation?: { rule_code?: string } | null;
-  renderer?: "v2-returns" | null;
-  sections?: ReturnSection[];
 }
 
 interface ReturnMetaLike {
@@ -85,8 +75,6 @@ export function buildReturnAstTemplate(
   const columns: ReturnColumn[] = Array.isArray(body?.columns) ? body!.columns : [];
   const totalsKeys: string[] = Array.isArray(body?.totals) ? body!.totals : [];
   const reconciliation = body?.reconciliation ?? null;
-  const sections: ReturnSection[] = Array.isArray(body?.sections) ? body!.sections : [];
-  const hasV2 = body?.renderer === "v2-returns" && sections.length > 0;
 
   const gridColumns: GridColumn[] = columns.map((c) => ({
     id: c.key,
@@ -159,109 +147,23 @@ export function buildReturnAstTemplate(
     ],
   });
 
-  // Iterate sections when v2 opted in, otherwise emit the grid directly.
-  if (hasV2) {
-    for (const s of sections) {
-      switch (s.type) {
-        case "employer_header":
-          // already emitted via identity_strip above; skip
-          break;
-        case "period_band":
-          documentNodes.push({
-            type: "field_row",
-            fields: [
-              { type: "label_fill", label: text("Period start"), value: bind("period_start", "date") },
-              { type: "label_fill", label: text("Period end"), value: bind("period_end", "date") },
-              { type: "label_fill", label: text("Currency"), value: bind("currency") },
-            ],
-          });
-          break;
-        case "employee_line_grid":
-          documentNodes.push(grid);
-          break;
-        case "totals":
-          documentNodes.push({
-            type: "field_row",
-            fields: totalsKeys.map((k) => ({
-              type: "label_fill" as const,
-              label: text(k),
-              value: bind(`totals.${k}`, "currency"),
-            })),
-          });
-          break;
-        case "reconciliation":
-          documentNodes.push({
-            type: "section",
-            title: text("Reconciliation"),
-            children: [
-              {
-                type: "field_row",
-                fields: [
-                  { type: "label_fill", label: text("Rule"), value: bind("reconciliation.rule_code") },
-                  { type: "label_fill", label: text("Expected"), value: bind("reconciliation.expected", "currency") },
-                  { type: "label_fill", label: text("Actual"), value: bind("reconciliation.actual", "currency") },
-                  { type: "label_fill", label: text("Delta"), value: bind("reconciliation.delta", "currency") },
-                ],
-              },
-            ],
-          });
-          break;
-        case "signature":
-          documentNodes.push({
-            type: "signature_strip",
-            slots: [
-              { caption: text("Authorised signature") },
-              { caption: text("Date") },
-            ],
-          });
-          break;
-        case "statutory_footnote":
-          documentNodes.push({
-            type: "legal_notice",
-            title: s.title ? text(s.title) : undefined,
-            paragraphs: (s.body ?? "").split(/\n{2,}/).map((p) => text(p)),
-            border: true,
-          });
-          break;
-        case "remittance":
-          documentNodes.push({
-            type: "field_row",
-            fields: [
-              { type: "label_fill", label: text("Payment ref"), value: bind("payment_reference") },
-              { type: "label_fill", label: text("Amount"), value: bind("payment_amount", "currency") },
-            ],
-          });
-          break;
-        default:
-          // Unknown section — emit a placeholder heading so the publisher
-          // sees the gap rather than silent-drop.
-          documentNodes.push({
-            type: "heading",
-            level: 3,
-            text: text(s.title ?? `Section: ${s.type}`),
-          });
-          break;
-      }
-    }
-  } else {
-    // Non-v2: just the grid (matches non-PDF preview semantics).
-    documentNodes.push(grid);
-    if (reconciliation?.rule_code) {
-      documentNodes.push({
-        type: "section",
-        title: text("Reconciliation"),
-        children: [
-          {
-            type: "field_row",
-            fields: [
-              { type: "label_fill", label: text("Rule"), value: text(reconciliation.rule_code) },
-              { type: "label_fill", label: text("Expected"), value: bind("reconciliation.expected", "currency") },
-              { type: "label_fill", label: text("Actual"), value: bind("reconciliation.actual", "currency") },
-            ],
-          },
-        ],
-      });
-    }
+  // Tabular return: grid + optional reconciliation block.
+  documentNodes.push(grid);
+  if (reconciliation?.rule_code) {
+    documentNodes.push({
+      type: "section",
+      title: text("Reconciliation"),
+      children: [
+        {
+          type: "field_row",
+          fields: [
+            { type: "label_fill", label: text("Rule"), value: text(reconciliation.rule_code) },
+            { type: "label_fill", label: text("Expected"), value: bind("reconciliation.expected", "currency") },
+            { type: "label_fill", label: text("Actual"), value: bind("reconciliation.actual", "currency") },
+          ],
+        },
+      ],
+    });
   }
 
   // Regulation citation footer
