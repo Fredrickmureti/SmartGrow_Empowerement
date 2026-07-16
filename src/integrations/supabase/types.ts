@@ -18359,6 +18359,112 @@ export type Database = {
           },
         ]
       }
+      goods_receipt_discrepancies: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          discrepancy_type: Database["public"]["Enums"]["goods_receipt_discrepancy_type"]
+          expected_quantity: number
+          goods_receipt_id: string
+          goods_receipt_item_id: string | null
+          id: string
+          inbound_shipment_item_id: string | null
+          notes: string | null
+          organization_id: string
+          product_id: string
+          received_quantity: number
+          resolution: Database["public"]["Enums"]["goods_receipt_discrepancy_resolution"]
+          resolved_at: string | null
+          resolved_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          discrepancy_type: Database["public"]["Enums"]["goods_receipt_discrepancy_type"]
+          expected_quantity: number
+          goods_receipt_id: string
+          goods_receipt_item_id?: string | null
+          id?: string
+          inbound_shipment_item_id?: string | null
+          notes?: string | null
+          organization_id: string
+          product_id: string
+          received_quantity: number
+          resolution?: Database["public"]["Enums"]["goods_receipt_discrepancy_resolution"]
+          resolved_at?: string | null
+          resolved_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          discrepancy_type?: Database["public"]["Enums"]["goods_receipt_discrepancy_type"]
+          expected_quantity?: number
+          goods_receipt_id?: string
+          goods_receipt_item_id?: string | null
+          id?: string
+          inbound_shipment_item_id?: string | null
+          notes?: string | null
+          organization_id?: string
+          product_id?: string
+          received_quantity?: number
+          resolution?: Database["public"]["Enums"]["goods_receipt_discrepancy_resolution"]
+          resolved_at?: string | null
+          resolved_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goods_receipt_discrepancies_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_discrepancies_goods_receipt_item_id_fkey"
+            columns: ["goods_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_discrepancies_goods_receipt_item_id_fkey"
+            columns: ["goods_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_lines_with_suspect_cost"
+            referencedColumns: ["goods_receipt_item_id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_discrepancies_inbound_shipment_item_id_fkey"
+            columns: ["inbound_shipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "inbound_shipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_discrepancies_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_discrepancies_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goods_receipt_items: {
         Row: {
           branch_id: string | null
@@ -19230,6 +19336,207 @@ export type Database = {
           ran_at?: string
         }
         Relationships: []
+      }
+      inbound_shipment_items: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          display_quantity: number | null
+          display_uom_id: string | null
+          expected_expiry_date: string | null
+          expected_lot_number: string | null
+          expected_manufacture_date: string | null
+          expected_packaging_id: string | null
+          expected_quantity: number
+          id: string
+          notes: string | null
+          organization_id: string
+          product_id: string
+          purchase_order_item_id: string | null
+          shipment_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          display_quantity?: number | null
+          display_uom_id?: string | null
+          expected_expiry_date?: string | null
+          expected_lot_number?: string | null
+          expected_manufacture_date?: string | null
+          expected_packaging_id?: string | null
+          expected_quantity: number
+          id?: string
+          notes?: string | null
+          organization_id: string
+          product_id: string
+          purchase_order_item_id?: string | null
+          shipment_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          display_quantity?: number | null
+          display_uom_id?: string | null
+          expected_expiry_date?: string | null
+          expected_lot_number?: string | null
+          expected_manufacture_date?: string | null
+          expected_packaging_id?: string | null
+          expected_quantity?: number
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          product_id?: string
+          purchase_order_item_id?: string | null
+          shipment_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbound_shipment_items_display_uom_id_fkey"
+            columns: ["display_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_shipment_items_expected_packaging_id_fkey"
+            columns: ["expected_packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_shipment_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "inbound_shipment_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_shipment_items_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "po_three_way_match"
+            referencedColumns: ["po_item_id"]
+          },
+          {
+            foreignKeyName: "inbound_shipment_items_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_shipment_items_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "inbound_shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inbound_shipments: {
+        Row: {
+          arrived_at: string | null
+          branch_id: string | null
+          business_id: string
+          carrier: string | null
+          created_at: string
+          created_by: string | null
+          dispatched_at: string | null
+          expected_arrival_at: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          purchase_order_id: string | null
+          received_at: string | null
+          shipment_number: string
+          status: Database["public"]["Enums"]["inbound_shipment_status"]
+          tracking_number: string | null
+          updated_at: string
+          vendor_id: string | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          arrived_at?: string | null
+          branch_id?: string | null
+          business_id: string
+          carrier?: string | null
+          created_at?: string
+          created_by?: string | null
+          dispatched_at?: string | null
+          expected_arrival_at?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          purchase_order_id?: string | null
+          received_at?: string | null
+          shipment_number: string
+          status?: Database["public"]["Enums"]["inbound_shipment_status"]
+          tracking_number?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          arrived_at?: string | null
+          branch_id?: string | null
+          business_id?: string
+          carrier?: string | null
+          created_at?: string
+          created_by?: string | null
+          dispatched_at?: string | null
+          expected_arrival_at?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          purchase_order_id?: string | null
+          received_at?: string | null
+          shipment_number?: string
+          status?: Database["public"]["Enums"]["inbound_shipment_status"]
+          tracking_number?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbound_shipments_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_shipments_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_shipments_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       installed_localization_packs: {
         Row: {
@@ -71760,12 +72067,32 @@ export type Database = {
         | "at_risk"
         | "completed"
         | "cancelled"
+      goods_receipt_discrepancy_resolution:
+        | "pending"
+        | "vendor_credit"
+        | "insurance_claim"
+        | "accept_and_move_on"
+        | "return_to_vendor"
+      goods_receipt_discrepancy_type:
+        | "over"
+        | "short"
+        | "damaged"
+        | "wrong_item"
+        | "expired"
+        | "quality_hold"
       hardware_command_status:
         | "pending"
         | "running"
         | "done"
         | "failed"
         | "dead"
+      inbound_shipment_status:
+        | "draft"
+        | "dispatched"
+        | "in_transit"
+        | "arrived"
+        | "received"
+        | "cancelled"
       interview_recommendation:
         | "strong_no"
         | "no"
@@ -72419,7 +72746,30 @@ export const Constants = {
         "completed",
         "cancelled",
       ],
+      goods_receipt_discrepancy_resolution: [
+        "pending",
+        "vendor_credit",
+        "insurance_claim",
+        "accept_and_move_on",
+        "return_to_vendor",
+      ],
+      goods_receipt_discrepancy_type: [
+        "over",
+        "short",
+        "damaged",
+        "wrong_item",
+        "expired",
+        "quality_hold",
+      ],
       hardware_command_status: ["pending", "running", "done", "failed", "dead"],
+      inbound_shipment_status: [
+        "draft",
+        "dispatched",
+        "in_transit",
+        "arrived",
+        "received",
+        "cancelled",
+      ],
       interview_recommendation: [
         "strong_no",
         "no",
