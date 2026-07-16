@@ -124,10 +124,6 @@ type ReturnBody = {
   group_by?: string[];
   totals?: string[];
   reconciliation?: { rule_code?: string } | null;
-  /** Opt-in v2 section-based renderer flag. */
-  renderer?: "v2-returns" | null;
-  /** v2 section list — only meaningful when renderer === "v2-returns". */
-  sections?: ReturnSectionSpec[];
 };
 
 // Pack-agnostic fallback tokens shown while the registry is loading or
@@ -183,13 +179,6 @@ function normalizeBody(input: any): ReturnBody {
     reconciliation: b?.reconciliation && typeof b.reconciliation === "object"
       ? { rule_code: b.reconciliation.rule_code ?? "" }
       : null,
-    renderer: b?.renderer === "v2-returns" ? "v2-returns" : null,
-    sections: Array.isArray(b?.sections) ? b.sections.map((s: any) => ({
-      type: String(s?.type ?? ""),
-      title: s?.title ?? undefined,
-      columns: Array.isArray(s?.columns) ? s.columns : undefined,
-      body: typeof s?.body === "string" ? s.body : undefined,
-    })) : [],
   };
 }
 
@@ -208,16 +197,6 @@ function denormalizeBody(b: ReturnBody): any {
   if (b.filters.payslip_status?.length) out.filters.payslip_status = b.filters.payslip_status;
   if (b.totals?.length) out.totals = b.totals;
   if (b.reconciliation?.rule_code) out.reconciliation = { rule_code: b.reconciliation.rule_code };
-  if (b.renderer === "v2-returns") {
-    out.renderer = "v2-returns";
-    out.sections = (b.sections ?? []).map((s) => {
-      const o: any = { type: s.type };
-      if (s.title) o.title = s.title;
-      if (Array.isArray(s.columns) && s.columns.length) o.columns = s.columns;
-      if (typeof s.body === "string" && s.body.length) o.body = s.body;
-      return o;
-    });
-  }
   return out;
 }
 
