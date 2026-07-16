@@ -97,4 +97,82 @@ Only structural work. No screen patches.
 Each step is a separate ADR + migration + focused PR. No step should be started before the previous one's ADR is approved.
 
 ## Deliverable of this audit
-This document is the deliverable. No code changes were made. Awaiting your decision on which of steps 1–9 to schedule, and in what order.
+This document is the deliverable. Audit complete; execution begins below.
+
+---
+
+# Execution log (for the next agent)
+
+Progress on Step 1 (Locations & bins). Each phase is an approved+applied migration. Verify by reading the linked ADR and the migration SQL, then re-running the checks below before continuing.
+
+## ✅ Phase 1 — `stock_locations` + `stock_quants` shadow ledger
+- **ADR:** `docs/adr/0064-stock-locations-and-quants.md`
+- **Migration:** `supabase/migrations/20260716210212_*.sql`
+- **Delivered:**
+  - `stock_locations` (hierarchical, `location_type` + `location_usage` enums, RLS mirrors warehouses)
+  - `stock_quants` (`product_id, location_id, lot_number, package_id, owner_id, quantity, reserved_quantity`, unique idx on those 5 keys)
+  - AFTER-INSERT trigger `_maintain_stock_quants` on `stock_movements` (routes into warehouse default location if no source/dest stamped)
+  - `stock_quant_drift_view` for Phase 2 gating
+  - Default `STOCK` location seeded per existing warehouse
+  - Backfill from `warehouse_stock_lots` (via `stock_lots.lot_number`) + `warehouse_stock` (NULL-lot rows for non-lot SKUs)
+- **Zero consumer change.** `warehouse_stock` remains authoritative.
+- **Verify:** `SELECT COUNT(*) FROM stock_locations WHERE is_default;` should equal `SELECT COUNT(*) FROM warehouses;`. Quants row count should be ≥ warehouse_stock row count.
+
+## ✅ Phase 2 — writers stamp `source_location_id` / `destination_location_id`
+- **Migration:** `supabase/migrations/20260716210630_*.sql`
+- **Delivered:**
+  - `stock_movements.source_location_id`, `stock_movements.destination_location_id` (nullable + indexed)
+  - `_maintain_stock_quants` upgraded to double-entry when both locations stamped, single-sided when one, Phase-1 fallback otherwise
+- **Fully back-compat.** No writer had to change.
+- **Verify:** insert a test movement → confirm quants change on both sides when locations stamped.
+
+## ✅ Phase 3 — read views + drift RPC + app hook
+- **Migration:** `supabase/migrations/20260716210823_*.sql`
+- **Frontend:** `src/hooks/inventory/useStockQuants.ts`
+- **Delivered:**
+  - `v_stock_on_hand` (canonical per-product/location/lot with `available_quantity`)
+  - `v_warehouse_stock_effective` (aggregated back to warehouse shape — one-line swap for `warehouse_stock` later)
+  - `v_location_summary` (per-location totals)
+  - `check_stock_quant_drift(business_id uuid)` SECURITY DEFINER RPC — returns products where `warehouse_stock` disagrees with quants; empty = clean
+  - Hooks: `useStockQuants`, `useLocationSummary`, `useStockQuantDrift`
+- **New features MUST use `useStockQuants`.** Legacy readers untouched.
+- **Verify:** `SELECT * FROM check_stock_quant_drift('<business_id>')` should return zero rows on a clean tenant.
+
+## ✅ Phase 4 — transit locations, quarantine wiring, split-transfer convention
+- **ADR:** `docs/adr/0065-phase-4-transit-quarantine-locations.md`
+- **Migration:** `supabase/migrations/20260716211711_*.sql`
+- **Delivered:**
+  - `stock_locations.warehouse_id` now nullable (only when `location_type='transit'`)
+  - One **virtual transit location per business** seeded (unique partial idx)
+  - One **quarantine location per warehouse** seeded (unique partial idx)
+  - Trigger `_emit_quarantine_movements` on `lot_quarantine`: emits `quarantine_hold` (storage→quarantine) on new hold and `quarantine_release` (quarantine→storage) on release. Phase 2 quant trigger handles the double-entry — QC hold now enforces stock unavailability at the ledger, not just the UI.
+  - Split-transfer convention documented (`transfer_out` / `transfer_in`). `movement_type` is `text`, so no enum migration needed. Existing atomic `transfer` remains valid until callers migrate.
+- **Verify:** every business has exactly one transit location; every warehouse has exactly one quarantine location; inserting `lot_quarantine` row with `status='quarantined'` produces a `quarantine_hold` movement and matching quant delta.
+
+## ⏭ Next up — Phase 5: retire `warehouse_stock`
+- **Gate:** 14 consecutive days of `check_stock_quant_drift(...)` returning empty across all production businesses.
+- **Plan (draft, needs ADR 0066):**
+  1. Drop `_maintain_warehouse_stock` trigger.
+  2. Rename `warehouse_stock` → `warehouse_stock_deprecated_YYYYMMDD`.
+  3. Create view `warehouse_stock` derived from `stock_quants` (preserve column shape).
+  4. After one more clean week, drop the deprecated table.
+  5. Migrate readers off the compat view onto `v_stock_on_hand` module by module (POS, purchasing, sales, reports).
+- **Do not start Phase 5 until drift log is clean.**
+
+## Parallel tracks still open (any order)
+- Step 2: **serials** (`stock_serials`, `products.is_serial_tracked`, movement serial linkage)
+- Step 3: **ASN / inbound shipments** between PO and GRN
+- Step 4: **product variants** (template/variant model)
+- Step 5: **downstream lot stamping** (`invoice_items`, `delivery_note_items`, `pos_transaction_items`) — required for two-way recall
+- Step 6: **split-transfer adoption** — wire `useWarehouses` transfer completion to emit `transfer_out` on `in_transit` and `transfer_in` on `completed` (schema already supports this)
+- Step 7: **import architecture** split
+- Step 8: **lot genealogy + richer metadata**
+- Step 9: **GS1 barcode parsing + supplier-aliased identifiers**
+
+## Guardrails for the next agent
+- Do NOT modify `warehouse_stock` triggers or drop the table until the drift gate is met.
+- Do NOT edit `src/integrations/supabase/types.ts` — it is regenerated after each migration.
+- New readers use `v_stock_on_hand` / `useStockQuants`, not `warehouse_stock`.
+- Every new inventory-affecting table needs GRANT + RLS in the same migration.
+- Linter shows ~1799 "Security Definer View" errors project-wide — pre-existing noise, unrelated to this work.
+
