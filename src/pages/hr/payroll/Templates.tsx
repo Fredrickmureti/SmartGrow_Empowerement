@@ -18,7 +18,7 @@ import { WorkflowSheet } from "@/components/workflow/WorkflowSheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Loader2, Pencil, RotateCcw, AlertTriangle } from "lucide-react";
-import { TemplateEditor, ReturnTemplateEditor } from "@/features/localization";
+import { ReturnTemplateEditor } from "@/features/localization";
 import { useCertificateTemplates } from "@/hooks/payroll/useTaxCertificates";
 import { useReturnTemplates } from "@/hooks/payroll/useStatutoryReturns";
 import {
