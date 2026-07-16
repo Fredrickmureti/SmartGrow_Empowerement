@@ -50025,6 +50025,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "stock_locations_parent_location_id_fkey"
+            columns: ["parent_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
             foreignKeyName: "stock_locations_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
@@ -50250,6 +50257,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "stock_movements_destination_location_id_fkey"
+            columns: ["destination_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
             foreignKeyName: "stock_movements_migration_session_id_fkey"
             columns: ["migration_session_id"]
             isOneToOne: false
@@ -50297,6 +50311,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "stock_locations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_source_location_id_fkey"
+            columns: ["source_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
           },
           {
             foreignKeyName: "stock_movements_source_packaging_id_fkey"
@@ -50443,6 +50464,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "stock_locations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_quants_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
           },
           {
             foreignKeyName: "stock_quants_package_id_fkey"
@@ -59359,6 +59387,35 @@ export type Database = {
           },
         ]
       }
+      v_location_summary: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          code: string | null
+          distinct_skus: number | null
+          is_active: boolean | null
+          is_default: boolean | null
+          last_movement_at: string | null
+          location_id: string | null
+          location_type:
+            | Database["public"]["Enums"]["stock_location_type"]
+            | null
+          name: string | null
+          total_quantity: number | null
+          total_reserved: number | null
+          usage: Database["public"]["Enums"]["stock_location_usage"] | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_locations_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_lots_expiring_soon: {
         Row: {
           alert_window_days: number | null
@@ -60784,6 +60841,76 @@ export type Database = {
           },
         ]
       }
+      v_stock_on_hand: {
+        Row: {
+          available_quantity: number | null
+          branch_id: string | null
+          business_id: string | null
+          location_code: string | null
+          location_id: string | null
+          location_name: string | null
+          location_type:
+            | Database["public"]["Enums"]["stock_location_type"]
+            | null
+          location_usage:
+            | Database["public"]["Enums"]["stock_location_usage"]
+            | null
+          lot_number: string | null
+          organization_id: string | null
+          owner_id: string | null
+          package_id: string | null
+          product_id: string | null
+          quant_id: string | null
+          quantity: number | null
+          reserved_quantity: number | null
+          updated_at: string | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_locations_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_quants_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_quants_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "stock_quants_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_quants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_quants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_succession_bench_strength: {
         Row: {
           bench_strength: string | null
@@ -61011,6 +61138,42 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_warehouse_stock_effective: {
+        Row: {
+          available_quantity: number | null
+          branch_id: string | null
+          business_id: string | null
+          organization_id: string | null
+          product_id: string | null
+          quantity: number | null
+          reserved_quantity: number | null
+          updated_at: string | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_locations_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_quants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_quants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -62904,6 +63067,16 @@ export type Database = {
       check_product_stock_and_notify: {
         Args: { p_product_id: string }
         Returns: undefined
+      }
+      check_stock_quant_drift: {
+        Args: { _business_id?: string }
+        Returns: {
+          drift: number
+          product_id: string
+          quant_qty: number
+          warehouse_id: string
+          warehouse_stock_qty: number
+        }[]
       }
       check_storage_limit: {
         Args: { p_organization_id: string }
