@@ -650,16 +650,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         !postOnboardingRetriedRef.current
       ) {
         postOnboardingRetriedRef.current = true;
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 600));
-          const retried = await attemptFetch(user.id);
-          if (retried.organizations.length > 0) {
-            session = retried;
-          }
-        } catch (err) {
-          console.warn("[SessionContext] post-onboarding retry failed:", err);
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        const { session: retried, error: retriedErr } = await attemptFetch(user.id);
+        if (retriedErr) {
+          console.warn("[SessionContext] post-onboarding retry failed:", retriedErr.cause ?? retriedErr.message);
+        } else if (retried && retried.organizations.length > 0) {
+          session = retried;
         }
       }
+
+      setSessionRecovery({ status: "idle", attempt: 0, lastErrorKind: null });
 
       setSessionError(null);
       setSessionData(session);
