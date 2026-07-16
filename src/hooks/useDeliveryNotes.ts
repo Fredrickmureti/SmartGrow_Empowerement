@@ -151,6 +151,10 @@ export function useDeliveryNotes() {
           discount_percent: item.discount_percent ?? 0,
           line_total: item.line_total ?? null,
           sort_order: index,
+          // Phase A.4 — persist picker output for lot/serial-tracked lines.
+          lot_number: (item as any).lot_number ?? null,
+          serial_number: (item as any).serial_number ?? null,
+          lot_allocations: (item as any).lot_allocations ?? null,
         }));
 
         const { error: itemsError } = await supabase

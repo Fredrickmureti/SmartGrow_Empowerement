@@ -191,6 +191,9 @@ export function useInvoices() {
       product_id: item.product_id,
       project_id: item.project_id ?? null,
       task_id: item.task_id ?? null,
+      // Phase A.4 — persist picker output for lot/serial-tracked lines.
+      lot_number: (item as any).lot_number ?? null,
+      serial_number: (item as any).serial_number ?? null,
     }));
 
     if (items.length > 0) {

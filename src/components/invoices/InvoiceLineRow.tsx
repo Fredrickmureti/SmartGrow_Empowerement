@@ -26,6 +26,10 @@ import {
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { PackagingSelect } from "@/components/products/PackagingSelect";
 import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
+import {
+  lotNumberFromAllocations,
+  serialNumberFromRows,
+} from "@/components/inventory/outboundLineTrackingUtils";
 
 export interface InvoiceLineItemShape {
   product_id?: string;
@@ -44,6 +48,9 @@ export interface InvoiceLineItemShape {
   packaging_id?: string | null;
   display_uom_id?: string | null;
   display_quantity?: number | null;
+  // Phase A.4 — picker output persisted to invoice_items.
+  lot_number?: string | null;
+  serial_number?: string | null;
 }
 
 export interface InvoiceLineRowProduct {
@@ -134,6 +141,12 @@ function InvoiceLineRowInner({
           <OutboundLineTracking
             productId={item.product_id ?? null}
             quantity={item.quantity}
+            onLotChange={(allocs) =>
+              onUpdate(index, { lot_number: lotNumberFromAllocations(allocs) })
+            }
+            onSerialChange={(_ids, rows) =>
+              onUpdate(index, { serial_number: serialNumberFromRows(rows) })
+            }
           />
         </div>
       </TableCell>
