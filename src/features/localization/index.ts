@@ -19,7 +19,7 @@ export type {
 
 // Editor components
 export { PackEditorShell } from "./components/PackEditorShell";
-export { TemplateEditor } from "./components/TemplateEditor";
+
 export { ReturnTemplateEditor } from "./components/ReturnTemplateEditor";
 export { PackDiffView } from "./components/PackDiffView";
 export { PreviewPanel, renderTokensClient } from "./components/PreviewPanel";
