@@ -418,7 +418,6 @@ export function ReturnTemplateEditor({
   // format is a PDF paper return. CSV/XLSX/XML/JSON returns never render
   // as a PDF at runtime — surfacing the toggle in those cases misled
   // publishers (e.g. `P10 (iTax CSV)` previewed as an empty PDF).
-  const showPdfSections = (meta.submission_format?.kind ?? null) === "pdf";
   if (mode === "tenant") activeSections.push({ id: "rt-section-override", label: "Override reason" });
 
   const editorScrollRef = useRef<HTMLDivElement>(null);
