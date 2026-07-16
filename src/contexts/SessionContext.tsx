@@ -970,6 +970,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       isRefreshing,
       sessionError,
+      sessionRecovery,
       sessionReady,
       isVendorUser,
       currentOrg,
