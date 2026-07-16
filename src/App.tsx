@@ -191,6 +191,23 @@ const AttendanceKioskStandalone = lazy(() => import("@/pages/kiosk/AttendanceKio
 // without the POS subscription gate redirecting the phone to /dashboard.
 // See .lovable/plan.md "Move scanner pairing route out of POS subscription gate".
 const MobileScannerPage = lazy(() => import("@/pages/pos/MobileScannerPage"));
+const LocalizationPreviewWindow = lazy(
+  () => import("@/features/localization/components/LocalizationPreviewWindow"),
+);
+
+// Pop-out preview window for the Localization Editor. Opened via
+// window.open() from AuthoringWorkspace. Runs in the same origin so it
+// inherits localStorage + BroadcastChannel from the opener; no auth
+// gate needed (it only re-renders what the opener already broadcasts).
+const LocalizationPreviewRoute = () => {
+  const { kind, templateCode } = useParams<{ kind: string; templateCode: string }>();
+  return (
+    <Suspense fallback={<div style={{ padding: 24, fontFamily: "system-ui" }}>Loading preview…</div>}>
+      <LocalizationPreviewWindow kind={kind ?? ""} templateCode={templateCode ?? ""} />
+    </Suspense>
+  );
+};
+
 
 import { VendorPortalLayout } from "@/components/vendor-portal/VendorPortalLayout";
 
@@ -280,6 +297,10 @@ const App = () => (
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
                             <Route path="/demo" element={<Demo />} />
+                            {/* Localization pop-out preview — public route (same-origin
+                                localStorage/BroadcastChannel from the opener is the auth). */}
+                            <Route path="/localization/preview/:kind/:templateCode" element={<LocalizationPreviewRoute />} />
+
                            <Route path="/resources" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourcesIndex /></Suspense></ProtectedRoute>} />
                            <Route path="/resources/:id" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourceDetail /></Suspense></ProtectedRoute>} />
                            <Route path="/forgot-password" element={<RedirectIfAuthenticated><ForgotPassword /></RedirectIfAuthenticated>} />
