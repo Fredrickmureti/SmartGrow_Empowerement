@@ -17,7 +17,7 @@
  * Consumers pass the toolbar, rail, editor and preview slots; the
  * shell owns layout state, persistence and shortcuts.
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -34,10 +34,12 @@ import {
   Eye,
   Focus as FocusIcon,
   ExternalLink,
+  PanelRightOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type WorkspaceLayoutMode =
+  | "overlay"        // preview slides in over a fixed-width editor (default)
   | "split"          // editor + preview side by side (default)
   | "editor"         // preview hidden
   | "preview"        // editor hidden
@@ -81,7 +83,10 @@ function persistedKey(workspaceId: string, suffix: string) {
 function readMode(workspaceId: string, fallback: WorkspaceLayoutMode): WorkspaceLayoutMode {
   if (typeof window === "undefined") return fallback;
   const raw = window.localStorage.getItem(persistedKey(workspaceId, "mode"));
-  if (raw === "split" || raw === "editor" || raw === "preview" || raw === "bottom" || raw === "focus") {
+  if (
+    raw === "overlay" || raw === "split" || raw === "editor" ||
+    raw === "preview" || raw === "bottom" || raw === "focus"
+  ) {
     return raw;
   }
   return fallback;
@@ -95,6 +100,13 @@ function readRailOpen(workspaceId: string): boolean {
   return true;
 }
 
+function readNumber(workspaceId: string, suffix: string, fallback: number): number {
+  if (typeof window === "undefined") return fallback;
+  const raw = window.localStorage.getItem(persistedKey(workspaceId, suffix));
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export function AuthoringWorkspace({
   workspaceId,
   toolbar,
@@ -103,7 +115,7 @@ export function AuthoringWorkspace({
   preview,
   footer,
   statusBar,
-  defaultMode = "split",
+  defaultMode = "overlay",
   onSave,
   onNavigateNode,
   onPopOutPreview,
@@ -111,6 +123,11 @@ export function AuthoringWorkspace({
 }: AuthoringWorkspaceProps) {
   const [mode, setMode] = useState<WorkspaceLayoutMode>(() => readMode(workspaceId, defaultMode));
   const [railOpen, setRailOpen] = useState<boolean>(() => readRailOpen(workspaceId));
+  // Overlay-mode preview width (px). Editor keeps its natural width; only
+  // the preview drawer resizes.
+  const [overlayPreviewPx, setOverlayPreviewPx] = useState<number>(
+    () => readNumber(workspaceId, "overlay-preview-px", 520),
+  );
 
   // Persist mode / rail state
   useEffect(() => {
@@ -119,12 +136,15 @@ export function AuthoringWorkspace({
   useEffect(() => {
     try { window.localStorage.setItem(persistedKey(workspaceId, "rail"), railOpen ? "1" : "0"); } catch {}
   }, [workspaceId, railOpen]);
+  useEffect(() => {
+    try { window.localStorage.setItem(persistedKey(workspaceId, "overlay-preview-px"), String(overlayPreviewPx)); } catch {}
+  }, [workspaceId, overlayPreviewPx]);
 
   const hasPreview = !!preview;
   const hasRail = !!rail;
   // Resolve effective visibility from mode.
   const showEditor = mode !== "preview";
-  const showPreview = hasPreview && (mode === "split" || mode === "preview" || mode === "bottom");
+  const showPreview = hasPreview && (mode === "overlay" || mode === "split" || mode === "preview" || mode === "bottom");
   const showRail = hasRail && railOpen && mode !== "focus" && mode !== "preview";
 
   // Global keyboard shortcuts. Skip when the user is typing into a field
@@ -170,13 +190,18 @@ export function AuthoringWorkspace({
       // ⌘⇧P — toggle preview visibility
       if (key === "p" && e.shiftKey && hasPreview) {
         e.preventDefault();
-        setMode((m) => (m === "editor" ? "split" : m === "preview" ? "split" : m === "split" || m === "bottom" ? "editor" : "split"));
+        setMode((m) => {
+          if (m === "editor") return "overlay";
+          if (m === "preview") return "overlay";
+          if (m === "overlay" || m === "split" || m === "bottom") return "editor";
+          return "overlay";
+        });
         return;
       }
       // ⌘⇧F — focus mode
       if (key === "f" && e.shiftKey) {
         e.preventDefault();
-        setMode((m) => (m === "focus" ? "split" : "focus"));
+        setMode((m) => (m === "focus" ? "overlay" : "focus"));
         return;
       }
     };
@@ -217,9 +242,16 @@ export function AuthoringWorkspace({
             />
             <LayoutModeButton
               current={mode}
+              value="overlay"
+              icon={<PanelRightOpen className="h-3.5 w-3.5" />}
+              label="Preview drawer (editor keeps width)"
+              onSelect={setMode}
+            />
+            <LayoutModeButton
+              current={mode}
               value="split"
               icon={<Columns2 className="h-3.5 w-3.5" />}
-              label="Split (side by side)"
+              label="Split 50/50 (resizes editor too)"
               onSelect={setMode}
             />
             <LayoutModeButton
@@ -269,11 +301,34 @@ export function AuthoringWorkspace({
     [hasPreview, hasRail, mode, railOpen, onPopOutPreview],
   );
 
+  // Overlay-mode drag handling — moves ONLY the preview edge; editor keeps
+  // its width. Uses a pointer capture so the drag survives fast moves.
+  const overlayContainerRef = useRef<HTMLDivElement | null>(null);
+  const onOverlayHandlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const container = overlayContainerRef.current;
+    if (!container) return;
+    target.setPointerCapture(e.pointerId);
+    const containerRect = container.getBoundingClientRect();
+    const move = (ev: PointerEvent) => {
+      const fromRight = containerRect.right - ev.clientX;
+      const clamped = Math.max(280, Math.min(fromRight, Math.max(300, containerRect.width - 480)));
+      setOverlayPreviewPx(clamped);
+    };
+    const up = () => {
+      target.releasePointerCapture(e.pointerId);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }, []);
 
   // Render the main + preview split. In `bottom` mode we swap to a
-  // vertical PanelGroup; in editor/preview/focus modes only one panel
-  // renders (no PanelGroup at all — avoids react-resizable-panels
-  // remounting when the child set changes).
+  // vertical PanelGroup; in `overlay` mode the editor keeps its natural
+  // width and the preview docks on the right with a drag handle that
+  // moves ONLY the preview edge (no seesaw); in editor/preview/focus
+  // modes only one panel renders.
   const mainAndPreview = useCallback(() => {
     if (!hasPreview || !showPreview) {
       // Editor only (also covers focus mode).
@@ -299,23 +354,49 @@ export function AuthoringWorkspace({
         </ResizablePanelGroup>
       );
     }
-    // Split — side by side
+    if (mode === "split") {
+      // 50/50 seesaw — editor and preview share space; user opts in.
+      return (
+        <ResizablePanelGroup
+          direction="horizontal"
+          autoSaveId={persistedKey(workspaceId, "main-h")}
+          className="h-full w-full gap-0"
+        >
+          <ResizablePanel defaultSize={60} minSize={30}>
+            <PaneShell>{editor}</PaneShell>
+          </ResizablePanel>
+          <ResizableHandle withHandle className="mx-2" />
+          <ResizablePanel defaultSize={40} minSize={20}>
+            <PaneShell>{preview}</PaneShell>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      );
+    }
+    // Overlay — editor keeps natural width, preview drawer floats on right.
     return (
-      <ResizablePanelGroup
-        direction="horizontal"
-        autoSaveId={persistedKey(workspaceId, "main-h")}
-        className="h-full w-full gap-0"
-      >
-        <ResizablePanel defaultSize={60} minSize={30}>
+      <div ref={overlayContainerRef} className="relative flex h-full w-full min-w-0 items-stretch gap-0">
+        <div className="min-w-0 flex-1">
           <PaneShell>{editor}</PaneShell>
-        </ResizablePanel>
-        <ResizableHandle withHandle className="mx-2" />
-        <ResizablePanel defaultSize={40} minSize={20}>
+        </div>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize preview drawer"
+          onPointerDown={onOverlayHandlePointerDown}
+          className="group relative mx-1 w-1.5 shrink-0 cursor-col-resize rounded bg-border/60 transition-colors hover:bg-primary/60"
+          title="Drag to resize preview"
+        >
+          <div className="pointer-events-none absolute inset-y-0 -inset-x-1" />
+        </div>
+        <div
+          className="shrink-0"
+          style={{ width: `${overlayPreviewPx}px`, maxWidth: "80%" }}
+        >
           <PaneShell>{preview}</PaneShell>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </div>
+      </div>
     );
-  }, [editor, preview, hasPreview, mode, showEditor, showPreview, workspaceId]);
+  }, [editor, preview, hasPreview, mode, showEditor, showPreview, workspaceId, overlayPreviewPx, onOverlayHandlePointerDown]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -335,7 +416,7 @@ export function AuthoringWorkspace({
               </aside>
             </>
           )}
-          <div className="min-w-0 flex-1 p-3">{mainAndPreview()}</div>
+          <div className="min-w-0 min-h-0 flex-1 p-3">{mainAndPreview()}</div>
         </div>
 
         {statusBar && (
@@ -354,7 +435,7 @@ export function AuthoringWorkspace({
 
 function PaneShell({ children }: { children: ReactNode }) {
   return (
-    <div className="h-full min-h-0 overflow-hidden rounded-lg border bg-card">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-lg border bg-card">
       {children}
     </div>
   );
