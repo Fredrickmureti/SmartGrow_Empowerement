@@ -926,7 +926,7 @@ function MetadataSection({
           </div>
           <div className="col-span-8">
             <Label className="text-xs">Options (JSON)</Label>
-            <CodeField
+            <AutoGrowTextarea monospace
               minRows={3}
               value={fmt.options ? JSON.stringify(fmt.options, null, 2) : ""}
               onChange={(e) => {
@@ -949,7 +949,7 @@ function MetadataSection({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
           <Label className="text-xs">Digital signature spec (JSON)</Label>
-          <CodeField
+          <AutoGrowTextarea monospace
             minRows={4}
             value={jsonText(meta.digital_signature_spec)}
             onChange={(e) => onJsonChange("digital_signature_spec", e.target.value)}
@@ -958,7 +958,7 @@ function MetadataSection({
         </div>
         <div>
           <Label className="text-xs">Acknowledgement spec (JSON)</Label>
-          <CodeField
+          <AutoGrowTextarea monospace
             minRows={4}
             value={jsonText(meta.acknowledgement_spec)}
             onChange={(e) => onJsonChange("acknowledgement_spec", e.target.value)}
@@ -967,7 +967,7 @@ function MetadataSection({
         </div>
         <div>
           <Label className="text-xs">API endpoint spec (JSON)</Label>
-          <CodeField
+          <AutoGrowTextarea monospace
             minRows={4}
             value={jsonText(meta.api_endpoint_spec)}
             onChange={(e) => onJsonChange("api_endpoint_spec", e.target.value)}
