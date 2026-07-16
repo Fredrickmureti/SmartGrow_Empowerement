@@ -185,6 +185,9 @@ export function useSalesReturns() {
           return_reason: item.return_reason,
           condition: item.condition,
           sort_order: index,
+          // Phase A.4 — persist picker output for lot/serial-tracked lines.
+          lot_number: (item as any).lot_number ?? null,
+          serial_number: (item as any).serial_number ?? null,
         }));
         const { error: itemsError } = await supabase.from("sales_return_items").insert(returnItems);
         if (itemsError) throw itemsError;

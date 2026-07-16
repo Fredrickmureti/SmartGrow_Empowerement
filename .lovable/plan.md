@@ -124,3 +124,59 @@ Line editors on these five surfaces get lot/serial pickers, gated by product fla
    each outbound page's line-item shape so the picker output is
    authoritative rather than advisory is the next incremental step —
    it can land per-page without changing the shared primitives.
+
+---
+
+## ✅ Phase A.4 — Delivered (2026-07-16)
+
+**Persist picker output on all four outbound documents** — the pickers
+are no longer advisory. Every outbound insert path now writes the
+operator's chosen lots and serials to the DB.
+
+- **Shared normalizer:** `src/components/inventory/outboundLineTrackingUtils.ts`
+  - `lotNumberFromAllocations(allocs)` → flat `lot_number` string
+  - `lotAllocationsJson(allocs)` → full `lot_allocations` JSON blob
+  - `serialNumberFromRows(rows)` → flat `serial_number` string
+- **Line-editor wiring** — each of the four editors now maps
+  `onLotChange` and `onSerialChange` onto its local line-item state:
+  - `src/components/invoices/InvoiceLineRow.tsx` (extends
+    `InvoiceLineItemShape` with `lot_number`, `serial_number`)
+  - `src/features/sales/credit-notes/CreditNoteCreatePage.tsx`
+    (`LineItem = Omit<CreditNoteItem, ...>` already includes both
+    columns from generated types)
+  - `src/features/sales/returns/SalesReturnCreatePage.tsx`
+    (`LineItem` extended with `lot_number`, `serial_number`)
+  - `src/features/sales/delivery-notes/DeliveryNoteCreatePage.tsx`
+    (`LineItem` extended with `lot_number`, `serial_number`,
+    `lot_allocations`; onLotChange writes both the flat column and
+    the JSON blob)
+- **Hook whitelists** — the three whitelisting insert paths now pass
+  the persisted columns through:
+  - `src/hooks/useInvoices.ts` → `invoice_items`
+  - `src/hooks/useSalesReturns.ts` → `sales_return_items`
+  - `src/hooks/useDeliveryNotes.ts` → `delivery_note_items` (incl.
+    `lot_allocations` JSON)
+  - `src/hooks/useCreditNotes.ts` already spreads `...item` so the
+    added `lot_number` / `serial_number` fields flow through.
+- **Guard extension:**
+  `src/test/architecture/outbound-lot-serial-ui.test.ts` — now
+  **31/31 tests** (up from 17/17). Pins every editor's
+  `onLotChange` / `onSerialChange` wiring, every hook's payload, and
+  the normalizer's export surface. Combined inventory-foundation
+  guard surface: **86/86**.
+- **No migrations, no RPC changes, no schema changes** — all target
+  columns already existed on `invoice_items`, `credit_note_items`,
+  `sales_return_items`, and `delivery_note_items`.
+
+### Remaining deferred (handed to the next agent)
+
+1. **GRN serial capture.** Still requires a new
+   `create_stock_serials_from_receipt` RPC + migration + wizard step.
+   Surface-only capture would create silent post-time failures —
+   intentionally split into its own ADR + migration turn.
+2. **Sales-order line editor.** Not currently rendering
+   `OutboundLineTracking`; SO doesn't move stock (delivery notes do),
+   so this is cosmetic advance-notice only, low priority.
+3. **InvoiceEditPage / CreditNoteEditPage / edit paths.** The picker
+   currently mounts inside the create surfaces; edit surfaces would
+   need the same wiring + an update-time hook whitelist review.

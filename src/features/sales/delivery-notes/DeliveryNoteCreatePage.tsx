@@ -17,6 +17,12 @@ import { useDeliveryNotes } from "@/hooks/useDeliveryNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
+import {
+  lotNumberFromAllocations,
+  lotAllocationsJson,
+  serialNumberFromRows,
+} from "@/components/inventory/outboundLineTrackingUtils";
+import type { LotAllocationPayload } from "@/components/inventory/LotPickerPopover";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -64,6 +70,10 @@ interface LineItem {
   packaging_id?: string | null;
   display_uom_id?: string | null;
   display_quantity?: number | null;
+  // Phase A.4 — picker output persisted to delivery_note_items.
+  lot_number?: string | null;
+  serial_number?: string | null;
+  lot_allocations?: LotAllocationPayload[] | null;
 }
 
 export default function DeliveryNoteCreatePage() {
@@ -372,6 +382,18 @@ export default function DeliveryNoteCreatePage() {
                     <OutboundLineTracking
                       productId={item.product_id ?? null}
                       quantity={item.quantity_delivered}
+                      onLotChange={(allocs) => {
+                        const updated = [...lineItems];
+                        updated[index] = {
+                          ...updated[index],
+                          lot_number: lotNumberFromAllocations(allocs),
+                          lot_allocations: lotAllocationsJson(allocs),
+                        };
+                        setLineItems(updated);
+                      }}
+                      onSerialChange={(_ids, rows) =>
+                        updateLineItem(index, "serial_number", serialNumberFromRows(rows))
+                      }
                     />
                   </div>
                 );

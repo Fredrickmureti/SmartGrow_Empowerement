@@ -20,6 +20,10 @@ import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useCurrency } from "@/hooks/useCurrency";
 import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
+import {
+  lotNumberFromAllocations,
+  serialNumberFromRows,
+} from "@/components/inventory/outboundLineTrackingUtils";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -72,6 +76,9 @@ interface LineItem {
   packaging_id?: string | null;
   display_uom_id?: string | null;
   display_quantity?: number | null;
+  // Phase A.4 — picker output persisted to sales_return_items.
+  lot_number?: string | null;
+  serial_number?: string | null;
 }
 
 const emptyLine = (): LineItem => ({
@@ -527,6 +534,12 @@ export default function SalesReturnCreatePage() {
                     <OutboundLineTracking
                       productId={item.product_id ?? null}
                       quantity={item.quantity}
+                      onLotChange={(allocs) =>
+                        updateLineItem(index, "lot_number", lotNumberFromAllocations(allocs))
+                      }
+                      onSerialChange={(_ids, rows) =>
+                        updateLineItem(index, "serial_number", serialNumberFromRows(rows))
+                      }
                     />
                   </CardContent>
                 </Card>

@@ -21,6 +21,10 @@ import { validateLineItems } from "@/lib/validation/lineItems";
 import { normalizeError } from "@/services/resilience";
 import { format } from "date-fns";
 import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
+import {
+  lotNumberFromAllocations,
+  serialNumberFromRows,
+} from "@/components/inventory/outboundLineTrackingUtils";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -384,6 +388,12 @@ export default function CreditNoteCreatePage() {
                   <OutboundLineTracking
                     productId={item.product_id ?? null}
                     quantity={item.quantity}
+                    onLotChange={(allocs) =>
+                      updateLineItem(index, "lot_number", lotNumberFromAllocations(allocs))
+                    }
+                    onSerialChange={(_ids, rows) =>
+                      updateLineItem(index, "serial_number", serialNumberFromRows(rows))
+                    }
                   />
                 </CardContent>
               </Card>

@@ -93,6 +93,55 @@ describe("Phase A.3 — outbound line editors mount OutboundLineTracking", () =>
       it("renders <OutboundLineTracking /> with a productId prop", () => {
         expect(src).toMatch(/<OutboundLineTracking[\s\S]*?productId=/);
       });
+      it("wires onLotChange to persist lot_number (Phase A.4)", () => {
+        expect(src).toMatch(/onLotChange=/);
+        expect(src).toMatch(/lotNumberFromAllocations/);
+      });
+      it("wires onSerialChange to persist serial_number (Phase A.4)", () => {
+        expect(src).toMatch(/onSerialChange=/);
+        expect(src).toMatch(/serialNumberFromRows/);
+      });
     });
   }
 });
+
+describe("Phase A.4 — outbound hooks pass picker output to DB", () => {
+  const cases = [
+    { file: "src/hooks/useInvoices.ts", table: "invoice_items" },
+    { file: "src/hooks/useSalesReturns.ts", table: "sales_return_items" },
+    { file: "src/hooks/useDeliveryNotes.ts", table: "delivery_note_items" },
+  ];
+  for (const { file, table } of cases) {
+    it(`${file} inserts lot_number/serial_number into ${table}`, () => {
+      const src = read(file);
+      expect(src).toMatch(new RegExp(`from\\("${table}"\\)`));
+      expect(src).toMatch(/lot_number:/);
+      expect(src).toMatch(/serial_number:/);
+    });
+  }
+
+  it("useDeliveryNotes additionally persists lot_allocations JSON", () => {
+    const src = read("src/hooks/useDeliveryNotes.ts");
+    expect(src).toMatch(/lot_allocations:/);
+  });
+
+  it("CreditNoteCreatePage spreads full LineItem so credit_note_items receives lot_number/serial_number", () => {
+    const page = read("src/features/sales/credit-notes/CreditNoteCreatePage.tsx");
+    // Page wires updateLineItem for lot_number/serial_number; hook uses `...item` spread.
+    expect(page).toMatch(/"lot_number"/);
+    expect(page).toMatch(/"serial_number"/);
+    const hook = read("src/hooks/useCreditNotes.ts");
+    expect(hook).toMatch(/\.\.\.item/);
+    expect(hook).toMatch(/from\("credit_note_items"\)/);
+  });
+});
+
+describe("Phase A.4 — outboundLineTrackingUtils normalizer", () => {
+  const src = read("src/components/inventory/outboundLineTrackingUtils.ts");
+  it("exports lotNumberFromAllocations, lotAllocationsJson, serialNumberFromRows", () => {
+    expect(src).toMatch(/export function lotNumberFromAllocations/);
+    expect(src).toMatch(/export function lotAllocationsJson/);
+    expect(src).toMatch(/export function serialNumberFromRows/);
+  });
+});
+
