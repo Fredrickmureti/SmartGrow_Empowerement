@@ -191,6 +191,23 @@ const AttendanceKioskStandalone = lazy(() => import("@/pages/kiosk/AttendanceKio
 // without the POS subscription gate redirecting the phone to /dashboard.
 // See .lovable/plan.md "Move scanner pairing route out of POS subscription gate".
 const MobileScannerPage = lazy(() => import("@/pages/pos/MobileScannerPage"));
+const LocalizationPreviewWindow = lazy(
+  () => import("@/features/localization/components/LocalizationPreviewWindow"),
+);
+
+// Pop-out preview window for the Localization Editor. Opened via
+// window.open() from AuthoringWorkspace. Runs in the same origin so it
+// inherits localStorage + BroadcastChannel from the opener; no auth
+// gate needed (it only re-renders what the opener already broadcasts).
+const LocalizationPreviewRoute = () => {
+  const { kind, templateCode } = useParams<{ kind: string; templateCode: string }>();
+  return (
+    <Suspense fallback={<div style={{ padding: 24, fontFamily: "system-ui" }}>Loading preview…</div>}>
+      <LocalizationPreviewWindow kind={kind ?? ""} templateCode={templateCode ?? ""} />
+    </Suspense>
+  );
+};
+
 
 import { VendorPortalLayout } from "@/components/vendor-portal/VendorPortalLayout";
 
