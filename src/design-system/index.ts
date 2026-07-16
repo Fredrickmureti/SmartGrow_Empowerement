@@ -36,6 +36,8 @@ export { StatusBadge } from "./primitives/StatusBadge";
 export { FilterBar } from "./primitives/FilterBar";
 export { ActionBar } from "./primitives/ActionBar";
 export { DetailLayout } from "./primitives/DetailLayout";
+export { AuthoringWorkspace } from "./primitives/AuthoringWorkspace";
+export type { WorkspaceLayoutMode } from "./primitives/AuthoringWorkspace";
 
 // Record-interaction primitives — object pages, sheets, wizards, forms.
 // These are the enterprise UX standard extracted from the HR/Payroll
