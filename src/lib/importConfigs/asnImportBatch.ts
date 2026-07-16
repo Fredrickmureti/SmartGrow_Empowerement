@@ -10,13 +10,12 @@
  *    in explicitly — never resolved from client state inside this module,
  *    so it stays testable and reusable across pages.
  *  - Product SKU resolution is deferred to a caller-supplied resolver
- *    (mirrors `ContactResolver` in the PO importer). Missing SKUs are
- *    logged as row errors and skip the shipment they belong to; other
- *    groups still import.
+ *    (mirrors `ContactResolver` in the PO importer). Missing SKUs skip the
+ *    whole shipment they belong to; other groups still import.
  *  - Shipments are created in `dispatched` status by default. Callers can
  *    override via `defaultStatus` if they want to import drafts.
  *  - Idempotency: if a shipment_number already exists for the business,
- *    the group is skipped and reported as `duplicate`.
+ *    the group is skipped and reported.
  *
  * The returned `BatchImportFn` is drop-in compatible with `useImport`.
  */
@@ -55,22 +54,31 @@ const toDateOrNull = (v: unknown): string | null => {
   return iso ? iso.slice(0, 10) : null;
 };
 
+const pushError = (
+  results: ImportResults,
+  rowIndex: number,
+  data: Record<string, any>,
+  message: string,
+) => {
+  results.errors.push({ rowIndex, data, errors: message });
+};
+
 export function createAsnBatchImportHandler(ctx: AsnImportContext): BatchImportFn {
   return async (rows) => {
     const results: ImportResults = { total: rows.length, imported: 0, skipped: 0, errors: [] };
     if (rows.length === 0) return results;
 
     // ── Group rows by shipment_number ────────────────────────────────────
-    const groups = new Map<string, Record<string, any>[]>();
+    const groups = new Map<string, { rowIndex: number; data: Record<string, any> }[]>();
     rows.forEach((row, idx) => {
       const key = String(row.shipment_number || "").trim();
       if (!key) {
         results.skipped += 1;
-        results.errors.push(__ASNERR__);
+        pushError(results, idx, row, "Missing shipment_number");
         return;
       }
       if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(row);
+      groups.get(key)!.push({ rowIndex: idx, data: row });
     });
 
     // Pre-check for existing shipment numbers scoped to this business.
@@ -86,13 +94,16 @@ export function createAsnBatchImportHandler(ctx: AsnImportContext): BatchImportF
     }
 
     for (const [shipmentNumber, groupRows] of groups) {
-      const firstRow = groupRows[0];
+      const first = groupRows[0];
+      const firstRow = first.data;
       if (existing.has(shipmentNumber)) {
         results.skipped += groupRows.length;
-        results.errors.push({
-          row: shipmentNumber as any,
-          message: `Shipment ${shipmentNumber} already exists — skipped`,
-        });
+        pushError(
+          results,
+          first.rowIndex,
+          firstRow,
+          `Shipment ${shipmentNumber} already exists — skipped`,
+        );
         continue;
       }
 
@@ -100,8 +111,8 @@ export function createAsnBatchImportHandler(ctx: AsnImportContext): BatchImportF
       // rather than partially inserting.
       const resolvedItems: Array<{ row: Record<string, any>; productId: string }> = [];
       let groupError: string | null = null;
-      for (const row of groupRows) {
-        const sku = String(row.product_sku || "").trim();
+      for (const gr of groupRows) {
+        const sku = String(gr.data.product_sku || "").trim();
         if (!sku) {
           groupError = `Shipment ${shipmentNumber}: a line is missing product SKU`;
           break;
@@ -111,11 +122,11 @@ export function createAsnBatchImportHandler(ctx: AsnImportContext): BatchImportF
           groupError = `Shipment ${shipmentNumber}: unknown SKU "${sku}"`;
           break;
         }
-        resolvedItems.push({ row, productId });
+        resolvedItems.push({ row: gr.data, productId });
       }
       if (groupError) {
         results.skipped += groupRows.length;
-        results.errors.push(__ASNERR__);
+        pushError(results, first.rowIndex, firstRow, groupError);
         continue;
       }
 
@@ -148,10 +159,12 @@ export function createAsnBatchImportHandler(ctx: AsnImportContext): BatchImportF
         .single();
       if (headerErr || !header) {
         results.skipped += groupRows.length;
-        results.errors.push({
-          row: shipmentNumber as any,
-          message: `Shipment ${shipmentNumber}: ${headerErr?.message ?? "insert failed"}`,
-        });
+        pushError(
+          results,
+          first.rowIndex,
+          firstRow,
+          `Shipment ${shipmentNumber}: ${headerErr?.message ?? "insert failed"}`,
+        );
         continue;
       }
 
@@ -176,10 +189,12 @@ export function createAsnBatchImportHandler(ctx: AsnImportContext): BatchImportF
         // Roll the header back so we don't leave orphaned shipments.
         await ctx.supabase.from("inbound_shipments").delete().eq("id", header.id);
         results.skipped += groupRows.length;
-        results.errors.push({
-          row: shipmentNumber as any,
-          message: `Shipment ${shipmentNumber} lines: ${itemsErr.message}`,
-        });
+        pushError(
+          results,
+          first.rowIndex,
+          firstRow,
+          `Shipment ${shipmentNumber} lines: ${itemsErr.message}`,
+        );
         continue;
       }
 
