@@ -51,6 +51,7 @@ const FIELD_LABEL: Record<string, string> = {
   bank_branch: "Bank branch",
   bank_account_number: "Bank account number",
   bank_code: "Bank code",
+  work_email: "Work email",
 };
 
 export default function EmployeeChangeRequestsPage() {
