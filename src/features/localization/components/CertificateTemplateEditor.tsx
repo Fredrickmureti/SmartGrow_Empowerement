@@ -478,7 +478,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <Label className="text-xs">Revision notes</Label>
-                  <Textarea rows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
+                  <AutoGrowTextarea minRows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
                 </div>
                 <div className="flex items-center gap-2 md:col-span-2">
                   <Switch checked={meta.approval_required} onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })} />
