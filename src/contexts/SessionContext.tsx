@@ -117,6 +117,15 @@ export interface SessionData {
   fetched_at: string;
 }
 
+export type SessionRecoveryStatus = "idle" | "waiting_for_network" | "retrying";
+
+export interface SessionRecoveryState {
+  status: SessionRecoveryStatus;
+  attempt: number;
+  /** Normalized last error kind, when known (offline/timeout/server_unavailable/auth_expired/…). */
+  lastErrorKind: NormalizedError["kind"] | null;
+}
+
 interface SessionContextType {
   // Session state
   sessionData: SessionData | null;
@@ -129,6 +138,13 @@ interface SessionContextType {
    * empty-workspace screen.
    */
   sessionError: Error | null;
+  /**
+   * Live recovery state for the bootstrap RPC. `SessionFailureCard`
+   * reads this to distinguish "waiting for network" from "retrying"
+   * from a truly terminal failure, so a transient network blip never
+   * looks like a fatal crash.
+   */
+  sessionRecovery: SessionRecoveryState;
   /**
    * True once we have a coherent answer for "who is this user, and what
    * workspace are they in?". Specifically:
