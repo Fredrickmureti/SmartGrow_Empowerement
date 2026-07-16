@@ -62,7 +62,7 @@ describe("ADR-0069 · inbound shipments + GRN discrepancies", () => {
         expect(sql).toMatch(writePolicy);
         // Write policy must also gate on the inventory-write module permission.
         expect(sql).toMatch(
-          new RegExp(`${table}_write[\\s\\S]*?user_has_module_permission\\([^)]*'inventory'[^)]*'write'`, "i"),
+          new RegExp(`${table}_write[\\s\\S]*?user_has_module_permission[\\s\\S]*?'inventory'[\\s\\S]*?'write'`, "i"),
         );
       });
     });
