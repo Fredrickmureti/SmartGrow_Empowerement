@@ -12,7 +12,20 @@
  * open in the same session never step on each other.
  */
 
-export type PreviewKind = "certificate" | "return";
+/**
+ * Kinds of localization artefacts that can broadcast a live preview to a
+ * pop-out window. Extend cautiously — the pop-out route reads this via
+ * `LocalizationPreviewWindow` and must know how to render each kind.
+ */
+export type PreviewKind =
+  | "certificate"
+  | "return"
+  | "bank-export"
+  | "garnishment"
+  | "token-registry"
+  | "statutory-authority"
+  | "pack-requirements"
+  | "publisher-governance";
 
 export interface PreviewPayload {
   kind: PreviewKind;

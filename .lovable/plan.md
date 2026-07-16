@@ -1,62 +1,113 @@
-## What already ships (verified against source)
 
-- `src/design-system/primitives/AuthoringWorkspace.tsx` — IDE-style shell with split / editor-only / preview-only / bottom-dock / focus modes, resizable persisted panels, collapsible outline rail, and shortcuts (⌘S, ⌘B, ⌘⇧P, ⌘⇧F). Now also exposes: `statusBar` slot, `onNavigateNode` (J / K), `onPopOutPreview`.
-- Editor-input primitives: `AutoGrowInput`, `AutoGrowTextarea`, `ExpandableTextField`, `CodeField` (mono variant) exported from `@/design-system/primitives/inputs`.
-- `CertificateTemplateEditor` is fully migrated: uses `AuthoringWorkspace` with toolbar + outline rail + preview + save footer + live status bar (dirty flag, validation count, node count, shortcut hints) and J / K node walking.
-- `CertificateV3Editor` uses `CodeField` / `ExpandableTextField` / `AutoGrowTextarea` throughout.
-- `ReturnTemplateEditor` picked up the primitives on its JSON-shaped fields (submission format options, digital-signature / acknowledgement / API-endpoint specs, footnote body) and moved the tenant "Reason for override" textarea to `ExpandableTextField`.
+## Verdict (audit)
 
-## What is still open
+Three distinct problems, all rooted in the same architectural gap: the AuthoringWorkspace was built for certificate/return editors only, and its preview slot is a passive pane instead of a first-class, resource-typed surface.
 
-1. `ReturnTemplateEditor` still renders as a single stacked `<Card>` with `PreviewPanel` and `ReturnPreviewPane` inlined mid-form. It never mounts inside `AuthoringWorkspace`, so return-template authoring gets none of the layout modes, keyboard shortcuts, resizable preview, or status bar the certificate editor now has. This is the last gap in the "one authoring workspace" invariant.
-2. There is no pop-out preview route, so the `onPopOutPreview` hook the shell exposes is unused. Publishers cannot detach the preview onto a second monitor — the flagship win of the redesign.
+### 1. "Editor shrinks when I drag the preview left"
+Current `AuthoringWorkspace` uses a symmetric `ResizablePanelGroup` where editor + preview split 100%. Any drag on the handle reallocates space between them — so pulling the preview wider directly compresses the editor. That is *not* how professional design tools behave. Publishers expect the preview to behave like an **inspector drawer that slides over** the editor, leaving the editor's authoring width stable.
 
-## Plan
+### 2. Preview footer clipped
+`PaneShell` wraps preview in `overflow-hidden rounded-lg border`, and the preview panes (`CertificatePreviewPane`, `ReturnPreviewPane`) render a `Card` whose iframe/canvas has a fixed `h-[820px]`. When the workspace also reserves rows for `statusBar` and `footer` at the bottom, the fixed-height inner iframe overflows the available pane and its bottom is scissored — the "Save as PDF" bar and the last document rows never appear.
 
-### 1. Migrate `ReturnTemplateEditor` into `AuthoringWorkspace`
+### 3. Inconsistent preview across other localization editors
+Only Certificate and Return editors sit inside `AuthoringWorkspace`. **BankExportTemplatesEditor, GarnishmentsEditor, StatutoryAuthoritiesEditor, TokenRegistryEditor, PackRequirementsEditor, PublisherGovernanceEditor** are still plain forms. Bank exports, garnishment schedules and token registries are inherently **tabular/spreadsheet** artefacts — publishers need to see mapped columns, sample rows, and delimiters live, in an Excel-like grid, not JSON. Right now they publish blind.
 
-Refactor the render tree so the existing state, handlers, and validation logic are unchanged; only the layout container swaps.
+---
 
-- Split the current single-column body into three slots:
-  - `toolbar`: title + mode badge (admin / tenant override) + the "Enable v2 renderer" switch (moved out of the mid-form section so the switch is always reachable).
-  - `editor`: the form column — metadata, outputs, filters, columns, group-by, totals, reconciliation, v2 sections list. Wrapped in a `ScrollArea` so long forms scroll independently of the preview.
-  - `preview`: a combined preview column that renders `ReturnPreviewPane` when v2 renderer is on, otherwise the existing `PreviewPanel` (default v1). Same data feed as today.
-  - `footer`: Cancel / Save buttons (unchanged handlers).
-  - `statusBar`: dirty indicator (compare current body+meta+notes JSON to a captured baseline snapshot), validation count (errors + warnings from the existing async validator), column count, and the shortcut hint strip.
-- Remove the inline `ReturnPreviewPane` block and the inline `PreviewPanel` from the form body — the preview lives in the workspace's preview pane instead, so it no longer competes for editor width.
-- Add `onSave={handleSave}` so ⌘S / Ctrl+S saves from anywhere in the editor.
-- Add an outline `rail` listing the top-level sections (Identification, Outputs, Filters, Columns, Group by, Totals, Reconciliation, v2 sections) with click-to-scroll behaviour. Each section gets an `id` and the rail scrolls the editor pane to it.
-- Wire J / K to walk between sections (same idea as certificate node navigation but over the section list).
-- `workspaceId={\`return-template:${templateCode}\`}` so panel sizes and mode persist per template.
+## Solution
 
-Guard invariants: keep the async `validatePayload` debounced call, keep the tenant-only "Reason for override" section inside the editor pane, keep the `MetadataSection` / `OutputsCard` sub-components untouched.
+### A. Resize model — "sliding inspector" not "seesaw"
 
-### 2. Pop-out preview route + hook
+Change the split mode so the editor keeps its authored width and the preview slides in from the right on top of a fixed-width editor rail.
 
-Add a real detached-window preview so publishers can drag it to a second display.
+- Add a new mode: `overlay` (the new default when the browser is ≥ 1440px). In `overlay` mode the editor column has a fixed max-width (persisted, default 960px, min 640px); the preview docks into the remaining space and its handle only resizes the **preview**, never the editor.
+- Keep the existing `split` mode as an opt-in for users who genuinely want a 50/50 seesaw.
+- Add a "Detach preview" pill to the toolbar (uses existing `onPopOutPreview`) surfaced more prominently.
+- Persist `mode`, `editor-width`, `preview-width` all under `authoring-workspace:<id>:*`.
 
-- New route: `src/routes/localization.preview.$kind.$templateCode.tsx` (kind = `certificate` | `return`). It is a plain client route that reads the latest draft body from `sessionStorage` (key: `localization-preview:${kind}:${templateCode}`), subscribes to `storage` events for live updates, and renders the appropriate `CertificatePreviewPane` / `ReturnPreviewPane` full-bleed. No auth surface needed — it only reads what the opener just wrote in the same origin.
-- Update `CertificateTemplateEditor` and `ReturnTemplateEditor`:
-  - Whenever the body changes, `sessionStorage.setItem(key, JSON.stringify({body, meta, ts}))`.
-  - Pass `onPopOutPreview={() => window.open('/localization/preview/…', 'localization-preview', 'width=900,height=1200')}` to `AuthoringWorkspace`.
-  - When the pop-out window is open, automatically switch the in-editor layout mode to `editor` so the editor immediately expands to full width (restore prior mode when the pop-out closes — tracked via a `beforeunload` message on the child window).
-- Add a small "Reopen preview" toast/button behaviour if the child is closed.
+### B. Preview pane — remove all fixed heights and enforce fill-parent
 
-### 3. Verification
+- `PaneShell` keeps `overflow-hidden` on its outer border but becomes a **flex column** so its child stretches to `100%` height.
+- `CertificatePreviewPane`, `ReturnPreviewPane`, and the new grid preview render `Card` with `h-full flex flex-col`, `CardContent flex-1 min-h-0`, and the iframe/canvas becomes `h-full w-full` (no `h-[820px]`).
+- Move the "Save as PDF" bar into the pane's `CardHeader` (already done for cert) so it is always visible above the scroll region — never in a footer that competes with the workspace's own footer.
+- Add a bottom safe-area gutter (`pb-2`) inside `PaneShell` when the workspace also has a `footer`, so the preview's last row never sits flush against the save-bar shadow.
 
-- `bun run build:dev` (or the project's typecheck) after each of steps 1 and 2 to catch route-tree drift and TS regressions.
-- Load `/admin-management/localization-packs/:packId/certificates/:templateId/edit` and the tenant/admin return-template editor via Playwright: assert the workspace toolbar, all five layout mode buttons, ⌘S save handler, J / K navigation, status-bar text, and the pop-out window rendering the preview at the same URL.
-- Confirm the runtime `#tanstack-start-entry` error visible in the runtime-errors panel resolves once the new route file lands and the router regenerates (if it does not, that's a separate bootstrap issue and I will restart the dev server after route generation).
+### C. Universal preview contract for every localization editor
 
-## Technical notes
+Introduce a shared preview taxonomy in `src/features/localization/lib/preview/`:
 
-- No schema, RLS, or server-function changes. Everything is presentational.
-- No changes to save contracts: `ReturnTemplateEditor.onSave` still receives `{ body, layout, notes, metadata? }`.
-- Reuse of primitives only — no new dependencies.
-- Persisted keys: `authoring-workspace:return-template:<code>:*`, `localization-preview:<kind>:<code>` (session-scoped).
-- Files touched:
-  - `src/features/localization/components/ReturnTemplateEditor.tsx` (refactor render tree; keep logic).
-  - `src/features/localization/components/CertificateTemplateEditor.tsx` (wire pop-out + sessionStorage broadcast).
-  - New: `src/routes/localization.preview.$kind.$templateCode.tsx`.
+```
+PreviewKind = "certificate" | "return" | "bank-export"
+            | "garnishment-schedule" | "token-registry"
+            | "statutory-authority" | "pack-requirements"
+            | "publisher-governance"
+```
 
-No item is deferred — both open gaps land in this pass.
+Each editor exports a `renderPreview(payload) → ReactNode` that reads the same live draft the form owns, and the shared `LocalizationPreviewShell` picks the correct pane. `previewBroadcast` already keys on `(kind, code)` — extend the kind union.
+
+Standardize on three visual pane types:
+
+| Pane                    | Used by                                              | Renderer                        |
+| ----------------------- | ---------------------------------------------------- | ------------------------------- |
+| `PagedDocumentPane`     | Certificate, Return (v1 & v2)                        | existing paged.js / pdf-lib     |
+| `SpreadsheetPreviewPane`| Bank export, Garnishment schedule, Token registry    | new virtualised grid            |
+| `EntityInspectorPane`   | Statutory authority, Pack requirements, Governance   | key/value + relationship graph  |
+
+`SpreadsheetPreviewPane` is the "enterprise-grade Excel preview" the user asked for:
+
+- Renders columns exactly as the `spec` maps them (CSV column order, fixed-width offsets rendered as monospaced columns with ruler, ISO20022 shown as a collapsible tree).
+- Injects a synthetic KE payroll fixture (reuse `KE_RETURN_PREVIEW_PAYLOAD`) so publishers see 20 sample rows populated with the tokens they wired up.
+- Header row shows the token binding under each column name (`employee.bank_account_number`) and flags unresolved tokens in red — same UX contract as the certificate v3 renderer surfacing unresolved bindings.
+- Status strip below the grid shows delimiter, encoding, line count, byte size, and validation warnings.
+- Uses `@tanstack/react-table` (already in the project) + `react-window` for virtualisation; no new heavyweight grid library.
+
+### D. Migrate remaining editors into `AuthoringWorkspace`
+
+For each of Bank export / Garnishments / Statutory authorities / Token registry / Pack requirements / Publisher governance:
+
+1. Wrap the existing form list + drawer as the `editor` slot.
+2. Add `rail` = entity list (already exists as an inline list in most — extract it).
+3. Add `preview` = the appropriate pane from the taxonomy above.
+4. Add `statusBar` = dirty flag, validation count, entity count, shortcut hints (same pattern as CertificateTemplateEditor).
+5. Wire `workspaceId = "<kind>:<packId>:<entityCode>"` for per-record persistence.
+6. Wire `onPopOutPreview` via `publishPreview` + `openPreviewWindow`.
+7. Register the new kind in `LocalizationPreviewWindow` so the pop-out route mounts the right pane.
+
+### E. Pop-out route parity
+
+`localization.preview.$kind.$templateCode.tsx` already accepts `$kind` — extend the switch to the new kinds and lazy-load the correct pane component.
+
+---
+
+## Technical details
+
+### Files to add
+- `src/design-system/primitives/AuthoringWorkspace.tsx` — add `overlay` mode; new `editorMaxWidth` prop; adjust keyboard shortcut docstring.
+- `src/features/localization/components/preview/SpreadsheetPreviewPane.tsx` — new.
+- `src/features/localization/components/preview/EntityInspectorPane.tsx` — new.
+- `src/features/localization/components/preview/PagedDocumentPane.tsx` — thin wrapper re-exporting the existing certificate/return panes under a common interface.
+- `src/features/localization/lib/preview/registry.ts` — `PreviewKind` union, `resolvePreview(kind, payload)` helper, shared fixtures.
+- `src/features/localization/lib/fixtures/bankExportFixture.ts` and `garnishmentFixture.ts` — synthetic sample rows.
+
+### Files to edit
+- `src/features/localization/components/BankExportTemplatesEditor.tsx` → migrate into AuthoringWorkspace + SpreadsheetPreviewPane.
+- `src/features/localization/components/GarnishmentsEditor.tsx` → migrate + SpreadsheetPreviewPane.
+- `src/features/localization/components/TokenRegistryEditor.tsx` → migrate + SpreadsheetPreviewPane.
+- `src/features/localization/components/StatutoryAuthoritiesEditor.tsx` → migrate + EntityInspectorPane.
+- `src/features/localization/components/PackRequirementsEditor.tsx` → migrate + EntityInspectorPane.
+- `src/features/localization/components/PublisherGovernanceEditor.tsx` → migrate + EntityInspectorPane.
+- `src/features/localization/components/CertificatePreviewPane.tsx` → drop fixed heights, `h-full` iframe, remove bottom clip.
+- `src/features/localization/components/ReturnPreviewPane.tsx` → same; remove `h-[820px]`.
+- `src/features/localization/components/LocalizationPreviewWindow.tsx` → dispatch on extended `PreviewKind` union.
+- `src/routes/localization.preview.$kind.$templateCode.tsx` → allow the new kind values through the param.
+- `src/features/localization/lib/previewBroadcast.ts` → widen `PreviewKind`.
+
+### No changes
+- No SQL migrations. No RLS or grants. No edge-function changes. Existing renderers (`compile()` for cert, `renderReturnPdf` for return) remain the source of truth for what will actually be filed.
+
+### Verification
+- `bun run build:dev` after each editor migration.
+- Playwright script that opens each of the six editors, screenshots the split, drags the preview handle, and asserts the editor's bounding-box width is unchanged in `overlay` mode.
+- Playwright asserts the preview's last row and its "Save as PDF" affordance are within the visible viewport (no clipping) when both status bar and footer are present.
+
+No deferred items — resize model, footer clipping, and preview standardisation across all six remaining editors all land in this pass.

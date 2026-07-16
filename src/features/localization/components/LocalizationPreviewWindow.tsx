@@ -11,6 +11,8 @@ import { useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { CertificatePreviewPane } from "./CertificatePreviewPane";
 import { ReturnPreviewPane } from "./ReturnPreviewPane";
+import { SpreadsheetPreviewPane, type SpreadsheetPreviewProps } from "./preview/SpreadsheetPreviewPane";
+import { EntityInspectorPane, type EntityInspectorPaneProps } from "./preview/EntityInspectorPane";
 import {
   readPreview,
   subscribePreview,
@@ -23,8 +25,19 @@ interface Props {
   templateCode: string;
 }
 
+const VALID_KINDS: PreviewKind[] = [
+  "certificate",
+  "return",
+  "bank-export",
+  "garnishment",
+  "token-registry",
+  "statutory-authority",
+  "pack-requirements",
+  "publisher-governance",
+];
+
 function isValidKind(k: string): k is PreviewKind {
-  return k === "certificate" || k === "return";
+  return (VALID_KINDS as string[]).includes(k);
 }
 
 export function LocalizationPreviewWindow({ kind, templateCode }: Props) {
@@ -58,24 +71,46 @@ export function LocalizationPreviewWindow({ kind, templateCode }: Props) {
   return (
     <div className="h-screen w-screen overflow-hidden bg-muted/20 p-4">
       <div className="mx-auto h-full max-w-5xl overflow-hidden rounded-lg border bg-background shadow-sm">
-        {validKind === "certificate" ? (
-          <CertificatePreviewPane
-            templateCode={payload.templateCode}
-            displayName={payload.displayName ?? payload.templateCode}
-            body={payload.body}
-            meta={payload.meta as any}
-          />
-        ) : (
-          <ReturnPreviewPane
-            templateCode={payload.templateCode}
-            displayName={payload.displayName ?? payload.templateCode}
-            body={payload.body}
-            meta={payload.meta as any}
-          />
-        )}
+        <PopOutBody kind={validKind} payload={payload} />
       </div>
     </div>
   );
+}
+
+function PopOutBody({ kind, payload }: { kind: PreviewKind; payload: PreviewPayload }) {
+  switch (kind) {
+    case "certificate":
+      return (
+        <CertificatePreviewPane
+          templateCode={payload.templateCode}
+          displayName={payload.displayName ?? payload.templateCode}
+          body={payload.body}
+          meta={payload.meta as any}
+        />
+      );
+    case "return":
+      return (
+        <ReturnPreviewPane
+          templateCode={payload.templateCode}
+          displayName={payload.displayName ?? payload.templateCode}
+          body={payload.body}
+          meta={payload.meta as any}
+        />
+      );
+    case "bank-export":
+    case "token-registry":
+    case "garnishment":
+      // Editors serialise a `SpreadsheetPreviewProps` object into
+      // `payload.body` — render it verbatim so the pop-out and the
+      // in-workspace preview look identical.
+      return <SpreadsheetPreviewPane {...(payload.body as SpreadsheetPreviewProps)} />;
+    case "statutory-authority":
+    case "pack-requirements":
+    case "publisher-governance":
+      return <EntityInspectorPane {...(payload.body as EntityInspectorPaneProps)} />;
+    default:
+      return <EmptyState message={`No renderer for preview kind "${kind}".`} />;
+  }
 }
 
 function EmptyState({ message }: { message: string }) {

@@ -657,7 +657,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
         preview={previewPane}
         footer={footerBar}
         statusBar={statusBar}
-        defaultMode="split"
+        defaultMode="overlay"
         onSave={doSave}
         onNavigateNode={handleNavigateNode}
         onPopOutPreview={handlePopOutPreview}
