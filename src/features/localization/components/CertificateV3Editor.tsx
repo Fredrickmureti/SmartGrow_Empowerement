@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea, CodeField, ExpandableTextField } from "@/design-system/primitives/inputs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -184,11 +185,11 @@ export function ValueEditor({ value, onChange, placeholder }: {
       </Button>
       {isBinding ? (
         <>
-          <Input
-            className="h-7 text-xs font-mono"
+          <CodeField
+            className="h-7"
             placeholder="payload.path e.g. employer.name"
             value={(v as any).path ?? ""}
-            onChange={(e) => onChange({ ...v, kind: "binding", path: e.target.value } as Value)}
+            onChange={(next) => onChange({ ...v, kind: "binding", path: next } as Value)}
           />
           <Select
             value={(v as any).format ?? "text"}
@@ -201,11 +202,11 @@ export function ValueEditor({ value, onChange, placeholder }: {
           </Select>
         </>
       ) : (
-        <Input
-          className="h-7 text-xs"
-          placeholder={placeholder ?? "Static text"}
+        <ExpandableTextField
           value={String((v as any).value ?? "")}
-          onChange={(e) => onChange({ kind: "literal", value: e.target.value })}
+          onChange={(next) => onChange({ kind: "literal", value: next })}
+          placeholder={placeholder ?? "Static text"}
+          dialogTitle="Edit literal text"
         />
       )}
     </div>
@@ -309,8 +310,9 @@ function NodeEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
       return (
         <div className="space-y-1">
           <AlignSelect value={node.align} onChange={(a) => set({ align: a })} />
-          <Textarea
-            className="text-xs" rows={2}
+          <AutoGrowTextarea
+            className="text-xs"
+            minRows={2}
             value={(node.paragraphs ?? []).map((runs: any[]) => runs.map((r) => r.text?.value ?? "").join("")).join("\n")}
             onChange={(e) => set({
               paragraphs: e.target.value.split("\n").map((line) => [{ text: { kind: "literal", value: line } }]),
@@ -343,8 +345,9 @@ function NodeEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
       return (
         <div className="space-y-1">
           <ValueEditor value={node.title} onChange={(v) => set({ title: v })} placeholder="Title" />
-          <Textarea
-            className="text-xs" rows={3}
+          <AutoGrowTextarea
+            className="text-xs"
+            minRows={3}
             value={(node.paragraphs ?? []).map((p: any) => p?.value ?? "").join("\n")}
             onChange={(e) => set({ paragraphs: e.target.value.split("\n").map((l) => ({ kind: "literal", value: l })) })}
             placeholder="One paragraph per line"
@@ -581,7 +584,7 @@ function GridEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
         </div>
         <div>
           <Label className="text-[10px]">Data rows — bind (array path)</Label>
-          <Input className="h-7 text-xs font-mono" value={dataRows.bind ?? ""} onChange={(e) => set({ data_rows: { ...dataRows, bind: e.target.value } })} placeholder="e.g. rows.items" />
+          <CodeField value={dataRows.bind ?? ""} onChange={(v) => set({ data_rows: { ...dataRows, bind: v } })} placeholder="e.g. rows.items" />
         </div>
         <div>
           <Label className="text-[10px]">Border</Label>
@@ -606,7 +609,7 @@ function GridEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
         </div>
         {cols.map((c, i) => (
           <div key={i} className="grid grid-cols-[80px_60px_60px_1fr_44px] gap-1 px-1 py-1 items-center border-b last:border-b-0">
-            <Input className="h-7 text-[11px] font-mono" value={c.id ?? ""} onChange={(e) => patchCol(i, { ...c, id: e.target.value })} />
+            <CodeField value={c.id ?? ""} onChange={(v) => patchCol(i, { ...c, id: v })} />
             <Select value={c.align ?? "right"} onValueChange={(a) => patchCol(i, { ...c, align: a })}>
               <SelectTrigger className="h-7 text-[10px] px-1"><SelectValue /></SelectTrigger>
               <SelectContent>{["left", "center", "right"].map((a) => <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>)}</SelectContent>
@@ -622,7 +625,7 @@ function GridEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
               <label className="flex items-center gap-1 text-[10px]">
                 <input type="checkbox" checked={!!c.nowrap} onChange={(e) => patchCol(i, { ...c, nowrap: e.target.checked })} /> nowrap
               </label>
-              <Input className="h-7 flex-1 text-[11px] font-mono" value={c.bind_key ?? ""} onChange={(e) => patchCol(i, { ...c, bind_key: e.target.value || undefined })} placeholder="bind_key (default = id)" />
+              <CodeField value={c.bind_key ?? ""} onChange={(v) => patchCol(i, { ...c, bind_key: v || undefined })} placeholder="bind_key (default = id)" />
             </div>
             <div className="flex">
               <Button size="sm" variant="ghost" className="h-6 w-5 p-0" onClick={() => moveCol(i, -1)} disabled={i === 0}><ArrowUp className="h-3 w-3" /></Button>
@@ -804,7 +807,7 @@ function MatrixEditor({ node, onChange }: { node: any; onChange: (n: any) => voi
       <div className="grid grid-cols-2 gap-2">
         <div>
           <Label className="text-[10px]">Rows binding (array path)</Label>
-          <Input className="h-7 text-xs font-mono" value={node.rows_binding ?? ""} onChange={(e) => set({ rows_binding: e.target.value })} placeholder="e.g. rows.items" />
+          <CodeField value={node.rows_binding ?? ""} onChange={(v) => set({ rows_binding: v })} placeholder="e.g. rows.items" />
         </div>
         <div>
           <Label className="text-[10px]">Title</Label>
@@ -818,7 +821,7 @@ function MatrixEditor({ node, onChange }: { node: any; onChange: (n: any) => voi
         </div>
         {cols.map((c, i) => (
           <div key={i} className="grid grid-cols-[70px_1fr_50px_54px_64px_auto] gap-1 px-1 py-1 items-center border-b last:border-b-0">
-            <Input className="h-7 text-[11px] font-mono" value={c.key ?? ""} onChange={(e) => patchCol(i, { ...c, key: e.target.value })} />
+            <CodeField value={c.key ?? ""} onChange={(v) => patchCol(i, { ...c, key: v })} />
             <div className="flex gap-1">
               <ValueEditor value={c.header} onChange={(v) => patchCol(i, { ...c, header: v })} placeholder="Header" />
               <Input className="h-7 w-10 text-[11px] text-center" value={c.sub_header?.value ?? ""} onChange={(e) => patchCol(i, { ...c, sub_header: { kind: "literal", value: e.target.value } })} placeholder="A" />

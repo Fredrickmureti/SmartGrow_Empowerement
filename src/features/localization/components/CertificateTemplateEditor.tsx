@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea, ExpandableTextField } from "@/design-system/primitives/inputs";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -461,11 +462,11 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <Label className="text-xs">Legal reference *</Label>
-                  <Input value={meta.legal_reference ?? ""} onChange={(e) => setMeta({ ...meta, legal_reference: e.target.value || null })} placeholder="e.g. Income Tax Act, section…" />
+                  <ExpandableTextField value={meta.legal_reference ?? ""} onChange={(v) => setMeta({ ...meta, legal_reference: v || null })} placeholder="e.g. Income Tax Act, section…" dialogTitle="Legal reference" />
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <Label className="text-xs">Regulation citation</Label>
-                  <Input value={meta.regulation_citation ?? ""} onChange={(e) => setMeta({ ...meta, regulation_citation: e.target.value || null })} placeholder="e.g. Section 37 — deduction of tax from emoluments" />
+                  <ExpandableTextField value={meta.regulation_citation ?? ""} onChange={(v) => setMeta({ ...meta, regulation_citation: v || null })} placeholder="e.g. Section 37 — deduction of tax from emoluments" dialogTitle="Regulation citation" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Effective date *</Label>
@@ -477,7 +478,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <Label className="text-xs">Revision notes</Label>
-                  <Textarea rows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
+                  <AutoGrowTextarea minRows={2} value={meta.revision_notes ?? ""} onChange={(e) => setMeta({ ...meta, revision_notes: e.target.value || null })} placeholder="What changed in this pack version?" />
                 </div>
                 <div className="flex items-center gap-2 md:col-span-2">
                   <Switch checked={meta.approval_required} onCheckedChange={(v) => setMeta({ ...meta, approval_required: !!v })} />
