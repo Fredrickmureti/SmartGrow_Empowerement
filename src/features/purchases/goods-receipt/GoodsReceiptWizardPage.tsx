@@ -87,6 +87,19 @@ interface ReceiptLine {
   packaging_id: string | null;
   display_uom_id: string | null;
   display_quantity: number | null;
+  // Phase D.2 · ASN prefill provenance
+  inbound_shipment_item_id: string | null;
+  expected_quantity: number | null;
+  expected_expiry_date: string | null;
+  expected_manufacture_date: string | null;
+}
+
+interface ActiveShipment {
+  id: string;
+  shipment_number: string;
+  status: string;
+  items_by_po_item: Record<string, any>;
+  items_by_product: Record<string, any>;
 }
 
 export default function GoodsReceiptWizardPage() {
@@ -115,6 +128,7 @@ export default function GoodsReceiptWizardPage() {
   const [po, setPo] = useState<PurchaseOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [activeShipment, setActiveShipment] = useState<ActiveShipment | null>(null);
 
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -123,7 +137,7 @@ export default function GoodsReceiptWizardPage() {
   const [scanFlash, setScanFlash] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load PO
+  // Load PO + any active ASN (Phase D.2)
   useEffect(() => {
     if (!poId) {
       setLoading(false);
@@ -140,34 +154,89 @@ export default function GoodsReceiptWizardPage() {
         .eq("id", poId)
         .maybeSingle();
       if (cancelled) return;
-      if (error) setLoadError(error.message);
-      else if (!data) setLoadError("Purchase order not found.");
-      else {
-        const loaded = data as unknown as PurchaseOrder;
-        setPo(loaded);
-        setReceiptLines(
-          (loaded.items ?? []).map((item) => ({
+      if (error) {
+        setLoadError(error.message);
+        setLoading(false);
+        return;
+      }
+      if (!data) {
+        setLoadError("Purchase order not found.");
+        setLoading(false);
+        return;
+      }
+      const loaded = data as unknown as PurchaseOrder;
+      setPo(loaded);
+
+      // Look for an active ASN linked to this PO. Prefer dispatched/in_transit,
+      // fall back to draft. Ignore already-received / cancelled shipments.
+      const { data: shipments } = await supabase
+        .from("inbound_shipments")
+        .select("id, shipment_number, status, dispatched_at, expected_arrival_at, items:inbound_shipment_items(*)")
+        .eq("purchase_order_id", poId)
+        .in("status", ["draft", "dispatched", "in_transit"])
+        .order("dispatched_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+
+      const shipment = (shipments ?? []).find((s: any) =>
+        ["dispatched", "in_transit"].includes(s.status),
+      ) ?? (shipments ?? [])[0] ?? null;
+
+      const byPoItem: Record<string, any> = {};
+      const byProduct: Record<string, any> = {};
+      if (shipment) {
+        for (const it of (shipment as any).items ?? []) {
+          if (it.purchase_order_item_id) byPoItem[it.purchase_order_item_id] = it;
+          if (it.product_id) byProduct[it.product_id] = it;
+        }
+        setActiveShipment({
+          id: shipment.id,
+          shipment_number: shipment.shipment_number,
+          status: shipment.status,
+          items_by_po_item: byPoItem,
+          items_by_product: byProduct,
+        });
+      } else {
+        setActiveShipment(null);
+      }
+
+      setReceiptLines(
+        (loaded.items ?? []).map((item) => {
+          const asnMatch =
+            (item.id && byPoItem[item.id]) ||
+            (item.product_id && byProduct[item.product_id]) ||
+            null;
+          const remaining = item.quantity - (item.quantity_received || 0);
+          const expected = asnMatch ? Number(asnMatch.expected_quantity) : null;
+          const prefillQty =
+            expected != null ? Math.min(Math.max(expected, 0), remaining) : remaining;
+          return {
             po_item_id: item.id || "",
             product_id: item.product_id,
             description: item.description,
             quantity_ordered: item.quantity,
             quantity_previously_received: item.quantity_received || 0,
-            quantity_to_receive: item.quantity - (item.quantity_received || 0),
-            lot_number: "",
+            quantity_to_receive: prefillQty,
+            lot_number: asnMatch?.expected_lot_number ?? "",
             serial_number: "",
             notes: "",
-            packaging_id: null,
-            display_uom_id: null,
-            display_quantity: null,
-          })),
-        );
-      }
+            packaging_id: asnMatch?.expected_packaging_id ?? null,
+            display_uom_id: asnMatch?.display_uom_id ?? null,
+            display_quantity: asnMatch?.display_quantity ?? null,
+            inbound_shipment_item_id: asnMatch?.id ?? null,
+            expected_quantity: expected,
+            expected_expiry_date: asnMatch?.expected_expiry_date ?? null,
+            expected_manufacture_date: asnMatch?.expected_manufacture_date ?? null,
+          };
+        }),
+      );
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [poId]);
+
 
   const goToStep = useCallback(
     (step: StepId) => {
@@ -333,9 +402,10 @@ export default function GoodsReceiptWizardPage() {
         display_uom_id: line.display_uom_id,
         display_quantity: line.display_quantity,
       }));
-      const { error: itemsError } = await supabase
+      const { data: insertedItems, error: itemsError } = await supabase
         .from("goods_receipt_items")
-        .insert(receiptItems);
+        .insert(receiptItems)
+        .select("id, purchase_order_item_id, product_id, quantity_received");
       if (itemsError) throw itemsError;
 
       const { data: rpcRes, error: rpcErr } = await supabase.rpc(
@@ -347,6 +417,53 @@ export default function GoodsReceiptWizardPage() {
       if (!result?.success) {
         throw new Error(result?.error || "Failed to complete goods receipt");
       }
+
+      // Phase D.2 · ASN reconciliation: transition shipment + log discrepancies
+      if (activeShipment) {
+        const itemIdByPoItem: Record<string, string> = {};
+        for (const row of insertedItems ?? []) {
+          if (row.purchase_order_item_id) itemIdByPoItem[row.purchase_order_item_id] = row.id;
+        }
+        const discrepancies: any[] = [];
+        for (const line of linesToReceive) {
+          if (!line.inbound_shipment_item_id || line.expected_quantity == null) continue;
+          const received = Number(line.quantity_to_receive) || 0;
+          const expected = Number(line.expected_quantity) || 0;
+          if (received === expected) continue;
+          const dtype = received < expected ? "short" : "over";
+          discrepancies.push({
+            organization_id: currentOrg.id,
+            business_id: currentBusiness?.id || wh.business_id,
+            branch_id: wh.branch_id,
+            goods_receipt_id: receipt.id,
+            goods_receipt_item_id: itemIdByPoItem[line.po_item_id] ?? null,
+            inbound_shipment_item_id: line.inbound_shipment_item_id,
+            product_id: line.product_id,
+            expected_quantity: expected,
+            received_quantity: received,
+            discrepancy_type: dtype,
+            resolution: "pending",
+            created_by: user.id,
+            notes: `Auto-logged from ASN ${activeShipment.shipment_number}`,
+          });
+        }
+        if (discrepancies.length > 0) {
+          const { error: discErr } = await supabase
+            .from("goods_receipt_discrepancies")
+            .insert(discrepancies);
+          if (discErr) {
+            console.error("Failed to log ASN discrepancies:", discErr);
+          }
+        }
+        const { error: shipErr } = await supabase
+          .from("inbound_shipments")
+          .update({ status: "received", received_at: new Date().toISOString() })
+          .eq("id", activeShipment.id);
+        if (shipErr) {
+          console.error("Failed to transition ASN to received:", shipErr);
+        }
+      }
+
 
       await supabase.from("audit_logs").insert({
         organization_id: currentOrg.id,
@@ -544,6 +661,20 @@ export default function GoodsReceiptWizardPage() {
             }
           >
             <div className="space-y-3">
+              {activeShipment && (
+                <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">ASN</Badge>
+                    <span className="font-medium">{activeShipment.shipment_number}</span>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {activeShipment.status.replace("_", " ")}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Quantities and lot numbers prefilled from the shipment. Adjust any line where the physical delivery differs — over/short quantities are logged as discrepancies on post.
+                  </p>
+                </div>
+              )}
               <BarcodeInputField
                 value={scanCode}
                 onChange={setScanCode}
