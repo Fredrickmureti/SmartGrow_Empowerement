@@ -289,6 +289,28 @@ export function InventoryApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* Inbound Shipments (ASN) */}
+        <Route
+          path="inbound-shipments"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Inbound Shipments">
+                <InboundShipments />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="inbound-shipments/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Inbound Shipment">
+                <InboundShipmentDetail />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         
         {/* Physical Count */}
         <Route
