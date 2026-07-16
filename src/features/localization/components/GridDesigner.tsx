@@ -383,10 +383,11 @@ export function GridDesigner({ node, onChange }: { node: any; onChange: (n: any)
         </div>
         {numCols > 0 && (
           <div className="inline-grid text-[11px] border border-dashed"
-            style={{ gridTemplateColumns: colTemplate, minWidth: numCols * 40 }}>
+            style={{ gridTemplateColumns: colTemplate, minWidth: numCols * 72 }}>
             {cols.map((c, i) => (
-              <div key={i} className="px-1.5 py-1 border-r border-border/50 text-muted-foreground truncate"
-                style={{ textAlign: c.align ?? "right" }}>
+              <div key={i} className="px-1.5 py-1 border-r border-border/50 text-muted-foreground font-mono break-all leading-tight"
+                style={{ textAlign: c.align ?? "right" }}
+                title={`{{${c.bind_key || c.id || `col_${i + 1}`}}}`}>
                 {`{{${c.bind_key || c.id || `col_${i + 1}`}}}`}
               </div>
             ))}

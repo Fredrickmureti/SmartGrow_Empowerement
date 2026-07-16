@@ -476,7 +476,7 @@ export function CertificateTemplateEditor({ mode, packId, initial, onSave, onCan
   const editorPane = (
     <div ref={inspectorScrollRef} className="h-full min-h-0">
       <ScrollArea className="h-full">
-        <div className="mx-auto w-full max-w-3xl space-y-4 p-4">
+        <div className="w-full space-y-4 px-3 py-3 2xl:px-4">
           {editMetadata && (
             <Card>
               <CardHeader className="pb-2">
