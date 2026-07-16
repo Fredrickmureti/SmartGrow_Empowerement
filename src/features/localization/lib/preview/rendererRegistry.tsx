@@ -52,7 +52,7 @@ export interface ReturnRendererDescriptor {
  * with the CSV default applied) — the registry only picks the
  * component, it does NOT re-derive the format.
  */
-export function resolveReturnRenderer(formatKind: ReturnFormatKind, opts?: { hasV2Sections?: boolean }): ReturnRendererDescriptor {
+export function resolveReturnRenderer(formatKind: ReturnFormatKind): ReturnRendererDescriptor {
   switch (formatKind) {
     case "csv":
     case "xlsx":
