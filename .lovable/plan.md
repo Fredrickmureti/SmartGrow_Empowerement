@@ -183,6 +183,32 @@ on 14 consecutive clean days of `check_stock_quant_drift`.
   and no `lot_number` → `ADR-0066: N line(s) reference lot-tracked
   products without lot_number.`
 
+## ✅ Phase B — Serialised inventory (ADR 0067)
+
+- **ADR:** `docs/adr/0067-serialised-inventory.md`
+- **Migration:** `supabase/migrations/20260716215647_*.sql`
+- **Delivered:**
+  - `products.is_serial_tracked boolean not null default false`.
+  - `stock_serials` table + `stock_serial_status` enum
+    (`in_stock` / `reserved` / `shipped` / `returned` / `scrapped`), unique
+    on `(business_id, product_id, serial_number)`, RLS scoped by
+    `user_can_access_business` + branch + `inventory:write`, full grants
+    for `authenticated` (scoped) and `service_role`.
+  - `enforce_serial_on_movement` trigger on `stock_movements`:
+    rejects inserts without `serial_number` for serial-tracked products
+    and upserts `stock_serials` (status + location derived from
+    `movement_type`, `last_movement_id` back-reference).
+  - `enforce_downstream_lot_stamping` extended to gate posting when a
+    line references a serial-tracked product without `serial_number`
+    (same contract as the lot check).
+  - Architecture guard `src/test/architecture/serial-tracking.test.ts`
+    pins schema + trigger + policy contract to the migration SQL.
+- **Zero writer change for non-serial products.** Default flag is off.
+- **Verify:** flip `products.is_serial_tracked = true` on a test SKU,
+  then attempt to insert a `stock_movements` row without
+  `serial_number` → `ADR-0067: serial_number is required…`. Insert with
+  a serial → row appears in `stock_serials` with correct status/location.
+
 ## ⏭ Next up — Phase A.3 (optional): UI plumbing
 
 RPC + ledger enforcement are complete. The remaining work is UI: line
@@ -192,11 +218,13 @@ call `resolve_fefo_lots` for FEFO defaults. This is presentation-layer
 only — no schema change — and should be scheduled per screen without a
 blocking ADR.
 
-## Then — Phase B: serialised inventory (ADR 0067)
+## Then — Phase C: split-transfer adoption
 
-Add `products.is_serial_tracked`, `stock_serials` table + status
-lifecycle, movement-level serial enforcement trigger, and extend
-`enforce_downstream_lot_stamping` to also check serial columns.
+Wire the transfer completion path to emit `transfer_out`
+(source → business transit) on submit and `transfer_in`
+(transit → destination) on receipt. The virtual transit location and
+`v_stock_on_hand` filter already exist from Phase 4; only
+`useStockTransfers` and its RPC need refactoring.
 
 ## Guardrails for the next agent
 
