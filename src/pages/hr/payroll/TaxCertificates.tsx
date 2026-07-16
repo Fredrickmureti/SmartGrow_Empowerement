@@ -1,14 +1,17 @@
 import { normalizeError } from "@/services/resilience";
 /**
- * Tax Certificates page (R6).
+ * Tax Certificates page (R6) — enterprise compliance workspace.
  *
- * Country-agnostic. Lets payroll managers pick a template (loaded from the
- * org's installed localization pack + generic fallbacks), a fiscal year, and
- * a set of employees, then bulk-generates certificates. Already-issued
- * certificates appear in the table with download links and serial numbers.
+ * Layout is a stable two-column skeleton: the primary "Issue certificates"
+ * card and the "Generated certificates" table live in the main column; a
+ * right rail carries year readiness, coverage, and employer reconciliation.
+ * Selecting a template swaps content INSIDE the rail — it never injects a
+ * new section above the primary action, so the Generate button and employee
+ * table do not move.
  *
- * Status badges: issued / superseded / draft. Re-generating an issued
- * certificate supersedes (audit trail preserved) and re-creates a fresh one.
+ * Localization pack health collapses to a header chip when healthy and
+ * expands into a full alert card only when action is required
+ * (missing pack or pending upgrades).
  */
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -38,6 +41,11 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Loader2,
   Download,
   FileText,
@@ -61,6 +69,7 @@ import {
   useCertificateSubmissions,
 } from "@/hooks/payroll/useTaxCertificates";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -97,6 +106,37 @@ function StatTile({
   );
 }
 
+/** Compact metric row used inside the compliance rail. */
+function RailMetric({
+  label,
+  value,
+  tone = "muted",
+  hint,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: "muted" | "good" | "warn" | "bad";
+  hint?: string;
+}) {
+  const toneClass =
+    tone === "good"
+      ? "text-emerald-600"
+      : tone === "warn"
+        ? "text-amber-600"
+        : tone === "bad"
+          ? "text-destructive"
+          : "text-foreground";
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <div className="min-w-0">
+        <div className="text-xs text-muted-foreground truncate">{label}</div>
+        {hint ? <div className="text-[11px] text-muted-foreground/80 truncate">{hint}</div> : null}
+      </div>
+      <div className={cn("text-sm font-semibold shrink-0 tabular-nums", toneClass)}>{value}</div>
+    </div>
+  );
+}
+
 export default function TaxCertificates() {
   // Deep-link support from the Reporting Centre pack-artifact hand-off:
   // /hr/payroll/tax-certificates?template=P9&from=2025-01-01
@@ -121,13 +161,10 @@ export default function TaxCertificates() {
     if (templateCode) next.set("template", templateCode);
     else next.delete("template");
     next.set("from", `${fiscalYear}-01-01`);
-    // Only write if something actually changed to avoid render loops.
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
   }, [templateCode, fiscalYear, searchParams, setSearchParams]);
-
-
 
   const templatesQ = useCertificateTemplates();
   const employeesQ = useEmployees();
@@ -167,7 +204,6 @@ export default function TaxCertificates() {
     return m;
   }, [employees]);
 
-  // Coverage summary for the active filter
   const coverage = useMemo(() => {
     const issued = certs.filter((c) => c.status === "issued").length;
     const superseded = certs.filter((c) => c.status === "superseded").length;
@@ -190,6 +226,13 @@ export default function TaxCertificates() {
       blockedReasons.push(`${readiness.blockingFindings} blocking readiness finding(s)`);
   }
   if (!health?.pack_id) blockedReasons.push("No active localization pack");
+
+  const packUpgradePending =
+    !!health?.installed_version &&
+    !!health?.latest_version &&
+    health.installed_version !== health.latest_version;
+  const packHealthy = !!health?.pack_id && !packUpgradePending && (health?.pending_upgrades ?? 0) === 0;
+  const packNeedsAttention = !health?.pack_id || (health?.pending_upgrades ?? 0) > 0;
 
   const toggleEmployee = (id: string) =>
     setSelectedEmployees((prev) => {
@@ -236,479 +279,535 @@ export default function TaxCertificates() {
     }
   };
 
+  const packChipTone = packNeedsAttention
+    ? "border-destructive/40 bg-destructive/5 text-destructive"
+    : packUpgradePending
+      ? "border-amber-500/40 bg-amber-500/5 text-amber-700"
+      : "border-emerald-500/40 bg-emerald-500/5 text-emerald-700";
+
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Tax Certificates</h1>
-        <p className="text-muted-foreground">
-          Status-first view of the statutory certificate lifecycle: localization
-          health, fiscal-year readiness, coverage, and employer reconciliation.
-        </p>
-      </div>
-
-      {/* 1. Localization health */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-4 w-4" /> Localization health
-          </CardTitle>
-          <CardDescription>
-            Source of truth for templates, statutory rules, and certificate forms.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
-            <StatTile
-              label="Active pack"
-              value={health?.pack_name ?? (healthQ.isLoading ? "…" : "None")}
-              tone={health?.pack_id ? "good" : "bad"}
-              hint={health?.pack_country ?? undefined}
-              icon={<Package className="h-3.5 w-3.5" />}
-            />
-            <StatTile
-              label="Installed version"
-              value={health?.installed_version ?? "—"}
-              tone={
-                health?.installed_version && health?.latest_version &&
-                health.installed_version !== health.latest_version
-                  ? "warn"
-                  : "muted"
-              }
-              hint={
-                health?.latest_version && health.latest_version !== health.installed_version
-                  ? `latest: ${health.latest_version}`
-                  : undefined
-              }
-            />
-            <StatTile
-              label="Pending upgrades"
-              value={health?.pending_upgrades ?? 0}
-              tone={(health?.pending_upgrades ?? 0) > 0 ? "warn" : "good"}
-            />
-            <StatTile
-              label="Templates available"
-              value={templates.length}
-              tone={templates.length > 0 ? "good" : "bad"}
-              hint={`${templates.filter((t) => t.pack_id).length} pack · ${templates.filter((t) => !t.pack_id).length} generic`}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 2. Year readiness */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4" /> Year readiness — FY {fiscalYear}
-          </CardTitle>
-          <CardDescription>
-            A certificate is only as correct as the payroll history behind it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
-            <StatTile
-              label="Periods closed"
-              value={`${readiness?.closedPeriods ?? 0}/${readiness?.totalPeriods ?? 0}`}
-              tone={
-                readiness && readiness.totalPeriods > 0 && readiness.closedPeriods === readiness.totalPeriods
-                  ? "good"
-                  : "warn"
-              }
-            />
-            <StatTile
-              label="Committed runs"
-              value={readiness?.committedRuns ?? 0}
-              tone={(readiness?.committedRuns ?? 0) > 0 ? "good" : "bad"}
-            />
-            <StatTile
-              label="Draft runs"
-              value={readiness?.draftRuns ?? 0}
-              tone={(readiness?.draftRuns ?? 0) > 0 ? "warn" : "good"}
-            />
-            <StatTile
-              label="Blocking findings"
-              value={readiness?.blockingFindings ?? 0}
-              tone={(readiness?.blockingFindings ?? 0) > 0 ? "bad" : "good"}
-            />
-            <StatTile
-              label="Stale certificates"
-              value={readiness?.staleCerts ?? 0}
-              tone={(readiness?.staleCerts ?? 0) > 0 ? "bad" : "good"}
-              hint="Payroll changed after issuance"
-            />
-          </div>
-          {blockedReasons.length > 0 ? (
-            <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-              <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
-              <div>
-                <div className="font-medium text-destructive">Issuance blocked</div>
-                <ul className="list-disc pl-5 text-muted-foreground">
-                  {blockedReasons.map((r) => (
-                    <li key={r}>{r}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm text-emerald-700">
-              <CheckCircle2 className="h-4 w-4" />
-              Ready to issue certificates for FY {fiscalYear}.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 3. Coverage matrix (per current filter) */}
-      {templateCode ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Coverage — {selectedTemplate?.display_name ?? templateCode}</CardTitle>
-            <CardDescription>FY {fiscalYear}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
-              <StatTile label="Eligible employees" value={coverage.eligible} />
-              <StatTile label="Issued" value={coverage.issued} tone="good" />
-              <StatTile label="Missing" value={coverage.missing} tone={coverage.missing > 0 ? "warn" : "good"} />
-              <StatTile label="Superseded" value={coverage.superseded} tone="muted" />
-              <StatTile label="Stale" value={coverage.stale} tone={coverage.stale > 0 ? "bad" : "good"} />
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {/* 4. Employer reconciliation */}
-      {templateCode ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Scale className="h-4 w-4" /> Employer reconciliation
-            </CardTitle>
-            <CardDescription>
-              Σ certificates ↔ Σ statutory returns ↔ Σ remittance payments
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {reconQ.isLoading ? (
-              <div className="text-sm text-muted-foreground">Loading…</div>
-            ) : recon ? (
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+      {/* Header — title + FY selector + collapsed localization status chip */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-bold tracking-tight">Tax Certificates</h1>
+          <p className="text-muted-foreground">
+            Issue and reconcile statutory year-end certificates for your workforce.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
+            <SelectTrigger className="h-9 w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {yearOptions.map((y) => (
+                <SelectItem key={y} value={String(y)}>
+                  FY {y}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-medium",
+                  packChipTone,
+                )}
+                title="Localization pack health"
+              >
+                <Package className="h-3.5 w-3.5" />
+                <span className="max-w-[160px] truncate">
+                  {health?.pack_name ?? (healthQ.isLoading ? "Loading…" : "No pack")}
+                </span>
+                {packHealthy ? (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80">
+              <div className="grid grid-cols-2 gap-2">
                 <StatTile
-                  label="Certificates total"
-                  value={recon.cert_total_employee_tax.toLocaleString()}
-                  hint={`${recon.cert_count} issued`}
+                  label="Active pack"
+                  value={health?.pack_name ?? (healthQ.isLoading ? "…" : "None")}
+                  tone={health?.pack_id ? "good" : "bad"}
+                  hint={health?.pack_country ?? undefined}
                 />
                 <StatTile
-                  label="Returns total"
-                  value={recon.return_total.toLocaleString()}
-                  hint={`${recon.return_count} filed`}
-                />
-                <StatTile
-                  label="Remittances total"
-                  value={recon.remittance_total.toLocaleString()}
-                />
-                <StatTile
-                  label="Variance"
-                  value={Math.abs(recon.variance_cert_vs_return).toLocaleString()}
-                  tone={Math.abs(recon.variance_cert_vs_return) > 0.01 ? "bad" : "good"}
+                  label="Installed"
+                  value={health?.installed_version ?? "—"}
+                  tone={packUpgradePending ? "warn" : "muted"}
                   hint={
-                    Math.abs(recon.variance_cert_vs_return) > 0.01
-                      ? "Certificates ≠ returns — investigate"
-                      : "Aligned"
+                    packUpgradePending
+                      ? `latest: ${health?.latest_version}`
+                      : undefined
                   }
                 />
+                <StatTile
+                  label="Pending upgrades"
+                  value={health?.pending_upgrades ?? 0}
+                  tone={(health?.pending_upgrades ?? 0) > 0 ? "warn" : "good"}
+                />
+                <StatTile
+                  label="Templates"
+                  value={templates.length}
+                  tone={templates.length > 0 ? "good" : "bad"}
+                  hint={`${templates.filter((t) => t.pack_id).length} pack · ${templates.filter((t) => !t.pack_id).length} generic`}
+                />
               </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">No data for this filter.</div>
-            )}
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      {/* Full-width attention banner ONLY when the pack needs action. */}
+      {packNeedsAttention ? (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 text-destructive" />
+              <div className="text-sm">
+                <div className="font-medium text-destructive">
+                  {!health?.pack_id
+                    ? "No active localization pack"
+                    : `${health.pending_upgrades} pack upgrade(s) pending`}
+                </div>
+                <div className="text-muted-foreground">
+                  Certificate templates and statutory rules come from the active pack. Resolve this before issuing.
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Generate</CardTitle>
-          <CardDescription>
-            {selectedTemplate
-              ? `${selectedTemplate.display_name}${selectedTemplate.pack_id ? "" : " (generic)"}`
-              : "Pick a template, fiscal year, and employees"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <label className="text-sm font-medium">Template</label>
-              <Select value={templateCode} onValueChange={setTemplateCode}>
-                <SelectTrigger>
-                  <SelectValue placeholder={templatesQ.isLoading ? "Loading…" : "Select template"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.code}>
-                      {t.display_name} {t.pack_id ? "" : "(generic)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium">Fiscal year</label>
-              <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {yearOptions.map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox checked={regenerate} onCheckedChange={(v) => setRegenerate(!!v)} />
-                Regenerate (supersede existing)
-              </label>
-            </div>
-          </div>
-
-          {blockedReasons.length > 0 ? (
-            <div className="text-xs text-destructive">
-              Generation disabled until blockers are resolved (see Year readiness above).
-            </div>
-          ) : null}
-
-          <div className="rounded border">
-            <div className="flex flex-col gap-3 p-3 border-b sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <Checkbox
-                  checked={!!employees.length && selectedEmployees.size === employees.length}
-                  onCheckedChange={toggleAll}
-                />
-                {selectedEmployees.size}/{employees.length} employees selected
-              </label>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Button
-                  variant="outline"
-                  onClick={onGenerateYearEnd}
-                  disabled={generate.isPending || blockedReasons.length > 0}
-                  title="Bulk regenerate for every active employee in this fiscal year"
-                  className="w-full sm:w-auto"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" /> Year-end batch
-                </Button>
-                <Button
-                  onClick={onGenerate}
-                  disabled={generate.isPending || blockedReasons.length > 0}
-                  className="w-full sm:w-auto"
-                >
-                  {generate.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <FileText className="h-4 w-4 mr-2" />
-                  )}
-                  Generate
-                </Button>
+      {/* Two-column workspace: primary column + compliance rail. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* MAIN COLUMN */}
+        <div className="min-w-0 space-y-6">
+          {/* Issue certificates — primary action card */}
+          <Card>
+            <CardHeader className="lg:sticky lg:top-0 lg:z-10 lg:rounded-t-lg lg:bg-card/95 lg:backdrop-blur">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0">
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" /> Issue certificates
+                  </CardTitle>
+                  <CardDescription className="truncate">
+                    {selectedTemplate
+                      ? `${selectedTemplate.display_name}${selectedTemplate.pack_id ? "" : " (generic)"} · FY ${fiscalYear}`
+                      : `Pick a template to begin · FY ${fiscalYear}`}
+                  </CardDescription>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    variant="outline"
+                    onClick={onGenerateYearEnd}
+                    disabled={generate.isPending || blockedReasons.length > 0 || !templateCode}
+                    title="Bulk regenerate for every active employee in this fiscal year"
+                    className="w-full sm:w-auto"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" /> Year-end batch
+                  </Button>
+                  <Button
+                    onClick={onGenerate}
+                    disabled={generate.isPending || blockedReasons.length > 0 || !templateCode || selectedEmployees.size === 0}
+                    className="w-full sm:w-auto"
+                  >
+                    {generate.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileText className="h-4 w-4 mr-2" />
+                    )}
+                    Generate ({selectedEmployees.size})
+                  </Button>
+                </div>
               </div>
-            </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="min-w-0">
+                  <label className="text-xs font-medium text-muted-foreground">Template</label>
+                  <Select value={templateCode} onValueChange={setTemplateCode}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={templatesQ.isLoading ? "Loading…" : "Select template"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.code}>
+                          {t.display_name} {t.pack_id ? "" : "(generic)"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <label className="flex items-end gap-2 text-sm whitespace-nowrap pb-2">
+                  <Checkbox checked={regenerate} onCheckedChange={(v) => setRegenerate(!!v)} />
+                  Regenerate (supersede)
+                </label>
+              </div>
 
-            <div className="max-h-72 overflow-y-auto">
+              {blockedReasons.length > 0 ? (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="font-medium text-destructive">Issuance blocked</div>
+                    <ul className="list-disc pl-5 text-muted-foreground">
+                      {blockedReasons.map((r) => (
+                        <li key={r}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="rounded border">
+                <div className="flex items-center justify-between gap-3 border-b p-3">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <Checkbox
+                      checked={!!employees.length && selectedEmployees.size === employees.length}
+                      onCheckedChange={toggleAll}
+                    />
+                    {selectedEmployees.size}/{employees.length} employees selected
+                  </label>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  <Table>
+                    <TableBody>
+                      {employees.map((e: any) => (
+                        <TableRow key={e.id}>
+                          <TableCell className="w-10">
+                            <Checkbox
+                              checked={selectedEmployees.has(e.id)}
+                              onCheckedChange={() => toggleEmployee(e.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {e.first_name} {e.last_name}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {e.employee_number ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {e.department ?? "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {!employees.length && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                            {employeesQ.isLoading ? "Loading…" : "No active employees"}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Generated certificates */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Issued certificates</CardTitle>
+              <CardDescription>
+                Fiscal year {fiscalYear}
+                {templateCode ? ` • ${templateCode}` : ""}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
               <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Template</TableHead>
+                    <TableHead>Year</TableHead>
+                    <TableHead>Batch</TableHead>
+                    <TableHead>Serial</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead>Issued</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
-                  {employees.map((e: any) => (
-                    <TableRow key={e.id}>
-                      <TableCell className="w-10">
-                        <Checkbox
-                          checked={selectedEmployees.has(e.id)}
-                          onCheckedChange={() => toggleEmployee(e.id)}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {e.first_name} {e.last_name}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {e.employee_number ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {e.department ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {!employees.length && (
+                  {certs.map((c) => {
+                    const emp = empById.get(c.employee_id);
+                    const sub = submissionByCert.get(c.id);
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          {emp ? `${emp.first_name} ${emp.last_name}` : c.employee_id.slice(0, 8)}
+                        </TableCell>
+                        <TableCell>{c.template_code}</TableCell>
+                        <TableCell>{c.fiscal_year}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {c.batch_id ? c.batch_id.slice(0, 8) : "—"}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{c.serial_number}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              c.status === "issued"
+                                ? "default"
+                                : c.status === "superseded"
+                                  ? "secondary"
+                                  : "outline"
+                            }
+                          >
+                            {c.status}
+                          </Badge>
+                          {c.stale ? (
+                            <Badge variant="destructive" className="ml-2" title={c.stale_reason ?? "Underlying payroll changed since issuance"}>
+                              stale
+                            </Badge>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>
+                          {sub ? (
+                            <div className="flex flex-col">
+                              <Badge
+                                variant={
+                                  sub.status === "accepted"
+                                    ? "default"
+                                    : sub.status === "rejected"
+                                      ? "destructive"
+                                      : "secondary"
+                                }
+                              >
+                                {sub.status}
+                              </Badge>
+                              {sub.authority_reference ? (
+                                <span className="text-xs text-muted-foreground font-mono mt-1">
+                                  {sub.authority_reference}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(c.generated_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(() => {
+                            const arts = Array.isArray((c as any).artifacts) && (c as any).artifacts.length
+                              ? ((c as any).artifacts as Array<any>)
+                              : ([
+                                  c.pdf_path
+                                    ? { format: "pdf", path: c.pdf_path, role: "human_readable" }
+                                    : null,
+                                  (c as any).xlsx_path
+                                    ? { format: "xlsx", path: (c as any).xlsx_path, role: "human_readable" }
+                                    : null,
+                                ].filter(Boolean) as Array<any>);
+                            if (!arts.length) {
+                              return <span className="text-xs text-muted-foreground">No downloads</span>;
+                            }
+                            return arts.map((a, i) => {
+                              const label = a.label ?? (
+                                a.format === "pdf" ? "PDF" :
+                                a.format === "html" ? "PDF" :
+                                a.format === "xlsx" ? "Excel" :
+                                a.format === "gov_xlsx" ? "Gov Excel" :
+                                a.format === "gov_xml" ? "Gov XML" :
+                                a.format === "gov_csv" ? "Gov CSV" :
+                                a.format === "csv" ? "CSV" :
+                                String(a.format).toUpperCase()
+                              );
+                              return (
+                                <Button
+                                  key={`${a.path ?? a.format}-${i}`}
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={!!c.stale}
+                                  title={c.stale ? "Regenerate this certificate before downloading the current file" : undefined}
+                                  onClick={() =>
+                                    a.format === "html"
+                                      ? downloadTaxCertificate({ artifact_path: a.path, format: "html" })
+                                      : a.path && a.format !== "pdf" && a.format !== "xlsx"
+                                      ? downloadTaxCertificate({ artifact_path: a.path })
+                                      : a.format === "xlsx"
+                                      ? downloadTaxCertificate(c, "xlsx")
+                                      : downloadTaxCertificate(c)
+                                  }
+                                >
+                                  <Download className="h-4 w-4 mr-1" />
+                                  {label}
+                                </Button>
+                              );
+                            });
+                          })()}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!certs.length && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                        {employeesQ.isLoading ? "Loading…" : "No active employees"}
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
+                        {certsQ.isLoading ? (
+                          <span className="inline-flex items-center gap-2">
+                            <RefreshCw className="h-4 w-4 animate-spin" /> Loading…
+                          </span>
+                        ) : (
+                          "No certificates yet for this filter"
+                        )}
                       </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Issued certificates</CardTitle>
-          <CardDescription>
-            Fiscal year {fiscalYear}
-            {templateCode ? ` • ${templateCode}` : ""}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Template</TableHead>
-                <TableHead>Year</TableHead>
-                <TableHead>Batch</TableHead>
-                <TableHead>Serial</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead>Issued</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {certs.map((c) => {
-                const emp = empById.get(c.employee_id);
-                const sub = submissionByCert.get(c.id);
-                return (
-                  <TableRow key={c.id}>
-                    <TableCell>
-                      {emp ? `${emp.first_name} ${emp.last_name}` : c.employee_id.slice(0, 8)}
-                    </TableCell>
-                    <TableCell>{c.template_code}</TableCell>
-                    <TableCell>{c.fiscal_year}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {c.batch_id ? c.batch_id.slice(0, 8) : "—"}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{c.serial_number}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          c.status === "issued"
-                            ? "default"
-                            : c.status === "superseded"
-                              ? "secondary"
-                              : "outline"
-                        }
-                      >
-                        {c.status}
-                      </Badge>
-                      {c.stale ? (
-                        <Badge variant="destructive" className="ml-2" title={c.stale_reason ?? "Underlying payroll changed since issuance"}>
-                          stale
-                        </Badge>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      {sub ? (
-                        <div className="flex flex-col">
-                          <Badge
-                            variant={
-                              sub.status === "accepted"
-                                ? "default"
-                                : sub.status === "rejected"
-                                  ? "destructive"
-                                  : "secondary"
-                            }
-                          >
-                            {sub.status}
-                          </Badge>
-                          {sub.authority_reference ? (
-                            <span className="text-xs text-muted-foreground font-mono mt-1">
-                              {sub.authority_reference}
-                            </span>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(c.generated_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {(() => {
-                        // Pack-declared exports land in `c.artifacts`. Pre-migration
-                        // rows have empty artifacts and are served via the
-                        // pdf_path / xlsx_path scalars — mirror them into the same
-                        // artifact shape so the loop below handles both.
-                        const arts = Array.isArray((c as any).artifacts) && (c as any).artifacts.length
-                          ? ((c as any).artifacts as Array<any>)
-                          : ([
-                              c.pdf_path
-                                ? { format: "pdf", path: c.pdf_path, role: "human_readable" }
-                                : null,
-                              (c as any).xlsx_path
-                                ? { format: "xlsx", path: (c as any).xlsx_path, role: "human_readable" }
-                                : null,
-                            ].filter(Boolean) as Array<any>);
-                        if (!arts.length) {
-                          return <span className="text-xs text-muted-foreground">No downloads</span>;
-                        }
-                        return arts.map((a, i) => {
-                          const label = a.label ?? (
-                            a.format === "pdf" ? "PDF" :
-                            a.format === "html" ? "PDF" :
-                            a.format === "xlsx" ? "Excel" :
-                            a.format === "gov_xlsx" ? "Gov Excel" :
-                            a.format === "gov_xml" ? "Gov XML" :
-                            a.format === "gov_csv" ? "Gov CSV" :
-                            a.format === "csv" ? "CSV" :
-                            String(a.format).toUpperCase()
-                          );
-                          return (
-                            <Button
-                              key={`${a.path ?? a.format}-${i}`}
-                              variant="ghost"
-                              size="sm"
-                              disabled={!!c.stale}
-                              title={c.stale ? "Regenerate this certificate before downloading the current file" : undefined}
-                              onClick={() =>
-                                a.format === "html"
-                                  ? downloadTaxCertificate({ artifact_path: a.path, format: "html" })
-                                  : a.path && a.format !== "pdf" && a.format !== "xlsx"
-                                  ? downloadTaxCertificate({ artifact_path: a.path })
-                                  : a.format === "xlsx"
-                                  ? downloadTaxCertificate(c, "xlsx")
-                                  : downloadTaxCertificate(c)
-                              }
-                            >
+        {/* COMPLIANCE RAIL — always mounted; content swaps in place. */}
+        <aside aria-label="Compliance context" className="space-y-4">
+          {/* Year readiness */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <ShieldAlert className="h-4 w-4" /> Year readiness
+              </CardTitle>
+              <CardDescription>FY {fiscalYear}</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="divide-y">
+                <RailMetric
+                  label="Periods closed"
+                  value={`${readiness?.closedPeriods ?? 0}/${readiness?.totalPeriods ?? 0}`}
+                  tone={
+                    readiness && readiness.totalPeriods > 0 && readiness.closedPeriods === readiness.totalPeriods
+                      ? "good"
+                      : "warn"
+                  }
+                />
+                <RailMetric
+                  label="Committed runs"
+                  value={readiness?.committedRuns ?? 0}
+                  tone={(readiness?.committedRuns ?? 0) > 0 ? "good" : "bad"}
+                />
+                <RailMetric
+                  label="Draft runs"
+                  value={readiness?.draftRuns ?? 0}
+                  tone={(readiness?.draftRuns ?? 0) > 0 ? "warn" : "good"}
+                />
+                <RailMetric
+                  label="Blocking findings"
+                  value={readiness?.blockingFindings ?? 0}
+                  tone={(readiness?.blockingFindings ?? 0) > 0 ? "bad" : "good"}
+                />
+                <RailMetric
+                  label="Stale certificates"
+                  value={readiness?.staleCerts ?? 0}
+                  tone={(readiness?.staleCerts ?? 0) > 0 ? "bad" : "good"}
+                  hint="Payroll changed after issuance"
+                />
+              </div>
+              <div className="mt-3">
+                {blockedReasons.length > 0 ? (
+                  <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
+                    <AlertTriangle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
+                    <span className="text-destructive font-medium">Issuance blocked</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/5 p-2 text-xs text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Ready to issue
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-                              <Download className="h-4 w-4 mr-1" />
-                              {label}
-                            </Button>
-                          );
-                        });
-                      })()}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {!certs.length && (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
-                    {certsQ.isLoading ? (
-                      <span className="inline-flex items-center gap-2">
-                        <RefreshCw className="h-4 w-4 animate-spin" /> Loading…
-                      </span>
-                    ) : (
-                      "No certificates yet for this filter"
-                    )}
-                  </TableCell>
-                </TableRow>
+          {/* Coverage — always mounted; empty state when no template. */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Coverage</CardTitle>
+              <CardDescription className="truncate">
+                {selectedTemplate?.display_name ?? "Select a template"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {templateCode ? (
+                <div className="divide-y">
+                  <RailMetric label="Eligible" value={coverage.eligible} />
+                  <RailMetric label="Issued" value={coverage.issued} tone="good" />
+                  <RailMetric
+                    label="Missing"
+                    value={coverage.missing}
+                    tone={coverage.missing > 0 ? "warn" : "good"}
+                  />
+                  <RailMetric label="Superseded" value={coverage.superseded} />
+                  <RailMetric
+                    label="Stale"
+                    value={coverage.stale}
+                    tone={coverage.stale > 0 ? "bad" : "good"}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Coverage per employee will appear here once a template is selected.
+                </p>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          {/* Employer reconciliation */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Scale className="h-4 w-4" /> Reconciliation
+              </CardTitle>
+              <CardDescription>Cert ↔ returns ↔ remittance</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {!templateCode ? (
+                <p className="text-xs text-muted-foreground">
+                  Employer totals reconcile against the filed returns for the selected template.
+                </p>
+              ) : reconQ.isLoading ? (
+                <p className="text-xs text-muted-foreground">Loading…</p>
+              ) : recon ? (
+                <div className="divide-y">
+                  <RailMetric
+                    label="Certificates"
+                    value={recon.cert_total_employee_tax.toLocaleString()}
+                    hint={`${recon.cert_count} issued`}
+                  />
+                  <RailMetric
+                    label="Returns"
+                    value={recon.return_total.toLocaleString()}
+                    hint={`${recon.return_count} filed`}
+                  />
+                  <RailMetric
+                    label="Remittances"
+                    value={recon.remittance_total.toLocaleString()}
+                  />
+                  <RailMetric
+                    label="Variance"
+                    value={Math.abs(recon.variance_cert_vs_return).toLocaleString()}
+                    tone={Math.abs(recon.variance_cert_vs_return) > 0.01 ? "bad" : "good"}
+                    hint={
+                      Math.abs(recon.variance_cert_vs_return) > 0.01
+                        ? "Certificates ≠ returns"
+                        : "Aligned"
+                    }
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No data for this filter.</p>
+              )}
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }
