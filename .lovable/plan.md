@@ -151,19 +151,52 @@ on 14 consecutive clean days of `check_stock_quant_drift`.
 - **Verify:** `SELECT * FROM v_lot_downstream_consumption LIMIT 1` runs
   clean. Stamp a lot on a POS line → row appears immediately.
 
-## ⏭ Next up — Phase A.2: enforcement + RPC wiring
+## ✅ Phase A.2 — Enforcement + RPC wiring
 
-1. Extend `confirm_invoice_atomic`, `confirm_credit_note_atomic`,
-   `approve_sales_return_atomic`, `confirm_sales_order_atomic` to thread
-   each line's `lot_number` / `serial_number` to the emitted
-   `stock_movements` (reuse `consume_lots_atomic` for FEFO).
-2. Add `CONSTRAINT TRIGGER ... INITIALLY DEFERRED` on each of the four
-   tables: for lot/serial-tracked products on posted documents, the
-   corresponding column must be non-null at commit. Drafts / cancelled
-   exempt.
-3. Add `src/test/architecture/outbound-lot-stamping.test.ts` asserting
-   every outbound RPC forwards the lot to the ledger.
-4. Do NOT relax the trigger for UI screens without an ADR amendment.
+- **Migration:** `supabase/migrations/20260716215210_*.sql`
+- **Delivered:**
+  - `approve_sales_return_atomic` — copies `lot_number` /
+    `serial_number` from `sales_return_items` → `credit_note_items`
+    AND stamps them on the emitted `return_in` stock_movements.
+  - `confirm_invoice_atomic` — forwards `lot_number` /
+    `serial_number` from `invoice_items` into the auto-created
+    `delivery_note_items`, so the DN completion path (which was already
+    lot-aware) emits fully-stamped movements.
+  - `confirm_credit_note_atomic` and `confirm_sales_order_atomic`
+    unchanged — they don't emit stock movements themselves (CN is JE-only;
+    SO only reserves).
+  - Shared enforcement trigger `enforce_downstream_lot_stamping()` +
+    `trg_enforce_lot_stamping` on `invoices`, `credit_notes`,
+    `sales_returns`: when the doc transitions into a posted status
+    (confirmed/sent/partial/paid/overdue for invoices; issued/applied for
+    credit_notes; approved/completed for sales_returns), every line
+    whose product has `is_lot_tracked = true` must have a non-null
+    `lot_number` — otherwise the transition raises with hint text.
+    Drafts and cancelled/rejected transitions unaffected.
+  - Architecture guard
+    `src/test/architecture/outbound-lot-stamping.test.ts` pins the
+    propagation surface to the migration SQL.
+- **Serial enforcement** intentionally deferred until Phase B ships
+  `products.is_serial_tracked` — column and propagation exist today; the
+  trigger just doesn't gate on serial yet.
+- **Verify:** try to confirm an invoice with a lot-tracked product line
+  and no `lot_number` → `ADR-0066: N line(s) reference lot-tracked
+  products without lot_number.`
+
+## ⏭ Next up — Phase A.3 (optional): UI plumbing
+
+RPC + ledger enforcement are complete. The remaining work is UI: line
+editors on invoice/credit-note/return forms must expose a
+`LotPickerPopover` (already used in POS) for lot-tracked products, and
+call `resolve_fefo_lots` for FEFO defaults. This is presentation-layer
+only — no schema change — and should be scheduled per screen without a
+blocking ADR.
+
+## Then — Phase B: serialised inventory (ADR 0067)
+
+Add `products.is_serial_tracked`, `stock_serials` table + status
+lifecycle, movement-level serial enforcement trigger, and extend
+`enforce_downstream_lot_stamping` to also check serial columns.
 
 ## Guardrails for the next agent
 
