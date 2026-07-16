@@ -609,7 +609,7 @@ function GridEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
         </div>
         {cols.map((c, i) => (
           <div key={i} className="grid grid-cols-[80px_60px_60px_1fr_44px] gap-1 px-1 py-1 items-center border-b last:border-b-0">
-            <Input className="h-7 text-[11px] font-mono" value={c.id ?? ""} onChange={(e) => patchCol(i, { ...c, id: e.target.value })} />
+            <CodeField value={c.id ?? ""} onChange={(v) => patchCol(i, { ...c, id: v })} />
             <Select value={c.align ?? "right"} onValueChange={(a) => patchCol(i, { ...c, align: a })}>
               <SelectTrigger className="h-7 text-[10px] px-1"><SelectValue /></SelectTrigger>
               <SelectContent>{["left", "center", "right"].map((a) => <SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>)}</SelectContent>
