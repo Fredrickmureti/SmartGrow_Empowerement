@@ -310,8 +310,9 @@ function NodeEditor({ node, onChange }: { node: any; onChange: (n: any) => void 
       return (
         <div className="space-y-1">
           <AlignSelect value={node.align} onChange={(a) => set({ align: a })} />
-          <Textarea
-            className="text-xs" rows={2}
+          <AutoGrowTextarea
+            className="text-xs"
+            minRows={2}
             value={(node.paragraphs ?? []).map((runs: any[]) => runs.map((r) => r.text?.value ?? "").join("")).join("\n")}
             onChange={(e) => set({
               paragraphs: e.target.value.split("\n").map((line) => [{ text: { kind: "literal", value: line } }]),
