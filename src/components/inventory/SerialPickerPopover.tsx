@@ -80,7 +80,7 @@ export function SerialPickerPopover({
         .eq("status", "in_stock")
         .order("serial_number", { ascending: true })
         .limit(200);
-      if (warehouseId) q = q.eq("warehouse_id", warehouseId);
+      if (warehouseId) q = q.eq("current_warehouse_id", warehouseId);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as SerialRow[];
