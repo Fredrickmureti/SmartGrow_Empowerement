@@ -31,6 +31,8 @@ import { toast } from "sonner";
 import { LocalizationFormShell } from "./_shared/LocalizationFormShell";
 import { WorkflowSheetSection, WorkflowSheetGrid, WorkflowField } from "@/components/workflow/WorkflowSheet";
 import { normalizeError } from "@/services/resilience";
+import { LocalizationEntityWorkspace } from "./_shared/LocalizationEntityWorkspace";
+import type { SpreadsheetPreviewProps } from "./preview/SpreadsheetPreviewPane";
 
 const PRIORITY_RESOLUTIONS = [
   "always_first_then_priority_then_date",
@@ -107,11 +109,73 @@ export function GarnishmentsEditor({ packId }: { packId: string | null }) {
       </Card>
     );
   }
+  return <GarnishmentsWorkspace packId={packId} />;
+}
+
+function GarnishmentsWorkspace({ packId }: { packId: string }) {
+  const { data: kinds = [] } = useQuery({
+    queryKey: ["pack-garnishment-kinds", packId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("localization_pack_garnishment_kinds")
+        .select("*")
+        .eq("pack_id", packId)
+        .order("default_priority", { ascending: true })
+        .order("code");
+      if (error) throw error;
+      return (data ?? []) as KindRow[];
+    },
+  });
+
+  const previewProps: SpreadsheetPreviewProps = {
+    title: "Garnishment kinds · deduction order",
+    formatLabel: `${kinds.length} kind${kinds.length === 1 ? "" : "s"}`,
+    columns: [
+      { header: "Code" },
+      { header: "Label" },
+      { header: "Priority", numeric: true },
+      { header: "Always first" },
+      { header: "Counts to cap" },
+      { header: "Evidence" },
+      { header: "Employer fee", numeric: true },
+      { header: "Status" },
+    ],
+    rows: kinds.map((k) => [
+      k.code,
+      k.label,
+      k.default_priority,
+      k.always_first ? "yes" : "—",
+      k.counts_toward_aggregate_cap ? "yes" : "no",
+      k.evidence_required ? "required" : "optional",
+      Number(k.employer_fee_amount ?? 0).toFixed(2),
+      k.is_active ? "active" : "inactive",
+    ]),
+    footnote: "Priority is the order used when an employee carries multiple orders (lower = deducted first).",
+  };
+
   return (
-    <div className="space-y-3">
-      <PolicyCard packId={packId} />
-      <KindsCard packId={packId} />
-    </div>
+    <LocalizationEntityWorkspace
+      workspaceId={`garnishments:${packId}`}
+      kind="garnishment"
+      templateCode={packId}
+      displayName="Garnishments"
+      preview={{ pane: "spreadsheet", props: previewProps }}
+      editor={
+        <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto p-3">
+          <PolicyCard packId={packId} />
+          <KindsCard packId={packId} />
+        </div>
+      }
+      statusBar={
+        <div className="flex items-center gap-4">
+          <span>{kinds.length} kind{kinds.length === 1 ? "" : "s"}</span>
+          <span>{kinds.filter((k) => !k.is_active).length} inactive</span>
+          <span className="ml-auto hidden md:inline text-[10px] uppercase tracking-wide text-muted-foreground/70">
+            ⌘B outline · ⌘⇧P preview · ⌘⇧F focus
+          </span>
+        </div>
+      }
+    />
   );
 }
 

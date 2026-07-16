@@ -27,6 +27,8 @@ import { toast } from "sonner";
 import { LocalizationFormShell } from "./_shared/LocalizationFormShell";
 import { WorkflowSheetSection, WorkflowSheetGrid, WorkflowField } from "@/components/workflow/WorkflowSheet";
 import { normalizeError } from "@/services/resilience";
+import { LocalizationEntityWorkspace } from "./_shared/LocalizationEntityWorkspace";
+import type { SpreadsheetPreviewProps } from "./preview/SpreadsheetPreviewPane";
 
 interface Row {
   id: string;
@@ -130,7 +132,28 @@ export function StatutoryAuthoritiesEditor({ packId }: { packId: string }) {
     setConfirmDelete(row);
   }
 
-  return (
+  const previewProps: SpreadsheetPreviewProps = {
+    title: "Statutory authorities · binding targets",
+    formatLabel: `${rows.length} authorit${rows.length === 1 ? "y" : "ies"}`,
+    columns: [
+      { header: "Code" },
+      { header: "Country" },
+      { header: "Display name" },
+      { header: "Portal" },
+      { header: "E-filing endpoint" },
+    ],
+    rows: rows.map((r) => [
+      r.code,
+      r.country_code,
+      r.display_name,
+      r.portal_url ?? "—",
+      r.efiling_endpoint ?? "—",
+    ]),
+    footnote: "Return templates and remittance schedules bind to authorities by authority_id.",
+  };
+
+  const editorContent = (
+    <div className="flex h-full min-h-0 flex-col overflow-auto p-3">
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -275,5 +298,25 @@ export function StatutoryAuthoritiesEditor({ packId }: { packId: string }) {
         </LocalizationFormShell>
       )}
     </Card>
+    </div>
+  );
+
+  return (
+    <LocalizationEntityWorkspace
+      workspaceId={`statutory-authorities:${packId}`}
+      kind="statutory-authority"
+      templateCode={packId}
+      displayName="Statutory authorities"
+      preview={{ pane: "spreadsheet", props: previewProps }}
+      editor={editorContent}
+      statusBar={
+        <div className="flex items-center gap-4">
+          <span>{rows.length} authorit{rows.length === 1 ? "y" : "ies"}</span>
+          <span className="ml-auto hidden md:inline text-[10px] uppercase tracking-wide text-muted-foreground/70">
+            ⌘B outline · ⌘⇧P preview · ⌘⇧F focus
+          </span>
+        </div>
+      }
+    />
   );
 }

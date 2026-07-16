@@ -28,6 +28,8 @@ import {
 import { Loader2, Pencil, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { LocalizationFormShell } from "./_shared/LocalizationFormShell";
 import { WorkflowSheetSection, WorkflowSheetGrid, WorkflowField } from "@/components/workflow/WorkflowSheet";
+import { LocalizationEntityWorkspace } from "./_shared/LocalizationEntityWorkspace";
+import type { SpreadsheetPreviewProps } from "./preview/SpreadsheetPreviewPane";
 import {
   usePackTokenRegistry, useUpsertPackToken, useDeletePackToken, usePackTokenConsumers,
   type PackTokenRow, type UpsertPackTokenInput,
@@ -155,8 +157,31 @@ export function TokenRegistryEditor({ packId }: Props) {
     }
   };
 
-  return (
-    <div className="space-y-3">
+  const previewProps: SpreadsheetPreviewProps = {
+    title: "Pack tokens · live registry",
+    formatLabel: `${packTokens.length} pack · ${platformTokens.length} platform`,
+    columns: [
+      { header: "Token path" },
+      { header: "Source" },
+      { header: "Type" },
+      { header: "Sample" },
+      { header: "Status" },
+    ],
+    rows: [
+      ...packTokens.map((t) => [
+        t.token_path,
+        t.source,
+        t.data_type,
+        t.sample_value == null ? "" : (typeof t.sample_value === "string" ? t.sample_value : JSON.stringify(t.sample_value)),
+        t.deprecated_in_version ? `deprecated v${t.deprecated_in_version}` : "active",
+      ]),
+      ...platformTokens.slice(0, 20).map((t) => [t.token_path, t.source, t.data_type, "", "platform"]),
+    ],
+    footnote: "Templates in this pack resolve the tokens above. Platform-reserved rows shown for reference.",
+  };
+
+  const editorContent = (
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto p-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <div className="space-y-1">
@@ -359,5 +384,25 @@ export function TokenRegistryEditor({ packId }: Props) {
         </WorkflowSheetSection>
       </LocalizationFormShell>
     </div>
+  );
+
+  return (
+    <LocalizationEntityWorkspace
+      workspaceId={`token-registry:${packId}`}
+      kind="token-registry"
+      templateCode={packId}
+      displayName="Token registry"
+      preview={{ pane: "spreadsheet", props: previewProps }}
+      editor={editorContent}
+      statusBar={
+        <div className="flex items-center gap-4">
+          <span>{packTokens.length} pack token{packTokens.length === 1 ? "" : "s"}</span>
+          <span>{platformTokens.length} platform reserved</span>
+          <span className="ml-auto hidden md:inline text-[10px] uppercase tracking-wide text-muted-foreground/70">
+            ⌘B outline · ⌘⇧P preview · ⌘⇧F focus
+          </span>
+        </div>
+      }
+    />
   );
 }

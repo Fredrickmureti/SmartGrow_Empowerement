@@ -29,6 +29,8 @@ import {
   type PublisherGrantRole,
 } from "../hooks/usePublisherGrants";
 import { normalizeError } from "@/services/resilience";
+import { LocalizationEntityWorkspace } from "./_shared/LocalizationEntityWorkspace";
+import type { EntityInspectorPaneProps } from "./preview/EntityInspectorPane";
 
 const ROLE_LABEL: Record<PublisherGrantRole, string> = {
   owner: "Owner",
@@ -111,8 +113,33 @@ export function PublisherGovernanceEditor({ packId }: Props) {
     }
   };
 
-  return (
-    <div className="space-y-3">
+  const previewProps: EntityInspectorPaneProps = {
+    title: "Publisher governance",
+    kindLabel: `${grants.length} grantee${grants.length === 1 ? "" : "s"}`,
+    subtitle: "Everyone who can currently author or publish this pack.",
+    chips: [
+      { label: `owners: ${grants.filter((g) => g.role === "owner").length}`, tone: "success" },
+      { label: `publishers: ${grants.filter((g) => g.role === "publisher").length}`, tone: "default" },
+      { label: `reviewers: ${grants.filter((g) => g.role === "reviewer").length}`, tone: "outline" },
+    ],
+    groups: [
+      {
+        title: "Grantees",
+        fields: grants.length === 0
+          ? [{ label: "No grantees", value: "Invite the first publisher to start collaborating.", fullWidth: true }]
+          : grants.map((g) => ({
+              label: ROLE_LABEL[g.role],
+              value: g.full_name ?? g.email ?? g.user_id,
+              hint: g.email ?? undefined,
+              fullWidth: true,
+            })),
+      },
+    ],
+    footnote: "RLS enforces role permissions at the DB tier — this pane reflects the same source of truth.",
+  };
+
+  const editorContent = (
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto p-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <div className="space-y-1">
@@ -234,5 +261,24 @@ export function PublisherGovernanceEditor({ packId }: Props) {
         </WorkflowSheetSection>
       </LocalizationFormShell>
     </div>
+  );
+
+  return (
+    <LocalizationEntityWorkspace
+      workspaceId={`publisher-governance:${packId}`}
+      kind="publisher-governance"
+      templateCode={packId}
+      displayName="Publisher governance"
+      preview={{ pane: "inspector", props: previewProps }}
+      editor={editorContent}
+      statusBar={
+        <div className="flex items-center gap-4">
+          <span>{grants.length} grantee{grants.length === 1 ? "" : "s"}</span>
+          <span className="ml-auto hidden md:inline text-[10px] uppercase tracking-wide text-muted-foreground/70">
+            ⌘B outline · ⌘⇧P preview · ⌘⇧F focus
+          </span>
+        </div>
+      }
+    />
   );
 }
