@@ -90,10 +90,10 @@ function PopOutBody({ kind, payload }: { kind: PreviewKind; payload: PreviewPayl
       );
     case "return":
       return (
-        <ReturnPreviewPane
+        <ReturnFormatPreview
           templateCode={payload.templateCode}
           displayName={payload.displayName ?? payload.templateCode}
-          body={payload.body}
+          body={payload.body as any}
           meta={payload.meta as any}
         />
       );
