@@ -271,6 +271,38 @@ export default function GoodsReceiptWizardPage() {
     [receiptLines],
   );
 
+  // Phase A.5 — resolve tracking flags for every product in the receipt so
+  // the receive step can render a per-unit serial capture for
+  // is_serial_tracked lines. One batched round-trip per page load.
+  const productIdsInReceipt = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          receiptLines
+            .map((l) => l.product_id)
+            .filter((id): id is string => !!id),
+        ),
+      ),
+    [receiptLines],
+  );
+  const { get: getTrackingFlags } = useProductTrackingFlags(productIdsInReceipt);
+
+  /** Serial-tracked lines whose serial_numbers[] does not yet match qty. */
+  const serialCaptureIncomplete = useMemo(() => {
+    return receiptLines.some((l) => {
+      if (!l.product_id || l.quantity_to_receive <= 0) return false;
+      if (!getTrackingFlags(l.product_id).is_serial_tracked) return false;
+      const cleaned = (l.serial_numbers ?? [])
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const unique = new Set(cleaned);
+      return (
+        cleaned.length !== Math.round(l.quantity_to_receive) ||
+        unique.size !== cleaned.length
+      );
+    });
+  }, [receiptLines, getTrackingFlags]);
+
   const updateLine = (index: number, field: keyof ReceiptLine, value: any) => {
     setReceiptLines((prev) => {
       const updated = [...prev];
