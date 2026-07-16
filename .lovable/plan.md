@@ -1,226 +1,61 @@
-## Phase 1 — Verification of prior work
+## Verification of prior work (Phase 1)
 
-Cross-checked `.lovable/plan.md` against the codebase:
+Cross-checked `.lovable/plan.md` against the tree. Everything the prior engineer marked complete is genuinely present:
 
-| Claim | Verified |
-|---|---|
-| ADRs 0064–0069 present | ✅ 6 files, substantive content |
-| 20+ inventory migrations (2026-07-15/16) incl. Phase C + Phase D | ✅ present |
-| 6 inventory-foundation architecture guards | ✅ **55/55 tests pass** |
-| GRN wizard prefills from ASN + writes discrepancies + flips shipment to `received` | ✅ 9 refs in `GoodsReceiptWizardPage.tsx` |
-| `createAsnBatchImportHandler` with idempotency + SKU resolution + header rollback | ✅ 206 LOC, guard-pinned |
-| `warehouse_stock` still authoritative, Phase 5 drift-gated | ✅ correct posture |
-| Existing `LotPickerPopover` at `src/components/inventory/` | ✅ exists |
+- ADRs 0064–0069 all on disk (stock_locations/quants, transit/quarantine, downstream lot-serial stamping, serialised inventory, split transfers, inbound-shipments/ASN).
+- Inventory architecture guards present and named as claimed: `outbound-lot-serial-ui`, `grn-serial-capture`, `grn-asn-prefill`, `asn-csv-import`, `outbound-lot-stamping`, `serial-tracking`, `inbound-shipments`, plus the branch/adjustment/dashboard guards.
+- Primitives all exist: `LotPickerPopover`, `SerialPickerPopover`, `OutboundLineTracking`, `outboundLineTrackingUtils.ts`, `useProductTrackingFlags`.
+- ASN backend real: `createAsnBatchImportHandler` + `ASN_IMPORT_FIELDS` in `src/lib/importConfigs/`, `inbound_shipments` referenced by GRN wizard and guards.
+- GRN wizard has ASN prefill + serial capture wiring.
 
-**Verdict:** Phases 1–4, A.1–A.2, B, C, D, D.2, D.3 are genuinely delivered. No shallow patches. Resuming from the plan's declared "Next up".
+**Verdict: Phases 1–4, A.1–A.5, B, C, D, D.2 are real.** No shallow patches found. The two genuine gaps confirmed:
 
-## Phase 2 — What to build now: Phase A.3 (lot & serial pickers on outbound editors)
+1. **Phase D.3 has no UI.** `inbound_shipments` is only referenced by the GRN wizard, the import handler, and tests — there is no page, no route, and no entry point on Purchase Orders that lets an operator import an ASN or view expected shipments. The whole ASN import pipeline is dark to end users.
+2. **Edit-surface pickers.** `OutboundLineTracking` is mounted only on the four **create** pages. `InvoiceEditPage`, `CreditNoteEditPage`, delivery note edit, and sales-return edit can still author lot/serial-tracked lines without a picker, so post-time DB rejection is the only guard on the edit path.
 
-**Why this is the right next step.** The DB already rejects outbound `stock_movements` for lot-tracked or serial-tracked products without a `lot_number` / serial linkage (ADRs 0025, 0066, 0067). Today users can still author invoices, credit notes, sales returns, and delivery notes with no lot/serial on the line — the failure surfaces only at post time via a raw Postgres error. Phase A.3 closes that gap so the guard is a safety net, not the primary UX.
+Everything else on the deferred list (SO line editor, Phase E–H, warehouse_stock retirement) is correctly deferred and not blocking.
 
-### Scope
+## Phase A.6 + D.3 — what to build now
 
-Line editors on these five surfaces get lot/serial pickers, gated by product flags:
+### D.3 — ASN inbound-shipments UI (primary)
 
-1. `invoices` — line editor (Sales)
-2. `credit_notes` — line editor (Sales)
-3. `sales_returns` — line editor (Sales)
-4. `delivery_notes` — line editor (Sales)
-5. `goods_receipts` — **inbound** lot capture already exists via ASN prefill; extend only to allow user override + serial capture on receipt for `is_serial_tracked` products.
+Enterprise-critical: today the ASN pipeline is invisible to operators. Deliverables:
 
-### Deliverables
+1. **New route** `/inventory/inbound-shipments` — list view of `inbound_shipments` for the current business + branch, columns: reference, supplier, expected_date, status (`expected` / `partially_received` / `received` / `cancelled`), linked PO, linked GRN count. Server data via existing query patterns (Supabase select with joins to `contacts` + `purchase_orders`).
+2. **Inbound Shipment detail page** `/inventory/inbound-shipments/$id` — header + `inbound_shipment_items` table (product, expected qty, lot, expiry), plus an action "Start Goods Receipt" that deep-links into `GoodsReceiptWizardPage` prefilled from this shipment (path already supported by the wizard's ASN prefill).
+3. **"Import ASN" action** — button on both the new inbound-shipments list and the Purchase Orders index, opens the existing CSV import dialog composed from `useImport(ASN_IMPORT_FIELDS)` + `createAsnBatchImportHandler`. No new import machinery.
+4. **Navigation entry** — sidebar link under Inventory → Inbound Shipments; keep purchase-orders nav intact.
+5. **Architecture guard** `src/test/architecture/inbound-shipments-ui.test.ts` — asserts the new routes exist, that the list imports `inbound_shipments` reader, that the Import ASN dialog imports `createAsnBatchImportHandler` + `ASN_IMPORT_FIELDS`, and that the detail page's "Start GRN" button navigates to the GRN wizard with the shipment id in the URL contract used by the existing prefill guard.
 
-1. **`SerialPickerPopover`** (new) at `src/components/inventory/SerialPickerPopover.tsx`
-   - Reads `stock_serials` where `product_id = ?`, `business_id = ?`, `warehouse_id = ?`, `status = 'in_stock'`.
-   - Multi-select up to line qty; disables already-selected serials in the same document.
-   - Same visual shell as `LotPickerPopover` (chip trigger + popover list + search).
+### A.6 — Edit-path picker wiring (secondary, same turn)
 
-2. **`useProductTrackingFlags(productIds)`** hook at `src/hooks/useProductTrackingFlags.ts`
-   - Single batched fetch of `products.is_lot_tracked`, `is_expiry_tracked`, `is_serial_tracked` for the visible line rows.
-   - Returned map drives conditional rendering — no per-row queries.
+Mount `OutboundLineTracking` on the four edit surfaces and route their line state through the same `onLotChange` / `onSerialChange` callbacks the create pages use. Extend the existing update-hook whitelists so `lot_number`, `serial_number`, and (for delivery notes) `lot_allocations` propagate on update, matching the insert side.
 
-3. **`OutboundLineTracking` cell** at `src/components/inventory/OutboundLineTracking.tsx`
-   - One shared component the four outbound line editors mount inside their existing "Product" column.
-   - Renders nothing for untracked products; renders `LotPickerPopover` for lot-tracked; `SerialPickerPopover` for serial-tracked; both for lot+serial.
-   - Emits `{ lot_number, packaging_id, serial_ids }` onto the line row via a stable callback.
+Files touched (additive — no schema, no RPC, no migrations):
+- `src/features/sales/invoices/…EditPage.tsx` (or `InvoiceLineRow.tsx` already covers it — verify during implementation and only wire what's missing)
+- `src/features/sales/credit-notes/CreditNoteEditPage.tsx`
+- `src/features/sales/returns/SalesReturnEditPage.tsx`
+- `src/features/sales/delivery-notes/DeliveryNoteEditPage.tsx`
+- Update-side whitelists in `useInvoices`, `useCreditNotes`, `useSalesReturns`, `useDeliveryNotes`.
 
-4. **Line-editor integration** — additive props, no schema changes:
-   - `src/features/sales/invoices/InvoiceLineEditor.tsx` (or the equivalent line list)
-   - `src/features/sales/credit-notes/…LineEditor.tsx`
-   - `src/features/sales/returns/…LineEditor.tsx`
-   - `src/features/sales/delivery-notes/…LineEditor.tsx`
-   - Each mount `<OutboundLineTracking productId={…} warehouseId={…} qty={…} onChange={…} />`.
+Extends `outbound-lot-serial-ui.test.ts` to pin the edit-surface mounts as well as the create-surface ones (31 → ~40 tests).
 
-5. **Serial capture on GRN** — extend the receive step so the wizard, when the line's product `is_serial_tracked`, requires the operator to key/scan N serial numbers matching received qty. Persist via existing `create_stock_serials_from_receipt` RPC path (already exists per ADR 0067; verify or add a thin wrapper if missing during implementation, log in the ADR update).
+### Explicitly deferred (unchanged from prior plan)
 
-6. **Architecture guard** `src/test/architecture/outbound-lot-serial-ui.test.ts`
-   - Asserts each of the four outbound line editors imports `OutboundLineTracking`.
-   - Asserts `OutboundLineTracking` reads `is_lot_tracked` / `is_serial_tracked` before deciding which picker to show.
-   - Asserts `SerialPickerPopover` filters by `status='in_stock'`.
-   - Extends the inventory-foundation surface to **~60/60 tests**.
+- Sales-order line editor (SO doesn't move stock; cosmetic).
+- Phase E — variants; Phase F — import file split (Product / Barcode / Batch / Warehouse Stock / Price / Supplier); Phase G — lot genealogy view; Phase H — GS1 AI parsing on scan input. Each gets its own ADR + turn.
+- Phase 5 ambient — retire `warehouse_stock` after 14 consecutive empty `check_stock_quant_drift` runs.
 
-### Explicitly out of scope this turn
+## Success criteria
 
-- Backend RPC changes — none needed; the ledger already accepts these payloads.
-- Phase D.3 UI wiring on Purchase Orders index — separate turn.
-- Phase E (variants), F (import split), G (lot genealogy), H (GS1) — each its own ADR.
-- Retiring `warehouse_stock` — still drift-gated (Phase 5).
+- Operator can import an ASN CSV from the UI, see the expected shipment in `/inventory/inbound-shipments`, click "Start GRN", and the wizard prefills every line with product/qty/lot/expiry from that shipment.
+- All four outbound edit pages render the lot/serial picker for tracked products, and the persisted `lot_number` / `serial_number` / `lot_allocations` survive update round-trips.
+- Combined inventory-foundation guard surface grows from 92 tests to ~110 tests, all green.
+- No migrations, no RPC changes, no `types.ts` edits.
 
 ## Technical notes
 
-- No migrations. No changes to `stock_movements` triggers. No changes to `src/integrations/supabase/types.ts`.
-- `SerialPickerPopover` and `LotPickerPopover` share styling primitives via `@/design-system` popover + command list — no new UI library.
-- Batching: `useProductTrackingFlags` scoped to the current document's visible product ids, cached in `useQuery` with a stable key so switching tabs doesn't refetch.
-- Country-agnostic, retail-agnostic — all logic keys off product-level flags, never SKU heuristics.
-
-## Follow-ups handed to the next agent
-
-1. Phase D.3 UI wiring — "Import ASN" action on Purchase Orders index / new `/inventory/inbound-shipments` list, composing `useImport(ASN_IMPORT_FIELDS)` + `createAsnBatchImportHandler`.
-2. Phase E–H — variants, import split, lot genealogy, GS1 parsing (one ADR each).
-3. Phase 5 ambient — retire `warehouse_stock` once `check_stock_quant_drift` returns empty 14 consecutive days.
-
----
-
-## ✅ Phase A.3 — Delivered (2026-07-16)
-
-- **Primitives:**
-  - `src/hooks/useProductTrackingFlags.ts` — batched read of
-    `is_lot_tracked` / `is_expiry_tracked` / `is_serial_tracked`,
-    `staleTime: 60s`, one round-trip per visible product set.
-  - `src/components/inventory/SerialPickerPopover.tsx` — reads
-    `stock_serials` where `status='in_stock'` scoped by business +
-    product (+ warehouse when supplied); multi-select up to
-    `requiredQty`; filter input; `excludeIds` for cross-line dedupe.
-  - `src/components/inventory/OutboundLineTracking.tsx` — shared cell
-    that resolves business + warehouse from `BusinessContext` /
-    `BranchContext.currentBranch.default_warehouse_id`, reads the
-    tracking flags, and renders `LotPickerPopover` when
-    `is_lot_tracked`, `SerialPickerPopover` when `is_serial_tracked`,
-    both when both flags are on, nothing when neither. Renders nothing
-    when `productId` is missing or `quantity <= 0`.
-- **Integration sites (four outbound editors):**
-  - `src/components/invoices/InvoiceLineRow.tsx` — covers
-    `InvoiceCreatePage` (desktop) and `InvoiceEditPage`.
-  - `src/features/sales/credit-notes/CreditNoteCreatePage.tsx`
-  - `src/features/sales/returns/SalesReturnCreatePage.tsx`
-  - `src/features/sales/delivery-notes/DeliveryNoteCreatePage.tsx`
-    (bound to `quantity_delivered`).
-- **Architecture guard:**
-  `src/test/architecture/outbound-lot-serial-ui.test.ts` pins the
-  primitives' contracts and asserts each of the four outbound editors
-  imports and mounts `<OutboundLineTracking productId={…} />`. **17/17**
-  tests pass. Combined inventory-foundation guard surface: **72/72**.
-- **No migrations, no RPC changes, no schema changes.**
-
-### Deferred out of Phase A.3 (handed to the next agent)
-
-1. **GRN serial capture.** Requires a new
-   `create_stock_serials_from_receipt` RPC + migration + wizard step.
-   Surface-only capture would create silent post-time failures, so this
-   is intentionally split into its own ADR + migration turn.
-2. **Persist picker output.** Backend still accepts posts without user-
-   picked lots for lot-tracked (FEFO auto-fallback) and rejects them
-   for serial-tracked. Wiring `onLotChange` / `onSerialChange` into
-   each outbound page's line-item shape so the picker output is
-   authoritative rather than advisory is the next incremental step —
-   it can land per-page without changing the shared primitives.
-
----
-
-## ✅ Phase A.4 — Delivered (2026-07-16)
-
-**Persist picker output on all four outbound documents** — the pickers
-are no longer advisory. Every outbound insert path now writes the
-operator's chosen lots and serials to the DB.
-
-- **Shared normalizer:** `src/components/inventory/outboundLineTrackingUtils.ts`
-  - `lotNumberFromAllocations(allocs)` → flat `lot_number` string
-  - `lotAllocationsJson(allocs)` → full `lot_allocations` JSON blob
-  - `serialNumberFromRows(rows)` → flat `serial_number` string
-- **Line-editor wiring** — each of the four editors now maps
-  `onLotChange` and `onSerialChange` onto its local line-item state:
-  - `src/components/invoices/InvoiceLineRow.tsx` (extends
-    `InvoiceLineItemShape` with `lot_number`, `serial_number`)
-  - `src/features/sales/credit-notes/CreditNoteCreatePage.tsx`
-    (`LineItem = Omit<CreditNoteItem, ...>` already includes both
-    columns from generated types)
-  - `src/features/sales/returns/SalesReturnCreatePage.tsx`
-    (`LineItem` extended with `lot_number`, `serial_number`)
-  - `src/features/sales/delivery-notes/DeliveryNoteCreatePage.tsx`
-    (`LineItem` extended with `lot_number`, `serial_number`,
-    `lot_allocations`; onLotChange writes both the flat column and
-    the JSON blob)
-- **Hook whitelists** — the three whitelisting insert paths now pass
-  the persisted columns through:
-  - `src/hooks/useInvoices.ts` → `invoice_items`
-  - `src/hooks/useSalesReturns.ts` → `sales_return_items`
-  - `src/hooks/useDeliveryNotes.ts` → `delivery_note_items` (incl.
-    `lot_allocations` JSON)
-  - `src/hooks/useCreditNotes.ts` already spreads `...item` so the
-    added `lot_number` / `serial_number` fields flow through.
-- **Guard extension:**
-  `src/test/architecture/outbound-lot-serial-ui.test.ts` — now
-  **31/31 tests** (up from 17/17). Pins every editor's
-  `onLotChange` / `onSerialChange` wiring, every hook's payload, and
-  the normalizer's export surface. Combined inventory-foundation
-  guard surface: **86/86**.
-- **No migrations, no RPC changes, no schema changes** — all target
-  columns already existed on `invoice_items`, `credit_note_items`,
-  `sales_return_items`, and `delivery_note_items`.
-
-### Remaining deferred (handed to the next agent)
-
-1. **GRN serial capture.** Still requires a new
-   `create_stock_serials_from_receipt` RPC + migration + wizard step.
-   Surface-only capture would create silent post-time failures —
-   intentionally split into its own ADR + migration turn.
-2. **Sales-order line editor.** Not currently rendering
-   `OutboundLineTracking`; SO doesn't move stock (delivery notes do),
-   so this is cosmetic advance-notice only, low priority.
-3. **InvoiceEditPage / CreditNoteEditPage / edit paths.** The picker
-   currently mounts inside the create surfaces; edit surfaces would
-   need the same wiring + an update-time hook whitelist review.
-
----
-
-## ✅ Phase A.5 — Delivered (2026-07-16)
-
-**GRN serial capture** — `GoodsReceiptWizardPage` now enforces the
-ADR-0067 contract on the receiving side so `enforce_serial_on_movement`
-(the trigger that upserts `stock_serials` from every serial-tracked
-`stock_movements` row) always sees exactly one serial per unit.
-
-- **Wizard state:** `ReceiptLine` extended with `serial_numbers: string[]`.
-- **Flag resolution:** batched `useProductTrackingFlags` over every
-  distinct `product_id` in the receipt — one round-trip per page load.
-- **Receive step UI:** new "Serial numbers" column renders a
-  one-per-line textarea for `is_serial_tracked` products with a
-  `entered/required` counter and duplicate detection.
-- **Gate:** `receiveValid = totalToReceive > 0 && !serialCaptureIncomplete`
-  so Next / Submit are blocked until every serial-tracked line has
-  the exact count of unique non-empty serials.
-- **Submit expander:** serial-tracked lines are flat-mapped into N
-  single-qty `goods_receipt_items` rows, each with one distinct
-  `serial_number`. Non-serial lines keep the existing single-row
-  shape. The atomic RPC path (`complete_goods_receipt_atomic`) is
-  unchanged — no client-side `stock_movements` writes.
-- **Architecture guard:** `src/test/architecture/grn-serial-capture.test.ts`
-  — 6 tests. Combined inventory-foundation guard surface: **92/92**.
-- **No migrations, no RPC changes, no schema changes** required.
-  The pre-existing `enforce_serial_on_movement` trigger already
-  handles idempotent `stock_serials` upserts once the movement rows
-  carry per-unit serials.
-
-### Still outstanding
-
-1. **Sales-order line editor.** SO doesn't move stock (delivery
-   handles that), so tracking widgets there are cosmetic — low
-   priority.
-2. **InvoiceEditPage / CreditNoteEditPage / edit paths.** Picker
-   currently mounts on create surfaces only.
-3. **Phase D.3 UI wiring** — "Import ASN" action on POs / new
-   `/inventory/inbound-shipments` list.
-4. **Phase E–H** — variants, import split, lot genealogy, GS1 (one
-   ADR each).
-5. **Phase 5 ambient** — retire `warehouse_stock` once
-   `check_stock_quant_drift` returns empty 14 consecutive days.
+- Route files follow the flat `inventory.inbound-shipments.tsx` + `inventory.inbound-shipments.$id.tsx` convention (TanStack Start file-based routing).
+- Queries scoped by `business_id` + optional branch, following the `readOnHand` / branch-filter pattern already pinned by `inventory-branch-filter.test.ts`.
+- Import dialog reuses the existing `useImport` hook — no new UI library, no new import framework.
+- Edit-surface wiring is additive; if `InvoiceLineRow` already covers `InvoiceEditPage` via shared render, only the guard is extended for that surface.
