@@ -926,9 +926,8 @@ function MetadataSection({
           </div>
           <div className="col-span-8">
             <Label className="text-xs">Options (JSON)</Label>
-            <Textarea
-              rows={3}
-              className="font-mono text-xs"
+            <CodeField
+              minRows={3}
               value={fmt.options ? JSON.stringify(fmt.options, null, 2) : ""}
               onChange={(e) => {
                 const raw = e.target.value.trim();
@@ -943,6 +942,7 @@ function MetadataSection({
               placeholder='e.g. { "delimiter": ",", "encoding": "utf-8", "header": true }'
             />
           </div>
+
         </div>
       </div>
 
