@@ -107,19 +107,36 @@ Cross-checked `.lovable/plan.md` claims against the codebase:
   `warehouse_stock`, or any existing RPC. GRN authoring today keeps
   every capability; ASN + discrepancies are additive.
 
+## ✅ Phase D.2 — GRN wizard ASN prefill (delivered 2026-07-16)
+
+- **Wizard:** `src/features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx`
+  now loads the newest active `inbound_shipment` for the PO
+  (statuses `draft` / `dispatched` / `in_transit`, prefers dispatched/in_transit)
+  and prefills every matching receipt line with
+  `expected_quantity`, `expected_lot_number`, `expected_packaging_id`
+  from `inbound_shipment_items`. Match is by `purchase_order_item_id`
+  first, then falls back to `product_id`.
+- **UX:** Receive step surfaces an ASN banner with shipment number +
+  status so the user knows the prefill provenance.
+- **Post-side reconciliation:** on successful `complete_goods_receipt_atomic`,
+  the wizard now (a) transitions the shipment to `status='received'`
+  with `received_at=now()`, and (b) inserts a
+  `goods_receipt_discrepancies` row for every line where
+  `received_quantity != expected_quantity` — typed `short` or `over`,
+  resolution `pending`, linked to both `goods_receipt_item_id` and
+  `inbound_shipment_item_id` for downstream vendor-credit / claim
+  workflows. Failures on the reconciliation side log-and-continue so the
+  GRN itself never rolls back on a discrepancy write.
+- **Architecture guard:** `src/test/architecture/grn-asn-prefill.test.ts`
+  pins the shipment query, the prefill fields, the `received` transition,
+  and the discrepancy insert shape. 9/9 tests pass. Combined
+  inventory-foundation guard surface: **44/44**.
+- **Backward compatibility:** POs without an ASN receive the previous
+  behaviour verbatim (fill remaining, no shipment or discrepancy writes).
+
 ## ⏭ Next up
 
-1. **Phase D.2 · GRN wizard prefill from ASN** (application code).
-   When a PO has one or more `dispatched` / `in_transit` inbound
-   shipments, the wizard should:
-   - Prefill line quantities from `inbound_shipment_items.expected_quantity`.
-   - Prefill `lot_number` / `expiry_date` / `manufacture_date` from
-     `expected_*`.
-   - On post: transition the ASN to `received` and land a
-     `goods_receipt_discrepancies` row for every line where the received
-     qty ≠ expected qty (default `resolution = 'pending'`).
-   - No new backend contract — this is orchestration over existing RPCs.
-2. **Phase D.3 · ASN CSV import** (EDI-856 stand-in). One-to-one mapping
+1. **Phase D.3 · ASN CSV import** (EDI-856 stand-in). One-to-one mapping
    between CSV columns and `inbound_shipment_items` fields. Optional
    until a real customer needs it.
 3. **Phase A.3 · UI plumbing** — lot/serial pickers on invoice /
