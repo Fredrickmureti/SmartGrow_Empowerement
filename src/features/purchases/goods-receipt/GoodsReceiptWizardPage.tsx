@@ -569,7 +569,7 @@ export default function GoodsReceiptWizardPage() {
   }
 
   const setupValid = !!warehouseId;
-  const receiveValid = totalToReceive > 0;
+  const receiveValid = totalToReceive > 0 && !serialCaptureIncomplete;
 
   const nextDisabled =
     (activeStep === "setup" && !setupValid) ||
