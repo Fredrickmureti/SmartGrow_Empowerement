@@ -442,7 +442,12 @@ export function ReturnTemplateEditor({
   activeSections.push({ id: "rt-section-groupby", label: "Group by" });
   activeSections.push({ id: "rt-section-totals", label: "Totals" });
   activeSections.push({ id: "rt-section-reconciliation", label: "Reconciliation" });
-  activeSections.push({ id: "rt-section-v2", label: "v2 renderer" });
+  // "PDF section layout" is only meaningful when the declared submission
+  // format is a PDF paper return. CSV/XLSX/XML/JSON returns never render
+  // as a PDF at runtime — surfacing the toggle in those cases misled
+  // publishers (e.g. `P10 (iTax CSV)` previewed as an empty PDF).
+  const showPdfSections = (meta.submission_format?.kind ?? null) === "pdf";
+  if (showPdfSections) activeSections.push({ id: "rt-section-v2", label: "PDF section layout" });
   if (mode === "tenant") activeSections.push({ id: "rt-section-override", label: "Override reason" });
 
   const editorScrollRef = useRef<HTMLDivElement>(null);
