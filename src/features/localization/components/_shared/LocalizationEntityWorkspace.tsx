@@ -76,7 +76,7 @@ export function LocalizationEntityWorkspace({
   }, [preview]);
 
   return (
-    <div className={`flex h-[calc(100vh-14rem)] min-h-[560px] flex-col bg-background ${className ?? ""}`}>
+    <div className={`flex min-h-[560px] flex-1 min-h-0 flex-col bg-background ${className ?? ""}`}>
       <AuthoringWorkspace
         workspaceId={workspaceId}
         toolbar={toolbar}
