@@ -65,8 +65,15 @@ interface AuthoringWorkspaceProps {
   onSave?: () => void;
   /** Optional J / K node navigation (only fires when not typing). */
   onNavigateNode?: (direction: WorkspaceNavDirection) => void;
-  /** Optional pop-out — surfaces an "open in new window" button in the toolbar. */
-  onPopOutPreview?: () => void;
+  /**
+   * Optional pop-out. When the handler returns the child `Window` (or a
+   * Promise of it), the workspace enters "detached preview" mode: the
+   * in-app preview pane is hidden so the editor gets 100 % of the
+   * surface, and a re-attach control replaces the pop-out button.
+   * When the child window closes the workspace auto-restores the
+   * inline preview.
+   */
+  onPopOutPreview?: () => Window | null | void | Promise<Window | null | void>;
   className?: string;
 }
 
