@@ -1,6 +1,8 @@
-# Inventory Foundation — Handoff & Next Execution (2026-07-17)
+# Inventory Foundation — Handoff & Next Execution (2026-07-17, session 5)
 
-## Status: verification complete; 6 deliverables shipped; 6 items deferred in order.
+## Status: 10 deliverables shipped; Step 1 blocked on an ops-only fix; Steps 2/3/6 + audit gaps G1–G3 remain.
+
+
 
 ## Phase 1 — Verification of prior claims (re-confirmed this thread)
 
