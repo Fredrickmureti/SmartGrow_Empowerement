@@ -35,7 +35,14 @@ export type DomainEventType =
   // Customer-display saga ops.
   | 'pos.cart_total_changed'
   | 'pos.payment_completed'
-  | 'pos.session_idle';
+  | 'pos.session_idle'
+  // Stock Event Fabric (ADR 0076). Emitted by DB trigger
+  // `tg_stock_movement_emit_event` for every stock_movements INSERT.
+  | 'stock.movement.received'
+  | 'stock.movement.dispatched'
+  | 'stock.movement.transferred'
+  | 'stock.movement.adjusted'
+  | 'stock.movement.posted';
 
 export interface DomainEvent<P = unknown> {
   id?: string;
