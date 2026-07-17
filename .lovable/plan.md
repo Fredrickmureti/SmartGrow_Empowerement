@@ -1,6 +1,8 @@
-# Inventory Foundation — Handoff & Next Execution (2026-07-17)
+# Inventory Foundation — Handoff & Next Execution (2026-07-17, session 5)
 
-## Status: verification complete; 6 deliverables shipped; 6 items deferred in order.
+## Status: 10 deliverables shipped; Step 1 blocked on an ops-only fix; Steps 2/3/6 + audit gaps G1–G3 remain.
+
+
 
 ## Phase 1 — Verification of prior claims (re-confirmed this thread)
 
@@ -37,6 +39,8 @@ Nothing claimed-complete was found unimplemented.
 | 6 | Drift-run log infra (ADR 0075, gate for Phase 5) | `public.stock_quant_drift_runs` + `record_stock_quant_drift_run(...)`; org members read, service_role write | Live in Supabase |
 | 7 | Legacy localization edge-function folder cleanup | `supabase/functions/` — 11 folders removed | `rg` confirms no live invoke callers |
 | 8 | Pillar-by-pillar foundation verdict | `.lovable/inventory-foundation-audit.md` | Identifies 3 blocking gaps (see below) |
+| 9 | Server-side variant-parent filter in `list_products_with_branch_stock` RPC (Step 4) | Migration `2026-07-17T03:07:18`; `src/hooks/useBranchScopedProducts.ts`; `src/hooks/pos/usePOSProducts.ts` | RPC now takes `p_include_variant_parents boolean DEFAULT false`; client-side parent-id parallel fetch removed |
+| 10 | Recall RPC emits `product.recall.opened` to `business_event_outbox` (Step 5) | Migration `2026-07-17T03:12:14`; `src/test/architecture/recall-rpc.test.ts` (+1 test, now 4 total) | Idempotency key = `product.recall.opened:<recall_id>`; `ON CONFLICT (idempotency_key) DO NOTHING` |
 
 ## ⏭ Deferred — execute in this order (each depends on the previous)
 
@@ -63,9 +67,10 @@ Nothing claimed-complete was found unimplemented.
 - `src/hooks/useBranchScopedProducts.ts` — dropped the parallel parent-id fetch; passes the flag through.
 - `src/hooks/pos/usePOSProducts.ts` — passes `p_include_variant_parents: false` and also excludes variant parents from the raw `products` fallback query via `.or("is_variant_parent.is.null,is_variant_parent.eq.false")`.
 
-### Step 5 — Recall outbox event + notification worker
-- Emit `product.recall.opened` to `business_event_outbox` inside `recall_lot` (payload: recall id + manifest).
-- Worker edge function fans out via existing `email_templates` / `sms_templates`.
+### Step 5 — Recall outbox event + notification worker — ⚠️ PARTIALLY DONE
+- ✅ Event emission: `recall_lot` RPC now inserts `product.recall.opened` into `public.business_event_outbox` inside the same transaction as the recall header. Payload carries `business_id`, `product_id`, `lot_id`, `lot_number`, `recall_reference`, `reason`, `severity`, `quarantined_units`, `warehouses_affected`, `downstream_customers`. Idempotency key: `product.recall.opened:<recall_id>` (partial unique index confirmed on `business_event_outbox.idempotency_key`).
+- ✅ Guard: `recall-rpc.test.ts` gained a 4th test enforcing the outbox insert + idempotency clause.
+- ⏭ **Worker still pending.** Build a notification edge function that consumes `product.recall.opened` from the outbox, resolves `email_templates` / `sms_templates` per org, and dispatches to the `downstream_customers` manifest. Mark event `completed` on success. Deferred deliberately — no live template pack exists yet for recalls; product-owner input needed on wording.
 
 ### Step 6 — Per-artefact batch handlers for the 5 remaining split importers
 - `productMaster` has `createProductMasterBatchMigrationHandler`. Add matching handlers for `barcode`, `batch`, `warehouseStock`, `price`, `supplier` — each writes to its own destination with idempotency keys + outbox events per ADR 0074.
@@ -95,8 +100,47 @@ Deferred pending user direction — not scheduled above until picked:
 - Edit pages for sales returns & delivery notes (don't exist).
 - Retro migration of "Size-in-name" legacy products → structured axes (needs product-owner sign-off).
 
-## Next action on resume
+## Session 5 log (2026-07-17) — what this agent did
 
-1. **Unblock ops:** rotate/refresh the vault secret `cron_caller_jwt` in the Supabase dashboard to match the current `SUPABASE_SERVICE_ROLE_KEY`. That single change unblocks every cron-triggered edge function in the project, including `nightly-stock-quant-drift`. No code change needed.
-2. Once drift runs are landing green, start Step 5 (recall outbox event — self-contained) or Step 6 (importer batch handlers — larger surface, no gating). Step 2 remains gated on 14 clean drift runs.
+**Shipped:**
+- Step 4 (server-side variant-parent filter): migration + client hooks updated. POS raw-products query also guarded.
+- Step 5 event side: `recall_lot` publishes `product.recall.opened` to `business_event_outbox`; guard test added (recall-rpc.test.ts now 4 tests).
+- Step 1 (drift function): refactored to `requireCronAuth`; `supabase/config.toml` sets `verify_jwt = false`; cron job `nightly-stock-quant-drift` rescheduled with `public.cron_caller_auth_header()`.
+
+**Blocked (not caused by this thread):**
+- `nightly-stock-quant-drift` (and every other cron-triggered function in this project) returns 401 (`{"error":"unauthorized"}`). Evidence in `net._http_response` shows `check-leave-expiry`, `update-overdue-invoices`, etc. all fail identically. **Root cause: the vault secret `cron_caller_jwt` is stale relative to `SUPABASE_SERVICE_ROLE_KEY`.** One vault rotation unblocks the entire cron surface. Do not chase this per-function.
+
+## Next action on resume (for the following agent)
+
+Verify what's here before you build. Then pick from below in the listed order.
+
+### 0 · Verify session 5 landed (5 min)
+- `rg "p_include_variant_parents" supabase/migrations/ src/hooks/` → expect the RPC migration + both hooks.
+- `rg "product.recall.opened" supabase/migrations/` → expect the outbox emit inside `recall_lot`.
+- `bunx vitest run src/test/architecture/recall-rpc.test.ts src/test/architecture/product-variants.test.ts src/test/architecture/product-imports-are-split.test.ts` → expect 15 tests green (9 + 4 + 2). Ignore the 62 pre-existing failures elsewhere.
+
+### 1 · Unblock cron (ops, ~5 min, no code)
+Tell the user to rotate `cron_caller_jwt` in Supabase Vault to the current `SUPABASE_SERVICE_ROLE_KEY`. Then wait one night (or invoke `select cron.schedule(...)` on a shorter cadence temporarily) and confirm `stock_quant_drift_runs` starts filling with `drifted_rows = 0`. Do NOT start Step 2 until 14 zero-drift rows exist.
+
+### 2 · Ship Step 5's worker (self-contained, 1–2 hrs)
+Once product-owner confirms notification copy, build `supabase/functions/recall-notification-worker/index.ts`:
+- Claim outbox rows where `event_type = 'product.recall.opened'` and `status = 'pending'` using the existing `claim_business_event_outbox` pattern used by other workers (grep `claim_business_event_outbox` for the canonical claim RPC).
+- For each `downstream_customers[]` entry with a non-null email/phone, render from `email_templates` / `sms_templates` scoped to the org, key `recall_customer_notification`.
+- Mark the outbox row `completed` on success; leave `pending` + increment `attempts` on failure. Use `requireCronAuth` for the endpoint; schedule via `supabase--insert` with `cron_caller_auth_header()`.
+- Guard test: assert the function exists, uses the correct event type, and doesn't hardcode SMS/email bodies.
+
+### 3 · Step 6 (importer batch handlers, ~half day)
+Mirror `createProductMasterBatchMigrationHandler` for each of `barcode`, `batch`, `warehouseStock`, `price`, `supplier`. Each handler:
+- Reads its own split config from `src/lib/importConfigs/product/`.
+- Writes to its own destination table (never `warehouse_stock` — see guardrail).
+- Emits its own outbox event per ADR 0074 with an idempotency key of `product-import:<config>:<row_hash>`.
+
+### 4 · Steps 2 + 3 (only after Step 1 unblocks and 14 zero-drift runs land)
+Rewrite `src/lib/inventory/readOnHand.ts` first; migrate every direct `warehouse_stock` reader through it (~139 refs across 39 files); invert the architecture guard so `readOnHand.ts` is the ONLY allowed reference; snapshot both legacy tables; drop them under ADR 0076.
+
+### 5 · Audit gaps G1–G3 (product/finance-owner input required first)
+G1 (cost method): needs written call from Finance on AVCO vs FEFO scope before ADR 0002-a. G2 (3-way match + landed cost): schema change touches purchasing + finance, needs product-owner scoping. G3 (inventory outbox events): parallel to Step 5 worker — once the recall event proves the outbox pattern end-to-end, use the same pattern for `stock.movement.posted` et al.
+
+Keep the guardrails above intact. No new `warehouse_stock` readers. Every phase closes with its guard test.
+
 
