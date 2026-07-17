@@ -638,7 +638,11 @@ function POSTerminalInner() {
   // (H1 — cashier fatigue: no need to scan the same item N times).
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchQuery) {
-      const { code, quantity } = parseScanPayload(searchQuery);
+      // GS1 first: collapse a DataMatrix / QR payload to its GTIN so the
+      // downstream resolver hits `pos_resolve_barcode` on the primary
+      // identifier. `interpretScan` is a no-op for plain scans.
+      const gs1 = interpretScan(searchQuery);
+      const { code, quantity } = parseScanPayload(gs1.resolveCode);
       void handleScan(code, quantity, "manual");
       setSearchQuery("");
     }
