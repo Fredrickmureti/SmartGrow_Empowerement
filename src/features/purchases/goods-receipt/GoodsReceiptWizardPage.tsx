@@ -681,6 +681,19 @@ export default function GoodsReceiptWizardPage() {
         changes_summary: `Goods receipt ${grnNumber} created for PO ${po.po_number}. ${result.movements_created} movement(s), GL ${result.gl_posted ? "posted" : "skipped"}.`,
       });
 
+      // Phase 6 — bind the GRN to a scheduled dock appointment when the
+      // user picked one. Non-fatal: the receipt stands even if binding
+      // fails (e.g. appointment cancelled between load and submit).
+      if (appointmentId) {
+        const { error: bindErr } = await supabase.rpc("bind_goods_receipt_appointment", {
+          p_receipt_id: receipt.id,
+          p_appointment_id: appointmentId,
+        });
+        if (bindErr) {
+          console.warn("[GRN] appointment binding failed", bindErr);
+        }
+      }
+
       toast({
         title: "Goods received successfully",
         description: `Receipt ${grnNumber} — ${
