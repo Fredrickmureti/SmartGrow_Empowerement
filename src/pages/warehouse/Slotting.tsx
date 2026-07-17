@@ -77,7 +77,7 @@ export default function Slotting() {
   return (
     <>
       <PageHeader
-        icon={Gauge}
+        eyebrow="Warehouse"
         title="Slotting velocity"
         description="Rolling 90-day pick frequency classified A/B/C. Fast-movers should sit closest to dispatch."
         actions={
