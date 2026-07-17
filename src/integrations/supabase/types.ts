@@ -57258,8 +57258,48 @@ export type Database = {
           },
         ]
       }
+      wms_task_standards: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          seconds_per_uom: number
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+          uom: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          seconds_per_uom: number
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+          uom?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          seconds_per_uom?: number
+          task_type?: Database["public"]["Enums"]["wms_task_type"]
+          uom?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wms_tasks: {
         Row: {
+          actual_seconds: number | null
           assignee_user_id: string | null
           branch_id: string | null
           business_id: string
@@ -57268,6 +57308,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           destination_location_id: string | null
+          earned_seconds: number | null
           id: string
           lot_number: string | null
           lpn_id: string | null
@@ -57288,6 +57329,7 @@ export type Database = {
           warehouse_id: string
         }
         Insert: {
+          actual_seconds?: number | null
           assignee_user_id?: string | null
           branch_id?: string | null
           business_id: string
@@ -57296,6 +57338,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           destination_location_id?: string | null
+          earned_seconds?: number | null
           id?: string
           lot_number?: string | null
           lpn_id?: string | null
@@ -57316,6 +57359,7 @@ export type Database = {
           warehouse_id: string
         }
         Update: {
+          actual_seconds?: number | null
           assignee_user_id?: string | null
           branch_id?: string | null
           business_id?: string
@@ -57324,6 +57368,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           destination_location_id?: string | null
+          earned_seconds?: number | null
           id?: string
           lot_number?: string | null
           lpn_id?: string | null
@@ -63491,6 +63536,27 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_operator_productivity_view: {
+        Row: {
+          actual_seconds: number | null
+          business_id: string | null
+          day: string | null
+          earned_seconds: number | null
+          operator_id: string | null
+          tasks_completed: number | null
+          utilisation_ratio: number | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_tasks_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
