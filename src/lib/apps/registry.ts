@@ -544,6 +544,7 @@ export const PROJECTS_APP: AppDefinition = {
   requiredPermissions: ["viewProjects"],
   sortOrder: 9,
   defaultModule: "overview",
+  provides: ["projects.analytic-tagging", "projects.task-linking"],
   modules: [
     { id: "overview",      name: "Overview",      path: "/overview",      icon: LayoutGrid,    permission: "viewProjects" },
     { id: "my-tasks",      name: "My Tasks",      path: "/my-tasks",      icon: ListFilter,    permission: "viewProjects" },

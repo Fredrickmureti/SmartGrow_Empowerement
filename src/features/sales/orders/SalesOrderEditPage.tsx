@@ -37,6 +37,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
 import { normalizeError } from "@/services/resilience";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
@@ -336,15 +337,17 @@ export default function SalesOrderEditPage() {
             </FieldGrid>
           </FieldGroup>
 
-          <FieldGroup label="Shipping & Project">
-            <ProjectPicker
-              enabled={true}
-              value={formData.project_id}
-              onChange={(id) => setFormData({ ...formData, project_id: id })}
-              customerId={formData.contact_id || null}
-              helperText="Optional — links the SO and its eventual invoice to project profitability."
-            />
-          </FieldGroup>
+          <CapabilityGate cap="projects.analytic-tagging">
+            <FieldGroup label="Shipping & Project">
+              <ProjectPicker
+                enabled={true}
+                value={formData.project_id}
+                onChange={(id) => setFormData({ ...formData, project_id: id })}
+                customerId={formData.contact_id || null}
+                helperText="Optional — links the SO and its eventual invoice to project profitability."
+              />
+            </FieldGroup>
+          </CapabilityGate>
 
           <FieldGroup label="Line Items">
             <div className="flex items-center justify-between mb-1">

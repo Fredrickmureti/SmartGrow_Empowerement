@@ -8,6 +8,7 @@
  */
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { TaskPicker } from "@/components/projects/TaskPicker";
+import { useCapability } from "@/hooks/useCapability";
 
 interface LineAnalyticsCellProps {
   projectId: string | null | undefined;
@@ -26,7 +27,14 @@ export function LineAnalyticsCell({
   onChange,
   disabled,
 }: LineAnalyticsCellProps) {
+  // Same capability guard as ProjectPicker: without the Projects app
+  // installed, no analytic tagging column should appear on line rows.
+  const capability = useCapability("projects.analytic-tagging");
   const effectiveProject = projectId ?? headerProjectId ?? null;
+
+  if (!capability.ready || !capability.available) return null;
+
+
 
   return (
     <div className="flex flex-col gap-1">

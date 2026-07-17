@@ -25,6 +25,7 @@ import { ProductCombobox } from "@/components/common/ProductCombobox";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useBills, type Bill, type BillItem } from "@/hooks/useBills";
@@ -296,14 +297,16 @@ export default function BillCreatePage() {
             />
           </div>
           <div className="md:col-span-2">
-            <ProjectPicker
-              enabled
-              value={formData.project_id}
-              onChange={(projectId) =>
-                setFormData({ ...formData, project_id: projectId })
-              }
-              helperText="Optional — links this bill's costs to project profitability."
-            />
+            <CapabilityGate cap="projects.analytic-tagging">
+              <ProjectPicker
+                enabled
+                value={formData.project_id}
+                onChange={(projectId) =>
+                  setFormData({ ...formData, project_id: projectId })
+                }
+                helperText="Optional — links this bill's costs to project profitability."
+              />
+            </CapabilityGate>
           </div>
         </FieldGrid>
       </FieldGroup>
