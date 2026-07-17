@@ -70624,7 +70624,7 @@ export type Database = {
       }
       review_profile_change_request: {
         Args: { p_decision: string; p_note?: string; p_request_id: string }
-        Returns: undefined
+        Returns: Json
       }
       revoke_app_override: {
         Args: { p_app_id: string; p_org_id: string }
