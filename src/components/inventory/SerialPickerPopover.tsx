@@ -49,6 +49,11 @@ interface Props {
   disabled?: boolean;
   /** Serial ids to hide (already claimed by other lines in the same document). */
   excludeIds?: string[];
+  /**
+   * Serial number captured from a GS1 scan (AI 21). When present and the
+   * matching in-stock row is found, it is auto-selected. See ADR 0071.
+   */
+  scannedSerial?: string | null;
 }
 
 export function SerialPickerPopover({
@@ -60,6 +65,7 @@ export function SerialPickerPopover({
   onChange,
   disabled,
   excludeIds = [],
+  scannedSerial = null,
 }: Props) {
   const enabled = !disabled && !!businessId && !!productId;
   const { data, isLoading, isError, error } = useQuery({
@@ -94,6 +100,25 @@ export function SerialPickerPopover({
   useEffect(() => {
     setInternal([]);
   }, [productId, warehouseId, businessId]);
+
+  // Phase H — auto-select a scanned serial once its row is loaded.
+  useEffect(() => {
+    if (!scannedSerial || !data) return;
+    const match = data.find(
+      (r) => r.serial_number.toLowerCase() === scannedSerial.toLowerCase(),
+    );
+    if (!match) return;
+    setInternal((prev) => {
+      if (prev.includes(match.id)) return prev;
+      if (prev.length >= Math.max(1, Math.floor(requiredQty))) return prev;
+      const next = [...prev, match.id];
+      const selectedRows = data.filter((r) => next.includes(r.id));
+      onChange?.(next, selectedRows);
+      return next;
+    });
+    // onChange identity managed by caller.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scannedSerial, data, requiredQty]);
 
   const [filter, setFilter] = useState("");
   const rows = useMemo(() => {

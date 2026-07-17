@@ -52,6 +52,18 @@ interface Props {
    */
   packLabel?: string | null;
   packMultiplier?: number | null;
+  /**
+   * Lot number captured from a GS1 scan (AI 10). When present, an
+   * operator override allocation is emitted for this lot even if it is
+   * not the FEFO suggestion. See ADR 0071.
+   */
+  scannedLot?: string | null;
+  /**
+   * Expiry date (ISO YYYY-MM-DD) captured from a GS1 scan (AI 17). Used
+   * only for display alongside `scannedLot` — persistence still happens
+   * via the goods-receipt path.
+   */
+  scannedExpiry?: string | null;
 }
 
 function toPayload(rows: FefoAllocation[], override: boolean): LotAllocationPayload[] {
@@ -73,6 +85,8 @@ export function LotPickerPopover({
   disabled,
   packLabel,
   packMultiplier,
+  scannedLot = null,
+  scannedExpiry = null,
 }: Props) {
   const { data, isLoading, isError, error } = useFefoSuggestion({
     businessId,
@@ -88,6 +102,31 @@ export function LotPickerPopover({
   useEffect(() => {
     setOverride(null);
   }, [businessId, warehouseId, productId, requiredQty]);
+
+  // Phase H — when a scanned lot arrives, emit an override allocation
+  // pinned to that lot. If the lot is already in the FEFO suggestion we
+  // re-anchor to it; if not, we still produce a single-row override so
+  // the caller can seed a `consume_lots_atomic` payload with the
+  // scanned batch (the RPC will reject unknown lots).
+  useEffect(() => {
+    if (!scannedLot) return;
+    const match = (data ?? []).find(
+      (r) => r.lot_number.toLowerCase() === scannedLot.toLowerCase(),
+    );
+    if (match) {
+      setOverride([{ ...match, qty: requiredQty }]);
+    } else {
+      setOverride([
+        {
+          lot_id: `scan:${scannedLot}`,
+          lot_number: scannedLot,
+          serial_number: null,
+          qty: requiredQty,
+          expiry_date: scannedExpiry ?? null,
+        } as FefoAllocation,
+      ]);
+    }
+  }, [scannedLot, scannedExpiry, data, requiredQty]);
 
   const suggestion = data ?? [];
   const effective = override ?? suggestion;
