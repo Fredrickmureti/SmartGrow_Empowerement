@@ -37,6 +37,7 @@ export const PURCHASES_NAV: WorkspaceNav = {
       label: "Insights",
       items: [
         { to: "/purchases/aged-payables", label: "Aged payables", icon: Hourglass },
+        { to: "/purchases/landed-costs", label: "Landed costs", icon: Layers },
       ],
     },
     {
