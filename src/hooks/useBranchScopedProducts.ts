@@ -58,9 +58,7 @@ export interface BranchScopedProduct {
 export interface UseBranchScopedProductsOptions {
   /**
    * Include `is_variant_parent = true` rows. Defaults to `false` (ADR 0072).
-   * The underlying `list_products_with_branch_stock` RPC does not yet
-   * project the flag, so we fetch parent ids alongside and filter
-   * client-side. Cheap: parents are rare and small.
+   * The RPC now filters server-side via `p_include_variant_parents`.
    */
   includeVariantParents?: boolean;
 }
@@ -87,40 +85,25 @@ export function useBranchScopedProducts(
     ],
     queryFn: async (): Promise<BranchScopedProduct[]> => {
       if (!orgId || !businessId) return [];
-      const [rpcRes, parentsRes] = await Promise.all([
-        supabase.rpc(
-          "list_products_with_branch_stock" as any,
-          {
-            p_org_id: orgId,
-            p_business_id: businessId,
-            p_branch_id: branchId,
-          } as any,
-        ),
-        includeVariantParents
-          ? Promise.resolve({ data: [] as { id: string }[], error: null })
-          : supabase
-              .from("products")
-              .select("id")
-              .eq("organization_id", orgId)
-              .eq("business_id", businessId)
-              .eq("is_variant_parent", true),
-      ]);
-      if (rpcRes.error) throw rpcRes.error;
-      if (parentsRes.error) throw parentsRes.error;
-      const parentIds = new Set(
-        ((parentsRes.data as { id: string }[] | null) ?? []).map((r) => r.id),
+      const rpcRes = await supabase.rpc(
+        "list_products_with_branch_stock" as any,
+        {
+          p_org_id: orgId,
+          p_business_id: businessId,
+          p_branch_id: branchId,
+          p_include_variant_parents: includeVariantParents,
+        } as any,
       );
-      const rows = ((rpcRes.data as any[]) || [])
-        .filter((r) => includeVariantParents || !parentIds.has(r.id))
-        .map((r) => ({
-          ...r,
-          on_hand: Number(r.on_hand) || 0,
-          reserved: Number(r.reserved) || 0,
-          available: Number(r.available) || 0,
-          // Back-compat: legacy callers reading `.stock_quantity` get the
-          // branch-scoped on-hand instead of the company aggregate.
-          stock_quantity: Number(r.on_hand) || 0,
-        })) as BranchScopedProduct[];
+      if (rpcRes.error) throw rpcRes.error;
+      const rows = ((rpcRes.data as any[]) || []).map((r) => ({
+        ...r,
+        on_hand: Number(r.on_hand) || 0,
+        reserved: Number(r.reserved) || 0,
+        available: Number(r.available) || 0,
+        // Back-compat: legacy callers reading `.stock_quantity` get the
+        // branch-scoped on-hand instead of the company aggregate.
+        stock_quantity: Number(r.on_hand) || 0,
+      })) as BranchScopedProduct[];
       return rows;
     },
     enabled: !!orgId && !!businessId,
