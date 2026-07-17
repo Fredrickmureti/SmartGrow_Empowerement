@@ -1,22 +1,20 @@
 /**
- * Warehouse App Routes (Phase 0 scaffold — ADR 0079).
+ * Warehouse App Routes (ADR 0079).
  *
- * Only Warehouses master, Layout tree, and a Dashboard are wired in
- * Phase 0. Every other nav item routes to a "coming online" placeholder
- * so that operators, planners, and product can see the target topology
- * and give feedback before we cut the receiving/putaway/picking domains.
+ * Only routes with real, functional pages are wired. Do not add routes
+ * that render placeholders — build the domain first, then wire it.
  */
 import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
 import { WarehouseLayout } from "./WarehouseLayout";
-import { WmsComingSoon } from "@/pages/warehouse/WmsComingSoon";
 
 const WarehouseDashboard = lazy(() => import("@/pages/warehouse/WarehouseDashboard"));
 const WarehouseLayoutPage = lazy(() => import("@/pages/warehouse/WarehouseLayoutPage"));
-// Reuse existing Inventory-authored screens for CRUD until WMS-native
-// versions ship in a later phase. Redirect layer preserves deep links.
+// Reuse existing Inventory-authored CRUD screens for the warehouse master
+// until a WMS-native detail replaces them. They already read/write
+// `warehouses` cleanly and respect business/branch scope.
 const Warehouses = lazy(() => import("@/pages/Warehouses"));
 const WarehouseNew = lazy(() => import("@/pages/inventory/WarehouseNew"));
 const WarehouseEdit = lazy(() => import("@/pages/inventory/WarehouseEdit"));
@@ -24,10 +22,6 @@ const WarehouseView = lazy(() => import("@/pages/inventory/WarehouseView"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
-);
-
-const soon = (title: string, phase: string) => (
-  <WmsComingSoon title={title} phase={phase} />
 );
 
 export function WarehouseApp() {
@@ -47,7 +41,6 @@ export function WarehouseApp() {
           }
         />
 
-        {/* Warehouses master (subsumed from /inventory-app/warehouses). */}
         <Route
           path="warehouses"
           element={
@@ -81,7 +74,6 @@ export function WarehouseApp() {
           }
         />
 
-        {/* Layout: zone / aisle / rack / shelf / bin tree editor. */}
         <Route
           path="layout"
           element={
@@ -92,18 +84,6 @@ export function WarehouseApp() {
             </SubscriptionProtectedRoute>
           }
         />
-
-        {/* Placeholders — surface the target topology while the underlying
-            domains are being built out in later phases. */}
-        <Route path="receiving" element={soon("Receiving", "Phase 2 — appointments, dock schedule, unload → inspect → GRN")} />
-        <Route path="putaway"   element={soon("Put-away",   "Phase 3 — directed put-away tasks with operator scan-to-confirm")} />
-        <Route path="tasks"     element={soon("Operator tasks", "Phase 1 — universal operator queue (pick / pack / load / count)")} />
-        <Route path="picking"   element={soon("Picking",   "Phase 4 — waves, batch/cluster/discrete strategies, pick path")} />
-        <Route path="packing"   element={soon("Packing",   "Phase 4 — pack stations, cartonization, shipment packages")} />
-        <Route path="dispatch"  element={soon("Dispatch",  "Phase 5 — loading manifests, dock-out appointments")} />
-        <Route path="qc"        element={soon("Quality control", "Phase 6 — QC inspection lots with release / quarantine / scrap dispositions")} />
-        <Route path="plates"    element={soon("License plates",  "Phase 1 — LPN registry (pallet / carton / tote)")} />
-        <Route path="operators" element={soon("Operators", "Phase 7 — WMS role assignment, shift binding, productivity ledger")} />
 
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
