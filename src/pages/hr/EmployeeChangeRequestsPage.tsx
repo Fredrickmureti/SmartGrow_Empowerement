@@ -79,7 +79,7 @@ export default function EmployeeChangeRequestsPage() {
   const rows = useMemo(() => data ?? [], [data]);
 
   const decide = async (id: string, decision: "approved" | "rejected", note?: string) => {
-    const { error } = await supabase.rpc("review_profile_change_request" as any, {
+    const { data, error } = await supabase.rpc("review_profile_change_request" as any, {
       p_request_id: id,
       p_decision: decision,
       p_note: note ?? null,
@@ -87,6 +87,32 @@ export default function EmployeeChangeRequestsPage() {
     if (error) { toast.error(error.message); return; }
     toast.success(decision === "approved" ? "Change approved and applied." : "Change rejected.");
     qc.invalidateQueries({ queryKey: ["hr-profile-change-requests"] });
+
+    // Fire the branded email through the standard notification transport.
+    // The RPC returns the notification payload (recipient, business, title,
+    // message) so we don't duplicate copy here. Best-effort — the in-app
+    // notification and DB state have already been committed.
+    const payload = data as any;
+    if (payload && payload.user_id) {
+      try {
+        await (supabase as any).functions.invoke("send-notification-email", {
+          body: {
+            user_id: payload.user_id,
+            organization_id: payload.organization_id,
+            business_id: payload.business_id ?? null,
+            category: payload.category,
+            title: payload.title,
+            message: payload.message,
+            link: payload.link,
+            entity_type: payload.entity_type,
+            entity_id: payload.entity_id,
+            notification_id: payload.notification_id,
+          },
+        });
+      } catch (e: any) {
+        console.error("[EmployeeChangeRequests] email dispatch failed:", e?.message);
+      }
+    }
   };
 
   return (
