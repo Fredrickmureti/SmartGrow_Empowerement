@@ -148,6 +148,28 @@ export default function GoodsReceiptWizardPage() {
 
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [appointmentId, setAppointmentId] = useState<string>("");
+  const [appointments, setAppointments] = useState<Array<{ id: string; reference: string | null; window_start: string; window_end: string; state: string; dock_code?: string | null }>>([]);
+
+  // Load inbound appointments for the caller's business that are still
+  // schedulable (scheduled|arrived). Filtering by warehouse is deferred
+  // to visual context via dock code — the RPC does the auth check.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from("wms_dock_appointments")
+        .select("id, reference, window_start, window_end, state, warehouse_id, dock:warehouse_docks(code)")
+        .eq("appointment_type", "inbound")
+        .in("state", ["scheduled", "arrived"])
+        .order("window_start");
+      if (!alive) return;
+      const rows = (data ?? []).filter((r: any) => !warehouseId || r.warehouse_id === warehouseId)
+        .map((r: any) => ({ id: r.id, reference: r.reference, window_start: r.window_start, window_end: r.window_end, state: r.state, dock_code: r.dock?.code ?? null }));
+      setAppointments(rows);
+    })();
+    return () => { alive = false; };
+  }, [warehouseId]);
   const [receiptLines, setReceiptLines] = useState<ReceiptLine[]>([]);
   const [scanCode, setScanCode] = useState("");
   const [scanFlash, setScanFlash] = useState<string | null>(null);
