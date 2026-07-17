@@ -1,5 +1,22 @@
 
-# WMS continuation — verification result + Phase 12 plan
+# WMS continuation — Phase 12 shipped ✅ · Phase 13 next
+
+## Phase 12 — Cross-dock & cartonization (SHIPPED)
+
+**Delivered:**
+- Migration `20260717233..._wms_phase12_crossdock_cartonization.sql`: `wms_carton_types` + `wms_crossdock_opportunities` tables (GRANT + RLS + policies), `wms_pack_cartons.carton_type_id` column, RPCs `evaluate_crossdock_on_grn`, `confirm_crossdock_stage`, `cancel_crossdock_opportunity`, `suggest_carton`, `assign_carton_to_pack`, and `AFTER UPDATE OF status` trigger on `goods_receipts` that auto-evaluates on GRN completion.
+- Event fabric: `warehouse.crossdock.matched|staged|cancelled` published through `emit_crossdock_event` with idempotency key `wms.crossdock_opportunity:<id>:<status>`.
+- UI: `src/pages/warehouse/CrossdockBoard.tsx` and `src/pages/warehouse/CartonTypes.tsx`, wired at `/warehouse-app/crossdock` and `/warehouse-app/cartons`; nav updated (Operations → Cross-dock, Master → Carton catalogue).
+- Guard: `src/test/architecture/wms-phase12.test.ts` — 5/5 green (RPC-only on opportunities, page-scoped writes on carton catalogue, no direct `carton_type_id` writes on pack cartons, RPC call assertions, nav+route wiring).
+- ADR `docs/adr/0083-wms-crossdock-cartonization.md`.
+
+**Phase 12.1 follow-up (deferred):** wire `PackStation.tsx` to call `suggest_carton` before submit and pre-select the returned carton type. RPC exists; just need UI wiring.
+
+---
+
+# START HERE NEXT — Phase 13
+
+
 
 ## Phase 1 — Verification of previous engineer's work
 
