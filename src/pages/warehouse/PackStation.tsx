@@ -403,18 +403,37 @@ export default function PackStation() {
                       <p className="text-sm text-muted-foreground">No cartons yet. Open one to start packing.</p>
                     )}
                     {soCartons.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between border rounded p-2">
-                        <div>
-                          <div className="font-mono text-sm">{c.shipment_lpn?.code ?? c.id.slice(0, 8)}</div>
+                      <div key={c.id} className="flex items-center justify-between border rounded p-2 gap-2">
+                        <div className="min-w-0">
+                          <div className="font-mono text-sm truncate">{c.shipment_lpn?.code ?? c.id.slice(0, 8)}</div>
                           <div className="text-xs text-muted-foreground">
                             {c.sealed_at ? `sealed · ${c.weight_kg ?? "?"}kg` : "open"}
+                            {c.carton_type ? ` · ${c.carton_type.code}` : ""}
                           </div>
                         </div>
-                        {!c.sealed_at && (
-                          <Button size="sm" variant="outline" onClick={() => setSealDialog({ carton_id: c.id })}>
-                            <Lock className="h-4 w-4 mr-1" /> Seal
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {!c.sealed_at && (
+                            <select
+                              className="border rounded px-2 py-1 text-xs bg-background"
+                              value={c.carton_type_id ?? ""}
+                              disabled={assignCartonType.isPending}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v) assignCartonType.mutate({ carton_id: c.id, carton_type_id: v });
+                              }}
+                            >
+                              <option value="">carton type…</option>
+                              {(cartonTypes ?? []).map((t) => (
+                                <option key={t.id} value={t.id}>{t.code} — {t.name}</option>
+                              ))}
+                            </select>
+                          )}
+                          {!c.sealed_at && (
+                            <Button size="sm" variant="outline" onClick={() => setSealDialog({ carton_id: c.id })}>
+                              <Lock className="h-4 w-4 mr-1" /> Seal
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </CardContent>
