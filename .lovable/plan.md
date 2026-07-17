@@ -99,3 +99,16 @@ Add `src/test/architecture/product-import-handlers-split.test.ts`:
 **Verification:** `bunx tsgo --noEmit` → exit 0, no type errors.
 
 **Follow-ups still open** (unchanged priorities): ops rotates `cron_caller_jwt`; Step 5 worker; Blocking Gap #1 (cost-method AVCO vs cost_layers ADR amendment); Blocking Gap #2 (3-way match + landed cost); Blocking Gap #3 remainder (wire `stock.*` events through the same RPC from `recordStockMovement` and server RPCs).
+
+## Phase 5 — Execution log (session 7 cont., 2026-07-17)
+
+**Shipped:**
+- **Blocking Gap #3 (event fabric):** trigger `tg_stock_movement_emit_event` publishes `stock.movement.{received|dispatched|transferred|adjusted|posted}` to `business_event_outbox` for every stock movement, idempotency key `stock.movement:<uuid>`, sample rows skipped, outbox failure never faults the write. ADR 0076.
+- **Blocking Gap #2 (3-way match + landed cost):** added `bills.goods_receipt_id`, tables `bill_grn_matches`, `landed_cost_bills`, `landed_cost_allocations` with GRANTs + RLS scoped to `user_business_access`. ADR 0077.
+- **Blocking Gap #1 (cost-method ambiguity):** ADR 0078 makes AVCO canonical, downgrades `cost_layers` to lot-cost detail only. Codebase sweep confirmed no TS consumer reads cost_layers today, so no code changes needed.
+
+**Follow-ups (not blockers):**
+- Landed-cost posting RPC (`post_landed_cost_bill`) + reversal RPC — planned for next session; the schema is in place.
+- Reverse-stock-movement RPC contract (ADR 0078 §4).
+- Migrate one consumer (Finance COGS JE or replenishment) off direct `stock_movements` triggers onto the outbox subscription (ADR 0076 §Follow-up).
+- Ops-blocked: `cron_caller_jwt` rotation, Step 5 notification-copy worker.
