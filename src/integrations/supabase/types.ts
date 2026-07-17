@@ -56249,6 +56249,168 @@ export type Database = {
           },
         ]
       }
+      wms_billable_activities: {
+        Row: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          activity: string
+          amount?: number | null
+          business_id: string
+          client_business_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          invoice_id?: string | null
+          occurred_at?: string
+          quantity?: number
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_event_id?: string | null
+          tariff_id?: string | null
+          unit_rate?: number | null
+          uom?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          activity?: string
+          amount?: number | null
+          business_id?: string
+          client_business_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          invoice_id?: string | null
+          occurred_at?: string
+          quantity?: number
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_event_id?: string | null
+          tariff_id?: string | null
+          unit_rate?: number | null
+          uom?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_billable_activities_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_billable_activities_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wms_billable_activities_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_billable_activities_source_event_id_fkey"
+            columns: ["source_event_id"]
+            isOneToOne: false
+            referencedRelation: "business_event_outbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_billable_activities_tariff_id_fkey"
+            columns: ["tariff_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billing_tariffs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_billing_tariffs: {
+        Row: {
+          activity: string
+          business_id: string
+          client_business_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          rate: number
+          uom: string
+          updated_at: string
+        }
+        Insert: {
+          activity: string
+          business_id: string
+          client_business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          rate: number
+          uom?: string
+          updated_at?: string
+        }
+        Update: {
+          activity?: string
+          business_id?: string
+          client_business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          rate?: number
+          uom?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_billing_tariffs_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_billing_tariffs_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+        ]
+      }
       wms_count_lines: {
         Row: {
           business_id: string
@@ -63540,6 +63702,37 @@ export type Database = {
           },
         ]
       }
+      wms_billable_activities_summary_view: {
+        Row: {
+          activity: string | null
+          business_id: string | null
+          client_business_id: string | null
+          currency: string | null
+          entry_count: number | null
+          first_occurred_at: string | null
+          last_occurred_at: string | null
+          total_amount: number | null
+          total_quantity: number | null
+          unbilled_amount: number | null
+          uom: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_billable_activities_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_billable_activities_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+        ]
+      }
       wms_operator_productivity_view: {
         Row: {
           actual_seconds: number | null
@@ -63802,6 +63995,10 @@ export type Database = {
         Returns: string
       }
       _wms_ensure_qc_hold: { Args: { p_warehouse_id: string }; Returns: string }
+      _wms_map_event_to_activity: {
+        Args: { p_event_type: string }
+        Returns: string
+      }
       _wms_qc_post_move: {
         Args: {
           p_dest_location: string
@@ -65455,6 +65652,38 @@ export type Database = {
         Returns: Json
       }
       canonicalize_role_key: { Args: { _key: string }; Returns: string }
+      capture_billable_activity: {
+        Args: { p_event_id: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      capture_pending_billable_activities: {
+        Args: { p_business_id: string; p_limit?: number }
+        Returns: number
+      }
       change_compensation: {
         Args: {
           p_allowances?: Json
@@ -67820,6 +68049,81 @@ export type Database = {
       gc_payroll_readiness_findings: {
         Args: { p_org_id: string }
         Returns: number
+      }
+      generate_3pl_invoice: {
+        Args: {
+          p_business_id: string
+          p_client_business_id: string
+          p_contact_id?: string
+          p_currency?: string
+          p_period_from: string
+          p_period_to: string
+        }
+        Returns: {
+          amount_paid: number | null
+          branch_id: string | null
+          business_id: string
+          confirmed_by: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          customer_signature_url: string | null
+          discount_amount: number | null
+          due_date: string
+          etims_cu_number: string | null
+          etims_error_message: string | null
+          etims_internal_data: string | null
+          etims_mrc_number: string | null
+          etims_qr_code_data: string | null
+          etims_qr_code_url: string | null
+          etims_receipt_number: number | null
+          etims_receipt_signature: string | null
+          etims_sdc_id: string | null
+          etims_signature: string | null
+          etims_transmission_status: string | null
+          etims_transmitted_at: string | null
+          etims_verification_url: string | null
+          id: string
+          invoice_number: string
+          is_sample_data: boolean
+          issue_date: string
+          journal_entry_id: string | null
+          last_reminder_at: string | null
+          migration_session_id: string | null
+          notes: string | null
+          organization_id: string
+          payment_link: string | null
+          payment_link_expires_at: string | null
+          payment_term_id: string | null
+          project_id: string | null
+          reversal_journal_entry_id: string | null
+          salesperson_id: string | null
+          sent_at: string | null
+          signed_at: string | null
+          source: string | null
+          source_delivery_note_id: string | null
+          source_pos_transaction_id: string | null
+          source_proforma_invoice_id: string | null
+          source_recurring_id: string | null
+          source_sales_order_id: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          tax_amount: number
+          template_id: string | null
+          terms: string | null
+          total: number
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       generate_due_cycle_counts: {
         Args: { p_now?: string }

@@ -212,7 +212,7 @@ export default function LabourBoard() {
       <PageHeader
         title="Labour management"
         description="Engineered standards, earned vs actual hours, per-operator utilisation."
-        icon={Gauge}
+        
         actions={
           <Button onClick={() => setStandardOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> New standard

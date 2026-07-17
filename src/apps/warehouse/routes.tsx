@@ -41,6 +41,7 @@ const Replenishment = lazy(() => import("@/pages/warehouse/Replenishment"));
 const Slotting = lazy(() => import("@/pages/warehouse/Slotting"));
 const YardBoard = lazy(() => import("@/pages/warehouse/YardBoard"));
 const LabourBoard = lazy(() => import("@/pages/warehouse/LabourBoard"));
+const BillingBoard = lazy(() => import("@/pages/warehouse/BillingBoard"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
@@ -211,6 +212,7 @@ export function WarehouseApp() {
         <Route path="slotting" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Slotting"><Slotting /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Yard & Trailers"><YardBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="labour" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Labour"><LabourBoard /></LazyRoute></SubscriptionProtectedRoute>} />
+        <Route path="billing" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="3PL Billing"><BillingBoard /></LazyRoute></SubscriptionProtectedRoute>} />
 
 
         <Route path="*" element={<Navigate to="dashboard" replace />} />
