@@ -50649,8 +50649,11 @@ export type Database = {
       }
       stock_locations: {
         Row: {
+          barcode: string | null
           branch_id: string | null
           business_id: string
+          capacity_max_units: number | null
+          capacity_max_weight: number | null
           code: string
           created_at: string
           created_by: string | null
@@ -50661,13 +50664,18 @@ export type Database = {
           name: string
           organization_id: string
           parent_location_id: string | null
+          pick_sequence: number | null
+          structure_level: string | null
           updated_at: string
           usage: Database["public"]["Enums"]["stock_location_usage"]
           warehouse_id: string | null
         }
         Insert: {
+          barcode?: string | null
           branch_id?: string | null
           business_id: string
+          capacity_max_units?: number | null
+          capacity_max_weight?: number | null
           code: string
           created_at?: string
           created_by?: string | null
@@ -50678,13 +50686,18 @@ export type Database = {
           name: string
           organization_id: string
           parent_location_id?: string | null
+          pick_sequence?: number | null
+          structure_level?: string | null
           updated_at?: string
           usage?: Database["public"]["Enums"]["stock_location_usage"]
           warehouse_id?: string | null
         }
         Update: {
+          barcode?: string | null
           branch_id?: string | null
           business_id?: string
+          capacity_max_units?: number | null
+          capacity_max_weight?: number | null
           code?: string
           created_at?: string
           created_by?: string | null
@@ -50695,6 +50708,8 @@ export type Database = {
           name?: string
           organization_id?: string
           parent_location_id?: string | null
+          pick_sequence?: number | null
+          structure_level?: string | null
           updated_at?: string
           usage?: Database["public"]["Enums"]["stock_location_usage"]
           warehouse_id?: string | null
