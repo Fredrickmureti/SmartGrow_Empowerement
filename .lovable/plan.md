@@ -81,3 +81,21 @@ Add to `DomainEventType` and `BusinessSagaMount`:
 **New:** `supabase/migrations/<ts>_wms_phase3_picking.sql`, `src/pages/warehouse/{WavePlanner,PickList,PackStation}.tsx`, `src/test/architecture/wms-phase3.test.ts`, `docs/adr/0081-picking-substrate.md`.
 
 **Modified:** `src/pages/warehouse/LicensePlateView.tsx` (suggestions panel), `src/apps/warehouse/{nav.ts,routes.tsx}`, `src/services/events/domainEventBus.ts`, `src/contexts/BusinessSagaMount.tsx`, plan.md handoff log.
+
+---
+
+## Handoff — Phase 3 complete (2026-07-17)
+
+Delivered:
+- Migration `wms_phase3_picking`: `wms_pick_waves` + `wms_pick_wave_lines` (RLS + grants), RPCs `create_pick_wave`, `release_pick_wave`, `complete_pick_task`, `complete_pack_task`. Also fixed Phase 2 outbox inserts (`organization_id` → `org_id`, dropped bogus `business_id`) so `warehouse.receipt.staged` / `warehouse.putaway.completed` land.
+- UI: `WavePlanner.tsx`, `PickList.tsx`, `PackStation.tsx` + nav + routes.
+- Phase 2 debts closed: `LicensePlateView` shows ranked putaway suggestions; `BusinessSagaMount` registers log-only handlers for every `warehouse.*` event.
+- Guardrail: `src/test/architecture/wms-phase3.test.ts` — no direct `wms_tasks` insert with `task_type in ('pick','pack')`, no bare wave-state UPDATE, screens must call the sanctioned RPCs. Phase 1 + 2 + 3 arch tests + full tsgo pass.
+
+Deviations from plan:
+- Wave `state` enum shipped as `draft|released|picking|picked|packing|packed|cancelled` (added `packing`, dropped `closed` — `packed` is terminal for MVP). No `stage_out` task type yet.
+- `complete_pack_task` mints an optional shipment LPN keyed by the whole wave rather than one pack task per SO. Per-SO pack tasks deferred to Phase 4 alongside multi-carton packing.
+- `warehouse.wave.created` / `warehouse.wave.picked` / `warehouse.wave.closed` events not emitted; only `warehouse.wave.released`, `warehouse.pick.completed`, `warehouse.pack.completed` are wired. Fine-grained lifecycle events can be added when a saga needs them.
+
+Open for Phase 4: scanner-driven directed picking (bin + product scan → resolve task), multi-carton pack, cycle-count wiring against `stock_quants`.
+
