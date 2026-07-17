@@ -77,3 +77,28 @@ describe("Phase E — Product Variants doctrine", () => {
     expect(src).toMatch(/is_variant_parent:\s*true/);
   });
 });
+
+describe("Phase E+ — variant-aware read paths", () => {
+  const files = [
+    "src/hooks/useProducts.ts",
+    "src/hooks/useProductsPaginated.ts",
+    "src/hooks/useBranchScopedProducts.ts",
+  ];
+
+  for (const rel of files) {
+    it(`${rel} filters out variant parents by default`, () => {
+      const src = readFileSync(join(ROOT, rel), "utf8");
+      // Must reference the flag either as a filter (SQL) or set-membership
+      // (client-side filter for the RPC-backed hook).
+      expect(src).toMatch(/is_variant_parent/);
+      // Must expose an opt-in switch so admin surfaces can override.
+      expect(src).toMatch(/includeVariantParents/);
+    });
+  }
+
+  it("Products admin list opts back in to include parents", () => {
+    const src = readFileSync(join(ROOT, "src/pages/Products.tsx"), "utf8");
+    expect(src).toMatch(/includeVariantParents:\s*true/);
+  });
+});
+
