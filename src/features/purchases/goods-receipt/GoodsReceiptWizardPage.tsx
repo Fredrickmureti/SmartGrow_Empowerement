@@ -102,6 +102,12 @@ interface ReceiptLine {
   expected_quantity: number | null;
   expected_expiry_date: string | null;
   expected_manufacture_date: string | null;
+  // Phase H+ · Captured from GS1 AI 17 / AI 11 during the scan flow; used
+  // by handleSubmit to upsert `stock_lots.expiry_date` / `manufacture_date`
+  // after the atomic RPC creates the lot row. Falls back to the ASN
+  // expected_* values above.
+  captured_expiry_date: string | null;
+  captured_manufacture_date: string | null;
 }
 
 interface ActiveShipment {
@@ -238,6 +244,8 @@ export default function GoodsReceiptWizardPage() {
             expected_quantity: expected,
             expected_expiry_date: asnMatch?.expected_expiry_date ?? null,
             expected_manufacture_date: asnMatch?.expected_manufacture_date ?? null,
+            captured_expiry_date: asnMatch?.expected_expiry_date ?? null,
+            captured_manufacture_date: asnMatch?.expected_manufacture_date ?? null,
           };
         }),
       );
@@ -400,6 +408,20 @@ export default function GoodsReceiptWizardPage() {
           updateLine(idx, "serial_number", gs1.normalized.serial);
         }
       }
+      if (gs1.normalized.expiry) {
+        updateLine(
+          idx,
+          "captured_expiry_date",
+          gs1.normalized.expiry.toISOString().slice(0, 10),
+        );
+      }
+      if (gs1.normalized.productionDate) {
+        updateLine(
+          idx,
+          "captured_manufacture_date",
+          gs1.normalized.productionDate.toISOString().slice(0, 10),
+        );
+      }
       const expBits = gs1.normalized.expiry
         ? ` · exp ${gs1.normalized.expiry.toISOString().slice(0, 10)}`
         : "";
@@ -547,6 +569,37 @@ export default function GoodsReceiptWizardPage() {
       if (!result?.success) {
         throw new Error(result?.error || "Failed to complete goods receipt");
       }
+
+      // Phase H+ — persist GS1-captured AI 17 / AI 11 dates onto the
+      // stock_lots row that the atomic RPC just materialised. Keyed by
+      // (business_id, product_id, lot_number). Non-fatal on failure —
+      // FEFO simply falls back to receipt-date ordering for this batch.
+      const bizId = currentBusiness?.id;
+      if (bizId) {
+        const dateLines = linesToReceive.filter(
+          (l) =>
+            l.product_id &&
+            l.lot_number &&
+            (l.captured_expiry_date || l.captured_manufacture_date),
+        );
+        for (const l of dateLines) {
+          const patch: Record<string, string> = {};
+          if (l.captured_expiry_date) patch.expiry_date = l.captured_expiry_date;
+          if (l.captured_manufacture_date)
+            patch.manufacture_date = l.captured_manufacture_date;
+          const { error: lotErr } = await supabase
+            .from("stock_lots")
+            .update(patch)
+            .eq("business_id", bizId)
+            .eq("product_id", l.product_id!)
+            .eq("lot_number", l.lot_number);
+          if (lotErr) {
+            console.warn("[GRN] stock_lots date update failed", lotErr);
+          }
+        }
+      }
+
+
 
       // Phase D.2 · ASN reconciliation: transition shipment + log discrepancies
       if (activeShipment) {

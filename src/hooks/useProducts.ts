@@ -39,7 +39,18 @@ export interface Product {
   inventory_account_id?: string | null;
 }
 
-export function useProducts() {
+export interface UseProductsOptions {
+  /**
+   * Include `is_variant_parent = true` rows. Defaults to `false` because
+   * variant parents are catalogue-only aggregates and must never appear in
+   * transactional pickers, valuation reports, or picklists (ADR 0072). Admin
+   * surfaces (product list, product form) opt back in explicitly.
+   */
+  includeVariantParents?: boolean;
+}
+
+export function useProducts(options: UseProductsOptions = {}) {
+  const { includeVariantParents = false } = options;
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { toast } = useToast();
@@ -53,12 +64,20 @@ export function useProducts() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("products")
         .select("*")
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
         .order("name");
+
+      if (!includeVariantParents) {
+        // Variant parents are un-transactable (ADR 0072). Legacy rows may
+        // have NULL for the flag, so treat NULL as false.
+        query = query.or("is_variant_parent.is.null,is_variant_parent.eq.false");
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setProducts(data as Product[]);
@@ -72,7 +91,7 @@ export function useProducts() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg, currentBusiness, toast]);
+  }, [currentOrg, currentBusiness, toast, includeVariantParents]);
 
   // Initial fetch
   useEffect(() => {

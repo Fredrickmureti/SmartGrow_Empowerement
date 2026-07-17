@@ -75,6 +75,7 @@ import { HeldOrdersBar } from "@/components/pos/HeldOrdersBar";
 import { KeyboardShortcutsOverlay } from "@/components/pos/KeyboardShortcutsOverlay";
 import { useDrawerPolicy } from "@/hooks/pos/useDrawerPolicy";
 import { parseScanPayload } from "@/services/pos/parseBarcode";
+import { interpretScan } from "@/lib/gs1/useGs1Scanner";
 // useScanCapture is mounted globally in AuthenticatedShell
 import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
 import { scanBus } from "@/services/pos/scanBus";
@@ -637,7 +638,11 @@ function POSTerminalInner() {
   // (H1 — cashier fatigue: no need to scan the same item N times).
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchQuery) {
-      const { code, quantity } = parseScanPayload(searchQuery);
+      // GS1 first: collapse a DataMatrix / QR payload to its GTIN so the
+      // downstream resolver hits `pos_resolve_barcode` on the primary
+      // identifier. `interpretScan` is a no-op for plain scans.
+      const gs1 = interpretScan(searchQuery);
+      const { code, quantity } = parseScanPayload(gs1.resolveCode);
       void handleScan(code, quantity, "manual");
       setSearchQuery("");
     }
@@ -749,7 +754,9 @@ function POSTerminalInner() {
       if (scopeMode === "scoped" && event.sourceTopic) {
         if (event.sourceTopic !== ownRegisterTopic) return;
       }
-      void handleScan(event.code, event.quantity, event.source);
+      // GS1 collapse: DataMatrix / QR payload → GTIN before resolver.
+      const gs1 = interpretScan(event.code);
+      void handleScan(gs1.resolveCode, event.quantity, event.source);
     });
     return unsub;
   }, [handleScan, scopeMode, ownRegisterTopic]);

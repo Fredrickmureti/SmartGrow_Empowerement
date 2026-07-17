@@ -147,6 +147,9 @@ export default function Products() {
     search: debouncedSearch,
     type: typeFilter,
     category_id: categoryFilter,
+    // Admin product catalogue must show variant parents so they can be
+    // authored / edited. Transactional pickers keep the default (excluded).
+    includeVariantParents: true,
   }), [debouncedSearch, typeFilter, categoryFilter]);
 
   const { 
