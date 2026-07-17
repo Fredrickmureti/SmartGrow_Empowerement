@@ -68,11 +68,11 @@ function randomCode(): string {
   return `LPN-${yy}${rnd}`;
 }
 
-const STATUS_TONE: Record<LpnStatus, "success" | "warning" | "info" | "muted"> = {
+const STATUS_TONE: Record<LpnStatus, "success" | "warning" | "info" | "neutral"> = {
   open: "info",
   sealed: "warning",
   shipped: "success",
-  retired: "muted",
+  retired: "neutral",
 };
 
 export default function LicensePlates() {

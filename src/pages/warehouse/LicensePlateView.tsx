@@ -165,7 +165,7 @@ export default function LicensePlateView() {
         <Section>
           <div className="grid gap-3 md:grid-cols-3">
             <Card><CardHeader className="pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Status</CardTitle></CardHeader>
-              <CardContent><StatusBadge tone={status === "sealed" ? "warning" : status === "shipped" ? "success" : status === "retired" ? "muted" : "info"} label={status} /></CardContent></Card>
+              <CardContent><StatusBadge tone={status === "sealed" ? "warning" : status === "shipped" ? "success" : status === "retired" ? "neutral" : "info"} label={status} /></CardContent></Card>
             <Card><CardHeader className="pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Current location</CardTitle></CardHeader>
               <CardContent className="text-sm">{currentLoc}</CardContent></Card>
             <Card><CardHeader className="pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Parent plate</CardTitle></CardHeader>

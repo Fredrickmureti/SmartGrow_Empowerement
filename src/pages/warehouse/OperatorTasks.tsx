@@ -66,8 +66,8 @@ interface TaskRow {
   dest_loc: { code: string } | null;
 }
 
-const STATE_TONE: Record<TaskState, "info" | "warning" | "success" | "muted" | "danger"> = {
-  pending: "muted",
+const STATE_TONE: Record<TaskState, "info" | "warning" | "success" | "neutral" | "danger"> = {
+  pending: "neutral",
   assigned: "info",
   in_progress: "warning",
   done: "success",
