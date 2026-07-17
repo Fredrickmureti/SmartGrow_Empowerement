@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/contexts/BusinessContext";
 import { CheckCircle2, Upload, Info } from "lucide-react";
 import { ImportWizard } from "@/components/common/ImportWizard";
 import { PRODUCT_MIGRATION_FIELDS, createProductMigrationHandler, createProductBatchMigrationHandler } from "@/lib/importConfigs/productImportConfig";
@@ -16,6 +17,7 @@ interface Props {
 
 export function MigrationStepProducts({ onComplete, onSkip }: Props) {
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
   const [showImport, setShowImport] = useState(false);
 
   const { data: products = [], refetch } = useQuery({
@@ -34,7 +36,10 @@ export function MigrationStepProducts({ onComplete, onSkip }: Props) {
   });
 
   const handleImportRow = createProductMigrationHandler(currentOrg?.id || "");
-  const handleBatchImport = createProductBatchMigrationHandler(currentOrg?.id || "");
+  const handleBatchImport = createProductBatchMigrationHandler({
+    orgId: currentOrg?.id || "",
+    businessId: currentBusiness?.id || currentOrg?.id || "",
+  });
 
   return (
     <>
