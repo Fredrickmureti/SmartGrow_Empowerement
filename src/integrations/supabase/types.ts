@@ -42476,6 +42476,65 @@ export type Database = {
           },
         ]
       }
+      product_variant_axes: {
+        Row: {
+          business_id: string
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      product_variant_axis_values: {
+        Row: {
+          axis_id: string
+          created_at: string
+          display_order: number
+          id: string
+          value: string
+        }
+        Insert: {
+          axis_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          value: string
+        }
+        Update: {
+          axis_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variant_axis_values_axis_id_fkey"
+            columns: ["axis_id"]
+            isOneToOne: false
+            referencedRelation: "product_variant_axes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           base_uom_id: string | null
@@ -42503,6 +42562,7 @@ export type Database = {
           is_lot_tracked: boolean
           is_sample_data: boolean
           is_serial_tracked: boolean
+          is_variant_parent: boolean
           is_weighted: boolean | null
           min_age: number | null
           min_order_quantity: number | null
@@ -42527,6 +42587,8 @@ export type Database = {
           type: Database["public"]["Enums"]["product_type"]
           unit_price: number
           updated_at: string
+          variant_axis_values: Json | null
+          variant_parent_id: string | null
           weight_unit: string | null
         }
         Insert: {
@@ -42555,6 +42617,7 @@ export type Database = {
           is_lot_tracked?: boolean
           is_sample_data?: boolean
           is_serial_tracked?: boolean
+          is_variant_parent?: boolean
           is_weighted?: boolean | null
           min_age?: number | null
           min_order_quantity?: number | null
@@ -42579,6 +42642,8 @@ export type Database = {
           type?: Database["public"]["Enums"]["product_type"]
           unit_price?: number
           updated_at?: string
+          variant_axis_values?: Json | null
+          variant_parent_id?: string | null
           weight_unit?: string | null
         }
         Update: {
@@ -42607,6 +42672,7 @@ export type Database = {
           is_lot_tracked?: boolean
           is_sample_data?: boolean
           is_serial_tracked?: boolean
+          is_variant_parent?: boolean
           is_weighted?: boolean | null
           min_age?: number | null
           min_order_quantity?: number | null
@@ -42631,6 +42697,8 @@ export type Database = {
           type?: Database["public"]["Enums"]["product_type"]
           unit_price?: number
           updated_at?: string
+          variant_axis_values?: Json | null
+          variant_parent_id?: string | null
           weight_unit?: string | null
         }
         Relationships: [
@@ -42779,6 +42847,20 @@ export type Database = {
             columns: ["tax_rate_id"]
             isOneToOne: false
             referencedRelation: "tax_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_variant_parent_id_fkey"
+            columns: ["variant_parent_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "products_variant_parent_id_fkey"
+            columns: ["variant_parent_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
