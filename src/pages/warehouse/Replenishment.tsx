@@ -164,7 +164,7 @@ export default function Replenishment() {
   return (
     <>
       <PageHeader
-        icon={Waves}
+        eyebrow="Warehouse"
         title="Replenishment"
         description="Keep pick faces stocked from bulk/reserve locations."
         actions={

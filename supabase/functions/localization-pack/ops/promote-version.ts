@@ -47,13 +47,23 @@ export async function run(req: Request): Promise<Response> {
     }
 
     // Keep pack catalog labels aligned with the promoted/current version.
-    // Tenant activation still happens below on installed_localization_packs,
-    // but the pack header/list should not keep showing an old catalog version.
-    const { error: packVersionErr } = await sb
+    // Guard: only UPDATE when the version actually changes. Re-issuing the
+    // same version would re-fire emit_pack_lifecycle_event with an already
+    // used idempotency key (localization_pack.updated:<id>:<version>) and
+    // raise 23505 in the outbox.
+    const { data: curPack, error: curPackErr } = await sb
       .from("localization_packs")
-      .update({ version: tgt.version })
-      .eq("id", pack_id);
-    if (packVersionErr) return errorResponse("INTERNAL", packVersionErr.message, 500);
+      .select("version")
+      .eq("id", pack_id)
+      .maybeSingle();
+    if (curPackErr) return errorResponse("INTERNAL", curPackErr.message, 500);
+    if (curPack && curPack.version !== tgt.version) {
+      const { error: packVersionErr } = await sb
+        .from("localization_packs")
+        .update({ version: tgt.version })
+        .eq("id", pack_id);
+      if (packVersionErr) return errorResponse("INTERNAL", packVersionErr.message, 500);
+    }
 
     let installs: any[] = [];
     if (scope === "all_tenants") {
