@@ -216,6 +216,39 @@ export const INVENTORY_APP: AppDefinition = {
 };
 
 /**
+ * Warehouse App — physical-execution layer above Inventory (ADR 0079).
+ *
+ * Owns location, task, dock, appointment, wave, pick, pack, load. Never
+ * owns stock quantity/value — Inventory stays canonical. Mounted at
+ * `/warehouse-app/*` in src/App.tsx.
+ */
+export const WAREHOUSE_APP: AppDefinition = {
+  id: "warehouse",
+  name: "Warehouse",
+  description: "Operator tasks, receiving, put-away, picking, packing, dispatch",
+  icon: Warehouse,
+  color: "hsl(24, 95%, 53%)", // Orange — distinct from Inventory purple
+  basePath: "/warehouse-app",
+  requiredPlan: "professional",
+  requiredPermissions: ["viewProducts"],
+  sortOrder: 5.5,
+  defaultModule: "dashboard",
+  internalOnly: true,
+  modules: [
+    { id: "dashboard", name: "Overview", path: "/dashboard", icon: LayoutGrid, permission: "viewProducts" },
+    { id: "warehouses", name: "Warehouses", path: "/warehouses", icon: Warehouse, permission: "viewProducts" },
+    { id: "layout", name: "Layout", path: "/layout", icon: Warehouse, permission: "manageProducts", description: "Zones, aisles, racks, shelves, bins" },
+    { id: "receiving", name: "Receiving", path: "/receiving", icon: Truck, permission: "viewProducts" },
+    { id: "putaway", name: "Put-away", path: "/putaway", icon: Package, permission: "viewProducts" },
+    { id: "tasks", name: "Operator tasks", path: "/tasks", icon: ClipboardList, permission: "viewProducts" },
+    { id: "picking", name: "Picking", path: "/picking", icon: Package, permission: "viewProducts" },
+    { id: "packing", name: "Packing", path: "/packing", icon: Package, permission: "viewProducts" },
+    { id: "dispatch", name: "Dispatch", path: "/dispatch", icon: Truck, permission: "viewProducts" },
+    { id: "qc", name: "Quality control", path: "/qc", icon: Shield, permission: "viewProducts" },
+  ],
+};
+
+/**
  * POS App - Point of Sale operations
  * Note: Terminal requires a register ID parameter, so we link to the POS dashboard
  * which allows selecting a register before launching the terminal
@@ -784,6 +817,7 @@ export const APP_REGISTRY: AppDefinition[] = [
   CONTACTS_APP,
   PURCHASES_APP,
   INVENTORY_APP,
+  WAREHOUSE_APP,
   POS_APP,
   CRM_APP,
   // HR domain — split into 5 Odoo-aligned apps (Employees is foundational)
