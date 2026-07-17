@@ -65,7 +65,20 @@ interface Carton {
   width_cm: number | null;
   height_cm: number | null;
   sealed_at: string | null;
+  carton_type_id: string | null;
   shipment_lpn: { code: string } | null;
+  carton_type: { code: string; name: string } | null;
+}
+
+interface CartonType {
+  id: string;
+  code: string;
+  name: string;
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
+  max_weight_kg: number | null;
+  is_active: boolean;
 }
 
 export default function PackStation() {
@@ -79,11 +92,26 @@ export default function PackStation() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_pick_waves")
-        .select("id, wave_number, state, warehouse_id, released_at, completed_at")
+        .select("id, wave_number, state, warehouse_id, business_id, released_at, completed_at")
         .eq("id", waveId!)
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: cartonTypes } = useQuery({
+    queryKey: ["wms-carton-types", wave?.business_id],
+    enabled: !!wave?.business_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_carton_types")
+        .select("id, code, name, length_cm, width_cm, height_cm, max_weight_kg, is_active")
+        .eq("business_id", wave!.business_id!)
+        .eq("is_active", true)
+        .order("code");
+      if (error) throw error;
+      return (data ?? []) as CartonType[];
     },
   });
 
@@ -110,7 +138,7 @@ export default function PackStation() {
       const { data, error } = await supabase
         .from("wms_pack_cartons")
         .select(
-          "id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, shipment_lpn:shipment_lpn_id(code)",
+          "id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, carton_type_id, shipment_lpn:shipment_lpn_id(code), carton_type:carton_type_id(code, name)",
         )
         .eq("wave_id", waveId!)
         .order("opened_at");
@@ -143,15 +171,58 @@ export default function PackStation() {
 
   const openCarton = useMutation({
     mutationFn: async (sales_order_id: string) => {
-      const { data, error } = await supabase.rpc("open_pack_carton", {
+      // 1. Ask the engine which carton type fits the remaining unpacked lines
+      const remaining = (lines ?? []).filter(
+        (l) => l.sales_order_id === sales_order_id && !l.packed_carton_id,
+      );
+      let suggestedTypeId: string | null = null;
+      let suggestedCode: string | null = null;
+      if (wave?.business_id && remaining.length > 0) {
+        const { data: suggestion } = await supabase.rpc("suggest_carton", {
+          p_business_id: wave.business_id,
+          p_product_ids: remaining.map((l) => l.product_id),
+          p_quantities: remaining.map((l) => (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0)),
+        });
+        // RPC returns a wms_carton_types row (or null)
+        const row = suggestion as { id?: string; code?: string } | null;
+        if (row && row.id) {
+          suggestedTypeId = row.id;
+          suggestedCode = row.code ?? null;
+        }
+      }
+      // 2. Open the carton
+      const { data: cartonId, error } = await supabase.rpc("open_pack_carton", {
         p_wave_id: waveId!,
         p_sales_order_id: sales_order_id,
       });
       if (error) throw error;
-      return data;
+      // 3. Stamp the suggested carton type (best effort — do not fail the open)
+      if (cartonId && suggestedTypeId) {
+        const { error: aErr } = await supabase.rpc("assign_carton_to_pack", {
+          p_carton_id: cartonId as string,
+          p_carton_type_id: suggestedTypeId,
+        });
+        if (aErr) console.warn("assign_carton_to_pack failed", aErr);
+      }
+      return { cartonId, suggestedCode };
     },
-    onSuccess: () => { toast.success("Carton opened"); invalidateAll(); },
+    onSuccess: ({ suggestedCode }) => {
+      toast.success(suggestedCode ? `Carton opened · suggested ${suggestedCode}` : "Carton opened");
+      invalidateAll();
+    },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Open failed"),
+  });
+
+  const assignCartonType = useMutation({
+    mutationFn: async (v: { carton_id: string; carton_type_id: string }) => {
+      const { error } = await supabase.rpc("assign_carton_to_pack", {
+        p_carton_id: v.carton_id,
+        p_carton_type_id: v.carton_type_id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Carton type updated"); invalidateAll(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
   });
 
   const assignLine = useMutation({
@@ -332,18 +403,37 @@ export default function PackStation() {
                       <p className="text-sm text-muted-foreground">No cartons yet. Open one to start packing.</p>
                     )}
                     {soCartons.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between border rounded p-2">
-                        <div>
-                          <div className="font-mono text-sm">{c.shipment_lpn?.code ?? c.id.slice(0, 8)}</div>
+                      <div key={c.id} className="flex items-center justify-between border rounded p-2 gap-2">
+                        <div className="min-w-0">
+                          <div className="font-mono text-sm truncate">{c.shipment_lpn?.code ?? c.id.slice(0, 8)}</div>
                           <div className="text-xs text-muted-foreground">
                             {c.sealed_at ? `sealed · ${c.weight_kg ?? "?"}kg` : "open"}
+                            {c.carton_type ? ` · ${c.carton_type.code}` : ""}
                           </div>
                         </div>
-                        {!c.sealed_at && (
-                          <Button size="sm" variant="outline" onClick={() => setSealDialog({ carton_id: c.id })}>
-                            <Lock className="h-4 w-4 mr-1" /> Seal
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {!c.sealed_at && (
+                            <select
+                              className="border rounded px-2 py-1 text-xs bg-background"
+                              value={c.carton_type_id ?? ""}
+                              disabled={assignCartonType.isPending}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v) assignCartonType.mutate({ carton_id: c.id, carton_type_id: v });
+                              }}
+                            >
+                              <option value="">carton type…</option>
+                              {(cartonTypes ?? []).map((t) => (
+                                <option key={t.id} value={t.id}>{t.code} — {t.name}</option>
+                              ))}
+                            </select>
+                          )}
+                          {!c.sealed_at && (
+                            <Button size="sm" variant="outline" onClick={() => setSealDialog({ carton_id: c.id })}>
+                              <Lock className="h-4 w-4 mr-1" /> Seal
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </CardContent>

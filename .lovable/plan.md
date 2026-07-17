@@ -1,5 +1,5 @@
 
-# WMS continuation — Phase 12 shipped ✅ · Phase 13 next
+# WMS continuation — Phase 12 + 12.1 shipped ✅ · Phase 13 to be scoped
 
 ## Phase 12 — Cross-dock & cartonization (SHIPPED)
 
@@ -7,14 +7,24 @@
 - Migration `20260717233..._wms_phase12_crossdock_cartonization.sql`: `wms_carton_types` + `wms_crossdock_opportunities` tables (GRANT + RLS + policies), `wms_pack_cartons.carton_type_id` column, RPCs `evaluate_crossdock_on_grn`, `confirm_crossdock_stage`, `cancel_crossdock_opportunity`, `suggest_carton`, `assign_carton_to_pack`, and `AFTER UPDATE OF status` trigger on `goods_receipts` that auto-evaluates on GRN completion.
 - Event fabric: `warehouse.crossdock.matched|staged|cancelled` published through `emit_crossdock_event` with idempotency key `wms.crossdock_opportunity:<id>:<status>`.
 - UI: `src/pages/warehouse/CrossdockBoard.tsx` and `src/pages/warehouse/CartonTypes.tsx`, wired at `/warehouse-app/crossdock` and `/warehouse-app/cartons`; nav updated (Operations → Cross-dock, Master → Carton catalogue).
-- Guard: `src/test/architecture/wms-phase12.test.ts` — 5/5 green (RPC-only on opportunities, page-scoped writes on carton catalogue, no direct `carton_type_id` writes on pack cartons, RPC call assertions, nav+route wiring).
+- Guard: `src/test/architecture/wms-phase12.test.ts` — 6/6 green.
 - ADR `docs/adr/0083-wms-crossdock-cartonization.md`.
 
-**Phase 12.1 follow-up (deferred):** wire `PackStation.tsx` to call `suggest_carton` before submit and pre-select the returned carton type. RPC exists; just need UI wiring.
+## Phase 12.1 — PackStation cartonization wiring (SHIPPED)
+
+**Delivered:**
+- `PackStation.tsx` "Open carton" now calls `suggest_carton(business_id, product_ids[], quantities[])` against the remaining unpacked lines of the sales order, opens the carton via `open_pack_carton`, then stamps the suggestion via `assign_carton_to_pack` (best-effort — a failure here does not roll back the open).
+- Per-open-carton dropdown of active `wms_carton_types` lets the operator override the suggestion; changes go through `assign_carton_to_pack` (client never writes `carton_type_id` directly).
+- Carton row footer shows the assigned carton-type code alongside seal state.
+- Guard `wms-phase12.test.ts` now asserts PackStation wires both `suggest_carton` and `assign_carton_to_pack`.
 
 ---
 
-# START HERE NEXT — Phase 13
+# START HERE NEXT — Phase 13 (needs scoping with user)
+
+ADR 0083 flagged Phase 13 as **multi-carton splits at PackStation** (one SO line → many cartons, driven by suggest_carton returning a list rather than a single row). ADR 0082 flagged **kitting / returns / VAS** as future billable-activity extensions. Confirm scope with the user before starting.
+
+
 
 
 
