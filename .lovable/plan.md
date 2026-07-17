@@ -19,6 +19,55 @@
   - Architecture guard `wms-phase7.test.ts` green (RPC-only writes + saga/bus event coverage).
   - Deferred to Phase 7.1: physical `qc_hold` sub-location stock relocation, GRN auto-open when `require_qc_on_receipt=true`, RTV draft auto-creation from rejects, AQL sampling tables, vendor-portal integration.
 
+## Handoff snapshot (2026-07-17)
+
+### What is truly Done end-to-end
+
+- Phases 0–5: master data, locations, LPN/tasks, putaway, waves/picking/packing, cycle counting, loading/dispatch.
+- Phase 6: dock scheduling & appointments (table + exclusion constraint, 6 RPCs, events, UI at `/warehouse-app/schedule`, GRN + manifest binding, guard green).
+- Phase 7: QC inspection lifecycle — logical state machine only. Migration, 5 RPCs, events, `/warehouse-app/qc` queue + detail, GRN/return FK bindings, guard green.
+
+### Known gaps carried forward (do NOT skip — required for a real WMS)
+
+These were intentionally deferred so the state machine could land first. They must be closed before Phase 8 starts, otherwise QC is decorative:
+
+1. **Phase 7.1 — QC physical stock effects** (blocks trustworthy inventory):
+   - Provision a `qc_hold` sub-location per warehouse (migration + on-demand fallback in `open_qc_inspection`).
+   - `open_qc_inspection` must move affected qty from receiving bin → `qc_hold` via `stock_movements` (not just flip a flag).
+   - `accept_qc_inspection` must move accepted qty `qc_hold` → default putaway staging; `reject_qc_inspection` must post scrap movement or seed a `purchase_returns` draft for `return_to_vendor`.
+   - Auto-open QC on GRN post when `warehouses.require_qc_on_receipt = true`; same hook on sales-return receipt.
+   - Architecture guard extension: assert every QC accept/reject writes a matching `stock_movements` row (RPC contract test via `supabase--read_query`).
+
+### Next phase to pick up — Phase 8: Replenishment & slotting
+
+Rationale (chronological/logical order): with inbound (appointments → GRN → QC → putaway), outbound (waves → pick → pack → manifest → dispatch), and count all in place, the next missing enterprise capability is **keeping pick faces fed and locations optimally slotted**. Do NOT jump to yard, labour, or billing modules first — those depend on stable replenishment signals.
+
+Scope preview (spec to be written before code):
+
+- `wms_replenishment_rules` (min/max per product×location, trigger strategy: min-max, demand-based, wave-driven).
+- `wms_replenishment_tasks` — generated moves from reserve → pick face, reusing `wms_tasks` executor.
+- RPCs: `generate_replenishment_tasks(p_warehouse_id, p_strategy)`, `complete_replenishment_task(...)`.
+- Slotting analytics view: velocity (A/B/C) × pick-face suitability, surfaced read-only in `/warehouse-app/slotting`.
+- Events: `warehouse.replenishment.generated|completed`.
+- Architecture guard `wms-phase8.test.ts`.
+
+### Rules for the next agent (keep the vision intact)
+
+1. **Finish Phase 7.1 before Phase 8.** QC without stock movements is a lie; downstream replenishment cannot trust on-hand until QC actually parks qty in `qc_hold`.
+2. **Never widen client write surface.** All new tables follow the RPC-only pattern; every phase ships an architecture guard.
+3. **Every state transition emits an outbox event.** Register the type in `domainEventBus.ts` AND wire a handler (log-only is fine) in `BusinessSagaMount.tsx` so Phase 2 arch guard stays green.
+4. **Respect the Inventory ↔ Warehouse split (ADR 0079).** `stock_quants` = what/how much (inventory domain). `wms_*` = where/who/how (warehouse domain). QC, replenishment, slotting all live in `wms_*` and mutate quants only via sanctioned inventory RPCs.
+5. **Do not rename or repurpose existing tables.** If a spec references a table that does not exist (as happened with `wms_receipts`), stop and reconcile in the plan file before coding.
+6. **Chronological order is non-negotiable:** 7.1 (QC physical) → 8 (replenishment/slotting) → 9 (yard/trailer) → 10 (labour management) → 11 (3PL billing). Skipping steps breaks the event chain.
+7. **After each phase:** run all `wms-phase*.test.ts` + `tsgo`, then update this file — move the phase to Done, refresh this handoff snapshot, seed the next Next.
+
+### Verification checklist for the next agent before writing any code
+
+- [ ] Re-read this section end-to-end.
+- [ ] Confirm `wms-phase1..7.test.ts` all pass on a clean checkout.
+- [ ] Confirm no in-flight migrations (check `supabase/migrations/` tail vs. `types.ts`).
+- [ ] Start with Phase 7.1 physical-stock work; do NOT open Phase 8 files until 7.1 is Done.
+
 ## Verification of prior work
 
 Spot-checked the handoff in `.lovable/plan.md` against the live database and codebase:
