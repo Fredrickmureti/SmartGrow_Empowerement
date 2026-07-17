@@ -56411,6 +56411,60 @@ export type Database = {
           },
         ]
       }
+      wms_carton_types: {
+        Row: {
+          business_id: string
+          code: string
+          cost: number
+          created_at: string
+          created_by: string | null
+          height_cm: number
+          id: string
+          is_active: boolean
+          length_cm: number
+          max_weight_kg: number
+          name: string
+          notes: string | null
+          tare_weight_kg: number
+          updated_at: string
+          width_cm: number
+        }
+        Insert: {
+          business_id: string
+          code: string
+          cost?: number
+          created_at?: string
+          created_by?: string | null
+          height_cm: number
+          id?: string
+          is_active?: boolean
+          length_cm: number
+          max_weight_kg?: number
+          name: string
+          notes?: string | null
+          tare_weight_kg?: number
+          updated_at?: string
+          width_cm: number
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          cost?: number
+          created_at?: string
+          created_by?: string | null
+          height_cm?: number
+          id?: string
+          is_active?: boolean
+          length_cm?: number
+          max_weight_kg?: number
+          name?: string
+          notes?: string | null
+          tare_weight_kg?: number
+          updated_at?: string
+          width_cm?: number
+        }
+        Relationships: []
+      }
       wms_count_lines: {
         Row: {
           business_id: string
@@ -56526,6 +56580,118 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: []
+      }
+      wms_crossdock_opportunities: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          grn_id: string
+          grn_line_id: string
+          id: string
+          matched_at: string
+          organization_id: string
+          product_id: string
+          quantity: number
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          stage_task_id: string | null
+          staged_at: string | null
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          grn_id: string
+          grn_line_id: string
+          id?: string
+          matched_at?: string
+          organization_id: string
+          product_id: string
+          quantity: number
+          sales_order_id?: string | null
+          sales_order_item_id?: string | null
+          stage_task_id?: string | null
+          staged_at?: string | null
+          status?: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          grn_id?: string
+          grn_line_id?: string
+          id?: string
+          matched_at?: string
+          organization_id?: string
+          product_id?: string
+          quantity?: number
+          sales_order_id?: string | null
+          sales_order_item_id?: string | null
+          stage_task_id?: string | null
+          staged_at?: string | null
+          status?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_crossdock_opportunities_grn_id_fkey"
+            columns: ["grn_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_grn_line_id_fkey"
+            columns: ["grn_line_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_grn_line_id_fkey"
+            columns: ["grn_line_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_lines_with_suspect_cost"
+            referencedColumns: ["goods_receipt_item_id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "sales_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
+            columns: ["stage_task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wms_dock_appointments: {
         Row: {
@@ -56834,6 +57000,7 @@ export type Database = {
         Row: {
           branch_id: string | null
           business_id: string
+          carton_type_id: string | null
           created_at: string
           height_cm: number | null
           id: string
@@ -56855,6 +57022,7 @@ export type Database = {
         Insert: {
           branch_id?: string | null
           business_id: string
+          carton_type_id?: string | null
           created_at?: string
           height_cm?: number | null
           id?: string
@@ -56876,6 +57044,7 @@ export type Database = {
         Update: {
           branch_id?: string | null
           business_id?: string
+          carton_type_id?: string | null
           created_at?: string
           height_cm?: number | null
           id?: string
@@ -56895,6 +57064,13 @@ export type Database = {
           width_cm?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_pack_cartons_carton_type_id_fkey"
+            columns: ["carton_type_id"]
+            isOneToOne: false
+            referencedRelation: "wms_carton_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_pack_cartons_manifest_id_fkey"
             columns: ["manifest_id"]
@@ -65113,6 +65289,37 @@ export type Database = {
         Args: { p_as_of?: string; p_business_id: string }
         Returns: undefined
       }
+      assign_carton_to_pack: {
+        Args: { p_carton_id: string; p_carton_type_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          carton_type_id: string | null
+          created_at: string
+          height_cm: number | null
+          id: string
+          length_cm: number | null
+          manifest_id: string | null
+          opened_at: string
+          opened_by: string | null
+          organization_id: string
+          sales_order_id: string
+          sealed_at: string | null
+          sealed_by: string | null
+          shipment_lpn_id: string | null
+          updated_at: string
+          warehouse_id: string | null
+          wave_id: string
+          weight_kg: number | null
+          width_cm: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_pack_cartons"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       assign_employee_to_branch: {
         Args: {
           p_assignment_type?: string
@@ -65582,6 +65789,37 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      cancel_crossdock_opportunity: {
+        Args: { p_opportunity_id: string; p_reason?: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          grn_id: string
+          grn_line_id: string
+          id: string
+          matched_at: string
+          organization_id: string
+          product_id: string
+          quantity: number
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          stage_task_id: string | null
+          staged_at: string | null
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       cancel_delivery_atomic: {
         Args: { p_dn_id: string; p_reason?: string; p_user_id: string }
@@ -66261,6 +66499,37 @@ export type Database = {
         Args: { p_cn_id: string; p_main_lines: Json; p_user_id: string }
         Returns: Json
       }
+      confirm_crossdock_stage: {
+        Args: { p_opportunity_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          grn_id: string
+          grn_line_id: string
+          id: string
+          matched_at: string
+          organization_id: string
+          product_id: string
+          quantity: number
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          stage_task_id: string | null
+          staged_at: string | null
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       confirm_invoice_and_release_stock_atomic: {
         Args: {
           p_invoice_id: string
@@ -66719,6 +66988,13 @@ export type Database = {
           p_warehouse_id?: string
         }
         Returns: string
+      }
+      emit_crossdock_event: {
+        Args: {
+          p_row: Database["public"]["Tables"]["wms_crossdock_opportunities"]["Row"]
+          p_type: string
+        }
+        Returns: undefined
       }
       emit_employee_lifecycle_event: {
         Args: {
@@ -67736,6 +68012,7 @@ export type Database = {
         Args: { _business_id: string }
         Returns: Json
       }
+      evaluate_crossdock_on_grn: { Args: { p_grn_id: string }; Returns: number }
       evaluate_missing_je_drift_alerts: { Args: never; Returns: Json }
       evaluate_payroll_readiness: {
         Args: {
@@ -73602,6 +73879,36 @@ export type Database = {
         Returns: string
       }
       subscription_active_for_org: { Args: { p_org: string }; Returns: boolean }
+      suggest_carton: {
+        Args: {
+          p_business_id: string
+          p_product_ids: string[]
+          p_quantities: number[]
+        }
+        Returns: {
+          business_id: string
+          code: string
+          cost: number
+          created_at: string
+          created_by: string | null
+          height_cm: number
+          id: string
+          is_active: boolean
+          length_cm: number
+          max_weight_kg: number
+          name: string
+          notes: string | null
+          tare_weight_kg: number
+          updated_at: string
+          width_cm: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_carton_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       suggest_putaway_locations: {
         Args: {
           p_product_id: string
