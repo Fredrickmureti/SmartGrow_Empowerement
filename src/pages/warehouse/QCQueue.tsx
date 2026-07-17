@@ -74,8 +74,7 @@ export default function QCQueue() {
   return (
     <>
       <PageHeader
-        icon={ShieldCheck}
-        title="Quality control"
+        title={<span className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" /> Quality control</span>}
         description="Inspect inbound receipts and returns before stock is released."
       />
       <PageBody>
