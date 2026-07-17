@@ -70,6 +70,12 @@ describe("wms phase 12 architecture", () => {
     expect(src).toMatch(/from\(\s*["']wms_crossdock_opportunities["']/);
   });
 
+  it("PackStation wires suggest_carton + assign_carton_to_pack (Phase 12.1)", () => {
+    const src = readFileSync(path.join(SRC, "pages/warehouse/PackStation.tsx"), "utf8");
+    expect(src).toMatch(/rpc\(\s*["']suggest_carton["']/);
+    expect(src).toMatch(/rpc\(\s*["']assign_carton_to_pack["']/);
+  });
+
   it("route and nav wire /crossdock and /cartons", () => {
     const routes = readFileSync(path.join(SRC, "apps/warehouse/routes.tsx"), "utf8");
     const nav = readFileSync(path.join(SRC, "apps/warehouse/nav.ts"), "utf8");
