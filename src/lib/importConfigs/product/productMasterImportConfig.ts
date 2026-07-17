@@ -11,13 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { emitProductImportCompleted, newBatchId } from "./_emitImportEvent";
 import type { ImportContext } from "./_resolveProduct";
 
-function normalizeCtx(ctxOrOrgId: ImportContext | string): ImportContext {
-  if (typeof ctxOrOrgId === "string") {
-    // Legacy call site — assume single-business workspace so businessId == orgId.
-    return { orgId: ctxOrOrgId, businessId: ctxOrOrgId };
-  }
-  return ctxOrOrgId;
-}
 
 export const PRODUCT_MASTER_IMPORT_FIELDS: FieldDefinition[] = [
   { key: "name", label: "Name", required: true, type: "text", aliases: ["product name", "item_name", "product", "item", "title", "Product Name", "description"] },
@@ -55,9 +48,11 @@ export function createProductMasterMigrationHandler(orgId: string) {
   };
 }
 
-export function createProductMasterBatchMigrationHandler(ctxOrOrgId: ImportContext | string) {
-  const ctx = normalizeCtx(ctxOrOrgId);
+export function createProductMasterBatchMigrationHandler(ctx: ImportContext) {
   const orgId = ctx.orgId;
+  if (!ctx.businessId) {
+    throw new Error("createProductMasterBatchMigrationHandler: ctx.businessId is required");
+  }
   return async (rows: Record<string, any>[]) => {
     const errors: { rowIndex: number; data: Record<string, any>; errors: string }[] = [];
     const insertRows = rows.map((row) => {
