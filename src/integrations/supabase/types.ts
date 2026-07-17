@@ -42862,6 +42862,7 @@ export type Database = {
           purchase_uom_id: string | null
           reorder_level: number | null
           reorder_quantity: number | null
+          requires_qc: boolean
           review_reason: string | null
           sales_account_id: string | null
           sales_uom_id: string | null
@@ -42917,6 +42918,7 @@ export type Database = {
           purchase_uom_id?: string | null
           reorder_level?: number | null
           reorder_quantity?: number | null
+          requires_qc?: boolean
           review_reason?: string | null
           sales_account_id?: string | null
           sales_uom_id?: string | null
@@ -42972,6 +42974,7 @@ export type Database = {
           purchase_uom_id?: string | null
           reorder_level?: number | null
           reorder_quantity?: number | null
+          requires_qc?: boolean
           review_reason?: string | null
           sales_account_id?: string | null
           sales_uom_id?: string | null
