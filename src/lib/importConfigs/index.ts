@@ -3,11 +3,11 @@ export { CONTACT_IMPORT_FIELDS, createContactImportHandler } from "@/lib/contact
 export { ACCOUNT_IMPORT_FIELDS, ACCOUNT_MIGRATION_FIELDS, createAccountMigrationHandler, createAccountBatchMigrationHandler } from "./accountImportConfig";
 export { PRODUCT_IMPORT_FIELDS, PRODUCT_MIGRATION_FIELDS, createProductMigrationHandler, createProductBatchMigrationHandler } from "./productImportConfig";
 export { PRODUCT_MASTER_IMPORT_FIELDS, createProductMasterMigrationHandler, createProductMasterBatchMigrationHandler, normalizeProductType } from "./product/productMasterImportConfig";
-export { PRODUCT_BARCODE_IMPORT_FIELDS } from "./product/productBarcodeImportConfig";
-export { PRODUCT_BATCH_IMPORT_FIELDS } from "./product/productBatchImportConfig";
-export { PRODUCT_WAREHOUSE_STOCK_IMPORT_FIELDS } from "./product/productWarehouseStockImportConfig";
-export { PRODUCT_PRICE_IMPORT_FIELDS } from "./product/productPriceImportConfig";
-export { PRODUCT_SUPPLIER_IMPORT_FIELDS } from "./product/productSupplierImportConfig";
+export { PRODUCT_BARCODE_IMPORT_FIELDS, createProductBarcodeBatchMigrationHandler } from "./product/productBarcodeImportConfig";
+export { PRODUCT_BATCH_IMPORT_FIELDS, createProductBatchBatchMigrationHandler } from "./product/productBatchImportConfig";
+export { PRODUCT_WAREHOUSE_STOCK_IMPORT_FIELDS, createProductWarehouseStockBatchMigrationHandler } from "./product/productWarehouseStockImportConfig";
+export { PRODUCT_PRICE_IMPORT_FIELDS, createProductPriceBatchMigrationHandler } from "./product/productPriceImportConfig";
+export { PRODUCT_SUPPLIER_IMPORT_FIELDS, createProductSupplierBatchMigrationHandler } from "./product/productSupplierImportConfig";
 export { INVOICE_IMPORT_FIELDS } from "./invoiceImportConfig";
 export { BILL_IMPORT_FIELDS } from "./billImportConfig";
 export { EXPENSE_IMPORT_FIELDS } from "./expenseImportConfig";
