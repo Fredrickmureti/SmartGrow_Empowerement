@@ -33,6 +33,8 @@ const CountReview = lazy(() => import("@/pages/warehouse/CountReview"));
 const LoadingManifests = lazy(() => import("@/pages/warehouse/LoadingManifests"));
 const LoadingManifestPlanner = lazy(() => import("@/pages/warehouse/LoadingManifestPlanner"));
 const LoadingBay = lazy(() => import("@/pages/warehouse/LoadingBay"));
+const DockSchedule = lazy(() => import("@/pages/warehouse/DockSchedule"));
+const AppointmentPlanner = lazy(() => import("@/pages/warehouse/AppointmentPlanner"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
@@ -192,6 +194,9 @@ export function WarehouseApp() {
         <Route path="dispatch" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Dispatch"><LoadingManifests /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="dispatch/new" element={<SubscriptionProtectedRoute><LazyRoute module="New Manifest"><LoadingManifestPlanner /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="dispatch/:manifestId" element={<SubscriptionProtectedRoute><LazyRoute module="Loading Bay"><LoadingBay /></LazyRoute></SubscriptionProtectedRoute>} />
+
+        <Route path="schedule" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Dock Schedule"><DockSchedule /></LazyRoute></SubscriptionProtectedRoute>} />
+        <Route path="schedule/new" element={<SubscriptionProtectedRoute><LazyRoute module="Schedule Appointment"><AppointmentPlanner /></LazyRoute></SubscriptionProtectedRoute>} />
 
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
