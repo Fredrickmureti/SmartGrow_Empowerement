@@ -361,6 +361,13 @@ export function BusinessSagaMount({ orgId }: Props) {
     saga.register('warehouse.manifest.dispatched', wmsHandler);
     saga.register('warehouse.carton.shipped', wmsHandler);
 
+    // Phase 6 — Dock scheduling & appointments.
+    saga.register('warehouse.appointment.scheduled', wmsHandler);
+    saga.register('warehouse.appointment.arrived', wmsHandler);
+    saga.register('warehouse.appointment.in_progress', wmsHandler);
+    saga.register('warehouse.appointment.completed', wmsHandler);
+    saga.register('warehouse.appointment.cancelled', wmsHandler);
+
     saga.start();
 
     // Reclaim stale business-event leases on boot, then every 60s.
