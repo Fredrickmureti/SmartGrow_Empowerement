@@ -1,220 +1,85 @@
-# WMS continuation plan — chronological handoff log
 
-> Purpose: single source of truth for the next agent. Read this top-to-bottom
-> before touching code. Chronological order is **non-negotiable** — do not
-> skip phases, do not reorder. Each phase ships: migration(s) + RPC(s) + UI +
-> architecture guard test + ADR/plan entry.
+# WMS continuation — verification result + Phase 12 plan
 
----
+## Phase 1 — Verification of previous engineer's work
 
-## 1. Non-negotiables (carry forward every phase)
+I audited the parent prompt, `.lovable/plan.md`, and the actual codebase.
 
-1. **Inventory owns quantity & value.** Warehouse only posts through
-   `stock_movements` (two-row signed transfer convention). WMS never mutates
-   `stock_quants` directly, never writes cost.
-2. **`wms_*` operational tables are RPC-only** for state transitions. The
-   sanctioned PostgREST writes are user-authored **master data** only
-   (currently: `wms_replenishment_rules`, `wms_yard_slots`).
-3. **Every state transition emits** a `warehouse.*` (or `stock.movement.*`)
-   business event onto `business_event_outbox` with idempotency key
-   `wms.<entity>:<id>:<state>`.
-4. **Every phase ships an architecture guard** under
-   `src/test/architecture/wms-phaseN.test.ts`.
-5. **Chronological order:** 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 → 8 → 9 →
-   10 → **11** → 12 → 13 → 14 → 15 → 16. Do not skip.
-6. **UI rule:** only wire nav entries for pages that are BUILT and functional.
-7. Reference ADRs: **0064** (locations/quants), **0068** (transfers), **0076**
-   (stock event fabric), **0078** (AVCO), **0079** (Inventory vs Warehouse
-   split — the charter for this whole track), **0080** (yard management),
-   **0081** (labour management), **0082** (3PL activity billing).
+**Confirmed shipped (evidence in tree, not just plan claims):**
 
----
+| Phase | Evidence |
+|---|---|
+| 0 Scaffolding + layout editor | `src/apps/warehouse/*`, `stock_locations` extended (23 cols), `WarehouseLayoutPage.tsx` |
+| 1 LPN + tasks | `wms_license_plates`, `wms_tasks` (28 cols) |
+| 2 Receiving | `wms_dock_appointments`, `AppointmentPlanner.tsx`, `ReceiveToWMSDialog.tsx` |
+| 3 Put-away | `wms_putaway_suggestions`, `PutawayQueue.tsx` |
+| 4 Picking & waves | `wms_pick_waves`, `wms_pick_wave_lines`, `WavePlanner.tsx`, `PickList.tsx` |
+| 5 Packing & dispatch | `wms_pack_cartons`, `wms_loading_manifests`, `wms_manifest_cartons`, `PackStation.tsx`, `LoadingBay.tsx` |
+| 6 Cycle counts | `wms_count_sessions`, `wms_count_lines`, `CycleCounts.tsx` |
+| 7 / 7.1 QC | `wms_qc_inspections`, `wms_qc_hold_reasons`, `wms_qc_inspection_checks`, `QCQueue.tsx` |
+| 8 Replenishment + slotting | `wms_replenishment_rules`, `Replenishment.tsx`, `Slotting.tsx` |
+| 9 Yard | `wms_yard_slots`, `wms_trailer_visits`, `YardBoard.tsx`, ADR 0080 |
+| 10 Labour | `wms_task_standards`, `LabourBoard.tsx`, ADR 0081 |
+| 11 3PL billing | `wms_billing_tariffs`, `wms_billable_activities`, `BillingBoard.tsx`, ADR 0082 |
 
-## 2. What is shipped (chronological)
+**Guards `wms-phase9/10/11.test.ts` all green** (ran locally, 15/15 pass). Nav in `src/apps/warehouse/nav.ts` wires exactly the built pages — no dead links.
 
-### Phase 0 — Scaffolding & layout editor  ✅
-Warehouse workspace mounted at `/warehouse-app/*`. `stock_locations` extended
-with `structure_level`, `barcode`, `pick_sequence`, capacity fields. Layout
-editor (zones → aisles → racks → bins).
+No regressions detected. Non-negotiables (Inventory owns quantity; wms_* RPC-only for state; every transition emits `warehouse.*` event with `wms.<entity>:<id>:<state>` idempotency key; per-phase architecture guard) still enforced by tests. Plan file is in sync with reality — the previous agent did update it (Phase 11 marked ✅, Phase 12 marked as START HERE NEXT). Resuming exactly there.
 
-### Phase 1 — LPN + universal task substrate  ✅
-`wms_license_plates`, `wms_tasks` (polymorphic task_type). RPCs:
-`create_lpn`, `move_lpn`, `assign_task`, `start_task`, `complete_task`.
+## Phase 2 — Plan validation
 
-### Phase 2 — Receiving  ✅
-`wms_receiving_appointments` → GRN → LPN creation on dock.
+Existing plan's phase order (12 → 13 → 14 → 15 → 16) still makes domain sense; no reordering needed. One clarification I'll fold into Phase 12: cartonization needs a **cascade** of dims (product → variant → carton catalogue) and must degrade gracefully when dims are missing — otherwise pack stations block on incomplete master data. Adding that as an explicit sub-item; no new phase needed.
 
-### Phase 3 — Put-away  ✅
-Directed put-away tasks. `complete_putaway_task` moves LPN from dock →
-destination bin, posts `stock_movements`.
+## Phase 3 — Phase 12 execution plan (start here)
 
-### Phase 4 — Picking & waves  ✅
-`wms_pick_waves`, wave planner UI, pick tasks generated from sales orders /
-transfer orders. Pick confirmation posts source-bin → staging movement.
+**Goal:** cross-dock (skip putaway when an inbound line satisfies an open outbound demand) + cartonization (pick the smallest carton that fits at pack time).
 
-### Phase 5 — Packing & dispatch  ✅
-`wms_pack_stations`, `shipment_packages`, `loading_manifests`. Dispatch posts
-staging → outbound movement + emits `warehouse.shipment.dispatched`.
+### 3.1 Schema (single migration `<ts>_wms_phase12_crossdock_cartonization.sql`)
 
-### Phase 6 — Cycle counting  ✅
-`wms_cycle_counts`. Variance posts adjustment movement.
+New tables (all biz-scoped, standard 4-step: CREATE → GRANT → RLS → POLICY):
 
-### Phase 7 — QC (logical state machine)  ✅
-`wms_qc_inspections` with `open/accept/reject` state transitions.
+- `wms_carton_types` — master data (PostgREST writes, gated by `inventory:write`):
+  `code, name, length_cm, width_cm, height_cm, max_weight_kg, tare_weight_kg, cost, is_active`.
+- `wms_crossdock_opportunities` — RPC-only ledger:
+  `grn_line_id, sales_order_line_id | transfer_line_id, product_id, quantity, matched_at, consumed_at, cancelled_at, reason`.
+  UNIQUE `(business_id, source_line_id)` for idempotency; `invoice_id`-style stamping via `pick_task_id` once consumed.
 
-### Phase 7.1 — QC physical stock effects  ✅
-QUARANTINE/STOCK backfill, helpers `_wms_ensure_qc_hold`,
-`_wms_default_putaway`, `_wms_qc_post_move`. RPCs move stock between
-STOCK and QUARANTINE and handle `scrap` / `return_to_vendor` (seeds
-`purchase_returns`) / `rework` / `use_as_is`. `products.requires_qc` +
-`trg_wms_auto_open_qc_on_grn` auto-open QC on GRN completion.
+Column adds:
+- `wms_pack_cartons.carton_type_id` (nullable FK) — records which carton was chosen at pack.
+- `wms_tasks` gains sentinel `task_type='crossdock_stage'` (no schema change; polymorphic already).
 
-### Phase 8 — Replenishment & slotting  ✅
-- `wms_replenishment_rules` (biz-scoped master data).
-- RPC `generate_replenishment_tasks(warehouse)` — evaluates active
-  rules, enqueues `wms_tasks(task_type='replenish')` from source →
-  pick face, respects `pack_multiple`, dedupes open tasks.
-- View `wms_slotting_velocity_view` — rolling 90-day A/B/C.
-- UI: `/warehouse-app/replenishment`, `/warehouse-app/slotting`.
-- Guard `wms-phase8.test.ts`.
+### 3.2 RPCs (all `SECURITY DEFINER`, emit `warehouse.*` events with `wms.<entity>:<id>:<state>` keys)
 
-### Phase 9 — Yard & Trailer Management  ✅
-- Tables `wms_yard_slots` (master data, biz-scoped RLS) and
-  `wms_trailer_visits` (RPC-only writes, `SELECT`-only PostgREST grant).
-- RPCs `check_in_trailer`, `assign_trailer_to_dock`, `depart_trailer`
-  — all `SECURITY DEFINER`, all emit `warehouse.yard.*` events with
-  idempotency key `wms.trailer_visit:<id>:<status>`.
-- Server-computed `dwell_minutes` on departure. Auto-park into first
-  free yard slot via `FOR UPDATE SKIP LOCKED`.
-- Appointment ↔ visit ↔ dock linkage: RPCs advance
-  `wms_dock_appointments` state in lock-step when `appointment_id` is
-  provided.
-- UI: `/warehouse-app/yard` — two-pane arrivals board + yard map, 15s
-  auto-refresh, check-in / assign-to-dock / depart-with-seal dialogs.
-- Guard `wms-phase9.test.ts` — blocks direct writes to
-  `wms_trailer_visits`, restricts `wms_yard_slots` writes to the Yard
-  page, asserts RPCs + route + nav.
-- ADR `docs/adr/0080-wms-yard-management.md`.
+- `evaluate_crossdock_on_grn(grn_id)` — invoked by trigger `trg_wms_crossdock_on_grn_complete` after GRN completion; for each received line, scans open pick-wave demand + pending transfers FEFO/FIFO, inserts `wms_crossdock_opportunities`, and **replaces the putaway task with a `crossdock_stage` task** that routes LPN to the outbound staging bin.
+- `confirm_crossdock_stage(task_id)` — operator confirms; posts `stock_movements` GRN-dock → outbound-staging in one hop, marks opportunity `consumed_at`, links the existing pick task's source location to the staging bin so downstream pack/dispatch is unchanged.
+- `cancel_crossdock_opportunity(id, reason)` — reverts to a normal putaway task; emits `warehouse.crossdock.cancelled`.
+- `suggest_carton(product_ids[], quantities[])` — pure, IMMUTABLE where possible; walks `wms_carton_types` sorted by volume asc, returns the smallest that fits by volume AND weight using product dims (fallback: `product_packaging` when product dims are NULL; if both NULL, returns NULL — pack UI shows "manual carton" prompt).
+- `assign_carton_to_pack(carton_id, carton_type_id)` — stamps `wms_pack_cartons.carton_type_id`, recomputes `weight_kg`.
 
----
+### 3.3 UI
 
-## 3. What is NOT yet implemented (in order)
+- **`/warehouse-app/crossdock`** — new page listing open opportunities (LPN, product, demand ref, staging bin, "Confirm stage" / "Cancel" buttons). Add to nav under Operations.
+- **`/warehouse-app/cartons`** — new page for `wms_carton_types` CRUD under Master. Add to nav.
+- `PackStation.tsx` — extend the "add carton" flow to call `suggest_carton` and pre-select the suggestion (operator can override from dropdown).
 
-### Phase 10 — Labour management  ✅
-- `wms_task_standards` (biz-scoped master data: `task_type, uom,
-  seconds_per_uom, is_active`). PostgREST writes gated by
-  `inventory:write` permission.
-- `wms_tasks.earned_seconds` / `.actual_seconds` added. Stamped by
-  BEFORE-UPDATE trigger `_wms_stamp_labour_metrics` on transition into
-  `state='done'`. Direct client writes to those columns are blocked at
-  the DB — no changes needed to any existing `complete_*_task` RPC.
-- View `wms_operator_productivity_view` (`security_invoker=true`) —
-  earned/actual seconds, tasks completed, utilisation ratio per
-  `(operator, warehouse, day)`.
-- UI: `/warehouse-app/labour` — KPI cards, operator leaderboard,
-  standards CRUD (create / toggle active / delete).
-- Guard `wms-phase10.test.ts`.
-- ADR `docs/adr/0081-wms-labour-management.md`.
+### 3.4 Guard `src/test/architecture/wms-phase12.test.ts`
 
----
+Blocks direct writes to `wms_crossdock_opportunities`; restricts `wms_carton_types` writes to the CartonTypes page; asserts every new RPC is called from exactly the pages we ship; asserts nav + routes wire `/crossdock` + `/cartons`; asserts `wms_pack_cartons.carton_type_id` is set only via `assign_carton_to_pack`.
 
-## 3. What is NOT yet implemented (in order)
+### 3.5 ADR `docs/adr/0083-wms-crossdock-cartonization.md`
 
-### Phase 11 — 3PL activity-based billing  ✅
-- `wms_billing_tariffs` (biz-scoped master data; PostgREST writes
-  gated by `inventory:write`). UNIQUE
-  `(business_id, client_business_id, activity, uom, effective_from)`;
-  `client_business_id IS NULL` = default/fallback rate.
-- `wms_billable_activities` (RPC-only ledger, UNIQUE
-  `(business_id, source_event_id)` for idempotency, `invoice_id`
-  stamped when folded into a draft Sales invoice).
-- RPCs `capture_billable_activity`,
-  `capture_pending_billable_activities`, `generate_3pl_invoice`
-  — all `SECURITY DEFINER`, business-access checked.
-- Pure IMMUTABLE `_wms_map_event_to_activity` maps
-  `warehouse.*` events to activity codes; single source of truth
-  for "which events bill".
-- Draft invoices land in `public.invoices` with prefix
-  `3PL-YYYYMM-<client8>` so AR/dunning inherits the receivable.
-- View `wms_billable_activities_summary_view`
-  (`security_invoker=true`).
-- UI: `/warehouse-app/billing` — tariff CRUD, activity summary,
-  capture-events button, month-end invoice generation dialog.
-- Guard `wms-phase11.test.ts`.
-- ADR `docs/adr/0082-wms-3pl-activity-billing.md`.
+Charter: cross-dock is a putaway *substitution* (not a new movement type — still `stock_movements`, still Inventory-owned); cartonization is pack-time optimisation and never blocks a pack when dims are missing.
 
----
+### 3.6 Definition of done
 
-## 3. What is NOT yet implemented (in order)
+- Migration applied, types regenerated.
+- Both new pages functional; PackStation shows suggested carton.
+- Guard test green.
+- ADR 0083 committed.
+- `.lovable/plan.md` updated: Phase 12 → §2 (shipped), Phase 13 promoted to START HERE NEXT.
 
-### ▶ Phase 12 — Cross-dock & cartonization  **← START HERE NEXT**
+## Out of scope this phase
 
-Only after Phase 11 lands (done). Cross-dock uses
-inbound-to-outbound task chaining (a receipt that satisfies an
-open sales-order pick skips putaway → staging → dispatch);
-cartonization needs product dims + a carton catalogue and picks
-the right carton at pack-time.
-
-### Phase 13 — Returns & RMA execution surface
-
-Inventory has `purchase_returns` / `sales_returns` tables; WMS needs a
-return-authorization intake, a return-receiving workflow, and
-disposition routing (restock / QC-hold / scrap / RTV) as first-class
-tasks. QC 7.1 handles the RTV *seed* but not the inbound return dock.
-
-### Phase 14 — Kitting / light manufacturing / VAS
-
-`wms_kit_orders`, VAS task type, consumption of components +
-production of kits under `stock_movements`. Prerequisite for 3PL
-clients that assemble bundles or gift-with-purchase.
-
-### Phase 15 — Hazmat, lot genealogy, and recall execution
-
-Existing `product_recalls` / `product_recall_items` need a WMS
-execution layer: freeze bins, generate quarantine-move tasks, and
-reconcile recovered vs shipped quantities.
-
-### Phase 16 — Operator RF/mobile surface
-
-Current pages are supervisor-desktop. A scan-first mobile execution
-layer (barcode-driven task loops) is required for real warehouse
-floors; hooks into existing scanner infra (`scan_events`,
-`scanner_sessions`).
-
----
-
-## 4. Explicitly out of scope this track
-
-- AQL sampling automation, vendor-portal RTV, predictive QC.
-- Cost-layer / AVCO changes (owned by Inventory, ADR 0078).
-- Voice-pick / RF-gun hardware integration (post Phase 16).
-- WCS/WES integration for automated MHE (separate track).
-
----
-
-## 5. Handoff — exact starting point for next agent
-
-**File to open first:** this plan.
-**Second:** `docs/adr/0080-wms-yard-management.md` — most recent charter.
-**Third:** the Phase 9 migration
-`supabase/migrations/20260717225958_*.sql` — mirror its structure for
-Phase 10 (table + column adds + RPC updates + view + guard).
-
-**First commands to run (parallel):**
-
-1. `code--view src/pages/warehouse/YardBoard.tsx` — copy this page's
-   shape (list + map + dialogs + RPC calls) for the Labour page.
-2. `code--view supabase/migrations/20260717214600_*_qc_inspections.sql`
-   — copy the `emit_business_event` + idempotency-key pattern (still
-   canonical).
-3. `rg "complete_task\b" supabase/migrations` — Phase 10 must extend
-   every task-completion RPC to stamp `earned_seconds` /
-   `actual_seconds`.
-
-**First edit:** new migration
-`supabase/migrations/<ts>_wms_phase10_labour.sql` per §3 Phase 10 spec.
-Then Supabase types regen. Then Labour page. Then guard test. Then
-update this plan (move Phase 10 to §2, promote Phase 11 to "START HERE
-NEXT").
-
-**Do not** start Phase 11 work until Phase 10 DoD is 100% green.
+- Multi-carton splits (one order → many cartons) beyond current PackStation behaviour.
+- Truck cube-out optimisation (that lives in Phase 5 / dispatch — separate track).
+- Cross-dock across warehouses (single-warehouse only for v1).
