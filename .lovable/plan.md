@@ -1,112 +1,94 @@
 
-# WMS continuation — Phase 12 + 12.1 shipped ✅ · Phase 13 to be scoped
+# Phase 13 — RF / Mobile Operator Shell
 
-## Phase 12 — Cross-dock & cartonization (SHIPPED)
+Goal: give warehouse operators a phone/handheld experience — one big scan target per step, huge tap targets, thumb-reach layout, offline-tolerant task queue — instead of forcing them onto the desktop pages. This is the single biggest enterprise-readiness gap identified in the prior audit.
 
-**Delivered:**
-- Migration `20260717233..._wms_phase12_crossdock_cartonization.sql`: `wms_carton_types` + `wms_crossdock_opportunities` tables (GRANT + RLS + policies), `wms_pack_cartons.carton_type_id` column, RPCs `evaluate_crossdock_on_grn`, `confirm_crossdock_stage`, `cancel_crossdock_opportunity`, `suggest_carton`, `assign_carton_to_pack`, and `AFTER UPDATE OF status` trigger on `goods_receipts` that auto-evaluates on GRN completion.
-- Event fabric: `warehouse.crossdock.matched|staged|cancelled` published through `emit_crossdock_event` with idempotency key `wms.crossdock_opportunity:<id>:<status>`.
-- UI: `src/pages/warehouse/CrossdockBoard.tsx` and `src/pages/warehouse/CartonTypes.tsx`, wired at `/warehouse-app/crossdock` and `/warehouse-app/cartons`; nav updated (Operations → Cross-dock, Master → Carton catalogue).
-- Guard: `src/test/architecture/wms-phase12.test.ts` — 6/6 green.
-- ADR `docs/adr/0083-wms-crossdock-cartonization.md`.
+## Scope this phase
 
-## Phase 12.1 — PackStation cartonization wiring (SHIPPED)
+**In:** mobile shell + four highest-volume flows (receive, putaway, pick, cycle-count-execute) + offline task queue + one architecture guard + one ADR.
 
-**Delivered:**
-- `PackStation.tsx` "Open carton" now calls `suggest_carton(business_id, product_ids[], quantities[])` against the remaining unpacked lines of the sales order, opens the carton via `open_pack_carton`, then stamps the suggestion via `assign_carton_to_pack` (best-effort — a failure here does not roll back the open).
-- Per-open-carton dropdown of active `wms_carton_types` lets the operator override the suggestion; changes go through `assign_carton_to_pack` (client never writes `carton_type_id` directly).
-- Carton row footer shows the assigned carton-type code alongside seal state.
-- Guard `wms-phase12.test.ts` now asserts PackStation wires both `suggest_carton` and `assign_carton_to_pack`.
+**Out (deferred to Phase 13.1+):** pack/dispatch mobile, QC mobile, voice picking, Capacitor packaging for App/Play Store, push notifications, hardware RF-gun ANSI-key bindings.
+
+## Delivery mode
+
+Installable PWA (manifest + guarded service worker for HTML NetworkFirst + hashed-asset CacheFirst). Works on any modern Android/iOS device with a camera — no store submission. Capacitor wrapping is a future phase if the user wants native camera/scanner SDKs.
+
+## What ships
+
+### 1. Mobile shell (new)
+- New route tree `/wm/*` with its own compact layout (`MobileWarehouseLayout`): fixed top bar (badge, task type, cancel), scrollable content, fixed bottom action bar. No sidebar. Locked to portrait CSS width.
+- `MobileHome`: shows operator's assigned open tasks grouped by type, tap-through to the right flow. Reads `wms_tasks` filtered by `assignee_id = auth.uid()` + `state in ('ready','in_progress')`.
+- Auto-redirect from `/wm` on mobile viewports; desktop users can still open it directly.
+
+### 2. Four operator flows (each is one page, scan-driven, step-machine)
+
+| Route | Flow | RPCs used (all already exist) |
+|---|---|---|
+| `/wm/receive/:appointmentId` | Scan dock → scan ASN barcode → scan product/lot → enter qty → confirm line → next | existing `receive_grn_line`, `close_grn` |
+| `/wm/putaway/:taskId` | Scan LPN → scan source bin → scan dest bin → confirm | existing `start_putaway_task`, `complete_putaway_task` |
+| `/wm/pick/:taskId` | Scan bin → scan product/lot → enter qty → confirm; loop until wave line done | existing `start_pick_task`, `pick_line`, `complete_pick_task` |
+| `/wm/count/:sessionId` | Scan bin → scan product → enter qty → next line | existing `record_count_line`, `close_count_session` |
+
+Every step reuses `BarcodeInputField` (already present, GS1-aware). Camera scan uses the browser `BarcodeDetector` API when available with `InAppQrScanner` as fallback. No new hardware code.
+
+### 3. Offline task queue
+
+- New client-side module `src/apps/warehouse-mobile/offlineQueue.ts` — IndexedDB-backed FIFO of `{ rpc, args, idempotency_key, enqueued_at }`.
+- Every mobile flow wraps its RPC call in `enqueue(...)` which either fires immediately when `navigator.onLine` or defers.
+- Drain worker retries with exponential backoff. Every RPC already carries a natural idempotency key (`wms.<entity>:<id>:<state>`), so replays are safe.
+- UI indicator in the mobile top bar: green (synced) / amber (N queued) / red (queue error). Tap opens a drawer to inspect + manually retry.
+- Draining runs regardless of the current route so a queued action from `/wm/pick` completes even after the operator has moved to `/wm/putaway`.
+
+### 4. PWA installability
+
+- `public/manifest.webmanifest` + head tags + icons (128, 192, 512, maskable).
+- Guarded service-worker registration wrapper (never registers in Lovable preview, iframe, `?sw=off`). Uses `vite-plugin-pwa` with `generateSW`, `injectRegister: null`, HTML NetworkFirst, hashed assets CacheFirst, `/~oauth` excluded.
+
+### 5. Architecture guard `src/test/architecture/wms-phase13.test.ts`
+
+- `/wm` routes are wired in `src/apps/warehouse-mobile/routes.tsx` and each declared route file exists.
+- Mobile flows do not `.from(...).update|insert|delete` any `wms_*` table — they must call RPCs through `offlineQueue`.
+- `offlineQueue.enqueue` is the only place `supabase.rpc` is called from within `src/apps/warehouse-mobile/**` (single chokepoint = single retry policy).
+- `MobileWarehouseLayout` is the only layout used by any `/wm/*` route.
+- SW registration wrapper contains all required guards (preview host prefixes, iframe check, `?sw=off`).
+
+### 6. ADR `docs/adr/0084-wms-rf-mobile-shell.md`
+
+Charter: mobile shell is a **presentation layer** over the same RPCs the desktop calls — no new server surface, no new tables. Offline is queue-and-replay, not local-first — inventory truth still lives in Postgres. Idempotency keys make the replay safe.
+
+## Not doing this phase
+
+- No new tables, no new RPCs, no migration. If we discover a gap during build (e.g. `receive_grn_line` needs an ASN-scan variant) we scope a follow-up rather than expand this phase.
+- No Capacitor / App Store packaging.
+- No push notifications.
+- No pack/dispatch/QC mobile screens (Phase 13.1).
+- No voice picking / pick-to-light (Phase 15 candidate).
+
+## Definition of done
+
+- `/wm/*` mobile pages functional against real data on a phone-sized viewport.
+- Offline queue: kill network in devtools → operator can still complete a pick → restore network → RPC fires, wave state advances, no duplicates.
+- PWA installable in a published build (not in Lovable preview).
+- `wms-phase13.test.ts` green.
+- ADR 0084 committed.
+- `.lovable/plan.md` updated: Phase 13 shipped, Phase 13.1 (pack/QC mobile) promoted to START HERE NEXT.
+
+## Technical details
+
+- Route tree lives in `src/apps/warehouse-mobile/`, mounted from `App.tsx` at `/wm` so it can render outside `WarehouseLayout`.
+- Reuses `src/components/scanner/BarcodeInputField.tsx` for keyboard-wedge scanners and `InAppQrScanner.tsx` for camera scans — no duplicate scanner code.
+- IndexedDB via `idb` (already used elsewhere? — if not, ~2KB dep; verified in Phase 1 of build).
+- Service worker follows the Lovable PWA skill: `vite-plugin-pwa` with `generateSW`, guarded single wrapper, `/~oauth` exclusion.
+- Idempotency: mobile flows never mint new keys; they pass through the keys the RPCs already stamp (`wms.pick_task:<id>:<state>`, etc.), so replays are naturally deduplicated by the outbox.
 
 ---
 
-# START HERE NEXT — Phase 13 (needs scoping with user)
+## Phase 13 — SHIPPED
 
-ADR 0083 flagged Phase 13 as **multi-carton splits at PackStation** (one SO line → many cartons, driven by suggest_carton returning a list rather than a single row). ADR 0082 flagged **kitting / returns / VAS** as future billable-activity extensions. Confirm scope with the user before starting.
-
-
-
-
-
-## Phase 1 — Verification of previous engineer's work
-
-I audited the parent prompt, `.lovable/plan.md`, and the actual codebase.
-
-**Confirmed shipped (evidence in tree, not just plan claims):**
-
-| Phase | Evidence |
-|---|---|
-| 0 Scaffolding + layout editor | `src/apps/warehouse/*`, `stock_locations` extended (23 cols), `WarehouseLayoutPage.tsx` |
-| 1 LPN + tasks | `wms_license_plates`, `wms_tasks` (28 cols) |
-| 2 Receiving | `wms_dock_appointments`, `AppointmentPlanner.tsx`, `ReceiveToWMSDialog.tsx` |
-| 3 Put-away | `wms_putaway_suggestions`, `PutawayQueue.tsx` |
-| 4 Picking & waves | `wms_pick_waves`, `wms_pick_wave_lines`, `WavePlanner.tsx`, `PickList.tsx` |
-| 5 Packing & dispatch | `wms_pack_cartons`, `wms_loading_manifests`, `wms_manifest_cartons`, `PackStation.tsx`, `LoadingBay.tsx` |
-| 6 Cycle counts | `wms_count_sessions`, `wms_count_lines`, `CycleCounts.tsx` |
-| 7 / 7.1 QC | `wms_qc_inspections`, `wms_qc_hold_reasons`, `wms_qc_inspection_checks`, `QCQueue.tsx` |
-| 8 Replenishment + slotting | `wms_replenishment_rules`, `Replenishment.tsx`, `Slotting.tsx` |
-| 9 Yard | `wms_yard_slots`, `wms_trailer_visits`, `YardBoard.tsx`, ADR 0080 |
-| 10 Labour | `wms_task_standards`, `LabourBoard.tsx`, ADR 0081 |
-| 11 3PL billing | `wms_billing_tariffs`, `wms_billable_activities`, `BillingBoard.tsx`, ADR 0082 |
-
-**Guards `wms-phase9/10/11.test.ts` all green** (ran locally, 15/15 pass). Nav in `src/apps/warehouse/nav.ts` wires exactly the built pages — no dead links.
-
-No regressions detected. Non-negotiables (Inventory owns quantity; wms_* RPC-only for state; every transition emits `warehouse.*` event with `wms.<entity>:<id>:<state>` idempotency key; per-phase architecture guard) still enforced by tests. Plan file is in sync with reality — the previous agent did update it (Phase 11 marked ✅, Phase 12 marked as START HERE NEXT). Resuming exactly there.
-
-## Phase 2 — Plan validation
-
-Existing plan's phase order (12 → 13 → 14 → 15 → 16) still makes domain sense; no reordering needed. One clarification I'll fold into Phase 12: cartonization needs a **cascade** of dims (product → variant → carton catalogue) and must degrade gracefully when dims are missing — otherwise pack stations block on incomplete master data. Adding that as an explicit sub-item; no new phase needed.
-
-## Phase 3 — Phase 12 execution plan (start here)
-
-**Goal:** cross-dock (skip putaway when an inbound line satisfies an open outbound demand) + cartonization (pick the smallest carton that fits at pack time).
-
-### 3.1 Schema (single migration `<ts>_wms_phase12_crossdock_cartonization.sql`)
-
-New tables (all biz-scoped, standard 4-step: CREATE → GRANT → RLS → POLICY):
-
-- `wms_carton_types` — master data (PostgREST writes, gated by `inventory:write`):
-  `code, name, length_cm, width_cm, height_cm, max_weight_kg, tare_weight_kg, cost, is_active`.
-- `wms_crossdock_opportunities` — RPC-only ledger:
-  `grn_line_id, sales_order_line_id | transfer_line_id, product_id, quantity, matched_at, consumed_at, cancelled_at, reason`.
-  UNIQUE `(business_id, source_line_id)` for idempotency; `invoice_id`-style stamping via `pick_task_id` once consumed.
-
-Column adds:
-- `wms_pack_cartons.carton_type_id` (nullable FK) — records which carton was chosen at pack.
-- `wms_tasks` gains sentinel `task_type='crossdock_stage'` (no schema change; polymorphic already).
-
-### 3.2 RPCs (all `SECURITY DEFINER`, emit `warehouse.*` events with `wms.<entity>:<id>:<state>` keys)
-
-- `evaluate_crossdock_on_grn(grn_id)` — invoked by trigger `trg_wms_crossdock_on_grn_complete` after GRN completion; for each received line, scans open pick-wave demand + pending transfers FEFO/FIFO, inserts `wms_crossdock_opportunities`, and **replaces the putaway task with a `crossdock_stage` task** that routes LPN to the outbound staging bin.
-- `confirm_crossdock_stage(task_id)` — operator confirms; posts `stock_movements` GRN-dock → outbound-staging in one hop, marks opportunity `consumed_at`, links the existing pick task's source location to the staging bin so downstream pack/dispatch is unchanged.
-- `cancel_crossdock_opportunity(id, reason)` — reverts to a normal putaway task; emits `warehouse.crossdock.cancelled`.
-- `suggest_carton(product_ids[], quantities[])` — pure, IMMUTABLE where possible; walks `wms_carton_types` sorted by volume asc, returns the smallest that fits by volume AND weight using product dims (fallback: `product_packaging` when product dims are NULL; if both NULL, returns NULL — pack UI shows "manual carton" prompt).
-- `assign_carton_to_pack(carton_id, carton_type_id)` — stamps `wms_pack_cartons.carton_type_id`, recomputes `weight_kg`.
-
-### 3.3 UI
-
-- **`/warehouse-app/crossdock`** — new page listing open opportunities (LPN, product, demand ref, staging bin, "Confirm stage" / "Cancel" buttons). Add to nav under Operations.
-- **`/warehouse-app/cartons`** — new page for `wms_carton_types` CRUD under Master. Add to nav.
-- `PackStation.tsx` — extend the "add carton" flow to call `suggest_carton` and pre-select the suggestion (operator can override from dropdown).
-
-### 3.4 Guard `src/test/architecture/wms-phase12.test.ts`
-
-Blocks direct writes to `wms_crossdock_opportunities`; restricts `wms_carton_types` writes to the CartonTypes page; asserts every new RPC is called from exactly the pages we ship; asserts nav + routes wire `/crossdock` + `/cartons`; asserts `wms_pack_cartons.carton_type_id` is set only via `assign_carton_to_pack`.
-
-### 3.5 ADR `docs/adr/0083-wms-crossdock-cartonization.md`
-
-Charter: cross-dock is a putaway *substitution* (not a new movement type — still `stock_movements`, still Inventory-owned); cartonization is pack-time optimisation and never blocks a pack when dims are missing.
-
-### 3.6 Definition of done
-
-- Migration applied, types regenerated.
-- Both new pages functional; PackStation shows suggested carton.
-- Guard test green.
-- ADR 0083 committed.
-- `.lovable/plan.md` updated: Phase 12 → §2 (shipped), Phase 13 promoted to START HERE NEXT.
-
-## Out of scope this phase
-
-- Multi-carton splits (one order → many cartons) beyond current PackStation behaviour.
-- Truck cube-out optimisation (that lives in Phase 5 / dispatch — separate track).
-- Cross-dock across warehouses (single-warehouse only for v1).
+- `/wm/*` mobile route tree mounted from `App.tsx` behind `AppInstalledGate("warehouse")`.
+- Pages: `MobileHome` (my tasks + open receipts + open count sessions), `MobilePutaway`, `MobilePick`, `MobileCount`, `MobileReceive`.
+- `MobileWarehouseLayout` — fixed-viewport shell with back nav, `QueueIndicator` chip, sticky bottom action bar.
+- Offline queue at `src/apps/warehouse-mobile/offlineQueue.ts` — IndexedDB-backed FIFO via `idb`; `enqueue()` is the single chokepoint for `supabase.rpc` inside the mobile shell; drain loop wakes on `online` event + 8 s tick; per-row retry/discard from the queue drawer.
+- PWA already wired via existing `vite-plugin-pwa` config (verified). No new SW code needed.
+- Guard `src/test/architecture/wms-phase13.test.ts` — 6/6 green. Enforces: no direct `supabase.rpc` in mobile pages, layout uniformity, route wiring, drain-loop presence.
+- Deferred (Phase 13.1 START HERE NEXT): pack/dispatch/QC mobile screens; per-scan ASN variant of `receive_goods_to_wms` if operator-side ASN scanning is requested; installable manifest polish (mobile-specific icons + `/wm` `start_url`).

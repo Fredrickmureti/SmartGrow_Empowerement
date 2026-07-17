@@ -1,0 +1,27 @@
+/**
+ * Mobile warehouse (RF) route tree — Phase 13.
+ * Mounted under /wm.
+ */
+import { Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
+
+const MobileHome = lazy(() => import("@/pages/warehouse-mobile/MobileHome"));
+const MobilePutaway = lazy(() => import("@/pages/warehouse-mobile/MobilePutaway"));
+const MobilePick = lazy(() => import("@/pages/warehouse-mobile/MobilePick"));
+const MobileCount = lazy(() => import("@/pages/warehouse-mobile/MobileCount"));
+const MobileReceive = lazy(() => import("@/pages/warehouse-mobile/MobileReceive"));
+
+export default function WarehouseMobileApp() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm">Loading…</div>}>
+      <Routes>
+        <Route index element={<MobileHome />} />
+        <Route path="putaway/:id" element={<MobilePutaway />} />
+        <Route path="pick/:id" element={<MobilePick />} />
+        <Route path="count/:id" element={<MobileCount />} />
+        <Route path="receive/:id" element={<MobileReceive />} />
+        <Route path="*" element={<Navigate to="/wm" replace />} />
+      </Routes>
+    </Suspense>
+  );
+}
