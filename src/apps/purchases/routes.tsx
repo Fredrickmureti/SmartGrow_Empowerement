@@ -243,6 +243,18 @@ export function PurchasesApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* Landed Costs (ADR 0077) */}
+        <Route
+          path="landed-costs"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Landed Costs">
+                <LandedCosts />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
         
         {/* Expenses */}
         <Route
