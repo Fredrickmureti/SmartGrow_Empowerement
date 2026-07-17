@@ -30,6 +30,9 @@ const CycleCounts = lazy(() => import("@/pages/warehouse/CycleCounts"));
 const CycleCountPlanner = lazy(() => import("@/pages/warehouse/CycleCountPlanner"));
 const CountSession = lazy(() => import("@/pages/warehouse/CountSession"));
 const CountReview = lazy(() => import("@/pages/warehouse/CountReview"));
+const LoadingManifests = lazy(() => import("@/pages/warehouse/LoadingManifests"));
+const LoadingManifestPlanner = lazy(() => import("@/pages/warehouse/LoadingManifestPlanner"));
+const LoadingBay = lazy(() => import("@/pages/warehouse/LoadingBay"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
