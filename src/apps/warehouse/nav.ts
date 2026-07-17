@@ -33,6 +33,7 @@ export const WAREHOUSE_NAV: WorkspaceNav = {
         { to: "/warehouse-app/slotting", label: "Slotting", icon: Gauge },
         { to: "/warehouse-app/labour", label: "Labour", icon: Users },
         { to: "/warehouse-app/billing", label: "3PL billing", icon: Receipt },
+        { to: "/warehouse-app/crossdock", label: "Cross-dock", icon: Split },
       ],
     },
     {
