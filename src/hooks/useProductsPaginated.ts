@@ -11,6 +11,11 @@ export interface ProductFilters {
   search?: string;
   type?: string;
   category_id?: string;
+  /**
+   * Include `is_variant_parent = true` rows. Defaults to `false`.
+   * See ADR 0072 / `useProducts` for rationale.
+   */
+  includeVariantParents?: boolean;
 }
 
 export function useProductsPaginated(filters?: ProductFilters) {
@@ -57,6 +62,12 @@ export function useProductsPaginated(filters?: ProductFilters) {
       if (filters?.search) {
         query = query.or(
           `name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%`
+        );
+      }
+
+      if (!filters?.includeVariantParents) {
+        query = query.or(
+          "is_variant_parent.is.null,is_variant_parent.eq.false",
         );
       }
 
