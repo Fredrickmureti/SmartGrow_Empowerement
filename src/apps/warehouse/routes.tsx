@@ -23,6 +23,9 @@ const LicensePlates = lazy(() => import("@/pages/warehouse/LicensePlates"));
 const LicensePlateView = lazy(() => import("@/pages/warehouse/LicensePlateView"));
 const OperatorTasks = lazy(() => import("@/pages/warehouse/OperatorTasks"));
 const PutawayQueue = lazy(() => import("@/pages/warehouse/PutawayQueue"));
+const WavePlanner = lazy(() => import("@/pages/warehouse/WavePlanner"));
+const PickList = lazy(() => import("@/pages/warehouse/PickList"));
+const PackStation = lazy(() => import("@/pages/warehouse/PackStation"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
@@ -118,6 +121,30 @@ export function WarehouseApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Putaway"><PutawayQueue /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="waves"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Wave Planner"><WavePlanner /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="picks/:waveId"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Pick List"><PickList /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="pack/:waveId"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Pack Station"><PackStation /></LazyRoute>
             </SubscriptionProtectedRoute>
           }
         />

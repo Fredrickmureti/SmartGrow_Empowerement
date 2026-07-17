@@ -332,6 +332,26 @@ export function BusinessSagaMount({ orgId }: Props) {
     saga.register('stock.count.completed', stockLifecycleHandler);
     saga.register('stock.count.cancelled', stockLifecycleHandler);
 
+    // Warehouse (WMS) — log-only handlers so the outbox → saga path is
+    // exercised end-to-end. Feature modules can register additional
+    // consumers (label print, dock scheduling, replenishment) at any
+    // time. See ADR 0079 for the Inventory/Warehouse split.
+    const wmsHandler = async (e: DomainEvent) => {
+      console.debug('[saga warehouse]', e.type, e.sourceDocType, e.sourceDocId);
+    };
+    saga.register('warehouse.task.assigned', wmsHandler);
+    saga.register('warehouse.task.started', wmsHandler);
+    saga.register('warehouse.task.completed', wmsHandler);
+    saga.register('warehouse.task.cancelled', wmsHandler);
+    saga.register('warehouse.plate.moved', wmsHandler);
+    saga.register('warehouse.plate.sealed', wmsHandler);
+    saga.register('warehouse.receipt.staged', wmsHandler);
+    saga.register('warehouse.putaway.suggested', wmsHandler);
+    saga.register('warehouse.putaway.completed', wmsHandler);
+    saga.register('warehouse.wave.released', wmsHandler);
+    saga.register('warehouse.pick.completed', wmsHandler);
+    saga.register('warehouse.pack.completed', wmsHandler);
+
     saga.start();
 
     // Reclaim stale business-event leases on boot, then every 60s.

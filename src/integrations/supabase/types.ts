@@ -56251,6 +56251,135 @@ export type Database = {
           },
         ]
       }
+      wms_pick_wave_lines: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          id: string
+          lot_number: string | null
+          organization_id: string
+          product_id: string
+          quantity_ordered: number
+          quantity_packed: number
+          quantity_picked: number
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          wave_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          id?: string
+          lot_number?: string | null
+          organization_id: string
+          product_id: string
+          quantity_ordered: number
+          quantity_packed?: number
+          quantity_picked?: number
+          sales_order_id?: string | null
+          sales_order_item_id?: string | null
+          wave_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          id?: string
+          lot_number?: string | null
+          organization_id?: string
+          product_id?: string
+          quantity_ordered?: number
+          quantity_packed?: number
+          quantity_picked?: number
+          sales_order_id?: string | null
+          sales_order_item_id?: string | null
+          wave_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_pick_wave_lines_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_pick_wave_lines_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "sales_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_pick_wave_lines_wave_id_fkey"
+            columns: ["wave_id"]
+            isOneToOne: false
+            referencedRelation: "wms_pick_waves"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_pick_waves: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          released_at: string | null
+          state: Database["public"]["Enums"]["wms_wave_state"]
+          strategy: string
+          updated_at: string
+          warehouse_id: string
+          wave_number: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          released_at?: string | null
+          state?: Database["public"]["Enums"]["wms_wave_state"]
+          strategy?: string
+          updated_at?: string
+          warehouse_id: string
+          wave_number: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          released_at?: string | null
+          state?: Database["public"]["Enums"]["wms_wave_state"]
+          strategy?: string
+          updated_at?: string
+          warehouse_id?: string
+          wave_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_pick_waves_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_putaway_suggestions: {
         Row: {
           branch_id: string | null
@@ -64569,6 +64698,14 @@ export type Database = {
         Args: { _transfer_id: string; _verification_token: string }
         Returns: Json
       }
+      complete_pack_task: {
+        Args: { p_shipment_lpn_code?: string; p_wave_id: string }
+        Returns: Json
+      }
+      complete_pick_task: {
+        Args: { p_lpn_id?: string; p_picked_qty: number; p_task_id: string }
+        Returns: Json
+      }
       complete_putaway_task: { Args: { p_task_id: string }; Returns: Json }
       complete_stock_transfer_atomic: {
         Args: { p_items: Json; p_transfer_id: string; p_user_id: string }
@@ -64838,6 +64975,14 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      create_pick_wave: {
+        Args: {
+          p_notes?: string
+          p_sales_order_ids: string[]
+          p_warehouse_id: string
+        }
+        Returns: Json
       }
       create_product_with_opening_stock_atomic: {
         Args: { p_opening_items: Json; p_product: Json; p_user_id: string }
@@ -70634,6 +70779,7 @@ export type Database = {
         Args: { _reason: string; _submission_id: string }
         Returns: undefined
       }
+      release_pick_wave: { Args: { p_wave_id: string }; Returns: Json }
       release_pos_stock_reservation: {
         Args: { p_product_id?: string; p_register_id: string }
         Returns: undefined
@@ -73289,6 +73435,14 @@ export type Database = {
         | "replenish"
         | "move"
         | "qc"
+      wms_wave_state:
+        | "draft"
+        | "released"
+        | "picking"
+        | "picked"
+        | "packing"
+        | "packed"
+        | "cancelled"
       work_location_type: "office" | "remote" | "other"
     }
     CompositeTypes: {
@@ -74003,6 +74157,15 @@ export const Constants = {
         "replenish",
         "move",
         "qc",
+      ],
+      wms_wave_state: [
+        "draft",
+        "released",
+        "picking",
+        "picked",
+        "packing",
+        "packed",
+        "cancelled",
       ],
       work_location_type: ["office", "remote", "other"],
     },

@@ -60,7 +60,11 @@ export type DomainEventType =
   | 'warehouse.plate.sealed'
   | 'warehouse.receipt.staged'
   | 'warehouse.putaway.suggested'
-  | 'warehouse.putaway.completed';
+  | 'warehouse.putaway.completed'
+  // Warehouse (WMS) — Phase 3. Emitted by pick-wave, pick, pack RPCs.
+  | 'warehouse.wave.released'
+  | 'warehouse.pick.completed'
+  | 'warehouse.pack.completed';
 
 export interface DomainEvent<P = unknown> {
   id?: string;

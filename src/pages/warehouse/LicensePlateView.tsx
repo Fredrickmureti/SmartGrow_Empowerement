@@ -77,6 +77,33 @@ export default function LicensePlateView() {
     },
   });
 
+  // Putaway suggestions surfaced for whichever task references this plate
+  // (usually the freshly staged receiving task). Keeps operators from
+  // guessing which bin the WMS ranked #1.
+  const { data: suggestions } = useQuery({
+    queryKey: ["wms-lpn-suggestions", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data: tasks, error: tErr } = await supabase
+        .from("wms_tasks")
+        .select("id, task_type, state")
+        .eq("lpn_id", id!)
+        .eq("task_type", "putaway")
+        .in("state", ["pending", "assigned", "in_progress"])
+        .limit(5);
+      if (tErr) throw tErr;
+      const taskIds = (tasks ?? []).map((t) => t.id);
+      if (!taskIds.length) return [];
+      const { data, error } = await supabase
+        .from("wms_putaway_suggestions")
+        .select("id, task_id, rank, reason, chosen, location:location_id(code, name)")
+        .in("task_id", taskIds)
+        .order("rank");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveDest, setMoveDest] = useState<string>("");
   const [moveNote, setMoveNote] = useState<string>("");
@@ -184,6 +211,29 @@ export default function LicensePlateView() {
                     <li key={c.id} className="py-2 flex justify-between">
                       <span>{c.products?.name ?? c.product_id} <span className="text-muted-foreground">{c.products?.sku ?? ""}</span></span>
                       <span className="font-mono">{Number(c.quantity).toFixed(2)}{c.reserved_quantity ? ` (res ${Number(c.reserved_quantity).toFixed(2)})` : ""}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </Section>
+
+        <Section title="Putaway suggestions" description="Bins the WMS ranks for this plate. #1 is preselected on the task destination.">
+          <Card>
+            <CardContent className="p-4">
+              {(suggestions ?? []).length === 0 ? (
+                <div className="text-sm text-muted-foreground">No open putaway task references this plate.</div>
+              ) : (
+                <ul className="text-sm divide-y">
+                  {suggestions!.map((s) => (
+                    <li key={s.id} className="py-2 flex justify-between">
+                      <span>
+                        <span className="font-mono mr-2">#{s.rank}</span>
+                        {s.location?.code ?? "—"} · {s.location?.name ?? ""}
+                        <span className="text-muted-foreground ml-2">{s.reason}</span>
+                      </span>
+                      {s.chosen ? <StatusBadge tone="success">chosen</StatusBadge> : null}
                     </li>
                   ))}
                 </ul>
