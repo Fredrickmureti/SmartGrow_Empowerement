@@ -18688,6 +18688,7 @@ export type Database = {
       }
       goods_receipts: {
         Row: {
+          appointment_id: string | null
           branch_id: string | null
           business_id: string
           created_at: string
@@ -18703,6 +18704,7 @@ export type Database = {
           warehouse_id: string | null
         }
         Insert: {
+          appointment_id?: string | null
           branch_id?: string | null
           business_id: string
           created_at?: string
@@ -18718,6 +18720,7 @@ export type Database = {
           warehouse_id?: string | null
         }
         Update: {
+          appointment_id?: string | null
           branch_id?: string | null
           business_id?: string
           created_at?: string
@@ -18733,6 +18736,13 @@ export type Database = {
           warehouse_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "goods_receipts_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "wms_dock_appointments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "goods_receipts_branch_id_fkey"
             columns: ["branch_id"]
@@ -56329,6 +56339,94 @@ export type Database = {
         }
         Relationships: []
       }
+      wms_dock_appointments: {
+        Row: {
+          appointment_type: string
+          arrived_at: string | null
+          branch_id: string | null
+          business_id: string
+          cancelled_reason: string | null
+          carrier_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          dock_id: string
+          id: string
+          is_sample_data: boolean
+          organization_id: string
+          reference: string | null
+          state: string
+          updated_at: string
+          warehouse_id: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          appointment_type: string
+          arrived_at?: string | null
+          branch_id?: string | null
+          business_id: string
+          cancelled_reason?: string | null
+          carrier_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          dock_id: string
+          id?: string
+          is_sample_data?: boolean
+          organization_id: string
+          reference?: string | null
+          state?: string
+          updated_at?: string
+          warehouse_id: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          appointment_type?: string
+          arrived_at?: string | null
+          branch_id?: string | null
+          business_id?: string
+          cancelled_reason?: string | null
+          carrier_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          dock_id?: string
+          id?: string
+          is_sample_data?: boolean
+          organization_id?: string
+          reference?: string | null
+          state?: string
+          updated_at?: string
+          warehouse_id?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_dock_appointments_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_dock_appointments_dock_id_fkey"
+            columns: ["dock_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_docks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_dock_appointments_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_license_plates: {
         Row: {
           branch_id: string | null
@@ -56414,6 +56512,7 @@ export type Database = {
       }
       wms_loading_manifests: {
         Row: {
+          appointment_id: string | null
           branch_id: string | null
           business_id: string
           carrier_id: string | null
@@ -56434,6 +56533,7 @@ export type Database = {
           warehouse_id: string
         }
         Insert: {
+          appointment_id?: string | null
           branch_id?: string | null
           business_id: string
           carrier_id?: string | null
@@ -56454,6 +56554,7 @@ export type Database = {
           warehouse_id: string
         }
         Update: {
+          appointment_id?: string | null
           branch_id?: string | null
           business_id?: string
           carrier_id?: string | null
@@ -56474,6 +56575,13 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_loading_manifests_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "wms_dock_appointments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_loading_manifests_dock_id_fkey"
             columns: ["dock_id"]
@@ -62909,6 +63017,16 @@ export type Database = {
         Args: { _proposal_id: string }
         Returns: Json
       }
+      _appt_transition: {
+        Args: {
+          p_appointment_id: string
+          p_event: string
+          p_from: string[]
+          p_reason?: string
+          p_to: string
+        }
+        Returns: undefined
+      }
       _assert_org_member: { Args: { p_org: string }; Returns: undefined }
       _assert_reset_permission: { Args: { org_id: string }; Returns: undefined }
       _default_receipt_settings: { Args: never; Returns: Json }
@@ -64534,6 +64652,10 @@ export type Database = {
         Returns: Json
       }
       backfill_opening_inventory_gl: { Args: { p_org: string }; Returns: Json }
+      bind_goods_receipt_appointment: {
+        Args: { p_appointment_id: string; p_receipt_id: string }
+        Returns: undefined
+      }
       calculate_leave_days: {
         Args: {
           p_end_date: string
@@ -64585,6 +64707,10 @@ export type Database = {
       cancel_delivery_atomic: {
         Args: { p_dn_id: string; p_reason?: string; p_user_id: string }
         Returns: Json
+      }
+      cancel_dock_appointment: {
+        Args: { p_appointment_id: string; p_reason?: string }
+        Returns: undefined
       }
       cancel_ownership_transfer: {
         Args: { _transfer_id: string }
@@ -65058,6 +65184,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: Json
+      }
+      complete_dock_appointment: {
+        Args: { p_appointment_id: string }
+        Returns: undefined
       }
       complete_goods_receipt_atomic: {
         Args: { p_grn_id: string; p_user_id: string }
@@ -68361,6 +68491,10 @@ export type Database = {
       }
       log_scan_event: { Args: { p: Json }; Returns: undefined }
       mark_alert_read: { Args: { p_alert_id: string }; Returns: boolean }
+      mark_appointment_arrived: {
+        Args: { p_appointment_id: string }
+        Returns: undefined
+      }
       mark_delivery_ready_atomic: {
         Args: { p_dn_id: string; p_user_id: string }
         Returns: Json
@@ -68496,14 +68630,24 @@ export type Database = {
         Returns: string
       }
       notify_probation_expiry: { Args: never; Returns: number }
-      open_loading_manifest: {
-        Args: {
-          p_carrier_id?: string
-          p_dock_id: string
-          p_planned_departure_at?: string
-        }
-        Returns: string
-      }
+      open_loading_manifest:
+        | {
+            Args: {
+              p_carrier_id?: string
+              p_dock_id: string
+              p_planned_departure_at?: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_appointment_id?: string
+              p_carrier_id?: string
+              p_dock_id: string
+              p_planned_departure_at?: string
+            }
+            Returns: string
+          }
       open_pack_carton: {
         Args: {
           p_sales_order_id: string
@@ -71980,6 +72124,17 @@ export type Database = {
         Args: { p_device_id: string; p_reason?: string }
         Returns: undefined
       }
+      schedule_dock_appointment: {
+        Args: {
+          p_carrier_id?: string
+          p_dock_id: string
+          p_reference?: string
+          p_type: string
+          p_window_end: string
+          p_window_start: string
+        }
+        Returns: string
+      }
       schedule_organization_deletion: {
         Args: { p_grace_days?: number; p_org_id: string; p_reason?: string }
         Returns: Json
@@ -72187,6 +72342,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      start_appointment: {
+        Args: { p_appointment_id: string }
+        Returns: undefined
       }
       storage_gc_resolve_objects: {
         Args: {
