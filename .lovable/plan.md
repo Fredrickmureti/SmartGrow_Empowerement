@@ -68,3 +68,21 @@ Add `src/test/architecture/product-import-handlers-split.test.ts`:
 - New public-schema writes reuse existing tables → no `GRANT` migrations needed. If a handler needs a new sequence or helper function, it lands in a migration alongside its `GRANT`s per the `public-schema-grants` rule.
 - Handlers stay client-side (they run in the Migration Wizard component tree, matching master). No `createServerFn` needed.
 - Idempotency: rely on the destination table's existing unique constraints (listed above). No new idempotency-key column added; that would be a schema change outside Step 6's scope.
+
+## Phase 3 — Execution log (session 6, 2026-07-17)
+
+**Shipped (Step 6 — DONE):**
+- New shared helper `src/lib/importConfigs/product/_resolveProduct.ts` — SKU-then-barcode product resolution via `product_identifiers.code_norm`, plus shared `ImportContext`/`BatchResult`/`RowError` types.
+- `createProductBarcodeBatchMigrationHandler` → `product_identifiers` (idempotent via unique `(business_id, code_norm, kind)`; 23505 treated as already-imported).
+- `createProductBatchBatchMigrationHandler` → `stock_lots` (idempotent via unique `(business_id, product_id, lot_number, serial_number)`).
+- `createProductWarehouseStockBatchMigrationHandler` → posts opening balances as `stock_adjustments` (`adjustment_type = 'opening_balance'`) + one `stock_adjustment_items` row per input line, grouped by warehouse. **Never writes to `warehouse_stock` directly** — preserves the Step 2/3 migration path. Warehouses resolved by name or code.
+- `createProductPriceBatchMigrationHandler` → find-or-create `price_lists` by name, insert `price_list_items` (idempotent via unique `(price_list_id, product_id, min_quantity)`).
+- `createProductSupplierBatchMigrationHandler` → `vendor_pricelists`. Vendors must pre-exist as supplier contacts (`contacts.supplier_rank > 0`) — unknown vendors surface in `errors` rather than being auto-created.
+- Wire-up: `src/lib/importConfigs/productImportConfig.ts` (compat shim) and `src/lib/importConfigs/index.ts` (barrel) re-export all five new handlers.
+- Guard: `src/test/architecture/product-import-handlers-split.test.ts` (3 tests) — every split config exports its batch handler, no secondary handler writes to `warehouse_stock`, shim re-exports all six.
+
+**Verification note:** vitest could not execute in this sandbox (`vitest` package missing from `node_modules` — pre-existing environmental issue, unrelated to Step 6). The guard test is on disk and will run in CI / after `bun install`.
+
+**Follow-up for the next agent (small, ~30 min):** the aspirational ADR-0074 outbox-emit contract (`product.import.completed` etc.) is NOT implemented on ANY of the six handlers — the master handler never emitted either. Add emission to all six in one pass so the family stays consistent; do not add it to only the new five.
+
+**Priorities unchanged:** (1) ops rotates `cron_caller_jwt` → unblocks Step 1 → 14 zero-drift nights → Steps 2 + 3; (2) Step 5 worker once notification copy lands; (3) outbox-emit follow-up above; (4) G1–G3 audit gaps once stakeholder input arrives.
