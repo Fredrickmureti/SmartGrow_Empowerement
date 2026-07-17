@@ -28,8 +28,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Boxes, ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, Loader2, Boxes, ArrowDownRight, ArrowUpRight, AlertOctagon } from "lucide-react";
 import { format } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface LotHeader {
   id: string;
@@ -95,9 +108,13 @@ export default function LotDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { can } = usePermissions();
   const [lot, setLot] = useState<LotHeader | null>(null);
   const [movements, setMovements] = useState<MovementRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [recallOpen, setRecallOpen] = useState(false);
+  const [recallReason, setRecallReason] = useState("");
+  const [recalling, setRecalling] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -176,26 +193,112 @@ export default function LotDetail() {
     );
   }
 
+  const canRecall = can("manageProducts");
+
+  const handleRecall = async () => {
+    if (!lot) return;
+    if (!recallReason.trim()) {
+      toast({ title: "Reason required", description: "Please describe the recall reason.", variant: "destructive" });
+      return;
+    }
+    setRecalling(true);
+    try {
+      const { data, error } = await supabase.rpc("recall_lot" as any, {
+        p_business_id: lot.business_id,
+        p_product_id: lot.product_id,
+        p_lot_number: lot.lot_number,
+        p_reason: recallReason.trim(),
+      } as any);
+      if (error) throw error;
+      const res = data as any;
+      const custCount = Array.isArray(res?.downstream_customers)
+        ? res.downstream_customers.length
+        : 0;
+      toast({
+        title: `Recall opened · ${res?.recall_reference ?? ""}`,
+        description: `Quarantined ${Number(res?.quarantined_units || 0).toLocaleString()} units across ${res?.warehouses_affected || 0} warehouse(s). ${custCount} downstream customer(s) identified.`,
+      });
+      setRecallOpen(false);
+      setRecallReason("");
+      await load();
+    } catch (e: any) {
+      toast({ title: "Recall failed", description: e?.message ?? String(e), variant: "destructive" });
+    } finally {
+      setRecalling(false);
+    }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="page-header">
-        <div className="flex items-start gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/inventory-app/lots")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <div className="flex items-center gap-2">
-              <Boxes className="h-5 w-5 text-muted-foreground" />
-              <h1 className="page-title font-mono">{lot.lot_number}</h1>
-              {lot.is_active ? <Badge variant="secondary">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
+        <div className="flex items-start gap-3 justify-between w-full">
+          <div className="flex items-start gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/inventory-app/lots")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <div className="flex items-center gap-2">
+                <Boxes className="h-5 w-5 text-muted-foreground" />
+                <h1 className="page-title font-mono">{lot.lot_number}</h1>
+                {lot.is_active ? <Badge variant="secondary">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {lot.product?.name ?? "—"}
+                {lot.product?.sku ? <span className="font-mono"> · {lot.product.sku}</span> : null}
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {lot.product?.name ?? "—"}
-              {lot.product?.sku ? <span className="font-mono"> · {lot.product.sku}</span> : null}
-            </p>
           </div>
+          {canRecall && lot.is_active && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setRecallOpen(true)}
+              className="shrink-0"
+            >
+              <AlertOctagon className="h-4 w-4 mr-1.5" />
+              Recall this lot
+            </Button>
+          )}
         </div>
       </div>
+
+      <AlertDialog open={recallOpen} onOpenChange={setRecallOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Recall lot {lot.lot_number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This quarantines all remaining on-hand for this batch across every
+              warehouse and opens a Product Recall record. The action is
+              recorded and downstream customers who received this lot will be
+              enumerated for follow-up.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="recall-reason">Reason</Label>
+            <Textarea
+              id="recall-reason"
+              value={recallReason}
+              onChange={(e) => setRecallReason(e.target.value)}
+              placeholder="e.g. Contamination detected in batch — pull from all shelves"
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={recalling}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleRecall();
+              }}
+              disabled={recalling || !recallReason.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {recalling ? "Recalling…" : "Confirm recall"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>

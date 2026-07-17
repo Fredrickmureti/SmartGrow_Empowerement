@@ -69509,6 +69509,17 @@ export type Database = {
         Args: { p_business_id: string }
         Returns: Json
       }
+      recall_lot: {
+        Args: {
+          p_business_id: string
+          p_lot_number: string
+          p_product_id: string
+          p_reason: string
+          p_reference?: string
+          p_severity?: string
+        }
+        Returns: Json
+      }
       recall_pos_held_transaction: {
         Args: { p_held_id: string; p_shift_id: string }
         Returns: {

@@ -86,3 +86,37 @@ Rationale: the moment anyone generates a variant matrix, every picker will show 
 - Every new server function that mutates uses `requireSupabaseAuth`; recall RPC's admin-side quarantine write goes via `supabaseAdmin` **only after** role verification.
 - Guards must land in the same session as the code they protect; no phase is "done" without its architecture test.
 - Do not add new readers of `warehouse_stock` in any earlier step — Phase 5 has to be reachable.
+
+---
+
+## Execution log (2026-07-17, session 2)
+
+### ✅ Step 1 — Phase E+ variant-aware read paths
+- `src/hooks/useProducts.ts`: added `UseProductsOptions.includeVariantParents` (default `false`); OR-filter treats NULL as false.
+- `src/hooks/useProductsPaginated.ts`: same option threaded through `ProductFilters`.
+- `src/hooks/useBranchScopedProducts.ts`: RPC-backed hook now fetches parent ids in parallel and filters client-side; option flag added.
+- `src/pages/Products.tsx`: admin catalogue opts back in (`includeVariantParents: true`).
+- Guards extended in `src/test/architecture/product-variants.test.ts` (9 tests, all green). Also fixed pre-existing regex bug on the ADR status line.
+- Typecheck clean.
+
+### ✅ Step 2 — Audit additions A + B (POS GS1 + GRN expiry persistence)
+- `src/pages/pos/POSTerminal.tsx`: `handleSearchKeyDown` and the `scanBus` subscription both collapse GS1 payloads to the GTIN via `interpretScan` before the resolver hit.
+- `src/features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx`: `ReceiptLine` gains `captured_expiry_date` / `captured_manufacture_date` (seeded from ASN). The GS1 scan branch now writes AI 17 / AI 11 into those fields. `handleSubmit` UPDATEs the matching `stock_lots` row post-RPC (keyed by business+product+lot). Best-effort, non-fatal on failure.
+
+### ✅ Step 4 — Audit addition C (product recall)
+- Migration installs `public.recall_lot(business, product, lot_number, reason, severity, reference)` — SECURITY DEFINER, `user_can_access_business` gated, EXECUTE granted to `authenticated`, REVOKEd from `anon`.
+- Atomically: opens `product_recalls`, per-warehouse `lot_quarantine` + `product_recall_items` from net movement aggregate, returns downstream-customer manifest via `stock_movements → invoice_items → invoices → contacts`.
+- `src/pages/inventory/LotDetail.tsx`: "Recall this lot" action + confirmation dialog (permission-gated on `manageProducts`); UI never writes recall tables directly.
+- ADR renumbered: `docs/adr/0073-product-recall-rpc.md` (recall). Import-split becomes ADR 0074, retirement becomes ADR 0075.
+- Guard: `src/test/architecture/recall-rpc.test.ts` (3 tests, all green).
+
+### ⏭ Pending for the next session
+- **Step 3 — Phase F (import split, 6 configs + ADR 0074 + guard)** — not started.
+- **Step 5 — Audit addition D + Phase 5 (`stock_quant_drift_runs` + retire `warehouse_stock` + ADR 0075)** — not started; deliberate, gated on 14 clean drift runs.
+- **Server-side variant-parent filter in `list_products_with_branch_stock` RPC** — current client-side filter is correct but a second network call; fold into the RPC when Phase F touches server contracts.
+- **Recall outbox event (`product.recall.opened`) + customer notification worker** — RPC already returns the manifest; wiring is a follow-up.
+
+### Notes for the next engineer
+- 62 pre-existing architecture-guard failures in `src/test/architecture/` predate this session (verified against inventory-branch-filter, no-conditional-radix-overlay, business-scoped-queries — my edits neither introduce nor resolve them). New guards for Steps 1 and 4 (12 tests) are the reliable signal that this session's work is complete.
+- The GRN expiry update loop is intentionally per-lot rather than a batch upsert because the `stock_lots` unique index is `(business_id, product_id, lot_number, serial_number)` — a Postgres upsert with a partial null-including composite is unreliable; N small UPDATEs are the correct primitive.
+
