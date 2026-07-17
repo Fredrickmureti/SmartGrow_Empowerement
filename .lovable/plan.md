@@ -39,6 +39,8 @@ Nothing claimed-complete was found unimplemented.
 | 6 | Drift-run log infra (ADR 0075, gate for Phase 5) | `public.stock_quant_drift_runs` + `record_stock_quant_drift_run(...)`; org members read, service_role write | Live in Supabase |
 | 7 | Legacy localization edge-function folder cleanup | `supabase/functions/` — 11 folders removed | `rg` confirms no live invoke callers |
 | 8 | Pillar-by-pillar foundation verdict | `.lovable/inventory-foundation-audit.md` | Identifies 3 blocking gaps (see below) |
+| 9 | Server-side variant-parent filter in `list_products_with_branch_stock` RPC (Step 4) | Migration `2026-07-17T03:07:18`; `src/hooks/useBranchScopedProducts.ts`; `src/hooks/pos/usePOSProducts.ts` | RPC now takes `p_include_variant_parents boolean DEFAULT false`; client-side parent-id parallel fetch removed |
+| 10 | Recall RPC emits `product.recall.opened` to `business_event_outbox` (Step 5) | Migration `2026-07-17T03:12:14`; `src/test/architecture/recall-rpc.test.ts` (+1 test, now 4 total) | Idempotency key = `product.recall.opened:<recall_id>`; `ON CONFLICT (idempotency_key) DO NOTHING` |
 
 ## ⏭ Deferred — execute in this order (each depends on the previous)
 
