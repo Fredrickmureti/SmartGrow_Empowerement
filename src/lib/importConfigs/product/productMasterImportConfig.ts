@@ -8,6 +8,16 @@
  */
 import { FieldDefinition } from "@/lib/importUtils";
 import { supabase } from "@/integrations/supabase/client";
+import { emitProductImportCompleted, newBatchId } from "./_emitImportEvent";
+import type { ImportContext } from "./_resolveProduct";
+
+function normalizeCtx(ctxOrOrgId: ImportContext | string): ImportContext {
+  if (typeof ctxOrOrgId === "string") {
+    // Legacy call site — assume single-business workspace so businessId == orgId.
+    return { orgId: ctxOrOrgId, businessId: ctxOrOrgId };
+  }
+  return ctxOrOrgId;
+}
 
 export const PRODUCT_MASTER_IMPORT_FIELDS: FieldDefinition[] = [
   { key: "name", label: "Name", required: true, type: "text", aliases: ["product name", "item_name", "product", "item", "title", "Product Name", "description"] },
@@ -45,13 +55,16 @@ export function createProductMasterMigrationHandler(orgId: string) {
   };
 }
 
-export function createProductMasterBatchMigrationHandler(orgId: string) {
+export function createProductMasterBatchMigrationHandler(ctxOrOrgId: ImportContext | string) {
+  const ctx = normalizeCtx(ctxOrOrgId);
+  const orgId = ctx.orgId;
   return async (rows: Record<string, any>[]) => {
     const errors: { rowIndex: number; data: Record<string, any>; errors: string }[] = [];
     const insertRows = rows.map((row) => {
       const productType = normalizeProductType(row.type || row.product_type);
       return {
         organization_id: orgId,
+        business_id: ctx.businessId,
         name: row.name,
         sku: row.sku || null,
         product_type: productType === "service" ? "service" : "goods" as const,
@@ -81,6 +94,16 @@ export function createProductMasterBatchMigrationHandler(orgId: string) {
       }
     }
 
-    return { total: rows.length, imported, skipped: errors.length, errors };
+    const result = { total: rows.length, imported, skipped: errors.length, errors };
+    await emitProductImportCompleted({
+      orgId: ctx.orgId,
+      businessId: ctx.businessId,
+      kind: "master",
+      batchId: newBatchId(),
+      result,
+      branchId: ctx.branchId ?? null,
+      warehouseId: ctx.warehouseId ?? null,
+    });
+    return result;
   };
 }
