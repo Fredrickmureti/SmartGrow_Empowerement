@@ -46,7 +46,8 @@ const STATUS_TONE: Record<string, string> = {
 
 export default function LandedCosts() {
   const { user } = useAuth();
-  const { activeBusinessId } = useActiveBusiness();
+  const { currentBusiness } = useBusinesses();
+  const activeBusinessId = currentBusiness?.id ?? null;
   const { formatCurrency } = useCurrency();
   const [rows, setRows] = useState<LandedCostBill[]>([]);
   const [loading, setLoading] = useState(true);
