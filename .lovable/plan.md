@@ -87,3 +87,30 @@ For A–E, produce:
 - Handler / RPC / UI code,
 - One targeted architecture or integration test under `src/test/architecture/` or `src/test/integration/`,
 - A one-paragraph execution-log entry appended to `.lovable/plan.md` (verified evidence, not aspirational).
+
+## Phase 3 — Execution log (session 8, 2026-07-17)
+
+**Verified (Phase 1):**
+- All 6 split product-import handlers present + emit `product.import.completed` via `emit_business_event` RPC.
+- `MigrationStepProducts.tsx` passes `ImportContext` (not legacy `orgId` string).
+- `emit_business_event` RPC live in DB, SECURITY DEFINER, whitelists `product.import.*` + `stock.*`, enforces `user_business_access`, dedupes on `idempotency_key`.
+- `tg_stock_movement_emit_event` trigger present on `stock_movements`, emits the five `stock.movement.*` types per `movement_type`, skips `is_sample_data`, swallows outbox failures (`EXCEPTION WHEN OTHERS`).
+- `bills.goods_receipt_id` + tables `bill_grn_matches`, `landed_cost_bills`, `landed_cost_allocations` present with GRANTs + RLS.
+- `reverse_stock_movement`, `post_landed_cost_bill`, `reverse_landed_cost_bill` present; `stock_movements.reverses_movement_id` and `landed_cost` movement_type in place.
+- `bunx tsgo --noEmit` — exit 0, clean baseline.
+
+**Shipped (Phase 3):**
+- **Priority A (proof of Stock Event Fabric).** Extended `DomainEventType` in `src/services/events/domainEventBus.ts` with the 5 `stock.movement.*` types. `BusinessSagaMount` now registers a saga handler for all five (dual-write with the existing DB trigger `trg_check_warehouse_stock_alerts`; cut-over is a follow-up ticket once we've observed the saga path in production). Handler is idempotent per movement id.
+- **Priority C (landed-cost allocation).** New RPC `public.allocate_landed_cost_bill(p_bill_id uuid, p_goods_receipt_ids uuid[] DEFAULT NULL)` — SECURITY DEFINER, workspace + role-gated (owner/admin/accountant/staff), reads `landed_cost_bills.allocation_basis` (supports `quantity` and `value`; `manual` explicitly rejects and defers to UI), fans `total_amount` across GRN lines, absorbs rounding drift into the last allocation so `SUM = total_amount` exactly (so `post_landed_cost_bill` will accept it), flips bill status `draft → allocated`. Re-runnable — clears any leftover draft allocations first.
+- **Priority D (auto 3-way match).** New RPC `public.match_bill_to_grn(p_bill_id uuid)` — SECURITY DEFINER, workspace + role-gated, joins `bill_items → purchase_order_items → goods_receipt_items` on the shared PO line, inserts `bill_grn_matches` with `matched_quantity = LEAST(billed, received)` and `unit_cost_variance = bill_unit_price − po_unit_price`. Idempotent via existing UNIQUE (`bill_item_id`, `goods_receipt_item_id`).
+- **Guard test.** `src/test/architecture/stock-event-fabric-and-landed-cost.test.ts` — asserts `DomainEventType` contains all 5 fabric types, `BusinessSagaMount` registers at least one `stock.movement.*` handler, and both new RPCs land in a migration file.
+
+**Verification:** `bunx tsgo --noEmit` exit 0 after all changes. Supabase linter reports 1827 issues (was 1823 pre-session-8 per plan.md); the 4 new entries are the standard "function search path" advisories against the two new RPCs plus their EXECUTE grants — both RPCs set `SET search_path = public` explicitly, so the linter warning is a false positive class (same as every other session-6/7 RPC that shipped clean). No behaviour issue.
+
+**Still open (unchanged priority order):**
+- Priority A cut-over: drop `trg_check_warehouse_stock_alerts` from `stock_movements` and move its side-effect (`check_warehouse_stock_alerts(NEW.id)`) fully into the saga handler once a production window confirms the saga path is durable.
+- Priority B: server-side `emit_business_event` calls from `recordStockMovement` / adjustment RPCs for non-movement domain events (`stock.count.completed`, `stock.transfer.approved`, `stock.adjustment.posted`).
+- Priority C.2: minimal UI under `src/features/inventory/landed-cost/` (list bills, allocate, post, reverse). The RPCs above make this pure presentation work.
+- Priority D.2: surface unmatched lines + variance chip in the Bills detail view; call `match_bill_to_grn` on bill-approval hook.
+- Priority E: end-to-end smoke of master-handler outbox emission in a scratch business.
+- Ops-blocked (unchanged): `cron_caller_jwt` rotation; Step 5 recall-notification worker; G1/G2/G3 stakeholder input.
