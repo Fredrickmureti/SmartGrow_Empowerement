@@ -754,7 +754,9 @@ function POSTerminalInner() {
       if (scopeMode === "scoped" && event.sourceTopic) {
         if (event.sourceTopic !== ownRegisterTopic) return;
       }
-      void handleScan(event.code, event.quantity, event.source);
+      // GS1 collapse: DataMatrix / QR payload → GTIN before resolver.
+      const gs1 = interpretScan(event.code);
+      void handleScan(gs1.resolveCode, event.quantity, event.source);
     });
     return unsub;
   }, [handleScan, scopeMode, ownRegisterTopic]);
