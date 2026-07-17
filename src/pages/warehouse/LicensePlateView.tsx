@@ -77,6 +77,33 @@ export default function LicensePlateView() {
     },
   });
 
+  // Putaway suggestions surfaced for whichever task references this plate
+  // (usually the freshly staged receiving task). Keeps operators from
+  // guessing which bin the WMS ranked #1.
+  const { data: suggestions } = useQuery({
+    queryKey: ["wms-lpn-suggestions", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data: tasks, error: tErr } = await supabase
+        .from("wms_tasks")
+        .select("id, task_type, state")
+        .eq("lpn_id", id!)
+        .eq("task_type", "putaway")
+        .in("state", ["pending", "assigned", "in_progress"])
+        .limit(5);
+      if (tErr) throw tErr;
+      const taskIds = (tasks ?? []).map((t) => t.id);
+      if (!taskIds.length) return [];
+      const { data, error } = await supabase
+        .from("wms_putaway_suggestions")
+        .select("id, task_id, rank, reason, chosen, location:location_id(code, name)")
+        .in("task_id", taskIds)
+        .order("rank");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveDest, setMoveDest] = useState<string>("");
   const [moveNote, setMoveNote] = useState<string>("");
