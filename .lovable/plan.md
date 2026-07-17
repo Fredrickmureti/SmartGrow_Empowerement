@@ -99,48 +99,61 @@ STOCK and QUARANTINE and handle `scrap` / `return_to_vendor` (seeds
 
 ## 3. What is NOT yet implemented (in order)
 
-### ▶ Phase 10 — Labour management  **← START HERE NEXT**
+### Phase 10 — Labour management  ✅
+- `wms_task_standards` (biz-scoped master data: `task_type, uom,
+  seconds_per_uom, is_active`). PostgREST writes gated by
+  `inventory:write` permission.
+- `wms_tasks.earned_seconds` / `.actual_seconds` added. Stamped by
+  BEFORE-UPDATE trigger `_wms_stamp_labour_metrics` on transition into
+  `state='done'`. Direct client writes to those columns are blocked at
+  the DB — no changes needed to any existing `complete_*_task` RPC.
+- View `wms_operator_productivity_view` (`security_invoker=true`) —
+  earned/actual seconds, tasks completed, utilisation ratio per
+  `(operator, warehouse, day)`.
+- UI: `/warehouse-app/labour` — KPI cards, operator leaderboard,
+  standards CRUD (create / toggle active / delete).
+- Guard `wms-phase10.test.ts`.
+- ADR `docs/adr/0081-wms-labour-management.md`.
 
-Goal: turn `wms_tasks` timings into engineered-labour productivity so
-supervisors can see earned vs actual hours and per-operator utilisation.
+---
+
+## 3. What is NOT yet implemented (in order)
+
+### ▶ Phase 11 — 3PL activity-based billing  **← START HERE NEXT**
+
+Goal: turn the `warehouse.*` event stream into billable 3PL activity
+so multi-tenant warehouses can invoice their clients.
 
 **Backend:**
 
-- `wms_task_standards(business_id, task_type, uom, seconds_per_uom,
-  is_active)` — biz-scoped master data; UNIQUE on
-  `(business_id, task_type, uom)`.
-- Add `earned_seconds numeric`, `actual_seconds numeric` to `wms_tasks`.
-- Update `complete_task` (and every task-completion RPC) to compute:
-  - `actual_seconds = extract(epoch from (completed_at - started_at))`
-  - `earned_seconds = quantity * standards.seconds_per_uom` (fallback 0
-    when no standard exists).
-- View `wms_operator_productivity_view` — `(operator_id,
-  warehouse_id, day)` → earned/actual sums, utilisation ratio.
+- `wms_billing_tariffs(business_id, client_business_id, activity,
+  uom, rate, currency, effective_from, effective_to)` — biz-scoped
+  master data; UNIQUE on `(business_id, client_business_id, activity,
+  uom, effective_from)`.
+- `wms_billable_activities(id, business_id, client_business_id,
+  activity, quantity, occurred_at, source_event_id, tariff_id?,
+  invoice_id?)` — activity ledger, RPC-only writes.
+- RPC `capture_billable_activity(event_id)` — idempotent, consumes a
+  `business_event_outbox` row and appends a billable activity when a
+  matching active tariff exists.
+- RPC `generate_3pl_invoice(client_id, period_from, period_to)` —
+  aggregates unbilled activities, creates a draft invoice in Sales,
+  stamps `invoice_id` on the activity rows.
+- Event subscriber (edge function or scheduled RPC) that streams new
+  outbox rows through `capture_billable_activity`.
 
 **Frontend:**
 
-- `/warehouse-app/labour` — standards CRUD table, operator leaderboard
-  (top/bottom), warehouse filter, date-range picker.
-- Nav entry under Operations: "Labour".
+- `/warehouse-app/billing` — tariff CRUD, activity ledger with
+  filters, month-end invoice generation wizard.
+- Nav entry under Operations: "3PL billing".
 
-**Guard `wms-phase10.test.ts`:**
+**Guard `wms-phase11.test.ts`:**
 
-- Client cannot write `earned_seconds` / `actual_seconds` directly
-  (RPC-populated).
-- `wms_task_standards` writes allowed only from the labour page.
-- View is read-only.
+- `wms_billable_activities` is RPC-only.
+- `wms_billing_tariffs` writes only from the billing page.
+- Invoice generation RPC is present and idempotent-tested.
 
-### Phase 11 — 3PL activity-based billing
-
-- `wms_billing_tariffs(client_id, activity, uom, rate, effective_from,
-  effective_to)`.
-- Consumer subscribes to `warehouse.*` events from
-  `business_event_outbox` → writes `wms_billable_activities`.
-- Month-end RPC `generate_3pl_invoice(client_id, period)` → creates
-  draft invoice in Sales.
-- UI: `/warehouse-app/billing` — tariffs, activity ledger, invoice
-  preview.
-- Guard `wms-phase11.test.ts`.
 
 ### Phase 12 — Cross-dock & cartonization
 
