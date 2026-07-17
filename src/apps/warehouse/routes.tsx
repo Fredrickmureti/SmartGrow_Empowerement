@@ -39,6 +39,7 @@ const QCQueue = lazy(() => import("@/pages/warehouse/QCQueue"));
 const QCInspectionDetail = lazy(() => import("@/pages/warehouse/QCInspectionDetail"));
 const Replenishment = lazy(() => import("@/pages/warehouse/Replenishment"));
 const Slotting = lazy(() => import("@/pages/warehouse/Slotting"));
+const YardBoard = lazy(() => import("@/pages/warehouse/YardBoard"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
