@@ -47,6 +47,7 @@ import { validateLineItems } from "@/lib/validation/lineItems";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
+import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
 import { ProductCombobox } from "@/components/common/ProductCombobox";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
@@ -307,24 +308,26 @@ export default function SalesOrderCreatePage() {
             </FieldGrid>
           </FieldGroup>
 
-          <FieldGroup label="Shipping & Project">
-            <FormField
-              control={form.control}
-              name="project_id"
-              render={({ field }) => (
-                <FormItem>
-                  <ProjectPicker
-                    enabled={true}
-                    value={field.value ?? null}
-                    onChange={(id) => field.onChange(id)}
-                    customerId={watchedContactId || null}
-                    helperText="Optional — links the SO and its eventual invoice to project profitability."
-                  />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </FieldGroup>
+          <CapabilityGate cap="projects.analytic-tagging">
+            <FieldGroup label="Shipping & Project">
+              <FormField
+                control={form.control}
+                name="project_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <ProjectPicker
+                      enabled={true}
+                      value={field.value ?? null}
+                      onChange={(id) => field.onChange(id)}
+                      customerId={watchedContactId || null}
+                      helperText="Optional — links the SO and its eventual invoice to project profitability."
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </FieldGroup>
+          </CapabilityGate>
 
           <FieldGroup label="Line Items">
             <div className="flex items-center justify-between mb-1">

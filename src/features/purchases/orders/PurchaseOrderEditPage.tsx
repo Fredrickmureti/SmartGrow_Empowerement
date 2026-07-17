@@ -43,6 +43,7 @@ import {
 } from "@/hooks/usePurchaseOrders";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { normalizeError } from "@/services/resilience";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
 
@@ -346,14 +347,16 @@ export default function PurchaseOrderEditPage() {
               />
             </div>
             <div className="md:col-span-2">
-              <ProjectPicker
-                enabled
-                value={formData.project_id}
-                onChange={(id) =>
-                  setFormData({ ...formData, project_id: id })
-                }
-                helperText="Optional — links this PO's costs to project profitability."
-              />
+              <CapabilityGate cap="projects.analytic-tagging">
+                <ProjectPicker
+                  enabled
+                  value={formData.project_id}
+                  onChange={(id) =>
+                    setFormData({ ...formData, project_id: id })
+                  }
+                  helperText="Optional — links this PO's costs to project profitability."
+                />
+              </CapabilityGate>
             </div>
           </div>
         </Section>

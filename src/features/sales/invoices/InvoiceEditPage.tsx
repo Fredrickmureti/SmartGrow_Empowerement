@@ -53,6 +53,7 @@ import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { InvoiceLineScanner } from "@/components/invoices/InvoiceLineScanner";
 import { applyScanToLines } from "@/services/scanner";
 import { cn } from "@/lib/utils";
@@ -461,15 +462,17 @@ export default function InvoiceEditPage() {
             </FieldGrid>
           </FieldGroup>
 
-          <FieldGroup label="Project">
-            <ProjectPicker
-              enabled={open}
-              value={formData.project_id}
-              onChange={(id) => setFormData({ ...formData, project_id: id })}
-              customerId={formData.contact_id || null}
-              helperText="Optional — links this invoice's revenue to project profitability."
-            />
-          </FieldGroup>
+          <CapabilityGate cap="projects.analytic-tagging">
+            <FieldGroup label="Project">
+              <ProjectPicker
+                enabled={open}
+                value={formData.project_id}
+                onChange={(id) => setFormData({ ...formData, project_id: id })}
+                customerId={formData.contact_id || null}
+                helperText="Optional — links this invoice's revenue to project profitability."
+              />
+            </FieldGroup>
+          </CapabilityGate>
 
           <CustomFieldsSection
             entityType="invoice"

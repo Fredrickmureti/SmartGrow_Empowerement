@@ -67,6 +67,7 @@ import {
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { InvoiceLineScanner } from "@/components/invoices/InvoiceLineScanner";
 import { applyScanToLines } from "@/services/scanner";
 import type { ResolvedScan } from "@/hooks/scanner";
@@ -497,16 +498,18 @@ export default function InvoiceCreatePage() {
           </FieldGrid>
         </FieldGroup>
 
-        {/* Project */}
-        <FieldGroup label="Project">
-          <ProjectPicker
-            enabled={open}
-            value={formData.project_id}
-            onChange={(id) => setFormData({ ...formData, project_id: id })}
-            customerId={formData.contact_id || null}
-            helperText="Optional — links this invoice's revenue to project profitability."
-          />
-        </FieldGroup>
+        {/* Project — only when the Projects app is installed for this org. */}
+        <CapabilityGate cap="projects.analytic-tagging">
+          <FieldGroup label="Project">
+            <ProjectPicker
+              enabled={open}
+              value={formData.project_id}
+              onChange={(id) => setFormData({ ...formData, project_id: id })}
+              customerId={formData.contact_id || null}
+              helperText="Optional — links this invoice's revenue to project profitability."
+            />
+          </FieldGroup>
+        </CapabilityGate>
 
         {/* Line Items */}
         <FieldGroup label="Line Items">

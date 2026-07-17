@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { CurrencySelect } from "@/components/common/CurrencySelect";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
+import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { ReceiptUpload } from "@/components/expenses/ReceiptUpload";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import type { ExpenseCategory } from "@/hooks/useExpenses";
@@ -285,16 +286,18 @@ export function ExpenseFormFields({
         </FieldGrid>
       </Section>
 
-      <Section
-        title="Analytics"
-        description="Optional project link for cost-to-profitability tracking."
-      >
-        <ProjectPicker
-          value={value.project_id}
-          onChange={(id) => onChange({ project_id: id })}
-          helperText="Optional — links this expense's cost to project profitability."
-        />
-      </Section>
+      <CapabilityGate cap="projects.analytic-tagging">
+        <Section
+          title="Analytics"
+          description="Optional project link for cost-to-profitability tracking."
+        >
+          <ProjectPicker
+            value={value.project_id}
+            onChange={(id) => onChange({ project_id: id })}
+            helperText="Optional — links this expense's cost to project profitability."
+          />
+        </Section>
+      </CapabilityGate>
 
       <Section title="Receipt">
         <ReceiptUpload
