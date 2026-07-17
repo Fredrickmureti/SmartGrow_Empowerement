@@ -208,6 +208,8 @@ export function WarehouseApp() {
 
         <Route path="replenishment" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Replenishment"><Replenishment /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="slotting" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Slotting"><Slotting /></LazyRoute></SubscriptionProtectedRoute>} />
+        <Route path="yard" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Yard & Trailers"><YardBoard /></LazyRoute></SubscriptionProtectedRoute>} />
+
 
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
