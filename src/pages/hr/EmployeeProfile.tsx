@@ -31,6 +31,7 @@ import { EmployeeLeaveSummary } from "@/components/employees/EmployeeLeaveSummar
 import { EmployeePayslipHistory } from "@/components/employees/EmployeePayslipHistory";
 import { EmployeePayrollInfo } from "@/components/employees/EmployeePayrollInfo";
 import { EmployeeCustomDeductionsSection } from "@/components/payroll/EmployeeCustomDeductionsSection";
+import { PayrollSectionTabs } from "@/components/payroll/PayrollSectionTabs";
 import { EmployeeDraftBanner } from "@/components/employees/EmployeeDraftBanner";
 import { EmployeeReadinessPanel } from "@/components/payroll/EmployeeReadinessPanel";
 import { EmployeeDocumentsTab } from "@/components/employees/EmployeeDocumentsTab";
