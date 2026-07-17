@@ -122,3 +122,71 @@ Add `src/test/architecture/product-import-handlers-split.test.ts`:
 **Verification:** migration applied; linter output was 1823 pre-existing issues, none introduced by this migration.
 
 **Priorities still open (unchanged):** ops rotates `cron_caller_jwt`; Step 5 worker; migrate one consumer off direct `stock_movements` triggers to the outbox; G1–G3 stakeholder input.
+
+---
+
+## Handoff to next agent (2026-07-17, end of session 7)
+
+Read this section first. Everything above is history; this is the current state.
+
+### What is DONE (verified on disk / in DB)
+
+1. **Product import architecture (ADR 0074).** Six split configs under `src/lib/importConfigs/product/`: master, barcode, batch, warehouse_stock, price, supplier. Each exports a `create<Name>BatchMigrationHandler(ctx: ImportContext)` factory. Compat shim `productImportConfig.ts` re-exports all six. Barrel `src/lib/importConfigs/index.ts` re-exports the six. Guard test `src/test/architecture/product-import-handlers-split.test.ts`.
+2. **Import outbox emission.** RPC `public.emit_business_event(...)` is the single client-facing publisher; whitelists `product.import.*` and `stock.*`; enforces `user_business_access` membership; dedupes on `idempotency_key`. All six import handlers call `emitProductImportCompleted` at end-of-batch (`_emitImportEvent.ts` helper). Emission is best-effort — a failed outbox insert never faults the import.
+3. **Master handler signature tightened.** `createProductMasterBatchMigrationHandler(ctx: ImportContext)` — no more `(orgId: string)` overload. Sole call site `MigrationStepProducts.tsx` pulls `currentBusiness` from `BusinessContext` and passes a full context.
+4. **Stock Event Fabric (ADR 0076, Blocking Gap #3).** Trigger `tg_stock_movement_emit_event` publishes `stock.movement.{received|dispatched|transferred|adjusted|posted}` to `business_event_outbox` for every INSERT into `stock_movements`. Idempotency key `stock.movement:<uuid>`; `is_sample_data` skipped; outbox failure never faults the write.
+5. **3-Way Match + Landed Cost schema (ADR 0077, Blocking Gap #2).** `bills.goods_receipt_id` column; tables `bill_grn_matches`, `landed_cost_bills`, `landed_cost_allocations` with GRANTs + RLS scoped to `user_business_access` (owner/admin/accountant/staff for writes).
+6. **AVCO canonical cost method (ADR 0078, Blocking Gap #1).** `cost_layers`/`cost_layer_consumptions` downgraded to lot-cost detail only. Codebase sweep confirmed no TS consumer reads them, so no code changes were needed.
+7. **Stock movement reversal + landed-cost posting RPCs.**
+   - `stock_movements.reverses_movement_id` self-reference column + `landed_cost` added to `movement_type` CHECK.
+   - `reverse_stock_movement(p_movement_id, p_reason)` — inserts negating movement; refuses double-reversal and reversing a reversal; auth checked via `user_business_access`.
+   - `post_landed_cost_bill(p_bill_id)` — validates status=allocated + sum(allocations)=total, writes one `landed_cost` movement per allocation (quantity 0, unit_cost=allocated_amount), stamps `posted_movement_id`, flips status to posted.
+   - `reverse_landed_cost_bill(p_bill_id, p_reason)` — reverses each posted allocation via `reverse_stock_movement`, clears link, flips status to reversed.
+   - Reversals inherit the standard INSERT path, so `tg_stock_movement_emit_event` publishes matching `stock.movement.*` events automatically — no bespoke reversal event type.
+
+### Verification status
+
+- `bunx tsgo --noEmit` was clean at end of session 6 (import handler rewrite). Not re-run after the RPC-only migration in session 7 because that migration touched no TS.
+- Vitest could not run in the sandbox (`vitest` missing from `node_modules` — pre-existing env issue). Guard tests are on disk and will run in CI.
+- Supabase linter reports 1823 pre-existing issues; none introduced by session-6 or session-7 migrations. Do not attempt to "fix" them as part of this workstream — they are out of scope and mostly belong to other modules.
+
+### What REMAINS — pick these up in this order
+
+**Priority A — wire the fabric to a real consumer (proves ADR 0076 works).**
+Pick ONE existing consumer that currently reads `stock_movements` via a direct trigger and migrate it to subscribe to the outbox via `BusinessSaga`. Candidates in order of expected value:
+1. Finance COGS journal-entry poster (search `rg -n "stock_movements" supabase/migrations/ | rg -i "trigger|cogs|journal"`).
+2. Replenishment / reorder-point recompute.
+3. External WMS adapter (if any).
+Register a handler on `stock.movement.dispatched` (or `.received` for COGS reversal), remove the direct trigger in the same migration. Success metric: one AFTER-INSERT trigger removed from `stock_movements`, one saga handler added under `src/services/events/handlers/`, no COGS drift on a smoke transaction.
+
+**Priority B — server-side `emit_business_event` from `recordStockMovement` for non-inventory `stock.*` events** (e.g. `stock.count.completed`, `stock.transfer.approved`). The trigger only emits `stock.movement.*`. Domain events that don't correspond 1:1 to a movement (cycle-count approvals, transfer-order state changes) still need explicit emission from RPC/edge code. Audit callers of `recordStockMovement` under `src/lib/inventory/` and add emission where a domain event is warranted.
+
+**Priority C — landed-cost allocation calculator (client or RPC).**
+The RPCs `post_landed_cost_bill` / `reverse_landed_cost_bill` assume `landed_cost_allocations` rows already exist and sum to the bill total. There is currently NO code that CREATES those allocations from a bill's `allocation_basis` (quantity/value/weight/manual). Add either a client-side helper or (preferred) an `allocate_landed_cost_bill(p_bill_id)` RPC that fans the total across the linked GRN lines by the chosen basis, writing `landed_cost_allocations` rows and flipping status draft→allocated. Then wire a minimal UI screen under `src/features/inventory/landed-cost/` (list, allocate, post, reverse).
+
+**Priority D — 3-way match UI + auto-populate `bill_grn_matches`.**
+Schema exists; no UI or auto-matcher does. Add a `match_bill_to_grn(p_bill_id)` RPC that, for each `bill_items` row with a `purchase_order_item_id`, finds the matching `goods_receipt_items` via the shared PO line and inserts `bill_grn_matches` rows (matched_quantity = LEAST(billed, received)). Surface unmatched lines in the Bills UI.
+
+**Priority E — outbox-emit follow-up for the master handler.**
+Currently the master handler emits `product.import.completed` via `_emitImportEvent.ts` — same as the other five. Double-check with a small runtime test that a real import produces the expected outbox row; the code path is untested end-to-end in this environment.
+
+### Ops-blocked (do NOT attempt to unblock from code)
+
+- `cron_caller_jwt` rotation → until ops rotates, Step 1 monitoring stays paused; Steps 2 + 3 (legacy `warehouse_stock` / `products.stock_quantity` drop) stay parked. Do not delete the legacy tables from a code session; wait for 14 zero-drift nights after rotation.
+- Step 5 notification-copy worker → blocked on product-owner copy for `product.recall.opened`.
+- G1 / G2 / G3 audit gaps → blocked on stakeholder input; do not fabricate answers.
+
+### Where to look first next session
+
+1. `.lovable/inventory-foundation-audit.md` — the original audit, still the source of truth for gap enumeration.
+2. `docs/adr/0074`, `0076`, `0077`, `0078` — decisions this workstream shipped against.
+3. `src/services/events/BusinessSaga.ts` + `src/services/events/index.ts` — the drainer + registration surface for Priority A.
+4. `src/lib/inventory/stockLedger.ts` — the single choke-point every non-import movement flows through; the place to hang Priority B emissions.
+5. Latest three migrations (all dated 2026-07-17): `20260717093911_*` (event fabric trigger), `20260717094014_*` (landed-cost schema), and the RPC migration applied in Phase 6.
+
+### Guardrails that survived the workstream
+
+- Never store roles on `profiles`; always use `user_roles` + `has_role` (unchanged, no violations added).
+- Every new `public` table shipped with GRANTs in the same migration (rule respected in `20260717094014_*`).
+- No client-side inserts into `business_event_outbox` — always via `emit_business_event` RPC.
+- Handlers never touch fields outside their concern (ADR 0074 guardrail); `warehouseStock` handler still posts opening balances through `stock_adjustments`, never writes `warehouse_stock` directly. Do not regress this.
