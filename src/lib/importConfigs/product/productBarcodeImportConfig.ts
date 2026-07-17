@@ -12,6 +12,7 @@ import {
   type RowError,
   resolveProductIds,
 } from "./_resolveProduct";
+import { emitProductImportCompleted, newBatchId } from "./_emitImportEvent";
 
 export const PRODUCT_BARCODE_IMPORT_FIELDS: FieldDefinition[] = [
   { key: "sku", label: "SKU", required: true, type: "text", aliases: ["code", "item_code", "product_code", "SKU", "Product Code"] },
@@ -82,6 +83,11 @@ export function createProductBarcodeBatchMigrationHandler(ctx: ImportContext) {
         imported++;
       }
     }
-    return { total: rows.length, imported, skipped: errors.length, errors };
+    const result: BatchResult = { total: rows.length, imported, skipped: errors.length, errors };
+    await emitProductImportCompleted({
+      orgId: ctx.orgId, businessId: ctx.businessId, kind: "barcode",
+      batchId: newBatchId(), result, branchId: ctx.branchId, warehouseId: ctx.warehouseId,
+    });
+    return result;
   };
 }
