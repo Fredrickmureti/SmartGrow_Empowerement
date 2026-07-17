@@ -571,38 +571,34 @@ export default function GoodsReceiptWizardPage() {
       }
 
       // Phase H+ — persist GS1-captured AI 17 / AI 11 dates onto the
-      // just-materialised stock_lots rows. The atomic RPC creates the
-      // lot master; we upsert its expiry / manufacture columns keyed by
-      // (business_id, product_id, lot_number). Non-fatal if it fails —
+      // stock_lots row that the atomic RPC just materialised. Keyed by
+      // (business_id, product_id, lot_number). Non-fatal on failure —
       // FEFO simply falls back to receipt-date ordering for this batch.
       const bizId = currentBusiness?.id;
       if (bizId) {
-        const lotUpserts = linesToReceive
-          .filter(
-            (l) =>
-              l.product_id &&
-              l.lot_number &&
-              (l.captured_expiry_date || l.captured_manufacture_date),
-          )
-          .map((l) => ({
-            business_id: bizId,
-            product_id: l.product_id!,
-            lot_number: l.lot_number,
-            expiry_date: l.captured_expiry_date,
-            manufacture_date: l.captured_manufacture_date,
-          }));
-        if (lotUpserts.length > 0) {
+        const dateLines = linesToReceive.filter(
+          (l) =>
+            l.product_id &&
+            l.lot_number &&
+            (l.captured_expiry_date || l.captured_manufacture_date),
+        );
+        for (const l of dateLines) {
+          const patch: Record<string, string> = {};
+          if (l.captured_expiry_date) patch.expiry_date = l.captured_expiry_date;
+          if (l.captured_manufacture_date)
+            patch.manufacture_date = l.captured_manufacture_date;
           const { error: lotErr } = await supabase
             .from("stock_lots")
-            .upsert(lotUpserts as any, {
-              onConflict: "business_id,product_id,lot_number",
-              ignoreDuplicates: false,
-            });
+            .update(patch)
+            .eq("business_id", bizId)
+            .eq("product_id", l.product_id!)
+            .eq("lot_number", l.lot_number);
           if (lotErr) {
-            console.warn("[GRN] stock_lots date upsert failed", lotErr);
+            console.warn("[GRN] stock_lots date update failed", lotErr);
           }
         }
       }
+
 
 
       // Phase D.2 · ASN reconciliation: transition shipment + log discrepancies
