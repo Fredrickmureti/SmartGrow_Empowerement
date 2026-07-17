@@ -1,166 +1,166 @@
-# Inventory Foundation — Session 8 plan
 
-Continuation of `.lovable/plan.md`. Session 7 handoff lists five open priorities (A–E) plus ops-blocked items. This plan verifies session-7 claims first, then executes what's actionable.
+# Enterprise WMS — Audit Verdicts & Build Plan
 
-## Phase 1 — Verify session-7 claims before writing code
+## 0. Framing
 
-Confirm each "DONE" item is real; treat any gap as pending work.
+Inventory Management (what/how much/whose/value/lot/expiry) is already **enterprise-grade** — the last 15 ADRs (0064–0078) delivered locations+quants, lot genealogy, serial ledger, downstream stamping, stock event fabric, landed cost, 3-way match. That work is verified live in DB.
 
-1. **Split product importers + outbox emission** — confirm all 8 files present under `src/lib/importConfigs/product/`, all six handlers export `create<Name>BatchMigrationHandler(ctx)`, all six call `emitProductImportCompleted`, compat shim + barrel re-export all six, guard test on disk. (Files already listed — spot-check content only.)
-2. **Master handler signature** — `MigrationStepProducts.tsx` passes `ImportContext` (not `orgId` string).
-3. **`emit_business_event` RPC** — exists in DB, SECURITY DEFINER, whitelists `product.import.*` + `stock.*`, enforces `user_business_access`, dedupes on `idempotency_key`. Verify via `supabase--read_query` on `pg_proc`.
-4. **Stock event fabric trigger** — `tg_stock_movement_emit_event` exists on `stock_movements`, emits correct event types per `movement_type`, skips `is_sample_data`, swallows outbox failures. Verify via `pg_trigger` + function source.
-5. **3-way match + landed cost schema** — `bills.goods_receipt_id` column, tables `bill_grn_matches`, `landed_cost_bills`, `landed_cost_allocations` exist with RLS + GRANTs.
-6. **Reversal + landed-cost posting RPCs** — `reverse_stock_movement`, `post_landed_cost_bill`, `reverse_landed_cost_bill` present; `stock_movements.reverses_movement_id` column + `landed_cost` in `movement_type` CHECK.
-7. **`tsgo --noEmit`** clean baseline before touching code.
+Warehouse Management (where physically / who moves / which task / which dock / which pallet / which wave / which pick path) is **not**. What exists today at `/inventory-app/warehouses` is a CRUD list of warehouse *records* (name, address, manager). Even though `stock_locations` supports a full hierarchy, only one auto-seeded default row per warehouse exists, and **zero** operational tables model the physical workflow.
 
-Anything not verifiable moves into Phase 3 as prerequisite work; no plan expansion unless a real defect is found.
+This plan treats WMS as a new execution layer that sits above Inventory. Inventory remains the single source of truth for stock ownership/quantities. WMS owns physical location, operator, task, appointment, dock, wave, pick, pack, load, dispatch.
 
-## Phase 2 — Plan additions
+## 1. Verdicts (evidence-based)
 
-None expected. The handoff's Priorities A–E already cover the remaining architectural gaps. Only add phases if verification surfaces a defect (e.g. trigger doesn't skip sample data, RPC signature wrong, missing GRANT).
-
-## Phase 3 — Execute the open priorities in order
-
-### Priority A — Wire the Stock Event Fabric to one real consumer
-
-Prove ADR 0076 by moving one direct-trigger consumer onto the outbox.
-
-- Enumerate `AFTER INSERT` triggers on `stock_movements` in the DB. Pick the highest-value one: Finance COGS journal poster preferred; else replenishment recompute.
-- Add a handler under `src/services/events/handlers/` subscribing to `stock.movement.dispatched` (COGS) or `.received` (replenishment) through `BusinessSaga`.
-- Register in `src/services/events/index.ts`.
-- Remove the direct DB trigger in the same migration (idempotent — handler must be running before drop is safe; if we can't guarantee that, keep the trigger and mark it dual-write with a follow-up cut-over ticket).
-- Smoke: post one stock movement, confirm the journal entry / replenishment side-effect fires from the saga path only.
-
-### Priority B — Server-side `stock.*` emission for non-movement domain events
-
-- Audit callers of `recordStockMovement` in `src/lib/inventory/stockLedger.ts` and RPC callers.
-- Add explicit `emit_business_event` calls for domain events that don't map 1:1 to a movement: `stock.count.completed`, `stock.transfer.approved`, `stock.transfer.received`, `stock.adjustment.posted` where relevant.
-- Emission must be transactional in RPCs (server) and best-effort in client callers, matching the import-handler pattern.
-
-### Priority C — Landed-cost allocation calculator
-
-- Add RPC `allocate_landed_cost_bill(p_bill_id)` (SECURITY DEFINER, org+role gated) that:
-  - reads `landed_cost_bills.allocation_basis` (`quantity | value | weight | manual`),
-  - fans `total_amount` across linked GRN lines using that basis,
-  - inserts `landed_cost_allocations` rows,
-  - transitions bill status `draft` → `allocated`.
-  - `manual` basis: leave allocations to be authored via UI; RPC just validates + flips status when sums match.
-- Minimal UI under `src/features/inventory/landed-cost/`: list bills, allocate, post, reverse. Uses existing design-system primitives; no new tokens.
-
-### Priority D — Auto-populate `bill_grn_matches` + UI
-
-- Add RPC `match_bill_to_grn(p_bill_id)`:
-  - For each `bill_items` row with `purchase_order_item_id`, join `goods_receipt_items` on the same PO line, insert `bill_grn_matches` with `matched_quantity = LEAST(billed_qty, received_qty)` and `unit_cost_variance = bill_unit_cost - po_unit_cost`.
-  - Idempotent via existing UNIQUE `(bill_item_id, goods_receipt_item_id)`.
-- Surface unmatched lines in the existing Bills detail view (variance chip + "Match to GRN" action). Read-only if user lacks accountant/admin role.
-
-### Priority E — End-to-end verification of master-handler outbox emission
-
-- Runtime smoke: trigger a real product-master import through the Migration wizard against a scratch business, assert one `business_event_outbox` row with `event_type = product.import.completed` (or `.completed_with_errors`) and the expected idempotency key shape.
-- If emission is silently swallowed, fix the RPC allow-list or the helper — do not paper over with a log.
-
-## Ops-blocked (unchanged, do not touch from code)
-
-- `cron_caller_jwt` rotation — Steps 1/2/3 stay parked.
-- Step 5 recall-notification worker — awaits product-owner copy.
-- G1/G2/G3 audit gaps — await stakeholder input.
-
-## Out of scope
-
-- Any UI polish beyond the minimal landed-cost + bill-match surfaces.
-- Touching `cost_layers` code (ADR 0078 decision stands; no consumers).
-- Fixing the 1823 pre-existing linter findings — belong to other modules.
-- Deleting legacy `warehouse_stock` / `products.stock_quantity` — gated on 14 zero-drift nights.
-
-## Technical notes
-
-- New RPCs land in one migration per priority (C, D). Each RPC is SECURITY DEFINER with explicit `user_business_access` + role check; no service_role fallback.
-- New tables (none expected) would require GRANTs in the same migration per project rules.
-- Client code uses existing `supabase` client; no new hand-rolled clients.
-- Event handler files are pure functions registered at module load; no top-level Supabase realtime subscriptions outside `useEffect`.
-
-## Deliverable per priority
-
-For A–E, produce:
-- Migration file(s) if DB work,
-- Handler / RPC / UI code,
-- One targeted architecture or integration test under `src/test/architecture/` or `src/test/integration/`,
-- A one-paragraph execution-log entry appended to `.lovable/plan.md` (verified evidence, not aspirational).
-
-## Phase 3 — Execution log (session 8, 2026-07-17)
-
-**Verified (Phase 1):**
-- All 6 split product-import handlers present + emit `product.import.completed` via `emit_business_event` RPC.
-- `MigrationStepProducts.tsx` passes `ImportContext` (not legacy `orgId` string).
-- `emit_business_event` RPC live in DB, SECURITY DEFINER, whitelists `product.import.*` + `stock.*`, enforces `user_business_access`, dedupes on `idempotency_key`.
-- `tg_stock_movement_emit_event` trigger present on `stock_movements`, emits the five `stock.movement.*` types per `movement_type`, skips `is_sample_data`, swallows outbox failures (`EXCEPTION WHEN OTHERS`).
-- `bills.goods_receipt_id` + tables `bill_grn_matches`, `landed_cost_bills`, `landed_cost_allocations` present with GRANTs + RLS.
-- `reverse_stock_movement`, `post_landed_cost_bill`, `reverse_landed_cost_bill` present; `stock_movements.reverses_movement_id` and `landed_cost` movement_type in place.
-- `bunx tsgo --noEmit` — exit 0, clean baseline.
-
-**Shipped (Phase 3):**
-- **Priority A (proof of Stock Event Fabric).** Extended `DomainEventType` in `src/services/events/domainEventBus.ts` with the 5 `stock.movement.*` types. `BusinessSagaMount` now registers a saga handler for all five (dual-write with the existing DB trigger `trg_check_warehouse_stock_alerts`; cut-over is a follow-up ticket once we've observed the saga path in production). Handler is idempotent per movement id.
-- **Priority C (landed-cost allocation).** New RPC `public.allocate_landed_cost_bill(p_bill_id uuid, p_goods_receipt_ids uuid[] DEFAULT NULL)` — SECURITY DEFINER, workspace + role-gated (owner/admin/accountant/staff), reads `landed_cost_bills.allocation_basis` (supports `quantity` and `value`; `manual` explicitly rejects and defers to UI), fans `total_amount` across GRN lines, absorbs rounding drift into the last allocation so `SUM = total_amount` exactly (so `post_landed_cost_bill` will accept it), flips bill status `draft → allocated`. Re-runnable — clears any leftover draft allocations first.
-- **Priority D (auto 3-way match).** New RPC `public.match_bill_to_grn(p_bill_id uuid)` — SECURITY DEFINER, workspace + role-gated, joins `bill_items → purchase_order_items → goods_receipt_items` on the shared PO line, inserts `bill_grn_matches` with `matched_quantity = LEAST(billed, received)` and `unit_cost_variance = bill_unit_price − po_unit_price`. Idempotent via existing UNIQUE (`bill_item_id`, `goods_receipt_item_id`).
-- **Guard test.** `src/test/architecture/stock-event-fabric-and-landed-cost.test.ts` — asserts `DomainEventType` contains all 5 fabric types, `BusinessSagaMount` registers at least one `stock.movement.*` handler, and both new RPCs land in a migration file.
-
-**Verification:** `bunx tsgo --noEmit` exit 0 after all changes. Supabase linter reports 1827 issues (was 1823 pre-session-8 per plan.md); the 4 new entries are the standard "function search path" advisories against the two new RPCs plus their EXECUTE grants — both RPCs set `SET search_path = public` explicitly, so the linter warning is a false positive class (same as every other session-6/7 RPC that shipped clean). No behaviour issue.
-
-**Still open (unchanged priority order):**
-- Priority A cut-over: drop `trg_check_warehouse_stock_alerts` from `stock_movements` and move its side-effect (`check_warehouse_stock_alerts(NEW.id)`) fully into the saga handler once a production window confirms the saga path is durable.
-- Priority B: server-side `emit_business_event` calls from `recordStockMovement` / adjustment RPCs for non-movement domain events (`stock.count.completed`, `stock.transfer.approved`, `stock.adjustment.posted`).
-- Priority C.2: minimal UI under `src/features/inventory/landed-cost/` (list bills, allocate, post, reverse). The RPCs above make this pure presentation work.
-- Priority D.2: surface unmatched lines + variance chip in the Bills detail view; call `match_bill_to_grn` on bill-approval hook.
-- Priority E: end-to-end smoke of master-handler outbox emission in a scratch business.
-- Ops-blocked (unchanged): `cron_caller_jwt` rotation; Step 5 recall-notification worker; G1/G2/G3 stakeholder input.
-
----
-
-## Session 8 completion log — 2026-07-17 (Priorities B, C.2, D.2 shipped)
-
-### Priority B — non-movement stock lifecycle events (SHIPPED, server-side)
-
-Chose **DB triggers** over RPC-body edits: safer (no touching complex
-apply/approve RPCs), guaranteed atomicity with the row change, and
-consistent with the ADR-0076 outbox pattern used by
-`tg_stock_movement_emit_event`.
-
-Migration `20260717145912_*` adds three `SECURITY DEFINER` triggers:
-
-| Trigger | Fires on | Emits |
+| Pillar | Verdict | Why |
 |---|---|---|
-| `tg_stock_adjustment_emit_lifecycle` | `stock_adjustments` transition to `approved` | `stock.adjustment.posted` |
-| `tg_stock_transfer_emit_lifecycle` | `stock_transfers` transition to `approved` / `completed|received` | `stock.transfer.approved`, `stock.transfer.completed` |
-| `tg_physical_count_emit_lifecycle` | `physical_counts` transition to `posted` / `cancelled` | `stock.count.completed`, `stock.count.cancelled` |
+| Warehouse master (site/branch/DC/store/dark-store) | Needs improvement | `warehouses` is a flat record. No `warehouse_type` (DC/store/dark/3PL), no operating hours, no dock count, no capacity, no calendar. |
+| Warehouse layout (zones/aisles/racks/bins/pallets) | Architecturally wrong (for WMS) | Schema (`stock_locations`) supports hierarchy correctly, but only one `is_default` row is auto-seeded and **no UI exists to author zones/aisles/racks/bins**. Pallet/LPN concept is absent (`package_id` column reserved but no `license_plates` table). |
+| Receiving workflow (ASN → appointment → dock → unload → inspect → GRN) | Needs improvement | `inbound_shipments` (ASN) and `goods_receipts` exist, but there is **no receiving appointment, no dock schedule, no dock door assignment, no unload/inspection step separated from GRN**. Receiving today = "click 'receive' → stock increments." |
+| Put-away | Architecturally missing | No `putaway_tasks`, no putaway strategy (fixed/nearest/directed), no operator confirmation. Received stock lands directly on the default location. |
+| Picking (sales/transfer/mfg/replenishment) | Architecturally missing | No `pick_lists`, no `pick_tasks`, no wave/batch/cluster picking, no pick path optimization, no operator assignment. Sales orders debit stock in aggregate. |
+| Packing | Architecturally missing | No `pack_stations`, no cartonization, no `packages`/`shipment_units` with weight/dim. `delivery_notes` exist but skip the pack step. |
+| Loading + Dispatch (staging → dock → truck) | Needs improvement | `delivery_notes` + `delivery_proofs` exist; no `loading_task`, no `dock_out` appointment, no shipment-manifest grouping. |
+| Warehouse transfers (WH-to-WH, bin-to-bin, zone-to-zone) | Needs improvement | WH-to-WH ✅ (`stock_transfers`, ADR 0068 split, transit location). Bin-to-bin / zone-to-zone is impossible today because writers never stamp `source_location_id` / `destination_location_id`. |
+| Warehouse tasks / operator work queue | Architecturally missing | `project_tasks` is domain-scoped to projects; no `wms_tasks` table, no operator queue, no priority, no SLA, no scan-to-confirm. |
+| Warehouse operators / roles | Needs improvement | Users exist; no WMS role vocabulary (Picker/Packer/Loader/Receiver/Supervisor/QC), no shift-linked assignment, no productivity ledger. |
+| Cycle count / physical count | Correct | `physical_counts`, `cycle_count_schedules`, `physical_count_lines` are enterprise-shaped. Bin-level counts unlock naturally when bins exist. |
+| Quarantine / QC | Needs improvement | `lot_quarantine` + quarantine `location_type` exist (ADR 0065). No **QC inspection workflow** (hold → sample → pass/fail → release/scrap → GL). |
+| Location intelligence (where is batch X?) | Blocked | `stock_quants` is location-aware and works, but because writers don't stamp real bins, every quant currently sits on `<warehouse>/default`. The engine is right; the input is empty. |
+| Integration (WMS ↔ Inventory / PO / SO / Mfg / Finance / Shipping) | Needs improvement | Stock Event Fabric (ADR 0076) is live. Nothing on the WMS side publishes/consumes `receiving.appointment.*`, `putaway.task.*`, `pick.wave.*`, `dispatch.load.*` because those domains don't exist. |
 
-All handlers: idempotent (`idempotency_key = 'stock.<domain>:<uuid>[:suffix]'`), transition-guarded (only on `OLD.status IS DISTINCT FROM NEW.status`), and never break the write path (exception → `RAISE WARNING`).
+**Executive verdict:** the *inventory* half is enterprise-grade. The *warehouse-execution* half is a stub. We build the WMS layer additively — no rework of the inventory engine.
 
-Client-side matched via `DomainEventType` union in `domainEventBus.ts` and saga handlers in `BusinessSagaMount.tsx` (proof-of-fabric consumers logging via `console.debug` — feature modules can register additional listeners without touching the mount).
+## 2. Design principles (non-negotiable)
 
-### Priority C.2 — Landed cost UI (SHIPPED)
+1. **Inventory stays canonical.** WMS never owns stock quantity/value/cost. It emits domain events; `stock_movements` + `stock_quants` remain the ledger.
+2. **Every physical action is a task.** Receiving, putaway, picking, packing, loading, counting, cleaning are all rows in one `wms_tasks` table with a typed payload — enables one universal operator queue and one productivity ledger.
+3. **Every stock change stamps a real location.** Writers move from `default` bin to real bins as they migrate. Multi-phase, additive.
+4. **Every task publishes a business event.** WMS is event-sourced via `business_event_outbox` — same fabric that inventory uses.
+5. **License plates (LPNs) unify unit of handling.** Pallet/carton/tote all share one identity; movements can address a plate instead of enumerating contents.
+6. **Country-agnostic.** No fiscal, no localization, no currency in WMS tables — inventory + finance handle those already.
 
-- New page `src/pages/purchases/LandedCosts.tsx`: lists open landed-cost bills, exposes **Allocate** (calls `allocate_landed_cost_bill` RPC) and **Post** actions with correct status gating (`draft → allocated → posted`).
-- Registered on `/purchases/landed-costs`; nav entry added under **Insights** in `PURCHASES_NAV`.
-- Never touches `landed_cost_allocations` from the client — all allocation goes through the RPC (single source of truth).
+## 3. Target module topology
 
-### Priority D.2 — 3-way match action on bill record (SHIPPED)
+```
+apps/warehouse/                     ← new workspace (rail entry)
+  routes.tsx
+  nav.ts
+  WarehouseLayout.tsx
+  pages/
+    dashboard/                      ← ops KPI: open tasks, dock schedule, backlog
+    layout/                         ← zone/aisle/rack/bin CRUD + tree view
+    receiving/
+      appointments/                 ← book, reschedule, cancel
+      dock/                         ← today's dock board
+      grn-workspace/                ← unload → inspect → post GRN
+    putaway/                        ← task queue, scan-to-confirm
+    picking/
+      waves/
+      tasks/
+    packing/
+      stations/
+      cartonize/
+    dispatch/
+      loading/
+      manifests/
+    transfers/                      ← bin-to-bin, zone-to-zone (WH-to-WH stays in inventory)
+    tasks/                          ← universal operator queue
+    operators/                      ← WMS-role assignment, productivity
+    plates/                         ← LPN registry
+    qc/                             ← inspection hold + release
+```
 
-- `BillRecordPage` gains a **Match receipts** button that invokes `match_bill_to_grn` and surfaces the row-count via toast (idempotent — re-running is a no-op).
+`/inventory-app/warehouses` (the current CRUD) becomes a redirect to `/warehouse-app/layout` where warehouses live alongside their bin tree; the "records" page is subsumed.
 
-### Priority A cutover — reassessed (NO CHANGE REQUIRED)
+## 4. Data model additions (new tables — additive only)
 
-Investigation confirmed `trg_check_warehouse_stock_alerts` is on `warehouse_stock` (aggregate), not on `stock_movements`. It computes low-stock alerts from stock levels — a **different concern** from the ADR-0076 stock event fabric on `stock_movements`. They are **not duplicates**; no cutover is needed. Saga path remains a proof-of-fabric consumer, ready to accept real replenishment/notification handlers.
+Every new table follows project rules: `CREATE TABLE` → `GRANT` → `ALTER … ENABLE RLS` → `CREATE POLICY`, all in the same migration.
 
-### Verification
+- `warehouse_types` (enum-backed: dc / store / dark_store / 3pl / fulfillment / cross_dock)
+- `warehouse_operating_hours` (per weekday, holiday overrides)
+- `warehouse_docks` (dock door per warehouse, in/out, capacity)
+- `receiving_appointments` (carrier, PO/ASN, dock, window, status)
+- `wms_license_plates` (LPN — pallet/carton/tote; parent_lpn for nesting; current_location_id; sealed flag)
+- `wms_tasks` (universal task: type enum {putaway, pick, pack, load, count, replenish, move, qc}; source_doc_type/id; assignee_user_id; state {pending, assigned, in_progress, done, cancelled}; priority; sla_at; started_at; completed_at)
+- `putaway_rules` (product/category → target zone/bin, strategy)
+- `pick_waves` (wave header: strategy {batch, cluster, discrete, zone}, cutoff, status)
+- `pick_wave_lines` (wave line → sales_order_item / transfer_item)
+- `pack_stations` (physical station, printer bindings, current operator)
+- `shipment_packages` (package / carton grouping delivery_note lines; weight, dim, LPN)
+- `loading_manifests` (truck load: dock, carrier, driver, seal, departure)
+- `qc_inspections` (inspection lot: source GRN line; sampling plan; result; disposition {release, quarantine, scrap})
+- `wms_operator_shifts` (link operator user_id ↔ shift ↔ warehouse role)
+- `wms_role` (Picker/Packer/Loader/Receiver/Supervisor/QC/Forklift) via existing `user_roles` app_role enum extension **or** dedicated `wms_operator_roles` table (leaning dedicated to keep app_role clean).
 
-- Migration accepted (linter reports 1833 pre-existing issues; 0 new from this migration).
-- `bunx tsgo --noEmit` — clean.
-- `bunx vitest run src/test/architecture/stock-event-fabric-and-landed-cost.test.ts` — 8/8 pass. Guards enforce: DomainEventType coverage, saga registration, migration presence for all triggers + RPCs, bill match wiring, landed-cost route registration.
+Zone/aisle/rack/bin: **reuse `stock_locations`** — extend `location_type` enum with `zone/aisle/rack/bin/dock/staging_in/staging_out` if not present; add optional `barcode`, `capacity_max_units`, `capacity_max_weight`, `pick_sequence` columns. No new table needed for the hierarchy itself.
 
-### Remaining out-of-scope (unchanged, user-blocked)
+## 5. Event contract (published via `business_event_outbox`)
 
-- Priority E full end-to-end smoke against a scratch business (requires provisioned org + browser session).
-- Ops: `cron_caller_jwt` rotation.
-- Step 5 recall-notification worker.
-- G1/G2/G3 stakeholder input.
+`warehouse.appointment.booked` / `.arrived` / `.cancelled`
+`warehouse.grn.inspected` (in addition to existing `stock.movement.received`)
+`warehouse.putaway.task_generated` / `.confirmed`
+`warehouse.pick.wave_released` / `.task_confirmed`
+`warehouse.pack.completed`
+`warehouse.load.sealed` / `.departed`
+`warehouse.qc.inspection_completed`
+`warehouse.plate.moved`
+
+Emitted from DB triggers on state transitions of the tables above, mirroring `tg_stock_movement_emit_event`.
+
+## 6. Phased delivery (each phase is independently shippable, no regression)
+
+**Phase 0 — Scaffolding (this session, if approved).**
+- Create `src/apps/warehouse/` workspace, rail entry, nav, `WarehouseLayout` with `BranchScopeGate`.
+- Redirect `/inventory-app/warehouses*` → new app; keep the CRUD forms working from the new location so no functionality is lost.
+- One "Warehouse Layout" page: reads `stock_locations`, renders the bin tree, allows create/edit/soft-retire of zone/aisle/rack/bin under a warehouse (extends `stock_locations.location_type` enum). No writers changed yet.
+- Architecture test: new app registered; nav present; guard against re-adding CRUD to `/inventory-app/warehouses`.
+
+**Phase 1 — LPN + Tasks primitives.**
+- Migrations: `wms_license_plates`, `wms_tasks`. GRANTs + RLS + org/business scope.
+- Task queue page: filter by type/state/assignee. No workflow yet — just the substrate.
+- Domain events: `warehouse.task.*` type additions.
+
+**Phase 2 — Receiving execution layer.**
+- Migrations: `warehouse_docks`, `receiving_appointments`. Trigger: on GRN post, emit `warehouse.grn.inspected` if inspection task exists; else post-and-inspect same-step.
+- UI: dock board (today's appointments), appointment CRUD, inspection panel on GRN detail.
+- Existing `goods_receipts` unchanged — appointment references it; RPC `post_goods_receipt_with_location(bin_id)` lets receivers stamp destination bin.
+
+**Phase 3 — Putaway.**
+- Migrations: `putaway_rules`. `wms_tasks` gains `putaway` type.
+- Trigger on GRN post → generates `wms_tasks(type=putaway)` per line using rules; default rule is "warehouse default bin" (backwards compat).
+- Operator confirms → RPC moves `stock_quants` from receiving-staging to target bin (a real `stock_movements` row with source+dest location).
+
+**Phase 4 — Picking + Packing.**
+- Migrations: `pick_waves`, `pick_wave_lines`, `pack_stations`, `shipment_packages`.
+- Sales order fulfillment splits: reserve → wave → pick tasks → pack → delivery note (existing) → load.
+- Bin-to-bin transfer becomes trivial (already supported by `stock_movements` now that source/dest bin is stamped).
+
+**Phase 5 — Loading + Dispatch.**
+- Migrations: `loading_manifests`. Trigger emits `warehouse.load.sealed/departed`.
+- Delivery notes group under manifests; dock-out appointment mirror of dock-in.
+
+**Phase 6 — QC + Quarantine workflow.**
+- Migrations: `qc_inspections`. Wires to existing `lot_quarantine` + quarantine `location_type`.
+
+**Phase 7 — Operator productivity + shift assignment.**
+- Migrations: `wms_operator_roles`, `wms_operator_shifts`. Reports: tasks/hour, avg pick time, error rate.
+
+Only Phase 0 executes in the next session unless the user explicitly authorises further phases in one go.
+
+## 7. What we will NOT do
+
+- No rework of `stock_movements`, `stock_quants`, `stock_lots`, `stock_serials`, `warehouse_stock*`. Inventory foundation is right.
+- No deletion of `/inventory-app/warehouses` route — it redirects, preserving deep links.
+- No new cost/valuation logic. AVCO stays canonical (ADR 0002 + 0078).
+- No POS/finance/localization changes.
+
+## 8. Success criteria for the WMS layer
+
+At the end of Phase 5 we can answer, from data alone: *"For SKU X batch Y — which bin is it in, which putaway operator placed it there and when, which pick wave will consume it next, which packer will carton it, which manifest will ship it, on which truck, out of which dock, at what time."* Today none of those questions has an answer.
+
+## 9. Ask for confirmation
+
+Before scaffolding Phase 0, please confirm:
+1. Green-light the module topology in §3 and the phased order in §6?
+2. OK to redirect `/inventory-app/warehouses` into the new `/warehouse-app/*` workspace (deep links preserved)?
+3. Any warehouse pattern to prioritise first: **retail multi-branch**, **DC/fulfillment**, **pharmacy cold-chain**, or **generic**? (Drives which fields we surface earliest on `warehouses`.)
