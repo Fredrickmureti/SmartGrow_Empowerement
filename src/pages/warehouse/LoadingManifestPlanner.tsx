@@ -21,6 +21,7 @@ import { ArrowLeft, Truck } from "lucide-react";
 interface Warehouse { id: string; name: string; business_id: string; organization_id: string; branch_id: string | null; }
 interface Dock { id: string; code: string; name: string | null; dock_type: string; warehouse_id: string; }
 interface Carrier { id: string; name: string; }
+interface Appointment { id: string; reference: string | null; window_start: string; window_end: string; state: string; carrier_id: string | null; }
 
 export default function LoadingManifestPlanner() {
   const nav = useNavigate();
@@ -30,6 +31,7 @@ export default function LoadingManifestPlanner() {
   const [carrierId, setCarrierId] = useState("");
   const [plannedAt, setPlannedAt] = useState("");
   const [newDockCode, setNewDockCode] = useState("");
+  const [appointmentId, setAppointmentId] = useState("");
 
   const { data: warehouses } = useQuery({
     queryKey: ["warehouses-for-manifest"],
@@ -60,6 +62,21 @@ export default function LoadingManifestPlanner() {
         .select("id, name").eq("is_active", true).order("name");
       if (error) return [] as Carrier[];
       return (data ?? []) as Carrier[];
+    },
+  });
+
+  const { data: appointments } = useQuery({
+    queryKey: ["appointments-for-manifest", dockId],
+    enabled: !!dockId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("wms_dock_appointments")
+        .select("id, reference, window_start, window_end, state, carrier_id")
+        .eq("dock_id", dockId)
+        .eq("appointment_type", "outbound")
+        .in("state", ["scheduled", "arrived"])
+        .order("window_start");
+      if (error) return [] as Appointment[];
+      return (data ?? []) as Appointment[];
     },
   });
 
@@ -94,6 +111,7 @@ export default function LoadingManifestPlanner() {
         p_dock_id: dockId,
         p_carrier_id: carrierId || null,
         p_planned_departure_at: plannedAt ? new Date(plannedAt).toISOString() : null,
+        p_appointment_id: appointmentId || undefined,
       });
       if (error) throw error;
       return data as string;
@@ -144,6 +162,34 @@ export default function LoadingManifestPlanner() {
                 {(carriers ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
+            {dockId && (
+              <div>
+                <Label>Dock appointment (optional)</Label>
+                <select className="border rounded px-2 py-1 bg-background w-full" value={appointmentId} onChange={(e) => {
+                  const id = e.target.value;
+                  setAppointmentId(id);
+                  const appt = (appointments ?? []).find((a) => a.id === id);
+                  if (appt) {
+                    if (appt.carrier_id) setCarrierId(appt.carrier_id);
+                    if (!plannedAt) {
+                      const d = new Date(appt.window_end);
+                      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                      setPlannedAt(local);
+                    }
+                  }
+                }}>
+                  <option value="">None</option>
+                  {(appointments ?? []).map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {new Date(a.window_start).toLocaleString()} – {new Date(a.window_end).toLocaleTimeString()} · {a.reference ?? a.state}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <Link to="/warehouse-app/schedule/new" className="underline">Schedule an appointment</Link> for this dock.
+                </p>
+              </div>
+            )}
             <div>
               <Label>Planned departure</Label>
               <Input type="datetime-local" value={plannedAt} onChange={(e) => setPlannedAt(e.target.value)} />
