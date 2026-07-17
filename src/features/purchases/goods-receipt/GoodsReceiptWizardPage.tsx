@@ -244,6 +244,8 @@ export default function GoodsReceiptWizardPage() {
             expected_quantity: expected,
             expected_expiry_date: asnMatch?.expected_expiry_date ?? null,
             expected_manufacture_date: asnMatch?.expected_manufacture_date ?? null,
+            captured_expiry_date: asnMatch?.expected_expiry_date ?? null,
+            captured_manufacture_date: asnMatch?.expected_manufacture_date ?? null,
           };
         }),
       );
