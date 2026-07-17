@@ -26,6 +26,10 @@ const PutawayQueue = lazy(() => import("@/pages/warehouse/PutawayQueue"));
 const WavePlanner = lazy(() => import("@/pages/warehouse/WavePlanner"));
 const PickList = lazy(() => import("@/pages/warehouse/PickList"));
 const PackStation = lazy(() => import("@/pages/warehouse/PackStation"));
+const CycleCounts = lazy(() => import("@/pages/warehouse/CycleCounts"));
+const CycleCountPlanner = lazy(() => import("@/pages/warehouse/CycleCountPlanner"));
+const CountSession = lazy(() => import("@/pages/warehouse/CountSession"));
+const CountReview = lazy(() => import("@/pages/warehouse/CountReview"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
@@ -145,6 +149,39 @@ export function WarehouseApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Pack Station"><PackStation /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="counts"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Cycle Counts"><CycleCounts /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="counts/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="New Cycle Count"><CycleCountPlanner /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="counts/:sessionId"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Count Session"><CountSession /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="counts/:sessionId/review"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Count Review"><CountReview /></LazyRoute>
             </SubscriptionProtectedRoute>
           }
         />
