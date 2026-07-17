@@ -65,7 +65,20 @@ interface Carton {
   width_cm: number | null;
   height_cm: number | null;
   sealed_at: string | null;
+  carton_type_id: string | null;
   shipment_lpn: { code: string } | null;
+  carton_type: { code: string; name: string } | null;
+}
+
+interface CartonType {
+  id: string;
+  code: string;
+  name: string;
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
+  max_weight_kg: number | null;
+  is_active: boolean;
 }
 
 export default function PackStation() {
