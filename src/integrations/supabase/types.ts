@@ -57402,6 +57402,170 @@ export type Database = {
           },
         ]
       }
+      wms_trailer_visits: {
+        Row: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          arrived_at?: string
+          branch_id?: string | null
+          business_id: string
+          carrier_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          departed_at?: string | null
+          dock_id?: string | null
+          docked_at?: string | null
+          driver_name?: string | null
+          driver_phone?: string | null
+          dwell_minutes?: number | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          seal_in?: string | null
+          seal_out?: string | null
+          status?: string
+          trailer_ref: string
+          updated_at?: string
+          warehouse_id: string
+          yard_slot_id?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          arrived_at?: string
+          branch_id?: string | null
+          business_id?: string
+          carrier_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          departed_at?: string | null
+          dock_id?: string | null
+          docked_at?: string | null
+          driver_name?: string | null
+          driver_phone?: string | null
+          dwell_minutes?: number | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          seal_in?: string | null
+          seal_out?: string | null
+          status?: string
+          trailer_ref?: string
+          updated_at?: string
+          warehouse_id?: string
+          yard_slot_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_trailer_visits_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "wms_dock_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_trailer_visits_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_trailer_visits_dock_id_fkey"
+            columns: ["dock_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_docks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_trailer_visits_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_trailer_visits_yard_slot_id_fkey"
+            columns: ["yard_slot_id"]
+            isOneToOne: false
+            referencedRelation: "wms_yard_slots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_yard_slots: {
+        Row: {
+          business_id: string
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          slot_type: string
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          business_id: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          slot_type?: string
+          status?: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          slot_type?: string
+          status?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_yard_slots_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_locations: {
         Row: {
           address: string | null
@@ -64705,6 +64869,40 @@ export type Database = {
         Args: { p_assignee: string; p_rec_id: string }
         Returns: undefined
       }
+      assign_trailer_to_dock: {
+        Args: { p_dock_id: string; p_visit_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       attach_c2b_to_pos_transaction: {
         Args: { _c2b_id: string; _pos_transaction_id: string }
         Returns: {
@@ -65264,6 +65462,48 @@ export type Database = {
           _target_admin_id: string
         }
         Returns: Json
+      }
+      check_in_trailer: {
+        Args: {
+          p_appointment_id?: string
+          p_carrier_id?: string
+          p_driver_name?: string
+          p_driver_phone?: string
+          p_seal_in?: string
+          p_trailer_ref: string
+          p_warehouse_id: string
+        }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       check_leave_overlap: {
         Args: {
@@ -66058,6 +66298,40 @@ export type Database = {
         Args: { p_reason?: string; p_request_id: string }
         Returns: Json
       }
+      depart_trailer: {
+        Args: { p_seal_out?: string; p_visit_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       detect_negative_asset_findings: {
         Args: { p_org: string }
         Returns: number
@@ -66182,6 +66456,13 @@ export type Database = {
         Args: {
           p_insp: Database["public"]["Tables"]["wms_qc_inspections"]["Row"]
           p_type: string
+        }
+        Returns: undefined
+      }
+      emit_yard_event: {
+        Args: {
+          p_type: string
+          p_visit: Database["public"]["Tables"]["wms_trailer_visits"]["Row"]
         }
         Returns: undefined
       }
