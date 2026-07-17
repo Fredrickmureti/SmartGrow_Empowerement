@@ -28,7 +28,7 @@ export default function MobileHome() {
       const { data, error } = await supabase
         .from("wms_tasks")
         .select("id, task_type, state, metadata")
-        .eq("assignee_id", uid)
+        .eq("assignee_user_id", uid)
         .in("state", ["ready", "in_progress"])
         .order("priority", { ascending: false })
         .limit(200);
