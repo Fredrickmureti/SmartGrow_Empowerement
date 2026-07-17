@@ -103,15 +103,13 @@ export function LocalizationPackSettings() {
     setIsInstalling(true);
 
     try {
-      const { data, error } = await invokeWithAuth(
+      const { data, error } = await invokeLocalizationPack(
         "install-localization-pack",
         {
-          body: {
-            business_id: currentBusiness.id,
-            organization_id: currentBusiness.organization_id,
-            pack_id: availablePack.id,
-          },
-        }
+          business_id: currentBusiness.id,
+          organization_id: currentBusiness.organization_id,
+          pack_id: availablePack.id,
+        },
       );
 
       if (error) {
