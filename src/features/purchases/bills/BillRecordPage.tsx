@@ -67,6 +67,31 @@ export default function BillRecordPage() {
   const [bill, setBill] = useState<Bill | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [matching, setMatching] = useState(false);
+
+  const handleMatchReceipts = async () => {
+    if (!bill?.id) return;
+    setMatching(true);
+    try {
+      // ADR 0077 · 3-way match — RPC auto-links bill lines to open GRN
+      // lines by (bill_id → PO → GRN → item) and records unit-cost
+      // variances into bill_grn_matches. Idempotent on re-run.
+      const { data, error: err } = await supabase.rpc("match_bill_to_grn", {
+        p_bill_id: bill.id,
+      });
+      if (err) throw err;
+      const count = typeof data === "number" ? data : 0;
+      toast.success(
+        count > 0
+          ? `Matched ${count} bill line${count === 1 ? "" : "s"} to receipts`
+          : "No new lines to match — bill is fully reconciled or has no PO link.",
+      );
+    } catch (err) {
+      toast.error(`Match failed: ${(err as Error).message}`);
+    } finally {
+      setMatching(false);
+    }
+  };
 
   const isNew = id === "new";
 
