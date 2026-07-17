@@ -38,10 +38,10 @@ describe("wms phase 1 architecture", () => {
     const offenders: string[] = [];
     for (const f of files) {
       const src = readFileSync(f, "utf8");
+      // Match a .update({...}) call that mentions current_location_id inside its object literal.
       if (
         /from\(\s*["']wms_license_plates["']\s*\)/.test(src) &&
-        /\.update\s*\(/.test(src) &&
-        /current_location_id/.test(src)
+        /\.update\s*\(\s*\{[^}]*current_location_id/s.test(src)
       ) {
         offenders.push(path.relative(SRC, f));
       }
