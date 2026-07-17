@@ -113,6 +113,14 @@ export function WarehouseApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        <Route
+          path="putaway"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Putaway"><PutawayQueue /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
