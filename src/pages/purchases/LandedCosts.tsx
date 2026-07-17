@@ -20,8 +20,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useAuth } from "@/hooks/useAuth";
-import { useActiveBusiness } from "@/hooks/useActiveBusiness";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBusinesses } from "@/hooks/useBusinesses";
 
 interface LandedCostBill {
   id: string;
