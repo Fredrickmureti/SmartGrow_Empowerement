@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { adminFrom } from "@/lib/adminClient";
-import { invokeWithAuth } from "@/integrations/supabase/invokeWithAuth";
+import { invokeLocalizationPack } from "@/integrations/supabase/invokeLocalizationPack";
 import { usePacks } from "@/features/localization/hooks/usePack";
 import { normalizeError } from "@/services/resilience";
 
