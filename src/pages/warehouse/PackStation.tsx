@@ -171,15 +171,58 @@ export default function PackStation() {
 
   const openCarton = useMutation({
     mutationFn: async (sales_order_id: string) => {
-      const { data, error } = await supabase.rpc("open_pack_carton", {
+      // 1. Ask the engine which carton type fits the remaining unpacked lines
+      const remaining = (lines ?? []).filter(
+        (l) => l.sales_order_id === sales_order_id && !l.packed_carton_id,
+      );
+      let suggestedTypeId: string | null = null;
+      let suggestedCode: string | null = null;
+      if (wave?.business_id && remaining.length > 0) {
+        const { data: suggestion } = await supabase.rpc("suggest_carton", {
+          p_business_id: wave.business_id,
+          p_product_ids: remaining.map((l) => l.product_id),
+          p_quantities: remaining.map((l) => (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0)),
+        });
+        // RPC returns a wms_carton_types row (or null)
+        const row = suggestion as { id?: string; code?: string } | null;
+        if (row && row.id) {
+          suggestedTypeId = row.id;
+          suggestedCode = row.code ?? null;
+        }
+      }
+      // 2. Open the carton
+      const { data: cartonId, error } = await supabase.rpc("open_pack_carton", {
         p_wave_id: waveId!,
         p_sales_order_id: sales_order_id,
       });
       if (error) throw error;
-      return data;
+      // 3. Stamp the suggested carton type (best effort — do not fail the open)
+      if (cartonId && suggestedTypeId) {
+        const { error: aErr } = await supabase.rpc("assign_carton_to_pack", {
+          p_carton_id: cartonId as string,
+          p_carton_type_id: suggestedTypeId,
+        });
+        if (aErr) console.warn("assign_carton_to_pack failed", aErr);
+      }
+      return { cartonId, suggestedCode };
     },
-    onSuccess: () => { toast.success("Carton opened"); invalidateAll(); },
+    onSuccess: ({ suggestedCode }) => {
+      toast.success(suggestedCode ? `Carton opened · suggested ${suggestedCode}` : "Carton opened");
+      invalidateAll();
+    },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Open failed"),
+  });
+
+  const assignCartonType = useMutation({
+    mutationFn: async (v: { carton_id: string; carton_type_id: string }) => {
+      const { error } = await supabase.rpc("assign_carton_to_pack", {
+        p_carton_id: v.carton_id,
+        p_carton_type_id: v.carton_type_id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Carton type updated"); invalidateAll(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
   });
 
   const assignLine = useMutation({
