@@ -50827,6 +50827,51 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_quant_drift_runs: {
+        Row: {
+          created_at: string
+          drifted_rows: number
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          organization_id: string
+          products_checked: number
+          run_at: string
+          sample_drift: Json
+          status: string
+          total_drift_qty: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          drifted_rows?: number
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          organization_id: string
+          products_checked?: number
+          run_at?: string
+          sample_drift?: Json
+          status?: string
+          total_drift_qty?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          drifted_rows?: number
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string
+          products_checked?: number
+          run_at?: string
+          sample_drift?: Json
+          status?: string
+          total_drift_qty?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stock_quants: {
         Row: {
           branch_id: string | null
@@ -69808,6 +69853,19 @@ export type Database = {
           p_warehouse_id: string
         }
         Returns: Json
+      }
+      record_stock_quant_drift_run: {
+        Args: {
+          p_drifted_rows: number
+          p_duration_ms: number
+          p_error_message?: string
+          p_organization_id: string
+          p_products_checked: number
+          p_sample_drift: Json
+          p_status?: string
+          p_total_drift_qty: number
+        }
+        Returns: string
       }
       record_terminal_test_result: {
         Args: { p_config_id: string; p_error?: string; p_status: string }
