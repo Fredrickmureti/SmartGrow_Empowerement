@@ -18573,6 +18573,7 @@ export type Database = {
           packaging_id: string | null
           product_id: string | null
           purchase_order_item_id: string | null
+          qc_inspection_id: string | null
           quantity_ordered: number
           quantity_received: number
           serial_number: string | null
@@ -18593,6 +18594,7 @@ export type Database = {
           packaging_id?: string | null
           product_id?: string | null
           purchase_order_item_id?: string | null
+          qc_inspection_id?: string | null
           quantity_ordered?: number
           quantity_received?: number
           serial_number?: string | null
@@ -18613,6 +18615,7 @@ export type Database = {
           packaging_id?: string | null
           product_id?: string | null
           purchase_order_item_id?: string | null
+          qc_inspection_id?: string | null
           quantity_ordered?: number
           quantity_received?: number
           serial_number?: string | null
@@ -18682,6 +18685,13 @@ export type Database = {
             columns: ["purchase_order_item_id"]
             isOneToOne: false
             referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_items_qc_inspection_id_fkey"
+            columns: ["qc_inspection_id"]
+            isOneToOne: false
+            referencedRelation: "wms_qc_inspections"
             referencedColumns: ["id"]
           },
         ]
@@ -47912,6 +47922,7 @@ export type Database = {
           lot_number: string | null
           packaging_id: string | null
           product_id: string | null
+          qc_inspection_id: string | null
           quantity: number
           return_reason: string | null
           sales_return_id: string
@@ -47935,6 +47946,7 @@ export type Database = {
           lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
+          qc_inspection_id?: string | null
           quantity?: number
           return_reason?: string | null
           sales_return_id: string
@@ -47958,6 +47970,7 @@ export type Database = {
           lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
+          qc_inspection_id?: string | null
           quantity?: number
           return_reason?: string | null
           sales_return_id?: string
@@ -48002,6 +48015,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_return_items_qc_inspection_id_fkey"
+            columns: ["qc_inspection_id"]
+            isOneToOne: false
+            referencedRelation: "wms_qc_inspections"
             referencedColumns: ["id"]
           },
           {
@@ -56091,6 +56111,7 @@ export type Database = {
           manager_phone: string | null
           name: string
           organization_id: string
+          require_qc_on_receipt: boolean
           updated_at: string
         }
         Insert: {
@@ -56111,6 +56132,7 @@ export type Database = {
           manager_phone?: string | null
           name: string
           organization_id: string
+          require_qc_on_receipt?: boolean
           updated_at?: string
         }
         Update: {
@@ -56131,6 +56153,7 @@ export type Database = {
           manager_phone?: string | null
           name?: string
           organization_id?: string
+          require_qc_on_receipt?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -56926,6 +56949,198 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "wms_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_qc_hold_reasons: {
+        Row: {
+          business_id: string
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          organization_id: string
+          severity: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          organization_id: string
+          severity?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          organization_id?: string
+          severity?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wms_qc_inspection_checks: {
+        Row: {
+          actual: string | null
+          check_code: string
+          check_label: string
+          created_at: string
+          expected: string | null
+          id: string
+          inspection_id: string
+          pass: boolean | null
+          photo_url: string | null
+          recorded_by: string | null
+          severity: string | null
+        }
+        Insert: {
+          actual?: string | null
+          check_code: string
+          check_label: string
+          created_at?: string
+          expected?: string | null
+          id?: string
+          inspection_id: string
+          pass?: boolean | null
+          photo_url?: string | null
+          recorded_by?: string | null
+          severity?: string | null
+        }
+        Update: {
+          actual?: string | null
+          check_code?: string
+          check_label?: string
+          created_at?: string
+          expected?: string | null
+          id?: string
+          inspection_id?: string
+          pass?: boolean | null
+          photo_url?: string | null
+          recorded_by?: string | null
+          severity?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_qc_inspection_checks_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "wms_qc_inspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_qc_inspections: {
+        Row: {
+          accepted_qty: number
+          branch_id: string | null
+          business_id: string
+          cancelled_reason: string | null
+          created_at: string
+          created_by: string | null
+          disposition: string | null
+          id: string
+          inspected_at: string | null
+          inspector_id: string | null
+          is_sample_data: boolean
+          lot_number: string | null
+          notes: string | null
+          organization_id: string
+          product_id: string | null
+          quantity: number
+          rejected_qty: number
+          sample_size: number
+          sample_strategy: string
+          serial_number: string | null
+          source_doc_id: string | null
+          source_doc_type: string
+          state: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          accepted_qty?: number
+          branch_id?: string | null
+          business_id: string
+          cancelled_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          disposition?: string | null
+          id?: string
+          inspected_at?: string | null
+          inspector_id?: string | null
+          is_sample_data?: boolean
+          lot_number?: string | null
+          notes?: string | null
+          organization_id: string
+          product_id?: string | null
+          quantity?: number
+          rejected_qty?: number
+          sample_size?: number
+          sample_strategy?: string
+          serial_number?: string | null
+          source_doc_id?: string | null
+          source_doc_type: string
+          state?: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          accepted_qty?: number
+          branch_id?: string | null
+          business_id?: string
+          cancelled_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          disposition?: string | null
+          id?: string
+          inspected_at?: string | null
+          inspector_id?: string | null
+          is_sample_data?: boolean
+          lot_number?: string | null
+          notes?: string | null
+          organization_id?: string
+          product_id?: string | null
+          quantity?: number
+          rejected_qty?: number
+          sample_size?: number
+          sample_strategy?: string
+          serial_number?: string | null
+          source_doc_id?: string | null
+          source_doc_type?: string
+          state?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_qc_inspections_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "wms_qc_inspections_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_qc_inspections_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -63217,6 +63432,46 @@ export type Database = {
         Args: { _token: string; _user_id: string }
         Returns: Json
       }
+      accept_qc_inspection: {
+        Args: {
+          p_accepted_qty: number
+          p_inspection_id: string
+          p_notes?: string
+        }
+        Returns: {
+          accepted_qty: number
+          branch_id: string | null
+          business_id: string
+          cancelled_reason: string | null
+          created_at: string
+          created_by: string | null
+          disposition: string | null
+          id: string
+          inspected_at: string | null
+          inspector_id: string | null
+          is_sample_data: boolean
+          lot_number: string | null
+          notes: string | null
+          organization_id: string
+          product_id: string | null
+          quantity: number
+          rejected_qty: number
+          sample_size: number
+          sample_strategy: string
+          serial_number: string | null
+          source_doc_id: string | null
+          source_doc_type: string
+          state: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_qc_inspections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       acknowledge_employee_document: {
         Args: { _document_id: string }
         Returns: {
@@ -64720,6 +64975,42 @@ export type Database = {
         Args: { p_rec_id: string }
         Returns: undefined
       }
+      cancel_qc_inspection: {
+        Args: { p_inspection_id: string; p_reason?: string }
+        Returns: {
+          accepted_qty: number
+          branch_id: string | null
+          business_id: string
+          cancelled_reason: string | null
+          created_at: string
+          created_by: string | null
+          disposition: string | null
+          id: string
+          inspected_at: string | null
+          inspector_id: string | null
+          is_sample_data: boolean
+          lot_number: string | null
+          notes: string | null
+          organization_id: string
+          product_id: string | null
+          quantity: number
+          rejected_qty: number
+          sample_size: number
+          sample_strategy: string
+          serial_number: string | null
+          source_doc_id: string | null
+          source_doc_type: string
+          state: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_qc_inspections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       cancel_scheduled_organization_deletion: {
         Args: { p_org_id: string }
         Returns: Json
@@ -65723,6 +66014,13 @@ export type Database = {
           p_user_agent?: string
         }
         Returns: string
+      }
+      emit_qc_event: {
+        Args: {
+          p_insp: Database["public"]["Tables"]["wms_qc_inspections"]["Row"]
+          p_type: string
+        }
+        Returns: undefined
       }
       employee_loan_authorize_disbursement: {
         Args: { _loan_id: string }
@@ -68710,6 +69008,52 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      open_qc_inspection: {
+        Args: {
+          p_lot_number?: string
+          p_product_id: string
+          p_quantity: number
+          p_sample_size?: number
+          p_sample_strategy?: string
+          p_serial_number?: string
+          p_source_doc_id: string
+          p_source_doc_type: string
+          p_warehouse_id: string
+        }
+        Returns: {
+          accepted_qty: number
+          branch_id: string | null
+          business_id: string
+          cancelled_reason: string | null
+          created_at: string
+          created_by: string | null
+          disposition: string | null
+          id: string
+          inspected_at: string | null
+          inspector_id: string | null
+          is_sample_data: boolean
+          lot_number: string | null
+          notes: string | null
+          organization_id: string
+          product_id: string | null
+          quantity: number
+          rejected_qty: number
+          sample_size: number
+          sample_strategy: string
+          serial_number: string | null
+          source_doc_id: string | null
+          source_doc_type: string
+          state: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_qc_inspections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       overtime_request_decide: {
         Args: { _decision: string; _id: string; _reason?: string }
         Returns: string
@@ -71235,6 +71579,19 @@ export type Database = {
         }
         Returns: string
       }
+      record_qc_check: {
+        Args: {
+          p_actual: string
+          p_check_code: string
+          p_check_label: string
+          p_expected: string
+          p_inspection_id: string
+          p_pass: boolean
+          p_photo_url?: string
+          p_severity?: string
+        }
+        Returns: string
+      }
       record_scrap_atomic: {
         Args: {
           p_business_id: string
@@ -71342,6 +71699,47 @@ export type Database = {
           p_start_date: string
         }
         Returns: string
+      }
+      reject_qc_inspection: {
+        Args: {
+          p_disposition: string
+          p_inspection_id: string
+          p_notes?: string
+          p_rejected_qty: number
+        }
+        Returns: {
+          accepted_qty: number
+          branch_id: string | null
+          business_id: string
+          cancelled_reason: string | null
+          created_at: string
+          created_by: string | null
+          disposition: string | null
+          id: string
+          inspected_at: string | null
+          inspector_id: string | null
+          is_sample_data: boolean
+          lot_number: string | null
+          notes: string | null
+          organization_id: string
+          product_id: string | null
+          quantity: number
+          rejected_qty: number
+          sample_size: number
+          sample_strategy: string
+          serial_number: string | null
+          source_doc_id: string | null
+          source_doc_type: string
+          state: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_qc_inspections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       reject_timesheet_submission: {
         Args: { _reason: string; _submission_id: string }
