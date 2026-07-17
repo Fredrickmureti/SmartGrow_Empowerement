@@ -76,7 +76,13 @@ export type DomainEventType =
   | 'warehouse.manifest.opened'
   | 'warehouse.manifest.closed'
   | 'warehouse.manifest.dispatched'
-  | 'warehouse.carton.shipped';
+  | 'warehouse.carton.shipped'
+  // Warehouse (WMS) — Phase 6. Dock scheduling & appointments.
+  | 'warehouse.appointment.scheduled'
+  | 'warehouse.appointment.arrived'
+  | 'warehouse.appointment.in_progress'
+  | 'warehouse.appointment.completed'
+  | 'warehouse.appointment.cancelled';
 
 export interface DomainEvent<P = unknown> {
   id?: string;
