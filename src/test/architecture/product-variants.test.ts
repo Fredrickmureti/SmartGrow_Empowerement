@@ -16,7 +16,7 @@ describe("Phase E — Product Variants doctrine", () => {
     const p = join(ROOT, "docs/adr/0072-product-variants.md");
     expect(existsSync(p)).toBe(true);
     const body = readFileSync(p, "utf8");
-    expect(body).toMatch(/Status:\s*Accepted/);
+    expect(body).toMatch(/Status:\**\s*Accepted/);
     expect(body).toMatch(/variant_parent_id/);
   });
 
