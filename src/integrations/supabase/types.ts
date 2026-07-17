@@ -63420,6 +63420,22 @@ export type Database = {
         Args: { p_user: string }
         Returns: boolean
       }
+      _wms_default_putaway: {
+        Args: { p_warehouse_id: string }
+        Returns: string
+      }
+      _wms_ensure_qc_hold: { Args: { p_warehouse_id: string }; Returns: string }
+      _wms_qc_post_move: {
+        Args: {
+          p_dest_location: string
+          p_insp: Database["public"]["Tables"]["wms_qc_inspections"]["Row"]
+          p_movement_type: string
+          p_note: string
+          p_qty: number
+          p_source_location: string
+        }
+        Returns: undefined
+      }
       accept_organization_invitation_atomic: {
         Args: {
           p_invitation_id: string
