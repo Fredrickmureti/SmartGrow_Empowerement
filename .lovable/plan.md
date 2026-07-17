@@ -1,75 +1,68 @@
 
-# WMS — Verification results & Phase 1 execution plan
+# Phase 2 — Receiving → Putaway
 
-## Phase 0 verification (independent, from code + DB)
+**Goal.** Make the WMS task queue and license-plate substrate earn their keep by seeding *real* work from real goods receipts, without disturbing the inventory ledger. When a receiver posts a `goods_receipt`, the WMS assigns each received line to a staging bin under a fresh LPN and creates a `putaway` task pointing at a suggested destination bin. The operator completes the task from the queue, which physically moves the LPN and records the movement in the outbox.
 
-Phase 0 as logged in `.lovable/plan.md` §10 is **genuinely complete**. Confirmed:
+**Scope discipline.** No rule engine, no wave planning, no dock scheduling — those stay Phases 3+. Phase 2 ships one clean loop end-to-end so every subsequent phase has a real substrate to build on.
 
-- DB — `stock_locations` has all 5 additive columns: `structure_level`, `barcode`, `capacity_max_units`, `capacity_max_weight`, `pick_sequence` (queried `information_schema.columns`).
-- Registry — `WAREHOUSE_APP` present in `src/lib/apps/registry.ts` at basePath `/warehouse-app`, listed in `APP_REGISTRY`.
-- Mount — `WarehouseApp` lazy-mounted at `/warehouse-app/*` in `src/App.tsx` behind subscription + `AppInstalledGate`.
-- Workspace — `src/apps/warehouse/{routes,nav,WarehouseLayout,index}.tsx` all present, nav only exposes real routes (Overview / Warehouses / Layout).
-- Pages — `WarehouseDashboard.tsx` (138 LOC, real KPIs) and `WarehouseLayoutPage.tsx` (403 LOC, real editor writing `stock_locations`) exist. No placeholder pages.
-- No `wms_license_plates` or `wms_tasks` tables exist yet — Phase 1 is genuinely pending, not silently half-shipped.
+## What we build
 
-Nothing to redo. Resume at Phase 1.
+### 1. Schema additions (`wms_phase2_receiving_putaway`)
 
-## Gaps found while auditing (append to the plan)
+- `stock_locations.putaway_priority integer` — higher = try first when suggesting destinations. Default 0.
+- `stock_locations.is_receiving_staging boolean` and `is_putaway_target boolean` — explicit flags (the existing `usage` column mixes concerns).
+- `wms_tasks.metadata jsonb default '{}'::jsonb` — carry receipt line context (`goods_receipt_item_id`, `expected_lot`, `expected_expiry`) without a table join.
+- New table `public.wms_putaway_suggestions` (audit of why a destination was picked) with `task_id`, `location_id`, `rank`, `reason`, `chosen boolean`. Grants + RLS.
+- New RPC `suggest_putaway_locations(p_warehouse_id uuid, p_product_id uuid, p_quantity numeric)` — returns ranked candidates using: matching product's `preferred_location_id` if set → same-category open bins → any active `is_putaway_target=true` bin sorted by `putaway_priority desc, pick_sequence asc`. Read-only, stable, security-definer over `stock_locations`.
+- New RPC `receive_goods_to_wms(p_goods_receipt_id uuid, p_staging_location_id uuid)` — atomic transaction that, for each line on the receipt:
+  1. mints an `wms_license_plates` row (`lpn_type='pallet'` default; overridable in a follow-up),
+  2. writes/updates the `stock_quants` row so `package_id = lpn.id` and `location_id = p_staging_location_id`,
+  3. inserts a `wms_tasks` row (`task_type='putaway'`, `state='pending'`, `source_location_id=staging`, `destination_location_id=suggest_putaway_locations(...).first`, `product_id`, `lot_number`, `lpn_id`, `quantity`, `metadata={goods_receipt_item_id}`),
+  4. records the top 3 suggestions in `wms_putaway_suggestions` with `chosen=true` on the picked one.
+  Returns `jsonb` with counts + task ids. Idempotent by `goods_receipt_id` (safe re-run marks additional lines only).
+- New RPC `complete_putaway_task(p_task_id uuid)` — validates state ∈ (`assigned`,`in_progress`), calls `move_lpn(lpn_id, destination_location_id)`, transitions task to `done`, sets `completed_at`.
 
-1. **ADR 0079 is referenced in nav.ts and routes.tsx but no file exists** under `docs/adr/`. Author it alongside the Phase 1 migration so the split (Inventory = ledger, Warehouse = execution) is recorded, not just implied by code comments.
-2. **Legacy `/inventory-app/warehouses` route still live** — plan §10 deferred the redirect to "start of next session". Bundle it into Phase 1 so the app has one canonical warehouse master surface.
-3. **`stock_quants.package_id` exists** (confirmed) — good, LPN contents can be aggregated without schema change.
-4. **`business_event_outbox.event_type` is free-form text** (not an enum) — no DB migration needed to add `warehouse.task.*` / `warehouse.plate.*` event names; only the client-side `DomainEventType` union grows.
+All triggers set `search_path = public` and use `EXCEPTION WHEN OTHERS THEN RAISE WARNING` for outbox writes (ADR 0076).
 
-## Phase 1 — build order (single session, no placeholders)
+### 2. UI
 
-### 1. Migration `wms_phase1_lpn_and_tasks`
-One migration file, four-step structure per project rules (CREATE → GRANT → RLS → POLICY), covering:
+- **Receive to WMS action** on `InboundShipmentDetail.tsx` and on the goods receipt view: a dialog that picks a staging bin (default: warehouse's first `is_receiving_staging=true` location) and calls `receive_goods_to_wms`. Success toast links straight to the seeded tasks.
+- New page `src/pages/warehouse/PutawayQueue.tsx` — a focused sub-view of Operator Tasks pre-filtered to `task_type=putaway` with three columns (Pending / In Progress / Done today) so a supervisor sees flow at a glance.
+- Operator flow: existing `OperatorTasks` page already handles claim/start/complete. We override the **Complete** action for `putaway` tasks to call `complete_putaway_task` RPC instead of a plain UPDATE, so the LPN actually moves.
+- On `LicensePlateView` show recent putaway suggestions when the plate is still at a staging bin, so an operator can pick a different destination and the choice is captured.
 
-- `public.wms_license_plates`: `id`, `code` (unique per business), `lpn_type` enum (`pallet|carton|tote|other`), `parent_lpn_id` (self-fk), `current_location_id` → `stock_locations`, `warehouse_id`, org/business/branch scope, `status` (`open|sealed|shipped|retired`), `sealed_at`, timestamps + updated_at trigger.
-- `public.wms_tasks`: `id`, `task_type` (`putaway|pick|pack|load|count|replenish|move|qc`), `state` (`pending|assigned|in_progress|done|cancelled`), `priority int`, `sla_at`, `assignee_user_id`, `warehouse_id`, `source_doc_type` + `source_doc_id`, `source_location_id`, `destination_location_id`, `product_id`, `lot_number`, `lpn_id`, `quantity`, `started_at`, `completed_at`, org/business/branch scope, timestamps + trigger.
-- GRANT SELECT/INSERT/UPDATE/DELETE to `authenticated`; GRANT ALL to `service_role`. No `anon`.
-- RLS scoped by `business_id` via the same helper `stock_locations` uses (reuse verbatim).
-- Trigger `tg_wms_task_emit_event` → `business_event_outbox` on state transitions (`assigned/started/completed/cancelled`). Idempotency key `wms.task:<id>:<state>`. `EXCEPTION WHEN OTHERS THEN RAISE WARNING` per ADR 0076.
-- Trigger `tg_wms_lpn_emit_event` → emits `warehouse.plate.moved` on `current_location_id` change and `warehouse.plate.sealed` when `sealed_at` transitions from null.
+### 3. Domain events
 
-### 2. Domain event types
-Extend `DomainEventType` in `src/services/events/domainEventBus.ts`:
-`warehouse.task.assigned | .started | .completed | .cancelled`
-`warehouse.plate.moved | .sealed`
-Register log-only saga handlers in `BusinessSagaMount.tsx` to prove wiring.
+Append to `DomainEventType`:
+- `warehouse.receipt.staged` — one per receive_goods_to_wms invocation
+- `warehouse.putaway.suggested` — one per task creation (payload includes ranked candidates)
+- `warehouse.putaway.completed` — emitted by `complete_putaway_task`
 
-### 3. UI — License plates
-- `src/pages/warehouse/LicensePlates.tsx` — list with filters (warehouse/type/status), search by code, columns: code / type / status / current location / parent / sealed_at.
-- `LicensePlateView.tsx` — header + current location + contents summary aggregated from `stock_quants` where `package_id = lpn.id`, actions: **Move** (RPC `move_lpn(lpn_id, dest_location_id)` — atomic update + event), **Seal**, **Retire**.
-- Create dialog — auto-generate `LPN-<yy><rand6>`, type, warehouse, optional parent.
+Wire log-only saga handlers so the outbox pipe is exercised.
 
-### 4. UI — Operator tasks
-- `src/pages/warehouse/OperatorTasks.tsx` — universal queue with filters (type/state/warehouse/assignee/priority), sort priority desc → sla_at asc.
-- Row actions: **Claim** (assignee=me, state=assigned), **Start**, **Complete**, **Cancel with reason**.
-- Ad-hoc "Create move task" form so operators can exercise the queue before downstream phases seed real tasks.
-- Detail sheet showing source/destination bin, product/lot, LPN, timeline.
+### 4. Nav + routes
 
-### 5. Nav + routes
-Add nav entries `Master → License Plates` and `Operations → Operator Tasks` in `src/apps/warehouse/nav.ts` **only after** both pages are functional. Wire routes in `src/apps/warehouse/routes.tsx`.
+Add `Operations → Putaway` between `Overview` and `Operator tasks` in `src/apps/warehouse/nav.ts`. Wire `/warehouse-app/putaway` in `apps/warehouse/routes.tsx`. Only after `PutawayQueue.tsx` is functional.
 
-### 6. Legacy redirect
-In `src/apps/inventory/routes.tsx` add `<Route path="warehouses/*" element={<Navigate to="/warehouse-app/warehouses" replace/>}/>` preserving deep-link path, remove the warehouse nav entry from `INVENTORY_NAV`. Delete no files — CRUD components stay reused from `src/pages/inventory/`.
+### 5. Architecture guards (`src/test/architecture/wms-phase2.test.ts`)
 
-### 7. ADR 0079 — record the split
-Author `docs/adr/0079-inventory-vs-warehouse-split.md`: Inventory owns ledger (quants/movements/cost); Warehouse owns physical execution (LPN/tasks/appointments/waves/manifests). Names the tables so future audits don't re-litigate the boundary.
+- No client code calls `.insert(...)` into `wms_tasks` with `task_type: 'putaway'` — must go through `receive_goods_to_wms` RPC. (Ad-hoc `move` tasks stay allowed.)
+- Completing a putaway task in UI code must go through `complete_putaway_task` RPC (grep: no `.update({state:'done'})` where the surrounding block mentions `putaway`).
+- Every new `warehouse.*` event in `DomainEventType` has a registered handler in `BusinessSagaMount.tsx`.
 
-### 8. Architecture test
-`src/test/architecture/wms-phase1.test.ts` asserts:
-- Migration file exists and contains `CREATE TABLE public.wms_license_plates` + `CREATE TABLE public.wms_tasks` + GRANT + RLS.
-- `nav.ts` includes plates + tasks entries.
-- `DomainEventType` union includes the six new `warehouse.*` events.
-- `/inventory-app/warehouses` no longer authored as a functional route (only a redirect).
+## Success criteria
 
-## Success criteria for Phase 1
+1. From a real `goods_receipt` with N lines, "Receive to WMS" creates N LPNs, N pending putaway tasks, and 3N suggestion audit rows in one transaction.
+2. Completing a putaway task moves the LPN's `current_location_id` and emits exactly one `warehouse.plate.moved` + one `warehouse.putaway.completed` outbox row.
+3. `bunx tsgo --noEmit` clean; `bunx vitest run src/test/architecture/wms-phase2.test.ts` green.
+4. Deep-link `/warehouse-app/putaway` renders the three-column board with real data; `/warehouse-app/plates/<id>` shows the plate at its new bin.
 
-Type check clean (`bunx tsgo --noEmit`). Navigating to `/warehouse-app/plates` lists LPNs and allows create/move/seal end-to-end with a real event in `business_event_outbox`. `/warehouse-app/tasks` shows the ad-hoc created task moving through pending → assigned → in_progress → done, each transition producing a `warehouse.task.*` outbox row. `/inventory-app/warehouses/<id>` deep-links land on the new app.
+## Explicitly out of scope
 
-## Explicitly out of scope for this phase
+Putaway *rule engine* (rules table + versioned policies), constraint-based bin selection (weight/volume/mixed-lot), directed put-away with scanner confirm, cross-docking, blind-count reconciliation, receiving appointments. Those are Phase 2.5 / Phase 3.
 
-Receiving appointments, dock schedule, putaway rule engine, pick waves, pack stations, loading manifests, QC workflow, operator productivity — those are Phases 2–7 in the existing plan and stay untouched. No inventory writer is modified.
+## Files touched
+
+**New:** `supabase/migrations/<ts>_wms_phase2_receiving_putaway.sql`, `src/pages/warehouse/PutawayQueue.tsx`, `src/pages/warehouse/ReceiveToWMSDialog.tsx`, `src/test/architecture/wms-phase2.test.ts`, `docs/adr/0080-putaway-substrate.md`.
+
+**Modified:** `src/pages/inventory/InboundShipmentDetail.tsx` (Receive-to-WMS button), `src/pages/warehouse/OperatorTasks.tsx` (RPC-aware Complete for putaway), `src/pages/warehouse/LicensePlateView.tsx` (suggestions panel), `src/apps/warehouse/{nav.ts,routes.tsx}`, `src/services/events/domainEventBus.ts`, `src/contexts/BusinessSagaMount.tsx`.
