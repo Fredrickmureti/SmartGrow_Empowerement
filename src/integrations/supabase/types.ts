@@ -57148,6 +57148,116 @@ export type Database = {
           },
         ]
       }
+      wms_replenishment_rules: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          last_run_at: string | null
+          max_qty: number
+          min_qty: number
+          notes: string | null
+          organization_id: string
+          pack_multiple: number
+          pick_location_id: string
+          priority: number
+          product_id: string
+          source_location_id: string | null
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          max_qty: number
+          min_qty: number
+          notes?: string | null
+          organization_id: string
+          pack_multiple?: number
+          pick_location_id: string
+          priority?: number
+          product_id: string
+          source_location_id?: string | null
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          max_qty?: number
+          min_qty?: number
+          notes?: string | null
+          organization_id?: string
+          pack_multiple?: number
+          pick_location_id?: string
+          priority?: number
+          product_id?: string
+          source_location_id?: string | null
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_replenishment_rules_pick_location_id_fkey"
+            columns: ["pick_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_replenishment_rules_pick_location_id_fkey"
+            columns: ["pick_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_replenishment_rules_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "wms_replenishment_rules_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_replenishment_rules_source_location_id_fkey"
+            columns: ["source_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_replenishment_rules_source_location_id_fkey"
+            columns: ["source_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_replenishment_rules_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_tasks: {
         Row: {
           assignee_user_id: string | null
@@ -63221,6 +63331,40 @@ export type Database = {
           },
         ]
       }
+      wms_slotting_velocity_view: {
+        Row: {
+          business_id: string | null
+          pct_by_count: number | null
+          pick_count: number | null
+          pick_qty: number | null
+          product_id: string | null
+          velocity_class: string | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_tasks_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       __test_no_dropped_payroll_table_refs: {
@@ -67361,6 +67505,10 @@ export type Database = {
           p_year?: number
         }
         Returns: number
+      }
+      generate_replenishment_tasks: {
+        Args: { p_warehouse_id: string }
+        Returns: Json
       }
       get_account_balance_at_date: {
         Args: { p_account_id: string; p_as_of_date: string }
