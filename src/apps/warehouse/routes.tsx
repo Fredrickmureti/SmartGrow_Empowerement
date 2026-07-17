@@ -124,6 +124,30 @@ export function WarehouseApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        <Route
+          path="waves"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Wave Planner"><WavePlanner /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="picks/:waveId"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Pick List"><PickList /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="pack/:waveId"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Pack Station"><PackStation /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
