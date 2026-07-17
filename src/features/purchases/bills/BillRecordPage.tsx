@@ -229,6 +229,16 @@ export default function BillRecordPage() {
               <Button variant="outline" size="sm" onClick={() => navigate("/purchases/bills")}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleMatchReceipts}
+                disabled={matching}
+                title="Auto-link bill lines to open goods-receipt lines (3-way match)"
+              >
+                <Link2 className="mr-2 h-4 w-4" />
+                {matching ? "Matching…" : "Match receipts"}
+              </Button>
               <Button variant="outline" size="sm" disabled>
                 <Printer className="mr-2 h-4 w-4" /> Print
               </Button>
