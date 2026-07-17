@@ -272,7 +272,7 @@ export default function OperatorTasks() {
                     {(rows ?? []).map((t) => (
                       <TableRow key={t.id}>
                         <TableCell className="capitalize">{t.task_type}</TableCell>
-                        <TableCell><StatusBadge tone={STATE_TONE[t.state]} label={t.state.replace("_", " ")} /></TableCell>
+                        <TableCell><StatusBadge tone={STATE_TONE[t.state]}>{t.state.replace("_", " ")}</StatusBadge></TableCell>
                         <TableCell>{t.priority}</TableCell>
                         <TableCell className="text-sm">
                           <span className="font-mono">{t.source_loc?.code ?? "—"}</span>

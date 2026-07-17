@@ -235,7 +235,7 @@ export default function LicensePlates() {
                           </Link>
                         </TableCell>
                         <TableCell className="capitalize">{r.lpn_type}</TableCell>
-                        <TableCell><StatusBadge tone={STATUS_TONE[r.status]} label={r.status} /></TableCell>
+                        <TableCell><StatusBadge tone={STATUS_TONE[r.status]}>{r.status}</StatusBadge></TableCell>
                         <TableCell className="text-sm">
                           {r.stock_locations
                             ? <span>{r.stock_locations.code} <span className="text-muted-foreground">· {r.stock_locations.name}</span></span>

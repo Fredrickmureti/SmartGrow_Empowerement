@@ -69,7 +69,7 @@ export default function LicensePlateView() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("stock_quants")
-        .select("id, product_id, quantity, reserved_quantity, lot_id, products:product_id(name, sku)")
+        .select("id, product_id, quantity, reserved_quantity, lot_number, products:product_id(name, sku)")
         .eq("package_id", id!)
         .limit(500);
       if (error) throw error;
@@ -165,7 +165,7 @@ export default function LicensePlateView() {
         <Section>
           <div className="grid gap-3 md:grid-cols-3">
             <Card><CardHeader className="pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Status</CardTitle></CardHeader>
-              <CardContent><StatusBadge tone={status === "sealed" ? "warning" : status === "shipped" ? "success" : status === "retired" ? "neutral" : "info"} label={status} /></CardContent></Card>
+              <CardContent><StatusBadge tone={status === "sealed" ? "warning" : status === "shipped" ? "success" : status === "retired" ? "neutral" : "info"} >{status}</StatusBadge></CardContent></Card>
             <Card><CardHeader className="pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Current location</CardTitle></CardHeader>
               <CardContent className="text-sm">{currentLoc}</CardContent></Card>
             <Card><CardHeader className="pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Parent plate</CardTitle></CardHeader>
@@ -182,7 +182,7 @@ export default function LicensePlateView() {
                 <ul className="text-sm divide-y">
                   {contents!.map((c) => (
                     <li key={c.id} className="py-2 flex justify-between">
-                      <span>{c.products?.name ?? c.product_id} <span className="text-muted-foreground">{c.products?.sku}</span></span>
+                      <span>{c.products?.name ?? c.product_id} <span className="text-muted-foreground">{c.products?.sku ?? ""}</span></span>
                       <span className="font-mono">{Number(c.quantity).toFixed(2)}{c.reserved_quantity ? ` (res ${Number(c.reserved_quantity).toFixed(2)})` : ""}</span>
                     </li>
                   ))}
