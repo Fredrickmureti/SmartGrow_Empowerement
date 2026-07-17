@@ -102,6 +102,12 @@ interface ReceiptLine {
   expected_quantity: number | null;
   expected_expiry_date: string | null;
   expected_manufacture_date: string | null;
+  // Phase H+ · Captured from GS1 AI 17 / AI 11 during the scan flow; used
+  // by handleSubmit to upsert `stock_lots.expiry_date` / `manufacture_date`
+  // after the atomic RPC creates the lot row. Falls back to the ASN
+  // expected_* values above.
+  captured_expiry_date: string | null;
+  captured_manufacture_date: string | null;
 }
 
 interface ActiveShipment {
