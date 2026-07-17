@@ -74,6 +74,7 @@ export function usePOSProducts(registerScope?: RegisterProductScope) {
             p_org_id: currentOrg!.id,
             p_business_id: currentBusiness!.id,
             p_branch_id: branchId,
+            p_include_variant_parents: false,
           } as any,
         );
         if (scopedErr) throw scopedErr;
@@ -94,7 +95,8 @@ export function usePOSProducts(registerScope?: RegisterProductScope) {
         )
         .eq("organization_id", currentOrg!.id)
         .eq("is_active", true)
-        .eq("business_id", currentBusiness!.id);
+        .eq("business_id", currentBusiness!.id)
+        .or("is_variant_parent.is.null,is_variant_parent.eq.false");
 
       if (debouncedSearch) {
         const q = `%${debouncedSearch}%`;
