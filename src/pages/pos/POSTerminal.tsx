@@ -75,6 +75,7 @@ import { HeldOrdersBar } from "@/components/pos/HeldOrdersBar";
 import { KeyboardShortcutsOverlay } from "@/components/pos/KeyboardShortcutsOverlay";
 import { useDrawerPolicy } from "@/hooks/pos/useDrawerPolicy";
 import { parseScanPayload } from "@/services/pos/parseBarcode";
+import { interpretScan } from "@/lib/gs1/useGs1Scanner";
 // useScanCapture is mounted globally in AuthenticatedShell
 import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
 import { scanBus } from "@/services/pos/scanBus";
