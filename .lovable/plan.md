@@ -40,26 +40,28 @@ Nothing claimed-complete was found unimplemented.
 
 ## ⏭ Deferred — execute in this order (each depends on the previous)
 
-### Step 1 — Nightly `stock-quant-drift` edge function + `pg_cron`
-- Scaffold `supabase/functions/stock-quant-drift/index.ts`: zod-validated `{organization_id}`, page products by 500, compute per-warehouse `sum(stock_quants.quantity)` vs `sum(warehouse_stock.quantity)`, call `record_stock_quant_drift_run` per org. CORS + JWT-in-code.
-- Deploy, then schedule via `supabase--insert` (NOT `--migration`) because SQL embeds function URL + anon key:
-  ```
-  select cron.schedule('nightly-stock-quant-drift', '15 2 * * *', $$ … $$);
-  ```
+### Step 1 — Nightly `stock-quant-drift` edge function + `pg_cron` — ⚠️ CODE DONE, BLOCKED ON OPS
+- ✅ `supabase/functions/stock-quant-drift/index.ts` exists and boots (was already scaffolded).
+- ✅ Refactored to use shared `_shared/requireCronAuth.ts` (matches every other cron function in this project).
+- ✅ Cron job `nightly-stock-quant-drift` scheduled at `15 2 * * *` UTC, calling the function with `public.cron_caller_auth_header()`.
+- ✅ `supabase/config.toml` sets `verify_jwt = false` for this function.
+- ❌ **Blocker (pre-existing, project-wide):** every scheduled function using `cron_caller_auth_header()` currently returns 401 (`{"error":"unauthorized"}`). The vault secret `cron_caller_jwt` is out of sync with `SUPABASE_SERVICE_ROLE_KEY` — evidence in `net._http_response` shows the same failure for `check-leave-expiry`, `update-overdue-invoices`, etc. Rotating/refreshing `cron_caller_jwt` in the Supabase vault to match the current service-role key unblocks ALL cron jobs at once; do NOT patch each function individually. Once fixed, the 14-day drift-evidence window starts ticking with no code changes.
 - Target: 14 consecutive zero-drift runs across active orgs before any table drop.
 
-### Step 2 — `warehouse_stock` → `stock_quants` reader migration
+### Step 2 — `warehouse_stock` → `stock_quants` reader migration (GATED on Step 1)
 - Rewrite `src/lib/inventory/readOnHand.ts` to read `stock_quants` (aggregate `quantity`, sum `reserved_quantity` from `stock_reservations` join). Keep signature identical.
 - Route every direct `.from("warehouse_stock")` call outside the helper through `readOnHand` or its siblings: `useWarehouseStockTotals`, `useProcurementRecommendations`, `WarehouseStockPeekSheet`, `src/pages/reports/*`, `POSTerminal`, `Products.tsx`, `Inventory.tsx`, `PhysicalCount.tsx`, `Forecast.tsx`, `InventoryReconciliationCard.tsx`, `useBranchScopedProducts.ts` (~139 refs across 39 files).
 - Invert `src/test/architecture/warehouse-stock-reads-go-through-helper.test.ts` — only `readOnHand.ts` + its tests may reference `warehouse_stock`.
 
-### Step 3 — ADR 0076 + drop `warehouse_stock` + `warehouse_stock_lots`
+### Step 3 — ADR 0076 + drop `warehouse_stock` + `warehouse_stock_lots` (GATED on Step 2)
 - Preflight snapshot both tables into `stock_adjustment_backfill_log` (audit body: `{table, rows, snapshot_id}`).
 - Gate: ≥14 zero-drift runs in `stock_quant_drift_runs`.
 - Drop; remove `warehouse_stock*` from `businessScopedTables.ts`; regenerate types.
 
-### Step 4 — Server-side variant-parent filter in `list_products_with_branch_stock` RPC
-- Fold `is_variant_parent = false` into the RPC WHERE clause. Delete the client-side parent-id parallel fetch in `useBranchScopedProducts`.
+### Step 4 — Server-side variant-parent filter in `list_products_with_branch_stock` RPC — ✅ DONE (this session)
+- Migration adds `p_include_variant_parents boolean DEFAULT false` param + `AND (p_include_variant_parents OR NOT COALESCE(p.is_variant_parent, false))` in WHERE.
+- `src/hooks/useBranchScopedProducts.ts` — dropped the parallel parent-id fetch; passes the flag through.
+- `src/hooks/pos/usePOSProducts.ts` — passes `p_include_variant_parents: false` and also excludes variant parents from the raw `products` fallback query via `.or("is_variant_parent.is.null,is_variant_parent.eq.false")`.
 
 ### Step 5 — Recall outbox event + notification worker
 - Emit `product.recall.opened` to `business_event_outbox` inside `recall_lot` (payload: recall id + manifest).
@@ -95,4 +97,6 @@ Deferred pending user direction — not scheduled above until picked:
 
 ## Next action on resume
 
-Step 1: scaffold `supabase/functions/stock-quant-drift/index.ts`, deploy, then schedule the nightly cron via `supabase--insert`. No table drop, no reader migration this session — just start the 14-day evidence window ticking.
+1. **Unblock ops:** rotate/refresh the vault secret `cron_caller_jwt` in the Supabase dashboard to match the current `SUPABASE_SERVICE_ROLE_KEY`. That single change unblocks every cron-triggered edge function in the project, including `nightly-stock-quant-drift`. No code change needed.
+2. Once drift runs are landing green, start Step 5 (recall outbox event — self-contained) or Step 6 (importer batch handlers — larger surface, no gating). Step 2 remains gated on 14 clean drift runs.
+
