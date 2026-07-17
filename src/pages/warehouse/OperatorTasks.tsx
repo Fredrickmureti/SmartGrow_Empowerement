@@ -110,13 +110,34 @@ export default function OperatorTasks() {
     },
   });
 
+  type TaskPatch = {
+    state?: TaskState;
+    assignee_user_id?: string | null;
+    started_at?: string | null;
+    completed_at?: string | null;
+    cancel_reason?: string | null;
+  };
+
   const patch = useMutation({
-    mutationFn: async (input: { id: string; patch: Partial<TaskRow> }) => {
+    mutationFn: async (input: { id: string; patch: TaskPatch }) => {
       const { error } = await supabase.from("wms_tasks").update(input.patch).eq("id", input.id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["wms-tasks"] }),
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
+  });
+
+  const completePutaway = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("complete_putaway_task", { p_task_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Putaway completed");
+      qc.invalidateQueries({ queryKey: ["wms-tasks"] });
+      qc.invalidateQueries({ queryKey: ["wms-lpns"] });
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Putaway failed"),
   });
 
   const claim = (t: TaskRow) => {
@@ -131,10 +152,18 @@ export default function OperatorTasks() {
       assignee_user_id: t.assignee_user_id ?? user?.id ?? null,
     },
   });
-  const complete = (t: TaskRow) => patch.mutate({
-    id: t.id,
-    patch: { state: "done", completed_at: new Date().toISOString() },
-  });
+  const complete = (t: TaskRow) => {
+    // Putaway tasks must go through the RPC — it moves the LPN atomically
+    // and emits the outbox event. See wms-phase2 architecture guard.
+    if (t.task_type === "putaway") {
+      completePutaway.mutate(t.id);
+      return;
+    }
+    patch.mutate({
+      id: t.id,
+      patch: { state: "done", completed_at: new Date().toISOString() },
+    });
+  };
 
   const [cancelOpen, setCancelOpen] = useState<TaskRow | null>(null);
   const [cancelReason, setCancelReason] = useState("");
