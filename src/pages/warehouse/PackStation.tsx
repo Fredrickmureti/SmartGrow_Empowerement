@@ -92,11 +92,26 @@ export default function PackStation() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_pick_waves")
-        .select("id, wave_number, state, warehouse_id, released_at, completed_at")
+        .select("id, wave_number, state, warehouse_id, business_id, released_at, completed_at")
         .eq("id", waveId!)
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: cartonTypes } = useQuery({
+    queryKey: ["wms-carton-types", wave?.business_id],
+    enabled: !!wave?.business_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_carton_types")
+        .select("id, code, name, length_cm, width_cm, height_cm, max_weight_kg, is_active")
+        .eq("business_id", wave!.business_id!)
+        .eq("is_active", true)
+        .order("code");
+      if (error) throw error;
+      return (data ?? []) as CartonType[];
     },
   });
 
