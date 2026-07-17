@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Package, Globe, Check } from "lucide-react";
 import { adminFrom } from "@/lib/adminClient";
 import { supabase } from "@/integrations/supabase/client";
-import { invokeWithAuth, NotAuthenticatedError } from "@/integrations/supabase/invokeWithAuth";
+import { NotAuthenticatedError } from "@/integrations/supabase/invokeWithAuth";
+import { invokeLocalizationPack } from "@/integrations/supabase/invokeLocalizationPack";
 import { toast } from "sonner";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { TenantReadinessGate } from "@/components/onboarding/TenantReadinessGate";
@@ -102,15 +103,13 @@ export function LocalizationPackSettings() {
     setIsInstalling(true);
 
     try {
-      const { data, error } = await invokeWithAuth(
+      const { data, error } = await invokeLocalizationPack(
         "install-localization-pack",
         {
-          body: {
-            business_id: currentBusiness.id,
-            organization_id: currentBusiness.organization_id,
-            pack_id: availablePack.id,
-          },
-        }
+          business_id: currentBusiness.id,
+          organization_id: currentBusiness.organization_id,
+          pack_id: availablePack.id,
+        },
       );
 
       if (error) {

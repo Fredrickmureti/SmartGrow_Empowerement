@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { adminFrom } from "@/lib/adminClient";
-import { invokeWithAuth } from "@/integrations/supabase/invokeWithAuth";
+import { invokeLocalizationPack } from "@/integrations/supabase/invokeLocalizationPack";
 import { usePacks } from "@/features/localization/hooks/usePack";
 import { normalizeError } from "@/services/resilience";
 
@@ -131,14 +131,12 @@ export default function AdminOrgLocalizationInstallPage() {
 
   const install = useMutation({
     mutationFn: async () => {
-      const { data, error } = await invokeWithAuth("install-localization-pack", {
-        body: {
-          organization_id: orgId,
-          business_id: businessId,
-          pack_id: packId,
-          force_reseed: forceReseed,
-          acknowledge_skeleton: ackSkeleton,
-        },
+      const { data, error } = await invokeLocalizationPack("install-localization-pack", {
+        organization_id: orgId,
+        business_id: businessId,
+        pack_id: packId,
+        force_reseed: forceReseed,
+        acknowledge_skeleton: ackSkeleton,
       });
       if (error) throw error;
       if ((data as any)?.error || (data as any)?.success === false) {

@@ -24,7 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { CheckCircle2, AlertCircle, Loader2, ExternalLink, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { invokeWithAuth, NotAuthenticatedError } from "@/integrations/supabase/invokeWithAuth";
+import { NotAuthenticatedError } from "@/integrations/supabase/invokeWithAuth";
+import { invokeLocalizationPack } from "@/integrations/supabase/invokeLocalizationPack";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -100,13 +101,11 @@ export function PayrollSetupPage() {
 
   const installPack = useMutation({
     mutationFn: async (opts?: { force?: boolean }) => {
-      const { data, error } = await invokeWithAuth("install-localization-pack", {
-        body: {
-          business_id: currentBusiness!.id,
-          country_code: packQuery.data?.countryCode,
-          auto_install: true,
-          force_reseed: !!opts?.force,
-        },
+      const { data, error } = await invokeLocalizationPack("install-localization-pack", {
+        business_id: currentBusiness!.id,
+        country_code: packQuery.data?.countryCode,
+        auto_install: true,
+        force_reseed: !!opts?.force,
       });
       if (error) throw error;
       // Surface auto-mapping summary even on partial-failure (success:false)

@@ -29,7 +29,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { adminFrom } from "@/lib/adminClient";
-import { invokeWithAuth, NotAuthenticatedError } from "@/integrations/supabase/invokeWithAuth";
+import { NotAuthenticatedError } from "@/integrations/supabase/invokeWithAuth";
+import { invokeLocalizationPack } from "@/integrations/supabase/invokeLocalizationPack";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -150,13 +151,11 @@ export function PayrollSetupGuideDialog({
     if (!pack || !organizationId) return;
     setInstalling(true);
     try {
-      const { data, error } = await invokeWithAuth("install-localization-pack", {
-        body: {
-          organization_id: organizationId,
-          pack_id: pack.id,
-          business_id: businessId ?? undefined,
-          force_reseed: force,
-        },
+      const { data, error } = await invokeLocalizationPack("install-localization-pack", {
+        organization_id: organizationId,
+        pack_id: pack.id,
+        business_id: businessId ?? undefined,
+        force_reseed: force,
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
