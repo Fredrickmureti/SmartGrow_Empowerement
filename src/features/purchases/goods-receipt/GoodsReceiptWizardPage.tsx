@@ -419,7 +419,7 @@ export default function GoodsReceiptWizardPage() {
         updateLine(
           idx,
           "captured_manufacture_date",
-          gs1.normalized.production.toISOString().slice(0, 10),
+          gs1.normalized.productionDate.toISOString().slice(0, 10),
         );
       }
       const expBits = gs1.normalized.expiry
