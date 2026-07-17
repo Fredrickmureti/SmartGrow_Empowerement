@@ -175,6 +175,7 @@ const SalesApp = lazy(() => import("@/apps/sales/routes"));
 const ContactsApp = lazy(() => import("@/apps/contacts/routes"));
 const PurchasesApp = lazy(() => import("@/apps/purchases/routes"));
 const InventoryApp = lazy(() => import("@/apps/inventory/routes"));
+const WarehouseApp = lazy(() => import("@/apps/warehouse/routes"));
 const POSApp = lazy(() => import("@/apps/pos/routes"));
 // Wave 5 (Phase 3): hardware lifted out of POS to platform.
 const PlatformHardwareApp = lazy(() => import("@/apps/platform/hardware/routes"));
