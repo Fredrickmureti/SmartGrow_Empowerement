@@ -51,6 +51,9 @@ export default function MyAccount() {
           {/* Password */}
           <PasswordCard />
 
+          {/* PIN login — same PIN system used across the platform */}
+          <PINSettings />
+
           {/* Two-step verification */}
           <MfaEnrollmentCard />
 
