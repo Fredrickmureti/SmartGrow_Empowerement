@@ -138,7 +138,7 @@ export default function PackStation() {
       const { data, error } = await supabase
         .from("wms_pack_cartons")
         .select(
-          "id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, shipment_lpn:shipment_lpn_id(code)",
+          "id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, carton_type_id, shipment_lpn:shipment_lpn_id(code), carton_type:carton_type_id(code, name)",
         )
         .eq("wave_id", waveId!)
         .order("opened_at");
