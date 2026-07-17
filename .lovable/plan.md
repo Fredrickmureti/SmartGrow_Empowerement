@@ -86,3 +86,16 @@ Add `src/test/architecture/product-import-handlers-split.test.ts`:
 **Follow-up for the next agent (small, ~30 min):** the aspirational ADR-0074 outbox-emit contract (`product.import.completed` etc.) is NOT implemented on ANY of the six handlers — the master handler never emitted either. Add emission to all six in one pass so the family stays consistent; do not add it to only the new five.
 
 **Priorities unchanged:** (1) ops rotates `cron_caller_jwt` → unblocks Step 1 → 14 zero-drift nights → Steps 2 + 3; (2) Step 5 worker once notification copy lands; (3) outbox-emit follow-up above; (4) G1–G3 audit gaps once stakeholder input arrives.
+
+## Phase 4 — Execution log (session 7, 2026-07-17)
+
+**Shipped (outbox-emit follow-up — DONE):**
+- New RPC `public.emit_business_event(p_org_id, p_business_id, p_event_type, p_source_doc_type, p_source_doc_id, p_idempotency_key, p_payload, p_branch_id, p_warehouse_id)` — SECURITY DEFINER, whitelists `product.import.*` and `stock.*` event types, enforces `user_business_access` membership, dedupes via `ON CONFLICT (idempotency_key)`. Client-side inserts to `business_event_outbox` remain blocked by RLS; this is the single client-facing entry point.
+- New helper `src/lib/importConfigs/product/_emitImportEvent.ts` — `emitProductImportCompleted({ orgId, businessId, kind, batchId, result })` + `newBatchId()`. Emission is best-effort — a failed outbox insert never faults the import.
+- All six product-import batch handlers now emit `product.import.completed` (or `.completed_with_errors` if the result contains row errors) at end-of-batch: master, barcode, batch, warehouse_stock, price, supplier.
+- Master handler signature tightened: `createProductMasterBatchMigrationHandler(ctx: ImportContext)` — no more legacy `(orgId: string)` overload. The old shape was silently broken anyway (`products.business_id` is `NOT NULL` with no default; the string-only handler produced NOT NULL violations before the ADR-0074 rewrite). Now the insert row carries `business_id: ctx.businessId`.
+- Sole call site `src/components/migration/steps/MigrationStepProducts.tsx` updated to pull `currentBusiness` from `BusinessContext` and pass an `ImportContext` to the batch handler.
+
+**Verification:** `bunx tsgo --noEmit` → exit 0, no type errors.
+
+**Follow-ups still open** (unchanged priorities): ops rotates `cron_caller_jwt`; Step 5 worker; Blocking Gap #1 (cost-method AVCO vs cost_layers ADR amendment); Blocking Gap #2 (3-way match + landed cost); Blocking Gap #3 remainder (wire `stock.*` events through the same RPC from `recordStockMovement` and server RPCs).
