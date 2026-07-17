@@ -164,3 +164,89 @@ Before scaffolding Phase 0, please confirm:
 1. Green-light the module topology in §3 and the phased order in §6?
 2. OK to redirect `/inventory-app/warehouses` into the new `/warehouse-app/*` workspace (deep links preserved)?
 3. Any warehouse pattern to prioritise first: **retail multi-branch**, **DC/fulfillment**, **pharmacy cold-chain**, or **generic**? (Drives which fields we surface earliest on `warehouses`.)
+
+---
+
+## 10. Session 9 — Handoff Log (Phase 0 shipped)
+
+**Date:** 2026-07-17. **Status:** Phase 0 complete and verified (`bunx tsgo --noEmit` clean).
+
+### What is live (verifiable in code + DB)
+
+1. **DB — `stock_locations` extended** (migration accepted last turn):
+   - Added `structure_level` (enum-like text: `zone | aisle | rack | shelf | bin | dock | staging_in | staging_out`), `barcode`, `capacity_max_units`, `capacity_max_weight`, `pick_sequence`.
+   - No writers changed, no data migration required — additive only. Existing auto-seeded `is_default` rows still work.
+
+2. **App registered** — `src/lib/apps/registry.ts`:
+   - `WAREHOUSE_APP` (id `warehouse`, basePath `/warehouse-app`, `sortOrder: 5.5`, `internalOnly: true`, color orange to distinguish from Inventory purple).
+   - Listed in `APP_REGISTRY` right after `INVENTORY_APP`.
+
+3. **App mounted** — `src/App.tsx`:
+   - `WarehouseApp` lazy-loaded, mounted at `/warehouse-app/*` behind `SubscriptionProtectedRoute` → `PortalUserRoute` → `AppInstalledGate appId="warehouse"`.
+
+4. **App workspace** — `src/apps/warehouse/`:
+   - `nav.ts` — **only real routes are wired**. Overview, Warehouses, Layout. No placeholder entries.
+   - `WarehouseLayout.tsx` — `PlatformShell` + `BranchScopeGate`.
+   - `routes.tsx` — Dashboard, Warehouses (reusing existing Inventory CRUD), Warehouse view/new/edit, Layout editor. **No coming-soon routes.**
+   - `index.ts` — clean re-exports.
+
+5. **Pages built** — `src/pages/warehouse/`:
+   - `WarehouseDashboard.tsx` — 3 real KPIs (warehouses count, total locations, authored bins), plus a conditional "author your layout" call-to-action shown only when the org has locations but zero `structure_level` rows. No fake tiles.
+   - `WarehouseLayoutPage.tsx` — real, working editor. Warehouse selector; queries `stock_locations` scoped to warehouse; renders a collapsible tree (sorted by `pick_sequence` then `code`); "Add zone" / "Add child" opens dialog to create zone/aisle/rack/shelf/bin/dock/staging with barcode + pick sequence; writes go through `supabase.from("stock_locations").insert(...)` with org/business/branch stamped and `location_type='internal'`, `usage` inferred from level. Invalidates dashboard KPI queries on success.
+
+### What is deliberately NOT done (do not re-litigate)
+
+- No "coming soon" pages, no dead nav links, no placeholder routes anywhere. `src/pages/warehouse/WmsComingSoon.tsx` was deleted.
+- No changes to any inventory writer (`stock_movements`, GRN, transfer, POS, sale). Inventory foundation stays untouched per §7 rule.
+- Legacy `/inventory-app/warehouses` route is still present. Redirects into the new app are safe to add now that Phase 0 works; scheduled for the start of the next session so it lands with a passing architecture test.
+
+### Verification pointers for the next agent
+
+- Type check: `bunx tsgo --noEmit` — must stay clean.
+- Route smoke test: navigate to `/warehouse-app` — should redirect to `/warehouse-app/dashboard` and render 3 KPI cards from live data.
+- Layout editor smoke test: pick any warehouse in the selector, add a zone, confirm it appears in the tree and the "Authored bins / zones" KPI on the dashboard increments.
+- Registry test: `WAREHOUSE_APP` in `APP_REGISTRY`; `id === "warehouse"`, `basePath === "/warehouse-app"`.
+- DB check: `select column_name from information_schema.columns where table_name='stock_locations' and column_name in ('structure_level','barcode','capacity_max_units','capacity_max_weight','pick_sequence');` — all five must be present.
+
+### Phase 1 — pick up here (build, do not defer)
+
+**Goal:** ship LPN + universal WMS task substrate end-to-end. No placeholders. When Phase 1 lands, the sidebar gains **License plates** and **Operator tasks** entries — both fully functional.
+
+Deliverables, in build order:
+
+1. **Migration `wms_phase1_lpn_and_tasks`** (single migration, all four steps per project rules):
+   - `public.wms_license_plates` — `id`, `code` (unique per business), `lpn_type` (`pallet | carton | tote | other`), `parent_lpn_id` (self-fk, nullable, for nesting), `current_location_id` fk `stock_locations`, `warehouse_id`, `organization_id`, `business_id`, `branch_id`, `sealed_at`, `status` (`open | sealed | shipped | retired`), timestamps + trigger.
+   - `public.wms_tasks` — `id`, `task_type` (`putaway | pick | pack | load | count | replenish | move | qc`), `state` (`pending | assigned | in_progress | done | cancelled`), `priority int`, `sla_at`, `assignee_user_id` (nullable), `warehouse_id`, `source_doc_type` + `source_doc_id`, `source_location_id`, `destination_location_id`, `product_id` (nullable), `lot_number`, `lpn_id`, `quantity`, `started_at`, `completed_at`, org/business/branch scope, timestamps + trigger.
+   - GRANT SELECT/INSERT/UPDATE/DELETE to `authenticated`; GRANT ALL to `service_role`. No `anon` grants — both tables scope by `auth.uid()` via business membership (mirror `stock_locations` policy shape).
+   - RLS policies scoped to `business_id` using the org-membership helper the project already uses on inventory tables (grep `stock_locations` policies for the exact predicate — reuse it verbatim to stay consistent).
+   - Trigger `tg_wms_task_emit_event` mirroring `tg_stock_movement_emit_event`: on state transitions to `assigned`, `in_progress`, `done`, `cancelled`, insert into `business_event_outbox` with event types `warehouse.task.assigned` / `.started` / `.completed` / `.cancelled`. Idempotency key `wms.task:<task_id>:<state>`. Wrap in `EXCEPTION WHEN OTHERS THEN RAISE WARNING` per ADR 0076.
+   - Trigger `tg_wms_lpn_emit_event`: emit `warehouse.plate.moved` when `current_location_id` changes; `warehouse.plate.sealed` when `sealed_at` transitions from null.
+
+2. **Domain event types** — add to `src/services/events/domainEventBus.ts` `DomainEventType`:
+   - `warehouse.task.assigned | warehouse.task.started | warehouse.task.completed | warehouse.task.cancelled`
+   - `warehouse.plate.moved | warehouse.plate.sealed`
+   Register minimal saga handlers in `src/components/events/BusinessSagaMount.tsx` (log-only for now; proves fabric wiring).
+
+3. **UI — License plates** (`src/pages/warehouse/LicensePlates.tsx` + `LicensePlateView.tsx` + create dialog):
+   - List page: filters (warehouse, type, status), search by code, table with code / type / status / current location / parent / sealed_at.
+   - Create: code (auto-generate `LPN-<yy><random6>` unless overridden), type, warehouse, optional parent LPN.
+   - Detail: current location, contents summary (aggregate `stock_quants` where `package_id` maps to this LPN — reserved column exists on `stock_quants`), move action (posts to a new `move_lpn` RPC or a plain update — decide during build; RPC is cleaner because it records the event atomically), seal action.
+   - Wire in `nav.ts` under a new "Master" group only after the page is functional.
+
+4. **UI — Operator tasks** (`src/pages/warehouse/OperatorTasks.tsx` + row detail sheet):
+   - Universal queue: filters (type, state, warehouse, assignee, priority), sort by priority desc then `sla_at` asc.
+   - Row actions: claim (set assignee=me, state=assigned), start (state=in_progress, started_at=now), complete (state=done, completed_at=now — user must supply destination if applicable), cancel with reason.
+   - No task-creation UI in Phase 1 — tasks are seeded from Phase 2/3/4 domain events. For Phase 1, add a tiny "create ad-hoc move task" form so operators can test the queue before receiving/putaway ship. Wire nav entry after page is functional.
+
+5. **Architecture test** (`src/test/architecture/wms-phase1.test.ts`):
+   - Assert `WAREHOUSE_APP` includes `plates` and `tasks` modules.
+   - Assert `nav.ts` contains those entries.
+   - Assert new migration file exists and contains `CREATE TABLE public.wms_license_plates` + `CREATE TABLE public.wms_tasks` + GRANTs + RLS.
+   - Assert `DomainEventType` union includes the six new `warehouse.*` events.
+
+6. **Redirect legacy inventory warehouses route** — add `<Route path="warehouses/*" element={<Navigate to="/warehouse-app/warehouses" replace/>} />` (with deep-link path preservation) in `src/apps/inventory/routes.tsx`, remove the warehouse entry from `INVENTORY_NAV`, and add an eslint architecture check that `/inventory-app/warehouses` is not authored under `src/pages/`.
+
+**Do not:** add placeholder pages, add nav entries pointing at unbuilt routes, or split Phase 1 across sessions. Phase 1 ships as one PR-equivalent atomic step.
+
+Once Phase 1 is verified live, continue with Phase 2 (Receiving execution layer) per §6 — same "build, don't defer" discipline.
+
