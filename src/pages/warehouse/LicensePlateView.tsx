@@ -218,30 +218,7 @@ export default function LicensePlateView() {
             </CardContent>
           </Card>
         </Section>
-      </PageBody>
 
-      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Move license plate</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Select value={moveDest} onValueChange={setMoveDest}>
-                <SelectTrigger><SelectValue placeholder="Choose destination location" /></SelectTrigger>
-                <SelectContent>
-                  {(locations ?? []).map((l) => (
-                    <SelectItem key={l.id} value={l.id}>{l.code} · {l.name}{l.is_default ? " (default)" : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Textarea placeholder="Optional note" value={moveNote} onChange={(e) => setMoveNote(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancel</Button>
-            <Button onClick={() => move.mutate()} disabled={move.isPending || !moveDest}>Move</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
         <Section title="Putaway suggestions" description="Bins the WMS ranks for this plate. #1 is preselected on the task destination.">
           <Card>
             <CardContent className="p-4">
