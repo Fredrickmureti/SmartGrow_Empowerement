@@ -21,11 +21,12 @@
 4. **Every phase ships an architecture guard** under
    `src/test/architecture/wms-phaseN.test.ts`.
 5. **Chronological order:** 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 → 8 → 9 →
-   **10** → 11 → 12 → 13 → 14 → 15 → 16. Do not skip.
+   10 → **11** → 12 → 13 → 14 → 15 → 16. Do not skip.
 6. **UI rule:** only wire nav entries for pages that are BUILT and functional.
 7. Reference ADRs: **0064** (locations/quants), **0068** (transfers), **0076**
    (stock event fabric), **0078** (AVCO), **0079** (Inventory vs Warehouse
-   split — the charter for this whole track), **0080** (yard management).
+   split — the charter for this whole track), **0080** (yard management),
+   **0081** (labour management), **0082** (3PL activity billing).
 
 ---
 
@@ -119,46 +120,40 @@ STOCK and QUARANTINE and handle `scrap` / `return_to_vendor` (seeds
 
 ## 3. What is NOT yet implemented (in order)
 
-### ▶ Phase 11 — 3PL activity-based billing  **← START HERE NEXT**
+### Phase 11 — 3PL activity-based billing  ✅
+- `wms_billing_tariffs` (biz-scoped master data; PostgREST writes
+  gated by `inventory:write`). UNIQUE
+  `(business_id, client_business_id, activity, uom, effective_from)`;
+  `client_business_id IS NULL` = default/fallback rate.
+- `wms_billable_activities` (RPC-only ledger, UNIQUE
+  `(business_id, source_event_id)` for idempotency, `invoice_id`
+  stamped when folded into a draft Sales invoice).
+- RPCs `capture_billable_activity`,
+  `capture_pending_billable_activities`, `generate_3pl_invoice`
+  — all `SECURITY DEFINER`, business-access checked.
+- Pure IMMUTABLE `_wms_map_event_to_activity` maps
+  `warehouse.*` events to activity codes; single source of truth
+  for "which events bill".
+- Draft invoices land in `public.invoices` with prefix
+  `3PL-YYYYMM-<client8>` so AR/dunning inherits the receivable.
+- View `wms_billable_activities_summary_view`
+  (`security_invoker=true`).
+- UI: `/warehouse-app/billing` — tariff CRUD, activity summary,
+  capture-events button, month-end invoice generation dialog.
+- Guard `wms-phase11.test.ts`.
+- ADR `docs/adr/0082-wms-3pl-activity-billing.md`.
 
-Goal: turn the `warehouse.*` event stream into billable 3PL activity
-so multi-tenant warehouses can invoice their clients.
+---
 
-**Backend:**
+## 3. What is NOT yet implemented (in order)
 
-- `wms_billing_tariffs(business_id, client_business_id, activity,
-  uom, rate, currency, effective_from, effective_to)` — biz-scoped
-  master data; UNIQUE on `(business_id, client_business_id, activity,
-  uom, effective_from)`.
-- `wms_billable_activities(id, business_id, client_business_id,
-  activity, quantity, occurred_at, source_event_id, tariff_id?,
-  invoice_id?)` — activity ledger, RPC-only writes.
-- RPC `capture_billable_activity(event_id)` — idempotent, consumes a
-  `business_event_outbox` row and appends a billable activity when a
-  matching active tariff exists.
-- RPC `generate_3pl_invoice(client_id, period_from, period_to)` —
-  aggregates unbilled activities, creates a draft invoice in Sales,
-  stamps `invoice_id` on the activity rows.
-- Event subscriber (edge function or scheduled RPC) that streams new
-  outbox rows through `capture_billable_activity`.
+### ▶ Phase 12 — Cross-dock & cartonization  **← START HERE NEXT**
 
-**Frontend:**
-
-- `/warehouse-app/billing` — tariff CRUD, activity ledger with
-  filters, month-end invoice generation wizard.
-- Nav entry under Operations: "3PL billing".
-
-**Guard `wms-phase11.test.ts`:**
-
-- `wms_billable_activities` is RPC-only.
-- `wms_billing_tariffs` writes only from the billing page.
-- Invoice generation RPC is present and idempotent-tested.
-
-
-### Phase 12 — Cross-dock & cartonization
-
-Only after 10–11 land. Cross-dock uses inbound-to-outbound task
-chaining; cartonization needs product dims + carton catalogue.
+Only after Phase 11 lands (done). Cross-dock uses
+inbound-to-outbound task chaining (a receipt that satisfies an
+open sales-order pick skips putaway → staging → dispatch);
+cartonization needs product dims + a carton catalogue and picks
+the right carton at pack-time.
 
 ### Phase 13 — Returns & RMA execution surface
 
