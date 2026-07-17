@@ -102,13 +102,22 @@ Deferred pending user direction — not scheduled above until picked:
 
 ## Session 5 log (2026-07-17) — what this agent did
 
-**Shipped:**
-- Step 4 (server-side variant-parent filter): migration + client hooks updated. POS raw-products query also guarded.
-- Step 5 event side: `recall_lot` publishes `product.recall.opened` to `business_event_outbox`; guard test added (recall-rpc.test.ts now 4 tests).
-- Step 1 (drift function): refactored to `requireCronAuth`; `supabase/config.toml` sets `verify_jwt = false`; cron job `nightly-stock-quant-drift` rescheduled with `public.cron_caller_auth_header()`.
+**Shipped this session:**
+- **Step 4 — Server-side variant-parent filter (DONE).** Migration `2026-07-17T03:07:18` adds `p_include_variant_parents boolean DEFAULT false` to `list_products_with_branch_stock` with `AND (p_include_variant_parents OR NOT COALESCE(p.is_variant_parent, false))` in WHERE. `src/hooks/useBranchScopedProducts.ts` dropped the parallel parent-id fetch and now passes the flag through. `src/hooks/pos/usePOSProducts.ts` passes `p_include_variant_parents: false` and hardens the raw `products` fallback with `.or("is_variant_parent.is.null,is_variant_parent.eq.false")`.
+- **Step 5 event side (DONE; worker deferred).** Migration `2026-07-17T03:12:14` — `recall_lot` RPC inserts `product.recall.opened` into `public.business_event_outbox` in the same transaction as the recall header. Payload: `business_id`, `product_id`, `lot_id`, `lot_number`, `recall_reference`, `reason`, `severity`, `quarantined_units`, `warehouses_affected`, `downstream_customers`. Idempotency key `product.recall.opened:<recall_id>` with `ON CONFLICT (idempotency_key) DO NOTHING` (partial unique index confirmed). `src/test/architecture/recall-rpc.test.ts` grew a 4th test enforcing the outbox insert + idempotency clause.
+- **Step 1 code side (DONE; runtime blocked).** `supabase/functions/stock-quant-drift/index.ts` refactored to shared `_shared/requireCronAuth.ts` middleware (matches every other cron function). `supabase/config.toml` sets `verify_jwt = false`. Cron job `nightly-stock-quant-drift` rescheduled at `15 2 * * *` UTC via `supabase--insert` using `public.cron_caller_auth_header()`.
 
-**Blocked (not caused by this thread):**
-- `nightly-stock-quant-drift` (and every other cron-triggered function in this project) returns 401 (`{"error":"unauthorized"}`). Evidence in `net._http_response` shows `check-leave-expiry`, `update-overdue-invoices`, etc. all fail identically. **Root cause: the vault secret `cron_caller_jwt` is stale relative to `SUPABASE_SERVICE_ROLE_KEY`.** One vault rotation unblocks the entire cron surface. Do not chase this per-function.
+**Blocked (pre-existing, project-wide — NOT caused by this thread):**
+- `nightly-stock-quant-drift` (and every other cron-triggered function in this project) returns 401 (`{"error":"unauthorized"}`). Evidence in `net._http_response`: `check-leave-expiry`, `update-overdue-invoices`, etc. all fail identically. **Root cause: the vault secret `cron_caller_jwt` is stale relative to `SUPABASE_SERVICE_ROLE_KEY`.** One vault rotation unblocks the entire cron surface. Do NOT chase this per-function.
+
+**What remains (priority order):**
+1. **Ops:** rotate `cron_caller_jwt` in Supabase Vault → unblocks Step 1 runtime. No code.
+2. **Step 5 worker:** `recall-notification-worker` edge function. Blocked on product-owner sign-off for notification copy; scaffold ready once wording lands.
+3. **Step 6:** five importer batch handlers (`barcode`, `batch`, `warehouseStock`, `price`, `supplier`) mirroring `createProductMasterBatchMigrationHandler`.
+4. **Steps 2 + 3:** `warehouse_stock` → `stock_quants` reader migration, then drop legacy tables. **Gated on 14 consecutive zero-drift rows in `stock_quant_drift_runs`** (Step 1 must be unblocked and running for 14 nights first).
+5. **Audit gaps G1–G3:** need product/finance-owner input first.
+
+**Recommended next pick for the following agent: Step 6 (importer batch handlers).** Rationale: it is the only remaining item that is (a) fully unblocked, (b) self-contained, (c) has a clear template in `createProductMasterBatchMigrationHandler`, (d) needs no product-owner or ops input. Step 5's worker is next-best but stalls on copy. Steps 2/3 are gated on Step 1's ops fix + 14-day evidence window. G1–G3 are gated on stakeholder input.
 
 ## Next action on resume (for the following agent)
 
