@@ -1,1 +1,4 @@
 project_id = "jkszmrroyjfdwokbkzis"
+
+[functions.stock-quant-drift]
+verify_jwt = false
