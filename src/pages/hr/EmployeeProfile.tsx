@@ -31,6 +31,7 @@ import { EmployeeLeaveSummary } from "@/components/employees/EmployeeLeaveSummar
 import { EmployeePayslipHistory } from "@/components/employees/EmployeePayslipHistory";
 import { EmployeePayrollInfo } from "@/components/employees/EmployeePayrollInfo";
 import { EmployeeCustomDeductionsSection } from "@/components/payroll/EmployeeCustomDeductionsSection";
+import { PayrollSectionTabs } from "@/components/payroll/PayrollSectionTabs";
 import { EmployeeDraftBanner } from "@/components/employees/EmployeeDraftBanner";
 import { EmployeeReadinessPanel } from "@/components/payroll/EmployeeReadinessPanel";
 import { EmployeeDocumentsTab } from "@/components/employees/EmployeeDocumentsTab";
@@ -237,12 +238,11 @@ export default function EmployeeProfilePage() {
           {active === "attendance" && <EmployeeAttendanceSummary employeeId={employee.id} />}
           {active === "timesheets" && <EmployeeTimesheetSummary employeeId={employee.id} />}
           {active === "payroll" && (
-            <div className="space-y-4">
-              {canViewPayrollRuns && <EmployeeReadinessPanel employeeId={employee.id} />}
-              {canViewEmpPayroll && <EmployeePayrollInfo employee={employee} />}
-              {canViewEmpPayroll && <EmployeeCustomDeductionsSection employeeId={employee.id} />}
-              {canViewPayrollRuns && <EmployeePayslipHistory employeeId={employee.id} />}
-            </div>
+            <PayrollSectionTabs
+              employee={employee}
+              canViewPayrollRuns={canViewPayrollRuns}
+              canViewEmpPayroll={canViewEmpPayroll}
+            />
           )}
           {active === "benefits" && (
             <BenefitsAndAssetsSection
