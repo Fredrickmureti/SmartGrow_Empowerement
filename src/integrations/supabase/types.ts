@@ -50660,11 +50660,14 @@ export type Database = {
           id: string
           is_active: boolean
           is_default: boolean
+          is_putaway_target: boolean
+          is_receiving_staging: boolean
           location_type: Database["public"]["Enums"]["stock_location_type"]
           name: string
           organization_id: string
           parent_location_id: string | null
           pick_sequence: number | null
+          putaway_priority: number
           structure_level: string | null
           updated_at: string
           usage: Database["public"]["Enums"]["stock_location_usage"]
@@ -50682,11 +50685,14 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_default?: boolean
+          is_putaway_target?: boolean
+          is_receiving_staging?: boolean
           location_type?: Database["public"]["Enums"]["stock_location_type"]
           name: string
           organization_id: string
           parent_location_id?: string | null
           pick_sequence?: number | null
+          putaway_priority?: number
           structure_level?: string | null
           updated_at?: string
           usage?: Database["public"]["Enums"]["stock_location_usage"]
@@ -50704,11 +50710,14 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_default?: boolean
+          is_putaway_target?: boolean
+          is_receiving_staging?: boolean
           location_type?: Database["public"]["Enums"]["stock_location_type"]
           name?: string
           organization_id?: string
           parent_location_id?: string | null
           pick_sequence?: number | null
+          putaway_priority?: number
           structure_level?: string | null
           updated_at?: string
           usage?: Database["public"]["Enums"]["stock_location_usage"]
@@ -56242,6 +56251,67 @@ export type Database = {
           },
         ]
       }
+      wms_putaway_suggestions: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          chosen: boolean
+          created_at: string
+          id: string
+          location_id: string
+          organization_id: string
+          rank: number
+          reason: string
+          task_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          chosen?: boolean
+          created_at?: string
+          id?: string
+          location_id: string
+          organization_id: string
+          rank: number
+          reason: string
+          task_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          chosen?: boolean
+          created_at?: string
+          id?: string
+          location_id?: string
+          organization_id?: string
+          rank?: number
+          reason?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_putaway_suggestions_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_putaway_suggestions_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_putaway_suggestions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_tasks: {
         Row: {
           assignee_user_id: string | null
@@ -56255,6 +56325,7 @@ export type Database = {
           id: string
           lot_number: string | null
           lpn_id: string | null
+          metadata: Json
           notes: string | null
           organization_id: string
           priority: number
@@ -56282,6 +56353,7 @@ export type Database = {
           id?: string
           lot_number?: string | null
           lpn_id?: string | null
+          metadata?: Json
           notes?: string | null
           organization_id: string
           priority?: number
@@ -56309,6 +56381,7 @@ export type Database = {
           id?: string
           lot_number?: string | null
           lpn_id?: string | null
+          metadata?: Json
           notes?: string | null
           organization_id?: string
           priority?: number
@@ -64496,6 +64569,7 @@ export type Database = {
         Args: { _transfer_id: string; _verification_token: string }
         Returns: Json
       }
+      complete_putaway_task: { Args: { p_task_id: string }; Returns: Json }
       complete_stock_transfer_atomic: {
         Args: { p_items: Json; p_transfer_id: string; p_user_id: string }
         Returns: Json
@@ -70198,6 +70272,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      receive_goods_to_wms: {
+        Args: { p_goods_receipt_id: string; p_staging_location_id: string }
+        Returns: Json
+      }
       reclaim_stale_business_events: {
         Args: never
         Returns: {
@@ -71575,6 +71653,18 @@ export type Database = {
         Returns: string
       }
       subscription_active_for_org: { Args: { p_org: string }; Returns: boolean }
+      suggest_putaway_locations: {
+        Args: {
+          p_product_id: string
+          p_quantity: number
+          p_warehouse_id: string
+        }
+        Returns: {
+          location_id: string
+          rank: number
+          reason: string
+        }[]
+      }
       sync_pack_onboarding_items: {
         Args: { p_business_id: string }
         Returns: undefined
