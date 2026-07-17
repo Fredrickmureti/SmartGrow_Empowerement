@@ -49,7 +49,15 @@ export type DomainEventType =
   | 'stock.transfer.approved'
   | 'stock.transfer.completed'
   | 'stock.count.completed'
-  | 'stock.count.cancelled';
+  | 'stock.count.cancelled'
+  // Warehouse (WMS) — Phase 1. Emitted by DB triggers on wms_tasks and
+  // wms_license_plates. See ADR 0079.
+  | 'warehouse.task.assigned'
+  | 'warehouse.task.started'
+  | 'warehouse.task.completed'
+  | 'warehouse.task.cancelled'
+  | 'warehouse.plate.moved'
+  | 'warehouse.plate.sealed';
 
 export interface DomainEvent<P = unknown> {
   id?: string;

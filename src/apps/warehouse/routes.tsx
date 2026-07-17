@@ -19,6 +19,9 @@ const Warehouses = lazy(() => import("@/pages/Warehouses"));
 const WarehouseNew = lazy(() => import("@/pages/inventory/WarehouseNew"));
 const WarehouseEdit = lazy(() => import("@/pages/inventory/WarehouseEdit"));
 const WarehouseView = lazy(() => import("@/pages/inventory/WarehouseView"));
+const LicensePlates = lazy(() => import("@/pages/warehouse/LicensePlates"));
+const LicensePlateView = lazy(() => import("@/pages/warehouse/LicensePlateView"));
+const OperatorTasks = lazy(() => import("@/pages/warehouse/OperatorTasks"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
@@ -81,6 +84,31 @@ export function WarehouseApp() {
               <LazyRoute module="Warehouse Layout">
                 <WarehouseLayoutPage />
               </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="plates"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="License Plates"><LicensePlates /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="plates/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="License Plate"><LicensePlateView /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="tasks"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Operator Tasks"><OperatorTasks /></LazyRoute>
             </SubscriptionProtectedRoute>
           }
         />

@@ -109,7 +109,7 @@ function buildTree(rows: LocationRow[]): TreeNode[] {
 export default function WarehouseLayoutPage() {
   const { warehouses, isLoading: whLoading } = useWarehouses();
   const { currentBusiness } = useBusinesses();
-  const { currentOrganization } = useOrganization();
+  const { currentOrg } = useOrganization();
   const { user } = useAuth();
   const qc = useQueryClient();
 
@@ -157,25 +157,24 @@ export default function WarehouseLayoutPage() {
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!activeWarehouseId || !currentBusiness?.id || !currentOrganization?.id) {
+      if (!activeWarehouseId || !currentBusiness?.id || !currentOrg?.id) {
         throw new Error("Select a warehouse first.");
       }
+      const usage: "receive" | "ship" | "storage" =
+        form.structure_level === "dock" ? "receive"
+        : form.structure_level === "staging_out" ? "ship"
+        : form.structure_level === "staging_in" ? "receive"
+        : "storage";
       const payload = {
         warehouse_id: activeWarehouseId,
         parent_location_id: addParent?.id ?? null,
-        organization_id: currentOrganization.id,
+        organization_id: currentOrg.id,
         business_id: currentBusiness.id,
         branch_id: warehouses.find((w) => w.id === activeWarehouseId)?.branch_id ?? null,
         code: form.code.trim(),
         name: form.name.trim() || form.code.trim(),
-        location_type: "internal",
-        usage: form.structure_level === "dock"
-          ? "receive"
-          : form.structure_level === "staging_out"
-            ? "ship"
-            : form.structure_level === "staging_in"
-              ? "receive"
-              : "storage",
+        location_type: "internal" as const,
+        usage,
         structure_level: form.structure_level,
         barcode: form.barcode.trim() || null,
         pick_sequence: form.pick_sequence ? Number(form.pick_sequence) : null,
