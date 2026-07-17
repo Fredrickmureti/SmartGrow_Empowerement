@@ -242,6 +242,52 @@ export default function LicensePlateView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        <Section title="Putaway suggestions" description="Bins the WMS ranks for this plate. #1 is preselected on the task destination.">
+          <Card>
+            <CardContent className="p-4">
+              {(suggestions ?? []).length === 0 ? (
+                <div className="text-sm text-muted-foreground">No open putaway task references this plate.</div>
+              ) : (
+                <ul className="text-sm divide-y">
+                  {suggestions!.map((s) => (
+                    <li key={s.id} className="py-2 flex justify-between">
+                      <span>
+                        <span className="font-mono mr-2">#{s.rank}</span>
+                        {s.location?.code ?? "—"} · {s.location?.name ?? ""}
+                        <span className="text-muted-foreground ml-2">{s.reason}</span>
+                      </span>
+                      {s.chosen ? <StatusBadge tone="success">chosen</StatusBadge> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </Section>
+      </PageBody>
+
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Move license plate</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Select value={moveDest} onValueChange={setMoveDest}>
+                <SelectTrigger><SelectValue placeholder="Choose destination location" /></SelectTrigger>
+                <SelectContent>
+                  {(locations ?? []).map((l) => (
+                    <SelectItem key={l.id} value={l.id}>{l.code} · {l.name}{l.is_default ? " (default)" : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Textarea placeholder="Optional note" value={moveNote} onChange={(e) => setMoveNote(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancel</Button>
+            <Button onClick={() => move.mutate()} disabled={move.isPending || !moveDest}>Move</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
