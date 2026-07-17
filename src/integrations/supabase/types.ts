@@ -56251,6 +56251,84 @@ export type Database = {
           },
         ]
       }
+      wms_pack_cartons: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          height_cm: number | null
+          id: string
+          length_cm: number | null
+          opened_at: string
+          opened_by: string | null
+          organization_id: string
+          sales_order_id: string
+          sealed_at: string | null
+          sealed_by: string | null
+          shipment_lpn_id: string | null
+          updated_at: string
+          warehouse_id: string | null
+          wave_id: string
+          weight_kg: number | null
+          width_cm: number | null
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          height_cm?: number | null
+          id?: string
+          length_cm?: number | null
+          opened_at?: string
+          opened_by?: string | null
+          organization_id: string
+          sales_order_id: string
+          sealed_at?: string | null
+          sealed_by?: string | null
+          shipment_lpn_id?: string | null
+          updated_at?: string
+          warehouse_id?: string | null
+          wave_id: string
+          weight_kg?: number | null
+          width_cm?: number | null
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          height_cm?: number | null
+          id?: string
+          length_cm?: number | null
+          opened_at?: string
+          opened_by?: string | null
+          organization_id?: string
+          sales_order_id?: string
+          sealed_at?: string | null
+          sealed_by?: string | null
+          shipment_lpn_id?: string | null
+          updated_at?: string
+          warehouse_id?: string | null
+          wave_id?: string
+          weight_kg?: number | null
+          width_cm?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_pack_cartons_shipment_lpn_id_fkey"
+            columns: ["shipment_lpn_id"]
+            isOneToOne: false
+            referencedRelation: "wms_license_plates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_pack_cartons_wave_id_fkey"
+            columns: ["wave_id"]
+            isOneToOne: false
+            referencedRelation: "wms_pick_waves"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_pick_wave_lines: {
         Row: {
           branch_id: string | null
@@ -56259,6 +56337,7 @@ export type Database = {
           id: string
           lot_number: string | null
           organization_id: string
+          packed_carton_id: string | null
           product_id: string
           quantity_ordered: number
           quantity_packed: number
@@ -56274,6 +56353,7 @@ export type Database = {
           id?: string
           lot_number?: string | null
           organization_id: string
+          packed_carton_id?: string | null
           product_id: string
           quantity_ordered: number
           quantity_packed?: number
@@ -56289,6 +56369,7 @@ export type Database = {
           id?: string
           lot_number?: string | null
           organization_id?: string
+          packed_carton_id?: string | null
           product_id?: string
           quantity_ordered?: number
           quantity_packed?: number
@@ -56298,6 +56379,13 @@ export type Database = {
           wave_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_pick_wave_lines_packed_carton_id_fkey"
+            columns: ["packed_carton_id"]
+            isOneToOne: false
+            referencedRelation: "wms_pack_cartons"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_pick_wave_lines_sales_order_id_fkey"
             columns: ["sales_order_id"]
@@ -63780,6 +63868,10 @@ export type Database = {
         }
         Returns: string
       }
+      assign_line_to_carton: {
+        Args: { p_carton_id: string; p_qty: number; p_wave_line_id: string }
+        Returns: Json
+      }
       assign_procurement_recommendation: {
         Args: { p_assignee: string; p_rec_id: string }
         Returns: undefined
@@ -64698,10 +64790,7 @@ export type Database = {
         Args: { _transfer_id: string; _verification_token: string }
         Returns: Json
       }
-      complete_pack_task: {
-        Args: { p_shipment_lpn_code?: string; p_wave_id: string }
-        Returns: Json
-      }
+      complete_pack_task: { Args: { p_task_id: string }; Returns: Json }
       complete_pick_task: {
         Args: { p_lpn_id?: string; p_picked_qty: number; p_task_id: string }
         Returns: Json
@@ -68093,6 +68182,14 @@ export type Database = {
         Returns: string
       }
       notify_probation_expiry: { Args: never; Returns: number }
+      open_pack_carton: {
+        Args: {
+          p_sales_order_id: string
+          p_shipment_lpn_code?: string
+          p_wave_id: string
+        }
+        Returns: string
+      }
       open_pos_shift_safe: {
         Args: {
           p_notes?: string
@@ -71558,6 +71655,10 @@ export type Database = {
       }
       schedule_organization_deletion: {
         Args: { p_grace_days?: number; p_org_id: string; p_reason?: string }
+        Returns: Json
+      }
+      seal_pack_carton: {
+        Args: { p_carton_id: string; p_dims?: Json; p_weight_kg?: number }
         Returns: Json
       }
       seed_app_data: {
