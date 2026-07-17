@@ -64,6 +64,7 @@ import {
   type ProductPackagingEditorHandle,
 } from "@/components/products/ProductPackagingEditor";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
+import { ProductVariantsPanel } from "@/features/inventory/variants/ProductVariantsPanel";
 import {
   EtimsUnitCodeSelect,
   EtimsPackagingCodeSelect,
@@ -1073,6 +1074,41 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
             />
           </FieldGrid>
         </Section>
+      )}
+
+      {/* Variants (edit mode only — parent must exist before children can be attached) */}
+      {editing?.id && currentBusiness?.id && currentOrg?.id && (
+        <ProductVariantsPanel
+          productId={editing.id}
+          businessId={currentBusiness.id}
+          organizationId={currentOrg.id}
+          parentSku={formData.sku || null}
+          isVariantParent={!!(editing as any).is_variant_parent}
+          onParentFlagChange={(next) => {
+            // Local state is intentionally not tracked here — the panel writes
+            // the flag directly to the DB before inserting children. Refresh
+            // the products cache so the flag propagates.
+            queryClient.invalidateQueries({ queryKey: ["products"] });
+            void next;
+          }}
+          parentDefaults={{
+            unit_price: formData.unit_price,
+            cost_price: formData.cost_price,
+            tax_rate: formData.tax_rate,
+            tax_rate_id: (formData as any).tax_rate_id ?? null,
+            category_id: (formData as any).category_id ?? null,
+            base_uom_id: (formData as any).base_uom_id ?? null,
+            sales_uom_id: (formData as any).sales_uom_id ?? null,
+            purchase_uom_id: (formData as any).purchase_uom_id ?? null,
+            is_lot_tracked: (formData as any).is_lot_tracked ?? false,
+            is_serial_tracked: (formData as any).is_serial_tracked ?? false,
+            is_expiry_tracked: (formData as any).is_expiry_tracked ?? false,
+            track_inventory: formData.track_inventory,
+            image_url: formData.image_url,
+            description: formData.description,
+            parentName: formData.name,
+          }}
+        />
       )}
 
       {/* Custom fields */}
