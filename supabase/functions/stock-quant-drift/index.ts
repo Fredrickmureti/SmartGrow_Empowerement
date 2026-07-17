@@ -1,4 +1,4 @@
-// Nightly drift check: compares stock_quants vs legacy warehouse_stock
+// Nightly drift check v2 — compares stock_quants vs legacy warehouse_stock
 // per (business, product, warehouse) and records a run row via
 // public.record_stock_quant_drift_run. Precondition for retiring
 // warehouse_stock (ADR 0075, followup ADR 0076).
