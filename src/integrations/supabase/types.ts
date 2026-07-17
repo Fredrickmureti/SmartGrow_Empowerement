@@ -62317,6 +62317,10 @@ export type Database = {
         Args: { _cadence: string; _from: string }
         Returns: string
       }
+      allocate_landed_cost_bill: {
+        Args: { p_bill_id: string; p_goods_receipt_ids?: string[] }
+        Returns: number
+      }
       amend_contract: {
         Args: {
           p_changes: Json
@@ -67517,6 +67521,7 @@ export type Database = {
         Returns: number
       }
       mask_sensitive_value: { Args: { p_value: string }; Returns: string }
+      match_bill_to_grn: { Args: { p_bill_id: string }; Returns: number }
       materialize_pack_requirements: {
         Args: { p_business_id: string; p_pack_id: string }
         Returns: number

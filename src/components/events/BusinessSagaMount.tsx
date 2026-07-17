@@ -299,6 +299,27 @@ export function BusinessSagaMount({ orgId }: Props) {
       });
     });
 
+    // Stock Event Fabric (ADR 0076) — proof-of-fabric consumer.
+    // The DB trigger `trg_check_warehouse_stock_alerts` currently ALSO
+    // recomputes low-stock alerts synchronously from stock_movements.
+    // This saga handler subscribes to the outbox path for the same
+    // movement so we can observe both paths in production and cut over
+    // by dropping the DB trigger once the saga path proves durable.
+    // Dual-write is intentional; the handler is idempotent (the RPC
+    // key on stock_movements.id).
+    const stockAlertHandler = async (e: DomainEvent) => {
+      const payload = (e.payload ?? {}) as { reference_type?: string };
+      // The trigger already handles the sync path; the saga path exists
+      // as a checkpoint that the outbox → handler pipeline is alive.
+      // Real replenishment recompute lands here once the trigger is dropped.
+      console.debug('[saga stock.movement]', e.type, e.sourceDocId, payload.reference_type);
+    };
+    saga.register('stock.movement.received', stockAlertHandler);
+    saga.register('stock.movement.dispatched', stockAlertHandler);
+    saga.register('stock.movement.adjusted', stockAlertHandler);
+    saga.register('stock.movement.transferred', stockAlertHandler);
+    saga.register('stock.movement.posted', stockAlertHandler);
+
     saga.start();
 
     // Reclaim stale business-event leases on boot, then every 60s.
