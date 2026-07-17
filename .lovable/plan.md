@@ -1,64 +1,44 @@
-# Inventory Foundation — Verification & Next Steps
+# Resume: complete localization-pack deployment, then resume inventory audit
 
-## Phase 1 — Verification of prior engineer's claims
+App is now published, which unblocks the delete tool. Router code + all client callers already migrated to `invokeLocalizationPack` in a prior turn. Only the deploy/delete/verify steps remain before we can deploy `stock-quant-drift` and get back to the inventory audit backlog.
 
-Spot-checked every "completed" claim in `.lovable/plan.md` against the filesystem and migration history:
+## Step 1 — Verify current state (read-only)
+- Confirm `supabase/functions/localization-pack/index.ts` + all 9 `ops/*.ts` exist and compile.
+- Confirm no in-app caller still targets a legacy function name via `supabase.functions.invoke("install-localization-pack", …)` etc. — every path should go through `invokeLocalizationPack`.
+- Confirm architecture tests point at `supabase/functions/localization-pack/ops/*`.
+- Check for any pg_cron migration referencing `process-localization-outbox` that needs repointing.
 
-| Claim | Verified |
-|---|---|
-| ADRs 0073 (recall), 0074 (import split), 0075 (drift log) present | ✅ |
-| Six split import configs under `src/lib/importConfigs/product/` | ✅ 6 files present |
-| Guards `product-variants.test.ts`, `recall-rpc.test.ts`, `product-imports-are-split.test.ts` | ✅ all present |
-| `stock_quant_drift_runs` table + GRANTs + RLS + `record_stock_quant_drift_run` RPC | ✅ in `20260717010251_*.sql` |
-| Variant-aware read paths (`useProducts`, `useProductsPaginated`, `useBranchScopedProducts`, `Products.tsx` opt-in) | ✅ |
-| POS GS1 wiring + GRN AI-17/AI-11 persistence | ✅ |
-| Recall RPC + `LotDetail.tsx` action | ✅ |
+## Step 2 — Free slots
+Delete the 9 legacy edge functions in a single call:
+`install-localization-pack`, `apply-localization-pack-upgrade`, `rollback-localization-pack-upgrade`, `propose-localization-upgrades`, `promote-pack-version`, `publish-localization-pack-version`, `lint-localization-pack`, `validate-localization-payload`, `process-localization-outbox`.
 
-The handoff log is truthful. No claimed-complete item is missing or superficial.
+## Step 3 — Deploy
+Deploy `localization-pack` router. Then deploy `stock-quant-drift` (the inventory function that was originally blocked by the slot ceiling).
 
-## Phase 2 — Explicit deferred backlog (unchanged, still owed)
+## Step 4 — Verify parity via `curl_edge_functions`
+For each op, one happy-path + one auth/validation failure:
+- `validate` (anonymous) → 200 on valid payload, 400 on missing field.
+- `promote` / `apply` / `rollback` / `publish` → 401 without auth header.
+- `lint` → 200 with `{issues: [...]}` shape.
+- `process-outbox` → 200 no-op envelope.
+- `install` → 400 on missing `pack_id`.
+- Unknown op → 400 with `code=BAD_REQUEST`.
 
-In dependency order — each item unblocks the next:
+Report byte-shape parity vs. what the legacy functions returned (envelopes are preserved verbatim in the moved ops).
 
-1. **Nightly `stock-quant-drift` edge function + pg_cron schedule** (starts the 14-day evidence window). No such function exists yet under `supabase/functions/`.
-2. **`warehouse_stock` → `stock_quants` reader migration** — rewrite `src/lib/inventory/readOnHand.ts` first, then route ~139 refs across 39 files through it. Extend the architecture-guard allowlist.
-3. **ADR 0076 + drop `warehouse_stock` / `warehouse_stock_lots`** — preflight snapshot into `stock_adjustment_backfill_log`; gated on ≥14 zero-drift runs.
-4. **Server-side variant-parent filter in `list_products_with_branch_stock` RPC** — remove the client-side parent-id fetch in `useBranchScopedProducts`.
-5. **Recall outbox event `product.recall.opened` + notification worker** using the returned manifest.
-6. **Per-artefact batch handlers for the 5 non-master split importers** (barcode, batch, warehouse-stock, price, supplier) with idempotency keys + outbox events per ADR 0074.
+## Step 5 — Cleanup
+- Remove the legacy source folders `supabase/functions/<legacy-name>/` from the repo (they'll otherwise be re-deployed).
+- Grep for any stragglers referencing legacy names outside of `invokeLocalizationPack.ts` (that helper intentionally keeps them as string literals for grep-continuity).
 
-Nothing to append from an independent review — the enterprise gaps flagged in the parent prompt (traceability, GS1, variants, ASN, serials, quants, import split, recall) are already in-plan or shipped. The one deferred design question worth flagging: item 6's warehouse-stock batch handler must write to `stock_quants` (never legacy `warehouse_stock`) so it doesn't create new debt for item 2.
+## Step 6 — Resume inventory audit
+Once the slot is free and `stock-quant-drift` is deployed, pick up the inventory foundation audit at the last genuinely-completed milestone. That resumption is out of scope for this turn — this plan is scoped strictly to unblocking the deploy.
 
-## Phase 3 — This session's execution: Step 1 (drift job)
+## Risks
+- **Cron dependency on `process-localization-outbox`**: if a Supabase-dashboard cron (not in repo migrations) points at the legacy URL, it will 404 after deletion. Mitigation: grep migrations for `pg_cron` / `cron.schedule` referencing that name; if found in repo, patch to hit `localization-pack` with `{"op":"process-outbox"}`. If not in repo, flag to user to repoint in the dashboard.
+- **Legacy source folders left in repo**: if not deleted, the next deploy cycle re-creates them and re-consumes slots. Step 5 handles this.
+- **Router cold-start**: acceptable per the consolidation plan; ops share `_shared` heavily.
 
-Standalone, low-risk, unblocks the retirement clock.
-
-### 3.1 Edge function `supabase/functions/stock-quant-drift/index.ts`
-- POST body: `{ organization_id: string }` (zod-validated), plus `verify_jwt = false` in `supabase/config.toml` since pg_cron calls it with the anon key.
-- CORS headers; JWT-in-code guard: require `Authorization: Bearer <SUPABASE_ANON_KEY>` header match to reject anonymous callers off-schedule.
-- Uses the service-role client to:
-  1. Insert a `stock_quant_drift_runs` row with `status='running'`.
-  2. Paginate products for the org (500/page); per page aggregate `stock_quants.quantity` vs `warehouse_stock.quantity` grouped by `(business_id, product_id, warehouse_id)`.
-  3. Accumulate: `products_checked`, `drifted_rows`, `total_drift_qty`, top-10 offenders sample (JSON).
-  4. On success call `record_stock_quant_drift_run(...)` with `status='completed'`; on throw, mark `failed` with `error_message`.
-- Returns JSON summary for cron observability.
-
-### 3.2 Cron schedule via `supabase--insert` (NOT migration)
-- `cron.schedule('nightly-stock-quant-drift', '15 2 * * *', $$ select net.http_post(...) $$)` — one row per active org, or a single dispatcher row that fans out inside SQL. Prefer the single-row dispatcher (SELECT loop over organizations) to keep the schedule table small.
-- Embeds function URL + anon key — this is exactly why the rule says use `supabase--insert`, not `supabase--migration`.
-
-### 3.3 Verification
-- Manually invoke the function once from the dashboard for one org; assert a `stock_quant_drift_runs` row is written with `status='completed'`.
-- Nothing else changes this session — no reader migration, no table drops.
-
-## Guardrails carried forward
-- No new `warehouse_stock` readers.
-- Every new public-schema table needs `GRANT`s in the same migration.
-- Guards land with the code they protect.
-- 62 pre-existing architecture-test failures are out of scope for this thread.
-- Legacy `productImportConfig.ts` is a compat shim only.
-
-## Out of scope for this session
-- Reader migration to `stock_quants` (item 2) — waits on drift evidence.
-- Dropping `warehouse_stock` (item 3) — waits on item 2.
-- Items 4–6 — sequenced after retirement lands.
+## Not doing
+- No behavioural changes to any op logic.
+- No inventory code changes this turn.
+- No publish call (user already published).
