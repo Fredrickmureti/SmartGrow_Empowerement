@@ -1,12 +1,19 @@
 /**
- * PickList — operator screen for a single pick wave.
+ * PickList — scan-first operator screen for a single pick wave.
  *
- * Lists pending pick tasks for the wave. `Confirm` calls
- * `complete_pick_task(p_task_id, p_picked_qty)` — the RPC is the only
- * sanctioned way to close a pick task; it rolls up wave line quantities
- * and advances the wave state when the last task finishes.
+ * Phase 4a — Scanner-driven directed picking.
+ *
+ * The operator scans a **bin** and a **product**; the screen resolves
+ * both against the wave's open pick tasks and highlights the single
+ * matching row. Confirm fires the sanctioned `complete_pick_task(...)`
+ * RPC — the only path that decrements quants and rolls up the wave.
+ *
+ * Wrong-bin or wrong-product scans surface an inline warning and are
+ * refused (the Confirm button on non-matching rows stays live for
+ * supervisor override, but the highlighted "scan target" is always the
+ * matching task).
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +29,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Check, PackageCheck } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, Check, PackageCheck, ScanLine, X, MapPin, Package } from "lucide-react";
+import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranch } from "@/contexts/BranchContext";
+import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
+import { cn } from "@/lib/utils";
 
 interface PickTask {
   id: string;
@@ -48,7 +61,19 @@ const STATE_TONE = {
 export default function PickList() {
   const { waveId } = useParams<{ waveId: string }>();
   const qc = useQueryClient();
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranch();
+  const { resolveTagged } = useResolveBarcode(currentBusiness?.id, currentBranch?.id ?? null);
+
   const [pickedQty, setPickedQty] = useState<Record<string, string>>({});
+
+  // Scan state.
+  const [binCode, setBinCode] = useState("");
+  const [productCode, setProductCode] = useState("");
+  const [scanProductId, setScanProductId] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const productRef = useRef<HTMLInputElement | null>(null);
+  const rowRefs = useRef<Record<string, HTMLLIElement | null>>({});
 
   const { data: wave } = useQuery({
     queryKey: ["wms-pick-wave", waveId],
@@ -95,6 +120,11 @@ export default function PickList() {
       qc.invalidateQueries({ queryKey: ["wms-pick-tasks", waveId] });
       qc.invalidateQueries({ queryKey: ["wms-pick-wave", waveId] });
       qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
+      // Clear the scan strip so the operator moves to the next bin.
+      setBinCode("");
+      setProductCode("");
+      setScanProductId(null);
+      setScanError(null);
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Pick failed"),
   });
@@ -104,6 +134,68 @@ export default function PickList() {
     [tasks],
   );
   const done = useMemo(() => (tasks ?? []).filter((t) => t.state === "done"), [tasks]);
+
+  // Resolve the currently scanned bin+product to the single matching task.
+  // A match requires: bin code equals task.source_loc.code (case-insensitive)
+  // AND scanned product resolves to task.product_id.
+  const matched = useMemo(() => {
+    const bin = binCode.trim().toLowerCase();
+    if (!bin || !scanProductId) return null;
+    return open.find(
+      (t) =>
+        (t.source_loc?.code ?? "").toLowerCase() === bin &&
+        t.product_id === scanProductId,
+    ) ?? null;
+  }, [binCode, scanProductId, open]);
+
+  // Recompute scan diagnostics whenever inputs change.
+  useEffect(() => {
+    if (!binCode.trim() && !scanProductId) {
+      setScanError(null);
+      return;
+    }
+    if (binCode.trim() && !open.some((t) => (t.source_loc?.code ?? "").toLowerCase() === binCode.trim().toLowerCase())) {
+      setScanError(`No open pick at bin ${binCode.trim()}.`);
+      return;
+    }
+    if (scanProductId && !open.some((t) => t.product_id === scanProductId)) {
+      setScanError("Scanned product is not on this wave.");
+      return;
+    }
+    if (binCode.trim() && scanProductId && !matched) {
+      setScanError("Wrong bin for this product.");
+      return;
+    }
+    setScanError(null);
+  }, [binCode, scanProductId, open, matched]);
+
+  // Scroll match into view + prefill qty.
+  useEffect(() => {
+    if (!matched) return;
+    rowRefs.current[matched.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setPickedQty((p) =>
+      p[matched.id] != null ? p : { ...p, [matched.id]: String(matched.quantity ?? "") },
+    );
+  }, [matched]);
+
+  const handleProductScan = useCallback(
+    async (code: string) => {
+      if (!code.trim()) {
+        setScanProductId(null);
+        return;
+      }
+      const result = await resolveTagged(code);
+      if (result.kind === "hit") {
+        setScanProductId(result.row.productId);
+      } else if (result.kind === "miss") {
+        setScanProductId(null);
+        setScanError(`Unknown code: ${code}`);
+      } else {
+        setScanError("Scanner network blip — try again.");
+      }
+    },
+    [resolveTagged],
+  );
 
   return (
     <>
@@ -124,7 +216,89 @@ export default function PickList() {
         }
       />
       <PageBody>
-        <Section title="Open picks" description="Confirm the picked quantity against each task. Short-picks are allowed.">
+        {/* Scan-first strip. Sticky so it stays visible on long wave lists. */}
+        <Section title="Directed pick" description="Scan the bin, then scan the product. The matching task highlights and pre-fills.">
+          <Card className={cn(matched && "border-emerald-500/40")}>
+            <CardContent className="p-4 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs flex items-center gap-1">
+                    <MapPin className="h-3 w-3" /> Bin
+                  </Label>
+                  <BarcodeInputField
+                    value={binCode}
+                    onChange={setBinCode}
+                    workflow="identity"
+                    fieldLabel="Bin"
+                    placeholder="Scan or type bin"
+                    nextFocusRef={productRef}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs flex items-center gap-1">
+                    <Package className="h-3 w-3" /> Product
+                  </Label>
+                  <BarcodeInputField
+                    ref={productRef as never}
+                    value={productCode}
+                    onChange={(v) => {
+                      setProductCode(v);
+                      if (!v.trim()) setScanProductId(null);
+                    }}
+                    onScan={handleProductScan}
+                    workflow="identity"
+                    fieldLabel="Product"
+                    placeholder="Scan or type product"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 min-h-6">
+                {scanError && (
+                  <span className="text-xs inline-flex items-center gap-1 text-destructive">
+                    <X className="h-3 w-3" /> {scanError}
+                  </span>
+                )}
+                {matched && !scanError && (
+                  <span className="text-xs inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <Check className="h-3 w-3" /> Match: {matched.product?.name} @ {matched.source_loc?.code}
+                  </span>
+                )}
+                {!binCode && !productCode && !scanError && (
+                  <span className="text-xs inline-flex items-center gap-1 text-muted-foreground">
+                    <ScanLine className="h-3 w-3" /> Waiting for scan…
+                  </span>
+                )}
+                {matched && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <Input
+                      className="w-24"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={pickedQty[matched.id] ?? String(matched.quantity ?? "")}
+                      onChange={(e) => setPickedQty((p) => ({ ...p, [matched.id]: e.target.value }))}
+                    />
+                    <Button
+                      size="sm"
+                      disabled={complete.isPending}
+                      onClick={() =>
+                        complete.mutate({
+                          id: matched.id,
+                          qty: Number(pickedQty[matched.id] ?? matched.quantity ?? 0),
+                        })
+                      }
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Confirm pick
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </Section>
+
+        <Section title="Open picks" description="Ordered by pick sequence. The scan strip highlights the current target.">
           <Card>
             <CardContent className="p-0">
               {isLoading ? (
@@ -140,8 +314,16 @@ export default function PickList() {
                   {open.map((t) => {
                     const suggested = t.quantity != null ? String(t.quantity) : "";
                     const val = pickedQty[t.id] ?? suggested;
+                    const isMatch = matched?.id === t.id;
                     return (
-                      <li key={t.id} className="p-3 flex flex-wrap items-center gap-3">
+                      <li
+                        key={t.id}
+                        ref={(el) => { rowRefs.current[t.id] = el; }}
+                        className={cn(
+                          "p-3 flex flex-wrap items-center gap-3 transition-colors",
+                          isMatch && "bg-emerald-500/5 ring-1 ring-inset ring-emerald-500/30",
+                        )}
+                      >
                         <StatusBadge tone={STATE_TONE[t.state]}>{t.state.replace("_", " ")}</StatusBadge>
                         <span className="font-mono text-sm">{t.source_loc?.code ?? "?"}</span>
                         <span className="text-sm flex-1">
@@ -161,6 +343,7 @@ export default function PickList() {
                         />
                         <Button
                           size="sm"
+                          variant={isMatch ? "default" : "outline"}
                           disabled={complete.isPending}
                           onClick={() => complete.mutate({ id: t.id, qty: Number(val || 0) })}
                         >
