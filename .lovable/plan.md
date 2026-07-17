@@ -99,3 +99,64 @@ Deviations from plan:
 
 Open for Phase 4: scanner-driven directed picking (bin + product scan → resolve task), multi-carton pack, cycle-count wiring against `stock_quants`.
 
+---
+
+## Handoff — Phase 4a complete (2026-07-17)
+
+Delivered (scanner-driven directed picking, UI-only on the Phase 3 substrate):
+- `src/pages/warehouse/PickList.tsx` refactored to scan-first. Dual `BarcodeInputField` (Bin + Product) at the top.
+- Barcode resolution reuses `useResolveBarcode` (RPC `pos_resolve_barcode`) — matches GTIN / SKU / alias. No new RPCs, no schema change, no new events.
+- Match logic: scanned bin + resolved product → first open `pick` task in the wave whose `source_location_id` and `product_id` match. On hit: scroll + highlight row, prefill picked qty with `quantity_requested`. On miss: inline diagnostic (wrong bin, product not in wave, unknown barcode).
+- Successful `complete_pick_task` clears both scan fields for the next pick.
+- Verified: `bunx tsgo --noEmit` clean; Phase 1/2/3 architecture tests still green (no new sanctioned mutation surface, so no new guard needed).
+
+Deviations: none — scope was intentionally kept UI-only.
+
+## Where to pick up next — Phase 4b, then 4c
+
+Chronological order matches the business-event flow (pick → pack → count). Do **4b before 4c** — the count RPC in 4c is a prerequisite for Phase 5 putaway rules trusting on-hand data.
+
+### Phase 4b — Multi-carton packing (next up)
+Fixes Phase 3 deviation: `complete_pack_task` currently mints one wave-level LPN; real operations need per-carton, per-SO shipment LPNs.
+
+1. **Migration** `wms_phase4b_multicarton.sql`:
+   - Table `wms_pack_cartons(id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, sealed_by, org_id, ...)`. RLS by business; grants for `authenticated` + `service_role`.
+   - Column `wms_pick_wave_lines.packed_carton_id uuid null references wms_pack_cartons(id)`.
+   - Backfill: on wave flip to `picked`, create one `pack` task per SO (not per wave).
+2. **RPCs**:
+   - `open_pack_carton(p_wave_id, p_sales_order_id)` — mints shipment LPN via existing LPN pattern, returns carton id.
+   - `assign_line_to_carton(p_carton_id, p_wave_line_id, p_qty)` — validates same-SO, sets `packed_carton_id`.
+   - `seal_pack_carton(p_carton_id, p_weight_kg, p_dims jsonb)` — stamps `sealed_at/by`, emits `warehouse.carton.sealed`.
+   - Rewrite `complete_pack_task`: done only when every wave line for that SO has a `packed_carton_id` and every carton is sealed. Wave `packed` derives from all pack tasks done.
+3. **Events** (add to `domainEventBus.ts` + log handlers in `BusinessSagaMount`): `warehouse.carton.opened`, `warehouse.carton.sealed`. Keep `warehouse.pack.completed` but emit per SO.
+4. **UI** — rework `src/pages/warehouse/PackStation.tsx`: one panel per open SO in the wave, "Open new carton", assign picked lines to the active carton, seal dialog captures weight + LxWxH.
+5. **Guard** — new `src/test/architecture/wms-phase4b.test.ts`: no direct `wms_pack_cartons` insert / no bare `sealed_at` UPDATE from client — must route through RPCs.
+
+### Phase 4c — Cycle counting (after 4b)
+Introduces `warehouse.count.*` and adjusts `stock_quants` through a sanctioned RPC only.
+
+1. **Migration** `wms_phase4c_cycle_count.sql`:
+   - `wms_count_sessions(id, warehouse_id, state[draft|counting|review|posted|cancelled], strategy[abc|random|targeted], posted_at, posted_by, org_id, ...)`.
+   - `wms_count_lines(session_id, location_id, product_id, lot_number, system_qty, counted_qty, variance_qty, note, counted_by, counted_at)`.
+   - RLS + grants.
+2. **RPCs**:
+   - `create_count_session(p_warehouse_id, p_strategy, p_location_ids uuid[])` — snapshots `system_qty` from `stock_quants` into lines.
+   - `record_count(p_line_id, p_counted_qty, p_note?)` — updates counted qty + variance.
+   - `post_count_session(p_session_id)` — for each non-zero-variance line, post an adjustment against `stock_quants` via the existing inventory adjustment RPC (do NOT hand-edit `stock_quants`), emit `warehouse.count.posted`, transition session to `posted`.
+3. **Events**: `warehouse.count.opened`, `warehouse.count.recorded`, `warehouse.count.posted` — register log-only handlers.
+4. **UI**: `CycleCountPlanner.tsx` (create session), `CountSession.tsx` (scan-first — reuse `BarcodeInputField` from Phase 4a: scan bin → expected products → scan product + counted qty, variance highlighted), `CountReview.tsx` (supervisor posts).
+5. **Guard** — `wms-phase4c.test.ts`: no direct `stock_quants` UPDATE anywhere in `src/pages/warehouse/**`; count sessions/lines mutated only via RPCs.
+
+### Verification checklist for the next agent (do this first)
+1. Re-read this file top-to-bottom.
+2. Confirm the last WMS migration is `wms_phase3_picking` (nothing new snuck in): `ls supabase/migrations | grep wms_`.
+3. Prove the substrate is still green: `bunx vitest run src/test/architecture/wms-phase1.test.ts src/test/architecture/wms-phase2.test.ts src/test/architecture/wms-phase3.test.ts` and `bunx tsgo --noEmit`.
+4. Only then start Phase 4b. Do not skip to Phase 5 (rule engine) or Phase 6 (dock scheduling) — 4c on-hand accuracy is their prerequisite.
+
+### Known debt carried across phases
+- `business_event_outbox` still lacks a `business_id` column — everything scopes by `org_id`. Fine for now; revisit before cross-org tenant slicing.
+- Fine-grained wave lifecycle events (`warehouse.wave.created`, `.picked`, `.closed`) not emitted — add when a saga actually needs them.
+- No `stage_out` task type yet (was in original Phase 3 plan). Only add when loading/manifest work in Phase 7 needs it.
+- Per-SO pack tasks — resolved by Phase 4b above.
+
+
