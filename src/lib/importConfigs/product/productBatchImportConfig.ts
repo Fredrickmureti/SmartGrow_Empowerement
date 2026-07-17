@@ -12,6 +12,7 @@ import {
   type RowError,
   resolveProductIds,
 } from "./_resolveProduct";
+import { emitProductImportCompleted, newBatchId } from "./_emitImportEvent";
 
 export const PRODUCT_BATCH_IMPORT_FIELDS: FieldDefinition[] = [
   { key: "sku", label: "SKU", required: false, type: "text", aliases: ["product_code", "code", "SKU"] },
@@ -69,6 +70,11 @@ export function createProductBatchBatchMigrationHandler(ctx: ImportContext) {
         imported++;
       }
     }
-    return { total: rows.length, imported, skipped: errors.length, errors };
+    const result: BatchResult = { total: rows.length, imported, skipped: errors.length, errors };
+    await emitProductImportCompleted({
+      orgId: ctx.orgId, businessId: ctx.businessId, kind: "batch",
+      batchId: newBatchId(), result, branchId: ctx.branchId, warehouseId: ctx.warehouseId,
+    });
+    return result;
   };
 }

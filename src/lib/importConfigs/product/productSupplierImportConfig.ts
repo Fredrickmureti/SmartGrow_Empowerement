@@ -11,6 +11,7 @@ import {
   type RowError,
   resolveProductIds,
 } from "./_resolveProduct";
+import { emitProductImportCompleted, newBatchId } from "./_emitImportEvent";
 
 export const PRODUCT_SUPPLIER_IMPORT_FIELDS: FieldDefinition[] = [
   { key: "sku", label: "SKU", required: true, type: "text", aliases: ["product_code", "code", "SKU"] },
@@ -95,6 +96,11 @@ export function createProductSupplierBatchMigrationHandler(ctx: ImportContext) {
         imported++;
       }
     }
-    return { total: rows.length, imported, skipped: errors.length, errors };
+    const result: BatchResult = { total: rows.length, imported, skipped: errors.length, errors };
+    await emitProductImportCompleted({
+      orgId: ctx.orgId, businessId: ctx.businessId, kind: "supplier",
+      batchId: newBatchId(), result, branchId: ctx.branchId, warehouseId: ctx.warehouseId,
+    });
+    return result;
   };
 }
