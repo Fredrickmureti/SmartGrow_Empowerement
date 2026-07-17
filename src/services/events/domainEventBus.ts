@@ -82,7 +82,6 @@ export type DomainEventType =
   | 'warehouse.appointment.arrived'
   | 'warehouse.appointment.in_progress'
   | 'warehouse.appointment.completed'
-  | 'warehouse.appointment.cancelled';
   | 'warehouse.appointment.cancelled'
   // Warehouse (WMS) — Phase 7. QC inspection lifecycle.
   | 'warehouse.qc.opened'
