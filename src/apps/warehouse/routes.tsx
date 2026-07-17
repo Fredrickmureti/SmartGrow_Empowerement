@@ -35,6 +35,8 @@ const LoadingManifestPlanner = lazy(() => import("@/pages/warehouse/LoadingManif
 const LoadingBay = lazy(() => import("@/pages/warehouse/LoadingBay"));
 const DockSchedule = lazy(() => import("@/pages/warehouse/DockSchedule"));
 const AppointmentPlanner = lazy(() => import("@/pages/warehouse/AppointmentPlanner"));
+const QCQueue = lazy(() => import("@/pages/warehouse/QCQueue"));
+const QCInspectionDetail = lazy(() => import("@/pages/warehouse/QCInspectionDetail"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
@@ -197,6 +199,9 @@ export function WarehouseApp() {
 
         <Route path="schedule" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Dock Schedule"><DockSchedule /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="schedule/new" element={<SubscriptionProtectedRoute><LazyRoute module="Schedule Appointment"><AppointmentPlanner /></LazyRoute></SubscriptionProtectedRoute>} />
+
+        <Route path="qc" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Quality Control"><QCQueue /></LazyRoute></SubscriptionProtectedRoute>} />
+        <Route path="qc/:id" element={<SubscriptionProtectedRoute><LazyRoute module="QC Inspection"><QCInspectionDetail /></LazyRoute></SubscriptionProtectedRoute>} />
 
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
