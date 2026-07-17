@@ -46,6 +46,40 @@ describe("ADR-0076 Stock Event Fabric — client wiring", () => {
   });
 });
 
+describe("Session 8 · Priority B — non-movement stock lifecycle fabric", () => {
+  const LIFECYCLE_TYPES = [
+    "stock.adjustment.posted",
+    "stock.transfer.approved",
+    "stock.transfer.completed",
+    "stock.count.completed",
+    "stock.count.cancelled",
+  ];
+
+  it("DomainEventType includes every non-movement lifecycle event", () => {
+    const src = readFileSync(join(SRC, "services/events/domainEventBus.ts"), "utf8");
+    for (const t of LIFECYCLE_TYPES) {
+      expect(src, `DomainEventType must include '${t}'`).toContain(`'${t}'`);
+    }
+  });
+
+  it("BusinessSagaMount subscribes to every non-movement lifecycle event", () => {
+    const src = readFileSync(join(SRC, "components/events/BusinessSagaMount.tsx"), "utf8");
+    for (const t of LIFECYCLE_TYPES) {
+      expect(src, `BusinessSagaMount must register '${t}'`).toContain(`'${t}'`);
+    }
+  });
+
+  it("migration files declare the three lifecycle emit triggers", () => {
+    const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql"));
+    const joined = files
+      .map((f) => readFileSync(join(MIGRATIONS, f), "utf8"))
+      .join("\n");
+    expect(joined).toMatch(/tg_stock_adjustment_emit_lifecycle/);
+    expect(joined).toMatch(/tg_stock_transfer_emit_lifecycle/);
+    expect(joined).toMatch(/tg_physical_count_emit_lifecycle/);
+  });
+});
+
 describe("ADR-0077 3-way match + landed cost — session-8 RPCs", () => {
   it("migration files declare allocate_landed_cost_bill and match_bill_to_grn", () => {
     const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql"));
@@ -54,5 +88,15 @@ describe("ADR-0077 3-way match + landed cost — session-8 RPCs", () => {
       .join("\n");
     expect(joined).toMatch(/CREATE OR REPLACE FUNCTION\s+public\.allocate_landed_cost_bill\b/);
     expect(joined).toMatch(/CREATE OR REPLACE FUNCTION\s+public\.match_bill_to_grn\b/);
+  });
+
+  it("Bill record page exposes a match-receipts action wired to match_bill_to_grn", () => {
+    const src = readFileSync(join(SRC, "features/purchases/bills/BillRecordPage.tsx"), "utf8");
+    expect(src).toContain("match_bill_to_grn");
+  });
+
+  it("Landed cost management page is registered on the Purchases router", () => {
+    const routes = readFileSync(join(SRC, "apps/purchases/routes.tsx"), "utf8");
+    expect(routes).toMatch(/landed-costs/);
   });
 });

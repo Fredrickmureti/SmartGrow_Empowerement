@@ -320,6 +320,18 @@ export function BusinessSagaMount({ orgId }: Props) {
     saga.register('stock.movement.transferred', stockAlertHandler);
     saga.register('stock.movement.posted', stockAlertHandler);
 
+    // Session 8 · Priority B — non-movement stock lifecycle consumers.
+    // Placeholder handlers so the outbox → saga path is exercised end-to-end.
+    // Feature modules can register additional listeners at any time.
+    const stockLifecycleHandler = async (e: DomainEvent) => {
+      console.debug('[saga stock.lifecycle]', e.type, e.sourceDocType, e.sourceDocId);
+    };
+    saga.register('stock.adjustment.posted', stockLifecycleHandler);
+    saga.register('stock.transfer.approved', stockLifecycleHandler);
+    saga.register('stock.transfer.completed', stockLifecycleHandler);
+    saga.register('stock.count.completed', stockLifecycleHandler);
+    saga.register('stock.count.cancelled', stockLifecycleHandler);
+
     saga.start();
 
     // Reclaim stale business-event leases on boot, then every 60s.

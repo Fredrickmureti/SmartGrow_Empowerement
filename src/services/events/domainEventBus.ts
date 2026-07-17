@@ -42,7 +42,14 @@ export type DomainEventType =
   | 'stock.movement.dispatched'
   | 'stock.movement.transferred'
   | 'stock.movement.adjusted'
-  | 'stock.movement.posted';
+  | 'stock.movement.posted'
+  // Non-movement stock lifecycle (Session 8 · Priority B). Emitted by
+  // DB triggers on stock_adjustments, stock_transfers, physical_counts.
+  | 'stock.adjustment.posted'
+  | 'stock.transfer.approved'
+  | 'stock.transfer.completed'
+  | 'stock.count.completed'
+  | 'stock.count.cancelled';
 
 export interface DomainEvent<P = unknown> {
   id?: string;

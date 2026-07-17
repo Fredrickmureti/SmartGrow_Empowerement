@@ -114,3 +114,53 @@ For A–E, produce:
 - Priority D.2: surface unmatched lines + variance chip in the Bills detail view; call `match_bill_to_grn` on bill-approval hook.
 - Priority E: end-to-end smoke of master-handler outbox emission in a scratch business.
 - Ops-blocked (unchanged): `cron_caller_jwt` rotation; Step 5 recall-notification worker; G1/G2/G3 stakeholder input.
+
+---
+
+## Session 8 completion log — 2026-07-17 (Priorities B, C.2, D.2 shipped)
+
+### Priority B — non-movement stock lifecycle events (SHIPPED, server-side)
+
+Chose **DB triggers** over RPC-body edits: safer (no touching complex
+apply/approve RPCs), guaranteed atomicity with the row change, and
+consistent with the ADR-0076 outbox pattern used by
+`tg_stock_movement_emit_event`.
+
+Migration `20260717145912_*` adds three `SECURITY DEFINER` triggers:
+
+| Trigger | Fires on | Emits |
+|---|---|---|
+| `tg_stock_adjustment_emit_lifecycle` | `stock_adjustments` transition to `approved` | `stock.adjustment.posted` |
+| `tg_stock_transfer_emit_lifecycle` | `stock_transfers` transition to `approved` / `completed|received` | `stock.transfer.approved`, `stock.transfer.completed` |
+| `tg_physical_count_emit_lifecycle` | `physical_counts` transition to `posted` / `cancelled` | `stock.count.completed`, `stock.count.cancelled` |
+
+All handlers: idempotent (`idempotency_key = 'stock.<domain>:<uuid>[:suffix]'`), transition-guarded (only on `OLD.status IS DISTINCT FROM NEW.status`), and never break the write path (exception → `RAISE WARNING`).
+
+Client-side matched via `DomainEventType` union in `domainEventBus.ts` and saga handlers in `BusinessSagaMount.tsx` (proof-of-fabric consumers logging via `console.debug` — feature modules can register additional listeners without touching the mount).
+
+### Priority C.2 — Landed cost UI (SHIPPED)
+
+- New page `src/pages/purchases/LandedCosts.tsx`: lists open landed-cost bills, exposes **Allocate** (calls `allocate_landed_cost_bill` RPC) and **Post** actions with correct status gating (`draft → allocated → posted`).
+- Registered on `/purchases/landed-costs`; nav entry added under **Insights** in `PURCHASES_NAV`.
+- Never touches `landed_cost_allocations` from the client — all allocation goes through the RPC (single source of truth).
+
+### Priority D.2 — 3-way match action on bill record (SHIPPED)
+
+- `BillRecordPage` gains a **Match receipts** button that invokes `match_bill_to_grn` and surfaces the row-count via toast (idempotent — re-running is a no-op).
+
+### Priority A cutover — reassessed (NO CHANGE REQUIRED)
+
+Investigation confirmed `trg_check_warehouse_stock_alerts` is on `warehouse_stock` (aggregate), not on `stock_movements`. It computes low-stock alerts from stock levels — a **different concern** from the ADR-0076 stock event fabric on `stock_movements`. They are **not duplicates**; no cutover is needed. Saga path remains a proof-of-fabric consumer, ready to accept real replenishment/notification handlers.
+
+### Verification
+
+- Migration accepted (linter reports 1833 pre-existing issues; 0 new from this migration).
+- `bunx tsgo --noEmit` — clean.
+- `bunx vitest run src/test/architecture/stock-event-fabric-and-landed-cost.test.ts` — 8/8 pass. Guards enforce: DomainEventType coverage, saga registration, migration presence for all triggers + RPCs, bill match wiring, landed-cost route registration.
+
+### Remaining out-of-scope (unchanged, user-blocked)
+
+- Priority E full end-to-end smoke against a scratch business (requires provisioned org + browser session).
+- Ops: `cron_caller_jwt` rotation.
+- Step 5 recall-notification worker.
+- G1/G2/G3 stakeholder input.
