@@ -570,6 +570,41 @@ export default function GoodsReceiptWizardPage() {
         throw new Error(result?.error || "Failed to complete goods receipt");
       }
 
+      // Phase H+ — persist GS1-captured AI 17 / AI 11 dates onto the
+      // just-materialised stock_lots rows. The atomic RPC creates the
+      // lot master; we upsert its expiry / manufacture columns keyed by
+      // (business_id, product_id, lot_number). Non-fatal if it fails —
+      // FEFO simply falls back to receipt-date ordering for this batch.
+      const bizId = currentBusiness?.id;
+      if (bizId) {
+        const lotUpserts = linesToReceive
+          .filter(
+            (l) =>
+              l.product_id &&
+              l.lot_number &&
+              (l.captured_expiry_date || l.captured_manufacture_date),
+          )
+          .map((l) => ({
+            business_id: bizId,
+            product_id: l.product_id!,
+            lot_number: l.lot_number,
+            expiry_date: l.captured_expiry_date,
+            manufacture_date: l.captured_manufacture_date,
+          }));
+        if (lotUpserts.length > 0) {
+          const { error: lotErr } = await supabase
+            .from("stock_lots")
+            .upsert(lotUpserts as any, {
+              onConflict: "business_id,product_id,lot_number",
+              ignoreDuplicates: false,
+            });
+          if (lotErr) {
+            console.warn("[GRN] stock_lots date upsert failed", lotErr);
+          }
+        }
+      }
+
+
       // Phase D.2 · ASN reconciliation: transition shipment + log discrepancies
       if (activeShipment) {
         const itemIdByPoItem: Record<string, string> = {};
