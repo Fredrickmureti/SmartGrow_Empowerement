@@ -189,8 +189,7 @@ export default function QCInspectionDetail() {
   return (
     <>
       <PageHeader
-        icon={ShieldCheck}
-        title={row.products?.name ?? "QC inspection"}
+        title={<span className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />{row.products?.name ?? "QC inspection"}</span>}
         description={`${row.warehouses?.name ?? ""} · qty ${row.quantity} · ${row.source_doc_type.replace("_", " ")}`}
         actions={
           <div className="flex items-center gap-2">
