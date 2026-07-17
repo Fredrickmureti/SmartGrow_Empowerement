@@ -64,6 +64,7 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 import { useAuth } from "@/contexts/AuthContext";
 import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
+import { useGs1Scanner } from "@/lib/gs1/useGs1Scanner";
 import { normalizeError } from "@/services/resilience";
 import type { PurchaseOrder } from "@/hooks/usePurchaseOrders";
 
@@ -320,15 +321,29 @@ export default function GoodsReceiptWizardPage() {
     );
   };
 
+  const { interpret: interpretGs1Scan } = useGs1Scanner();
+
   const handleScanReceive = async (code: string) => {
     const norm = code.trim();
     if (!norm) return;
     setScanCode("");
-    const resolved = await resolveTagged(norm);
+
+    // Phase H — GS1 payloads carry GTIN + lot + expiry + serial + qty
+    // in a single scan. Resolve the product by GTIN, then prefill the
+    // matched line's lot_number and (for serial-tracked lines) append
+    // the scanned serial. `resolveCode` is the GTIN when GS1, else the
+    // raw scan — so non-GS1 payloads take the legacy path unchanged.
+    const gs1 = interpretGs1Scan(norm);
+
+    const resolved = await resolveTagged(gs1.resolveCode);
     let idx = -1;
-    let qtyDelta = 1;
+    let qtyDelta = gs1.normalized.quantity && gs1.normalized.quantity > 0
+      ? Math.round(gs1.normalized.quantity)
+      : 1;
     if (resolved.kind === "hit") {
-      qtyDelta = Math.max(1, Math.round(resolved.row.scanQuantity || 1));
+      if (!gs1.isGs1) {
+        qtyDelta = Math.max(1, Math.round(resolved.row.scanQuantity || 1));
+      }
       idx = receiptLines.findIndex(
         (line) => line.product_id && line.product_id === resolved.row.productId,
       );
@@ -361,8 +376,41 @@ export default function GoodsReceiptWizardPage() {
       receiptLines[idx].quantity_ordered - receiptLines[idx].quantity_previously_received;
     const next = Math.min((receiptLines[idx].quantity_to_receive || 0) + qtyDelta, max);
     updateLine(idx, "quantity_to_receive", next);
-    setScanFlash(`+${qtyDelta} ${receiptLines[idx].description} (now ${next})`);
-    window.setTimeout(() => setScanFlash(null), 1500);
+
+    // GS1 prefill: lot + serial (expiry is captured via stock_lots on
+    // the goods-receipt path; the flash surfaces it for the operator).
+    if (gs1.isGs1) {
+      const line = receiptLines[idx];
+      if (gs1.normalized.lot && !line.lot_number) {
+        updateLine(idx, "lot_number", gs1.normalized.lot);
+      }
+      if (gs1.normalized.serial) {
+        const isSerial =
+          !!line.product_id &&
+          getTrackingFlags(line.product_id).is_serial_tracked;
+        if (isSerial) {
+          const existing = line.serial_numbers ?? [];
+          if (!existing.includes(gs1.normalized.serial)) {
+            updateLine(idx, "serial_numbers", [
+              ...existing,
+              gs1.normalized.serial,
+            ]);
+          }
+        } else {
+          updateLine(idx, "serial_number", gs1.normalized.serial);
+        }
+      }
+      const expBits = gs1.normalized.expiry
+        ? ` · exp ${gs1.normalized.expiry.toISOString().slice(0, 10)}`
+        : "";
+      const lotBits = gs1.normalized.lot ? ` · lot ${gs1.normalized.lot}` : "";
+      setScanFlash(
+        `+${qtyDelta} ${receiptLines[idx].description} (now ${next})${lotBits}${expBits}`,
+      );
+    } else {
+      setScanFlash(`+${qtyDelta} ${receiptLines[idx].description} (now ${next})`);
+    }
+    window.setTimeout(() => setScanFlash(null), 1800);
   };
 
   const handleSubmit = async () => {
