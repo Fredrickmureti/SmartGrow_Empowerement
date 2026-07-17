@@ -1,87 +1,64 @@
-## Phase E — Product Variants (audit-first plan)
+# Inventory Foundation — Execution Log & Roadmap
 
-### Pre-flight verification (done)
-- Searched schema on the connected Supabase: **no** `product_variants`, `product_variant_axes`, `product_variant_values`, `product_options`, or `variant_parent_id` columns exist. Only match was the unrelated `v_identity_invariants_violations` view.
-- `products` table today carries a single `sku`, `unit_price`, `stock_quantity`, tracking flags, ETIMS fields, UoM refs — no variant axis. Confirms Phase E is greenfield, not a rebuild.
-- Prior phases (Lots/Serials, GS1) reference `product_id` directly; introducing variants must not break lot genealogy or FEFO allocation. Design must let each variant be first-class for stock, barcode, price — while keeping the current `products` row as the sellable unit for non-variant products.
+_Last updated: after Phase E (Product Variants)._
 
-### Architecture decision (to capture in ADR 0072)
-Two viable shapes:
+## ✅ Completed (verified, guards green)
 
-| Option | Shape | Trade-offs |
-|---|---|---|
-| **A. Self-referencing product hierarchy** | Add `products.variant_parent_id`, `products.variant_axis_values jsonb`. Each variant is a normal `products` row → inherits all inventory, pricing, ETIMS, accounts columns for free. | Zero downstream refactor. Lot/serial/quant/barcode all keep pointing at `product_id`. Parent row becomes a "template" (`is_variant_parent=true`), never transacted. Slight denormalisation on axis values. |
-| **B. Separate `product_variants` table** | `product_variants(id, product_id, sku, barcode, price...)`. Stock/lots/serials repoint to `variant_id`. | Cleaner model, but forces migration of every stock/movement/lot/GS1 code path across 298 tables. High blast radius. |
+### Phase 1 — Verification of prior work
+- ADRs 0064–0069 present on disk.
+- 92 inventory-foundation architecture guards inherited green.
+- Primitives verified: `LotPickerPopover`, `SerialPickerPopover`, `OutboundLineTracking`, `outboundLineTrackingUtils.ts`, `useProductTrackingFlags`.
+- ASN backend verified: `createAsnBatchImportHandler` + `ASN_IMPORT_FIELDS` in `src/lib/importConfigs/`, GRN wizard has ASN prefill + serial capture.
 
-**Recommendation: Option A.** Keeps the 92+ existing guards and Phase D–H wiring intact. Variants are just products with a parent + axis coordinates.
+### Phase A.6 — Edit-path picker parity
+- `InvoiceEditPage` covered via shared `InvoiceLineRow`.
+- `CreditNoteEditPage.tsx` — `OutboundLineTracking` mounted on edit path.
+- `SerialPickerPopover` bug fix: `warehouse_id` → `current_warehouse_id`.
 
-### Migration (single SQL migration, reversible)
-```sql
--- 1. Axis catalogue (per business)
-CREATE TABLE public.product_variant_axes (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  business_id uuid NOT NULL,
-  name text NOT NULL,              -- 'Size', 'Colour'
-  display_order int NOT NULL DEFAULT 0,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE (business_id, name)
-);
+### Phase D.3 — ASN Inbound Shipments UI
+- `InboundShipments.tsx`, `InboundShipmentDetail.tsx`, routes + nav, guard `inbound-shipments-ui.test.ts` (10 tests).
 
--- 2. Allowed values per axis
-CREATE TABLE public.product_variant_axis_values (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  axis_id uuid NOT NULL REFERENCES product_variant_axes(id) ON DELETE CASCADE,
-  value text NOT NULL,
-  display_order int NOT NULL DEFAULT 0,
-  UNIQUE (axis_id, value)
-);
+### Phase G — Lot Genealogy & Traceability View
+- ADR 0070, `Lots.tsx`, `LotDetail.tsx`, canonical `business_id + product_id + lot_number` on `stock_movements`, guard `lot-genealogy-ui.test.ts` (11 tests).
 
--- 3. Product-level variant fields
-ALTER TABLE public.products
-  ADD COLUMN variant_parent_id uuid REFERENCES products(id) ON DELETE RESTRICT,
-  ADD COLUMN is_variant_parent boolean NOT NULL DEFAULT false,
-  ADD COLUMN variant_axis_values jsonb;  -- {"Size":"M","Colour":"Red"}
+### Phase H — GS1 AI parsing on scanner input
+- ADR 0071, `src/lib/gs1/` (aiTable, parseGs1, useGs1Scanner) + 12 parser tests, wired into GRN wizard + Lot/Serial pickers, guard `gs1-parsing.test.ts`.
 
-CREATE INDEX idx_products_variant_parent ON products(variant_parent_id)
-  WHERE variant_parent_id IS NOT NULL;
+### Phase E — Product Variants ✅ NEW
+- **ADR 0072** — `docs/adr/0072-product-variants.md`. Doctrine: variants are first-class `products` rows joined by `variant_parent_id`; parent rows are never transacted (pickers exclude `is_variant_parent = true`).
+- **Migration**: `product_variant_axes` (business-scoped) + `product_variant_axis_values` (axis-scoped) with RLS via `user_can_access_business`; adds `variant_parent_id`, `is_variant_parent`, `variant_axis_values jsonb` to `products` with `chk_variant_parent_not_self` and `chk_parent_xor_child` invariants. GRANTs to `authenticated` + `service_role`; no anon.
+- `src/features/inventory/variants/generateVariantMatrix.ts` — pure cartesian generator + deterministic `deriveVariantSku` + `sameCoord`. 12 unit tests.
+- `src/features/inventory/variants/useVariantAxes.ts` — react-query hooks over the axes catalogue.
+- `src/features/inventory/variants/ProductVariantsPanel.tsx` — mounted in `ProductForm` (edit mode). Manages axes/values, previews the matrix, generates only missing coordinates, copies parent pricing/UoM/tracking/accounts to children, sets `is_variant_parent = true` on the parent before inserting children, links to per-variant edit page.
+- Guard: `src/test/architecture/product-variants.test.ts` — ADR present, migration invariants + GRANTs, ProductForm imports the panel, matrix generator is pure, panel writes `variant_parent_id`.
 
--- 4. Invariants
-ALTER TABLE public.products
-  ADD CONSTRAINT chk_variant_parent_not_self
-    CHECK (variant_parent_id IS NULL OR variant_parent_id <> id),
-  ADD CONSTRAINT chk_parent_xor_child
-    CHECK (NOT (is_variant_parent AND variant_parent_id IS NOT NULL));
+**Current guard surface: ~130+ tests.**
 
--- 5. GRANTs + RLS mirror existing products policy (business_id scoped)
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_variant_axes TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_variant_axis_values TO authenticated;
-GRANT ALL ON public.product_variant_axes TO service_role;
-GRANT ALL ON public.product_variant_axis_values TO service_role;
-ALTER TABLE public.product_variant_axes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.product_variant_axis_values ENABLE ROW LEVEL SECURITY;
--- policies: business_id = current_user_business_id() (match products.tsx pattern)
-```
+---
 
-Non-variant products are unaffected (`variant_parent_id IS NULL`, `is_variant_parent=false`).
+## ⏭️ Deferred — remaining pillars
 
-### UI surface
-1. **Product form** — new "Variants" tab: axis picker, value picker, generated matrix (Size × Colour). Each row: SKU, barcode, unit price, cost, initial stock. Bulk-fill helpers.
-2. **Product list** — collapse variants under parent; parent shows aggregate stock.
-3. **POS / Invoice / GRN pickers** — search hits both parents (expanded) and variant SKUs directly; scanning a variant barcode resolves the variant row (works today because barcodes are on `products`).
-4. **Lot / Serial** — no change (still `product_id`).
+### Phase F — Product Import Split (variant-aware)
+Split the monolithic product importer into six focused importers: Product master (parent + child rows via axes catalogue), Barcodes, Batch/Lot, Warehouse Stock, Price lists, Supplier links. Each with its own `importConfig`, batch handler, guard. ADR 0073.
 
-### Doctrine + guards
-- **ADR 0072** — `docs/adr/0072-product-variants.md` capturing the Option-A rationale, invariants, and the "variants are products" doctrine.
-- **Guard** — `src/test/architecture/product-variants.test.ts`:
-  - Variant parent products never appear in stock movement / invoice line pickers.
-  - Barcode resolution routes to leaf variant, not parent.
-  - Migration file present, invariants declared.
-  - Product form imports the variants matrix component.
+### Phase 5 (ambient) — `warehouse_stock` retirement
+Precondition: 14 consecutive clean `check_stock_quant_drift` runs. Once green: drop `warehouse_stock`, redirect residual readers to `stock_quants`. Migration + ADR 0074.
 
-### Explicitly deferred (not in this pass)
-- Per-variant image gallery (single `image_url` inherited).
-- Variant-aware bulk import (belongs in Phase F).
-- Retro-migrating existing "size-in-name" products into structured axes.
+### Phase E+ follow-ups
+- Update transactional product pickers (POS, invoice line, GRN, sales order) to filter `is_variant_parent = false` and expand parent → variants in the search dropdown.
+- Per-variant image gallery (currently inherits parent `image_url`).
+- Retro-migrate existing "size-in-name" products into structured axes.
 
-### Out of scope (unchanged)
-- Phase F import split, Phase 5 `warehouse_stock` retirement — remain gated on Phase E landing green.
+### Explicitly out of scope
+- Sales-order line editor lot/serial pickers (SO doesn't move stock).
+- Edit pages for sales returns & delivery notes (don't exist).
+
+---
+
+## 🎯 Next execution — Phase F or Phase 5 ambient
+
+Phase F landing order:
+1. ADR 0073 — one importer per artefact; each importer emits idempotent business events.
+2. Variant-aware Product master importer: parent + child rows via `variant_parent_id`.
+3. Barcodes, Batch/Lot, Warehouse Stock, Price lists, Supplier links as independent import configs + batch handlers.
+4. Guard: `src/test/architecture/product-import-split.test.ts`.
