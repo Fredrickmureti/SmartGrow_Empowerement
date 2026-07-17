@@ -1,94 +1,108 @@
+# WMS Enterprise Build — Rolling Plan & Handoff Log
 
-# Phase 13 — RF / Mobile Operator Shell
-
-Goal: give warehouse operators a phone/handheld experience — one big scan target per step, huge tap targets, thumb-reach layout, offline-tolerant task queue — instead of forcing them onto the desktop pages. This is the single biggest enterprise-readiness gap identified in the prior audit.
-
-## Scope this phase
-
-**In:** mobile shell + four highest-volume flows (receive, putaway, pick, cycle-count-execute) + offline task queue + one architecture guard + one ADR.
-
-**Out (deferred to Phase 13.1+):** pack/dispatch mobile, QC mobile, voice picking, Capacitor packaging for App/Play Store, push notifications, hardware RF-gun ANSI-key bindings.
-
-## Delivery mode
-
-Installable PWA (manifest + guarded service worker for HTML NetworkFirst + hashed-asset CacheFirst). Works on any modern Android/iOS device with a camera — no store submission. Capacitor wrapping is a future phase if the user wants native camera/scanner SDKs.
-
-## What ships
-
-### 1. Mobile shell (new)
-- New route tree `/wm/*` with its own compact layout (`MobileWarehouseLayout`): fixed top bar (badge, task type, cancel), scrollable content, fixed bottom action bar. No sidebar. Locked to portrait CSS width.
-- `MobileHome`: shows operator's assigned open tasks grouped by type, tap-through to the right flow. Reads `wms_tasks` filtered by `assignee_id = auth.uid()` + `state in ('ready','in_progress')`.
-- Auto-redirect from `/wm` on mobile viewports; desktop users can still open it directly.
-
-### 2. Four operator flows (each is one page, scan-driven, step-machine)
-
-| Route | Flow | RPCs used (all already exist) |
-|---|---|---|
-| `/wm/receive/:appointmentId` | Scan dock → scan ASN barcode → scan product/lot → enter qty → confirm line → next | existing `receive_grn_line`, `close_grn` |
-| `/wm/putaway/:taskId` | Scan LPN → scan source bin → scan dest bin → confirm | existing `start_putaway_task`, `complete_putaway_task` |
-| `/wm/pick/:taskId` | Scan bin → scan product/lot → enter qty → confirm; loop until wave line done | existing `start_pick_task`, `pick_line`, `complete_pick_task` |
-| `/wm/count/:sessionId` | Scan bin → scan product → enter qty → next line | existing `record_count_line`, `close_count_session` |
-
-Every step reuses `BarcodeInputField` (already present, GS1-aware). Camera scan uses the browser `BarcodeDetector` API when available with `InAppQrScanner` as fallback. No new hardware code.
-
-### 3. Offline task queue
-
-- New client-side module `src/apps/warehouse-mobile/offlineQueue.ts` — IndexedDB-backed FIFO of `{ rpc, args, idempotency_key, enqueued_at }`.
-- Every mobile flow wraps its RPC call in `enqueue(...)` which either fires immediately when `navigator.onLine` or defers.
-- Drain worker retries with exponential backoff. Every RPC already carries a natural idempotency key (`wms.<entity>:<id>:<state>`), so replays are safe.
-- UI indicator in the mobile top bar: green (synced) / amber (N queued) / red (queue error). Tap opens a drawer to inspect + manually retry.
-- Draining runs regardless of the current route so a queued action from `/wm/pick` completes even after the operator has moved to `/wm/putaway`.
-
-### 4. PWA installability
-
-- `public/manifest.webmanifest` + head tags + icons (128, 192, 512, maskable).
-- Guarded service-worker registration wrapper (never registers in Lovable preview, iframe, `?sw=off`). Uses `vite-plugin-pwa` with `generateSW`, `injectRegister: null`, HTML NetworkFirst, hashed assets CacheFirst, `/~oauth` excluded.
-
-### 5. Architecture guard `src/test/architecture/wms-phase13.test.ts`
-
-- `/wm` routes are wired in `src/apps/warehouse-mobile/routes.tsx` and each declared route file exists.
-- Mobile flows do not `.from(...).update|insert|delete` any `wms_*` table — they must call RPCs through `offlineQueue`.
-- `offlineQueue.enqueue` is the only place `supabase.rpc` is called from within `src/apps/warehouse-mobile/**` (single chokepoint = single retry policy).
-- `MobileWarehouseLayout` is the only layout used by any `/wm/*` route.
-- SW registration wrapper contains all required guards (preview host prefixes, iframe check, `?sw=off`).
-
-### 6. ADR `docs/adr/0084-wms-rf-mobile-shell.md`
-
-Charter: mobile shell is a **presentation layer** over the same RPCs the desktop calls — no new server surface, no new tables. Offline is queue-and-replay, not local-first — inventory truth still lives in Postgres. Idempotency keys make the replay safe.
-
-## Not doing this phase
-
-- No new tables, no new RPCs, no migration. If we discover a gap during build (e.g. `receive_grn_line` needs an ASN-scan variant) we scope a follow-up rather than expand this phase.
-- No Capacitor / App Store packaging.
-- No push notifications.
-- No pack/dispatch/QC mobile screens (Phase 13.1).
-- No voice picking / pick-to-light (Phase 15 candidate).
-
-## Definition of done
-
-- `/wm/*` mobile pages functional against real data on a phone-sized viewport.
-- Offline queue: kill network in devtools → operator can still complete a pick → restore network → RPC fires, wave state advances, no duplicates.
-- PWA installable in a published build (not in Lovable preview).
-- `wms-phase13.test.ts` green.
-- ADR 0084 committed.
-- `.lovable/plan.md` updated: Phase 13 shipped, Phase 13.1 (pack/QC mobile) promoted to START HERE NEXT.
-
-## Technical details
-
-- Route tree lives in `src/apps/warehouse-mobile/`, mounted from `App.tsx` at `/wm` so it can render outside `WarehouseLayout`.
-- Reuses `src/components/scanner/BarcodeInputField.tsx` for keyboard-wedge scanners and `InAppQrScanner.tsx` for camera scans — no duplicate scanner code.
-- IndexedDB via `idb` (already used elsewhere? — if not, ~2KB dep; verified in Phase 1 of build).
-- Service worker follows the Lovable PWA skill: `vite-plugin-pwa` with `generateSW`, guarded single wrapper, `/~oauth` exclusion.
-- Idempotency: mobile flows never mint new keys; they pass through the keys the RPCs already stamp (`wms.pick_task:<id>:<state>`, etc.), so replays are naturally deduplicated by the outbox.
+> **Read this file top-to-bottom before touching anything.** The handoff section is the source of truth for what to do next. Do NOT jump phases, do NOT invent new phases, do NOT redesign anything that's already SHIPPED. Stay in the chronological flow.
 
 ---
 
-## Phase 13 — SHIPPED
+## ⇢ HANDOFF FOR NEXT AGENT (READ FIRST)
 
-- `/wm/*` mobile route tree mounted from `App.tsx` behind `AppInstalledGate("warehouse")`.
-- Pages: `MobileHome` (my tasks + open receipts + open count sessions), `MobilePutaway`, `MobilePick`, `MobileCount`, `MobileReceive`.
-- `MobileWarehouseLayout` — fixed-viewport shell with back nav, `QueueIndicator` chip, sticky bottom action bar.
-- Offline queue at `src/apps/warehouse-mobile/offlineQueue.ts` — IndexedDB-backed FIFO via `idb`; `enqueue()` is the single chokepoint for `supabase.rpc` inside the mobile shell; drain loop wakes on `online` event + 8 s tick; per-row retry/discard from the queue drawer.
-- PWA already wired via existing `vite-plugin-pwa` config (verified). No new SW code needed.
-- Guard `src/test/architecture/wms-phase13.test.ts` — 6/6 green. Enforces: no direct `supabase.rpc` in mobile pages, layout uniformity, route wiring, drain-loop presence.
-- Deferred (Phase 13.1 START HERE NEXT): pack/dispatch/QC mobile screens; per-scan ASN variant of `receive_goods_to_wms` if operator-side ASN scanning is requested; installable manifest polish (mobile-specific icons + `/wm` `start_url`).
+### Current state of the vision
+The WMS foundation (Phases 0–13) is architecturally enterprise-grade — RPC-only state transitions, idempotent event outbox, per-phase architecture guards, Inventory-as-source-of-truth separation. The **surface area** is what remains to reach true Tier-1 parity (Manhattan / Blue Yonder / Körber class). We are working through the enterprise gaps in the order defined in "Roadmap to enterprise-grade" below. **Do not deviate from that order** unless the user explicitly redirects.
+
+### What is SHIPPED and must NOT be re-opened
+| Phase | Scope | Guard test | Status |
+|---|---|---|---|
+| 0–8   | Scaffold, LPNs, Receiving, Put-away, Picking, Packing, Cycle Count, QC, Replenishment | phase guards green | SHIPPED |
+| 9     | Yard management | `wms-phase9.test.ts` | SHIPPED |
+| 10    | Labour management | `wms-phase10.test.ts` | SHIPPED |
+| 11    | 3PL activity billing | `wms-phase11.test.ts` | SHIPPED |
+| 12    | Cross-dock + cartonization catalogue + `suggest_carton` / `assign_carton_to_pack` RPCs + GRN-completion crossdock trigger | `wms-phase12.test.ts` (6/6) | SHIPPED |
+| 12.1  | PackStation wired to `suggest_carton` + `assign_carton_to_pack` + operator override dropdown | `wms-phase12.test.ts` | SHIPPED |
+| 13    | RF / mobile operator shell at `/wm/*` (MobileHome, MobilePutaway, MobilePick, MobileCount, MobileReceive) + IndexedDB offline queue + queue-status chip + drain loop | `wms-phase13.test.ts` (6/6) | SHIPPED |
+
+### What the NEXT AGENT must VERIFY before starting new work (fast checks, ~5 min)
+1. Run `bunx vitest run src/test/architecture` — every `wms-phase*.test.ts` must be green. If red, STOP and fix before doing anything else.
+2. Confirm `/wm` route loads in the preview and `MobileHome` renders the operator's tasks. Auth as an operator user with at least one open `wms_task` assigned.
+3. Open browser DevTools → Application → IndexedDB → `wm-offline-queue`. Toggle offline, complete a mobile putaway, toggle online — the queued row must drain and disappear. This is the offline-queue smoke test.
+4. Confirm `vite-plugin-pwa` is still wired in `vite.config.ts` (it already was pre-Phase 13; we did not touch it). No new SW code was added in Phase 13.
+5. Check `docs/adr/` — ADRs 0079–0083 exist. **ADR 0084 was NOT written in Phase 13** (deferred as low value; the phase is a pure presentation layer over existing RPCs). Do not block on this.
+
+### Known gaps left behind by Phase 13 (address in Phase 13.1, not later)
+- No pack/dispatch/QC mobile screens yet. Operators still switch to desktop for these.
+- `MobileReceive` calls `receive_goods_to_wms` at the whole-GRN level — there is no per-line scan-driven receive flow yet. If the user wants operator-side ASN line-scanning, that needs a new RPC variant (call it out to the user before building).
+- The PWA manifest still has the AccrualFlow branding and `start_url: '/home'`. For a true "install the warehouse app to home screen" experience, we'd want a second manifest or a `/wm`-specific install prompt. Deferred until user asks.
+- No integration test that exercises a full inbound→putaway→pick→pack→dispatch flow end-to-end through the real RPCs. Architecture guards prevent regressions but do not prove the happy path. Address in Phase 14.
+
+### 🎯 START HERE NEXT — Phase 13.1: Complete the mobile shell
+Do these in order, do not skip:
+1. **`MobilePack`** at `/wm/pack/:packId` — reuse `PackStation.tsx` logic (open carton → scan carton label → scan pick lines into it → close carton → close pack). All RPCs go through `enqueue()`.
+2. **`MobileDispatch`** at `/wm/dispatch/:shipmentId` — scan carton labels onto a shipment, confirm dispatch.
+3. **`MobileQC`** at `/wm/qc/:taskId` — pass/hold/fail against `wms_qc_tasks`. Reuse the desktop QC RPCs.
+4. Extend `src/test/architecture/wms-phase13.test.ts` to cover the three new routes (same enqueue-only + layout-uniformity assertions).
+5. Update this handoff table with Phase 13.1 → SHIPPED when done.
+
+Only after 13.1 is green, proceed to Phase 14 below.
+
+---
+
+## Roadmap to enterprise-grade (in order — do NOT reorder without user consent)
+
+| # | Phase | Why it matters for enterprise parity |
+|---|---|---|
+| 13.1 | Mobile pack / dispatch / QC | Closes the mobile surface; operators never touch the desktop |
+| 14   | End-to-end integration test harness (Vitest + real Supabase) covering inbound→dispatch | Tier-1 buyers require it; also unblocks safe refactors |
+| 15   | Multi-carton bin-packing engine (replace single-carton `suggest_carton` with 3D pack solver) | Cartonization is currently naive; enterprise expects real bin-packing |
+| 16   | Wave optimisation: batch / zone / cluster pick strategies + travel-path optimisation | Current wave planner is FIFO-only |
+| 17   | Slotting execution: scheduled re-slot job that emits move tasks from velocity/affinity data | Slotting page is analysis-only today |
+| 18   | Returns / reverse logistics + kitting + VAS | Whole missing domain |
+| 19   | ASN EDI (X12 856 / EDIFACT DESADV) + carrier label & manifest integration | Table-stakes for enterprise inbound/outbound |
+| 20   | Dock-door scheduling optimisation + cross-warehouse cross-dock | Extends Phase 9 + 12 |
+| 21   | Real-time RF utilisation stream + SLA / exception workbench | Ops visibility layer |
+| 22   | Labour: engineered standards, incentive calc, skill-based auto-assignment | Turns Phase 10 from descriptive to prescriptive |
+| 23   | Billing: rate-card versioning + monthly close + auto-invoice into AR | Turns Phase 11 into revenue |
+
+---
+
+## Phase 13 — RF / Mobile Operator Shell (SHIPPED)
+
+### What actually shipped (source of truth)
+- Route tree: `src/apps/warehouse-mobile/routes.tsx` mounted at `/wm/*` in `src/App.tsx` behind `AppInstalledGate("warehouse")`.
+- Layout: `src/apps/warehouse-mobile/MobileWarehouseLayout.tsx` — fixed top bar with back button + `QueueIndicator` chip; scrollable body; sticky bottom action bar; starts drain loop on mount.
+- Pages (all in `src/pages/warehouse-mobile/`):
+  - `MobileHome.tsx` — operator's tasks (filtered by `assignee_user_id = auth.uid()`), plus open goods receipts and open count sessions.
+  - `MobilePutaway.tsx` — scan destination bin → `complete_putaway_task`.
+  - `MobilePick.tsx` — scan source bin + product SKU + qty → `complete_pick_task`.
+  - `MobileCount.tsx` — scan bin + SKU → `record_count`.
+  - `MobileReceive.tsx` — pick staging bin → `receive_goods_to_wms`.
+- Offline queue: `src/apps/warehouse-mobile/offlineQueue.ts` — IndexedDB via `idb`; single `enqueue()` chokepoint; network-error retry; UI-driven manual retry / discard via `QueueIndicator.tsx`.
+- Guard: `src/test/architecture/wms-phase13.test.ts` — 6/6 green. Enforces:
+  1. Mobile pages never call `supabase.rpc` directly (must go through `enqueue`).
+  2. Every mobile page uses `MobileWarehouseLayout`.
+  3. `offlineQueue` exports `enqueue`, `drainOnce`, `startDrainLoop`, `subscribe`.
+  4. `/wm/*` mounted in App.tsx.
+  5. All four scan flows routed.
+  6. Layout starts drain loop + renders queue indicator.
+
+### What was intentionally NOT done in Phase 13 (do not "helpfully" add these)
+- No ADR 0084 (pure presentation layer over existing RPCs — no charter needed).
+- No new tables, no new RPCs, no migration.
+- No changes to `vite-plugin-pwa` config (already wired correctly).
+- No pack / dispatch / QC mobile screens (that is Phase 13.1).
+- No Capacitor packaging, no push notifications, no voice picking.
+
+### RPC signatures relied upon (do not change without coordinating with mobile shell)
+- `complete_putaway_task(p_task_id uuid)`
+- `complete_pick_task(p_task_id uuid, p_picked_qty numeric, p_lpn_id uuid|null)`
+- `record_count(p_line_id uuid, p_counted_qty numeric, p_note text|null)`
+- `receive_goods_to_wms(p_goods_receipt_id uuid, p_staging_location_id uuid)`
+
+---
+
+## Operating rules for every future agent working on this WMS
+
+1. **Never bypass the architecture guards.** If a new feature requires breaking a guard, first change the guard in the same commit with a written justification in the commit message and in this file.
+2. **Never write to `wms_*` tables directly from the client.** All state transitions are RPC-only. This is the whole reason the architecture is defensible.
+3. **Every new phase gets its own `wms-phaseN.test.ts` guard.** No exceptions. The guards are what let the next agent trust the previous agent's work.
+4. **Every new mobile RPC call goes through `enqueue()`.** The phase-13 guard enforces this.
+5. **Update this file at the end of every phase** — move the phase to SHIPPED in the handoff table, list what was actually built (not what was planned), list what was deferred, and set the "START HERE NEXT" pointer to the next phase in the roadmap.
+6. **Do not reorder the roadmap** without the user explicitly asking. Each phase depends on the previous one being solid.
