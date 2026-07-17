@@ -28,6 +28,7 @@ export const WAREHOUSE_NAV: WorkspaceNav = {
         { to: "/warehouse-app/counts", label: "Cycle counts", icon: ClipboardCheck },
         { to: "/warehouse-app/dispatch", label: "Dispatch", icon: Send },
         { to: "/warehouse-app/schedule", label: "Dock schedule", icon: CalendarClock },
+        { to: "/warehouse-app/yard", label: "Yard & trailers", icon: ParkingSquare },
         { to: "/warehouse-app/qc", label: "Quality control", icon: ShieldCheck },
         { to: "/warehouse-app/slotting", label: "Slotting", icon: Gauge },
       ],
