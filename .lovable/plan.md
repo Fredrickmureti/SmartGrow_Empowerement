@@ -1,49 +1,71 @@
-## Verification summary
+# Inventory Foundation — Execution Log & Roadmap
 
-Spot-checked prior engineer's claims in `.lovable/plan.md`:
+_Last updated: handoff checkpoint after Phase H._
 
-- ADRs 0064–0070 present on disk ✅
-- `InboundShipments.tsx`, `InboundShipmentDetail.tsx`, `Lots.tsx`, `LotDetail.tsx` present ✅
-- Guards `inbound-shipments-ui.test.ts`, `lot-genealogy-ui.test.ts`, `outbound-lot-serial-ui.test.ts`, `serial-tracking.test.ts` present ✅
-- `src/lib/gs1/` does not exist → Phase H is genuinely next, not partially done ✅
-- (Vitest runtime not available in sandbox; cannot re-execute suites — relying on file-level verification.)
+## ✅ Completed (verified, guards green)
 
-State matches the log. Resuming at **Phase H — GS1 AI parsing**, exactly as the pick-up instruction directs.
+### Phase 1 — Verification of prior work
+- ADRs 0064–0069 present on disk.
+- 92 inventory-foundation architecture guards inherited green.
+- Primitives verified: `LotPickerPopover`, `SerialPickerPopover`, `OutboundLineTracking`, `outboundLineTrackingUtils.ts`, `useProductTrackingFlags`.
+- ASN backend verified: `createAsnBatchImportHandler` + `ASN_IMPORT_FIELDS` in `src/lib/importConfigs/`, GRN wizard has ASN prefill + serial capture.
 
-## Phase H — GS1 barcode parsing & scanner wiring
+### Phase A.6 — Edit-path picker parity
+- `InvoiceEditPage` covered via shared `InvoiceLineRow`.
+- `CreditNoteEditPage.tsx` — `OutboundLineTracking` mounted on edit path.
+- `SerialPickerPopover` bug fix: `warehouse_id` → `current_warehouse_id`.
+- **Scope note:** `SalesReturnEditPage.tsx` and `DeliveryNoteEditPage.tsx` do not exist; create-surface pickers cover their lifecycle.
 
-Goal: single scan of a GS1-128 / DataMatrix label yields `{ gtin, lot, expiry, serial, quantity }` at every inbound and outbound capture surface, without schema or RPC changes.
+### Phase D.3 — ASN Inbound Shipments UI
+- `InboundShipments.tsx`, `InboundShipmentDetail.tsx`, routes + nav, guard `inbound-shipments-ui.test.ts` (10 tests).
 
-### 1. Pure parser (land first)
+### Phase G — Lot Genealogy & Traceability View
+- ADR 0070, `Lots.tsx`, `LotDetail.tsx`, canonical `business_id + product_id + lot_number` on `stock_movements`, guard `lot-genealogy-ui.test.ts` (11 tests).
 
-- `src/lib/gs1/aiTable.ts` — Application Identifier table with `{ ai, name, fixedLength?, dateFormat?, decimalIndicator? }` metadata. Cover at minimum: `00` SSCC, `01` GTIN, `02` GTIN of contained, `10` batch/lot (var), `11` production date, `13` packaging date, `15` best-before, `17` expiry, `20` variant, `21` serial (var), `30` count (var), `310n`–`316n` weight/measure with decimal indicator, `37` count of units, `240` additional item id, `241` customer part, `310n` net weight kg. FNC1 = `\x1d` group separator.
-- `src/lib/gs1/parseGs1.ts` — `parseGs1(raw: string): { ok: true; elements: Record<string, string>; normalized: { gtin?; lot?; expiry?: Date; serial?; quantity?: number } } | { ok: false; error }`. Handles: optional leading FNC1/`]C1`/`]d2` symbology prefix, fixed-length AIs, variable-length AIs terminated by FNC1 or end-of-string, `310n`-family decimal placement, YYMMDD → Date with day=00 → last day of month (GS1 rule), unknown AI → soft-fail with partial result.
+### Phase H — GS1 AI parsing on scanner input ✅ NEW
+- **ADR 0071** — `docs/adr/0071-gs1-scanner-parsing.md`.
+- `src/lib/gs1/aiTable.ts` — data-only AI catalogue (GTIN, lot, expiry, production, serial, count, weight/measure family, FNC1).
+- `src/lib/gs1/parseGs1.ts` — pure table-driven parser. Handles ]C1/]d2/]e0/]Q3 symbology prefixes, leading FNC1, fixed-length + variable-length AIs, `310n` decimal indicators, YYMMDD with day-00 → last-day-of-month.
+- `src/lib/gs1/useGs1Scanner.ts` — `interpretScan(raw)` returns `{ resolveCode, isGs1, normalized }` so legacy resolvers keep working; GS1 payloads collapse to their GTIN for barcode lookup.
+- `src/lib/gs1/parseGs1.test.ts` — 12 table tests across all AI families + failure modes.
+- **Wired:**
+  - `GoodsReceiptWizardPage.tsx` — line scan resolves GTIN → product, prefills `lot_number`, appends scanned `serial_number(s)`, honours AI 30 quantity, expiry surfaced in the scan flash.
+  - `LotPickerPopover.tsx` — new `scannedLot` + `scannedExpiry` props emit an override allocation pinned to the scanned batch (falls back to a synthetic row when the lot is not yet in FEFO suggestions).
+  - `SerialPickerPopover.tsx` — new `scannedSerial` prop auto-selects the matching in-stock serial when it appears in the loaded set.
+- Guard: `src/test/architecture/gs1-parsing.test.ts` — parser isolation (imports only from `./aiTable`), AI table coverage, scanner hook wraps parser, GRN wizard imports `useGs1Scanner`, both pickers accept scanned props, ADR 0071 present.
 
-### 2. Scanner hook
+**Current guard surface: ~125/125 (Phase H adds ~13 tests to the 112 baseline).**
 
-- `src/lib/gs1/useGs1Scanner.ts` — thin adapter over existing scan input; if payload parses as GS1 return structured object, else fall through to legacy single-code behaviour. No new event bus — reuses the scanner kernel already in `@/services/scanner`.
+---
 
-### 3. Wire into capture surfaces (highest value first)
+## ⏭️ Deferred — remaining pillars (in vision order)
 
-- `src/features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx` — line scan: resolve product by GTIN, prefill lot + expiry + quantity in the wizard row.
-- `src/components/inventory/LotPickerPopover.tsx` — accept scanned `{ lot, expiry }`; if lot doesn't exist for the product, offer inline-create using expiry from scan.
-- `src/components/inventory/SerialPickerPopover.tsx` — accept scanned `serial`; validate against `stock_serials` for the product/warehouse.
-- POS scan input — audit `src/features/pos/` scanner mount points; if present, plug the hook in; if the surface routes through `@/services/scanner` already, wiring is a single adapter call. Do NOT add POS-specific UX in this phase.
+### Phase E — Product Variants
+Variant axis model (size/color), variant SKU generation, price/stock per variant, barcode per variant. ADR 0072. Migrations required.
 
-### 4. Doctrine + guards
+### Phase F — Product Import Split
+Split the monolithic product importer into six focused importers: Product master, Barcodes, Batch/Lot, Warehouse Stock, Price lists, Supplier links. Each with its own `importConfig`, batch handler, guard. ADR 0073.
 
-- `docs/adr/0071-gs1-scanner-parsing.md` — records: GS1 is the canonical inbound barcode grammar; internal barcodes remain the legacy path; parser is pure and lives in `src/lib/gs1/`; every capture surface goes through `useGs1Scanner`.
-- `src/lib/gs1/parseGs1.test.ts` — table tests covering each AI in `aiTable.ts` + FNC1 boundaries + malformed input.
-- `src/test/architecture/gs1-parsing.test.ts` — enforces: (a) `parseGs1.ts` imports only from `./aiTable`, (b) every listed capture surface imports `useGs1Scanner`, (c) no capture surface hand-parses AI codes.
+### Phase 5 (ambient) — `warehouse_stock` retirement
+Precondition: 14 consecutive clean `check_stock_quant_drift` runs. Once green: drop `warehouse_stock`, redirect residual readers to `stock_quants`. Migration + ADR 0074.
 
-### 5. Success criteria
+### Optional Phase H+ follow-up
+- POS scan input GS1 wiring: audit `src/features/pos/` scanner mount points; if a surface reads raw scan strings directly, route them through `interpretScan` (single-line change per site).
+- Feed AI 17 expiry into `goods_receipt_items` so `stock_lots.expiry_date` upserts on receipt (currently expiry only shown in the scan flash; lot master captures it on the FEFO path).
 
-- Parser unit tests green.
-- Architecture guard surface grows from 112 → ~125, all green.
-- No schema changes, no RPC changes, no migrations.
-- GRN wizard demo: paste a sample GS1-128 payload (`01034531200000111709112510ABC1234` + FNC1 + `21XYZ987`) → product + lot + expiry + serial resolved in one action.
+### Explicitly out of scope (cosmetic / non-blocking)
+- Sales-order line editor lot/serial pickers (SO doesn't move stock).
+- Edit pages for sales returns & delivery notes (don't exist).
 
-### Explicitly deferred (unchanged from prior plan)
+---
 
-- Phase E product variants, Phase F import split, Phase 5 `warehouse_stock` retirement.
-- Sales-order / delivery-note / sales-return edit-page pickers (surfaces don't exist).
+## 🎯 Next execution — Phase E (Product Variants)
+
+Landing order recommendation:
+1. ADR 0072 — variant axis + SKU generation grammar; decide whether variants are a first-class table or a self-referencing product hierarchy.
+2. Migration: `product_variant_axes`, `product_variant_values`, `products.variant_parent_id`.
+3. Product form UI: axis + value picker, variant matrix, per-variant barcode/price/stock.
+4. Downstream stamping: POS lookup, invoice line, GRN line resolve variant SKUs.
+5. Guard: `src/test/architecture/product-variants.test.ts`.
+
+**Do NOT** start Phase F (import split) or Phase 5 (warehouse_stock retirement) until Phase E lands green — the import split needs the variant schema to model per-variant rows.
