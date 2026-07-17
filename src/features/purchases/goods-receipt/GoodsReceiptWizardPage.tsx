@@ -843,6 +843,24 @@ export default function GoodsReceiptWizardPage() {
                 rows={3}
               />
             </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="grn-appointment">Dock appointment (optional)</Label>
+              <Select value={appointmentId || "none"} onValueChange={(v) => setAppointmentId(v === "none" ? "" : v)}>
+                <SelectTrigger id="grn-appointment">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {appointments.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.dock_code ? `${a.dock_code} · ` : ""}
+                      {new Date(a.window_start).toLocaleString()} · {a.reference ?? a.state}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Bind this GRN to a scheduled inbound slot.</p>
+            </div>
           </div>
         </Section>
       )}
