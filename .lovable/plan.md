@@ -1,3 +1,15 @@
+## Done
+
+- Phases 0–5: locations, LPN/tasks, waves/picking/packing, cycle counting, loading/dispatch.
+- **Phase 6 — Dock scheduling & appointments** (2026-07-17)
+  - `wms_dock_appointments` table with GiST no-overlap exclusion, RLS, service-role grants only (writes RPC-only).
+  - RPCs: `schedule_dock_appointment`, `mark_appointment_arrived`, `start_appointment`, `complete_dock_appointment`, `cancel_dock_appointment`, `bind_goods_receipt_appointment`; `open_loading_manifest` extended with `p_appointment_id`.
+  - FKs added: `wms_loading_manifests.appointment_id`, `goods_receipts.appointment_id`.
+  - Domain events wired: `warehouse.appointment.scheduled|arrived|in_progress|completed|cancelled` in `domainEventBus` + `BusinessSagaMount`.
+  - UI: `/warehouse-app/schedule` (per-dock day grid with transitions), `/warehouse-app/schedule/new` (planner), nav entry under Operations.
+  - Appointment picker wired into `LoadingManifestPlanner` (outbound, filters by dock + auto-fills carrier/planned departure) and `GoodsReceiptWizardPage` (inbound, binds via RPC after GRN post).
+  - Architecture guard `wms-phase6.test.ts` green; RPC signatures visible in `types.ts`.
+
 ## Verification of prior work
 
 Spot-checked the handoff in `.lovable/plan.md` against the live database and codebase:
@@ -100,3 +112,46 @@ Static assertions:
 - SMS/email appointment reminders.
 - Yard management (trailer positioning) — separate future phase.
 - Slot-capacity forecasting / auto-scheduling.
+
+## Next — Phase 7: QC inspection lifecycle
+
+Goal: give inbound receiving and returns a first-class quality-control step so material can be quarantined, sampled, accepted, or rejected before it enters `stock_quants`. Closes the receiving-inspection gap called out in the parent audit.
+
+### Migration `wms_phase7_qc_inspections`
+
+- `wms_qc_inspections` — one per triggering event (GRN, sales return, ad-hoc lot).
+  - Scope (`organization_id`, `business_id`, `branch_id`, `warehouse_id`), source (`source_doc_type`, `source_doc_id`), `product_id`, `lot_number` nullable, `serial_number` nullable, `sample_size int`, `sample_strategy text` (`aql`, `full`, `skip`), `state text check in ('open','in_review','accepted','rejected','partially_accepted','cancelled')`, `accepted_qty numeric`, `rejected_qty numeric`, `disposition text` (`return_to_vendor`, `scrap`, `rework`, `use_as_is`), `inspector_id`, `inspected_at`, `notes`.
+- `wms_qc_inspection_checks` — line-level checklist rows (`inspection_id`, `check_code`, `check_label`, `expected`, `actual`, `pass bool`, `severity text`, `photo_url`).
+- `wms_qc_hold_reasons` — lookup for common reject/hold codes.
+- Bind FK: `goods_receipt_items.qc_inspection_id` (nullable), `sales_return_items.qc_inspection_id` (nullable).
+
+### RPCs
+
+- `open_qc_inspection(p_source_doc_type, p_source_doc_id, p_product_id, p_lot_number, p_sample_size, p_sample_strategy)` — creates the inspection in `open`, moves affected qty to a `qc_hold` sub-location on the source warehouse; emits `warehouse.qc.opened`.
+- `record_qc_check(p_inspection_id, p_check_code, p_actual, p_pass, p_severity, p_photo_url)`.
+- `accept_qc_inspection(p_inspection_id, p_accepted_qty, p_notes)` — releases the accepted qty back to normal stock (writes `stock_movements` from `qc_hold` → default receiving bin); emits `warehouse.qc.accepted`.
+- `reject_qc_inspection(p_inspection_id, p_rejected_qty, p_disposition, p_notes)` — for `return_to_vendor` opens a `purchase_returns` draft; for `scrap` posts a scrap movement; emits `warehouse.qc.rejected`.
+- `cancel_qc_inspection(p_inspection_id, p_reason)`.
+
+### UI
+
+- `/warehouse-app/qc` — queue: open + in-review inspections with filters (source, product, age).
+- `/warehouse-app/qc/:id` — inspection detail with checklist, sample entry, photo attach, accept/reject actions.
+- GRN wizard: auto-open QC inspection when the destination warehouse has `require_qc_on_receipt = true` (new `warehouses` flag, default false).
+- Sales-return flow: same auto-open on receiving a return line flagged for inspection.
+
+### Events
+
+Register `warehouse.qc.opened|accepted|rejected|cancelled` in `domainEventBus` + `BusinessSagaMount` (log-only initially).
+
+### Architecture guard `src/test/architecture/wms-phase7.test.ts`
+
+- No client-side inserts/updates to `wms_qc_inspections` or `wms_qc_inspection_checks` — RPC-only.
+- Every `warehouse.qc.*` event registered.
+- Sub-location `qc_hold` provisioned per warehouse by a migration side-effect (or by the RPC on demand).
+
+### Out of scope for Phase 7
+
+- AQL sampling table auto-computation (support sample_size as input only for now).
+- Vendor-portal RTV integration.
+- Predictive QC scoring / anomaly detection.
