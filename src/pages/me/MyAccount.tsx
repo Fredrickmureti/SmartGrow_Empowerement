@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { EmailChangeCard } from "@/components/me/EmailChangeCard";
 import { MfaEnrollmentCard } from "@/components/me/MfaEnrollmentCard";
+import { PINSettings } from "@/components/settings/PINSettings";
 import { toast } from "sonner";
 
 export default function MyAccount() {
@@ -49,6 +50,9 @@ export default function MyAccount() {
 
           {/* Password */}
           <PasswordCard />
+
+          {/* PIN login — same PIN system used across the platform */}
+          <PINSettings />
 
           {/* Two-step verification */}
           <MfaEnrollmentCard />
