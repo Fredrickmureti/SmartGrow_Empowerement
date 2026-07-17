@@ -575,6 +575,23 @@ const App = () => (
                                 </SubscriptionProtectedRoute>
                               }
                             />
+
+                            {/* Warehouse mobile / RF shell (Phase 13) */}
+                            <Route
+                              path="/wm/*"
+                              element={
+                                <SubscriptionProtectedRoute allowReadOnly>
+                                  <PortalUserRoute>
+                                    <AppInstalledGate appId="warehouse">
+                                      <LazyRoute module="WarehouseMobile">
+                                        <WarehouseMobileApp />
+                                      </LazyRoute>
+                                    </AppInstalledGate>
+                                  </PortalUserRoute>
+                                </SubscriptionProtectedRoute>
+                              }
+                            />
+                            
                             
                             {/* HR App */}
                             <Route
