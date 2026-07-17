@@ -9,6 +9,15 @@
   - UI: `/warehouse-app/schedule` (per-dock day grid with transitions), `/warehouse-app/schedule/new` (planner), nav entry under Operations.
   - Appointment picker wired into `LoadingManifestPlanner` (outbound, filters by dock + auto-fills carrier/planned departure) and `GoodsReceiptWizardPage` (inbound, binds via RPC after GRN post).
   - Architecture guard `wms-phase6.test.ts` green; RPC signatures visible in `types.ts`.
+- **Phase 7 — QC inspection lifecycle** (2026-07-17)
+  - `wms_qc_inspections`, `wms_qc_inspection_checks`, `wms_qc_hold_reasons` tables with RLS scoped to `user_business_access`; RPC-only writes.
+  - Warehouse flag `warehouses.require_qc_on_receipt` (default false) for future auto-open on GRN.
+  - FKs `goods_receipt_items.qc_inspection_id`, `sales_return_items.qc_inspection_id` for source-doc bindings.
+  - RPCs: `open_qc_inspection`, `record_qc_check`, `accept_qc_inspection`, `reject_qc_inspection`, `cancel_qc_inspection`. State machine open → in_review → accepted / partially_accepted / rejected / cancelled. Every transition emits `warehouse.qc.*` outbox event with idempotency key `wms.qc.<id>:<state>`.
+  - Domain events wired: `warehouse.qc.opened|accepted|rejected|cancelled` in `domainEventBus` + `BusinessSagaMount` (log-only).
+  - UI: `/warehouse-app/qc` (queue with state/text filters), `/warehouse-app/qc/:id` (checklist entry + accept/reject/cancel actions), nav entry under Operations.
+  - Architecture guard `wms-phase7.test.ts` green (RPC-only writes + saga/bus event coverage).
+  - Deferred to Phase 7.1: physical `qc_hold` sub-location stock relocation, GRN auto-open when `require_qc_on_receipt=true`, RTV draft auto-creation from rejects, AQL sampling tables, vendor-portal integration.
 
 ## Verification of prior work
 

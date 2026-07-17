@@ -368,6 +368,12 @@ export function BusinessSagaMount({ orgId }: Props) {
     saga.register('warehouse.appointment.completed', wmsHandler);
     saga.register('warehouse.appointment.cancelled', wmsHandler);
 
+    // Phase 7 — QC inspection lifecycle.
+    saga.register('warehouse.qc.opened', wmsHandler);
+    saga.register('warehouse.qc.accepted', wmsHandler);
+    saga.register('warehouse.qc.rejected', wmsHandler);
+    saga.register('warehouse.qc.cancelled', wmsHandler);
+
     saga.start();
 
     // Reclaim stale business-event leases on boot, then every 60s.
