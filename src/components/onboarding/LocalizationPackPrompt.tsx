@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Package, Globe, Check, SkipForward } from "lucide-react";
 import { adminFrom } from "@/lib/adminClient";
 import { supabase } from "@/integrations/supabase/client";
-import { invokeWithAuth, NotAuthenticatedError } from "@/integrations/supabase/invokeWithAuth";
+import { NotAuthenticatedError } from "@/integrations/supabase/invokeWithAuth";
+import { invokeLocalizationPack } from "@/integrations/supabase/invokeLocalizationPack";
 import { formatInstallerError, isAlreadyInstalledError } from "@/features/localization/lib/installerError";
 import { toast } from "sonner";
 
