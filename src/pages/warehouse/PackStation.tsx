@@ -1,11 +1,23 @@
 /**
- * PackStation — closes a picked wave.
+ * PackStation — multi-carton, per-sales-order packing for a picked wave.
  *
- * Renders the wave's picked quantities and calls `complete_pack_task`
- * which optionally mints a shipment LPN, rolls pack quantities onto the
- * wave lines, and advances the wave to `packed`.
+ * Phase 4b (ADR 0082). Real warehouses ship customer orders in cartons,
+ * not "one LPN per wave". After a wave is picked, `complete_pick_task`
+ * spawns one `pack` task per distinct sales order. This page walks the
+ * operator through:
+ *
+ *   1. Open one or more cartons per SO (`open_pack_carton` → shipment LPN).
+ *   2. Assign each picked wave line to an open carton
+ *      (`assign_line_to_carton`).
+ *   3. Seal the carton with weight + LxWxH (`seal_pack_carton`).
+ *   4. Complete the pack task once every picked line for that SO is in a
+ *      sealed carton (`complete_pack_task`). The wave flips to `packed`
+ *      only when every pack task is done.
+ *
+ * All state transitions go through sanctioned RPCs — no direct writes to
+ * `wms_pack_cartons.sealed_at` or `wms_pick_waves.state` from the client.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,10 +31,11 @@ import {
   StatusBadge,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, PackageCheck } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, PackageCheck, PackagePlus, Lock, Check } from "lucide-react";
 
 interface WaveLine {
   id: string;
@@ -31,14 +44,34 @@ interface WaveLine {
   quantity_packed: number;
   lot_number: string | null;
   product_id: string;
+  sales_order_id: string | null;
+  packed_carton_id: string | null;
   product: { name: string; sku: string | null } | null;
+}
+
+interface PackTask {
+  id: string;
+  state: string;
+  metadata: { wave_id?: string; sales_order_id?: string } | null;
+}
+
+interface Carton {
+  id: string;
+  wave_id: string;
+  sales_order_id: string;
+  shipment_lpn_id: string | null;
+  weight_kg: number | null;
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
+  sealed_at: string | null;
+  shipment_lpn: { code: string } | null;
 }
 
 export default function PackStation() {
   const { waveId } = useParams<{ waveId: string }>();
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [lpnCode, setLpnCode] = useState<string>("");
 
   const { data: wave, isLoading } = useQuery({
     queryKey: ["wms-pick-wave", waveId],
@@ -60,7 +93,9 @@ export default function PackStation() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_pick_wave_lines")
-        .select("id, quantity_ordered, quantity_picked, quantity_packed, lot_number, product_id, product:product_id(name, sku)")
+        .select(
+          "id, quantity_ordered, quantity_picked, quantity_packed, lot_number, product_id, sales_order_id, packed_carton_id, product:product_id(name, sku)",
+        )
         .eq("wave_id", waveId!)
         .order("created_at");
       if (error) throw error;
@@ -68,23 +103,112 @@ export default function PackStation() {
     },
   });
 
-  const pack = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.rpc("complete_pack_task", {
+  const { data: cartons } = useQuery({
+    queryKey: ["wms-pack-cartons", waveId],
+    enabled: !!waveId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_pack_cartons")
+        .select(
+          "id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, shipment_lpn:shipment_lpn_id(code)",
+        )
+        .eq("wave_id", waveId!)
+        .order("opened_at");
+      if (error) throw error;
+      return (data ?? []) as unknown as Carton[];
+    },
+  });
+
+  const { data: packTasks } = useQuery({
+    queryKey: ["wms-pack-tasks", waveId],
+    enabled: !!waveId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_tasks")
+        .select("id, state, metadata")
+        .eq("task_type", "pack")
+        .contains("metadata", { wave_id: waveId! });
+      if (error) throw error;
+      return (data ?? []) as unknown as PackTask[];
+    },
+  });
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ["wms-pick-wave", waveId] });
+    qc.invalidateQueries({ queryKey: ["wms-pick-wave-lines", waveId] });
+    qc.invalidateQueries({ queryKey: ["wms-pack-cartons", waveId] });
+    qc.invalidateQueries({ queryKey: ["wms-pack-tasks", waveId] });
+    qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
+  };
+
+  const openCarton = useMutation({
+    mutationFn: async (sales_order_id: string) => {
+      const { data, error } = await supabase.rpc("open_pack_carton", {
         p_wave_id: waveId!,
-        p_shipment_lpn_code: lpnCode.trim() || null,
+        p_sales_order_id: sales_order_id,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => { toast.success("Carton opened"); invalidateAll(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Open failed"),
+  });
+
+  const assignLine = useMutation({
+    mutationFn: async (v: { carton_id: string; wave_line_id: string; qty: number }) => {
+      const { error } = await supabase.rpc("assign_line_to_carton", {
+        p_carton_id: v.carton_id,
+        p_wave_line_id: v.wave_line_id,
+        p_qty: v.qty,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateAll(),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Assign failed"),
+  });
+
+  const [sealDialog, setSealDialog] = useState<{ carton_id: string } | null>(null);
+  const [weightKg, setWeightKg] = useState("");
+  const [lenCm, setLenCm] = useState("");
+  const [widCm, setWidCm] = useState("");
+  const [hgtCm, setHgtCm] = useState("");
+
+  const sealCarton = useMutation({
+    mutationFn: async (v: { carton_id: string }) => {
+      const { error } = await supabase.rpc("seal_pack_carton", {
+        p_carton_id: v.carton_id,
+        p_weight_kg: weightKg ? Number(weightKg) : null,
+        p_dims: (lenCm || widCm || hgtCm)
+          ? { length_cm: Number(lenCm) || null, width_cm: Number(widCm) || null, height_cm: Number(hgtCm) || null }
+          : null,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Wave packed");
-      qc.invalidateQueries({ queryKey: ["wms-pick-wave", waveId] });
-      qc.invalidateQueries({ queryKey: ["wms-pick-wave-lines", waveId] });
-      qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
-      nav("/warehouse-app/waves");
+      toast.success("Carton sealed");
+      setSealDialog(null); setWeightKg(""); setLenCm(""); setWidCm(""); setHgtCm("");
+      invalidateAll();
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Pack failed"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Seal failed"),
   });
+
+  const completePack = useMutation({
+    mutationFn: async (task_id: string) => {
+      const { error } = await supabase.rpc("complete_pack_task", { p_task_id: task_id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Pack task complete");
+      invalidateAll();
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Complete failed"),
+  });
+
+  const salesOrders = useMemo(() => {
+    const ids = new Set<string>();
+    (lines ?? []).forEach((l) => { if (l.sales_order_id) ids.add(l.sales_order_id); });
+    return Array.from(ids);
+  }, [lines]);
 
   if (isLoading) return <LoadingState />;
   if (!wave) {
@@ -98,8 +222,6 @@ export default function PackStation() {
     );
   }
 
-  const canPack = wave.state === "picked" || wave.state === "packing";
-
   return (
     <>
       <PageHeader
@@ -112,58 +234,164 @@ export default function PackStation() {
         }
       />
       <PageBody>
-        <Section title="Picked contents">
-          <Card>
-            <CardContent className="p-0">
-              {(lines ?? []).length === 0 ? (
-                <div className="p-4 text-sm text-muted-foreground">No wave lines.</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr className="text-left">
-                      <th className="p-2">Product</th>
-                      <th className="p-2">Lot</th>
-                      <th className="p-2 text-right">Ordered</th>
-                      <th className="p-2 text-right">Picked</th>
-                      <th className="p-2 text-right">Packed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lines!.map((l) => (
-                      <tr key={l.id} className="border-t">
-                        <td className="p-2">{l.product?.name ?? l.product_id}{l.product?.sku ? <span className="text-muted-foreground"> · {l.product.sku}</span> : null}</td>
-                        <td className="p-2">{l.lot_number ?? "—"}</td>
-                        <td className="p-2 text-right font-mono">{Number(l.quantity_ordered).toFixed(2)}</td>
-                        <td className="p-2 text-right font-mono">{Number(l.quantity_picked).toFixed(2)}</td>
-                        <td className="p-2 text-right font-mono">{Number(l.quantity_packed).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
-        </Section>
+        {salesOrders.length === 0 && (
+          <EmptyState
+            icon={PackageCheck}
+            title="Nothing to pack"
+            description="This wave has no sales-order lines."
+          />
+        )}
 
-        <Section title="Seal shipment" description="Optionally mint a shipment LPN (carton) for downstream loading/manifest.">
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-end gap-2 flex-wrap">
-                <div className="flex-1 min-w-[240px]">
-                  <Label htmlFor="ship-lpn">Shipment LPN code (optional)</Label>
-                  <Input id="ship-lpn" placeholder="e.g. SHIP-260717-ABC" value={lpnCode} onChange={(e) => setLpnCode(e.target.value)} />
-                </div>
-                <div className="flex gap-2">
-                  <StatusBadge tone={canPack ? "info" : "neutral"}>{canPack ? "ready" : wave.state}</StatusBadge>
-                  <Button disabled={!canPack || pack.isPending} onClick={() => pack.mutate()}>
-                    <PackageCheck className="h-4 w-4 mr-2" /> Complete pack
+        {salesOrders.map((soId) => {
+          const soLines = (lines ?? []).filter((l) => l.sales_order_id === soId);
+          const soCartons = (cartons ?? []).filter((c) => c.sales_order_id === soId);
+          const task = (packTasks ?? []).find((t) => t.metadata?.sales_order_id === soId);
+          const allPacked = soLines.every((l) => (l.quantity_picked ?? 0) === 0 || l.packed_carton_id);
+          const allSealed = soCartons.length > 0 && soCartons.every((c) => c.sealed_at);
+          const canComplete = task && task.state !== "done" && allPacked && allSealed;
+
+          return (
+            <Section
+              key={soId}
+              title={`Sales order ${soId.slice(0, 8)}`}
+              actions={
+                <div className="flex items-center gap-2">
+                  <StatusBadge tone={task?.state === "done" ? "success" : "info"}>
+                    {task?.state ?? "no task"}
+                  </StatusBadge>
+                  <Button size="sm" variant="outline" onClick={() => openCarton.mutate(soId)} disabled={openCarton.isPending}>
+                    <PackagePlus className="h-4 w-4 mr-1" /> Open carton
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!canComplete || completePack.isPending}
+                    onClick={() => task && completePack.mutate(task.id)}
+                  >
+                    <Check className="h-4 w-4 mr-1" /> Complete pack
                   </Button>
                 </div>
+              }
+            >
+              <div className="grid gap-3 lg:grid-cols-2">
+                <Card>
+                  <CardHeader className="p-3 pb-0"><CardTitle className="text-sm">Picked lines</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr className="text-left">
+                          <th className="p-2">Product</th>
+                          <th className="p-2 text-right">Picked</th>
+                          <th className="p-2 text-right">Packed</th>
+                          <th className="p-2">Assign</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {soLines.map((l) => {
+                          const remaining = (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0);
+                          return (
+                            <tr key={l.id} className="border-t">
+                              <td className="p-2">
+                                {l.product?.name ?? l.product_id}
+                                {l.lot_number ? <div className="text-xs text-muted-foreground">Lot {l.lot_number}</div> : null}
+                              </td>
+                              <td className="p-2 text-right font-mono">{Number(l.quantity_picked).toFixed(2)}</td>
+                              <td className="p-2 text-right font-mono">{Number(l.quantity_packed).toFixed(2)}</td>
+                              <td className="p-2">
+                                {remaining > 0 ? (
+                                  <select
+                                    className="border rounded px-2 py-1 text-xs bg-background"
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      const cartonId = e.target.value;
+                                      if (!cartonId) return;
+                                      assignLine.mutate({ carton_id: cartonId, wave_line_id: l.id, qty: remaining });
+                                      e.currentTarget.value = "";
+                                    }}
+                                  >
+                                    <option value="">→ carton</option>
+                                    {soCartons.filter((c) => !c.sealed_at).map((c) => (
+                                      <option key={c.id} value={c.id}>{c.shipment_lpn?.code ?? c.id.slice(0, 8)}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">done</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="p-3 pb-0"><CardTitle className="text-sm">Cartons</CardTitle></CardHeader>
+                  <CardContent className="p-3 space-y-2">
+                    {soCartons.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No cartons yet. Open one to start packing.</p>
+                    )}
+                    {soCartons.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between border rounded p-2">
+                        <div>
+                          <div className="font-mono text-sm">{c.shipment_lpn?.code ?? c.id.slice(0, 8)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {c.sealed_at ? `sealed · ${c.weight_kg ?? "?"}kg` : "open"}
+                          </div>
+                        </div>
+                        {!c.sealed_at && (
+                          <Button size="sm" variant="outline" onClick={() => setSealDialog({ carton_id: c.id })}>
+                            <Lock className="h-4 w-4 mr-1" /> Seal
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
-        </Section>
+            </Section>
+          );
+        })}
       </PageBody>
+
+      <Dialog open={!!sealDialog} onOpenChange={(v) => !v && setSealDialog(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Seal carton</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <Label htmlFor="wt">Weight (kg)</Label>
+              <Input id="wt" type="number" step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="l">Length (cm)</Label>
+              <Input id="l" type="number" step="0.1" value={lenCm} onChange={(e) => setLenCm(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="w">Width (cm)</Label>
+              <Input id="w" type="number" step="0.1" value={widCm} onChange={(e) => setWidCm(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="h">Height (cm)</Label>
+              <Input id="h" type="number" step="0.1" value={hgtCm} onChange={(e) => setHgtCm(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSealDialog(null)}>Cancel</Button>
+            <Button
+              onClick={() => sealDialog && sealCarton.mutate({ carton_id: sealDialog.carton_id })}
+              disabled={sealCarton.isPending}
+            >
+              <Lock className="h-4 w-4 mr-1" /> Seal carton
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {wave.state === "packed" && (
+        <div className="p-4">
+          <Button onClick={() => nav("/warehouse-app/waves")}>Back to waves</Button>
+        </div>
+      )}
     </>
   );
 }

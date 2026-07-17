@@ -351,6 +351,11 @@ export function BusinessSagaMount({ orgId }: Props) {
     saga.register('warehouse.wave.released', wmsHandler);
     saga.register('warehouse.pick.completed', wmsHandler);
     saga.register('warehouse.pack.completed', wmsHandler);
+    saga.register('warehouse.carton.opened', wmsHandler);
+    saga.register('warehouse.carton.sealed', wmsHandler);
+    saga.register('warehouse.count.opened', wmsHandler);
+    saga.register('warehouse.count.recorded', wmsHandler);
+    saga.register('warehouse.count.posted', wmsHandler);
 
     saga.start();
 
