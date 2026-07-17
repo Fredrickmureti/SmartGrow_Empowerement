@@ -50,7 +50,10 @@ export async function validatePayload(input:
   | { kind: "template"; pack_id?: string | null; body: any }
   | { kind: "return_template"; body: any }
 ) {
-  const { data, error } = await (supabase as any).functions.invoke("validate-localization-payload", { body: input });
+  const { data, error } = await (supabase as any).functions.invoke(
+    "localization-pack",
+    { body: { op: "validate-localization-payload", ...input } },
+  );
   if (error) throw error;
   return data as { valid: boolean; errors: string[]; warnings: string[] };
 }

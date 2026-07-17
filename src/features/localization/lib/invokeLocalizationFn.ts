@@ -65,7 +65,13 @@ export async function invokeLocalizationFn<T = unknown>(
   body: Record<string, unknown>,
 ): Promise<T> {
   await ensureLiveSession();
-  const { data, error } = await (supabase as any).functions.invoke(fnName, { body });
+  // Route through the consolidated `localization-pack` router edge function.
+  // The `fnName` is forwarded as `op` so the router dispatches to the
+  // original per-operation handler with byte-identical body/response.
+  const { data, error } = await (supabase as any).functions.invoke(
+    "localization-pack",
+    { body: { op: fnName, ...body } },
+  );
   // supabase-js wraps non-2xx as `error`, but the function still returns a
   // structured body that we want to surface. Read it from error.context when
   // available, otherwise fall back to `data`.
