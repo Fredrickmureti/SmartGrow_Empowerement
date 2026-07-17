@@ -189,6 +189,10 @@ export function WarehouseApp() {
           }
         />
 
+        <Route path="dispatch" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Dispatch"><LoadingManifests /></LazyRoute></SubscriptionProtectedRoute>} />
+        <Route path="dispatch/new" element={<SubscriptionProtectedRoute><LazyRoute module="New Manifest"><LoadingManifestPlanner /></LazyRoute></SubscriptionProtectedRoute>} />
+        <Route path="dispatch/:manifestId" element={<SubscriptionProtectedRoute><LazyRoute module="Loading Bay"><LoadingBay /></LazyRoute></SubscriptionProtectedRoute>} />
+
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
     </WarehouseLayout>
