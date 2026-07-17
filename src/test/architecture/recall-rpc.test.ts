@@ -34,7 +34,7 @@ describe("Phase G+ — Product Recall RPC (ADR 0073)", () => {
           b.includes("p_reference"),
       );
       expect(hits.length).toBeGreaterThan(0);
-      const migration = hits[0];
+      const migration = hits[hits.length - 1];
       expect(migration).toMatch(/SECURITY DEFINER/);
       expect(migration).toMatch(/user_can_access_business/);
       expect(migration).toMatch(
@@ -47,6 +47,20 @@ describe("Phase G+ — Product Recall RPC (ADR 0073)", () => {
       expect(migration).toMatch(/INSERT INTO public\.product_recalls/);
       expect(migration).toMatch(/INSERT INTO public\.product_recall_items/);
       expect(migration).toMatch(/INSERT INTO public\.lot_quarantine/);
+  });
+
+  it("latest recall_lot migration publishes product.recall.opened to the outbox", () => {
+    const dir = join(ROOT, "supabase/migrations");
+    const hits = readdirSync(dir)
+      .map((f) => readFileSync(join(dir, f), "utf8"))
+      .filter((b) => b.includes("CREATE OR REPLACE FUNCTION public.recall_lot"));
+    expect(hits.length).toBeGreaterThan(0);
+    const migration = hits[hits.length - 1];
+    expect(migration).toMatch(/INSERT INTO public\.business_event_outbox/);
+    expect(migration).toMatch(/product\.recall\.opened/);
+    // Idempotency key must be stable per recall.
+    expect(migration).toMatch(/idempotency_key/);
+    expect(migration).toMatch(/ON CONFLICT \(idempotency_key\) DO NOTHING/);
   });
 
   it("LotDetail invokes the RPC and never writes recall tables directly", () => {
