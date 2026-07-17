@@ -65,11 +65,9 @@ export function LocalizationPackPrompt({
     setIsInstalling(true);
 
     try {
-      const { data, error } = await invokeWithAuth(
+      const { data, error } = await invokeLocalizationPack(
         "install-localization-pack",
-        {
-          body: { organization_id: organizationId, pack_id: pack.id },
-        }
+        { organization_id: organizationId, pack_id: pack.id },
       );
 
       if (error) {
