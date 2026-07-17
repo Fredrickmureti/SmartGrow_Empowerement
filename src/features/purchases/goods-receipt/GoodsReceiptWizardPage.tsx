@@ -408,6 +408,20 @@ export default function GoodsReceiptWizardPage() {
           updateLine(idx, "serial_number", gs1.normalized.serial);
         }
       }
+      if (gs1.normalized.expiry) {
+        updateLine(
+          idx,
+          "captured_expiry_date",
+          gs1.normalized.expiry.toISOString().slice(0, 10),
+        );
+      }
+      if (gs1.normalized.production) {
+        updateLine(
+          idx,
+          "captured_manufacture_date",
+          gs1.normalized.production.toISOString().slice(0, 10),
+        );
+      }
       const expBits = gs1.normalized.expiry
         ? ` · exp ${gs1.normalized.expiry.toISOString().slice(0, 10)}`
         : "";
