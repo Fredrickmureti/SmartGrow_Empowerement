@@ -32,10 +32,7 @@ describe("wms phase 4c architecture", () => {
     const offenders: string[] = [];
     for (const f of warehousePages) {
       const src = readFileSync(f, "utf8");
-      if (
-        /from\(\s*["']stock_quants["']\s*\)/.test(src) &&
-        /\.(update|insert|delete|upsert)\s*\(/.test(src)
-      ) {
+      if (/from\(\s*["']stock_quants["']\s*\)\s*\.(update|insert|delete|upsert)\s*\(/.test(src)) {
         offenders.push(path.relative(SRC, f));
       }
     }
