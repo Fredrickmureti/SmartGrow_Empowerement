@@ -22,6 +22,7 @@ const WarehouseView = lazy(() => import("@/pages/inventory/WarehouseView"));
 const LicensePlates = lazy(() => import("@/pages/warehouse/LicensePlates"));
 const LicensePlateView = lazy(() => import("@/pages/warehouse/LicensePlateView"));
 const OperatorTasks = lazy(() => import("@/pages/warehouse/OperatorTasks"));
+const PutawayQueue = lazy(() => import("@/pages/warehouse/PutawayQueue"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
@@ -109,6 +110,14 @@ export function WarehouseApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Operator Tasks"><OperatorTasks /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="putaway"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Putaway"><PutawayQueue /></LazyRoute>
             </SubscriptionProtectedRoute>
           }
         />
