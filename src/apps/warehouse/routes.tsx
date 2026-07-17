@@ -42,6 +42,8 @@ const Slotting = lazy(() => import("@/pages/warehouse/Slotting"));
 const YardBoard = lazy(() => import("@/pages/warehouse/YardBoard"));
 const LabourBoard = lazy(() => import("@/pages/warehouse/LabourBoard"));
 const BillingBoard = lazy(() => import("@/pages/warehouse/BillingBoard"));
+const CrossdockBoard = lazy(() => import("@/pages/warehouse/CrossdockBoard"));
+const CartonTypes = lazy(() => import("@/pages/warehouse/CartonTypes"));
 
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>{children}</Suspense>
