@@ -415,7 +415,7 @@ export default function GoodsReceiptWizardPage() {
           gs1.normalized.expiry.toISOString().slice(0, 10),
         );
       }
-      if (gs1.normalized.production) {
+      if (gs1.normalized.productionDate) {
         updateLine(
           idx,
           "captured_manufacture_date",
