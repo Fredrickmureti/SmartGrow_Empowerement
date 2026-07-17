@@ -43,3 +43,12 @@ export {
 export { PRODUCT_BATCH_IMPORT_FIELDS } from "./product/productBatchImportConfig";
 export { PRODUCT_PRICE_IMPORT_FIELDS } from "./product/productPriceImportConfig";
 export { PRODUCT_SUPPLIER_IMPORT_FIELDS } from "./product/productSupplierImportConfig";
+
+// ADR-0074 split batch handlers (session 6). Callers pass a
+// `{ orgId, businessId, branchId? }` context object; each handler writes to
+// its own destination table and never crosses concerns.
+export { createProductBarcodeBatchMigrationHandler } from "./product/productBarcodeImportConfig";
+export { createProductBatchBatchMigrationHandler } from "./product/productBatchImportConfig";
+export { createProductWarehouseStockBatchMigrationHandler } from "./product/productWarehouseStockImportConfig";
+export { createProductPriceBatchMigrationHandler } from "./product/productPriceImportConfig";
+export { createProductSupplierBatchMigrationHandler } from "./product/productSupplierImportConfig";
