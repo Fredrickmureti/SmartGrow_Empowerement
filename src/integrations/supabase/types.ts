@@ -55793,6 +55793,51 @@ export type Database = {
           },
         ]
       }
+      warehouse_docks: {
+        Row: {
+          business_id: string
+          code: string
+          created_at: string
+          created_by: string | null
+          dock_type: Database["public"]["Enums"]["wms_dock_type"]
+          id: string
+          is_active: boolean
+          name: string | null
+          notes: string | null
+          organization_id: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          business_id: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          dock_type?: Database["public"]["Enums"]["wms_dock_type"]
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          dock_type?: Database["public"]["Enums"]["wms_dock_type"]
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: []
+      }
       warehouse_stock: {
         Row: {
           average_cost: number | null
@@ -56367,6 +56412,128 @@ export type Database = {
           },
         ]
       }
+      wms_loading_manifests: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          dispatched_at: string | null
+          dispatched_by: string | null
+          dock_id: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          planned_departure_at: string | null
+          state: Database["public"]["Enums"]["wms_manifest_state"]
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          carrier_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          dock_id?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          planned_departure_at?: string | null
+          state?: Database["public"]["Enums"]["wms_manifest_state"]
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          carrier_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          dock_id?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          planned_departure_at?: string | null
+          state?: Database["public"]["Enums"]["wms_manifest_state"]
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_loading_manifests_dock_id_fkey"
+            columns: ["dock_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_docks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_manifest_cartons: {
+        Row: {
+          business_id: string
+          carton_id: string
+          created_at: string
+          id: string
+          loaded_at: string
+          loaded_by: string | null
+          manifest_id: string
+          organization_id: string
+          sequence: number
+        }
+        Insert: {
+          business_id: string
+          carton_id: string
+          created_at?: string
+          id?: string
+          loaded_at?: string
+          loaded_by?: string | null
+          manifest_id: string
+          organization_id: string
+          sequence?: number
+        }
+        Update: {
+          business_id?: string
+          carton_id?: string
+          created_at?: string
+          id?: string
+          loaded_at?: string
+          loaded_by?: string | null
+          manifest_id?: string
+          organization_id?: string
+          sequence?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_manifest_cartons_carton_id_fkey"
+            columns: ["carton_id"]
+            isOneToOne: false
+            referencedRelation: "wms_pack_cartons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_manifest_cartons_manifest_id_fkey"
+            columns: ["manifest_id"]
+            isOneToOne: false
+            referencedRelation: "wms_loading_manifests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_pack_cartons: {
         Row: {
           branch_id: string | null
@@ -56375,6 +56542,7 @@ export type Database = {
           height_cm: number | null
           id: string
           length_cm: number | null
+          manifest_id: string | null
           opened_at: string
           opened_by: string | null
           organization_id: string
@@ -56395,6 +56563,7 @@ export type Database = {
           height_cm?: number | null
           id?: string
           length_cm?: number | null
+          manifest_id?: string | null
           opened_at?: string
           opened_by?: string | null
           organization_id: string
@@ -56415,6 +56584,7 @@ export type Database = {
           height_cm?: number | null
           id?: string
           length_cm?: number | null
+          manifest_id?: string | null
           opened_at?: string
           opened_by?: string | null
           organization_id?: string
@@ -56429,6 +56599,13 @@ export type Database = {
           width_cm?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_pack_cartons_manifest_id_fkey"
+            columns: ["manifest_id"]
+            isOneToOne: false
+            referencedRelation: "wms_loading_manifests"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_pack_cartons_shipment_lpn_id_fkey"
             columns: ["shipment_lpn_id"]
@@ -64853,6 +65030,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      close_loading_manifest: {
+        Args: { p_manifest_id: string }
+        Returns: undefined
+      }
       close_pos_shift: {
         Args: {
           p_actual_cash: number
@@ -65329,6 +65510,10 @@ export type Database = {
       }
       dispatch_delivery_atomic: {
         Args: { p_dn_id: string; p_payload?: Json; p_user_id: string }
+        Returns: Json
+      }
+      dispatch_loading_manifest: {
+        Args: { p_departure_at?: string; p_manifest_id: string }
         Returns: Json
       }
       dissolve_department: {
@@ -67987,6 +68172,10 @@ export type Database = {
           workflow: string
         }[]
       }
+      load_carton_onto_manifest: {
+        Args: { p_carton_id: string; p_manifest_id: string }
+        Returns: string
+      }
       loan_log_event: {
         Args: {
           _amount?: number
@@ -68307,6 +68496,14 @@ export type Database = {
         Returns: string
       }
       notify_probation_expiry: { Args: never; Returns: number }
+      open_loading_manifest: {
+        Args: {
+          p_carrier_id?: string
+          p_dock_id: string
+          p_planned_departure_at?: string
+        }
+        Returns: string
+      }
       open_pack_carton: {
         Args: {
           p_sales_order_id: string
@@ -73651,8 +73848,15 @@ export type Database = {
         | "opening_balance"
       wms_count_state: "draft" | "counting" | "review" | "posted" | "cancelled"
       wms_count_strategy: "abc" | "random" | "targeted"
+      wms_dock_type: "receiving" | "shipping" | "both"
       wms_lpn_status: "open" | "sealed" | "shipped" | "retired"
       wms_lpn_type: "pallet" | "carton" | "tote" | "other"
+      wms_manifest_state:
+        | "draft"
+        | "loading"
+        | "closed"
+        | "dispatched"
+        | "cancelled"
       wms_task_state:
         | "pending"
         | "assigned"
@@ -74374,8 +74578,16 @@ export const Constants = {
       ],
       wms_count_state: ["draft", "counting", "review", "posted", "cancelled"],
       wms_count_strategy: ["abc", "random", "targeted"],
+      wms_dock_type: ["receiving", "shipping", "both"],
       wms_lpn_status: ["open", "sealed", "shipped", "retired"],
       wms_lpn_type: ["pallet", "carton", "tote", "other"],
+      wms_manifest_state: [
+        "draft",
+        "loading",
+        "closed",
+        "dispatched",
+        "cancelled",
+      ],
       wms_task_state: [
         "pending",
         "assigned",

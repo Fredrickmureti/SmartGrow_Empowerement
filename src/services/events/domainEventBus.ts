@@ -71,7 +71,12 @@ export type DomainEventType =
   // Warehouse (WMS) — Phase 4c. Cycle counting.
   | 'warehouse.count.opened'
   | 'warehouse.count.recorded'
-  | 'warehouse.count.posted';
+  | 'warehouse.count.posted'
+  // Warehouse (WMS) — Phase 5. Loading & dispatch.
+  | 'warehouse.manifest.opened'
+  | 'warehouse.manifest.closed'
+  | 'warehouse.manifest.dispatched'
+  | 'warehouse.carton.shipped';
 
 export interface DomainEvent<P = unknown> {
   id?: string;
