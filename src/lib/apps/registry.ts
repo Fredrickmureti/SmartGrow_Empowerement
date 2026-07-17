@@ -817,6 +817,7 @@ export const APP_REGISTRY: AppDefinition[] = [
   CONTACTS_APP,
   PURCHASES_APP,
   INVENTORY_APP,
+  WAREHOUSE_APP,
   POS_APP,
   CRM_APP,
   // HR domain — split into 5 Odoo-aligned apps (Employees is foundational)
