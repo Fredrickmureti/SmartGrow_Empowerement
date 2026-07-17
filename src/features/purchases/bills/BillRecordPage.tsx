@@ -9,7 +9,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
-import { ArrowLeft, Pencil, Printer } from "lucide-react";
+import { ArrowLeft, Pencil, Printer, Link2 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   ActionBar,
