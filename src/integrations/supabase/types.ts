@@ -5027,6 +5027,90 @@ export type Database = {
           },
         ]
       }
+      bill_grn_matches: {
+        Row: {
+          bill_id: string
+          bill_item_id: string
+          business_id: string
+          created_at: string
+          created_by: string | null
+          goods_receipt_id: string
+          goods_receipt_item_id: string
+          id: string
+          matched_quantity: number
+          notes: string | null
+          organization_id: string
+          unit_cost_variance: number | null
+          updated_at: string
+        }
+        Insert: {
+          bill_id: string
+          bill_item_id: string
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          goods_receipt_id: string
+          goods_receipt_item_id: string
+          id?: string
+          matched_quantity: number
+          notes?: string | null
+          organization_id: string
+          unit_cost_variance?: number | null
+          updated_at?: string
+        }
+        Update: {
+          bill_id?: string
+          bill_item_id?: string
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          goods_receipt_id?: string
+          goods_receipt_item_id?: string
+          id?: string
+          matched_quantity?: number
+          notes?: string | null
+          organization_id?: string
+          unit_cost_variance?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_grn_matches_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_grn_matches_bill_item_id_fkey"
+            columns: ["bill_item_id"]
+            isOneToOne: false
+            referencedRelation: "bill_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_grn_matches_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_grn_matches_goods_receipt_item_id_fkey"
+            columns: ["goods_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_grn_matches_goods_receipt_item_id_fkey"
+            columns: ["goods_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_lines_with_suspect_cost"
+            referencedColumns: ["goods_receipt_item_id"]
+          },
+        ]
+      }
       bill_items: {
         Row: {
           account_id: string | null
@@ -5411,6 +5495,7 @@ export type Database = {
           currency_rate: number
           discount_amount: number | null
           due_date: string
+          goods_receipt_id: string | null
           id: string
           is_sample_data: boolean
           journal_entry_id: string | null
@@ -5449,6 +5534,7 @@ export type Database = {
           currency_rate?: number
           discount_amount?: number | null
           due_date: string
+          goods_receipt_id?: string | null
           id?: string
           is_sample_data?: boolean
           journal_entry_id?: string | null
@@ -5487,6 +5573,7 @@ export type Database = {
           currency_rate?: number
           discount_amount?: number | null
           due_date?: string
+          goods_receipt_id?: string | null
           id?: string
           is_sample_data?: boolean
           journal_entry_id?: string | null
@@ -5557,6 +5644,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bills_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "bills_journal_entry_id_fkey"
@@ -21535,6 +21629,179 @@ export type Database = {
           width_mm?: number | null
         }
         Relationships: []
+      }
+      landed_cost_allocations: {
+        Row: {
+          allocated_amount: number
+          allocation_ratio: number
+          basis_value: number
+          business_id: string
+          created_at: string
+          goods_receipt_id: string
+          goods_receipt_item_id: string
+          id: string
+          landed_cost_bill_id: string
+          organization_id: string
+          posted_movement_id: string | null
+          product_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          allocated_amount?: number
+          allocation_ratio?: number
+          basis_value?: number
+          business_id: string
+          created_at?: string
+          goods_receipt_id: string
+          goods_receipt_item_id: string
+          id?: string
+          landed_cost_bill_id: string
+          organization_id: string
+          posted_movement_id?: string | null
+          product_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allocated_amount?: number
+          allocation_ratio?: number
+          basis_value?: number
+          business_id?: string
+          created_at?: string
+          goods_receipt_id?: string
+          goods_receipt_item_id?: string
+          id?: string
+          landed_cost_bill_id?: string
+          organization_id?: string
+          posted_movement_id?: string | null
+          product_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landed_cost_allocations_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_allocations_goods_receipt_item_id_fkey"
+            columns: ["goods_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_allocations_goods_receipt_item_id_fkey"
+            columns: ["goods_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_lines_with_suspect_cost"
+            referencedColumns: ["goods_receipt_item_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_allocations_landed_cost_bill_id_fkey"
+            columns: ["landed_cost_bill_id"]
+            isOneToOne: false
+            referencedRelation: "landed_cost_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_allocations_posted_movement_id_fkey"
+            columns: ["posted_movement_id"]
+            isOneToOne: false
+            referencedRelation: "stock_movements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_allocations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_allocations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      landed_cost_bills: {
+        Row: {
+          allocation_basis: string
+          bill_id: string | null
+          business_id: string
+          cost_type: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          description: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          posted_at: string | null
+          posted_by: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          allocation_basis?: string
+          bill_id?: string | null
+          business_id: string
+          cost_type: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          posted_at?: string | null
+          posted_by?: string | null
+          status?: string
+          total_amount: number
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          allocation_basis?: string
+          bill_id?: string | null
+          business_id?: string
+          cost_type?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          posted_at?: string | null
+          posted_by?: string | null
+          status?: string
+          total_amount?: number
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landed_cost_bills_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_bills_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       learning_path_courses: {
         Row: {
@@ -62145,6 +62412,7 @@ export type Database = {
           currency_rate: number
           discount_amount: number | null
           due_date: string
+          goods_receipt_id: string | null
           id: string
           is_sample_data: boolean
           journal_entry_id: string | null
