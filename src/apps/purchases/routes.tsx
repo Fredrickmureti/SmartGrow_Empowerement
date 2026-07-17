@@ -82,6 +82,7 @@ const VendorStatementRecordPage = lazy(
   () => import("@/features/purchases/statements/VendorStatementRecordPage"),
 );
 const AgedPayables = lazy(() => import("@/pages/purchases/AgedPayables"));
+const LandedCosts = lazy(() => import("@/pages/purchases/LandedCosts"));
 
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
