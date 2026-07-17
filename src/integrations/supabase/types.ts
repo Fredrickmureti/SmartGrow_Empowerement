@@ -64414,6 +64414,20 @@ export type Database = {
         Args: { p_older_than_minutes?: number }
         Returns: number
       }
+      emit_business_event: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_event_type: string
+          p_idempotency_key: string
+          p_org_id: string
+          p_payload?: Json
+          p_source_doc_id: string
+          p_source_doc_type: string
+          p_warehouse_id?: string
+        }
+        Returns: string
+      }
       emit_employee_lifecycle_event: {
         Args: {
           p_actor_user_id?: string
