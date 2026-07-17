@@ -25,6 +25,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useProjects } from "@/hooks/projects";
 import { Label } from "@/components/ui/label";
+import { useCapability } from "@/hooks/useCapability";
 
 interface ProjectPickerProps {
   value: string | null | undefined;
@@ -60,8 +61,20 @@ export function ProjectPicker({
   compact = false,
   enabled = true,
 }: ProjectPickerProps) {
-  const { projects, isLoading } = useProjects({ enabled });
+  // Capability gate: when the Projects app is uninstalled for the
+  // current org, ProjectPicker MUST NOT render — otherwise consumers
+  // (Sales Invoice, Sales Order, Bill, PO, Expense, etc.) ask the user
+  // to pick a project that cannot exist. This is the single line that
+  // closes the "Project field on Sales Invoice after Projects was
+  // uninstalled" bug at the provider level, so every current and
+  // future consumer degrades gracefully without knowing which app
+  // owns projects. See `src/lib/apps/capabilities.ts`.
+  const capability = useCapability("projects.analytic-tagging");
+  const { projects, isLoading } = useProjects({ enabled: enabled && capability.available });
   const [open, setOpen] = useState(false);
+
+  if (!capability.ready) return null;
+  if (!capability.available) return null;
 
 
   const sortedProjects = useMemo(() => {
