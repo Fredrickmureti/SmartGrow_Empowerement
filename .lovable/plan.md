@@ -80,3 +80,15 @@ Charter: mobile shell is a **presentation layer** over the same RPCs the desktop
 - IndexedDB via `idb` (already used elsewhere? — if not, ~2KB dep; verified in Phase 1 of build).
 - Service worker follows the Lovable PWA skill: `vite-plugin-pwa` with `generateSW`, guarded single wrapper, `/~oauth` exclusion.
 - Idempotency: mobile flows never mint new keys; they pass through the keys the RPCs already stamp (`wms.pick_task:<id>:<state>`, etc.), so replays are naturally deduplicated by the outbox.
+
+---
+
+## Phase 13 — SHIPPED
+
+- `/wm/*` mobile route tree mounted from `App.tsx` behind `AppInstalledGate("warehouse")`.
+- Pages: `MobileHome` (my tasks + open receipts + open count sessions), `MobilePutaway`, `MobilePick`, `MobileCount`, `MobileReceive`.
+- `MobileWarehouseLayout` — fixed-viewport shell with back nav, `QueueIndicator` chip, sticky bottom action bar.
+- Offline queue at `src/apps/warehouse-mobile/offlineQueue.ts` — IndexedDB-backed FIFO via `idb`; `enqueue()` is the single chokepoint for `supabase.rpc` inside the mobile shell; drain loop wakes on `online` event + 8 s tick; per-row retry/discard from the queue drawer.
+- PWA already wired via existing `vite-plugin-pwa` config (verified). No new SW code needed.
+- Guard `src/test/architecture/wms-phase13.test.ts` — 6/6 green. Enforces: no direct `supabase.rpc` in mobile pages, layout uniformity, route wiring, drain-loop presence.
+- Deferred (Phase 13.1 START HERE NEXT): pack/dispatch/QC mobile screens; per-scan ASN variant of `receive_goods_to_wms` if operator-side ASN scanning is requested; installable manifest polish (mobile-specific icons + `/wm` `start_url`).
