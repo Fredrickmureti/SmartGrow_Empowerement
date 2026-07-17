@@ -56168,6 +56168,122 @@ export type Database = {
           },
         ]
       }
+      wms_count_lines: {
+        Row: {
+          business_id: string
+          counted_at: string | null
+          counted_by: string | null
+          counted_qty: number | null
+          created_at: string
+          id: string
+          location_id: string
+          lot_number: string | null
+          note: string | null
+          organization_id: string
+          posted_adjustment_id: string | null
+          product_id: string
+          session_id: string
+          system_qty: number
+          updated_at: string
+          variance_qty: number | null
+        }
+        Insert: {
+          business_id: string
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_qty?: number | null
+          created_at?: string
+          id?: string
+          location_id: string
+          lot_number?: string | null
+          note?: string | null
+          organization_id: string
+          posted_adjustment_id?: string | null
+          product_id: string
+          session_id: string
+          system_qty?: number
+          updated_at?: string
+          variance_qty?: number | null
+        }
+        Update: {
+          business_id?: string
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_qty?: number | null
+          created_at?: string
+          id?: string
+          location_id?: string
+          lot_number?: string | null
+          note?: string | null
+          organization_id?: string
+          posted_adjustment_id?: string | null
+          product_id?: string
+          session_id?: string
+          system_qty?: number
+          updated_at?: string
+          variance_qty?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_count_lines_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "wms_count_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_count_sessions: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          posted_at: string | null
+          posted_by: string | null
+          state: Database["public"]["Enums"]["wms_count_state"]
+          strategy: Database["public"]["Enums"]["wms_count_strategy"]
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          posted_at?: string | null
+          posted_by?: string | null
+          state?: Database["public"]["Enums"]["wms_count_state"]
+          strategy?: Database["public"]["Enums"]["wms_count_strategy"]
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          posted_at?: string | null
+          posted_by?: string | null
+          state?: Database["public"]["Enums"]["wms_count_state"]
+          strategy?: Database["public"]["Enums"]["wms_count_strategy"]
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: []
+      }
       wms_license_plates: {
         Row: {
           branch_id: string | null
@@ -64996,6 +65112,15 @@ export type Database = {
         }
         Returns: number
       }
+      create_count_session: {
+        Args: {
+          p_location_ids?: string[]
+          p_notes?: string
+          p_strategy?: string
+          p_warehouse_id: string
+        }
+        Returns: string
+      }
       create_employee_with_identifiers: {
         Args: { p_employee: Json; p_identifiers?: Json }
         Returns: string
@@ -70140,6 +70265,7 @@ export type Database = {
         Args: { p_register_id: string }
         Returns: number
       }
+      post_count_session: { Args: { p_session_id: string }; Returns: Json }
       post_journal_entry_atomic: {
         Args: {
           _branch_id?: string
@@ -70590,6 +70716,10 @@ export type Database = {
           _receipt_number?: string
           _reference?: string
         }
+        Returns: Json
+      }
+      record_count: {
+        Args: { p_counted_qty: number; p_line_id: string; p_note?: string }
         Returns: Json
       }
       record_device_login: {
@@ -73519,6 +73649,8 @@ export type Database = {
         | "transfer"
         | "adjustment"
         | "opening_balance"
+      wms_count_state: "draft" | "counting" | "review" | "posted" | "cancelled"
+      wms_count_strategy: "abc" | "random" | "targeted"
       wms_lpn_status: "open" | "sealed" | "shipped" | "retired"
       wms_lpn_type: "pallet" | "carton" | "tote" | "other"
       wms_task_state:
@@ -74240,6 +74372,8 @@ export const Constants = {
         "adjustment",
         "opening_balance",
       ],
+      wms_count_state: ["draft", "counting", "review", "posted", "cancelled"],
+      wms_count_strategy: ["abc", "random", "targeted"],
       wms_lpn_status: ["open", "sealed", "shipped", "retired"],
       wms_lpn_type: ["pallet", "carton", "tote", "other"],
       wms_task_state: [
