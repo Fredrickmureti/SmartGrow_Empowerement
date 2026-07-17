@@ -120,3 +120,8 @@ Rationale: the moment anyone generates a variant matrix, every picker will show 
 - 62 pre-existing architecture-guard failures in `src/test/architecture/` predate this session (verified against inventory-branch-filter, no-conditional-radix-overlay, business-scoped-queries — my edits neither introduce nor resolve them). New guards for Steps 1 and 4 (12 tests) are the reliable signal that this session's work is complete.
 - The GRN expiry update loop is intentionally per-lot rather than a batch upsert because the `stock_lots` unique index is `(business_id, product_id, lot_number, serial_number)` — a Postgres upsert with a partial null-including composite is unreliable; N small UPDATEs are the correct primitive.
 
+
+## 2026-07-17 (session 4) — Phase F split + drift-log infra
+- ADR 0074: split `productImportConfig.ts` into six focused configs under `src/lib/importConfigs/product/` (master, barcode, batch, warehouse-stock, price, supplier). Legacy file kept as compat shim with allowlisted callers; guard `product-imports-are-split.test.ts` forbids new imports of the legacy symbol. Barrel re-exports all new configs.
+- ADR 0075: created `stock_quant_drift_runs` table + `record_stock_quant_drift_run` RPC. Org members read-only; service_role write. Precondition for retiring `warehouse_stock` (ADR 0076).
+- Remaining Step 5 work (deferred): nightly edge function + pg_cron schedule (needs user-scoped SQL); migrate ~139 refs across 39 files from `warehouse_stock` → `stock_quants` via the `readOnHand` helper; drop legacy table under ADR 0076 after N consecutive zero-drift runs.
