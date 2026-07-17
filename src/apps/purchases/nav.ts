@@ -13,6 +13,7 @@ import {
   ScrollText,
   Hourglass,
   Tags,
+  Layers,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
