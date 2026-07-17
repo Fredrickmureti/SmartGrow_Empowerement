@@ -67,9 +67,10 @@ Nothing claimed-complete was found unimplemented.
 - `src/hooks/useBranchScopedProducts.ts` — dropped the parallel parent-id fetch; passes the flag through.
 - `src/hooks/pos/usePOSProducts.ts` — passes `p_include_variant_parents: false` and also excludes variant parents from the raw `products` fallback query via `.or("is_variant_parent.is.null,is_variant_parent.eq.false")`.
 
-### Step 5 — Recall outbox event + notification worker
-- Emit `product.recall.opened` to `business_event_outbox` inside `recall_lot` (payload: recall id + manifest).
-- Worker edge function fans out via existing `email_templates` / `sms_templates`.
+### Step 5 — Recall outbox event + notification worker — ⚠️ PARTIALLY DONE
+- ✅ Event emission: `recall_lot` RPC now inserts `product.recall.opened` into `public.business_event_outbox` inside the same transaction as the recall header. Payload carries `business_id`, `product_id`, `lot_id`, `lot_number`, `recall_reference`, `reason`, `severity`, `quarantined_units`, `warehouses_affected`, `downstream_customers`. Idempotency key: `product.recall.opened:<recall_id>` (partial unique index confirmed on `business_event_outbox.idempotency_key`).
+- ✅ Guard: `recall-rpc.test.ts` gained a 4th test enforcing the outbox insert + idempotency clause.
+- ⏭ **Worker still pending.** Build a notification edge function that consumes `product.recall.opened` from the outbox, resolves `email_templates` / `sms_templates` per org, and dispatches to the `downstream_customers` manifest. Mark event `completed` on success. Deferred deliberately — no live template pack exists yet for recalls; product-owner input needed on wording.
 
 ### Step 6 — Per-artefact batch handlers for the 5 remaining split importers
 - `productMaster` has `createProductMasterBatchMigrationHandler`. Add matching handlers for `barcode`, `batch`, `warehouseStock`, `price`, `supplier` — each writes to its own destination with idempotency keys + outbox events per ADR 0074.
