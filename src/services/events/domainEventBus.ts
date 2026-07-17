@@ -57,7 +57,10 @@ export type DomainEventType =
   | 'warehouse.task.completed'
   | 'warehouse.task.cancelled'
   | 'warehouse.plate.moved'
-  | 'warehouse.plate.sealed';
+  | 'warehouse.plate.sealed'
+  | 'warehouse.receipt.staged'
+  | 'warehouse.putaway.suggested'
+  | 'warehouse.putaway.completed';
 
 export interface DomainEvent<P = unknown> {
   id?: string;
