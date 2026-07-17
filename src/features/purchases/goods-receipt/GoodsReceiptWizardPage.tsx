@@ -148,6 +148,28 @@ export default function GoodsReceiptWizardPage() {
 
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [appointmentId, setAppointmentId] = useState<string>("");
+  const [appointments, setAppointments] = useState<Array<{ id: string; reference: string | null; window_start: string; window_end: string; state: string; dock_code?: string | null }>>([]);
+
+  // Load inbound appointments for the caller's business that are still
+  // schedulable (scheduled|arrived). Filtering by warehouse is deferred
+  // to visual context via dock code — the RPC does the auth check.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from("wms_dock_appointments")
+        .select("id, reference, window_start, window_end, state, warehouse_id, dock:warehouse_docks(code)")
+        .eq("appointment_type", "inbound")
+        .in("state", ["scheduled", "arrived"])
+        .order("window_start");
+      if (!alive) return;
+      const rows = (data ?? []).filter((r: any) => !warehouseId || r.warehouse_id === warehouseId)
+        .map((r: any) => ({ id: r.id, reference: r.reference, window_start: r.window_start, window_end: r.window_end, state: r.state, dock_code: r.dock?.code ?? null }));
+      setAppointments(rows);
+    })();
+    return () => { alive = false; };
+  }, [warehouseId]);
   const [receiptLines, setReceiptLines] = useState<ReceiptLine[]>([]);
   const [scanCode, setScanCode] = useState("");
   const [scanFlash, setScanFlash] = useState<string | null>(null);
@@ -659,6 +681,19 @@ export default function GoodsReceiptWizardPage() {
         changes_summary: `Goods receipt ${grnNumber} created for PO ${po.po_number}. ${result.movements_created} movement(s), GL ${result.gl_posted ? "posted" : "skipped"}.`,
       });
 
+      // Phase 6 — bind the GRN to a scheduled dock appointment when the
+      // user picked one. Non-fatal: the receipt stands even if binding
+      // fails (e.g. appointment cancelled between load and submit).
+      if (appointmentId) {
+        const { error: bindErr } = await supabase.rpc("bind_goods_receipt_appointment", {
+          p_receipt_id: receipt.id,
+          p_appointment_id: appointmentId,
+        });
+        if (bindErr) {
+          console.warn("[GRN] appointment binding failed", bindErr);
+        }
+      }
+
       toast({
         title: "Goods received successfully",
         description: `Receipt ${grnNumber} — ${
@@ -820,6 +855,24 @@ export default function GoodsReceiptWizardPage() {
                 placeholder="Add any notes about this delivery…"
                 rows={3}
               />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="grn-appointment">Dock appointment (optional)</Label>
+              <Select value={appointmentId || "none"} onValueChange={(v) => setAppointmentId(v === "none" ? "" : v)}>
+                <SelectTrigger id="grn-appointment">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {appointments.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.dock_code ? `${a.dock_code} · ` : ""}
+                      {new Date(a.window_start).toLocaleString()} · {a.reference ?? a.state}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Bind this GRN to a scheduled inbound slot.</p>
             </div>
           </div>
         </Section>
