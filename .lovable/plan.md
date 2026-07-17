@@ -108,7 +108,17 @@ Add `src/test/architecture/product-import-handlers-split.test.ts`:
 - **Blocking Gap #1 (cost-method ambiguity):** ADR 0078 makes AVCO canonical, downgrades `cost_layers` to lot-cost detail only. Codebase sweep confirmed no TS consumer reads cost_layers today, so no code changes needed.
 
 **Follow-ups (not blockers):**
-- Landed-cost posting RPC (`post_landed_cost_bill`) + reversal RPC — planned for next session; the schema is in place.
-- Reverse-stock-movement RPC contract (ADR 0078 §4).
 - Migrate one consumer (Finance COGS JE or replenishment) off direct `stock_movements` triggers onto the outbox subscription (ADR 0076 §Follow-up).
 - Ops-blocked: `cron_caller_jwt` rotation, Step 5 notification-copy worker.
+
+## Phase 6 — Execution log (session 7 cont., 2026-07-17)
+
+**Shipped:**
+- Added `stock_movements.reverses_movement_id` self-reference + `landed_cost` movement_type.
+- `reverse_stock_movement(p_movement_id, p_reason)` — SECURITY DEFINER, refuses double-reversal and reversing a reversal, checks caller has owner/admin/accountant/staff on the business, inserts a negating movement that inherits pack provenance and reference fields. Because the reversal goes through the standard INSERT path, `tg_stock_movement_emit_event` publishes a matching `stock.movement.*` event, so consumers get a symmetrical entry with no bespoke reversal-event type.
+- `post_landed_cost_bill(p_bill_id)` — validates status=`allocated`, sum(allocated_amount)=total_amount (rounded to 2dp), writes one `landed_cost` stock_movements row per allocation (quantity 0, unit_cost=allocated_amount, reference to bill), stamps `posted_movement_id` back on the allocation, flips bill to `posted`.
+- `reverse_landed_cost_bill(p_bill_id, p_reason)` — iterates posted allocations, calls `reverse_stock_movement`, clears `posted_movement_id`, flips bill to `reversed`.
+
+**Verification:** migration applied; linter output was 1823 pre-existing issues, none introduced by this migration.
+
+**Priorities still open (unchanged):** ops rotates `cron_caller_jwt`; Step 5 worker; migrate one consumer off direct `stock_movements` triggers to the outbox; G1–G3 stakeholder input.

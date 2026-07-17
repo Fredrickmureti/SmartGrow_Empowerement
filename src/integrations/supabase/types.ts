@@ -50844,6 +50844,7 @@ export type Database = {
           quantity: number
           reference_id: string | null
           reference_type: string | null
+          reverses_movement_id: string | null
           serial_number: string | null
           source_location_id: string | null
           source_packaging_id: string | null
@@ -50870,6 +50871,7 @@ export type Database = {
           quantity: number
           reference_id?: string | null
           reference_type?: string | null
+          reverses_movement_id?: string | null
           serial_number?: string | null
           source_location_id?: string | null
           source_packaging_id?: string | null
@@ -50896,6 +50898,7 @@ export type Database = {
           quantity?: number
           reference_id?: string | null
           reference_type?: string | null
+          reverses_movement_id?: string | null
           serial_number?: string | null
           source_location_id?: string | null
           source_packaging_id?: string | null
@@ -50986,6 +50989,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_reverses_movement_id_fkey"
+            columns: ["reverses_movement_id"]
+            isOneToOne: false
+            referencedRelation: "stock_movements"
             referencedColumns: ["id"]
           },
           {
@@ -69569,6 +69579,7 @@ export type Database = {
         Args: { _entry_id: string; _user_id: string }
         Returns: undefined
       }
+      post_landed_cost_bill: { Args: { p_bill_id: string }; Returns: string }
       post_pos_shift_gl: { Args: { _shift_id: string }; Returns: string }
       post_source_to_gl: {
         Args: { p_source_id: string; p_source_type: string }
@@ -70928,6 +70939,10 @@ export type Database = {
         }
         Returns: Json
       }
+      reverse_landed_cost_bill: {
+        Args: { p_bill_id: string; p_reason?: string }
+        Returns: string
+      }
       reverse_stock_adjustment_atomic: {
         Args: {
           p_adjustment_id: string
@@ -70936,6 +70951,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: Json
+      }
+      reverse_stock_movement: {
+        Args: { p_movement_id: string; p_reason?: string }
+        Returns: string
       }
       revert_pack_upgrade_atomic: {
         Args: { _proposal_id: string }
