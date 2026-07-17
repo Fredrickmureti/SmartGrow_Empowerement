@@ -558,6 +558,22 @@ const App = () => (
                                 </SubscriptionProtectedRoute>
                               }
                             />
+
+                            {/* Warehouse App (WMS execution layer — ADR 0079) */}
+                            <Route
+                              path="/warehouse-app/*"
+                              element={
+                                <SubscriptionProtectedRoute allowReadOnly>
+                                  <PortalUserRoute>
+                                    <AppInstalledGate appId="warehouse">
+                                      <LazyRoute module="Warehouse">
+                                        <WarehouseApp />
+                                      </LazyRoute>
+                                    </AppInstalledGate>
+                                  </PortalUserRoute>
+                                </SubscriptionProtectedRoute>
+                              }
+                            />
                             
                             {/* HR App */}
                             <Route
