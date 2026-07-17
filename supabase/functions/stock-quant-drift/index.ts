@@ -29,10 +29,16 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // Shared-key guard — pg_cron sends the anon key; reject anything else.
+  // Shared-key guard — pg_cron sends the anon key; manual admin curls may
+  // use the service-role key. Both are acceptable since the function only
+  // reads data and writes via a SECURITY DEFINER RPC.
   const auth = req.headers.get("Authorization") ?? "";
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  if (auth !== `Bearer ${anonKey}`) {
+  const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
+  const accepted = [
+    Deno.env.get("SUPABASE_ANON_KEY"),
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+  ].filter(Boolean) as string[];
+  if (!token || !accepted.includes(token)) {
     return json({ error: "Unauthorized" }, 401);
   }
 
