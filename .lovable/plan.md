@@ -207,13 +207,62 @@ P0 → P3 lands the demand-to-commitment spine. P5 → P7 rebuilds fulfilment on
 
 ## Execution log
 
-### 2026-07-18 — P1 kickoff (Supplier Master shipped)
-- `.lovable/procurement-domain-audit.md` created.
-- Migration `procurement_p1_supplier_master`: 7 new tables (supplier_categories, suppliers, supplier_qualifications, supplier_qualification_documents, supplier_compliance_checks, supplier_bank_accounts, approved_supplier_list) with full GRANTs, business-scoped RLS via `user_has_business_access(auth.uid(), business_id)`, and `updated_at` triggers.
-- Backfill: every `contacts.type IN ('supplier','both')` now has a matching `suppliers` row (`lifecycle_state='approved'`, idempotent).
-- Lifecycle RPCs shipped: `submit_supplier_qualification`, `approve_supplier_qualification`, `reject_supplier_qualification`, `suspend_supplier`, `reinstate_supplier`. All `SECURITY DEFINER`, self-approval blocked, `supplier.*` events emitted to `business_event_outbox` with idempotency keys.
+### 2026-07-18 — WMS Phase 14 E2E harness (closed)
+- 14a scaffolding: Playwright projects `wms` + `wm` wired, idempotent `wms_e2e_ensure_seed()` operational.
+- 14a.1: 6 canonical wrapper RPCs verified in `pg_proc` (`assign_wms_task`, `claim_pick_task`, …).
+- 14b–14e: `receive`, `putaway`, `wave`, `pick-pack-dispatch` specs active and green against live DB state.
+- 14f (QC): seed extended with `wms_qc_hold_reasons` (`E2E_HOLD`, idempotent per business); `qc.spec.ts` asserts accept / reject-scrap / cancel lifecycles, stock-movement row counts, and `warehouse.qc.*` outbox events with ADR-0076 idempotency keys.
+- 14g (Count): `count.spec.ts` covers `create_count_session` → `record_count_scan` (variance) → `approve_count_variance` → `post_count_session`; asserts `posted_adjustment_id` + `warehouse.count.posted` events.
+- 14h (Offline drain): `e2e/wm/offline-drain.spec.ts` seeds a `claim_pick_task` op into IndexedDB `wm-offline-queue`, dispatches synthetic `online`, verifies queue drain + server task advances to `assigned`.
+- 14i (Guard): `src/test/architecture/wms-phase14.test.ts` forbids `describe.skip` in Phase 14 specs.
+- Dep restoration: `bun install` re-hydrated `react-router-dom`, `framer-motion`, `idb`, `qrcode.react` — build gate green.
+- **Deferred (non-blocking):** 14a.2 `create_goods_receipt` canonical WMS wrapper — folded into Procurement P0.
 
-### Next
-- P0 drift cleanup + land deferred `create_goods_receipt` WMS wrapper (14a.2).
-- P2 contracts schema.
-- Supplier 360 UI (once P1 is verified in preview).
+### 2026-07-18 — Procurement P1 (Supplier Master shipped)
+- `.lovable/procurement-domain-audit.md` created.
+- Migration `procurement_p1_supplier_master`: 7 tables (`supplier_categories`, `suppliers`, `supplier_qualifications`, `supplier_qualification_documents`, `supplier_compliance_checks`, `supplier_bank_accounts`, `approved_supplier_list`) with full GRANTs, business-scoped RLS via `user_has_business_access(auth.uid(), business_id)`, and `updated_at` triggers.
+- Backfill: every `contacts.type IN ('supplier','both')` has a matching `suppliers` row (`lifecycle_state='approved'`, idempotent).
+- Lifecycle RPCs: `submit_supplier_qualification`, `approve_supplier_qualification`, `reject_supplier_qualification`, `suspend_supplier`, `reinstate_supplier`. All `SECURITY DEFINER`, self-approval blocked, `supplier.*` outbox events emitted with idempotency keys.
+
+## Phase status board
+
+| Phase | Scope | Status |
+|---|---|---|
+| WMS 14a–14i | E2E harness (receive, putaway, wave, pick-pack-dispatch, QC, count, offline drain, guard) | ✅ Shipped |
+| WMS 14a.2 | Canonical `create_goods_receipt` wrapper unifying WMS + Procurement receive paths | ⏸ Deferred → folded into Procurement P0 |
+| Proc P0 | Foundation & drift removal (outbox topics, unify GR paths, reconcile bill/PO billed-progress, architecture guard test) | 🔜 Next |
+| Proc P1 | Supplier Master domain (tables + lifecycle RPCs + events) | ✅ Shipped (UI pending) |
+| Proc P1-UI | Supplier 360 workbench surface | ⏳ Pending |
+| Proc P2 | Contracts & Agreements | ⏳ Pending |
+| Proc P3 | Requisitions (PR) | ⏳ Pending |
+| Proc P4 | Sourcing (RFI/RFQ/RFP + scoring) | ⏳ Pending |
+| Proc P5 | PO lifecycle (revisions, acknowledgement, change orders, line state machine) | ⏳ Pending |
+| Proc P6 | Inbound Shipment / ASN promotion | ⏳ Pending |
+| Proc P7 | Goods Receipt reconstruction (multi-delivery, damaged/rejected, backorder wiring, QC integration) | ⏳ Pending |
+| Proc P8 | 3-way / 4-way match + tolerance policies + AP exception queue | ⏳ Pending |
+| Proc P9 | Returns to Supplier + Vendor Credit chain | ⏳ Pending |
+| Proc P10 | Supplier Performance (scorecards, KPI snapshots, nightly aggregation) | ⏳ Pending |
+| Proc P11 | Workbench UX (Buyer / Receiver / AP / Supplier 360) | ⏳ Pending |
+| Proc P12 | Procurement E2E Playwright harness (mirrors WMS 14) | ⏳ Pending |
+| Proc P13 | RLS + governance re-audit, SoD conflicts, vendor portal scope | ⏳ Pending |
+
+## Next up — chronological pickup order
+
+The next agent picks up here without re-planning. Verify first, then advance:
+
+1. **Verify P1 in DB** — confirm the 7 tables exist with GRANTs + RLS enabled, backfill covered all vendor-typed contacts, and the 5 lifecycle RPCs are present in `pg_proc` and emit `supplier.*` rows into `business_event_outbox`. Read `.lovable/procurement-domain-audit.md` for the verified-state ledger.
+2. **Ship P0 (drift removal)** — blocker for everything downstream:
+   - Land the `create_goods_receipt` canonical wrapper (previously WMS 14a.2); route both WMS receive and Procurement GR through it.
+   - Strip inline stock mutation from `complete_goods_receipt_atomic`; replace with `procurement.goods_received` outbox emit; add a subscriber that calls the WMS wrapper.
+   - Register outbox topic prefixes `procurement.*`, `sourcing.*`, `supplier.*` in the topic registry.
+   - Reconcile `bill_grn_matches` + `sync_po_line_billed_quantities` into a single `v_po_line_billed_progress` view; add invariants test.
+   - Add `src/test/architecture/procurement.test.ts`: forbid Procurement RPC bodies from referencing `stock_quants`, `stock_movements`, `journal_entry_lines` (except via the canonical wrapper).
+3. **Ship P2 (Contracts)** — `procurement_contracts`, `procurement_contract_lines`, `procurement_contract_releases`; enforce ceilings at PO approval; expiring-soon outbox alerts.
+4. **Ship P3 (Requisitions)** — `purchase_requisitions` + items + approvals; category-based routing; budget-check hook; PR→RFQ and PR→PO(contract release) converters; `procurement.requisition.*` events.
+5. Then strict order **P4 → P5 → P6 → P7 → P8 → P9 → P10**, UX in **P11**, harness in **P12**, governance re-audit in **P13**. No phase closes until its E2E spec is unskipped and asserts read-back state + outbox rows (WMS Phase 14 standard).
+
+**Guardrails held across every phase:**
+- Procurement never writes to `stock_quants`, `stock_movements`, `journal_entries` — only emits events or calls WMS/Inventory/Finance intent wrappers.
+- Every new `public.*` table ships with GRANTs + RLS + `updated_at` trigger in the same migration.
+- Every lifecycle RPC is `SECURITY DEFINER`, `SET search_path = public`, business-scoped, atomic, and emits `<topic>:<entity_id>:<state>` idempotency keys.
+- Approver ≠ submitter enforced in-RPC; SoD conflicts registered in `governance_sod_conflicts` at P13.
