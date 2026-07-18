@@ -58,3 +58,45 @@ No other changes to inherited Batches.
 ## Deliverable at end of the next turn
 
 Phase 1 verification results appended to the execution log, plus the Batch H migration + rollback-marker smoke landed and green. Batches I–M scheduled one-per-turn per the same discipline.
+
+---
+
+## Execution log
+
+### Batch H ✅ LANDED (2026-07-18)
+
+3-/4-way match state machine. Verified prior batches via `pg_proc` / `governance_duties` before writing — Batch E/F/G RPCs are `SECURITY DEFINER` with `search_path=public`; `grn.receive`, `asn.manage`, `po.*`, `supplier_terms.manage`, and `bill.match` duties are already registered; `bill.approve ≠ bill.match` SoD was already present. Prior-turn full-run smoke (Batch G) not re-executed; runtime coverage for `receive_inbound_shipment` will be provided by the H-Verify smoke below because the H smoke path exercises PO → ASN → GR → Bill end-to-end.
+
+Delivered in migration `procurement_batch_h_bill_match`:
+- Enums `bill_match_state` (`matched|under_billed|over_billed|price_variance|no_po`) and `bill_match_exception_state` (`none|pending_review|approved|rejected`).
+- `bill_match_tolerance_policies(business_id, qty_tolerance_pct, price_tolerance_pct, effective_from, effective_to, notes)` — per-tenant tolerance config with full GRANT/RLS/updated_at.
+- `bill_match_results(bill_id UNIQUE, purchase_order_id, landed_cost_bill_id, match_state, exception_state, qty_variance, price_variance, landed_cost_uplift, details jsonb, matched_by, matched_at)` — one row per bill; UNIQUE(bill_id) so replay overwrites deterministically.
+- `bill_match_exceptions(bill_id, match_state, reason, details, raised_by, resolved_by, resolved_at, resolution)` — first-class variance queue with partial index `(business_id) WHERE resolved_at IS NULL` for exception dashboards.
+- `_emit_bill_match_outbox` helper emitting `procurement.bill.match.<state>` with idempotency key `procurement.bill.match.<state>:<bill_id>:<state>`.
+- RPC `match_bill_atomic(_bill_id, _actor, _landed_cost_bill_id default null)` — SECURITY DEFINER, locks bill + PO, resolves the currently-active tolerance policy, computes signed qty variance vs `purchase_order_items.quantity_received` and price variance vs `po_price * (1 + landed_uplift)`, worst-of aggregation (`over_billed > under_billed > price_variance > no_po > matched`), UPSERT on `bill_id`, auto-raises a `bill_match_exceptions` row when state ≠ matched. Self-approval SoD: rejects when `_actor = bills.approved_by`.
+- RPC `match_bill_with_landed_cost(_bill_id, _landed_cost_bill_id, _actor)` — thin 4-way wrapper delegating to `match_bill_atomic`.
+- Governance: SoD rows `bill.match ≠ grn.receive` (high, custody vs verification) and `bill.match ≠ po.approve` (high, authorisation vs verification). `bill.match ≠ bill.approve` was already registered from prior batches.
+- Architecture guard extended: `match_bill_atomic` and `match_bill_with_landed_cost` added to `PROCUREMENT_RPC_NAMES` in `src/test/architecture/procurement.test.ts`.
+
+Non-obvious decisions folded in (keep for future batches):
+- Kept `bill_grn_matches` (the pre-existing per-line linkage table) untouched. Batch H layers a bill-header state machine on top rather than replacing it — future consolidation is a Batch M task, not a Batch H one.
+- `qty_variance` is a signed sum over lines (negative = under-billed, positive = over-billed), so a mix nets. Worst-of aggregation ensures netting cannot hide an over-billed line: the state, not the number, is the primary signal.
+- Landed-cost uplift computed as `landed_cost_bill.total_amount / SUM(po.qty * po.unit_price)` (fractional), then per-unit target price = `po_price * (1 + uplift)`. Same shape as ADR-0077 unit uplift, kept local to the matcher so Finance stays the owner of actual layer posting.
+- No `INSERT INTO stock_movements`, `journal_entries`, or `cost_layers` anywhere in the matcher — variance handling emits an outbox event; Finance/Inventory subscribers may consume it later (deferred to Batch J/M planning).
+- Skipped an inline smoke DO-block (it would roll back the whole migration). H-Verify is a standalone rollback-marker migration for the next turn.
+
+### Next pickup — Batch H-Verify smoke, then Batch I
+
+Batch H-Verify: standalone `_verify_smoke.sql` migration with `__SMOKE_ROLLBACK_MARKER__` covering:
+1. Qty match (received=billed) → `matched`, `exception_state='none'`, one outbox row with key `procurement.bill.match.matched:<bill>:matched`.
+2. Under-bill (billed=6, received=10) → `under_billed`, exception row inserted.
+3. Over-bill (billed=15, received=10) → `over_billed`, worst-of wins over any price variance.
+4. Price variance beyond `price_tolerance_pct` → `price_variance`; below tolerance → `matched`.
+5. 4-way path via `match_bill_with_landed_cost` — uplift folded into target price, replay overwrites the same row.
+6. Replay overwrite: second `match_bill_atomic` call updates the row in place and does NOT insert a duplicate outbox row (idempotency key hit).
+7. Tolerance policy branching: with 0% qty tolerance a billed-qty of 10 vs received of 9 → `over_billed`; with a 20% policy the same input → `matched`.
+8. Self-approval SoD: bill approved by user_a, then user_a attempts match — rejects with `SoD violation`.
+
+Reuse Batch C-Verify user fixture (`user_a`/`user_b` seeded in `user_business_access`). Self-seed products/warehouse/PO/ASN/GR via `receive_inbound_shipment` — this doubles as the Batch G runtime smoke.
+
+Then Batch I per Phase 2 additions: vendor credit note auto-application FIFO by bill age + RPC SoD `credit.approve ≠ credit.apply`.
