@@ -231,8 +231,16 @@ async function processOnlineTransaction(
           card_last_four: p.card_last_four || null,
           card_type: p.card_type || null,
           mpesa_receipt_number: p.method === "mobile_money" ? p.reference : null,
+          // Wave 2 · Phase C-2 — card FSM initial state + vendor auth trail.
+          // Nullable for non-card tenders; `_pos_record_payment` treats
+          // empty strings as NULL so the FSM guard skips these rows.
+          auth_state: p.auth_state ?? null,
+          auth_id: p.auth_id ?? null,
+          vendor_txn_id: p.vendor_txn_id ?? null,
+          authorized_amount: p.authorized_amount ?? null,
         };
       }),
+
       p_subtotal: data.cart.subtotal,
       p_tax_amount: data.cart.tax_amount,
       p_discount_amount: data.cart.discount_amount,
