@@ -10,6 +10,9 @@ const MobilePutaway = lazy(() => import("@/pages/warehouse-mobile/MobilePutaway"
 const MobilePick = lazy(() => import("@/pages/warehouse-mobile/MobilePick"));
 const MobileCount = lazy(() => import("@/pages/warehouse-mobile/MobileCount"));
 const MobileReceive = lazy(() => import("@/pages/warehouse-mobile/MobileReceive"));
+const MobilePack = lazy(() => import("@/pages/warehouse-mobile/MobilePack"));
+const MobileDispatch = lazy(() => import("@/pages/warehouse-mobile/MobileDispatch"));
+const MobileQC = lazy(() => import("@/pages/warehouse-mobile/MobileQC"));
 
 export default function WarehouseMobileApp() {
   return (
@@ -20,6 +23,9 @@ export default function WarehouseMobileApp() {
         <Route path="pick/:id" element={<MobilePick />} />
         <Route path="count/:id" element={<MobileCount />} />
         <Route path="receive/:id" element={<MobileReceive />} />
+        <Route path="pack/:packId" element={<MobilePack />} />
+        <Route path="dispatch/:shipmentId" element={<MobileDispatch />} />
+        <Route path="qc/:taskId" element={<MobileQC />} />
         <Route path="*" element={<Navigate to="/wm" replace />} />
       </Routes>
     </Suspense>
