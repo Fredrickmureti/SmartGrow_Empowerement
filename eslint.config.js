@@ -23,6 +23,7 @@ import noHandRolledMeHeader from "./eslint-rules/no-hand-rolled-me-header.js";
 import noShellLeakFromMe from "./eslint-rules/no-shell-leak-from-me.js";
 import noPdfLibInLocalizationPreview from "./eslint-rules/no-pdf-lib-in-localization-preview.js";
 import noCountryFixtureInSharedPreview from "./eslint-rules/no-country-fixture-in-shared-preview.js";
+import noPosCommitWithoutIdempotencyKey from "./eslint-rules/no-pos-commit-without-idempotency-key.js";
 
 
 export default tseslint.config(
