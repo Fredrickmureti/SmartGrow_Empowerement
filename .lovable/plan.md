@@ -15,6 +15,10 @@ Verified against live DB + tree:
 
 **Phase 3 complete.** All of T4–T7 shipped.
 
+### T7 governance + tests follow-up ✅
+- Registered five POS duties in `governance_duties`: `pos.commit`, `pos.void`, `pos.return`, `pos.override_price`, `pos.override_discount`, each mapped in `governance_duty_permission_map` under `module='pos'` with the matching operation.
+- Added `src/test/architecture/pos-outbox-and-governance.test.ts` asserting the migrations register both outbox topics + triggers with deterministic idempotency keys and seed the five duties.
+
 ## Phase 2 — Batches to ship (in strict order)
 
 ### T4 — Pessimistic availability locking
