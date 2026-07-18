@@ -270,30 +270,28 @@ export function useVendorCreditNotes() {
   };
 
   /**
-   * Apply a confirmed vendor credit note to a bill — atomically.
-   * Calls apply_vendor_credit_atomic RPC which:
-   *  - locks bill + VCN rows (FOR UPDATE)
-   *  - inserts vendor_credit_note_applications row
-   *  - inserts a bill_payments row (payment_method='vendor_credit', no GL)
-   *    so payment history reflects the credit application
-   *  - updates bill amount_paid + status
+   * Apply a confirmed vendor credit note FIFO across one or many bills.
+   * Calls apply_vendor_credit_note_atomic RPC (Batch I-Deferred):
+   *  - locks VCN + eligible bills (FOR UPDATE)
+   *  - allocates FIFO by bills.due_date (NULLS LAST), then created_at
+   *  - inserts one vendor_credit_note_applications row per allocation
+   *  - updates bill amount_paid + status per allocation
    *  - updates VCN amount_applied + status
+   *  - emits procurement.credit.applied outbox event
    * GL was already posted at VCN confirmation — no double-posting here.
+   * Pass `billIds` to restrict allocation to a specific set; omit for
+   * "any open bill for this vendor + currency".
    */
-  const applyToBill = async (creditNoteId: string, billId: string, applyAmount: number) => {
+  const applyCreditFifo = async (creditNoteId: string, billIds?: string[]) => {
     if (!currentOrg || !user) throw new Error("No organization selected");
 
     const cn = creditNotes.find((c) => c.id === creditNoteId);
     if (!cn) throw new Error("Credit note not found");
     if (cn.status !== "confirmed") throw new Error("Only confirmed credit notes can be applied");
 
-    const remaining = cn.total - cn.amount_applied;
-    if (applyAmount > remaining) throw new Error(`Cannot apply more than remaining balance (${remaining})`);
-
-    const { data, error } = await supabase.rpc("apply_vendor_credit_atomic" as any, {
-      p_vcn_id: creditNoteId,
-      p_bill_id: billId,
-      p_amount: applyAmount,
+    const { data, error } = await supabase.rpc("apply_vendor_credit_note_atomic" as any, {
+      p_credit_note_id: creditNoteId,
+      p_bill_ids: billIds ?? null,
       p_user_id: user.id,
     });
 
@@ -303,19 +301,30 @@ export function useVendorCreditNotes() {
       throw new Error(result.error || "Failed to apply credit");
     }
 
+    const totalApplied = result?.total_applied ?? 0;
+    const allocations = (result?.allocations ?? []) as Array<{ bill_id: string; amount: number }>;
+
     logAction({
       action: "updated",
       entityType: "credit_note",
       entityId: creditNoteId,
       entityName: cn.credit_note_number,
-      changesSummary: `Applied ${result?.applied_amount ?? applyAmount} from ${cn.credit_note_number} to bill ${billId}`,
+      changesSummary: `Applied ${totalApplied} from ${cn.credit_note_number} across ${allocations.length} bill(s) (FIFO)`,
     });
 
     toast({
       title: "Credit applied",
-      description: `${result?.applied_amount ?? applyAmount} applied`,
+      description: `${totalApplied} allocated across ${allocations.length} bill(s)`,
     });
     await fetchCreditNotes();
+    return result;
+  };
+
+  // Back-compat alias for the legacy single-bill call site. Delegates to
+  // FIFO with a single-element `billIds` array so callers keep working
+  // while `VendorCreditNotes.tsx` migrates to the new multi-bill dialog.
+  const applyToBill = async (creditNoteId: string, billId: string, _applyAmount: number) => {
+    return applyCreditFifo(creditNoteId, [billId]);
   };
 
   return {
