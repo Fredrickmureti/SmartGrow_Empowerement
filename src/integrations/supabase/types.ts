@@ -77016,6 +77016,12 @@ export type Database = {
         | "partial_received"
         | "received"
         | "cancelled"
+        | "submitted"
+        | "approved"
+        | "acknowledged"
+        | "closed"
+        | "revised"
+        | "rejected"
       pos_barcode_rule_kind: "weighted_price" | "weighted_qty" | "plu"
       pos_kitchen_status:
         | "new"
@@ -77734,7 +77740,19 @@ export const Constants = {
         "acknowledged",
       ],
       platform_admin_role: ["owner", "admin", "operator"],
-      po_status: ["draft", "sent", "partial_received", "received", "cancelled"],
+      po_status: [
+        "draft",
+        "sent",
+        "partial_received",
+        "received",
+        "cancelled",
+        "submitted",
+        "approved",
+        "acknowledged",
+        "closed",
+        "revised",
+        "rejected",
+      ],
       pos_barcode_rule_kind: ["weighted_price", "weighted_qty", "plu"],
       pos_kitchen_status: [
         "new",
