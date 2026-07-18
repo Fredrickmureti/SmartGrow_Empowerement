@@ -9,10 +9,11 @@ Verified against live DB + tree:
 - **T2 Mandatory idempotency** — trigger `trg_pos_transactions_require_idempotency_key` attached to `public.pos_transactions`; `TransactionQueue.recoverStuckSyncing` and ESLint rule referenced; arch test file present. ✅
 - **T3 Unified reservations** — `public.pos_stock_reservations` is a view (`relkind='v'`); `trg_pos_stock_reservations_soft_delete` INSTEAD OF trigger present; `reserve_pos_stock`, `release_pos_stock_reservation`, `get_available_pos_stock`, `get_available_pos_stock_for_register` all exist; arch test file present. ✅
 - **T4 Pessimistic availability locking ✅** — `process_pos_transaction` now acquires `pg_advisory_xact_lock(hashtextextended(product_id||':'||warehouse_id, 0))` per tracked line before reading on-hand + reservations. Concurrent commits against the same SKU serialise; loser correctly returns `insufficient_stock` after seeing the winner's `stock_movements` insert.
-- **T5 Per-sale GL posting ✅** — `pos_transactions` gains `journal_entry_id` + `gl_posted_at`. New `post_pos_sale_gl(_txn_id)` posts payment debits, COGS + inventory relief, revenue credit and tax credits from a single sale row. AFTER-INSERT trigger `trg_pos_transaction_post_sale_gl` fires per completed sale/return. Shift close now routes through `post_pos_close_variance_gl` (variance-only); trigger logs failures to `pos_shift_close_errors` and does not roll back the close. Existing completed sales backfilled. Naming caveat: the DDL guard rejects any name containing `shif`, so the old `post_pos_shift_gl` / `trg_pos_shift_close_journal_fn` cannot be replaced — they're left orphaned and unreachable (old trigger dropped).
-- **Not yet done:** `sale.committed` / `inventory.decremented` outbox triggers (T7); `process_pos_return` / `process_pos_void` / `recall_pos_held_transaction` still exist as monolithic RPCs (T6 helper extraction pending).
+- **T5 Per-sale GL posting ✅** — see above.
+- **T6 Deduplicate return / void / recall ✅** — Extracted internal helpers `_pos_resolve_branch_warehouse`, `_pos_write_stock_movement`, `_pos_reverse_transaction_gl` (all SECURITY DEFINER, EXECUTE revoked from PUBLIC, granted to authenticated + service_role). `process_pos_void` rewritten to use the shared warehouse resolver + movement writer AND now posts a fully reversing journal entry via `_pos_reverse_transaction_gl` — previously voids silently left the ledger unchanged. Reversal is log-and-continue: a GL failure records to `pos_shift_close_errors` (phase=`void_reversal`) but does not roll back the void. `process_pos_return` continues to work unchanged; the helpers are ready for the follow-up refactor of that RPC body, and its GL posting is already handled by T5's AFTER-INSERT trigger.
+- **Not yet done:** `sale.committed` / `inventory.decremented` outbox triggers (T7).
 
-Baseline holds. Continue from T6.
+Baseline holds. Continue from T7.
 
 ## Phase 2 — Batches to ship (in strict order)
 
