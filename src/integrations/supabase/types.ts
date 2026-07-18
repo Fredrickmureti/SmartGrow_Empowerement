@@ -6764,6 +6764,69 @@ export type Database = {
         }
         Relationships: []
       }
+      business_event_outbox_dead: {
+        Row: {
+          actor_user_id: string | null
+          attempts: number
+          branch_id: string | null
+          dead_at: string
+          dead_reason: string
+          event_type: string
+          first_attempt_at: string | null
+          id: string
+          idempotency_key: string | null
+          last_error: string | null
+          org_id: string
+          original_created_at: string | null
+          payload: Json | null
+          source: string | null
+          source_doc_id: string
+          source_doc_type: string
+          warehouse_id: string | null
+          worker_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          attempts?: number
+          branch_id?: string | null
+          dead_at?: string
+          dead_reason: string
+          event_type: string
+          first_attempt_at?: string | null
+          id: string
+          idempotency_key?: string | null
+          last_error?: string | null
+          org_id: string
+          original_created_at?: string | null
+          payload?: Json | null
+          source?: string | null
+          source_doc_id: string
+          source_doc_type: string
+          warehouse_id?: string | null
+          worker_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          attempts?: number
+          branch_id?: string | null
+          dead_at?: string
+          dead_reason?: string
+          event_type?: string
+          first_attempt_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          last_error?: string | null
+          org_id?: string
+          original_created_at?: string | null
+          payload?: Json | null
+          source?: string | null
+          source_doc_id?: string
+          source_doc_type?: string
+          warehouse_id?: string | null
+          worker_id?: string | null
+        }
+        Relationships: []
+      }
       business_event_subscriptions: {
         Row: {
           consumer_domain: string
@@ -6802,6 +6865,8 @@ export type Database = {
           consumer_domains: string[]
           created_at: string
           description: string | null
+          handler_scope: string
+          max_attempts: number | null
           producer_domain: string
           topic_prefix: string
           updated_at: string
@@ -6810,6 +6875,8 @@ export type Database = {
           consumer_domains?: string[]
           created_at?: string
           description?: string | null
+          handler_scope?: string
+          max_attempts?: number | null
           producer_domain: string
           topic_prefix: string
           updated_at?: string
@@ -6818,6 +6885,8 @@ export type Database = {
           consumer_domains?: string[]
           created_at?: string
           description?: string | null
+          handler_scope?: string
+          max_attempts?: number | null
           producer_domain?: string
           topic_prefix?: string
           updated_at?: string
@@ -68156,6 +68225,43 @@ export type Database = {
               isSetofReturn: true
             }
           }
+        | {
+            Args: {
+              p_branch_id: string
+              p_claimant: string
+              p_handler_scope: string
+              p_limit: number
+              p_org_id: string
+            }
+            Returns: {
+              actor_user_id: string | null
+              attempts: number
+              branch_id: string | null
+              claim_lease_seconds: number
+              claimed_at: string | null
+              completed_at: string | null
+              created_at: string
+              event_type: string
+              id: string
+              idempotency_key: string
+              last_error: string | null
+              org_id: string
+              payload: Json
+              source: string
+              source_doc_id: string
+              source_doc_type: string
+              status: Database["public"]["Enums"]["business_event_status"]
+              updated_at: string
+              warehouse_id: string | null
+              worker_id: string | null
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "business_event_outbox"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
       claim_next_hardware_command:
         | {
             Args: {
@@ -72048,6 +72154,10 @@ export type Database = {
         Args: { _business_id?: string; _entry_date?: string; _org_id: string }
         Returns: string
       }
+      move_business_event_to_dlq: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       move_lpn: {
         Args: { p_dest_location_id: string; p_lpn_id: string; p_note?: string }
         Returns: {
@@ -74141,6 +74251,14 @@ export type Database = {
       }
       pos_revoke_scanner_pairing: {
         Args: { p_register_id: string }
+        Returns: number
+      }
+      pos_topic_handler_scope: {
+        Args: { p_event_type: string }
+        Returns: string
+      }
+      pos_topic_max_attempts: {
+        Args: { p_event_type: string }
         Returns: number
       }
       pos_validate_payment_line: {
