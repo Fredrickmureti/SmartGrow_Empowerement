@@ -32,6 +32,7 @@ export const PURCHASES_NAV: WorkspaceNav = {
         { to: "/purchases/returns", label: "Returns", icon: RotateCcw },
         { to: "/purchases/credit-notes", label: "Credit notes", icon: FileMinus },
         { to: "/purchases/suppliers", label: "Suppliers", icon: Building2 },
+        { to: "/purchases/contracts", label: "Contracts", icon: FileSignature },
         { to: "/purchases/vendors", label: "Vendors (legacy)", icon: Truck },
         { to: "/purchases/statements", label: "Statements", icon: ScrollText },
       ],
