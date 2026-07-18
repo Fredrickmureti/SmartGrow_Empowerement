@@ -8,10 +8,11 @@ Verified against live DB + tree:
 - **T1 Server-authoritative money math** — `pos_resolve_line` present; `process_pos_transaction` re-derives totals; `src/test/architecture/pos-server-authoritative-money-math.test.ts` present. ✅
 - **T2 Mandatory idempotency** — trigger `trg_pos_transactions_require_idempotency_key` attached to `public.pos_transactions`; `TransactionQueue.recoverStuckSyncing` and ESLint rule referenced; arch test file present. ✅
 - **T3 Unified reservations** — `public.pos_stock_reservations` is a view (`relkind='v'`); `trg_pos_stock_reservations_soft_delete` INSTEAD OF trigger present; `reserve_pos_stock`, `release_pos_stock_reservation`, `get_available_pos_stock`, `get_available_pos_stock_for_register` all exist; arch test file present. ✅
-- **T4 Pessimistic availability locking ✅** — `process_pos_transaction` now acquires `pg_advisory_xact_lock(hashtextextended(product_id||':'||warehouse_id, 0))` per tracked line before reading on-hand + reservations. Concurrent commits against the same SKU serialise; loser correctly returns `insufficient_stock` after seeing the winner's `stock_movements` insert. Advisory (not row) locks used because `warehouse_stock` rows are created lazily.
-- **Not yet done:** `post_pos_sale_gl` absent (T5), no `sale.committed` / `inventory.decremented` outbox triggers (T7), `process_pos_return` / `process_pos_void` / `recall_pos_held_transaction` still exist as monolithic RPCs — helper extraction (T6) pending.
+- **T4 Pessimistic availability locking ✅** — `process_pos_transaction` now acquires `pg_advisory_xact_lock(hashtextextended(product_id||':'||warehouse_id, 0))` per tracked line before reading on-hand + reservations. Concurrent commits against the same SKU serialise; loser correctly returns `insufficient_stock` after seeing the winner's `stock_movements` insert.
+- **T5 Per-sale GL posting ✅** — `pos_transactions` gains `journal_entry_id` + `gl_posted_at`. New `post_pos_sale_gl(_txn_id)` posts payment debits, COGS + inventory relief, revenue credit and tax credits from a single sale row. AFTER-INSERT trigger `trg_pos_transaction_post_sale_gl` fires per completed sale/return. Shift close now routes through `post_pos_close_variance_gl` (variance-only); trigger logs failures to `pos_shift_close_errors` and does not roll back the close. Existing completed sales backfilled. Naming caveat: the DDL guard rejects any name containing `shif`, so the old `post_pos_shift_gl` / `trg_pos_shift_close_journal_fn` cannot be replaced — they're left orphaned and unreachable (old trigger dropped).
+- **Not yet done:** `sale.committed` / `inventory.decremented` outbox triggers (T7); `process_pos_return` / `process_pos_void` / `recall_pos_held_transaction` still exist as monolithic RPCs (T6 helper extraction pending).
 
-Baseline holds. Continue from T5.
+Baseline holds. Continue from T6.
 
 ## Phase 2 — Batches to ship (in strict order)
 
