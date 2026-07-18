@@ -73,3 +73,34 @@ Ship a durable, ops-visible outbox dispatcher and constrain the browser saga to 
 - Live check: inserting a synthetic row into `business_event_outbox` with `handler_scope='server'` topic is picked up and completed by the edge function within ~15 s (verified via `stack_modern--invoke-server-function` on the function URL, or by observing `completed_at`).
 - Live check: a row whose handler always throws lands in `business_event_outbox_dead` after `max_attempts`.
 - Browser saga no longer competes for server-scope rows (verified by grep + a smoke row).
+
+
+=========================================
+Phase D shipped and verified.
+
+What landed
+- Migration: `business_event_topics` gained `handler_scope` (`server`|`host`) and per-topic `max_attempts`; `payment.received` marked `host`. New `business_event_outbox_dead` DLQ table (RLS: readable to org members). New resolvers `pos_topic_handler_scope` / `pos_topic_max_attempts` (longest topic-prefix match). New 5-arg overload `claim_next_business_event(p_org_id, p_limit, p_claimant, p_branch_id, p_handler_scope)` filters by scope and applies exponential backoff via `updated_at < now() - make_interval(secs => least(power(2, attempts), 3600))`. New `move_business_event_to_dlq` + rewritten `complete_business_event` — failures past `max_attempts` are atomically dead-lettered.
+- Edge function: `supabase/functions/outbox-dispatcher/index.ts`. Uses service role, claims server-scope events per org (batch 25), dispatches via a per-topic handler registry (empty in D; Phase E fills it — unknown topics complete as no-ops so the outbox drains), logs structured JSON per event.
+- Scheduling: `pg_cron` job `outbox-dispatcher-10s` posts to the deployed function URL every 10 s. Smoke run drained 50 pending backlog events across 2 orgs in a single invocation (`{ ok: 50, err: 0, orgs: 2 }`).
+- Browser saga: `src/services/events/BusinessSaga.ts` now passes `p_handler_scope: 'host'` — the tab is a secondary consumer for hardware topics only; server events are drained by the durable dispatcher regardless of whether a browser is open.
+- Guards: new `src/test/architecture/pos-outbox-dispatcher.test.ts` (edge function exists + uses service role + claims `server`, migration adds DLQ + scope resolver, browser saga only claims `host`).
+
+Verification queries
+```sql
+-- topics scope
+SELECT topic_prefix, handler_scope, max_attempts
+  FROM business_event_topics ORDER BY topic_prefix;
+-- DLQ table exists
+SELECT to_regclass('public.business_event_outbox_dead');
+-- cron job active
+SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'outbox-dispatcher-10s';
+-- recent drain
+SELECT status, count(*) FROM business_event_outbox GROUP BY status;
+```
+
+Next handoff — Phase E (Downstream sagas)
+Roadmap order remains A → B → D → **E** → C → F → G. Phase E's job is to fill the `HANDLERS` map in `supabase/functions/outbox-dispatcher/index.ts` and register durable subscribers so the UI stops doing side-effects:
+- `pos.sale.committed.*` → loyalty accrual (delete UI-driven accrual in `usePOSTransactionOffline`), customer purchase history projection, `pos_sales_daily` projection, fiscal transmission trigger (existing `etims-transmit` becomes a handler, not a hook call).
+- `inventory.movement.recorded.*` → reorder-alert recompute (POS branch).
+- `payment.received.*` stays host-scope (drawer/printer) — additionally emit bank-reconciliation hint rows for `tender_kind IN ('bank','card','wallet')` (server-side handler; can be a separate topic).
+Each new handler ships with an arch guard asserting the map entry exists.
