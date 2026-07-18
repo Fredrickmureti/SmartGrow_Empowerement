@@ -39430,6 +39430,175 @@ export type Database = {
           },
         ]
       }
+      pos_payment_session_apply_log: {
+        Row: {
+          applied_at: string
+          applied_by: string | null
+          session_id: string
+          transaction_id: string | null
+        }
+        Insert: {
+          applied_at?: string
+          applied_by?: string | null
+          session_id: string
+          transaction_id?: string | null
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string | null
+          session_id?: string
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_payment_session_apply_log_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "pos_payment_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_payment_session_tenders: {
+        Row: {
+          amount: number
+          auth_id: string | null
+          auth_state: Database["public"]["Enums"]["pos_payment_session_tender_state"]
+          branch_id: string | null
+          business_id: string
+          change_given: number
+          created_at: string
+          driver_payload: Json
+          id: string
+          idempotency_key: string
+          method_key: string
+          provider_key: string | null
+          reference: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          session_id: string
+          tender_kind: string
+          tendered_amount: number
+          updated_at: string
+          vendor_txn_id: string | null
+        }
+        Insert: {
+          amount: number
+          auth_id?: string | null
+          auth_state?: Database["public"]["Enums"]["pos_payment_session_tender_state"]
+          branch_id?: string | null
+          business_id: string
+          change_given?: number
+          created_at?: string
+          driver_payload?: Json
+          id?: string
+          idempotency_key: string
+          method_key: string
+          provider_key?: string | null
+          reference?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          session_id: string
+          tender_kind: string
+          tendered_amount?: number
+          updated_at?: string
+          vendor_txn_id?: string | null
+        }
+        Update: {
+          amount?: number
+          auth_id?: string | null
+          auth_state?: Database["public"]["Enums"]["pos_payment_session_tender_state"]
+          branch_id?: string | null
+          business_id?: string
+          change_given?: number
+          created_at?: string
+          driver_payload?: Json
+          id?: string
+          idempotency_key?: string
+          method_key?: string
+          provider_key?: string | null
+          reference?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          session_id?: string
+          tender_kind?: string
+          tendered_amount?: number
+          updated_at?: string
+          vendor_txn_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_payment_session_tenders_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "pos_payment_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_payment_sessions: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          cashier_id: string | null
+          closed_at: string | null
+          closed_reason: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          grand_total: number
+          id: string
+          idempotency_key: string
+          opened_at: string
+          organization_id: string | null
+          pos_transaction_id: string | null
+          register_id: string
+          status: Database["public"]["Enums"]["pos_payment_session_status"]
+          tip_amount: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          cashier_id?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          grand_total: number
+          id?: string
+          idempotency_key: string
+          opened_at?: string
+          organization_id?: string | null
+          pos_transaction_id?: string | null
+          register_id: string
+          status?: Database["public"]["Enums"]["pos_payment_session_status"]
+          tip_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          cashier_id?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          grand_total?: number
+          id?: string
+          idempotency_key?: string
+          opened_at?: string
+          organization_id?: string | null
+          pos_transaction_id?: string | null
+          register_id?: string
+          status?: Database["public"]["Enums"]["pos_payment_session_status"]
+          tip_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pos_product_modifier_groups: {
         Row: {
           created_at: string
@@ -66301,6 +66470,14 @@ export type Database = {
         Args: { _payload: Json; _txn_id: string }
         Returns: string
       }
+      _pos_payment_session_emit: {
+        Args: {
+          p_payload: Json
+          p_session: Database["public"]["Tables"]["pos_payment_sessions"]["Row"]
+          p_topic: string
+        }
+        Returns: undefined
+      }
       _pos_record_payment: {
         Args: {
           _biz_id: string
@@ -74790,6 +74967,41 @@ export type Database = {
           token: string
         }[]
       }
+      pos_payment_session_allocated: {
+        Args: { p_session_id: string }
+        Returns: number
+      }
+      pos_payment_session_cancel: {
+        Args: { p_reason: string; p_session_id: string }
+        Returns: undefined
+      }
+      pos_payment_session_commit: {
+        Args: { p_session_id: string; p_transaction_envelope: Json }
+        Returns: string
+      }
+      pos_payment_session_open: {
+        Args: {
+          p_cashier_id?: string
+          p_currency: string
+          p_grand_total: number
+          p_idempotency_key: string
+          p_register_id: string
+          p_tip_amount?: number
+        }
+        Returns: string
+      }
+      pos_payment_session_record_tender: {
+        Args: {
+          p_idempotency_key: string
+          p_session_id: string
+          p_tender: Json
+        }
+        Returns: string
+      }
+      pos_payment_session_reverse_tender: {
+        Args: { p_reason: string; p_session_id: string; p_tender_id: string }
+        Returns: undefined
+      }
       pos_reconcile_register_period: {
         Args: { p_actual_cash: number; p_notes?: string; p_shift_id: string }
         Returns: string
@@ -78446,6 +78658,19 @@ export type Database = {
         | "ready"
         | "served"
         | "cancelled"
+      pos_payment_session_status:
+        | "open"
+        | "balanced"
+        | "committed"
+        | "cancelled"
+        | "abandoned"
+      pos_payment_session_tender_state:
+        | "idle"
+        | "authorizing"
+        | "approved"
+        | "captured"
+        | "reversed"
+        | "failed"
       pos_reversal_type:
         | "cancel_pre_payment"
         | "void_post_payment"
@@ -79190,6 +79415,21 @@ export const Constants = {
         "ready",
         "served",
         "cancelled",
+      ],
+      pos_payment_session_status: [
+        "open",
+        "balanced",
+        "committed",
+        "cancelled",
+        "abandoned",
+      ],
+      pos_payment_session_tender_state: [
+        "idle",
+        "authorizing",
+        "approved",
+        "captured",
+        "reversed",
+        "failed",
       ],
       pos_reversal_type: [
         "cancel_pre_payment",
