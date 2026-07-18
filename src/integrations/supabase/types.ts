@@ -5320,6 +5320,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bill_items_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_po_line_billed_progress"
+            referencedColumns: ["po_item_id"]
+          },
+          {
             foreignKeyName: "bill_items_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
@@ -6583,6 +6590,33 @@ export type Database = {
           updated_at?: string
           warehouse_id?: string | null
           worker_id?: string | null
+        }
+        Relationships: []
+      }
+      business_event_topics: {
+        Row: {
+          consumer_domains: string[]
+          created_at: string
+          description: string | null
+          producer_domain: string
+          topic_prefix: string
+          updated_at: string
+        }
+        Insert: {
+          consumer_domains?: string[]
+          created_at?: string
+          description?: string | null
+          producer_domain: string
+          topic_prefix: string
+          updated_at?: string
+        }
+        Update: {
+          consumer_domains?: string[]
+          created_at?: string
+          description?: string | null
+          producer_domain?: string
+          topic_prefix?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -18751,6 +18785,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "goods_receipt_items_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_po_line_billed_progress"
+            referencedColumns: ["po_item_id"]
+          },
+          {
             foreignKeyName: "goods_receipt_items_qc_inspection_id_fkey"
             columns: ["qc_inspection_id"]
             isOneToOne: false
@@ -19617,6 +19658,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "purchase_order_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_shipment_items_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_po_line_billed_progress"
+            referencedColumns: ["po_item_id"]
           },
           {
             foreignKeyName: "inbound_shipment_items_shipment_id_fkey"
@@ -63857,6 +63905,44 @@ export type Database = {
           },
         ]
       }
+      v_po_line_billed_progress: {
+        Row: {
+          billed_drift: number | null
+          billing_state: string | null
+          po_item_id: string | null
+          product_id: string | null
+          purchase_order_id: string | null
+          quantity_billed_direct: number | null
+          quantity_billed_reconciled: number | null
+          quantity_billed_stored: number | null
+          quantity_billed_via_grn: number | null
+          quantity_ordered: number | null
+          quantity_received: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_pos_cash_expected: {
         Row: {
           actual_cash: number | null
@@ -67227,6 +67313,18 @@ export type Database = {
             }
             Returns: string
           }
+      create_goods_receipt: {
+        Args: {
+          _actor: string
+          _business_id: string
+          _lines: Json
+          _po_id: string
+          _receipt_date?: string
+          _receipt_number?: string
+          _warehouse_id?: string
+        }
+        Returns: Json
+      }
       create_invoice_from_delivery_atomic: {
         Args: { p_dn_id: string; p_user_id: string }
         Returns: Json
