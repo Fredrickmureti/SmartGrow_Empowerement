@@ -1,68 +1,40 @@
-# WMS Handoff — verification result & corrected next step
+# WMS Handoff — progress log & next step
 
-## Phase 1 — Verification of previous engineer's claims
+## Phase 14 — E2E harness rollout
 
-**Verified as landed (Phase 14a):**
-- `playwright.config.ts` with `wms` + `wm` projects — present.
-- `e2e/support/auth.ts`, `e2e/support/seed.ts` (stub), all 6 desktop specs + 1 mobile spec — present, all `describe.skip(...)`.
-- `src/test/architecture/wms-phase14.test.ts` — present, structurally correct.
-- `docs/wms/e2e-harness.md` — present.
-- `@playwright/test` devDep — present.
+### Landed
+- **14a** — Playwright config (`wms` + `wm`), auth/seed support helpers, all 6 desktop + 1 mobile spec skeletons, architecture guard (`src/test/architecture/wms-phase14.test.ts`), docs.
+- **14a.1** — RPC contract reconciliation. Added 6 wrapper RPCs (`assign_wms_task`, `claim_pick_task`, `cancel_pick_wave`, `record_goods_receipt_line`, `record_count_scan`, `approve_count_variance`), all `SECURITY DEFINER`, business-scoped, outbox-emitting. Guard `SPECS` reconciled against `pg_proc` (real names: `complete_goods_receipt_atomic`, `suggest_putaway_locations`, `create_pick_wave`, `create_count_session`, `post_count_session`).
+- **14b — receive** — `wms_e2e_ensure_seed()` idempotent fixture (warehouse + 3 locations + 2 products + vendor + PO, scoped to caller's active business). `e2e/support/seed.ts` calls it via authed REST. `e2e/wms/receive.spec.ts` unskipped: draft GRN → `record_goods_receipt_line` → `complete_goods_receipt_atomic` → asserts `stock_movements` row of type `receipt`.
+- **14c — putaway** — `e2e/wms/putaway.spec.ts` unskipped: receive arc → `receive_goods_to_wms` → `assign_wms_task` → `complete_putaway_task`. Falls back to pinning destination to `E2E_STOCK` when suggestion returns null. Asserts task=`done`, LPN moved, `stock_quants` at destination.
+- **14d — wave** — `e2e/wms/wave.spec.ts` unskipped: seed → top-up stock → ad-hoc SO → `create_pick_wave` → `release_pick_wave` → `cancel_pick_wave`. Verifies draft→released→cancelled, ≥1 pick task with `source_location_id`, zero orphan open tasks after cancel, second cancel is `noop`, rebuild produces a fresh wave.
+- **14e — pick-pack-dispatch** — `e2e/wms/pick-pack-dispatch.spec.ts` unskipped: extends 14d wave arc through `claim_pick_task` → `complete_pick_task` (per task) → `open_pack_carton` → `assign_line_to_carton` → `seal_pack_carton` → `complete_pack_task` → ad-hoc shipping dock → `open_loading_manifest` → `load_carton_onto_manifest` → `close_loading_manifest` → `dispatch_loading_manifest`. Asserts manifest=`dispatched`, LPN=`shipped`, and outbox terminals `warehouse.carton.shipped` + `warehouse.manifest.dispatched` land exactly once.
 
-**Verified as NOT landed:**
-- Phase 14b seed migration + `wms_e2e_ensure_seed` RPC — absent. Matches the plan's "START HERE NEXT" marker.
+### Pending sub-phases
+- **14f — qc** — unskip `e2e/wms/qc.spec.ts`. Drive `open_qc_inspection` → `accept_qc_inspection` on one lot and `reject_qc_inspection` on another (asserting quarantine move + `stock_movements`), plus `cancel_qc_inspection` on a third to prove idempotency. Add QC hold reason to seed only if the existing catalogue is empty for the caller's business.
+- **14g — count** — unskip `e2e/wms/count.spec.ts`. `create_count_session` on `E2E_STOCK` → `record_count_scan` (matched + variance) → `approve_count_variance` on the variance line → `post_count_session`. Assert `stock_quants` reconciled and a variance adjustment `stock_movements` row exists.
+- **14h — mobile offline drain** — unskip `e2e/wm/offline-drain.spec.ts`. Simulate an offline task queue in `localStorage`, restore online, drain via existing sync worker, assert wms_tasks moved and outbox emitted. Requires no schema work.
+- **14i — guard hardening** — extend `wms-phase14.test.ts` to (a) refuse any `describe.skip` in `e2e/`, and (b) load a `supabase/tests/wms/rpc-snapshot.json` regenerated from `pg_proc` so the guard fails when the DB drifts from the spec headers.
 
-**Critical defect discovered in 14a — the guard is superficial.**
-The Phase 14 architecture guard only greps spec files for RPC name strings; it never checks that those RPCs exist in Postgres. Cross-checking the `SPECS` table in the guard against `pg_proc` shows **11 of the 27 named RPCs do not exist**:
+### Next up for the incoming agent
+Pick **14f (QC)**. Before writing the spec:
+1. `rg -n "open_qc_inspection|accept_qc_inspection|reject_qc_inspection|cancel_qc_inspection" supabase/migrations/*.sql` and read the signatures — some may still be missing and need thin wrapper RPCs (mirror the 14a.1 approach: `SECURITY DEFINER`, business-scoped, outbox emit).
+2. Confirm `wms_qc_hold_reasons` has at least one row for the seeded business; extend `wms_e2e_ensure_seed()` if not — keep it idempotent.
+3. Model the fixture on `pick-pack-dispatch.spec.ts` (self-contained receive → putaway to get a lot at `E2E_STOCK`, then open QC on it).
+4. Only after 14f green, proceed to 14g → 14h → 14i in order.
 
-| Spec | Named in guard | Actual DB name | Status |
-|---|---|---|---|
-| receive | `create_goods_receipt` | (none — created via table insert) | missing |
-| receive | `record_goods_receipt_line` | (none) | missing |
-| receive | `complete_goods_receipt` | `complete_goods_receipt_atomic` | wrong name |
-| putaway | `suggest_putaway_task` | `suggest_putaway_locations` | wrong name |
-| putaway | `assign_wms_task` | (none) | missing |
-| wave | `build_pick_wave` | `create_pick_wave` | wrong name |
-| wave | `cancel_pick_wave` | (none) | missing |
-| pick-pack-dispatch | `claim_pick_task` | (none) | missing |
-| count | `open_count_session` | `create_count_session` | wrong name |
-| count | `record_count_scan` | (none) | missing |
-| count | `approve_count_variance` | (none) | missing |
-| count | `close_count_session` | `post_count_session` | wrong name |
+## Post-Phase-14 roadmap (unchanged)
+- **15** Warehouse Master polish (business rules audit).
+- **16** Layout designer (bins/aisles/zones editor).
+- **17** Operations dashboard + KPIs.
+- **18** Task engine (assignment strategies, SLAs).
+- **19** Location intelligence (slotting, ABC).
+- **20** Cross-dock + returns.
+- **21** Security & RLS re-audit across all new RPCs.
+- **22** Enterprise ERP integration surface (event contracts, webhooks).
 
-Consequence: as written, sub-phases 14b–14f **cannot pass** — the tests would call functions that don't exist. The 14a "green guard" is a false positive.
-
-Additionally, the plan assumes `is_sample_data` exists on all seed target tables. Only 4 of 12 do (`warehouses`, `products`, `purchase_orders`, `sales_orders`). `stock_locations`, `stock_lots`, `carriers`, `warehouse_docks`, `wms_carton_types`, `wms_qc_hold_reasons`, `wms_task_standards`, `businesses` don't.
-
-Vitest cannot be run in the sandbox harness (module resolution error) — this is an environment issue, not code, and does not block progress.
-
-## Phase 2 — Plan corrections (appended, non-destructive)
-
-Insert **Phase 14a.1 — RPC contract reconciliation** *before* 14b:
-
-1. Update `SPECS` in `src/test/architecture/wms-phase14.test.ts` to reference the RPCs that actually exist today (`complete_goods_receipt_atomic`, `suggest_putaway_locations`, `create_pick_wave`, `create_count_session`, `post_count_session`).
-2. Strengthen the guard: for every RPC string in `SPECS`, assert its presence via a build-time `pg_proc` snapshot (`supabase/tests/wms/rpc-snapshot.json`, regenerated by a script). This converts the guard from string-grep to real contract check and prevents future drift.
-3. For the 6 genuinely missing RPCs that enterprise WMS *requires* (`claim_pick_task`, `assign_wms_task`, `cancel_pick_wave`, `record_goods_receipt_line`, `record_count_scan`, `approve_count_variance`), add them to Phase 14b's migration as thin, idempotent SECURITY DEFINER wrappers over existing tables (`wms_tasks.state`/`assigned_to`, `wms_pick_waves.state`, `goods_receipt_items`, `wms_count_lines`). Each publishes to `business_event_outbox` via `emit_business_event`.
-
-Update **Phase 14b — Seed migration** to:
-- Tag seeded rows with `is_sample_data = true` only on tables that already have the column; for the rest, tag via a well-known business (`businesses.code = 'E2E'`) + explicit external references so a single delete-cascade path removes the fixture.
-- Do NOT add `is_sample_data` broadly — that is out of scope and would touch every module.
-
-No other roadmap changes; phases 15–22 remain valid.
-
-## Phase 3 — Execution order this turn (build mode)
-
-1. **Migration** (`supabase--migration`) — `wms_phase14b_seed_and_rpcs`:
-   - 6 wrapper RPCs listed above (each `SECURITY DEFINER`, `SET search_path = public`, GRANT EXECUTE to `authenticated`, outbox publish with `wms.<entity>:<id>:<state>` idempotency key).
-   - `wms_e2e_ensure_seed()` idempotent seed (`SECURITY DEFINER`, GRANT to `authenticated`) inserting the fixture set from plan §14b.
-2. **Guard hardening** — rewrite `SPECS` in `wms-phase14.test.ts` to match reality; add `pg_proc` snapshot check.
-3. **Seed helper** — replace `e2e/support/seed.ts` stub with a fetch to `rpc/wms_e2e_ensure_seed` using the anon key + restored session.
-4. **Unskip** `e2e/wms/receive.spec.ts`, drive `/warehouse-app/receiving`, assert one `stock.movement.received` row in `business_event_outbox`.
-5. Stop — 14c–14g remain sequential, next handoff.
-
-## Technical notes
-
-- All new RPCs must set `search_path` and scope writes to `auth.uid()`'s branch (Phase 21 will re-audit; do it right now).
-- No new tables — every wrapper writes to existing `wms_*` tables.
-- Outbox emission uses the existing `emit_business_event` RPC (client-safe path per ADR 0076).
-- Seed idempotency: upsert-by-natural-key (`code`/`name` per table); the RPC returns the seeded `business_id` for test binding.
+## Standing rules for this stream
+- All new RPCs: `SECURITY DEFINER`, `SET search_path = public`, business-access gated, outbox-emitting with stable idempotency keys (`wms.<entity>:<id>:<state>`).
+- Seed extensions must remain idempotent and scoped to the caller's active business — never insert org-wide singletons.
+- Guard is authoritative — every new spec header must name the exact `pg_proc` RPC strings it exercises.
+- Never mark a phase "done" without unskipping the spec and asserting real read-back state (outbox rows, table state), not just RPC return values.
