@@ -1810,6 +1810,69 @@ export type Database = {
           },
         ]
       }
+      approved_supplier_list: {
+        Row: {
+          approved_at: string
+          approved_by: string | null
+          business_id: string
+          category_id: string
+          created_at: string
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          rank: number
+          supplier_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string
+          approved_by?: string | null
+          business_id: string
+          category_id: string
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          rank?: number
+          supplier_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string | null
+          business_id?: string
+          category_id?: string
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          rank?: number
+          supplier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approved_supplier_list_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approved_supplier_list_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_categories: {
         Row: {
           accumulated_depreciation_account_id: string | null
@@ -52220,6 +52283,416 @@ export type Database = {
           },
         ]
       }
+      supplier_bank_accounts: {
+        Row: {
+          account_name: string
+          account_number_encrypted: string | null
+          account_number_masked: string
+          bank_name: string
+          branch_code: string | null
+          business_id: string
+          country: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          iban: string | null
+          id: string
+          is_primary: boolean
+          is_verified: boolean
+          organization_id: string
+          supplier_id: string
+          swift_bic: string | null
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          account_name: string
+          account_number_encrypted?: string | null
+          account_number_masked: string
+          bank_name: string
+          branch_code?: string | null
+          business_id: string
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          iban?: string | null
+          id?: string
+          is_primary?: boolean
+          is_verified?: boolean
+          organization_id: string
+          supplier_id: string
+          swift_bic?: string | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          account_name?: string
+          account_number_encrypted?: string | null
+          account_number_masked?: string
+          bank_name?: string
+          branch_code?: string | null
+          business_id?: string
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          iban?: string | null
+          id?: string
+          is_primary?: boolean
+          is_verified?: boolean
+          organization_id?: string
+          supplier_id?: string
+          swift_bic?: string | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_bank_accounts_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_categories: {
+        Row: {
+          business_id: string
+          code: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_compliance_checks: {
+        Row: {
+          business_id: string
+          check_kind: string
+          checked_at: string | null
+          checked_by: string | null
+          created_at: string
+          details: Json
+          expires_at: string | null
+          id: string
+          organization_id: string
+          outcome: string
+          reference: string | null
+          supplier_id: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          check_kind: string
+          checked_at?: string | null
+          checked_by?: string | null
+          created_at?: string
+          details?: Json
+          expires_at?: string | null
+          id?: string
+          organization_id: string
+          outcome?: string
+          reference?: string | null
+          supplier_id: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          check_kind?: string
+          checked_at?: string | null
+          checked_by?: string | null
+          created_at?: string
+          details?: Json
+          expires_at?: string | null
+          id?: string
+          organization_id?: string
+          outcome?: string
+          reference?: string | null
+          supplier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_compliance_checks_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_qualification_documents: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          document_kind: string
+          document_name: string
+          expires_at: string | null
+          id: string
+          issued_at: string | null
+          notes: string | null
+          organization_id: string
+          qualification_id: string | null
+          storage_path: string | null
+          supplier_id: string
+          updated_at: string
+          verification_state: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          document_kind: string
+          document_name: string
+          expires_at?: string | null
+          id?: string
+          issued_at?: string | null
+          notes?: string | null
+          organization_id: string
+          qualification_id?: string | null
+          storage_path?: string | null
+          supplier_id: string
+          updated_at?: string
+          verification_state?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          document_kind?: string
+          document_name?: string
+          expires_at?: string | null
+          id?: string
+          issued_at?: string | null
+          notes?: string | null
+          organization_id?: string
+          qualification_id?: string | null
+          storage_path?: string | null
+          supplier_id?: string
+          updated_at?: string
+          verification_state?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_qualification_documents_qualification_id_fkey"
+            columns: ["qualification_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_qualifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_qualification_documents_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_qualifications: {
+        Row: {
+          business_id: string
+          created_at: string
+          cycle_number: number
+          decision_notes: string | null
+          expires_at: string | null
+          id: string
+          organization_id: string
+          payload: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          score: number | null
+          state: string
+          submitted_at: string | null
+          submitted_by: string | null
+          supplier_id: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          cycle_number?: number
+          decision_notes?: string | null
+          expires_at?: string | null
+          id?: string
+          organization_id: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          score?: number | null
+          state?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          supplier_id: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          cycle_number?: number
+          decision_notes?: string | null
+          expires_at?: string | null
+          id?: string
+          organization_id?: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          score?: number | null
+          state?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          supplier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_qualifications_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          business_id: string
+          category_id: string | null
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          default_currency: string | null
+          default_incoterms: string | null
+          default_lead_time_days: number | null
+          default_payment_term_id: string | null
+          hold_reason: string | null
+          id: string
+          is_preferred: boolean
+          last_qualified_at: string | null
+          lifecycle_state: string
+          minimum_order_value: number | null
+          organization_id: string
+          preferred_rank: number
+          qualification_expires_at: string | null
+          qualification_score: number | null
+          supplier_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          category_id?: string | null
+          contact_id: string
+          created_at?: string
+          created_by?: string | null
+          default_currency?: string | null
+          default_incoterms?: string | null
+          default_lead_time_days?: number | null
+          default_payment_term_id?: string | null
+          hold_reason?: string | null
+          id?: string
+          is_preferred?: boolean
+          last_qualified_at?: string | null
+          lifecycle_state?: string
+          minimum_order_value?: number | null
+          organization_id: string
+          preferred_rank?: number
+          qualification_expires_at?: string | null
+          qualification_score?: number | null
+          supplier_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          category_id?: string | null
+          contact_id?: string
+          created_at?: string
+          created_by?: string | null
+          default_currency?: string | null
+          default_incoterms?: string | null
+          default_lead_time_days?: number | null
+          default_payment_term_id?: string | null
+          hold_reason?: string | null
+          id?: string
+          is_preferred?: boolean
+          last_qualified_at?: string | null
+          lifecycle_state?: string
+          minimum_order_value?: number | null
+          organization_id?: string
+          preferred_rank?: number
+          qualification_expires_at?: string | null
+          qualification_score?: number | null
+          supplier_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suppliers_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_account_roles: {
         Row: {
           category: string
@@ -65078,6 +65551,15 @@ export type Database = {
         Args: { p_transfer_id: string; p_user_id: string }
         Returns: Json
       }
+      approve_supplier_qualification: {
+        Args: {
+          p_expires_at?: string
+          p_notes?: string
+          p_qualification_id: string
+          p_score?: number
+        }
+        Returns: Json
+      }
       approve_timesheet_submission: {
         Args: { _submission_id: string }
         Returns: undefined
@@ -72835,6 +73317,10 @@ export type Database = {
         }
         Returns: string
       }
+      reinstate_supplier: {
+        Args: { p_notes?: string; p_supplier_id: string }
+        Returns: Json
+      }
       reject_qc_inspection: {
         Args: {
           p_disposition: string
@@ -72875,6 +73361,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      reject_supplier_qualification: {
+        Args: { p_notes: string; p_qualification_id: string }
+        Returns: Json
       }
       reject_timesheet_submission: {
         Args: { _reason: string; _submission_id: string }
@@ -73909,6 +74399,10 @@ export type Database = {
         Args: { p_field_key: string; p_new_value: Json; p_reason?: string }
         Returns: string
       }
+      submit_supplier_qualification: {
+        Args: { p_payload?: Json; p_supplier_id: string }
+        Returns: Json
+      }
       submit_timesheet_period: {
         Args: {
           _employee_id: string
@@ -73960,6 +74454,10 @@ export type Database = {
           rank: number
           reason: string
         }[]
+      }
+      suspend_supplier: {
+        Args: { p_reason: string; p_supplier_id: string }
+        Returns: Json
       }
       sync_pack_onboarding_items: {
         Args: { p_business_id: string }
