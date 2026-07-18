@@ -230,7 +230,7 @@ function POSTerminalInner() {
   const sound = usePOSSound();
   const { heldCount, holdTransaction } = usePOSHeldTransactions(registerId);
   const { receiptSettings } = usePOSSettings();
-  const { program: loyaltyProgram, calculatePoints, fetchCustomerLoyalty, earnPoints } = usePOSLoyalty();
+  const { program: loyaltyProgram, calculatePoints, fetchCustomerLoyalty } = usePOSLoyalty();
   const { isVerified: ageVerified, getRestrictedItems, verify: verifyAge, reset: resetAgeVerification, needsVerification } = usePOSAgeVerification();
   const { isOnline, queueCount } = usePOSOffline();
   const { currentOrg } = useOrganization();
