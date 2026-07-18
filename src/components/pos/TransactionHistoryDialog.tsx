@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { PostPaymentScreen } from "./PostPaymentScreen";
 import { VoidTransactionDialog } from "./VoidTransactionDialog";
+import { CardPaymentActions } from "./transaction-detail/CardPaymentActions";
 import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { useResolvedPrintPolicyWithDevice } from "@/hooks/useDocumentPrintPolicies";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -384,6 +385,32 @@ export function TransactionHistoryDialog({
                     ))}
                   </div>
                 </div>
+
+                {/* Wave 2 · Phase C-3.3 — post-commit card lifecycle. Renders
+                    Capture / Void / Reverse per card tender via cardTerminal.*
+                    (RPC-backed FSM). Non-card tenders are silently skipped. */}
+                {transactionDetails.payments?.some(
+                  (p: any) => p.tender_kind === "card" || p.payment_method === "card" || p.auth_state,
+                ) && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <p className="text-muted-foreground text-xs">Card Actions</p>
+                    {transactionDetails.payments
+                      ?.filter((p: any) =>
+                        p.tender_kind === "card" || p.payment_method === "card" || p.auth_state,
+                      )
+                      .map((payment: any) => (
+                        <CardPaymentActions
+                          key={payment.id}
+                          payment={payment}
+                          registerId={registerId}
+                          onChanged={async () => {
+                            const refreshed = await getTransactionDetails(transactionDetails.id);
+                            setTransactionDetails(refreshed);
+                          }}
+                        />
+                      ))}
+                  </div>
+                )}
 
                 {transactionDetails.status === "completed" && (
                   <div className="flex gap-2 pt-2 flex-wrap">
