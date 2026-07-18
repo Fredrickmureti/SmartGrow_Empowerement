@@ -20,18 +20,25 @@ import path from "path";
 
 const ROOT = path.resolve(__dirname, "../../..");
 
+// RPC names below MUST match `pg_proc.proname` exactly. Phase 14a.1 audit
+// (2026-07-18) reconciled these against the live schema — do not rename
+// without confirming the DB function still exists under the new name.
 const SPECS: Array<{ file: string; rpcs: string[] }> = [
   {
     file: "e2e/wms/receive.spec.ts",
-    rpcs: ["create_goods_receipt", "record_goods_receipt_line", "complete_goods_receipt"],
+    rpcs: [
+      "create_goods_receipt",
+      "record_goods_receipt_line",
+      "complete_goods_receipt_atomic",
+    ],
   },
   {
     file: "e2e/wms/putaway.spec.ts",
-    rpcs: ["suggest_putaway_task", "assign_wms_task", "complete_putaway_task"],
+    rpcs: ["suggest_putaway_locations", "assign_wms_task", "complete_putaway_task"],
   },
   {
     file: "e2e/wms/wave.spec.ts",
-    rpcs: ["build_pick_wave", "release_pick_wave", "cancel_pick_wave"],
+    rpcs: ["create_pick_wave", "release_pick_wave", "cancel_pick_wave"],
   },
   {
     file: "e2e/wms/pick-pack-dispatch.spec.ts",
@@ -60,13 +67,14 @@ const SPECS: Array<{ file: string; rpcs: string[] }> = [
   {
     file: "e2e/wms/count.spec.ts",
     rpcs: [
-      "open_count_session",
+      "create_count_session",
       "record_count_scan",
       "approve_count_variance",
-      "close_count_session",
+      "post_count_session",
     ],
   },
 ];
+
 
 const MOBILE_SPEC = "e2e/wm/offline-drain.spec.ts";
 const SUPPORT_FILES = ["e2e/support/auth.ts", "e2e/support/seed.ts"];
