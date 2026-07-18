@@ -57,9 +57,10 @@
      (drawer, printer).
    - New arch guard verifies edge function + DLQ + cron job all exist.
 
-
+## Audit summary (Wave 1 baseline, kept for reference)
 
 **What works today (Wave 1 legacy carried over cleanly):**
+
 
 - **Atomic sale commit.** `process_pos_transaction` runs under
   `pg_advisory_xact_lock` per `(product, warehouse)`, calls
