@@ -1,164 +1,176 @@
-# POS Transaction Engine — Enterprise Roadmap
+# Wave 2 — Checkout & Transaction Engine
 
-Authoritative status for the POS subsystem. Verify against the live database
-via `pg_proc.prosrc` and the migration tree; do not trust prose alone.
+## Audit summary (verified against the live DB and repo)
 
----
+**What works today (Wave 1 legacy carried over cleanly):**
 
-## Current phase
+- **Atomic sale commit.** `process_pos_transaction` runs under
+  `pg_advisory_xact_lock` per `(product, warehouse)`, calls
+  `_pos_apply_lot_consumption` (lot-aware), writes lines via `_pos_insert_line`,
+  records payments via `_pos_record_payment`, and the whole thing is one
+  Postgres transaction. Void/return mirror the shape (Wave 1 T8).
+- **Mandatory idempotency.** `trg_pos_transactions_require_idempotency_key`
+  + `pos_transaction_idempotency` response cache (T9). Retry-safe end to end.
+- **Server-authoritative money math.** `pos_resolve_line` + RPC totals; the
+  arch guard `no-client-pos-money-math` enforces it.
+- **Per-sale GL.** `trg_pos_transaction_post_sale_gl` → `post_pos_sale_gl`.
+- **Receipt as artifact.** `_pos_write_receipt_snapshot` freezes an immutable
+  `pos_receipt_snapshots.payload` (business, branch, org, items, payments,
+  customer, cashier, register, receipt settings). `useReceiptSnapshot` reads it.
+- **Business events emitted.** Triggers already emit `pos.sale.committed`,
+  `inventory.movement.recorded`, and `payment.received` into
+  `business_event_outbox`. Live outbox shows real rows.
+- **Offline queue.** `TransactionQueue` (IndexedDB) with crash recovery, tied
+  to the same idempotency-key contract so replays collapse.
 
-**Phase 5 (in progress) — RPC parity & sub-flow completeness.**
+**What does NOT meet enterprise bar (root causes, verified):**
 
-- ✅ **T8** — `process_pos_void` brought to sale/return parity: advisory
-  lock on `(product, warehouse)`, lot-aware reversal via
-  `_pos_apply_lot_consumption(direction='in')`, GL reversal via
-  `_pos_reverse_transaction_gl`. Legacy overload dropped.
-- ✅ **T9 (this batch) — Idempotency response cache.**
-  - New table `public.pos_transaction_idempotency` `(idempotency_key TEXT
-    PRIMARY KEY, organization_id, business_id, branch_id, register_id,
-    rpc_name, transaction_id, response JSONB, created_at, expires_at)`
-    with RLS (`SELECT` scoped to caller's branch via
-    `user_can_access_branch(auth.uid(), branch_id)`), GRANTs to
-    `authenticated` (SELECT) and `service_role` (ALL), and a 24 h
-    `expires_at` default.
-  - `process_pos_transaction`:
-    - reads the cache at entry, **before** any advisory lock — returns
-      the exact original body on retry, with `idempotent_replay=true`
-      overlaid via `jsonb_set`;
-    - retains the legacy `pos_transactions.idempotency_key` lookup as a
-      fallback so pre-T9 committed txns still replay (as truncated
-      summary);
-    - captures the final response in a `v_response` variable, writes it
-      to the cache with `ON CONFLICT (idempotency_key) DO NOTHING`, then
-      returns `v_response` — cache write commits atomically with the
-      sale.
-  - `public.cleanup_pos_transaction_idempotency()` reaps expired rows;
-    schedule hourly via `pg_cron` (deferred to ops).
-- ✅ **Arch guards extended** — `pos-idempotency-response-cache.test.ts`
-  (5 checks: table shape + RLS + grants; read-before-lock ordering;
-  write-before-return; TTL fn present; no client-side writes to the
-  cache table).
-
-**Scope note for T9.** `p_idempotency_key` only exists on
-`process_pos_transaction`. `process_pos_return` and `process_pos_void`
-are manager-initiated and reference an existing txn (already protected
-by `trg_pos_block_void_return_overlap`), so the response-cache pattern
-does not apply to them. If a future offline-return client emerges,
-symmetric keys will be added at that time.
-
----
-
-## Cumulative status — verified
-
-### Phase 1 (verification of prior claims)
-- ✅ **T1** server-authoritative money math (`pos_resolve_line` + totals in `process_pos_transaction`).
-- ✅ **T2** `trg_pos_transactions_require_idempotency_key`.
-- ✅ **T3** unified reservations — POS holds live only on `stock_reservations`; legacy `pos_stock_reservations` compat view is dropped (Phase 4).
-- ✅ **T4** `pg_advisory_xact_lock` in the sale path.
-- ✅ **T5** per-sale GL (`post_pos_sale_gl` via `trg_pos_transaction_post_sale_gl`) + cash-variance trigger.
-- ✅ **T7** outbox topics `pos.sale.committed`, `inventory.movement.recorded`, `payment.received`; five POS `governance_duties`.
-
-### Phase 3 batch
-- ✅ **T6** helpers `_pos_insert_line`, `_pos_record_payment`, `_pos_apply_lot_consumption`, `_pos_write_stock_movement`.
-- ✅ **T6b** return-path advisory lock.
-- ✅ **T7 payment.received** topic + trigger `trg_pos_payment_emit_event`.
-
-### Phase 4 drops
-- ✅ `pos_stock_reservations` compat view + INSTEAD OF DELETE trigger removed.
-- ✅ `post_pos_shift_gl`, `replay_pos_shift_gl`, `generate_pos_shift_journal_entry`, `trg_pos_shift_close_journal_fn` removed.
-- ✅ `ShiftReportDialog` "Retry GL" button removed.
-- ✅ `businessScopedTables.ts` cleanup.
-
-### Phase 5
-- ✅ **T8** — see cumulative + Current phase.
-- ✅ **T9** — see Current phase.
-
-### Architecture guards — 18 passing across 5 files
-- `pos-server-authoritative-money-math.test.ts`
-- `pos-mandatory-idempotency.test.ts` (4)
-- `pos-reservations-single-source.test.ts` (4)
-- `pos-outbox-and-governance.test.ts`
-- `no-client-pos-money-math.test.ts`
-- `pos-rpc-helpers-only.test.ts` (4)
-- `pos-pessimistic-availability.test.ts` (3)
-- `pos-branch-stamping.test.ts` (3)
-- `pos-idempotency-response-cache.test.ts` (5)  ← **new in T9**
+1. **Payment methods are hardcoded in the UI.** `PaymentDialog` (701 LOC) and
+   `PaymentMethod['method']` are a closed enum (`cash|card|mobile_money|voucher|credit|bank_transfer|other`)
+   with per-branch code for M-Pesa/cash/credit. The `pos_payment_methods`
+   catalog table exists but the dialog does not drive off it. New methods
+   (gift card, store credit tied to A/R, BNPL, wallet, fiscal cash) require
+   component edits — the opposite of extensibility.
+2. **Card is "dumb tender".** The EMV FSM
+   (`electron/hardware/payment/PaymentStateMachine`,
+   `IPaymentTerminalDriver`) is fully modeled but the browser checkout path
+   never uses it. There is no `authorize → capture → void|refund` in the
+   PaymentDialog, no partial-auth handling, no cached-authorization on
+   retry, no cancel-in-flight. Card is treated as a free-text `reference`.
+3. **Outbox worker is a browser tab.** `BusinessSaga`
+   (`claim_next_business_event`) runs client-side, once per tab.
+   No DLQ, no attempt cap surfaced, no ops visibility. If no browser is
+   open, `business_event_outbox` accumulates. Not durable at enterprise
+   scale.
+4. **Sparse downstream consumers.** Only `payment.received` has a handler
+   (drawer + printer via hardware queue). `pos.sale.committed` has **no**
+   registered saga handler — loyalty, analytics projection, fiscal
+   (eTIMS), customer-history all still run from UI/hooks or not at all.
+   `inventory.movement.recorded` is unhandled.
+5. **Return authorization missing.** `process_pos_return` trusts caller
+   input. No `pos_return_authorizations`, no threshold-based manager
+   approval, no RMA reference. D365/SAP require this.
+6. **Cash lifecycle policy is implicit.** Drawer events, shift close,
+   variance GL exist, but blind-close vs sighted-close, drop/pickup
+   safe-drop workflow, and manager override matrix are not modeled as
+   a single policy surface — they are scattered across settings tables.
 
 ---
 
-## Pending — next enterprise milestones
+## Plan — 7 phases, each independently shippable
 
-### T10 — Outbox delivery worker & DLQ (next up)
-`business_event_outbox` currently accumulates rows with no worker. Ship a
-Deno edge function `outbox-dispatcher` that:
-- Reads `status='pending'` rows in order per `topic` (respect `producer_domain`).
-- Dispatches to registered consumers (start with logging sink; real HTTP
-  webhooks are Phase 6).
-- Retries with exponential backoff up to N attempts, then moves to a new
-  `business_event_outbox_dead` table for ops review.
-- Cron via `pg_cron` or Supabase scheduled function every 10 s.
-- Arch test: DLQ table exists; dispatcher edge function present; a
-  scheduled invoker referenced in `supabase/config.toml` or migration.
+### Phase A — Publish the audit (docs/architecture)
+- Write `docs/architecture/POS_CHECKOUT_ENGINE.md`: event flow diagram from
+  "Cart Finalized" → "Transaction Closed" naming owner / source of truth /
+  rollback / recovery for each of the ~17 events in the mandate.
+- Cross-reference verified DB objects (function names, triggers, topics).
+  No code changes.
 
-### T11 — Reporting projection (denormalized read model)
-Per-sale JEs make finance-facing analytics slow. Materialize a
-`pos_sales_daily` projection populated by trigger on `pos_transactions`
-status transitions.
+### Phase B — Payment method catalog as the extensibility contract
+Make `pos_payment_methods` the single source of truth; PaymentDialog becomes
+a renderer.
+- Add columns to `pos_payment_methods`: `capture_mode`
+  (`immediate|two_step|external_lookup|deferred`), `tender_kind`
+  (`cash|card|wallet|voucher|credit_liability|ar_credit|bank`),
+  `requires_terminal boolean`, `requires_reference boolean`,
+  `settlement_gl_account_id`, `provider_key` (nullable → mpesa/stripe/adyen).
+- Server-side validator function `pos_validate_payment_line(method_key, payload)`
+  called by `_pos_record_payment` so payload shape is enforced by DB, not TS.
+- Client: split `PaymentDialog` into `PaymentDialogShell` +
+  `PaymentTenderPanel` (one per `tender_kind`, discovered from catalog).
+  The dialog receives capability descriptors, never method-name string checks.
+- Arch guard `pos-payment-method-extensibility.test.ts`: dialog contains no
+  literal method-name switches; every enabled method resolves to a panel via
+  catalog metadata.
 
-### T12 — Return authorization workflow
-`process_pos_return` currently trusts caller-supplied line refunds. Add
-`pos_return_authorizations` referencing the original transaction with a
-manager override and reason code — required before the return RPC can
-proceed for values above threshold. Mirrors D365 "Return with RMA".
+### Phase C — EMV / card FSM in the browser
+- Introduce `src/services/pos/payment/PaymentTerminalClient.ts` that mirrors
+  the electron `IPaymentTerminalDriver` interface but talks to the hardware
+  proxy (`useHardwareProxy` → local agent → vendor SDK). Default impl
+  routes to `MockTerminalDriver` for dev.
+- Wrap card tender selection in the existing `PaymentStateMachine`
+  (`idle → collecting → authorizing → approved → captured`). Persist FSM
+  state on `pos_transaction_payments` as `auth_state`, `auth_id`,
+  `vendor_txn_id`, `authorized_amount_cents`, so retry / crash returns to
+  the correct FSM node.
+- Cached-auth on retry: reuse `pos_transaction_idempotency` key as the
+  driver's `idempotencyKey` — same key ⇒ same `AuthResult` from the vendor.
+- Void-before-capture: if the sale commit fails after `authorized`, call
+  `voidAuth`. If it fails after `captured`, enqueue a compensating `refund`
+  as a business event.
 
-### T8-followup — GL reversal helper coverage
-Add an arch test asserting `_pos_reverse_transaction_gl` is the sole
-reverser and no code path inlines negated JE lines (parity with the
-"helpers only" guard for stock).
+### Phase D — Outbox worker as durable enterprise infra (T10)
+- Create Supabase edge function `outbox-dispatcher`:
+  - Claims via `claim_next_business_event` (already exists) in batches.
+  - Retries with exponential backoff up to `max_attempts` (already in RPC).
+  - Moves permanent failures to new table `business_event_outbox_dead`
+    (same columns + `dead_reason`, `dead_at`, `first_attempt_at`).
+- Schedule via `pg_cron` + `net.http_post` every 10 s (per
+  `schedule-jobs-supabase-edge-functions` pattern).
+- Keep `BusinessSaga` in the browser as a **secondary** consumer for
+  hardware-adjacent events (drawer, printer) that must run on the host
+  physically attached to the device. Ensure both cannot claim the same
+  row — the RPC already uses `FOR UPDATE SKIP LOCKED`; add a
+  `handler_scope` column (`server|host`) on `business_event_topics` and
+  filter accordingly.
+- Arch guard: edge function exists, DLQ table exists, cron job present.
+
+### Phase E — Downstream sagas (make Pay orchestrate, not calculate)
+Register durable handlers so the UI stops doing side-effects:
+- `pos.sale.committed` →
+  - loyalty accrual (delete UI-driven accrual in `usePOSTransactionOffline`);
+  - customer purchase history projection;
+  - `pos_sales_daily` projection (T11 in Wave 1 roadmap, promoted here);
+  - fiscal transmission trigger for eTIMS (existing edge fn
+    `etims-transmit` becomes an event handler, not a hook call).
+- `inventory.movement.recorded` → reorder-alert recompute (already partly
+  wired in warehouse; add POS branch).
+- `payment.received` → keep hardware queue path; additionally emit
+  bank-reconciliation hint rows for `tender_kind='bank'|'card'|'wallet'`.
+
+### Phase F — Return authorization / RMA (T12)
+- New table `pos_return_authorizations` (`original_transaction_id`, `reason_code_id`,
+  `manager_override_id`, `status`, `authorized_amount`, `expires_at`) with
+  RLS scoped to branch.
+- `process_pos_return` gains `p_authorization_id`, required when
+  `refund_amount > pos_security_settings.return_authorization_threshold`.
+- Manager-override policy resolved via existing `pos_override_matrix`.
+- Arch guard `pos-return-authorization-required.test.ts`.
+
+### Phase G — Cash lifecycle hardening
+- Consolidate drawer / shift-close / drop / pickup / blind-close / manager
+  override policy into a single view `pos_cash_lifecycle_policy` (composed
+  from `pos_security_settings`, `pos_override_matrix`, register/shift settings).
+- Verify events `pos.drawer.opened`, `pos.cash.dropped`, `pos.cash.picked_up`,
+  `pos.shift.closed`, `pos.cash.variance` exist; add the missing ones.
+- Arch guard: every cash-affecting client action emits a durable event
+  before mutating a table.
 
 ---
 
-## Handoff instructions for the next agent
+## Ordering & shipping cadence
 
-**BEFORE writing any new code:**
+Ship in this order (each phase ends with green arch guards):
+**A → B → D → E → C → F → G.**
 
-1. Re-verify T8 + T9 on the live DB:
+- A first because it is the shared vocabulary for the rest.
+- B before C: extending the catalog is a hard prerequisite for typed
+  card tender panels.
+- D before E: no point registering more handlers on a brittle worker.
+- C after D so cached-auth replays cross the same durable path.
+- F and G are independent and can be parallelized once E lands.
 
-   ```sql
-   SELECT proname,
-          (prosrc ~* 'pg_advisory_xact_lock') AS lock_ok,
-          (prosrc ~* '_pos_apply_lot_consumption') AS helper_ok,
-          (prosrc ~* 'INSERT INTO\s+(public\.)?stock_movements') AS inline_bad
-   FROM pg_proc
-   WHERE proname IN ('process_pos_transaction','process_pos_return','process_pos_void')
-     AND pronamespace='public'::regnamespace;
+## Non-goals for Wave 2
 
-   SELECT proname,
-     (prosrc ~* 'pos_transaction_idempotency[^;]*expires_at\s*>\s*now\(\)') AS reads_cache,
-     (prosrc ~* 'INSERT INTO\s+public\.pos_transaction_idempotency') AS writes_cache
-   FROM pg_proc WHERE proname='process_pos_transaction' AND pronamespace='public'::regnamespace;
-   ```
-   All T8 rows must be `lock_ok=t, helper_ok=t, inline_bad=f`; T9 row must
-   be `reads_cache=t, writes_cache=t`.
+Product discovery, search, barcode, cart composition, KDS, table/floor
+management, promotions engine, loyalty program design, receipt template
+authoring, printer driver work, offline conflict-resolution UI. Wave 1
+foundations for those stand.
 
-2. Run the full POS arch-guard suite:
+## Definition of done for Wave 2
 
-   ```
-   bunx vitest run src/test/architecture/pos-*.test.ts
-   ```
-   All 18 checks must pass.
-
-3. Confirm no duplicate function overloads:
-
-   ```sql
-   SELECT proname, count(*) FROM pg_proc
-   WHERE proname LIKE 'process_pos_%' AND pronamespace='public'::regnamespace
-   GROUP BY proname HAVING count(*) > 1;
-   ```
-   Must return zero rows.
-
-**Then proceed to T10 (outbox dispatcher + DLQ).** Do not skip to T11/T12
-— downstream consumers assume in-order, retriable delivery.
-
-**Non-goals for the next batch:** promotions, loyalty, receipt rendering,
-hardware integrations, eTIMS, tax-authority hooks. Those are Wave B.
+Pressing **Pay** kicks off a scripted sequence of durable business events;
+every side-effect (GL, inventory, receipt, loyalty, fiscal, hardware,
+analytics) is a subscriber to one of those events rather than a UI hook;
+new payment methods and new consumers can be added with a migration and a
+handler, never a PaymentDialog edit.
