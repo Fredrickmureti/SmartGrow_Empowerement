@@ -16,6 +16,7 @@ import {
   Layers,
   Building2,
   FileSignature,
+  ClipboardList,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
