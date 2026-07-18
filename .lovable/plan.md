@@ -1,130 +1,112 @@
-# Procurement Domain — Authoritative Project Status
 
-**Last updated:** 2026-07-18
-**Current phase:** Phase H+ (Hardening & Architecture Audit) — active
-**Next milestone:** Batch I-Deferred (Vendor Credit Note FIFO allocation)
+# Procurement Reconstruction — Verification & Continuation Plan
 
-> This file is the single source of truth for procurement-domain progress. Every claim below is backed by evidence gathered via `supabase--read_query` on the live schema, `rg` over `src/`, or a linked commit / doc. Nothing in this file may assert current state without a verifying read.
+## Phase 1 — Verification of prior work (done in this turn)
 
----
+Re-ran the pre-plan reads the previous engineer left in `.lovable/plan.md §5`. Nothing is asserted below that a query did not confirm.
 
-## 1. Status dashboard
+### Confirmed correct
 
-### 1.1 Feature build phase — **CLOSED**
+- **All 12 canonical RPCs present** on the live DB: `approve_purchase_order`, `receive_inbound_shipment`, `create_goods_receipt`, `match_bill_atomic`, `match_bill_with_landed_cost`, `confirm_bill_atomic`, `record_bill_payment_atomic`, `post_journal_entry_atomic`, `void_journal_entry_atomic`, `sync_po_line_billed_quantities`, `apply_vendor_credit_atomic`. Feature batches A–H are landed.
+- **43 SoD conflict rows** in `governance_sod_conflicts`; the 6 procurement duties `po.approve`, `asn.manage`, `grn.receive`, `bill.approve`, `bill.match`, `supplier_terms.manage` are all present.
+- **ADR-0079 party-vs-role holds**: every procurement document (`purchase_orders`, `bills`, `rfq_vendors`, `purchase_returns`, `vendor_credit_notes`) keys off `vendor_id → contacts.id`. No `supplier_id` FK leaked into transactional tables.
+- **H+1 code fix survived**: `SupplierCreatePage.tsx` seeds currency from `currentBusiness.base_currency` inside a `useEffect` (lines 50–56).
+- **Studio inventory**: 0 `entity_field_configs` for `supplier`, 1 each for `contact` and `estimate` — matches §3 row 6.
+- **Architecture guard tests exist**: `src/test/architecture/procurement.test.ts`, `purchases-branch-scope.test.ts`, `purchases-branch-id-stamping.test.ts`, `purchases-record-dialog-ban.test.ts`.
 
-| Batch | Scope | Status | Evidence |
-| --- | --- | --- | --- |
-| A | `suppliers` master + categories + qualifications | ✅ Landed & verified | `information_schema` — `suppliers`, `supplier_categories`, `supplier_qualifications`, `supplier_qualification_documents` present |
-| B | `supplier_item_terms`, `vendor_pricelists`, `approved_supplier_list` | ✅ Landed & verified | tables present |
-| C | RFQ / sourcing (`rfqs`, `rfq_vendors`, `rfq_items`, `sourcing_events`, scoring) | ✅ Landed & verified | tables present |
-| D | Procurement contracts (`procurement_contracts`, lines, releases) | ✅ Landed & verified | tables present |
-| E | Purchase requisitions + PO approval RPC (`approve_purchase_order`) | ✅ Landed & verified | `pg_proc` — SECURITY DEFINER, search_path=public |
-| F | ASN (`inbound_shipments` + `receive_inbound_shipment` RPC) | ✅ Landed & verified | `pg_proc` |
-| G | GRN (`goods_receipts` + `create_goods_receipt` RPC + discrepancies) | ✅ Landed & verified | `pg_proc` |
-| H | 3/4-way match (`bill_match_tolerance_policies`, `bill_match_results`, `bill_match_exceptions`, `match_bill_atomic`, `match_bill_with_landed_cost`) | ✅ Landed & verified | `pg_proc` + tables |
-| H-Verify | Rollback-marker smoke: idempotency, over/under-billing, price variance, 4-way landed uplift, SoD self-approval | ✅ Landed & verified | execution log below |
+### Confirmed still open (matches §1.3)
 
-### 1.2 Hardening phase (Phase H+) — **ACTIVE**
+- **G1** `apply_vendor_credit_note_atomic` missing from `pg_proc`.
+- **G2** `governance_duties.credit.approve` and `credit.apply` missing.
+- **G3 / G4** Supplier record page has no Finance-defaults section and no Contact custom-field slot.
 
-| Sub-phase | Scope | Status |
-| --- | --- | --- |
-| Phase 0 | Rewrite plan to reflect milestone | ✅ Done (this file) |
-| Phase 1 | Independent verification of feature-phase claims (read-only) | ✅ Done — see §3 |
-| Phase 2 | Publish Contact ↔ Supplier ↔ Vendor architecture audit | ✅ Done — `docs/audit/procurement-vendor-vs-supplier.md` |
-| Phase 3 | Small hardening batches | ⏳ Partial — H+1 / H+2 / H+3 / H+4 landed; no more identified |
-| Phase 4 | Legacy `/purchases/vendors` retirement strategy (planning only) | ✅ Done — documented in audit §2.3 + queued as Batch K-Retire |
-| Phase 5 | Playwright + RLS re-audit (Batch L + Batch M) | ⏸ Queued — not started |
-| Phase 6 | Repair queue (contingent on Phase 1 FAILs) | ⏳ 1 FAIL open — Batch I never landed; re-queued as I-Deferred |
+### New findings the previous plan under-specified
 
-### 1.3 Confirmed gaps still to close (in execution order)
+1. **`apply_vendor_credit_atomic` already exists** and single-bill VCN application already runs through it (see `src/lib/purchases/applyVendorCredit.ts`, `useVendorCreditNotes.ts`, and `docs/PURCHASES_AUDIT.md §4.6`). Batch I-Deferred is therefore an **upgrade to FIFO multi-bill + outbox emission + dedicated SoD duties**, not a from-scratch build. The old RPC must be **removed in the same migration** so we don't ship two VCN-application code paths (architectural drift is one of the parent prompt's red lines).
+2. **Bill balance column mismatch.** Plan §5 references `bills.balance_due`; that column does not exist. `bills` has `total` + `amount_paid`; remaining balance is `total - amount_paid`. The Batch I-Deferred RPC contract below uses that instead.
+3. **`vendor_credit_notes.status` is `text`, not an enum.** A status guard (draft → approved → applied/void) must be enforced by trigger or CHECK inside Batch I-Deferred; otherwise the FIFO RPC can be called on a draft.
+4. **Callers must be migrated in the same batch.** Deleting `apply_vendor_credit_atomic` without updating `src/lib/purchases/applyVendorCredit.ts` and `src/hooks/useVendorCreditNotes.ts` in the same turn breaks the VCN application UI. Batch I-Deferred is (migration + client rewrite + architecture-guard update), not migration-only.
+5. **PURCHASES_AUDIT §7 P3 constraints never landed.** Cross-table triggers (`bill.branch_id ∈ bill.business_id`, `bill.purchase_order_id.business_id = bill.business_id`, VCN↔bill business equality) are still enforced only at the app layer. Adding them as DB constraints belongs in the hardening arc. **Appending as new Batch N-Constraints, queued after Batch M.**
 
-| # | Item | Blocker for | Owner batch |
-| --- | --- | --- | --- |
-| G1 | `apply_vendor_credit_note_atomic` RPC missing from `pg_proc` | Vendor credit note lifecycle (returns → credit → allocation → JE) | **Batch I-Deferred** (next milestone) |
-| G2 | `governance_duties.credit.approve` and `credit.apply` missing | Cannot register SoD conflicts for credit workflow | Batch I-Deferred (same migration) |
-| G3 | Supplier record page lacks a "Finance defaults" section (AP account, WHT, tax id) | Prevents retirement of `/purchases/vendors` UI | Batch K-Retire (blocked on G1) |
-| G4 | Contact custom-field slot not rendered on Supplier record page | Same as G3 | Batch K-Retire |
-| G5 | No Playwright coverage for: currency inheritance, bill self-approval guard regression, `/vendors` still-rendering guard | Regression risk on H+1/H+2 + H-Verify fix | Batch L (queued after K-Retire) |
-| G6 | Consolidated verdict doc not published | Closes hardening phase | Batch M (queued last) |
+## Phase 2 — Plan status after verification
 
----
+The existing roadmap (§2 of `.lovable/plan.md`) is fundamentally correct. Adjustments:
 
-## 2. Roadmap — chronological, do NOT reorder
+- Batches A–H, H-Verify, Phase 1, Phase 2, H+1, H+2, H+3, H+4 — verified complete, no rework.
+- Batch I-Deferred contract is rewritten below to reflect findings 1–4.
+- Batch N-Constraints appended (finding 5).
+- Chronological order preserved: **I-Deferred → K-Retire → L → M → N-Constraints**.
 
-Each item is brought to production-ready state before the next begins.
+## Phase 3 — Execution
 
-1. ✅ **Batches A → H** — feature build (closed).
-2. ✅ **Batch H-Verify** — matching smoke.
-3. ✅ **Phase 1 verification** — read-only audit of feature claims.
-4. ✅ **Phase 2 audit doc** — `docs/audit/procurement-vendor-vs-supplier.md` + ADR-0079.
-5. ✅ **H+1** — Supplier currency defaults from `businesses.base_currency`.
-6. ✅ **H+2** — Legacy nav label clarified ("Suppliers (contact view)").
-7. ✅ **H+3** — ADR-0079 (Party vs Role dual-key model).
-8. ✅ **H+4** — Studio field inventory (0 configs on `supplier` today; recorded).
-9. ⏭ **Batch I-Deferred — NEXT MILESTONE.** Vendor credit note FIFO. Single migration + RPC + governance duties + SoD conflicts + rollback-marker smoke. Emits `procurement.credit.applied` outbox. Must not touch `journal_entries` (Finance subscribes via outbox).
-10. ⏸ **Batch K-Retire** — Migrate AP-defaults editor + Contact custom-field slot onto Supplier record page; only THEN retire `/purchases/vendors` route. Blocked on G3/G4.
-11. ⏸ **Batch L** — Playwright: H+1 currency default, H-Verify self-approval guard, K-Retire route removal, I-Deferred credit lifecycle happy path.
-12. ⏸ **Batch M** — `docs/audit/procurement-verdict.md` consolidated close-out; flip Phase H+ to CLOSED.
+Resume at **Batch I-Deferred** (the last genuinely-completed milestone is H+4). Do not open unrelated procurement work.
 
-**Do not skip ahead.** Do not open unrelated procurement work (e.g. Sourcing 2.0, Supplier Portal enhancements, WMS crossovers) until Batch M closes.
+### Batch I-Deferred — Vendor Credit Note FIFO (next milestone)
 
----
+Single migration + coordinated client rewrite + guard-test update, landed together.
 
-## 3. Phase 1 verification log (evidence)
-
-| # | Item | Result | Evidence |
-| --- | --- | --- | --- |
-| 1 | Canonical RPCs present + `SECURITY DEFINER` + `search_path=public` (`approve_purchase_order`, `receive_inbound_shipment`, `create_goods_receipt`, `match_bill_atomic`, `match_bill_with_landed_cost`) | PASS | `pg_proc` query |
-| 1a | `apply_vendor_credit_note_atomic` | **FAIL** → G1 | Absent from `pg_proc` |
-| 2 | Governance duties (`asn.manage`, `bill.approve`, `bill.match`, `grn.receive`, `po.approve`, `supplier_terms.manage`) | PASS | 6 rows in `governance_duties` |
-| 2a | `credit.approve`, `credit.apply` duties | **FAIL** → G2 | Missing |
-| 3 | SoD conflicts registered | PASS | 43 rows in `governance_sod_conflicts` including bill.match ↔ po.approve / grn.receive / asn.manage |
-| 4 | `guard_bill_self_approval` enum→text cast fix in place | PASS | `pg_proc.prosrc LIKE '%::text%'` |
-| 5 | Every procurement document keys off `contacts.id` (no `supplier_id` FKs) | PASS | `information_schema.columns` |
-| 6 | Studio `entity_field_configs` inventory | PASS | 1 `contact`, 1 `estimate`, 0 `supplier` |
-| 7 | RLS `business_id` predicate on P1–H tables + branch-scoped policy check | PASS (carried forward from Batch H-Verify; not re-run this turn) | `v_branch_scoped_policy_check` |
-
----
-
-## 4. Files changed during Phase H+
-
-| Path | Change | Batch |
-| --- | --- | --- |
-| `docs/adr/0079-procurement-party-vs-role.md` | New — locks dual-key model | H+3 |
-| `docs/audit/procurement-vendor-vs-supplier.md` | New — evidence-backed audit | Phase 2 |
-| `src/features/purchases/suppliers/SupplierCreatePage.tsx` | `useEffect` seeds `currency` from `currentBusiness.base_currency` | H+1 |
-| `src/apps/purchases/nav.ts` | Label "Vendors (legacy)" → "Suppliers (contact view)" | H+2 |
-| `.lovable/plan.md` | Rewritten as authoritative status dashboard | Phase 0 |
-
-No migrations landed in Phase H+ so far — all frontend + docs. The next migration is Batch I-Deferred.
-
----
-
-## 5. Instructions for the next agent
-
-**Before writing any code, verify the previous work is correct and enterprise-grade.**
-
-1. **Confirm the status dashboard (§1) is still accurate.** Run these queries and reconcile with §1.1 / §1.2 / §3:
-   - `SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('approve_purchase_order','receive_inbound_shipment','create_goods_receipt','match_bill_atomic','match_bill_with_landed_cost','apply_vendor_credit_note_atomic');`
-   - `SELECT code FROM governance_duties WHERE code LIKE 'credit.%' OR code IN ('po.approve','asn.manage','grn.receive','bill.approve','bill.match','supplier_terms.manage');`
-   - `SELECT table_name, column_name FROM information_schema.columns WHERE table_schema='public' AND column_name IN ('vendor_id','supplier_id') AND table_name IN ('purchase_orders','bills','rfq_vendors','purchase_returns','vendor_credit_notes');`
-2. **Confirm H+1 code fix survived.** `rg "currentBusiness\.base_currency" src/features/purchases/suppliers/SupplierCreatePage.tsx` must return a match inside a `useEffect`.
-3. **Read the audit + ADR** before touching any procurement code: `docs/audit/procurement-vendor-vs-supplier.md` and `docs/adr/0079-procurement-party-vs-role.md`. If your change would add a `supplier_id` FK to any transactional document, **stop** — that is explicitly forbidden by ADR-0079.
-4. **Then, and only then, start Batch I-Deferred (§2 item 9).** Do NOT jump to Batch K-Retire, Batch L, or unrelated procurement work. Batch I is a hard prerequisite for K-Retire's Finance-defaults editor (which will surface credit-note history), and the roadmap is strictly chronological.
-
-**Batch I-Deferred contract:**
-- Single migration file.
-- Add `governance_duties`: `credit.approve`, `credit.apply`.
-- Add SoD conflicts: `credit.approve` ↔ `bill.approve`, `credit.apply` ↔ `credit.approve`, `credit.apply` ↔ `bill.match`.
-- Create `apply_vendor_credit_note_atomic(p_credit_note_id uuid, p_bill_ids uuid[])` RPC:
+**Migration**
+- Add duties: `credit.approve`, `credit.apply` to `governance_duties`.
+- Add SoD conflicts: `credit.approve ↔ bill.approve`, `credit.apply ↔ credit.approve`, `credit.apply ↔ bill.match`.
+- Add status guard trigger on `vendor_credit_notes` restricting transitions to `draft → approved → applied|void` (and `approved → void`).
+- Create `apply_vendor_credit_note_atomic(p_credit_note_id uuid, p_bill_ids uuid[])`:
   - `SECURITY DEFINER`, `SET search_path = public`.
-  - FIFO allocation against `bills.balance_due` in `due_date ASC, created_at ASC` order.
-  - Writes to `vendor_credit_note_applications`; updates `vendor_credit_notes.status` and `bills.balance_due` / `bills.status`.
-  - Emits `procurement.credit.applied` to `business_event_outbox` with idempotency key `credit.applied:<credit_note_id>:<version>`.
-  - **Must not** insert into `journal_entries`, `journal_entry_lines`, `stock_movements`, or `cost_layers`. Finance subscribes to the outbox and posts the reversal JE. Extend `src/test/architecture/procurement.test.ts` writer allow-list accordingly.
-- Rollback-marker smoke migration: create a credit note, apply against 2 bills, assert FIFO order, assert idempotency (re-apply is a no-op), assert SoD blocks the credit-approver from applying, assert `__SMOKE_ROLLBACK_MARKER__` present.
-- Update this file's §1.2 and §1.3 rows once landed.
+  - Locks credit note (`FOR UPDATE`); rejects unless `status='approved'` and `total - amount_applied > 0`.
+  - Restricts candidate bills to same `organization_id + business_id + vendor_id + currency`, `status IN ('received','partial')`, `total - amount_paid > 0`.
+  - **FIFO** = `due_date ASC NULLS LAST, created_at ASC`, intersected with `p_bill_ids` if provided (otherwise all eligible).
+  - For each bill: apply `min(credit_remaining, total - amount_paid)`; insert `vendor_credit_note_applications`; update `bills.amount_paid` and `bills.status` (`paid` when balance hits 0, else `partial`); decrement credit remaining.
+  - Sets `vendor_credit_notes.status = 'applied'` when fully consumed; keeps `approved` with `amount_applied > 0` when partial.
+  - Emits **one** `procurement.credit.applied` row to `business_event_outbox` with idempotency key `credit.applied:<credit_note_id>:<vcn.updated_at epoch>`. Payload lists per-bill allocations. **Never** writes `journal_entries`, `journal_entry_lines`, `stock_movements`, `cost_layers` (Finance subscribes via outbox — same contract as Sales domain).
+- **Drop `apply_vendor_credit_atomic`** in the same migration.
+- Rollback-marker smoke: seed 1 VCN + 3 bills → apply → assert FIFO order, idempotency (2nd call is no-op), SoD blocks approver applying, `__SMOKE_ROLLBACK_MARKER__` present, no rows in `journal_entries` from the RPC.
 
-**After Batch I-Deferred lands and is verified, proceed to Batch K-Retire (§2 item 10) — not before.**
+**Client rewrite (same turn as migration approval)**
+- `src/lib/purchases/applyVendorCredit.ts` → call new RPC with `(p_credit_note_id, p_bill_ids)`; drop the single-bill signature.
+- `src/hooks/useVendorCreditNotes.ts` → surface multi-bill selection; invalidate `bills`, `vendor_credit_notes`, `vendor_credit_note_applications`.
+- UI: extend the existing VCN apply dialog to allow multi-bill selection with a "FIFO auto-select" toggle.
+- `src/test/architecture/procurement.test.ts` → extend writer allow-list for `apply_vendor_credit_note_atomic` and remove `apply_vendor_credit_atomic`.
 
-**Pre-existing project-wide TS errors** (`Cannot find module 'react-router-dom' | 'framer-motion' | 'idb' | 'qrcode.react'`) are a stale typecheck artifact — all four packages are present in `package.json`. They are **not** caused by this phase's edits and should not be "fixed" by reinstalling or editing types unless the user explicitly asks.
+**Definition of done**
+- Both queries return rows: `SELECT 1 FROM pg_proc WHERE proname='apply_vendor_credit_note_atomic'` and `SELECT 1 FROM pg_proc WHERE proname='apply_vendor_credit_atomic'` returns **empty**.
+- `SELECT duty_code FROM governance_duties WHERE duty_code LIKE 'credit.%'` returns 2 rows.
+- Smoke migration idempotent; `procurement.test.ts` green.
+- `.lovable/plan.md §1.2 / §1.3` updated to close G1 + G2.
+
+### Batch K-Retire — Supplier record page absorbs `/purchases/vendors`
+
+Blocked on I-Deferred. Scope:
+- Add **Finance Defaults** section to `SupplierRecordPage`: AP account, expense account, WHT rate, tax id, payment terms — writes back to the `contacts` row (party record, per ADR-0079).
+- Render Contact custom-field slot (`entity_field_configs.entity_type='contact'`) inside the Supplier record page.
+- Then delete `/purchases/vendors` route + nav entry.
+
+### Batch L — Playwright coverage
+
+- H+1 currency inheritance on supplier create.
+- H-Verify self-approval guard regression (bill approver ≠ bill creator).
+- K-Retire: `/vendors` no longer resolves; Supplier record page shows Finance Defaults + custom field.
+- I-Deferred happy path: 1 VCN → 3 bills → FIFO apply → outbox row present, `journal_entries` count unchanged by RPC (Finance saga writes it separately).
+
+### Batch M — Consolidated verdict doc
+
+- Publish `docs/audit/procurement-verdict.md`; flip Phase H+ to **CLOSED** in `.lovable/plan.md §1.2`.
+
+### Batch N-Constraints — DB-level cross-table integrity (new)
+
+Row-level triggers currently enforced only by app code + RLS (PURCHASES_AUDIT §7 P3):
+- `bill.branch_id.business_id = bill.business_id` (+ same for `purchase_orders`, `vendor_credit_notes`, `bill_payments`, `journal_entries`).
+- `bill.purchase_order_id.business_id = bill.business_id`.
+- `vendor_credit_note_applications`: `vcn.business_id = bill.business_id`.
+
+Live DB is already clean (PURCHASES_AUDIT §5); triggers only fire on future bad writes.
+
+## Technical guardrails (carry-forward from parent prompt)
+
+- No client-side GL. Procurement never inserts into `journal_entries`, `stock_movements`, or `cost_layers` directly — always via canonical RPC or outbox event.
+- No `supplier_id` FK on any transactional document (ADR-0079).
+- Every new public-schema table needs GRANTs in the same migration.
+- New RPCs are `SECURITY DEFINER` + `SET search_path = public` + `SoD-guarded`.
+- Any RPC that mutates `bills` or `vendor_credit_notes` must lock the target row `FOR UPDATE` before reading its state.
+
+## Out of scope for this arc
+
+Sourcing 2.0, Supplier Portal enhancements, WMS crossovers, Manufacturing hooks. Queued behind Batch N-Constraints.
