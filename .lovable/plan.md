@@ -172,4 +172,74 @@ Still open in Phase C (next increment — C-2 UI wiring)
 
 Next handoff — Phase C-2 (UI wiring) then Phase F (Settlement & Reconciliation).
 
+=========================================
+Phase C-2 (Card/EMV UI wiring) shipped.
+
+What landed
+- `src/components/pos/CardPaymentModal.tsx` — dedicated terminal UX for
+  card tenders. Reads `capture_mode` from the catalog method and drives
+  `cardTerminal.preAuthorize(amount)` (new driver-only pre-commit hook
+  on `CardTerminalController`, sim driver approves <=50k). On approval
+  the modal returns a `CardAuthPayload` with `authId`, `vendorTxnId`,
+  `authorizedAmount`, and the masked card fields.
+- `src/services/pos/CardTerminalController.ts` — added `preAuthorize`
+  method. Comment explains the FSM contract: the returned auth
+  metadata is persisted at commit-time via `_pos_record_payment` so
+  the payment row is inserted directly in `approved` (or `captured`)
+  and the FSM guard trigger validates the initial state.
+- `src/components/pos/PaymentDialog.tsx` — added:
+  - `PaymentDialogPayment` expanded with `auth_state`, `auth_id`,
+    `vendor_txn_id`, `authorized_amount`, `card_last_four`, `card_type`.
+  - Card quick-pay button (only rendered when a `tender_kind='card'`
+    method is enabled); split-payment "Add" button routes card lines
+    through the modal too. Non-card tenders are unchanged.
+  - Modal wired at the bottom with `capture_mode` fallthrough.
+- `src/hooks/pos/usePOSTransactionOffline.ts` — `PaymentMethod` and the
+  RPC payload map now forward the FSM fields into `process_pos_transaction`.
+  Offline queue payload also carries the fields for eventual replay
+  (SQLiteSyncManager replay path still needs upgrading — noted below).
+- `src/pages/pos/POSTerminal.tsx` — retail-mode payment map now
+  propagates the card FSM fields from the dialog to the hook. Restaurant
+  `finalize_table_order` path unchanged this pass (needs its own RPC
+  signature extension — deferred to C-3).
+- Arch guard `src/test/architecture/pos-card-fsm.test.ts` grew from
+  4 → 8 assertions: modal exists + uses controller (not private driver),
+  dialog imports the modal and branches on `tender_kind='card'`,
+  interface fields exist in both dialog + hook, `preAuthorize` exists.
+  All 8 green; project typecheck clean.
+
+Still open in Phase C (next increment — C-3)
+- Extend `finalize_table_order` RPC + POSTerminal restaurant path to
+  carry card FSM fields (currently only the retail path is wired).
+- Migrate `SQLiteSyncManager` offline replay from direct
+  `pos_transaction_payments` inserts to `process_pos_transaction` so
+  offline-authorized card sales replay through `_pos_record_payment`
+  and hit the FSM guard consistently.
+- Post-commit lifecycle UI: expose "Capture", "Void", "Reverse"
+  actions on the transaction detail screen that call
+  `cardTerminal.capture/void/reverse` (RPC-backed).
+- Emit business events on each transition (`payment.card.authorized`,
+  `.captured`, `.voided`, `.reversed`) — trigger currently only writes
+  the row; wire the outbox producer trigger next.
+- Replace the sim driver with a real EMV integration behind the
+  `CardDriver` interface (Stripe Terminal / MPGS / Verifone).
+
+Next handoff — verify Phase C-2 (run the 8-assertion guard + typecheck +
+smoke a card sale end-to-end in the UI), then proceed to Phase C-3
+above. After C is fully closed, resume the roadmap at Phase F
+(Settlement & Reconciliation) — F depends on the card capture/settle
+lifecycle being event-emitting, which C-3 provides.
+
+## Roadmap status snapshot
+- Phase A — Audit docs — **shipped**
+- Phase B — Payment catalog extensibility — **shipped**
+- Phase D — Durable outbox dispatcher — **shipped**
+- Phase E — Downstream sagas (loyalty + inventory alerts + eTIMS trigger) — **first cut shipped**; open items: `pos_sales_daily` projection, bank-reconciliation hint rows, customer purchase-history projection.
+- Phase C-1 — Card FSM DB substrate — **shipped**
+- Phase C-2 — Card FSM UI wiring (retail path) — **shipped (this pass)** ← currently completed
+- Phase C-3 — Restaurant path + offline replay + post-commit UI + card events — **next**
+- Phase F — Settlement & Reconciliation — pending C-3
+- Phase G — Cash lifecycle / returns authorization — pending F
+
+
 
