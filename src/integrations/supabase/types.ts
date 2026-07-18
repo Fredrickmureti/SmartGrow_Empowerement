@@ -47862,6 +47862,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           rfq_number: string
+          sourcing_event_id: string | null
           status: string
           updated_at: string
         }
@@ -47875,6 +47876,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           rfq_number: string
+          sourcing_event_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -47888,6 +47890,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           rfq_number?: string
+          sourcing_event_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -47932,6 +47935,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfqs_sourcing_event_id_fkey"
+            columns: ["sourcing_event_id"]
+            isOneToOne: false
+            referencedRelation: "sourcing_events"
             referencedColumns: ["id"]
           },
         ]
@@ -50716,6 +50726,269 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sourcing_event_awards: {
+        Row: {
+          award_reason: string | null
+          awarded_at: string
+          awarded_by: string
+          awarded_value: number
+          composite_score: number | null
+          contract_id: string | null
+          created_at: string
+          currency: string
+          id: string
+          is_sample_data: boolean
+          purchase_order_id: string | null
+          sourcing_event_id: string
+          supplier_id: string
+        }
+        Insert: {
+          award_reason?: string | null
+          awarded_at?: string
+          awarded_by: string
+          awarded_value: number
+          composite_score?: number | null
+          contract_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          is_sample_data?: boolean
+          purchase_order_id?: string | null
+          sourcing_event_id: string
+          supplier_id: string
+        }
+        Update: {
+          award_reason?: string | null
+          awarded_at?: string
+          awarded_by?: string
+          awarded_value?: number
+          composite_score?: number | null
+          contract_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          is_sample_data?: boolean
+          purchase_order_id?: string | null
+          sourcing_event_id?: string
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sourcing_event_awards_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sourcing_event_awards_sourcing_event_id_fkey"
+            columns: ["sourcing_event_id"]
+            isOneToOne: false
+            referencedRelation: "sourcing_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sourcing_events: {
+        Row: {
+          award_justification: string | null
+          awarded_at: string | null
+          awarded_by: string | null
+          branch_id: string | null
+          business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancelled_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
+          closes_at: string | null
+          contract_id: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          event_number: string
+          id: string
+          is_sample_data: boolean
+          kind: string
+          notes: string | null
+          opened_at: string | null
+          opened_by: string | null
+          opens_at: string | null
+          organization_id: string
+          requisition_id: string | null
+          sealed_bid: boolean
+          status: string
+          target_ceiling_value: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          award_justification?: string | null
+          awarded_at?: string | null
+          awarded_by?: string | null
+          branch_id?: string | null
+          business_id: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closes_at?: string | null
+          contract_id?: string | null
+          created_at?: string
+          created_by: string
+          currency?: string
+          event_number: string
+          id?: string
+          is_sample_data?: boolean
+          kind: string
+          notes?: string | null
+          opened_at?: string | null
+          opened_by?: string | null
+          opens_at?: string | null
+          organization_id: string
+          requisition_id?: string | null
+          sealed_bid?: boolean
+          status?: string
+          target_ceiling_value?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          award_justification?: string | null
+          awarded_at?: string | null
+          awarded_by?: string | null
+          branch_id?: string | null
+          business_id?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closes_at?: string | null
+          contract_id?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          event_number?: string
+          id?: string
+          is_sample_data?: boolean
+          kind?: string
+          notes?: string | null
+          opened_at?: string | null
+          opened_by?: string | null
+          opens_at?: string | null
+          organization_id?: string
+          requisition_id?: string | null
+          sealed_bid?: boolean
+          status?: string
+          target_ceiling_value?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sourcing_events_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sourcing_events_requisition_id_fkey"
+            columns: ["requisition_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requisitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sourcing_scoring_criteria: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          label: string
+          sort_order: number
+          sourcing_event_id: string
+          weight: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          label: string
+          sort_order?: number
+          sourcing_event_id: string
+          weight: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          label?: string
+          sort_order?: number
+          sourcing_event_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sourcing_scoring_criteria_sourcing_event_id_fkey"
+            columns: ["sourcing_event_id"]
+            isOneToOne: false
+            referencedRelation: "sourcing_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sourcing_vendor_scores: {
+        Row: {
+          criterion_id: string
+          id: string
+          notes: string | null
+          score: number
+          scored_at: string
+          scored_by: string
+          sourcing_event_id: string
+          supplier_id: string
+        }
+        Insert: {
+          criterion_id: string
+          id?: string
+          notes?: string | null
+          score: number
+          scored_at?: string
+          scored_by: string
+          sourcing_event_id: string
+          supplier_id: string
+        }
+        Update: {
+          criterion_id?: string
+          id?: string
+          notes?: string | null
+          score?: number
+          scored_at?: string
+          scored_by?: string
+          sourcing_event_id?: string
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sourcing_vendor_scores_criterion_id_fkey"
+            columns: ["criterion_id"]
+            isOneToOne: false
+            referencedRelation: "sourcing_scoring_criteria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sourcing_vendor_scores_sourcing_event_id_fkey"
+            columns: ["sourcing_event_id"]
+            isOneToOne: false
+            referencedRelation: "sourcing_events"
             referencedColumns: ["id"]
           },
         ]
@@ -65091,6 +65364,18 @@ export type Database = {
         Args: { p_employee_id: string }
         Returns: undefined
       }
+      _emit_sourcing_outbox: {
+        Args: {
+          _actor: string
+          _biz: string
+          _doc_id: string
+          _event_type: string
+          _idem: string
+          _org: string
+          _payload: Json
+        }
+        Returns: undefined
+      }
       _execute_organization_delete:
         | { Args: { _job_id: string; _org_id: string }; Returns: undefined }
         | { Args: { p_org_id: string }; Returns: Json }
@@ -66871,6 +67156,10 @@ export type Database = {
         Args: { _rfq_id: string; _rfq_vendor_id: string }
         Returns: Json
       }
+      award_sourcing_event_atomic: {
+        Args: { p_awards: Json; p_event_id: string; p_justification: string }
+        Returns: Json
+      }
       backfill_account_detail_types: {
         Args: { _business_id?: string; _org_id?: string }
         Returns: number
@@ -67549,6 +67838,7 @@ export type Database = {
         }
         Returns: Json
       }
+      close_sourcing_event: { Args: { p_event_id: string }; Returns: undefined }
       complete_business_event: {
         Args: { p_error?: string; p_id: string; p_success: boolean }
         Returns: undefined
@@ -67993,6 +68283,23 @@ export type Database = {
           session_id: string
           token: string
         }[]
+      }
+      create_sourcing_event: {
+        Args: {
+          p_business_id: string
+          p_closes_at?: string
+          p_contract_id?: string
+          p_criteria?: Json
+          p_currency?: string
+          p_kind: string
+          p_notes?: string
+          p_opens_at?: string
+          p_requisition_id?: string
+          p_sealed_bid?: boolean
+          p_target_ceiling_value?: number
+          p_title: string
+        }
+        Returns: string
       }
       create_stock_reservation: {
         Args: {
@@ -70130,6 +70437,10 @@ export type Database = {
         Returns: string
       }
       get_next_so_number: { Args: { _org_id: string }; Returns: string }
+      get_next_sourcing_event_number: {
+        Args: { _business_id: string; _kind: string; _org_id: string }
+        Returns: string
+      }
       get_next_task_number: { Args: { p_project_id: string }; Returns: string }
       get_next_transfer_number: { Args: { _org_id: string }; Returns: string }
       get_next_vendor_credit_note_number: {
@@ -71349,6 +71660,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      open_sourcing_event: { Args: { p_event_id: string }; Returns: undefined }
       overtime_request_decide: {
         Args: { _decision: string; _id: string; _reason?: string }
         Returns: string
@@ -74862,6 +75174,10 @@ export type Database = {
       schedule_organization_deletion: {
         Args: { p_grace_days?: number; p_org_id: string; p_reason?: string }
         Returns: Json
+      }
+      score_sourcing_vendor: {
+        Args: { p_event_id: string; p_scores: Json; p_supplier_id: string }
+        Returns: undefined
       }
       seal_pack_carton: {
         Args: { p_carton_id: string; p_dims?: Json; p_weight_kg?: number }
