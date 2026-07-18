@@ -37,18 +37,20 @@ Write two audit docs (source of truth for the ADR and batches):
 
 Each batch ships as one migration + minimal code changes + an architecture test. Nothing runs without your explicit approval per batch.
 
-### T1 — Server-authoritative money math
-- New `pos_resolve_line(...)` helper: resolves unit price (price list → happy hour → product default), tax (product tax_group → tax_rates), discount policy validation.
-- `process_pos_transaction` recomputes every line and totals; overrides only when a `manager_override_id` row authorises the deviation.
-- Architecture test: fuzz RPC with tampered totals; server must reject or recompute.
+### T1 — Server-authoritative money math ✅ SHIPPED (2026-07-18)
+- Migration `20260718175250_...`: `pos_resolve_line(...)` helper + `process_pos_transaction` rewritten to re-derive unit price, tax, discount and totals from the catalog. Client deviations require an approved, unconsumed `pos_manager_overrides` row (marked consumed on use) or the RPC rejects with `price_override_required` / `manager_override_required`.
+- Server totals (`v_srv_subtotal`, `v_srv_total_tax`, `v_srv_total`) persisted onto `pos_transactions` — client `p_subtotal`/`p_tax_amount`/`p_total` are advisory only.
+- Return payload exposes `server_totals` + `total_matches_server` for UX reconciliation.
+- Architecture test: `src/test/architecture/pos-server-authoritative-money-math.test.ts` (6/6 green).
 
-### T2 — Idempotency hardening
-- Migration: `ALTER FUNCTION process_pos_transaction … p_idempotency_key text NOT NULL`; add unique index `(org_id, business_id, register_id, idempotency_key)` explicitly if not already unique.
-- Remove `|| crypto.randomUUID()` fallback in `usePOSTransactionOffline.ts` and `TransactionQueue.ts` (verify offline path uses queued.id).
-- Add a `TransactionQueue` startup-recovery pass: rows stuck in `syncing` older than N seconds → back to `pending`.
-- ESLint rule `no-pos-commit-without-idempotency-key`.
+### T2 — Idempotency hardening ✅ SHIPPED (2026-07-18)
+- Migration: `tg_pos_transactions_require_idempotency_key` BEFORE INSERT trigger on `pos_transactions` — rejects NULL/blank keys with `not_null_violation`. Historical rows untouched; the partial unique index `(org_id, business_id, register_id, idempotency_key) WHERE idempotency_key IS NOT NULL` continues to collapse replays.
+- Client: `usePOSTransactionOffline.ts` no longer falls back to `crypto.randomUUID()` — throws at the boundary if `data.idempotency_key` is missing. `useCommitKey` remains the sole client source.
+- `TransactionQueue.recoverStuckSyncing()`: rows in `syncing` older than 30s revert to `pending` at boot / before each `syncAll()`. `queued.id` is still the idempotency key, so replays are safe.
+- ESLint rule `local/no-pos-commit-without-idempotency-key` — registered and set to `error`.
+- Architecture test: `src/test/architecture/pos-mandatory-idempotency.test.ts` (4/4 green).
 
-### T3 — Unified reservations
+### T3 — Unified reservations ⏳ NEXT
 - Migration: introduce `stock_reservations.source` enum incl. `pos`; backfill from `pos_stock_reservations`; deprecate the POS-specific table (view for compat during migration window).
 - `process_pos_transaction` reads/writes via `reserve_stock` / `release_stock`.
 - `usePOSStockReservation.ts` retargeted; drop parallel path.
