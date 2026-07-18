@@ -41,8 +41,7 @@ export function ShiftReportDialog({
   const [isLoading, setIsLoading] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const [localGlPostedAt] = useState(glPostedAt);
-  const [isRetryingGL, setIsRetryingGL] = useState(false);
-  const [localGlPostedAt, setLocalGlPostedAt] = useState(glPostedAt);
+  
   
   // Print preview state
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
