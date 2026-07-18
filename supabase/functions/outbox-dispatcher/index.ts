@@ -95,11 +95,74 @@ async function handleInventoryMovementRecorded(row: OutboxRow): Promise<void> {
   if (error) throw new Error(`reorder recompute: ${error.message}`);
 }
 
-// Phase E map. Extend with one entry per newly-durable topic. Unknown
+// --- Phase F handlers -----------------------------------------------------
+// Route capture / reversal events into the current open settlement batch.
+// `pos_card_settlement_apply` is idempotent (unique on source_event_id and
+// on (payment_id, kind)) so outbox retries never double-count.
+async function handleCardSettlementLine(
+  row: OutboxRow,
+  kind: "capture" | "reversal",
+): Promise<void> {
+  const payload = (row.payload ?? {}) as {
+    payment_id?: string;
+    amount?: number;
+    authorized_amount?: number;
+  };
+  const paymentId = payload.payment_id ?? row.source_doc_id;
+  if (!paymentId) throw new Error(`${row.event_type}: missing payment_id`);
+
+  // Fetch business/branch + payment-method provider_key. We can't rely on
+  // the trigger payload alone since provider_key lives on pos_payment_methods.
+  const { data: pay, error: payErr } = await admin
+    .from("pos_transaction_payments")
+    .select("id, business_id, branch_id, organization_id, amount, authorized_amount, payment_method")
+    .eq("id", paymentId)
+    .maybeSingle();
+  if (payErr) throw new Error(`fetch payment: ${payErr.message}`);
+  if (!pay) throw new Error(`payment ${paymentId} not found`);
+
+  // Resolve provider_key from the payment_methods catalog for this business.
+  // Fall back to the payment_method code if no catalog entry (legacy rows).
+  let providerKey: string = pay.payment_method ?? "unknown";
+  const { data: method } = await admin
+    .from("pos_payment_methods")
+    .select("provider_key")
+    .eq("business_id", pay.business_id)
+    .eq("method_code", pay.payment_method)
+    .maybeSingle();
+  if (method?.provider_key) providerKey = method.provider_key;
+
+  const amount = payload.amount ?? pay.authorized_amount ?? pay.amount ?? 0;
+
+  const { error } = await admin.rpc("pos_card_settlement_apply", {
+    p_event_id:     row.id,
+    p_payment_id:   paymentId,
+    p_kind:         kind,
+    p_amount:       amount,
+    p_org_id:       pay.organization_id ?? row.org_id,
+    p_business_id:  pay.business_id,
+    p_branch_id:    pay.branch_id,
+    p_provider_key: providerKey,
+  });
+  if (error) throw new Error(`settlement apply (${kind}): ${error.message}`);
+}
+
+async function handleSettlementCardClosed(_row: OutboxRow): Promise<void> {
+  // Placeholder consumer — the settlement close RPC already persisted the
+  // batch. GL posting (clearing → bank) will be wired in Phase F.6 alongside
+  // acquirer-fee ingestion. For now this is a deliberate no-op so the event
+  // drains cleanly and reconciliation UIs can observe the state change via
+  // the settlement row directly.
+}
+
+// Phase E/F map. Extend with one entry per newly-durable topic. Unknown
 // topics remain deliberate no-op successes so the outbox drains.
 const HANDLERS: Record<string, HandlerFn> = {
-  "pos.sale.committed": handlePosSaleCommitted,
+  "pos.sale.committed":          handlePosSaleCommitted,
   "inventory.movement.recorded": handleInventoryMovementRecorded,
+  "payment.card.captured":       (r) => handleCardSettlementLine(r, "capture"),
+  "payment.card.reversed":       (r) => handleCardSettlementLine(r, "reversal"),
+  "settlement.card.closed":      handleSettlementCardClosed,
 };
 
 async function dispatch(row: OutboxRow): Promise<void> {
