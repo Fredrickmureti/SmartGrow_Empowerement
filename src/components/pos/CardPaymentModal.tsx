@@ -75,12 +75,8 @@ export function CardPaymentModal({
       // Driver-only pre-auth: no DB row exists yet. The DB row is inserted
       // by `_pos_record_payment` at commit with `auth_state='approved'`
       // (or 'captured') and the auth metadata below.
-      const vendor = await cardTerminal["driver"].authorize({
-        amount,
-        // No paymentId yet — pass a synthetic session ref for the driver's
-        // internal correlation. Real EMV SDKs use their own session UUID.
-        paymentId: `pre_${crypto.randomUUID()}`,
-      });
+      const vendor = await cardTerminal.preAuthorize(amount);
+
       const payload: CardAuthPayload = {
         authId: vendor.authId,
         vendorTxnId: vendor.vendorTxnId,
