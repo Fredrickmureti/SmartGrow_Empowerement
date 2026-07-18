@@ -66098,12 +66098,11 @@ export type Database = {
         }
         Returns: undefined
       }
-      apply_vendor_credit_atomic: {
+      apply_vendor_credit_note_atomic: {
         Args: {
-          p_amount: number
-          p_bill_id: string
-          p_user_id: string
-          p_vcn_id: string
+          p_bill_ids?: string[]
+          p_credit_note_id: string
+          p_user_id?: string
         }
         Returns: Json
       }
