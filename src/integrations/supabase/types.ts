@@ -65469,6 +65469,10 @@ export type Database = {
         Args: { _payload: Json; _shipment_id: string; _state: string }
         Returns: undefined
       }
+      _emit_grn_outbox: {
+        Args: { _grn_id: string; _payload: Json; _state: string }
+        Returns: undefined
+      }
       _emit_po_outbox: {
         Args: {
           _business_id: string
@@ -74208,6 +74212,16 @@ export type Database = {
       }
       receive_goods_to_wms: {
         Args: { p_goods_receipt_id: string; p_staging_location_id: string }
+        Returns: Json
+      }
+      receive_inbound_shipment: {
+        Args: {
+          _actor: string
+          _lines: Json
+          _receipt_date?: string
+          _receipt_number?: string
+          _shipment_id: string
+        }
         Returns: Json
       }
       reclaim_stale_business_events: {
