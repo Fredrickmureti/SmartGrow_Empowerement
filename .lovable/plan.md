@@ -1,40 +1,59 @@
-# WMS Handoff — progress log & next step
+# WMS Handoff — Verification + Resume Plan
 
-## Phase 14 — E2E harness rollout
+## Verification of prior work (Phase 14a–14e)
 
-### Landed
-- **14a** — Playwright config (`wms` + `wm`), auth/seed support helpers, all 6 desktop + 1 mobile spec skeletons, architecture guard (`src/test/architecture/wms-phase14.test.ts`), docs.
-- **14a.1** — RPC contract reconciliation. Added 6 wrapper RPCs (`assign_wms_task`, `claim_pick_task`, `cancel_pick_wave`, `record_goods_receipt_line`, `record_count_scan`, `approve_count_variance`), all `SECURITY DEFINER`, business-scoped, outbox-emitting. Guard `SPECS` reconciled against `pg_proc` (real names: `complete_goods_receipt_atomic`, `suggest_putaway_locations`, `create_pick_wave`, `create_count_session`, `post_count_session`).
-- **14b — receive** — `wms_e2e_ensure_seed()` idempotent fixture (warehouse + 3 locations + 2 products + vendor + PO, scoped to caller's active business). `e2e/support/seed.ts` calls it via authed REST. `e2e/wms/receive.spec.ts` unskipped: draft GRN → `record_goods_receipt_line` → `complete_goods_receipt_atomic` → asserts `stock_movements` row of type `receipt`.
-- **14c — putaway** — `e2e/wms/putaway.spec.ts` unskipped: receive arc → `receive_goods_to_wms` → `assign_wms_task` → `complete_putaway_task`. Falls back to pinning destination to `E2E_STOCK` when suggestion returns null. Asserts task=`done`, LPN moved, `stock_quants` at destination.
-- **14d — wave** — `e2e/wms/wave.spec.ts` unskipped: seed → top-up stock → ad-hoc SO → `create_pick_wave` → `release_pick_wave` → `cancel_pick_wave`. Verifies draft→released→cancelled, ≥1 pick task with `source_location_id`, zero orphan open tasks after cancel, second cancel is `noop`, rebuild produces a fresh wave.
-- **14e — pick-pack-dispatch** — `e2e/wms/pick-pack-dispatch.spec.ts` unskipped: extends 14d wave arc through `claim_pick_task` → `complete_pick_task` (per task) → `open_pack_carton` → `assign_line_to_carton` → `seal_pack_carton` → `complete_pack_task` → ad-hoc shipping dock → `open_loading_manifest` → `load_carton_onto_manifest` → `close_loading_manifest` → `dispatch_loading_manifest`. Asserts manifest=`dispatched`, LPN=`shipped`, and outbox terminals `warehouse.carton.shipped` + `warehouse.manifest.dispatched` land exactly once.
+Independently checked against live `pg_proc`, migrations, and spec files:
 
-### Pending sub-phases
-- **14f — qc** — unskip `e2e/wms/qc.spec.ts`. Drive `open_qc_inspection` → `accept_qc_inspection` on one lot and `reject_qc_inspection` on another (asserting quarantine move + `stock_movements`), plus `cancel_qc_inspection` on a third to prove idempotency. Add QC hold reason to seed only if the existing catalogue is empty for the caller's business.
-- **14g — count** — unskip `e2e/wms/count.spec.ts`. `create_count_session` on `E2E_STOCK` → `record_count_scan` (matched + variance) → `approve_count_variance` on the variance line → `post_count_session`. Assert `stock_quants` reconciled and a variance adjustment `stock_movements` row exists.
-- **14h — mobile offline drain** — unskip `e2e/wm/offline-drain.spec.ts`. Simulate an offline task queue in `localStorage`, restore online, drain via existing sync worker, assert wms_tasks moved and outbox emitted. Requires no schema work.
-- **14i — guard hardening** — extend `wms-phase14.test.ts` to (a) refuse any `describe.skip` in `e2e/`, and (b) load a `supabase/tests/wms/rpc-snapshot.json` regenerated from `pg_proc` so the guard fails when the DB drifts from the spec headers.
+- **14a scaffolding** — Playwright projects `wms`+`wm`, `e2e/support/{auth,seed}.ts`, all 6 desktop specs + `e2e/wm/offline-drain.spec.ts`, and `src/test/architecture/wms-phase14.test.ts` are present. ✅
+- **14a.1 wrapper RPCs** — `assign_wms_task`, `claim_pick_task`, `cancel_pick_wave`, `record_goods_receipt_line`, `record_count_scan`, `approve_count_variance` all exist in `pg_proc`. ✅
+- **14b–14e specs** — `receive.spec.ts`, `putaway.spec.ts`, `wave.spec.ts`, `pick-pack-dispatch.spec.ts` are all unskipped and exercise real read-back state; every RPC they name (pick/pack/manifest/receipt suite) is present in the DB. ✅
+- **QC + count RPC surface** — `open_qc_inspection`, `accept_qc_inspection`, `reject_qc_inspection`, `cancel_qc_inspection`, `create_count_session`, `record_count_scan`, `approve_count_variance`, `post_count_session` all exist. No new wrappers required for 14f/14g. ✅
+- **Seed function** — `wms_e2e_ensure_seed()` exists. ✅
 
-### Next up for the incoming agent
-Pick **14f (QC)**. Before writing the spec:
-1. `rg -n "open_qc_inspection|accept_qc_inspection|reject_qc_inspection|cancel_qc_inspection" supabase/migrations/*.sql` and read the signatures — some may still be missing and need thin wrapper RPCs (mirror the 14a.1 approach: `SECURITY DEFINER`, business-scoped, outbox emit).
-2. Confirm `wms_qc_hold_reasons` has at least one row for the seeded business; extend `wms_e2e_ensure_seed()` if not — keep it idempotent.
-3. Model the fixture on `pick-pack-dispatch.spec.ts` (self-contained receive → putaway to get a lot at `E2E_STOCK`, then open QC on it).
-4. Only after 14f green, proceed to 14g → 14h → 14i in order.
+Gaps found (added to backlog, not blockers for 14f):
 
-## Post-Phase-14 roadmap (unchanged)
-- **15** Warehouse Master polish (business rules audit).
-- **16** Layout designer (bins/aisles/zones editor).
-- **17** Operations dashboard + KPIs.
-- **18** Task engine (assignment strategies, SLAs).
-- **19** Location intelligence (slotting, ABC).
-- **20** Cross-dock + returns.
-- **21** Security & RLS re-audit across all new RPCs.
-- **22** Enterprise ERP integration surface (event contracts, webhooks).
+1. **`create_goods_receipt` wrapper never landed** — `wms-phase14.test.ts` SPECS still names it and `receive.spec.ts` header carries a `TODO(14a.2)`. Currently the receive spec inserts the GRN header directly. Track as **14a.2** and fold into 14f's migration batch since it's a small SECURITY DEFINER wrapper.
+2. **`wms_qc_hold_reasons` is empty across all businesses** (0 rows). 14f seed extension must insert at least one reason for the caller's business — idempotent, business-scoped, per standing rules.
+3. **Guard spec name mismatch for count** — `count.spec.ts` header references `open_count_session` / `close_count_session` but the real RPCs are `create_count_session` / `post_count_session`. Fix header + guard `SPECS` entry as part of 14g.
 
-## Standing rules for this stream
-- All new RPCs: `SECURITY DEFINER`, `SET search_path = public`, business-access gated, outbox-emitting with stable idempotency keys (`wms.<entity>:<id>:<state>`).
-- Seed extensions must remain idempotent and scoped to the caller's active business — never insert org-wide singletons.
-- Guard is authoritative — every new spec header must name the exact `pg_proc` RPC strings it exercises.
-- Never mark a phase "done" without unskipping the spec and asserting real read-back state (outbox rows, table state), not just RPC return values.
+## Resume order
+
+### 14f — QC spec (next)
+1. Extend `wms_e2e_ensure_seed()`: insert one `wms_qc_hold_reasons` row for the caller's business if none exists (idempotent).
+2. Add thin `create_goods_receipt(p_po_id, p_warehouse_id)` wrapper RPC (`SECURITY DEFINER`, business-scoped, outbox emit). Update `receive.spec.ts` to use it and drop the direct-insert block; remove the `TODO(14a.2)`.
+3. Unskip `e2e/wms/qc.spec.ts`. Reuse the receive→putaway fixture pattern from `pick-pack-dispatch.spec.ts` to land three lots at `E2E_STOCK`, then:
+   - `open_qc_inspection` on each.
+   - `accept_qc_inspection` on lot A — assert quant released to available (source bin unchanged, no hold movement).
+   - `reject_qc_inspection` on lot B — assert quant moved to hold bin and a `stock_movements` row with a quarantine type exists.
+   - `cancel_qc_inspection` on lot C — assert inspection state cancelled, quant untouched, second cancel is `noop`.
+   - Assert `warehouse.qc.accepted` / `warehouse.qc.rejected` / `warehouse.qc.cancelled` outbox rows landed once each.
+
+### 14g — Count spec
+1. Fix spec header + `wms-phase14.test.ts` SPECS entry to `create_count_session` / `post_count_session`.
+2. Unskip `e2e/wms/count.spec.ts`. Fixture: top up stock at `E2E_STOCK` via receive→putaway.
+   - `create_count_session` scoped to `E2E_STOCK`.
+   - `record_count_scan` for a matched line + a variance line.
+   - `approve_count_variance` on the variance line.
+   - `post_count_session`.
+   - Assert `stock_quants` matches counted qty, a variance `stock_movements` row of type `adjustment` exists, and `stock.movement.adjusted` (or the actual event name emitted by `approve_count_variance`) is present in outbox once.
+
+### 14h — Mobile offline drain
+Unskip `e2e/wm/offline-drain.spec.ts`.
+1. Restore session, navigate `/wm/pick`.
+2. `context.route('**/rest/v1/rpc/complete_pick_task', route => route.abort())` — trigger completion via UI or `enqueue()` helper.
+3. Assert IndexedDB `wm-offline-queue` contains the queued call and the layout shows the queue indicator.
+4. Unroute, wait for the drain worker tick, assert queue empty **and** the target `wms_tasks.state = 'done'` server-side.
+
+### 14i — Guard hardening
+Extend `src/test/architecture/wms-phase14.test.ts`:
+1. Fail if any `describe.skip(` remains in `e2e/`.
+2. Load `supabase/tests/wms/rpc-snapshot.json` (checked in, regenerated from `pg_proc`) and fail if any name in `SPECS` is missing from it — catches DB drift.
+3. Generate the snapshot via a small `scripts/wms/dump-rpc-snapshot.ts` (documented, run manually after RPC migrations).
+
+## Standing rules (unchanged)
+- All new RPCs: `SECURITY DEFINER`, `SET search_path = public`, business-access gated, outbox emit with idempotency key `wms.<entity>:<id>:<state>`.
+- Seed extensions stay idempotent and scoped to caller's active business.
+- No phase is "done" until spec is unskipped and asserts real read-back state (table + outbox).
+
+## Post-14 roadmap (unchanged)
+15 Warehouse Master polish · 16 Layout designer · 17 Ops dashboard · 18 Task engine · 19 Location intelligence · 20 Cross-dock + returns · 21 RLS re-audit · 22 ERP integration surface.
