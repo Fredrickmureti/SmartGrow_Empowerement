@@ -131,53 +131,12 @@ export function InventoryApp() {
           }
         />
         
-        {/* Warehouses */}
-        <Route
-          path="warehouses"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Warehouses">
-                <Warehouses />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
-
-        {/* Warehouse — routed create */}
-        <Route
-          path="warehouses/new"
-          element={
-            <SubscriptionProtectedRoute>
-              <LazyRoute module="New Warehouse">
-                <WarehouseNew />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
-
-        {/* Warehouse — routed edit */}
-        <Route
-          path="warehouses/:id/edit"
-          element={
-            <SubscriptionProtectedRoute>
-              <LazyRoute module="Edit Warehouse">
-                <WarehouseEdit />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
-
-        {/* Warehouse — read-only object page */}
-        <Route
-          path="warehouses/:id"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Warehouse">
-                <WarehouseView />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
+        {/* Warehouses — ownership moved to Warehouse app per ADR 0080.
+            Preserve deep links from bookmarks / older Inventory nav. */}
+        <Route path="warehouses" element={<Navigate to="/warehouse-app/warehouses" replace />} />
+        <Route path="warehouses/new" element={<Navigate to="/warehouse-app/warehouses/new" replace />} />
+        <Route path="warehouses/:id/edit" element={<InventoryWarehouseEditRedirect />} />
+        <Route path="warehouses/:id" element={<InventoryWarehouseViewRedirect />} />
 
 
         
