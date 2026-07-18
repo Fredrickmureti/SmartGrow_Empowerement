@@ -55,7 +55,7 @@ const PROCUREMENT_RPC_NAMES = [
   "approve_bill",
   "approve_bill_payment",
   "record_multi_bill_payment",
-  "apply_vendor_credit_atomic",
+  "apply_vendor_credit_note_atomic",
   "confirm_vendor_credit_note_atomic",
   "approve_vendor_credit_note",
   "allocate_landed_cost_bill",
@@ -79,7 +79,6 @@ const LEGACY_ALLOWLIST = new Set<string>([
   "allocate_landed_cost_bill",     // ADR-0077 landed-cost path, splits in P7 continuation
   "post_landed_cost_bill",         // ADR-0077 landed-cost path, splits in P7 continuation
   "reverse_landed_cost_bill",      // ADR-0077 landed-cost path, splits in P7 continuation
-  "apply_vendor_credit_atomic",    // Finance-owned reversal chain, review in P9
 ]);
 
 describe("procurement domain boundary (P0)", () => {
