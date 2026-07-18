@@ -83,3 +83,25 @@ Smoke migration applied and rolled back cleanly via `__SMOKE_ROLLBACK_MARKER__`.
 
 Spec unchanged from Step 2 above. Land the `supplier_item_terms` migration + phase-close smoke (insert / update / effective-window overlap rejection) before any Batch E work.
 
+### Batch D.5 ✅ LANDED (2026-07-18)
+
+`supplier_item_terms` table with GRANT/RLS/policies, validation trigger for date/tier/overlap, `supplier_terms.manage` duty and SoD vs `po.approve`. Smoke asserted insert/update happy path and effective-window overlap rejection.
+
+### Batch E ✅ LANDED (2026-07-18)
+
+PO lifecycle. `po_status` extended with `submitted, approved, acknowledged, closed, revised, rejected`. Added `purchase_order_revisions` and RPCs `submit / approve / reject / acknowledge / revise / cancel / close_purchase_order`. Registered duties `po.{submit,approve,reject,acknowledge,revise,close}` and 5 SoD rules (self-approval, creator≠approver, approver≠ack, etc.). Outbox emits `procurement.po.<state>` with deterministic idempotency keys.
+
+Non-obvious fixes folded in during smoke bring-up (keep for future batches):
+- Enum extension broke pre-existing text-typed helpers. `guard_purchase_order_self_approval` and `tg_purchase_order_contract_ceiling` were casting `NEW.status` implicitly — patched to `NEW.status::text` on both sides.
+- `sync_recommendation_from_po` referenced enum literal `'completed'` which is not in `po_status`; dropped it and switched to `::text` compare.
+- Original `_emit_po_outbox` helper used columns `business_id` / `entity_id` that do not exist on `business_event_outbox` (real columns are `org_id`, `source_doc_type`, `source_doc_id`, `source`). Helper rewritten and now derives `org_id` from `purchase_orders`.
+- Smoke reuses two real users from `user_business_access` (FK to `auth.users` is enforced); do not fabricate UUIDs.
+
+### Batch F ✅ LANDED (2026-07-18)
+
+ASN / inbound shipment lifecycle. Added `_validate_inbound_shipment_item` trigger (positive qty, org/business match, expiry ≥ manufacture), `_emit_asn_outbox` helper, and RPCs `create_inbound_shipment`, `dispatch_inbound_shipment`, `mark_inbound_shipment_in_transit`, `mark_inbound_shipment_arrived`, `cancel_inbound_shipment`, `update_inbound_shipment_eta`. Duty `asn.manage` + SoD vs `po.approve` and `po.receive`. Smoke walked draft→dispatched→in_transit→arrived plus cancel and terminal-guard rejection.
+
+### Next pickup — Batch G (P7 GR reconstruction)
+
+Rebuild goods-receipt authoring on canonical writers. Extend `src/test/architecture/procurement.test.ts` to forbid non-canonical `INSERT INTO goods_receipts(_items)` writers. RPCs: `receive_inbound_shipment(shipment_id, lines[])` → creates `goods_receipts` + `goods_receipt_items`, flips `inbound_shipments.status='received'` and PO line received quantities. Emit `procurement.grn.<state>`. Register `grn.receive` duty (may already exist as `po.receive`) + SoD `grn.receive ≠ po.approve` + `grn.receive ≠ asn.manage` (latter is done). Smoke: partial receipt, over-receipt rejection, idempotent replay.
+
