@@ -1,159 +1,71 @@
-# Project Implementation Roadmap — Authoritative Status
+## Situation
 
-**Last updated:** 2026-07-18
-**Maintainer note:** This file is the single source of truth for phase status. Update it at the end of every arc, not mid-flight.
+The previous engineer left `.lovable/plan.md` as the roadmap. **Phase 1 (Procurement)** and **Phase 2 (Warehouse Ownership & Domain Boundary)** are marked CLOSED. Spot checks confirm the Phase 2 claims match reality: `src/pages/inventory/Warehouse*.tsx` no longer exists, `/inventory-app/warehouses[/*]` is now `<Navigate replace>` into `/warehouse-app/warehouses[...]`, `src/test/architecture/wms-phase-master-data.test.ts` is in place, ADR 0080 documents the decision, and the warehouse nav + cycle-count contract are wired as described.
 
----
+The **parent prompt's questions are therefore already answered by Phase 2** — Warehouse master data is owned by the Warehouse app; Inventory is a read-only consumer; cycle counts split scan-first execution (WMS) from adjustment posting (Inventory) via `warehouse.count.session.completed`. The continuation prompt asks the next engineer to verify Phases 1 & 2, then start **Phase 3 — Inventory Domain Audit & Reconstruction**.
 
-## Roadmap at a glance
-
-| # | Phase / Arc | Status | Verdict doc |
-|---|---|---|---|
-| 1 | Procurement (P2P) — Batches A–N | ✅ CLOSED (2026-07-18) | `docs/audit/procurement-verdict.md` |
-| 2 | Warehouse Ownership & Domain Boundary — Batches W1–W7 | ✅ CLOSED (2026-07-18) | `docs/adr/0080-warehouse-master-data-ownership.md` |
-| 3 | **Inventory Domain Audit & Reconstruction** | 🔜 **NEXT — not started** | — |
-| 4 | Sales / Order-to-Cash Domain Audit | ⏸ Queued | — |
-| 5 | Finance / GL Consolidation Audit | ⏸ Queued | — |
-| 6 | Manufacturing hooks (backflush, subcontract) | ⏸ Queued | — |
-| 7 | Supplier Portal 2.0 & Sourcing (auctions, weighted award) | ⏸ Queued | — |
-
-Currently **active phase:** none — Phase 2 just closed. Next agent picks up Phase 3 after verification (see below).
+This plan covers both.
 
 ---
 
-## Phase 1 — Procurement (P2P) — CLOSED
+## Plan
 
-Full verdict: `docs/audit/procurement-verdict.md`.
+### Step 0 — Full verification of Phases 1 & 2 (no code)
 
-Highlights:
-- 13 canonical `SECURITY DEFINER` RPCs, all SoD-guarded, all row-lock their aggregate.
-- FIFO multi-bill Vendor Credit Note application (`apply_vendor_credit_note_atomic`) with outbox emission; legacy `apply_vendor_credit_atomic` dropped in the same migration.
-- Governance duties (`credit.approve`, `credit.apply`) and SoD conflicts registered.
-- ADR-0079 party-vs-role model enforced — zero `supplier_id` FKs on transactional docs.
-- Batch N DB triggers enforce cross-table `business_id`/`branch_id` integrity on bills, POs, VCNs, bill payments, journal entries.
-- Supplier 360 workbench absorbs legacy `/purchases/vendors` — Finance defaults + custom-fields panel wired via Contact party.
+Run the verification battery from `.lovable/plan.md` verbatim:
 
-Guardrails (permanent): no client-side GL, no `supplier_id` on transactional docs, GRANTs required in same migration as CREATE TABLE, all cross-app writes via `business_event_outbox`.
+- SQL: 13 canonical procurement RPCs present, `SECURITY DEFINER`, `search_path=public`; `apply_vendor_credit_atomic` gone; 7 Batch-N triggers present; zero `supplier_id` columns on transactional docs; `governance_duties` has both `credit.*` duties.
+- Code: `rg` for `apply_vendor_credit_atomic`, `pages/inventory/Warehouse`; both empty in `src/`.
+- Tests: `bunx vitest run src/test/architecture` — everything green, especially `wms-phase-master-data.test.ts` and `no-direct-stock-aggregate-writes.test.ts`.
+- Types: `tsgo -p tsconfig.app.json` clean.
+- Runtime: `/inventory-app/warehouses` and `/inventory-app/warehouses/<uuid>` redirect correctly; Inventory sidebar has no Warehouses entry; both cycle-count surfaces link to each other.
+- Supabase linter — no regressions.
 
-## Phase 2 — Warehouse Ownership & Domain Boundary — CLOSED
+Any failure gets fixed under its owning phase before Phase 3 opens. Findings written up in `docs/audit/phase-1-2-verification.md`.
 
-Full verdict: `docs/adr/0080-warehouse-master-data-ownership.md`.
+### Step 1 — Phase 3 discovery pass (still no code)
 
-Highlights:
-- Warehouse app is sole author of `warehouses` master data; Inventory is read-only consumer.
-- Master-data pages moved from `src/pages/inventory/Warehouse*.tsx` → `src/pages/warehouse/`.
-- Inventory `/inventory-app/warehouses[/*]` legacy paths preserved via `<Navigate replace>` deep-link parity.
-- Inventory sidebar entry removed; all cross-app links repointed.
-- Cycle-count contract formalised: WMS session (`wms_count_sessions`) executes → `warehouse.count.session.completed` event → Inventory (`physical_counts`) posts adjustments. Both surfaces link to each other.
-- Architecture guard: `src/test/architecture/wms-phase-master-data.test.ts` prevents regression.
-- No DB schema changes.
+Written deliverable only, produced as `docs/audit/inventory-ownership-map.md`:
 
----
+1. **Ownership map.** Enumerate every table Inventory should own (`stock_quants`, `stock_movements`, `stock_locations`, `cost_layers`, `cost_layer_consumptions`, `stock_lots`, `stock_serials`, `stock_reservations`, `stock_transfers`, `stock_transfer_items`, `stock_adjustments`, `stock_adjustment_items`, `physical_counts`, `physical_count_lines`, `warehouse_stock`, `warehouse_stock_lots`, `lot_quarantine`) and prove no other app writes to them today (`rg` for direct `.from('stock_...').insert|update|delete|upsert` outside `src/apps/inventory/**` and outside sanctioned RPC wrappers).
+2. **Write-path inventory.** For every current writer, list: caller → hook → RPC. Flag every path that is not `SECURITY DEFINER` + `search_path` + SoD-guarded + `FOR UPDATE`-locking its aggregate.
+3. **Cross-domain inbound events.** Confirm handlers exist and are idempotent for `procurement.grn.received`, `warehouse.count.session.completed`, `manufacturing.production.completed`, `sales.shipment.picked`, `sales.return.received`. Missing/non-idempotent handlers become I4 backlog items.
+4. **UI duplication scan.** After ADR-0079/0080, list any orphan pages/routes/hooks in `src/pages/inventory/**` that duplicate a warehouse or physical-count surface.
 
-## Phase 3 — Inventory Domain Audit & Reconstruction — NEXT
+### Step 2 — ADR 0081 draft
 
-**Status:** not started. Scope to be defined by the next agent after verification of Phases 1 & 2.
+`docs/adr/0081-inventory-domain-ownership.md`. Decision, boundary contract with Warehouse/Procurement/Sales/Manufacturing, canonical RPC surface, event contracts, non-goals. No migration until this ADR is written.
 
-### Intended scope (subject to first-principles audit)
+### Step 3 — Batched execution (I1 → I7)
 
-Following the same enterprise pattern used for Procurement and Warehouse:
+Each batch ships production-ready in one turn, no orphans, retires legacy in the same migration that supersedes it.
 
-1. **Ownership map.** Confirm Inventory owns and only owns: `stock_quants`, `stock_movements`, `stock_locations` (schema), `cost_layers`, valuation, lots/serials, reservations, `physical_counts` (adjustment authority), transfers.
-2. **Canonical RPC surface.** Enumerate every write path into stock state. Every one must be `SECURITY DEFINER`, `SET search_path = public`, SoD-guarded, and row-lock the target quant/movement `FOR UPDATE`. Candidates: `post_stock_adjustment_atomic`, `post_physical_count_atomic`, `execute_stock_transfer_atomic`, `reserve_stock_atomic`, `release_reservation_atomic`, `revalue_layer_atomic`, `write_off_lot_atomic`.
-3. **Governance duties.** Register `inventory.adjust.approve`, `inventory.adjust.post`, `inventory.transfer.approve`, `inventory.transfer.execute`, `inventory.revalue.post`, `inventory.count.approve` with SoD conflicts (approver ≠ poster).
-4. **Cross-domain contracts.** Verify inbound event handlers exist and are idempotent for: `procurement.grn.received`, `warehouse.count.session.completed`, `manufacturing.production.completed`, `sales.shipment.picked`, `sales.return.received`. Every one lands in `business_event_outbox` consumers, never as direct writes from other apps.
-5. **DB-level integrity (Batch N-equivalent).** Triggers to enforce `business_id`/`branch_id` alignment across `stock_movements` ↔ `warehouses` ↔ `stock_locations`, and to forbid negative `stock_quants` outside sanctioned reversal RPCs.
-6. **UI consolidation.** Any duplicate/legacy inventory pages left over from the ADR-0079/0080 refactors get retired the same turn their replacement ships — no orphans.
-7. **Architecture guardrails.** New tests forbidding: direct inserts into `stock_movements`/`stock_quants`/`cost_layers` from anywhere outside sanctioned RPCs; cross-app writers touching inventory tables directly.
+- **I1 — RPC canonicalisation.** Consolidate to: `post_stock_adjustment_atomic`, `post_physical_count_atomic`, `execute_stock_transfer_atomic`, `reserve_stock_atomic`, `release_reservation_atomic`, `revalue_layer_atomic`, `write_off_lot_atomic`. Any pre-existing overloads/legacy names dropped in the same migration; all callers repointed.
+- **I2 — Governance duties + SoD.** Register `inventory.adjust.approve`, `inventory.adjust.post`, `inventory.transfer.approve`, `inventory.transfer.execute`, `inventory.revalue.post`, `inventory.count.approve`; SoD conflicts (approver ≠ poster).
+- **I3 — Integrity triggers.** DB-level `business_id`/`branch_id` alignment across `stock_movements` ↔ `warehouses` ↔ `stock_locations`; forbid negative `stock_quants` outside sanctioned reversal RPCs.
+- **I4 — Event-contract verification.** Idempotent handlers for the five inbound events above; outbox emission on every state change; matching architecture test.
+- **I5 — UI consolidation.** Retire orphan inventory pages found in Step 1; every route either lives or 301s.
+- **I6 — Architecture guardrails.** New `src/test/architecture/inventory-write-paths.test.ts` forbidding direct writes to `stock_movements` / `stock_quants` / `cost_layers` from anywhere outside the sanctioned RPCs, and forbidding cross-app writers touching inventory tables.
+- **I7 — Verdict + close.** `docs/audit/inventory-verdict.md`; update `.lovable/plan.md` marking Phase 3 CLOSED and Phase 4 (Sales / O2C) as next.
 
-### Deliverables
+### Guardrails (permanent, applied every batch)
 
-- ADR 0081 — Inventory domain ownership & write-path canonicalisation.
-- `docs/audit/inventory-verdict.md` at close.
-- Migration(s) for governance duties + integrity triggers + any missing canonical RPCs.
-- Architecture tests: `src/test/architecture/inventory-write-paths.test.ts`.
-
----
-
-## Instructions for the next agent
-
-**Do not start Phase 3 by writing code.** Follow this order:
-
-### Step 1 — Verify Phases 1 & 2 are actually production-grade
-
-Before adding anything, prove the previous arcs meet the standards claimed in their verdicts. Failing checks = fix them in-arc before opening Phase 3.
-
-**Procurement verification (run all):**
-
-```sql
--- 13 canonical RPCs present, all SECURITY DEFINER, all search_path pinned
-SELECT proname, prosecdef, proconfig FROM pg_proc
-WHERE proname IN (
-  'approve_purchase_order','receive_inbound_shipment','create_goods_receipt',
-  'match_bill_atomic','match_bill_with_landed_cost','confirm_bill_atomic',
-  'record_bill_payment_atomic','post_journal_entry_atomic',
-  'void_journal_entry_atomic','sync_po_line_billed_quantities',
-  'allocate_landed_cost_bill','post_landed_cost_bill',
-  'apply_vendor_credit_note_atomic'
-);
--- expect 13 rows, all prosecdef=true, all proconfig contains 'search_path=public'
-
--- Legacy retired
-SELECT count(*) FROM pg_proc WHERE proname='apply_vendor_credit_atomic'; -- expect 0
-
--- Batch N triggers present
-SELECT count(*) FROM pg_trigger WHERE tgname IN (
-  'trg_bills_branch_business','trg_purchase_orders_branch_business',
-  'trg_vendor_credit_notes_branch_business','trg_bill_payments_branch_business',
-  'trg_journal_entries_branch_business','trg_bills_po_business',
-  'trg_vcn_applications_business'
-); -- expect 7
-
--- No supplier_id leaks on transactional docs (ADR-0079)
-SELECT table_name FROM information_schema.columns
-WHERE table_schema='public' AND column_name='supplier_id'
-  AND table_name IN ('bills','purchase_orders','rfq_vendors',
-                     'purchase_returns','vendor_credit_notes'); -- expect 0
-
--- Governance duties + SoD
-SELECT count(*) FROM governance_duties WHERE duty_code LIKE 'credit.%'; -- expect 2
-```
-
-Also confirm:
-- `rg -n "apply_vendor_credit_atomic" src/` returns nothing.
-- `/purchases/vendors` in browser 301s to `/purchases/suppliers`.
-- Supplier 360 (`/purchases/suppliers/:id`) shows Finance defaults + Custom fields panel.
-
-**Warehouse verification:**
-
-- `bunx vitest run src/test/architecture/wms-phase-master-data.test.ts` — green.
-- `rg -n "pages/inventory/Warehouse" src/` returns nothing (only historical references in `docs/` or migrations OK).
-- `/inventory-app/warehouses` and `/inventory-app/warehouses/<uuid>` in browser both redirect to `/warehouse-app/warehouses[...]` preserving the id.
-- Inventory sidebar has no "Warehouses" entry; Warehouse sidebar does.
-- Warehouse `CycleCounts` page and Inventory `PhysicalCountWorkspace` each render the cross-app callout linking to the other.
-
-**Global:**
-
-- `tsgo -p tsconfig.app.json` — clean.
-- `bunx vitest run src/test/architecture` — all green.
-- `supabase--linter` — no new errors introduced by the last two arcs.
-
-If any check fails, **fix under the owning phase (1 or 2)** and re-close before opening Phase 3. Do not paper over a Phase 1/2 defect inside Phase 3.
-
-### Step 2 — Open Phase 3 with the same discipline
-
-1. **Discovery pass first, no code.** Read `src/apps/inventory/**`, `src/hooks/useStock*`, `src/pages/inventory/**`, every migration touching `stock_*` / `cost_layers` / `physical_counts`. Produce a written ownership map + write-path inventory as the first turn's deliverable.
-2. **Draft ADR 0081** with the ownership decision before touching any migration.
-3. **Batch discipline.** Split into I1 (RPC canonicalisation), I2 (governance duties + SoD), I3 (integrity triggers), I4 (event-contract verification), I5 (UI consolidation), I6 (arch guardrails), I7 (verdict + close). Each batch ships to a coherent, production-ready state — no partials, no orphans, no jumping ahead.
-4. **Retire legacy in the same turn as the replacement.** Never leave a legacy RPC/route/page live past the migration that supersedes it. Update all callers + the arch-guard allow-list in the same turn.
-5. **Close with a verdict doc** at `docs/audit/inventory-verdict.md` and update this file to mark Phase 3 CLOSED + Phase 4 active.
-
-### Guardrails that apply to every future phase
-
-- Every new `public` table needs `GRANT`s in the same migration.
-- Every new RPC is `SECURITY DEFINER` + `SET search_path = public` + SoD-guarded + `FOR UPDATE` locks its aggregate.
+- Every new `public` table has `GRANT`s in the same migration.
+- Every RPC: `SECURITY DEFINER` + `SET search_path = public` + SoD-guarded + `FOR UPDATE` on the aggregate.
 - No client-side writes to ledger/state tables. Cross-app writes go through `business_event_outbox`.
-- Party-vs-role (ADR-0079) is universal — no `<entity>_id` FKs where `contacts.id` is the correct party reference.
-- Ownership boundaries enforced at the directory + arch-test level, not by convention.
+- Party-vs-role universal (no `<entity>_id` FKs where `contacts.id` is correct).
+- Legacy retired in the same turn as the replacement.
 
-Do not open Phase 4 (Sales) until Phase 3 is CLOSED with a published verdict.
+---
+
+## Deliverables
+
+- `docs/audit/phase-1-2-verification.md` — evidence Phases 1 & 2 are production-grade (or the diffs that made them so).
+- `docs/audit/inventory-ownership-map.md` — Step 1 discovery output.
+- `docs/adr/0081-inventory-domain-ownership.md`.
+- Migrations for I1–I4.
+- `src/test/architecture/inventory-write-paths.test.ts` (I6).
+- `docs/audit/inventory-verdict.md` (I7).
+- Updated `.lovable/plan.md`.
+
+Confirm and I'll start with Step 0 verification, reporting findings before touching any code.
