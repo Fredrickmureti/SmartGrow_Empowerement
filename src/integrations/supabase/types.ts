@@ -40884,6 +40884,45 @@ export type Database = {
           },
         ]
       }
+      pos_transaction_idempotency: {
+        Row: {
+          branch_id: string
+          business_id: string
+          created_at: string
+          expires_at: string
+          idempotency_key: string
+          organization_id: string
+          register_id: string
+          response: Json
+          rpc_name: string
+          transaction_id: string | null
+        }
+        Insert: {
+          branch_id: string
+          business_id: string
+          created_at?: string
+          expires_at?: string
+          idempotency_key: string
+          organization_id: string
+          register_id: string
+          response: Json
+          rpc_name: string
+          transaction_id?: string | null
+        }
+        Update: {
+          branch_id?: string
+          business_id?: string
+          created_at?: string
+          expires_at?: string
+          idempotency_key?: string
+          organization_id?: string
+          register_id?: string
+          response?: Json
+          rpc_name?: string
+          transaction_id?: string | null
+        }
+        Relationships: []
+      }
       pos_transaction_item_modifiers: {
         Row: {
           created_at: string
@@ -68158,6 +68197,7 @@ export type Database = {
           reaped_count: number
         }[]
       }
+      cleanup_pos_transaction_idempotency: { Args: never; Returns: number }
       clear_admin_audit_log: {
         Args: { p_older_than_days?: number }
         Returns: number
