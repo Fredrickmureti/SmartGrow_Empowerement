@@ -154,9 +154,11 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
   const mpesaWalletMethod   = enabledPaymentMethods.find(
     m => m.tender_kind === "wallet" && m.provider_key === "mpesa",
   );
+  const cardMethod          = enabledPaymentMethods.find(m => m.tender_kind === "card");
   const selectedTenderKind  = selectedMethodConfig?.tender_kind;
   const selectedCaptureMode = selectedMethodConfig?.capture_mode;
   const selectedProviderKey = selectedMethodConfig?.provider_key;
+
 
   // Split payment is only meaningful when the register actually offers more
   // than one payment method. Splitting a pure-cash sale across two cash lines
