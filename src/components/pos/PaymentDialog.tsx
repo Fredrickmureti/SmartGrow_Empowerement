@@ -267,10 +267,46 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     setShowMpesaModal(false);
     setShowSplitMpesaModal(false);
     setSplitMpesaAmount(0);
+    setShowCardModal(false);
+    setCardModalAmount(0);
+    setCardModalMode("full");
     if (enabledPaymentMethods.length > 0) {
       setSelectedMethod(enabledPaymentMethods[0].method_key);
     }
   };
+
+  // Wave 2 · Phase C-2 — card terminal handlers. Full path completes the
+  // sale immediately; split path appends a card line to the running list.
+  const buildCardLine = (auth: CardAuthPayload, amountApplied: number): PaymentDialogPayment => {
+    if (!cardMethod) throw new Error("card tender missing from catalog");
+    return {
+      method: cardMethod.method_key,
+      amount: amountApplied,
+      tendered_amount: amountApplied,
+      change_given: 0,
+      reference: auth.authId,
+      auth_state: auth.initialAuthState,
+      auth_id: auth.authId,
+      vendor_txn_id: auth.vendorTxnId,
+      authorized_amount: auth.authorizedAmount,
+      card_last_four: auth.cardLastFour,
+      card_type: auth.cardType,
+    };
+  };
+
+  const handleCardSuccess = (auth: CardAuthPayload) => {
+    const line = buildCardLine(auth, cardModalAmount);
+    if (cardModalMode === "full") {
+      onComplete([line]);
+      resetForm();
+    } else {
+      setPayments((prev) => [...prev, line]);
+      setAmount("");
+    }
+    setShowCardModal(false);
+    setCardModalAmount(0);
+  };
+
 
   // Full M-Pesa payment (pay entire amount). M-Pesa never returns change —
   // the gateway authorizes the exact requested amount. Method key comes
