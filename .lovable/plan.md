@@ -232,3 +232,15 @@ every side-effect (GL, inventory, receipt, loyalty, fiscal, hardware,
 analytics) is a subscriber to one of those events rather than a UI hook;
 new payment methods and new consumers can be added with a migration and a
 handler, never a PaymentDialog edit.
+
+
+=========================================
+Phase B shipped and verified.
+
+What landed
+- Migration: `pos_payment_methods` gained `tender_kind` / `capture_mode` / `requires_terminal` / `provider_key` / `settlement_gl_account_id` (CHECK-constrained, backfilled for the 6 seeded keys); `pos_transaction_payments` gained the card-FSM columns for Phase C; `pos_validate_payment_line` is now called inside `_pos_record_payment` so bad tenders roll back atomically with the sale.
+- Client: `POSPaymentMethod` type widened; `PaymentDialog.tsx` no longer contains a single `method_key === "cash|card|mobile_money|credit"` gate — cash / credit / mpesa method keys are resolved from the catalog by `tender_kind` (+`provider_key`).
+- Guards: new `pos-payment-method-extensibility.test.ts` (3 assertions) plus a fix to a pre-existing false-negative in `pos-terminal-payment-mapping.test.ts`. All 4 target POS arch guards green (14/14).
+- `.lovable/plan.md` updated with a status snapshot and a handoff block that pins the order A → B → D → E → C → F → G and points the next agent at Phase D (T10, outbox dispatcher + DLQ) with an explicit verification checklist.
+
+Ping me to proceed with Phase D.
