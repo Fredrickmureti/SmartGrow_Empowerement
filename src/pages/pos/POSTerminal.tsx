@@ -1094,15 +1094,12 @@ function POSTerminalInner() {
 
       
       // Post-transaction integrations (fire-and-forget, don't block UI)
-      
-      // 1. Earn loyalty points if customer is attached
-      if (capturedCustomer?.id && loyaltyProgram) {
-        earnPoints({
-          contactId: capturedCustomer.id,
-          transactionId: result.transaction.id,
-          amount: cartData.total,
-        }).catch(err => console.error("Loyalty points error:", err));
-      }
+
+      // 1. Loyalty accrual is now handled durably server-side by the
+      //    outbox-dispatcher (`handlePosSaleCommitted` -> `apply_loyalty_accrual_for_sale`).
+      //    Do NOT award points from the browser — the RPC is idempotent per
+      //    pos_transaction_id and double-accrual would corrupt balances.
+
       
       // 2. Close table session after payment in restaurant mode
       // BUT only if there are no unpaid split bill portions remaining
