@@ -200,6 +200,62 @@ export default function MobileHome() {
             </ul>
           )}
         </section>
+
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
+            <Truck className="inline h-4 w-4 mr-1" />Dispatch
+          </h2>
+          {(manifests ?? []).length === 0 ? (
+            <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
+              No open manifests.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {manifests!.map((m) => (
+                <li key={m.id}>
+                  <Link
+                    to={`/wm/dispatch/${m.id}`}
+                    className="flex items-center justify-between rounded border p-3 active:bg-muted"
+                  >
+                    <div>
+                      <div className="font-mono text-sm">{m.code}</div>
+                      <div className="text-xs text-muted-foreground">{m.state}</div>
+                    </div>
+                    <span className="text-xs text-muted-foreground">tap →</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
+            <ShieldCheck className="inline h-4 w-4 mr-1" />Quality control
+          </h2>
+          {(qcOpen ?? []).length === 0 ? (
+            <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
+              No open inspections.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {qcOpen!.map((q) => (
+                <li key={q.id}>
+                  <Link
+                    to={`/wm/qc/${q.id}`}
+                    className="flex items-center justify-between rounded border p-3 active:bg-muted"
+                  >
+                    <div>
+                      <div className="font-mono text-sm">{q.product?.sku ?? q.id.slice(0, 8)}</div>
+                      <div className="text-xs text-muted-foreground">{q.state}</div>
+                    </div>
+                    <span className="text-xs text-muted-foreground">tap →</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </MobileWarehouseLayout>
   );
