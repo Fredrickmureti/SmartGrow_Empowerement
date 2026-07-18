@@ -29,7 +29,7 @@ export default function MobileHome() {
         .from("wms_tasks")
         .select("id, task_type, state, metadata")
         .eq("assignee_user_id", uid)
-        .in("state", ["ready", "in_progress"])
+        .in("state", ["pending", "assigned", "in_progress"])
         .order("priority", { ascending: false })
         .limit(200);
       if (error) throw error;
