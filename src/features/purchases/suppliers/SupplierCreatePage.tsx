@@ -13,7 +13,7 @@
  * When P11 workbench cutover retires the legacy vendor CRUD, this
  * page becomes the only entry point for creating a supplier.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
