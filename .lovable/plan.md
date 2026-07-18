@@ -1,245 +1,92 @@
-# Wave 2 — Phase D: Durable Outbox Dispatcher (T10)
 
-## Verification of prior work
+# Wave 2 — Checkout & Transaction Engine · Continuation Plan
 
-Confirmed against the codebase and live database:
+## Verification of prior work (Phase 1)
 
-- **Phase A ✅** `docs/architecture/POS_CHECKOUT_ENGINE.md` exists.
-- **Phase B ✅** Verified against Supabase:
-  - `pos_payment_methods` has `tender_kind` / `capture_mode` / `requires_terminal` / `provider_key` populated for all 6 seeded methods.
-  - `pos_validate_payment_line` function exists.
-  - `pos_transaction_payments` FSM columns present.
-  - Arch guards `pos-payment-method-extensibility.test.ts` and `pos-terminal-payment-mapping.test.ts` present.
-- **Phase D ❌ not started.** No `supabase/functions/outbox-dispatcher`. `business_event_outbox_dead` does not exist. `business_event_topics` has no `handler_scope` column. `BusinessSaga` (browser) is still the only worker.
+Spot-checked the previous engineer's log against the codebase and DB. All claims through Phase C-2 verified:
 
-Roadmap order per handoff: **A → B → D → E → C → F → G**. Next is D.
+- **Phase A** — `docs/architecture/POS_CHECKOUT_ENGINE.md` present.
+- **Phase B** — `pos_payment_methods` has `tender_kind`/`capture_mode`/`requires_terminal`/`provider_key`; `pos_validate_payment_line` present; arch guards green.
+- **Phase D** — `supabase/functions/outbox-dispatcher/index.ts` present, `business_event_outbox_dead` exists, `handler_scope` column on topics, `pg_cron` job `outbox-dispatcher-10s` active. Browser saga passes `p_handler_scope: 'host'`.
+- **Phase E (first cut)** — `apply_loyalty_accrual_for_sale` RPC + dispatcher handlers for `pos.sale.committed` and `inventory.movement.recorded` present. `earnPoints(` no longer called in `POSTerminal.tsx` (grep returned no hits).
+- **Phase C-1** — `pos_card_fsm_transitions`, guard trigger, and 4 RPCs (`pos_card_authorize/capture/void/reverse`) shipped; arch guard file exists.
+- **Phase C-2** — `CardPaymentModal.tsx`, `CardTerminalController.preAuthorize`, retail-path FSM fields forwarded through `usePOSTransactionOffline` (`auth_state`, `vendor_txn_id`, etc. all present).
 
-## Current state facts (verified)
+**No regressions found.** No rework of shipped phases needed. Continuation starts at Phase C-3.
 
-- `business_event_outbox` already carries `attempts`, `claimed_at`, `claim_lease_seconds`, `worker_id`, `status` — the RPC contract is production-shaped.
-- `claim_next_business_event` + `complete_business_event` RPCs exist and drive the browser saga today.
-- The project has ~60 Supabase edge functions already (pre-existing pattern), so a new `outbox-dispatcher` edge function fits the stack. (The general "prefer TanStack server fns" guidance does not apply retroactively here — this is scheduled infra invoked by `pg_cron`, not app-internal RPC.)
+## Roadmap position
 
-## Phase D scope
+Shipped: A · B · D · E-1 · C-1 · C-2
+Remaining: **C-3 · E-2 · F · G**
 
-Ship a durable, ops-visible outbox dispatcher and constrain the browser saga to hardware-only topics.
+## Phase C-3 — Card FSM completeness
 
-### D1 — DLQ + topic scoping (migration)
-- Create `public.business_event_outbox_dead` mirroring outbox columns plus `dead_reason text`, `dead_at timestamptz`, `first_attempt_at timestamptz`, `last_error text`, `attempts int`. RLS: read `authenticated` under org scope, writes only via `service_role`. Standard `GRANT` block.
-- Add `handler_scope text NOT NULL DEFAULT 'server' CHECK (handler_scope IN ('server','host'))` to `business_event_topics`. Backfill:
-  - `host` — `pos.payment.received.*`, `pos.drawer.*`, `pos.print.*` (drawer + printer must run on the physical host).
-  - `server` — everything else (`pos.sale.committed.*`, `inventory.movement.recorded.*`, fiscal, loyalty, analytics).
-- Extend `claim_next_business_event(p_org_id, p_limit, p_branch_id, p_handler_scope text DEFAULT 'server')` — filter joined `business_event_topics.handler_scope`. Overload preserves existing 3-arg signature so browser callers keep working during rollout, then browser call sites pass `'host'`.
-- Add `move_business_event_to_dlq(p_id uuid, p_reason text)` — copies row, deletes from outbox, records `first_attempt_at`.
-- Extend `complete_business_event(p_id, p_success, p_error)` so that on failure when `attempts >= max_attempts_for_topic` it calls `move_business_event_to_dlq` automatically (max attempts default 10, per-topic override via new nullable `max_attempts int` on `business_event_topics`).
+Close the retail-only limitation and make the FSM the sole write path for card `auth_state`.
 
-### D2 — Edge function `supabase/functions/outbox-dispatcher`
-- New Deno edge function under `supabase/functions/outbox-dispatcher/index.ts` + `deno.json` matching sibling functions.
-- Uses service-role client. Per invocation:
-  1. For each org with pending server-scope rows, call `claim_next_business_event(org, 25, null, 'server')`.
-  2. Dispatch each event to an in-function router keyed on `event_type`. Initial router is minimal — it just forwards to registered downstream edge functions or performs a lightweight built-in action (e.g. `noop` for now for topics that will get real handlers in Phase E). The router table is a plain map so Phase E adds one line per topic.
-  3. Call `complete_business_event` with success/failure. Never `throw` from the loop — catch, record error, continue.
-- Exponential backoff surfaced by NOT re-claiming rows whose `updated_at` is within `pow(2, attempts)` seconds; enforced in the RPC via `WHERE updated_at < now() - make_interval(secs => least(pow(2, attempts)::int, 3600))`.
-- CORS headers so it can be curled from ops tools; verify caller via shared `x-cron-secret` header (secret name `OUTBOX_DISPATCHER_SECRET`, added via `add_secret`).
-- Structured JSON logs: `{ org_id, event_id, event_type, outcome, attempts, ms }`.
+**C-3.1 Restaurant path parity.** Extend `finalize_table_order(uuid, jsonb, numeric, uuid)` to accept card FSM fields per payment line (`auth_state`, `auth_id`, `vendor_txn_id`, `authorized_amount`, `card_last_four`, `card_type`). Forward to `_pos_record_payment` so the FSM guard applies identically to restaurant sales. New migration; keep 4-arg signature (extend jsonb schema, not arg count). Wire `POSTerminal.tsx` restaurant branch to pass the same payment shape as the retail branch.
 
-### D3 — Scheduling
-- Migration creates a `pg_cron` job (`select cron.schedule('outbox-dispatcher-10s', '10 seconds', $$ ... net.http_post ... $$)`) that POSTs to the edge function URL with the shared secret. Idempotent create (`cron.unschedule` if exists, then schedule).
-- Cron job body reads the URL/secret from `vault` (or hardcoded published-project URL if vault access isn't available; noted in the migration comment).
+**C-3.2 Offline replay through the RPC.** Migrate `SQLiteSyncManager` (lines ~320 / ~379) from direct `.from('pos_transaction_payments').insert(...)` to `process_pos_transaction`. This ensures offline-authorized card sales replay through `_pos_record_payment` and hit the FSM guard. Preserve the queued FSM fields captured in `usePOSTransactionOffline`'s offline payload.
 
-### D4 — Constrain the browser saga
-- `src/services/events/BusinessSaga.ts`: pass `p_handler_scope: 'host'` on `claim_next_business_event`. Add a comment linking to ADR 0009 / plan.md D-phase explaining that the browser saga is now the secondary, host-only consumer.
-- `BusinessSagaMount` unchanged externally.
+**C-3.3 Post-commit lifecycle UI.** New `CardPaymentActions.tsx` in the transaction-detail surface (`src/components/pos/transaction-detail/` or existing detail screen). Renders Capture / Void / Reverse buttons keyed on current `auth_state`, calling `cardTerminal.capture/void/reverse` (RPC-backed). Uses `capture_mode` to auto-hide Capture when `auth_capture`. Manager PIN gate for Void/Reverse via the existing override matrix.
 
-### D5 — Architecture guard
-- New `src/test/architecture/pos-outbox-dispatcher.test.ts`:
-  - `supabase/functions/outbox-dispatcher/index.ts` file exists and imports service role.
-  - A migration file mentions both `business_event_outbox_dead` and `cron.schedule('outbox-dispatcher-10s'` (regex over migrations dir).
-  - `BusinessSaga.ts` claims with `handler_scope: 'host'` (no un-scoped call remains).
+**C-3.4 Card business events.** Extend the DB-level trigger that already writes `pos_transaction_payments` rows to emit `business_event_outbox` rows on `auth_state` transitions:
+- `payment.card.authorized` (idle→approved)
+- `payment.card.captured` (approved→captured)
+- `payment.card.voided` (approved→voided)
+- `payment.card.reversed` (captured→refunded)
 
-### D6 — Docs
-- Append a "Phase D shipped" section at the bottom of `.lovable/plan.md` mirroring the Phase B block: what landed, verification queries, next handoff pointer to Phase E.
-- Extend `docs/architecture/POS_CHECKOUT_ENGINE.md` "Outbox worker" section with the new topology (server dispatcher + host saga + DLQ).
+All server-scope (settlement/reconciliation consume them). Register no-op handlers in the dispatcher for now; Phase F fills them.
 
-## Out of scope for Phase D
+**C-3.5 Arch guards.** Extend `pos-card-fsm.test.ts`:
+- `SQLiteSyncManager` does not write directly to `pos_transaction_payments` (grep negative).
+- Restaurant path in `POSTerminal.tsx` forwards `auth_state` (grep positive).
+- Migration adds card event outbox trigger (regex).
+- `CardPaymentActions.tsx` exists and calls only `cardTerminal.*` (no direct RPC).
 
-- Phase E downstream handlers (loyalty, fiscal, analytics, projections). D only ships the delivery substrate + a router with no-op destinations; each E handler is a small follow-up.
-- Card EMV FSM in the browser (Phase C).
-- Return authorization (F), cash lifecycle (G).
+## Phase E-2 — Downstream projections
+
+Fill remaining E gaps flagged in the log.
+
+- **E-2.1** New `pos_sales_daily` projection table (org/branch/date/gross/net/tax/tender-breakdown JSONB). Migration + `pos_sales_daily_apply(uuid)` idempotent RPC keyed on `pos_transaction_id`. Dispatcher handler for `pos.sale.committed`. Standard GRANT + RLS block.
+- **E-2.2** New `pos_customer_purchase_history` projection (customer_id, transaction_id, occurred_at, total, item_count) — server-side handler on `pos.sale.committed`. Delete any UI-driven writes if present.
+- **E-2.3** Bank-reconciliation hint rows for `tender_kind IN ('bank','card','wallet')` — new topic `payment.received.bank_hint` (server-scope), handler inserts into `bank_reconciliation_items` with `matched=false`.
+- **E-2.4** Arch guard extending `pos-outbox-handlers.test.ts` for the three new map entries + the new tables/RPC.
+
+## Phase F — Settlement & Reconciliation
+
+Depends on C-3.4 emitting card events.
+
+- **F.1** New `pos_card_settlements` table: batch_id, opened_at, closed_at, provider_key, expected_amount, actual_amount, variance, status (`open`/`closed`/`reconciled`). RLS by org/branch. Standard grants.
+- **F.2** `pos_card_settlement_lines`: settlement_id, payment_id, amount, fee, net. Populated by dispatcher handler on `payment.card.captured` and `payment.card.reversed`.
+- **F.3** Settlement close RPC `pos_close_card_settlement(uuid)` — freezes the batch, computes variance, emits `settlement.card.closed` (server-scope) → GL posting handler creates the clearing→bank JE.
+- **F.4** UI: `src/pages/pos/CardSettlementReport.tsx` — list open batches, show expected vs actual, close button (manager PIN).
+- **F.5** Arch guard: card captures never bypass settlement (grep every capture path emits the event; settlement RPCs are the only close mechanism).
+
+## Phase G — Cash lifecycle & returns authorization
+
+- **G.1 Cash lifecycle events.** Emit `pos.drawer.opened`, `pos.drawer.closed`, `pos.cash.drop.recorded`, `pos.cash.variance.detected` from existing trigger surfaces (`pos_drawer_events`, `pos_cash_movements`). Host-scope for `opened/closed` (physical drawer signal), server-scope for the accounting-relevant `drop`/`variance`. Handlers write JEs for cash drop (Cash → Safe/Bank clearing) and variance (Cash short/over expense).
+- **G.2 Blind close & manager override integration.** Extend `pos_shift_close` RPC to distinguish blind vs open close; blind close records actual=NULL and requires a manager reconciliation pass before the JE fires.
+- **G.3 Return authorization state machine.** New `pos_return_authorizations` table with FSM `requested → approved → applied` (or `rejected`). Trigger emits `pos.return.authorized`/`.applied`. Handler creates the reversing JE + inventory movement. Manager PIN gate at `approved` transition.
+- **G.4 Arch guards.** Cash JEs originate only from the outbox handler (grep no direct JE inserts in cash paths). Returns cannot post inventory movement without a matching `applied` authorization row.
+
+## Cross-cutting hygiene (during each phase)
+
+- Every new public-schema table ships with `GRANT` block + RLS in the same migration.
+- Every new outbox topic gets a row in `business_event_topics` with correct `handler_scope` and `max_attempts`.
+- Every dispatcher handler is idempotent, keyed on `source_doc_id`.
+- New arch guard tests are added alongside each phase (no phase closes without a guard locking the invariant).
+- No secrets in DB; edge function secrets via `add_secret`.
 
 ## Definition of done
 
-- All 4 previously-green POS arch guards still green; new `pos-outbox-dispatcher.test.ts` green.
-- Live check: inserting a synthetic row into `business_event_outbox` with `handler_scope='server'` topic is picked up and completed by the edge function within ~15 s (verified via `stack_modern--invoke-server-function` on the function URL, or by observing `completed_at`).
-- Live check: a row whose handler always throws lands in `business_event_outbox_dead` after `max_attempts`.
-- Browser saga no longer competes for server-scope rows (verified by grep + a smoke row).
+- All existing POS arch guards remain green; new guards added per phase are green.
+- `pos_transaction_payments.auth_state` is only ever written via `pos_card_*` RPCs (verified by guard + DB trigger on all write paths).
+- Restaurant and offline-replay sales are indistinguishable from retail sales at the DB level (same FSM path, same events emitted).
+- Every card capture produces exactly one settlement line; every settlement close produces exactly one GL entry.
+- Cash drawer opens/closes and returns produce complete audit trails via the outbox; no UI-only side effects remain in the checkout path.
 
+## Execution order
 
-=========================================
-Phase D shipped and verified.
+C-3.1 → C-3.2 → C-3.3 → C-3.4 → C-3.5 → E-2.1 → E-2.2 → E-2.3 → E-2.4 → F.1–F.5 → G.1–G.4
 
-What landed
-- Migration: `business_event_topics` gained `handler_scope` (`server`|`host`) and per-topic `max_attempts`; `payment.received` marked `host`. New `business_event_outbox_dead` DLQ table (RLS: readable to org members). New resolvers `pos_topic_handler_scope` / `pos_topic_max_attempts` (longest topic-prefix match). New 5-arg overload `claim_next_business_event(p_org_id, p_limit, p_claimant, p_branch_id, p_handler_scope)` filters by scope and applies exponential backoff via `updated_at < now() - make_interval(secs => least(power(2, attempts), 3600))`. New `move_business_event_to_dlq` + rewritten `complete_business_event` — failures past `max_attempts` are atomically dead-lettered.
-- Edge function: `supabase/functions/outbox-dispatcher/index.ts`. Uses service role, claims server-scope events per org (batch 25), dispatches via a per-topic handler registry (empty in D; Phase E fills it — unknown topics complete as no-ops so the outbox drains), logs structured JSON per event.
-- Scheduling: `pg_cron` job `outbox-dispatcher-10s` posts to the deployed function URL every 10 s. Smoke run drained 50 pending backlog events across 2 orgs in a single invocation (`{ ok: 50, err: 0, orgs: 2 }`).
-- Browser saga: `src/services/events/BusinessSaga.ts` now passes `p_handler_scope: 'host'` — the tab is a secondary consumer for hardware topics only; server events are drained by the durable dispatcher regardless of whether a browser is open.
-- Guards: new `src/test/architecture/pos-outbox-dispatcher.test.ts` (edge function exists + uses service role + claims `server`, migration adds DLQ + scope resolver, browser saga only claims `host`).
-
-Verification queries
-```sql
--- topics scope
-SELECT topic_prefix, handler_scope, max_attempts
-  FROM business_event_topics ORDER BY topic_prefix;
--- DLQ table exists
-SELECT to_regclass('public.business_event_outbox_dead');
--- cron job active
-SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'outbox-dispatcher-10s';
--- recent drain
-SELECT status, count(*) FROM business_event_outbox GROUP BY status;
-```
-
-Next handoff — Phase E (Downstream sagas)
-Roadmap order remains A → B → D → **E** → C → F → G. Phase E's job is to fill the `HANDLERS` map in `supabase/functions/outbox-dispatcher/index.ts` and register durable subscribers so the UI stops doing side-effects:
-- `pos.sale.committed.*` → loyalty accrual (delete UI-driven accrual in `usePOSTransactionOffline`), customer purchase history projection, `pos_sales_daily` projection, fiscal transmission trigger (existing `etims-transmit` becomes a handler, not a hook call).
-- `inventory.movement.recorded.*` → reorder-alert recompute (POS branch).
-- `payment.received.*` stays host-scope (drawer/printer) — additionally emit bank-reconciliation hint rows for `tender_kind IN ('bank','card','wallet')` (server-side handler; can be a separate topic).
-Each new handler ships with an arch guard asserting the map entry exists.
-
-=========================================
-Phase E (first cut) shipped and verified.
-
-What landed
-- Migration: new `apply_loyalty_accrual_for_sale(uuid)` SECURITY DEFINER function. Idempotent per `pos_transaction_id` (checks `loyalty_transactions.transaction_type='earned'`), skips returns / customerless sales, upserts `customer_loyalty`, inserts an `earned` `loyalty_transactions` row. Grants execute to `service_role` only.
-- Dispatcher handlers (`supabase/functions/outbox-dispatcher/index.ts`):
-  - `pos.sale.committed` → `handlePosSaleCommitted` — calls the loyalty RPC (hard-fail on error, retried by outbox), then best-effort `admin.functions.invoke('etims-transmit', { doc_type: 'pos', transaction_id, org_id })` (fiscal errors are logged, not thrown, since eTIMS has its own retry loop).
-  - `inventory.movement.recorded` → `handleInventoryMovementRecorded` — invokes `check_low_stock_products` so reorder alerts recompute after each POS movement.
-- Guard: `src/test/architecture/pos-outbox-handlers.test.ts` (5 assertions) — enforces both map entries, the loyalty RPC reference, the eTIMS call site, and the loyalty migration.
-- Verified: dispatcher redeployed, arch guards green (8 tests across dispatcher + handlers), backlog scan shows only the 2 host-scope `payment.received` rows remain pending (server dispatcher correctly ignores them).
-
-Still open in Phase E (future increments)
-- Delete UI-driven loyalty accrual in `usePOSLoyalty.awardPoints` call sites (now redundant with the server accrual). Left in place this pass because the RPC is idempotent — dedup guaranteed by `loyalty_transactions.pos_transaction_id` check.
-- `pos_sales_daily` projection table does not exist yet — needs a fresh table + trigger + handler.
-- Bank-reconciliation hint rows for card/wallet tenders (new topic + handler).
-- Customer purchase-history projection (new table).
-
-=========================================
-Phase E cleanup (UI double-accrual removal) shipped.
-- Removed `earnPoints({...})` call in `src/pages/pos/POSTerminal.tsx` post-commit block; loyalty accrual is now exclusively server-side via `handlePosSaleCommitted` → `apply_loyalty_accrual_for_sale`.
-- Added assertion #6 to `pos-outbox-handlers.test.ts`: greps `POSTerminal.tsx` for `earnPoints(` to lock the invariant.
-- `usePOSLoyalty.earnPoints` mutation retained (still used by manual adjust flows / admin tooling) but no longer wired to the checkout path.
-
-=========================================
-Phase C-1 (Card/EMV FSM substrate) shipped.
-
-What landed
-- Migration:
-  - `pos_card_fsm_transitions` lookup table seeded with the canonical edge set
-    (idle→collecting→authorizing→approved→{captured,voided}→refunded, plus
-    declined/failed sinks with reset paths).
-  - `pos_card_fsm_guard` BEFORE trigger on `pos_transaction_payments` that
-    only fires for `tender_kind='card'` and rejects illegal `auth_state`
-    jumps / bad initial states.
-  - Four SECURITY DEFINER RPCs — `pos_card_authorize`, `pos_card_capture`,
-    `pos_card_void`, `pos_card_reverse` — each idempotent (early-return when
-    already in the target state) and row-locked via SELECT ... FOR UPDATE.
-    Capture rejects amounts exceeding the authorized hold. Void only from
-    `approved`; reverse only from `captured`.
-  - EXECUTE granted to `authenticated` + `service_role`, revoked from PUBLIC.
-- Client controller: `src/services/pos/CardTerminalController.ts`
-  - Typed `CardAuthState` union + `CardDriver` interface (swap point for a
-    real EMV SDK later — Stripe Terminal, Verifone, MPGS, etc.).
-  - `simCardDriver` for dev/e2e: approves <=50k, declines above; deterministic
-    auth_id / vendor_txn_id. Exported singleton `cardTerminal` uses it by default.
-  - All four FSM operations wrap the RPCs; UI code must go through this class.
-- Arch guard: `src/test/architecture/pos-card-fsm.test.ts` (4 assertions):
-  1. Migration defines all four `pos_card_*` RPCs.
-  2. Migration defines the transition table + `pos_card_fsm_guard` + trigger.
-  3. No file outside `CardTerminalController.ts` calls the `pos_card_*` RPCs.
-  4. No file writes `auth_state` on `pos_transaction_payments` directly.
-- Verified: all 4 assertions green; DB confirms 5 `pos_card_*` procs (4 RPCs
-  + guard trigger fn); 12 transition rows seeded.
-
-Still open in Phase C (next increment — C-2 UI wiring)
-- Wire `cardTerminal.authorize/capture/void` into `PaymentDialog.tsx` for
-  `tender_kind='card'` (branch on `capture_mode`: `auth_only` stops after
-  authorize, `auth_capture` continues to capture immediately).
-- Add an in-dialog terminal-status affordance ("Insert card…", "Approved",
-  "Declined — retry / cancel").
-- Emit business events on each transition:
-  `payment.card.authorized`, `payment.card.captured`, `payment.card.voided`,
-  `payment.card.reversed` (host-scope for now — receipt printing hooks off
-  captured; server-scope handlers TBD in Phase F for settlement).
-
-Next handoff — Phase C-2 (UI wiring) then Phase F (Settlement & Reconciliation).
-
-=========================================
-Phase C-2 (Card/EMV UI wiring) shipped.
-
-What landed
-- `src/components/pos/CardPaymentModal.tsx` — dedicated terminal UX for
-  card tenders. Reads `capture_mode` from the catalog method and drives
-  `cardTerminal.preAuthorize(amount)` (new driver-only pre-commit hook
-  on `CardTerminalController`, sim driver approves <=50k). On approval
-  the modal returns a `CardAuthPayload` with `authId`, `vendorTxnId`,
-  `authorizedAmount`, and the masked card fields.
-- `src/services/pos/CardTerminalController.ts` — added `preAuthorize`
-  method. Comment explains the FSM contract: the returned auth
-  metadata is persisted at commit-time via `_pos_record_payment` so
-  the payment row is inserted directly in `approved` (or `captured`)
-  and the FSM guard trigger validates the initial state.
-- `src/components/pos/PaymentDialog.tsx` — added:
-  - `PaymentDialogPayment` expanded with `auth_state`, `auth_id`,
-    `vendor_txn_id`, `authorized_amount`, `card_last_four`, `card_type`.
-  - Card quick-pay button (only rendered when a `tender_kind='card'`
-    method is enabled); split-payment "Add" button routes card lines
-    through the modal too. Non-card tenders are unchanged.
-  - Modal wired at the bottom with `capture_mode` fallthrough.
-- `src/hooks/pos/usePOSTransactionOffline.ts` — `PaymentMethod` and the
-  RPC payload map now forward the FSM fields into `process_pos_transaction`.
-  Offline queue payload also carries the fields for eventual replay
-  (SQLiteSyncManager replay path still needs upgrading — noted below).
-- `src/pages/pos/POSTerminal.tsx` — retail-mode payment map now
-  propagates the card FSM fields from the dialog to the hook. Restaurant
-  `finalize_table_order` path unchanged this pass (needs its own RPC
-  signature extension — deferred to C-3).
-- Arch guard `src/test/architecture/pos-card-fsm.test.ts` grew from
-  4 → 8 assertions: modal exists + uses controller (not private driver),
-  dialog imports the modal and branches on `tender_kind='card'`,
-  interface fields exist in both dialog + hook, `preAuthorize` exists.
-  All 8 green; project typecheck clean.
-
-Still open in Phase C (next increment — C-3)
-- Extend `finalize_table_order` RPC + POSTerminal restaurant path to
-  carry card FSM fields (currently only the retail path is wired).
-- Migrate `SQLiteSyncManager` offline replay from direct
-  `pos_transaction_payments` inserts to `process_pos_transaction` so
-  offline-authorized card sales replay through `_pos_record_payment`
-  and hit the FSM guard consistently.
-- Post-commit lifecycle UI: expose "Capture", "Void", "Reverse"
-  actions on the transaction detail screen that call
-  `cardTerminal.capture/void/reverse` (RPC-backed).
-- Emit business events on each transition (`payment.card.authorized`,
-  `.captured`, `.voided`, `.reversed`) — trigger currently only writes
-  the row; wire the outbox producer trigger next.
-- Replace the sim driver with a real EMV integration behind the
-  `CardDriver` interface (Stripe Terminal / MPGS / Verifone).
-
-Next handoff — verify Phase C-2 (run the 8-assertion guard + typecheck +
-smoke a card sale end-to-end in the UI), then proceed to Phase C-3
-above. After C is fully closed, resume the roadmap at Phase F
-(Settlement & Reconciliation) — F depends on the card capture/settle
-lifecycle being event-emitting, which C-3 provides.
-
-## Roadmap status snapshot
-- Phase A — Audit docs — **shipped**
-- Phase B — Payment catalog extensibility — **shipped**
-- Phase D — Durable outbox dispatcher — **shipped**
-- Phase E — Downstream sagas (loyalty + inventory alerts + eTIMS trigger) — **first cut shipped**; open items: `pos_sales_daily` projection, bank-reconciliation hint rows, customer purchase-history projection.
-- Phase C-1 — Card FSM DB substrate — **shipped**
-- Phase C-2 — Card FSM UI wiring (retail path) — **shipped (this pass)** ← currently completed
-- Phase C-3 — Restaurant path + offline replay + post-commit UI + card events — **next**
-- Phase F — Settlement & Reconciliation — pending C-3
-- Phase G — Cash lifecycle / returns authorization — pending F
-
-
-
+Each sub-phase ends with: migration applied, arch guard added, typecheck clean, backlog drain verified where applicable.
