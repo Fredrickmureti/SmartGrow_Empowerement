@@ -64166,6 +64166,18 @@ export type Database = {
         Args: { p_user: string }
         Returns: boolean
       }
+      _wms_assert_business_access: {
+        Args: { p_business_id: string }
+        Returns: undefined
+      }
+      _wms_caller_business_branch: {
+        Args: never
+        Returns: {
+          branch_id: string
+          business_id: string
+          organization_id: string
+        }[]
+      }
       _wms_default_putaway: {
         Args: { p_warehouse_id: string }
         Returns: string
@@ -64474,6 +64486,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      approve_count_variance: { Args: { p_session_id: string }; Returns: Json }
       approve_credit_note: {
         Args: { p_id: string }
         Returns: {
@@ -65373,6 +65386,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assign_wms_task: {
+        Args: { p_assignee_user_id: string; p_task_id: string }
+        Returns: Json
+      }
       attach_c2b_to_pos_transaction: {
         Args: { _c2b_id: string; _pos_transaction_id: string }
         Returns: {
@@ -65831,6 +65848,10 @@ export type Database = {
       }
       cancel_ownership_transfer: {
         Args: { _transfer_id: string }
+        Returns: Json
+      }
+      cancel_pick_wave: {
+        Args: { p_reason?: string; p_wave_id: string }
         Returns: Json
       }
       cancel_procurement_approval: {
@@ -66304,6 +66325,7 @@ export type Database = {
               isSetofReturn: true
             }
           }
+      claim_pick_task: { Args: { p_task_id: string }; Returns: Json }
       claim_scanner_session_pairing: {
         Args: { p_device_label: string; p_token: string }
         Returns: {
@@ -72502,6 +72524,16 @@ export type Database = {
         Args: { p_counted_qty: number; p_line_id: string; p_note?: string }
         Returns: Json
       }
+      record_count_scan: {
+        Args: {
+          p_counted_qty: number
+          p_location_id: string
+          p_lot_number?: string
+          p_product_id: string
+          p_session_id: string
+        }
+        Returns: Json
+      }
       record_device_login: {
         Args: {
           p_browser?: string
@@ -72520,6 +72552,14 @@ export type Database = {
           p_os_version?: string
           p_region?: string
           p_user_agent?: string
+        }
+        Returns: Json
+      }
+      record_goods_receipt_line: {
+        Args: {
+          p_grn_item_id: string
+          p_lot_number?: string
+          p_quantity_received: number
         }
         Returns: Json
       }
@@ -74987,6 +75027,7 @@ export type Database = {
           work_entry_type_id: string
         }[]
       }
+      wms_e2e_ensure_seed: { Args: never; Returns: Json }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "income" | "expense"
