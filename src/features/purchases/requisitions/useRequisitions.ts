@@ -1,9 +1,11 @@
 /**
  * Purchase requisition hooks — P3-UI (Requisitions Workbench).
  *
- * Reads canonical `purchase_requisitions` with requester profile and
- * item rollups. State transitions go exclusively through the lifecycle
- * RPCs in `requisitionRpcs.ts`.
+ * Reads canonical `purchase_requisitions`. Because `requester_id` and
+ * `actor_user_id` reference `auth.users` (not `public.profiles`) there
+ * is no PostgREST-embeddable FK; we hydrate profiles in a follow-up
+ * query. State transitions go exclusively through the lifecycle RPCs
+ * in `requisitionRpcs.ts`.
  */
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,6 +50,20 @@ export interface RequisitionRow {
   item_count?: number;
 }
 
+type ProfileLite = { id: string; full_name: string | null; email: string | null };
+
+async function hydrateProfiles(userIds: string[]): Promise<Map<string, ProfileLite>> {
+  const map = new Map<string, ProfileLite>();
+  const ids = Array.from(new Set(userIds.filter(Boolean)));
+  if (ids.length === 0) return map;
+  const { data } = await (supabase as any)
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", ids);
+  for (const p of (data ?? []) as ProfileLite[]) map.set(p.id, p);
+  return map;
+}
+
 export function useRequisitions() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -65,20 +81,24 @@ export function useRequisitions() {
     setError(null);
     const { data, error: err } = await (supabase as any)
       .from("purchase_requisitions")
-      .select(
-        "*, requester:profiles!purchase_requisitions_requester_id_fkey(id, full_name, email), items:purchase_requisition_items(id)",
-      )
+      .select("*, items:purchase_requisition_items(id)")
       .eq("organization_id", currentOrg.id)
       .eq("business_id", currentBusiness.id)
       .order("updated_at", { ascending: false });
-    if (err) setError(err.message);
-    else {
-      const shaped = (data ?? []).map((r: any) => ({
+    if (err) {
+      setError(err.message);
+      setLoading(false);
+      return;
+    }
+    const base = (data ?? []) as any[];
+    const profiles = await hydrateProfiles(base.map((r) => r.requester_id));
+    setRows(
+      base.map((r) => ({
         ...r,
         item_count: Array.isArray(r.items) ? r.items.length : 0,
-      })) as RequisitionRow[];
-      setRows(shaped);
-    }
+        requester: profiles.get(r.requester_id) ?? null,
+      })) as RequisitionRow[],
+    );
     setLoading(false);
   }, [currentOrg?.id, currentBusiness?.id]);
 
@@ -115,7 +135,7 @@ export interface RequisitionApproval {
   decision: string;
   comment: string | null;
   created_at: string;
-  actor?: { id: string; full_name: string | null; email: string | null } | null;
+  actor?: ProfileLite | null;
 }
 
 export interface RequisitionRecord extends RequisitionRow {
@@ -144,9 +164,7 @@ export function useRequisitionRecord(id: string | undefined) {
     try {
       const { data: core, error: e1 } = await (supabase as any)
         .from("purchase_requisitions")
-        .select(
-          "*, requester:profiles!purchase_requisitions_requester_id_fkey(id, full_name, email)",
-        )
+        .select("*")
         .eq("id", id)
         .maybeSingle();
       if (e1) throw e1;
@@ -164,14 +182,14 @@ export function useRequisitionRecord(id: string | undefined) {
           .order("sort_order"),
         (supabase as any)
           .from("purchase_requisition_approvals")
-          .select(
-            "*, actor:profiles!purchase_requisition_approvals_actor_user_id_fkey(id, full_name, email)",
-          )
+          .select("*")
           .eq("requisition_id", id)
           .order("step_order"),
       ]);
 
       const items = (itemsRes.data ?? []) as RequisitionItem[];
+      const approvals = (apprRes.data ?? []) as RequisitionApproval[];
+
       const supplierIds = Array.from(
         new Set(
           items
@@ -188,10 +206,19 @@ export function useRequisitionRecord(id: string | undefined) {
         suppliers = (supData ?? []) as any;
       }
 
+      const profiles = await hydrateProfiles([
+        (core as any).requester_id,
+        ...approvals.map((a) => a.actor_user_id),
+      ]);
+
       setRecord({
         ...(core as RequisitionRow),
+        requester: profiles.get((core as any).requester_id) ?? null,
         items,
-        approvals: (apprRes.data ?? []) as RequisitionApproval[],
+        approvals: approvals.map((a) => ({
+          ...a,
+          actor: profiles.get(a.actor_user_id) ?? null,
+        })),
         suggested_suppliers: suppliers,
       });
     } catch (e: any) {
