@@ -105,5 +105,52 @@ describe("pos-card-fsm: substrate & entry-point invariants", () => {
     const ctrl = readFileSync(join(REPO, "src/services/pos/CardTerminalController.ts"), "utf8");
     expect(ctrl).toMatch(/async\s+preAuthorize\s*\(/);
   });
+
+  // Wave 2 · Phase C-3 — restaurant parity, offline replay, events, post-commit UI.
+
+  it("SQLiteSyncManager routes offline replay through process_pos_transaction (no direct payment inserts)", () => {
+    const p = join(REPO, "src/services/offline/SQLiteSyncManager.ts");
+    const s = readFileSync(p, "utf8");
+    expect(s, "must call the canonical RPC").toMatch(/process_pos_transaction/);
+    // No direct writes to any POS table on the replay path.
+    for (const t of ["pos_transactions", "pos_transaction_items", "pos_transaction_payments"]) {
+      expect(
+        new RegExp(`\\.from\\(["']${t}["']\\)[\\s\\S]{0,120}\\.insert\\(`).test(s),
+        `SQLiteSyncManager must not .insert() into ${t}`,
+      ).toBe(false);
+    }
+  });
+
+  it("POSTerminal restaurant branch forwards card FSM metadata into finalize_table_order", () => {
+    const src = readFileSync(join(REPO, "src/pages/pos/POSTerminal.tsx"), "utf8");
+    expect(src).toMatch(/finalize_table_order/);
+    // Restaurant branch must forward the same FSM fields the retail branch does.
+    for (const field of ["auth_state", "auth_id", "vendor_txn_id", "authorized_amount"]) {
+      expect(src, `POSTerminal must forward ${field}`).toMatch(new RegExp(`${field}`));
+    }
+  });
+
+  it("migration defines the card-event outbox trigger (payment.card.*)", () => {
+    expect(migrations).toMatch(/tg_emit_pos_card_fsm_event/);
+    expect(migrations).toMatch(/trg_emit_pos_card_fsm_event/);
+    for (const t of [
+      "payment.card.authorized",
+      "payment.card.captured",
+      "payment.card.voided",
+      "payment.card.reversed",
+    ]) {
+      expect(migrations, `missing topic ${t}`).toContain(t);
+    }
+  });
+
+  it("CardPaymentActions exists and goes only through cardTerminal.* (no direct pos_card_* RPC)", () => {
+    const p = join(REPO, "src/components/pos/transaction-detail/CardPaymentActions.tsx");
+    const s = readFileSync(p, "utf8");
+    expect(s).toMatch(/cardTerminal\.(capture|void|reverse)\(/);
+    expect(s, "must not call pos_card_* RPCs directly").not.toMatch(
+      /["']pos_card_(authorize|capture|void|reverse)["']/,
+    );
+  });
 });
+
 
