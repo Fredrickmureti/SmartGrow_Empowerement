@@ -52,6 +52,22 @@ export interface POSSetting {
   updated_at: string;
 }
 
+export type POSTenderKind =
+  | "cash"
+  | "card"
+  | "wallet"
+  | "voucher"
+  | "credit_liability"
+  | "ar_credit"
+  | "bank"
+  | "other";
+
+export type POSCaptureMode =
+  | "immediate"
+  | "two_step"
+  | "external_lookup"
+  | "deferred";
+
 export interface POSPaymentMethod {
   id: string;
   organization_id: string;
@@ -63,6 +79,14 @@ export interface POSPaymentMethod {
   icon: string | null;
   sort_order: number;
   debit_account_id: string | null;
+  // Phase B (Wave 2): capability metadata — extensibility contract.
+  // Drives tender-panel selection, GL routing, and card FSM behavior
+  // WITHOUT method-key string comparisons in the UI.
+  tender_kind: POSTenderKind;
+  capture_mode: POSCaptureMode;
+  requires_terminal: boolean;
+  provider_key: string | null;
+  settlement_gl_account_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -71,13 +95,14 @@ export interface POSPaymentMethod {
 // the DB CHECK pos_payment_methods_enabled_requires_account would reject it.
 // Enabling a method is an explicit accounting decision the user makes from the UI.
 const DEFAULT_PAYMENT_METHODS: Omit<POSPaymentMethod, "id" | "organization_id" | "created_at" | "updated_at">[] = [
-  { method_key: "cash", display_name: "Cash", is_enabled: false, requires_reference: false, icon: "Banknote", sort_order: 1, debit_account_id: null, branch_id: null },
-  { method_key: "card", display_name: "Card", is_enabled: false, requires_reference: true, icon: "CreditCard", sort_order: 2, debit_account_id: null, branch_id: null },
-  { method_key: "mobile_money", display_name: "Mobile Money", is_enabled: false, requires_reference: true, icon: "Smartphone", sort_order: 3, debit_account_id: null, branch_id: null },
-  { method_key: "bank_transfer", display_name: "Bank Transfer", is_enabled: false, requires_reference: true, icon: "Building", sort_order: 4, debit_account_id: null, branch_id: null },
-  { method_key: "voucher", display_name: "Check/Voucher", is_enabled: false, requires_reference: true, icon: "FileText", sort_order: 5, debit_account_id: null, branch_id: null },
-  { method_key: "credit", display_name: "Store Credit", is_enabled: false, requires_reference: false, icon: "Wallet", sort_order: 6, debit_account_id: null, branch_id: null },
+  { method_key: "cash",          display_name: "Cash",          is_enabled: false, requires_reference: false, icon: "Banknote",    sort_order: 1, debit_account_id: null, branch_id: null, tender_kind: "cash",             capture_mode: "immediate",        requires_terminal: false, provider_key: null,    settlement_gl_account_id: null },
+  { method_key: "card",          display_name: "Card",          is_enabled: false, requires_reference: true,  icon: "CreditCard",  sort_order: 2, debit_account_id: null, branch_id: null, tender_kind: "card",             capture_mode: "two_step",         requires_terminal: true,  provider_key: null,    settlement_gl_account_id: null },
+  { method_key: "mobile_money",  display_name: "Mobile Money",  is_enabled: false, requires_reference: true,  icon: "Smartphone",  sort_order: 3, debit_account_id: null, branch_id: null, tender_kind: "wallet",           capture_mode: "external_lookup",  requires_terminal: false, provider_key: "mpesa", settlement_gl_account_id: null },
+  { method_key: "bank_transfer", display_name: "Bank Transfer", is_enabled: false, requires_reference: true,  icon: "Building",    sort_order: 4, debit_account_id: null, branch_id: null, tender_kind: "bank",             capture_mode: "external_lookup",  requires_terminal: false, provider_key: null,    settlement_gl_account_id: null },
+  { method_key: "voucher",       display_name: "Check/Voucher", is_enabled: false, requires_reference: true,  icon: "FileText",    sort_order: 5, debit_account_id: null, branch_id: null, tender_kind: "voucher",          capture_mode: "immediate",        requires_terminal: false, provider_key: null,    settlement_gl_account_id: null },
+  { method_key: "credit",        display_name: "Store Credit", is_enabled: false, requires_reference: false, icon: "Wallet",      sort_order: 6, debit_account_id: null, branch_id: null, tender_kind: "credit_liability", capture_mode: "deferred",         requires_terminal: false, provider_key: null,    settlement_gl_account_id: null },
 ];
+
 
 // Legacy settings adapter - converts old format to new format
 function adaptLegacySettings(stored: Record<string, unknown>): ExtendedReceiptSettings {

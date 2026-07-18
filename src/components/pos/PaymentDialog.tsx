@@ -129,6 +129,18 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
 
   const selectedMethodConfig = enabledPaymentMethods.find(m => m.method_key === selectedMethod);
 
+  // Phase B (Wave 2): route by catalog capability metadata — no method_key
+  // string comparisons. Adding a new tender is a migration + optional panel,
+  // never a PaymentDialog edit. See docs/architecture/POS_CHECKOUT_ENGINE.md.
+  const cashMethod          = enabledPaymentMethods.find(m => m.tender_kind === "cash");
+  const creditLiabilityMethod = enabledPaymentMethods.find(m => m.tender_kind === "credit_liability");
+  const mpesaWalletMethod   = enabledPaymentMethods.find(
+    m => m.tender_kind === "wallet" && m.provider_key === "mpesa",
+  );
+  const selectedTenderKind  = selectedMethodConfig?.tender_kind;
+  const selectedCaptureMode = selectedMethodConfig?.capture_mode;
+  const selectedProviderKey = selectedMethodConfig?.provider_key;
+
   // Split payment is only meaningful when the register actually offers more
   // than one payment method. Splitting a pure-cash sale across two cash lines
   // is not a real workflow and has historically masked tender-modeling bugs.
@@ -139,22 +151,24 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
 
     const paymentAmount = parseFloat(amount);
 
-    // If mobile_money is selected and M-Pesa is configured, trigger STK push modal
-    if (selectedMethod === "mobile_money" && isMpesaEnabled) {
+    // Wallet tenders backed by a real provider go through the gateway
+    // instead of a manual reference — the provider returns the vendor
+    // receipt that satisfies the requires_reference contract server-side.
+    if (selectedTenderKind === "wallet" && selectedProviderKey === "mpesa" && isMpesaEnabled) {
       setSplitMpesaAmount(paymentAmount);
       setShowSplitMpesaModal(true);
       return;
     }
 
-    // Validate customer for credit payments
-    if (selectedMethod === "credit" && !hasCustomer) {
+    // Credit-liability tenders (Store Credit / customer account) need a
+    // named customer so A/R has a party to bill.
+    if (selectedTenderKind === "credit_liability" && !hasCustomer) {
       toast.error("Please select a customer before using Store Credit");
       return;
     }
 
-    // Enforce reference for clearing-account methods (card, bank transfer,
-    // voucher, mobile money manual). Without it, downstream bank-statement
-    // reconciliation cannot match the POS line to the settlement deposit.
+    // Reference contract is catalog-driven. Server also enforces it via
+    // pos_validate_payment_line, but we fail fast in the UI.
     if (selectedMethodConfig?.requires_reference && !reference.trim()) {
       toast.error(`A reference is required for ${selectedMethodConfig.display_name} so finance can reconcile this payment.`);
       return;
@@ -175,6 +189,7 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     setReference("");
   };
 
+
   const handleRemovePayment = (index: number) => {
     setPayments(payments.filter((_, i) => i !== index));
   };
@@ -185,13 +200,14 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     // if they leave it blank we assume they collected exact cash. Any
     // overage becomes change_given. We never clamp `tendered` to the total;
     // doing so would silently lose the 20,000-bill / 19,000-sale case.
+    if (!cashMethod) return;
     const applied = cashRoundingSettings.enabled ? roundedEffectiveTotal : effectiveTotal;
     const parsed = parseFloat(cashTendered);
     const tendered = Number.isFinite(parsed) && parsed >= applied ? parsed : applied;
     const changeGiven = Math.max(0, tendered - applied);
     onComplete([
       {
-        method: "cash",
+        method: cashMethod.method_key,
         amount: applied,
         tendered_amount: tendered,
         change_given: changeGiven,
@@ -199,6 +215,7 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     ]);
     resetForm();
   };
+
 
   const handleSplitPayment = () => {
     if (totalApplied < effectiveTotal) return;
@@ -226,10 +243,12 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
   };
 
   // Full M-Pesa payment (pay entire amount). M-Pesa never returns change —
-  // the gateway authorizes the exact requested amount.
+  // the gateway authorizes the exact requested amount. Method key comes
+  // from the wallet+mpesa catalog row.
   const handleMpesaSuccess = (receiptNumber: string) => {
+    if (!mpesaWalletMethod) return;
     onComplete([{
-      method: "mobile_money",
+      method: mpesaWalletMethod.method_key,
       amount: effectiveTotal,
       tendered_amount: effectiveTotal,
       change_given: 0,
@@ -240,10 +259,11 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
 
   // Split M-Pesa payment (pay partial amount)
   const handleSplitMpesaSuccess = (receiptNumber: string) => {
+    if (!mpesaWalletMethod) return;
     setPayments([
       ...payments,
       {
-        method: "mobile_money",
+        method: mpesaWalletMethod.method_key,
         amount: splitMpesaAmount,
         tendered_amount: splitMpesaAmount,
         change_given: 0,
@@ -254,6 +274,7 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     setAmount("");
     setSplitMpesaAmount(0);
   };
+
 
   const handleMpesaClick = () => {
     setShowMpesaModal(true);
@@ -285,13 +306,12 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
 
   const quickAmounts = getQuickAmounts();
 
-  // Check if cash is an enabled payment method
-  const isCashEnabled = enabledPaymentMethods.some(m => m.method_key === "cash");
-
-  // Check if credit/store credit is an enabled payment method
-  const isCreditEnabled = enabledPaymentMethods.some(m => m.method_key === "credit");
+  // Catalog-driven capability flags — no method_key string checks.
+  const isCashEnabled   = Boolean(cashMethod);
+  const isCreditEnabled = Boolean(creditLiabilityMethod);
 
   const handleCreditQuickPay = () => {
+    if (!creditLiabilityMethod) return;
     if (!hasCustomer) {
       toast.error("Please select a customer before using Store Credit");
       return;
@@ -299,7 +319,7 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     const creditAmount = payments.length === 0 ? effectiveTotal : remaining;
     if (creditAmount <= 0) return;
     const creditLine: PaymentDialogPayment = {
-      method: "credit",
+      method: creditLiabilityMethod.method_key,
       amount: creditAmount,
       tendered_amount: creditAmount,
       change_given: 0,
@@ -311,6 +331,7 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
       setPayments([...payments, creditLine]);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -680,7 +701,8 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
             const newPayments: PaymentDialogPayment[] = [
               ...payments,
               {
-                method: "mobile_money",
+                method: mpesaWalletMethod?.method_key ?? "mobile_money",
+
                 amount,
                 tendered_amount: amount,
                 change_given: 0,
