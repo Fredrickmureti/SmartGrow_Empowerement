@@ -45389,6 +45389,50 @@ export type Database = {
           },
         ]
       }
+      purchase_order_revisions: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          purchase_order_id: string
+          reason: string | null
+          revised_at: string
+          revised_by: string | null
+          revision_number: number
+          snapshot: Json
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          purchase_order_id: string
+          reason?: string | null
+          revised_at?: string
+          revised_by?: string | null
+          revision_number: number
+          snapshot: Json
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          purchase_order_id?: string
+          reason?: string | null
+          revised_at?: string
+          revised_by?: string | null
+          revision_number?: number
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_revisions_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_orders: {
         Row: {
           approved_at: string | null
@@ -65421,6 +65465,15 @@ export type Database = {
         Args: { p_employee_id: string }
         Returns: undefined
       }
+      _emit_po_outbox: {
+        Args: {
+          _business_id: string
+          _payload: Json
+          _po_id: string
+          _state: string
+        }
+        Returns: undefined
+      }
       _emit_sourcing_outbox: {
         Args: {
           _actor: string
@@ -65723,6 +65776,49 @@ export type Database = {
       acknowledge_pack_upgrade_diff: {
         Args: { _proposal_id: string }
         Returns: Json
+      }
+      acknowledge_purchase_order: {
+        Args: { p_po_id: string; p_vendor_notes?: string }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          billing_status: string
+          branch_id: string | null
+          business_id: string
+          contract_id: string | null
+          converted_at: string | null
+          converted_bill_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          discount_amount: number | null
+          expected_date: string | null
+          id: string
+          is_sample_data: boolean
+          notes: string | null
+          order_date: string
+          organization_id: string
+          po_number: string
+          project_id: string | null
+          requisition_id: string | null
+          shipping_address: string | null
+          status: Database["public"]["Enums"]["po_status"]
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          vendor_confirmed_at: string | null
+          vendor_id: string
+          vendor_notes: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       activate_procurement_contract: {
         Args: { p_contract_id: string }
@@ -67329,6 +67425,49 @@ export type Database = {
         Args: { p_rec_id: string }
         Returns: undefined
       }
+      cancel_purchase_order: {
+        Args: { p_po_id: string; p_reason?: string }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          billing_status: string
+          branch_id: string | null
+          business_id: string
+          contract_id: string | null
+          converted_at: string | null
+          converted_bill_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          discount_amount: number | null
+          expected_date: string | null
+          id: string
+          is_sample_data: boolean
+          notes: string | null
+          order_date: string
+          organization_id: string
+          po_number: string
+          project_id: string | null
+          requisition_id: string | null
+          shipping_address: string | null
+          status: Database["public"]["Enums"]["po_status"]
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          vendor_confirmed_at: string | null
+          vendor_id: string
+          vendor_notes: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       cancel_qc_inspection: {
         Args: { p_inspection_id: string; p_reason?: string }
         Returns: {
@@ -67894,6 +68033,49 @@ export type Database = {
           p_shift_id: string
         }
         Returns: Json
+      }
+      close_purchase_order: {
+        Args: { p_po_id: string; p_reason?: string }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          billing_status: string
+          branch_id: string | null
+          business_id: string
+          contract_id: string | null
+          converted_at: string | null
+          converted_bill_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          discount_amount: number | null
+          expected_date: string | null
+          id: string
+          is_sample_data: boolean
+          notes: string | null
+          order_date: string
+          organization_id: string
+          po_number: string
+          project_id: string | null
+          requisition_id: string | null
+          shipping_address: string | null
+          status: Database["public"]["Enums"]["po_status"]
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          vendor_confirmed_at: string | null
+          vendor_id: string
+          vendor_notes: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       close_sourcing_event: { Args: { p_event_id: string }; Returns: undefined }
       complete_business_event: {
@@ -74387,6 +74569,49 @@ export type Database = {
         Args: { p_notes?: string; p_supplier_id: string }
         Returns: Json
       }
+      reject_purchase_order: {
+        Args: { p_po_id: string; p_reason: string }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          billing_status: string
+          branch_id: string | null
+          business_id: string
+          contract_id: string | null
+          converted_at: string | null
+          converted_bill_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          discount_amount: number | null
+          expected_date: string | null
+          id: string
+          is_sample_data: boolean
+          notes: string | null
+          order_date: string
+          organization_id: string
+          po_number: string
+          project_id: string | null
+          requisition_id: string | null
+          shipping_address: string | null
+          status: Database["public"]["Enums"]["po_status"]
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          vendor_confirmed_at: string | null
+          vendor_id: string
+          vendor_notes: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reject_qc_inspection: {
         Args: {
           p_disposition: string
@@ -75123,6 +75348,49 @@ export type Database = {
         Args: { p_decision: string; p_note?: string; p_request_id: string }
         Returns: Json
       }
+      revise_purchase_order: {
+        Args: { p_po_id: string; p_reason: string }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          billing_status: string
+          branch_id: string | null
+          business_id: string
+          contract_id: string | null
+          converted_at: string | null
+          converted_bill_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          discount_amount: number | null
+          expected_date: string | null
+          id: string
+          is_sample_data: boolean
+          notes: string | null
+          order_date: string
+          organization_id: string
+          po_number: string
+          project_id: string | null
+          requisition_id: string | null
+          shipping_address: string | null
+          status: Database["public"]["Enums"]["po_status"]
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          vendor_confirmed_at: string | null
+          vendor_id: string
+          vendor_notes: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       revoke_app_override: {
         Args: { p_app_id: string; p_org_id: string }
         Returns: Json
@@ -75472,6 +75740,49 @@ export type Database = {
       submit_profile_change_request: {
         Args: { p_field_key: string; p_new_value: Json; p_reason?: string }
         Returns: string
+      }
+      submit_purchase_order: {
+        Args: { p_po_id: string }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          billing_status: string
+          branch_id: string | null
+          business_id: string
+          contract_id: string | null
+          converted_at: string | null
+          converted_bill_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          discount_amount: number | null
+          expected_date: string | null
+          id: string
+          is_sample_data: boolean
+          notes: string | null
+          order_date: string
+          organization_id: string
+          po_number: string
+          project_id: string | null
+          requisition_id: string | null
+          shipping_address: string | null
+          status: Database["public"]["Enums"]["po_status"]
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          vendor_confirmed_at: string | null
+          vendor_id: string
+          vendor_notes: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       submit_requisition: { Args: { p_requisition_id: string }; Returns: Json }
       submit_supplier_qualification: {
