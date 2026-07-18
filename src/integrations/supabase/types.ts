@@ -45265,6 +45265,7 @@ export type Database = {
           quantity_billed: number
           quantity_received: number | null
           receipt_status: string
+          requisition_item_id: string | null
           sort_order: number | null
           task_id: string | null
           tax_amount: number | null
@@ -45289,6 +45290,7 @@ export type Database = {
           quantity_billed?: number
           quantity_received?: number | null
           receipt_status?: string
+          requisition_item_id?: string | null
           sort_order?: number | null
           task_id?: string | null
           tax_amount?: number | null
@@ -45313,6 +45315,7 @@ export type Database = {
           quantity_billed?: number
           quantity_received?: number | null
           receipt_status?: string
+          requisition_item_id?: string | null
           sort_order?: number | null
           task_id?: string | null
           tax_amount?: number | null
@@ -45371,6 +45374,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_order_items_requisition_item_id_fkey"
+            columns: ["requisition_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requisition_items"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "purchase_order_items_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
@@ -45401,6 +45411,7 @@ export type Database = {
           organization_id: string
           po_number: string
           project_id: string | null
+          requisition_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null
@@ -45434,6 +45445,7 @@ export type Database = {
           organization_id: string
           po_number: string
           project_id?: string | null
+          requisition_id?: string | null
           shipping_address?: string | null
           status?: Database["public"]["Enums"]["po_status"]
           submitted_at?: string | null
@@ -45467,6 +45479,7 @@ export type Database = {
           organization_id?: string
           po_number?: string
           project_id?: string | null
+          requisition_id?: string | null
           shipping_address?: string | null
           status?: Database["public"]["Enums"]["po_status"]
           submitted_at?: string | null
@@ -45544,6 +45557,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_orders_requisition_id_fkey"
+            columns: ["requisition_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requisitions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "purchase_orders_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
@@ -45551,6 +45571,237 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      purchase_requisition_approvals: {
+        Row: {
+          actor_user_id: string
+          comment: string | null
+          created_at: string
+          decision: string
+          id: string
+          requisition_id: string
+          step_order: number
+        }
+        Insert: {
+          actor_user_id: string
+          comment?: string | null
+          created_at?: string
+          decision: string
+          id?: string
+          requisition_id: string
+          step_order?: number
+        }
+        Update: {
+          actor_user_id?: string
+          comment?: string | null
+          created_at?: string
+          decision?: string
+          id?: string
+          requisition_id?: string
+          step_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_requisition_approvals_requisition_id_fkey"
+            columns: ["requisition_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requisitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_requisition_items: {
+        Row: {
+          contract_line_id: string | null
+          created_at: string
+          description: string
+          estimated_line_total: number | null
+          estimated_unit_price: number
+          id: string
+          need_by_date: string | null
+          notes: string | null
+          product_id: string | null
+          purchase_order_item_id: string | null
+          quantity: number
+          requisition_id: string
+          sort_order: number
+          status: string
+          suggested_supplier_id: string | null
+          uom_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          contract_line_id?: string | null
+          created_at?: string
+          description: string
+          estimated_line_total?: number | null
+          estimated_unit_price?: number
+          id?: string
+          need_by_date?: string | null
+          notes?: string | null
+          product_id?: string | null
+          purchase_order_item_id?: string | null
+          quantity?: number
+          requisition_id: string
+          sort_order?: number
+          status?: string
+          suggested_supplier_id?: string | null
+          uom_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contract_line_id?: string | null
+          created_at?: string
+          description?: string
+          estimated_line_total?: number | null
+          estimated_unit_price?: number
+          id?: string
+          need_by_date?: string | null
+          notes?: string | null
+          product_id?: string | null
+          purchase_order_item_id?: string | null
+          quantity?: number
+          requisition_id?: string
+          sort_order?: number
+          status?: string
+          suggested_supplier_id?: string | null
+          uom_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_requisition_items_contract_line_id_fkey"
+            columns: ["contract_line_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_contract_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_requisition_items_po_item_fk"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "po_three_way_match"
+            referencedColumns: ["po_item_id"]
+          },
+          {
+            foreignKeyName: "purchase_requisition_items_po_item_fk"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_requisition_items_po_item_fk"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_po_line_billed_progress"
+            referencedColumns: ["po_item_id"]
+          },
+          {
+            foreignKeyName: "purchase_requisition_items_requisition_id_fkey"
+            columns: ["requisition_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requisitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_requisition_items_suggested_supplier_id_fkey"
+            columns: ["suggested_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_requisitions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          branch_id: string | null
+          business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          closed_at: string | null
+          cost_center: string | null
+          created_at: string
+          currency: string
+          estimated_total: number
+          id: string
+          is_sample_data: boolean
+          justification: string | null
+          need_by_date: string | null
+          notes: string | null
+          organization_id: string
+          priority: string
+          project_id: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejected_reason: string | null
+          requester_id: string
+          requisition_number: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          branch_id?: string | null
+          business_id: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          closed_at?: string | null
+          cost_center?: string | null
+          created_at?: string
+          currency?: string
+          estimated_total?: number
+          id?: string
+          is_sample_data?: boolean
+          justification?: string | null
+          need_by_date?: string | null
+          notes?: string | null
+          organization_id: string
+          priority?: string
+          project_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
+          requester_id: string
+          requisition_number: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          branch_id?: string | null
+          business_id?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          closed_at?: string | null
+          cost_center?: string | null
+          created_at?: string
+          currency?: string
+          estimated_total?: number
+          id?: string
+          is_sample_data?: boolean
+          justification?: string | null
+          need_by_date?: string | null
+          notes?: string | null
+          organization_id?: string
+          priority?: string
+          project_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
+          requester_id?: string
+          requisition_number?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       purchase_return_items: {
         Row: {
@@ -65907,6 +66158,7 @@ export type Database = {
           organization_id: string
           po_number: string
           project_id: string | null
+          requisition_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null
@@ -65925,6 +66177,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      approve_requisition: {
+        Args: { p_comment?: string; p_requisition_id: string }
+        Returns: Json
       }
       approve_sales_return_atomic: {
         Args: { p_return_id: string; p_user_id: string }
@@ -66762,6 +67018,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      cancel_requisition: {
+        Args: { p_reason?: string; p_requisition_id: string }
+        Returns: Json
       }
       cancel_scheduled_organization_deletion: {
         Args: { p_org_id: string }
@@ -73782,6 +74042,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reject_requisition: {
+        Args: { p_reason: string; p_requisition_id: string }
+        Returns: Json
+      }
       reject_supplier_qualification: {
         Args: { p_notes: string; p_qualification_id: string }
         Returns: Json
@@ -74819,6 +75083,7 @@ export type Database = {
         Args: { p_field_key: string; p_new_value: Json; p_reason?: string }
         Returns: string
       }
+      submit_requisition: { Args: { p_requisition_id: string }; Returns: Json }
       submit_supplier_qualification: {
         Args: { p_payload?: Json; p_supplier_id: string }
         Returns: Json
