@@ -1,116 +1,81 @@
+# Warehouse Ownership & Domain Boundary — Audit Verdict + Redesign Plan
 
-# Procurement Reconstruction — Verification & Continuation Plan
+## 1. First-principles verdict
 
-**Status (2026-07-18): CLOSED.** All batches A–N landed on the live DB.
-Consolidated verdict: `docs/audit/procurement-verdict.md`.
+In every mature ERP (SAP S/4 + EWM, Oracle SCM + WMS, D365 SCM, NetSuite, Odoo Enterprise, Infor/Manhattan WMS) the pattern is identical:
 
+- **Warehouse identity** (the facility, its code, address, branch, activation, docks, zones, bins) is **enterprise/organisational master data**, authored in the WMS / logistics-structure module.
+- **Inventory** is a *consumer* of that master data. Inventory owns quantity, valuation, lots, movements — never the facility record itself.
+- **Warehouse Operations** (tasks, waves, picks, packs, appointments, LPNs) live above the facility, in WMS.
+- **Cycle counting** is universally split: WMS performs *scan-first execution* (sessions, blind counts, recounts on the floor); Inventory owns *variance approval + adjustment posting* because only Inventory may mutate stock state.
 
-## Phase 1 — Verification of prior work (done in this turn)
+Applied to our codebase:
 
-Re-ran the pre-plan reads the previous engineer left in `.lovable/plan.md §5`. Nothing is asserted below that a query did not confirm.
+- `warehouses` table = enterprise master data → **canonical owner: Warehouse app**.
+- `stock_locations`, `stock_transfers`, `stock_quants`, `stock_movements` = inventory state → **canonical owner: Inventory app** (already correct per ADR-0079).
+- `wms_*` tables = operational execution → **Warehouse app** (already correct).
+- Cycle count split (`wms_count_sessions` in Warehouse, `physical_counts` in Inventory) = the textbook WMS↔Inventory boundary → **already correct, keep and formalise**.
 
-### Confirmed correct
+## 2. What the audit actually found
 
-- **All 12 canonical RPCs present** on the live DB: `approve_purchase_order`, `receive_inbound_shipment`, `create_goods_receipt`, `match_bill_atomic`, `match_bill_with_landed_cost`, `confirm_bill_atomic`, `record_bill_payment_atomic`, `post_journal_entry_atomic`, `void_journal_entry_atomic`, `sync_po_line_billed_quantities`, `apply_vendor_credit_atomic`. Feature batches A–H are landed.
-- **43 SoD conflict rows** in `governance_sod_conflicts`; the 6 procurement duties `po.approve`, `asn.manage`, `grn.receive`, `bill.approve`, `bill.match`, `supplier_terms.manage` are all present.
-- **ADR-0079 party-vs-role holds**: every procurement document (`purchase_orders`, `bills`, `rfq_vendors`, `purchase_returns`, `vendor_credit_notes`) keys off `vendor_id → contacts.id`. No `supplier_id` FK leaked into transactional tables.
-- **H+1 code fix survived**: `SupplierCreatePage.tsx` seeds currency from `currentBusiness.base_currency` inside a `useEffect` (lines 50–56).
-- **Studio inventory**: 0 `entity_field_configs` for `supplier`, 1 each for `contact` and `estimate` — matches §3 row 6.
-- **Architecture guard tests exist**: `src/test/architecture/procurement.test.ts`, `purchases-branch-scope.test.ts`, `purchases-branch-id-stamping.test.ts`, `purchases-record-dialog-ban.test.ts`.
+Reads confirmed the following state (not opinion):
 
-### Confirmed still open (matches §1.3)
+1. **Duplicated route surface.** `src/apps/inventory/routes.tsx` lines 136–182 and `src/apps/warehouse/routes.tsx` lines 69–100 both expose `warehouses`, `warehouses/new`, `warehouses/:id`, `warehouses/:id/edit`, wired to the *same* page modules under `src/pages/inventory/` (`WarehouseNew`, `WarehouseEdit`, `WarehouseView`) and `src/pages/Warehouses`. That is why "Add Warehouse" in the Warehouse app *appears* to jump to Inventory — it doesn't; it renders the same component. The confusion is real but structural, not behavioural.
+2. **Nav duplicated.** `INVENTORY_NAV` (`src/apps/inventory/nav.ts:59`) and `WAREHOUSE_NAV` (`src/apps/warehouse/nav.ts:42`) both list "Warehouses" as master data. Two doors, one room.
+3. **Inventory app also exposes Transfers (`/inventory-app/transfers`)** — this is correct (transfers are inventory movements, not warehouse execution) and stays put. The user's mention of "Active Transfers / Stock Transfers under Inventory" is expected inventory behaviour.
+4. **Page files physically live under `src/pages/inventory/Warehouse{New,Edit,View}.tsx`** — a naming leftover from before ADR-0079. Warehouse routes import them from there (`src/apps/warehouse/routes.tsx:19-21`), which is the deepest reason ownership *looks* fragmented.
+5. **ADR-0079 already declared the split** (Inventory owns quants/valuation; Warehouse owns physical execution) but the master-data ownership question was left ambiguous — it said `stock_locations` is "shared, owned by Inventory schema, authored via Warehouse UI" but never made the same explicit call for the `warehouses` table itself.
+6. **Cycle counts are not duplicated.** `src/pages/warehouse/CycleCounts.tsx` + `CountSession.tsx` + `CountReview.tsx` operate on `wms_count_sessions` (scan-first execution). `src/apps/inventory` "Counts / Physical Count Workspace" operate on `physical_counts` and post adjustments via inventory RPCs. Two capabilities, one lifecycle — WMS session → emits event → Inventory posts. This is the enterprise pattern; **preserve it**.
 
-- **G1** `apply_vendor_credit_note_atomic` missing from `pg_proc`.
-- **G2** `governance_duties.credit.approve` and `credit.apply` missing.
-- **G3 / G4** Supplier record page has no Finance-defaults section and no Contact custom-field slot.
+## 3. Decision
 
-### New findings the previous plan under-specified
+**Warehouse master data (the `warehouses` row and its facility-level configuration) is owned by the Warehouse app.** Inventory becomes a read-only consumer. This aligns with SAP EWM, Oracle WMS, D365 SCM and matches ADR-0079's spirit.
 
-1. **`apply_vendor_credit_atomic` already exists** and single-bill VCN application already runs through it (see `src/lib/purchases/applyVendorCredit.ts`, `useVendorCreditNotes.ts`, and `docs/PURCHASES_AUDIT.md §4.6`). Batch I-Deferred is therefore an **upgrade to FIFO multi-bill + outbox emission + dedicated SoD duties**, not a from-scratch build. The old RPC must be **removed in the same migration** so we don't ship two VCN-application code paths (architectural drift is one of the parent prompt's red lines).
-2. **Bill balance column mismatch.** Plan §5 references `bills.balance_due`; that column does not exist. `bills` has `total` + `amount_paid`; remaining balance is `total - amount_paid`. The Batch I-Deferred RPC contract below uses that instead.
-3. **`vendor_credit_notes.status` is `text`, not an enum.** A status guard (draft → approved → applied/void) must be enforced by trigger or CHECK inside Batch I-Deferred; otherwise the FIFO RPC can be called on a draft.
-4. **Callers must be migrated in the same batch.** Deleting `apply_vendor_credit_atomic` without updating `src/lib/purchases/applyVendorCredit.ts` and `src/hooks/useVendorCreditNotes.ts` in the same turn breaks the VCN application UI. Batch I-Deferred is (migration + client rewrite + architecture-guard update), not migration-only.
-5. **PURCHASES_AUDIT §7 P3 constraints never landed.** Cross-table triggers (`bill.branch_id ∈ bill.business_id`, `bill.purchase_order_id.business_id = bill.business_id`, VCN↔bill business equality) are still enforced only at the app layer. Adding them as DB constraints belongs in the hardening arc. **Appending as new Batch N-Constraints, queued after Batch M.**
+**Cycle Counts stay split as-is.** Warehouse = execution surface; Inventory = adjustment authority. Document the contract; do not merge.
 
-## Phase 2 — Plan status after verification
+## 4. Plan (execution)
 
-The existing roadmap (§2 of `.lovable/plan.md`) is fundamentally correct. Adjustments:
+### Batch W1 — Codify the decision (ADR)
+- New `docs/adr/0080-warehouse-master-data-ownership.md`: declares Warehouse app as canonical author of `warehouses` rows; Inventory holds a read-only badge/link; `stock_locations` continues per ADR-0079; cycle-count split formalised with the event contract (`warehouse.count.session.completed` → inventory posts).
 
-- Batches A–H, H-Verify, Phase 1, Phase 2, H+1, H+2, H+3, H+4 — verified complete, no rework.
-- Batch I-Deferred contract is rewritten below to reflect findings 1–4.
-- Batch N-Constraints appended (finding 5).
-- Chronological order preserved: **I-Deferred → K-Retire → L → M → N-Constraints**.
+### Batch W2 — Consolidate the master-data pages under Warehouse
+- Move `src/pages/inventory/Warehouse{New,Edit,View,Form}.tsx` → `src/pages/warehouse/Warehouse{New,Edit,View,Form}.tsx`. Move `src/pages/Warehouses.tsx` → `src/pages/warehouse/WarehousesList.tsx`.
+- Update all imports (both `src/apps/warehouse/routes.tsx` and any strays). No behavioural change to the components themselves — this is a namespace move so ownership is enforceable by directory.
 
-## Phase 3 — Execution
+### Batch W3 — Retire duplicate Inventory routes/nav for Warehouses
+- `src/apps/inventory/routes.tsx`: replace `warehouses`, `warehouses/new`, `warehouses/:id`, `warehouses/:id/edit` with `<Navigate to="/warehouse-app/warehouses[...]" replace />` (deep-link preserving, same pattern ADR-0079 already used for `/inventory-app/warehouses/*`).
+- `src/apps/inventory/nav.ts`: drop the "Warehouses" nav item from the Setup group. Keep "Transfers" (correctly Inventory).
+- Anywhere in Inventory pages that links to `/inventory-app/warehouses/*`, update to `/warehouse-app/warehouses/*` (grep for `/inventory-app/warehouses`).
 
-Resume at **Batch I-Deferred** (the last genuinely-completed milestone is H+4). Do not open unrelated procurement work.
+### Batch W4 — Inventory read-only consumer surface
+- In Inventory Overview / Stock filters where a warehouse chip appears, keep the chip but change any "manage warehouses" link to point at `/warehouse-app/warehouses`. Inventory never renders create/edit affordances for facilities.
 
-### Batch I-Deferred — Vendor Credit Note FIFO (next milestone)
+### Batch W5 — Cycle count contract, made explicit
+- Add a short section to ADR 0080 describing the current event: `wms_count_sessions` completion emits `warehouse.count.session.completed` → the Inventory posting workflow consumes it into `physical_counts` (variance review + adjustment post).
+- Add a UI callout on `/warehouse-app/counts` ("Adjustments are posted by Inventory → open the Inventory review here") and on Inventory's Counts page ("Scan sessions live in Warehouse → open here"). One sentence each, hyperlinked. No logic change.
 
-Single migration + coordinated client rewrite + guard-test update, landed together.
+### Batch W6 — Guardrails (architecture tests)
+Extend `src/test/architecture/wms-phase1.test.ts` (or add `wms-phase-master-data.test.ts`) to assert:
+- No `src/pages/inventory/Warehouse*.tsx` files exist.
+- `src/apps/inventory/routes.tsx` contains no non-`Navigate` element for `path="warehouses*"`.
+- `src/apps/inventory/nav.ts` does not include `/inventory-app/warehouses`.
+- Every `warehouses`/`wms_*` create/update/delete originates from `src/pages/warehouse/**` or `src/hooks/useWarehouses.ts` (write helper); Inventory code is read-only.
 
-**Migration**
-- Add duties: `credit.approve`, `credit.apply` to `governance_duties`.
-- Add SoD conflicts: `credit.approve ↔ bill.approve`, `credit.apply ↔ credit.approve`, `credit.apply ↔ bill.match`.
-- Add status guard trigger on `vendor_credit_notes` restricting transitions to `draft → approved → applied|void` (and `approved → void`).
-- Create `apply_vendor_credit_note_atomic(p_credit_note_id uuid, p_bill_ids uuid[])`:
-  - `SECURITY DEFINER`, `SET search_path = public`.
-  - Locks credit note (`FOR UPDATE`); rejects unless `status='approved'` and `total - amount_applied > 0`.
-  - Restricts candidate bills to same `organization_id + business_id + vendor_id + currency`, `status IN ('received','partial')`, `total - amount_paid > 0`.
-  - **FIFO** = `due_date ASC NULLS LAST, created_at ASC`, intersected with `p_bill_ids` if provided (otherwise all eligible).
-  - For each bill: apply `min(credit_remaining, total - amount_paid)`; insert `vendor_credit_note_applications`; update `bills.amount_paid` and `bills.status` (`paid` when balance hits 0, else `partial`); decrement credit remaining.
-  - Sets `vendor_credit_notes.status = 'applied'` when fully consumed; keeps `approved` with `amount_applied > 0` when partial.
-  - Emits **one** `procurement.credit.applied` row to `business_event_outbox` with idempotency key `credit.applied:<credit_note_id>:<vcn.updated_at epoch>`. Payload lists per-bill allocations. **Never** writes `journal_entries`, `journal_entry_lines`, `stock_movements`, `cost_layers` (Finance subscribes via outbox — same contract as Sales domain).
-- **Drop `apply_vendor_credit_atomic`** in the same migration.
-- Rollback-marker smoke: seed 1 VCN + 3 bills → apply → assert FIFO order, idempotency (2nd call is no-op), SoD blocks approver applying, `__SMOKE_ROLLBACK_MARKER__` present, no rows in `journal_entries` from the RPC.
+### Batch W7 — Verify
+- `tsgo -p tsconfig.app.json`.
+- `bunx vitest run src/test/architecture`.
+- Manual: `/inventory-app/warehouses` redirects to `/warehouse-app/warehouses`; deep links (`/inventory-app/warehouses/<id>`) redirect to `/warehouse-app/warehouses/<id>`; sidebars each show Warehouses only in the Warehouse app; Cycle Counts still function on both sides.
 
-**Client rewrite (same turn as migration approval)**
-- `src/lib/purchases/applyVendorCredit.ts` → call new RPC with `(p_credit_note_id, p_bill_ids)`; drop the single-bill signature.
-- `src/hooks/useVendorCreditNotes.ts` → surface multi-bill selection; invalidate `bills`, `vendor_credit_notes`, `vendor_credit_note_applications`.
-- UI: extend the existing VCN apply dialog to allow multi-bill selection with a "FIFO auto-select" toggle.
-- `src/test/architecture/procurement.test.ts` → extend writer allow-list for `apply_vendor_credit_note_atomic` and remove `apply_vendor_credit_atomic`.
+## 5. What is explicitly NOT changing
+- `stock_locations`, `stock_transfers`, `stock_quants`, `stock_movements`, valuation, lots → remain Inventory.
+- WMS `wms_*` operational tables → remain Warehouse.
+- Cycle count *capabilities* on both sides → remain, contract formalised.
+- No DB schema changes. This is a pure ownership/navigation/module-boundary refactor plus one ADR.
 
-**Definition of done**
-- Both queries return rows: `SELECT 1 FROM pg_proc WHERE proname='apply_vendor_credit_note_atomic'` and `SELECT 1 FROM pg_proc WHERE proname='apply_vendor_credit_atomic'` returns **empty**.
-- `SELECT duty_code FROM governance_duties WHERE duty_code LIKE 'credit.%'` returns 2 rows.
-- Smoke migration idempotent; `procurement.test.ts` green.
-- `.lovable/plan.md §1.2 / §1.3` updated to close G1 + G2.
+## 6. Technical notes
+- Redirects use `<Navigate replace>` and must preserve `:id` and `edit` sub-paths. Use `useParams` inside a small `<InventoryWarehouseRedirect />` wrapper rather than four static routes, so `/edit`, `/new`, and `/:id` all forward cleanly.
+- `useWarehouses.ts` stays where it is; both apps continue to read from it (read-only in Inventory is a UI concern, not a hook concern).
+- Architecture tests use the same walk-src pattern as `wms-phase1.test.ts`.
 
-### Batch K-Retire — Supplier record page absorbs `/purchases/vendors`
+Awaiting approval before I switch to build mode and execute batches W1–W7.
 
-Blocked on I-Deferred. Scope:
-- Add **Finance Defaults** section to `SupplierRecordPage`: AP account, expense account, WHT rate, tax id, payment terms — writes back to the `contacts` row (party record, per ADR-0079).
-- Render Contact custom-field slot (`entity_field_configs.entity_type='contact'`) inside the Supplier record page.
-- Then delete `/purchases/vendors` route + nav entry.
-
-### Batch L — Playwright coverage
-
-- H+1 currency inheritance on supplier create.
-- H-Verify self-approval guard regression (bill approver ≠ bill creator).
-- K-Retire: `/vendors` no longer resolves; Supplier record page shows Finance Defaults + custom field.
-- I-Deferred happy path: 1 VCN → 3 bills → FIFO apply → outbox row present, `journal_entries` count unchanged by RPC (Finance saga writes it separately).
-
-### Batch M — Consolidated verdict doc
-
-- Publish `docs/audit/procurement-verdict.md`; flip Phase H+ to **CLOSED** in `.lovable/plan.md §1.2`.
-
-### Batch N-Constraints — DB-level cross-table integrity (new)
-
-Row-level triggers currently enforced only by app code + RLS (PURCHASES_AUDIT §7 P3):
-- `bill.branch_id.business_id = bill.business_id` (+ same for `purchase_orders`, `vendor_credit_notes`, `bill_payments`, `journal_entries`).
-- `bill.purchase_order_id.business_id = bill.business_id`.
-- `vendor_credit_note_applications`: `vcn.business_id = bill.business_id`.
-
-Live DB is already clean (PURCHASES_AUDIT §5); triggers only fire on future bad writes.
-
-## Technical guardrails (carry-forward from parent prompt)
-
-- No client-side GL. Procurement never inserts into `journal_entries`, `stock_movements`, or `cost_layers` directly — always via canonical RPC or outbox event.
-- No `supplier_id` FK on any transactional document (ADR-0079).
-- Every new public-schema table needs GRANTs in the same migration.
-- New RPCs are `SECURITY DEFINER` + `SET search_path = public` + `SoD-guarded`.
-- Any RPC that mutates `bills` or `vendor_credit_notes` must lock the target row `FOR UPDATE` before reading its state.
-
-## Out of scope for this arc
-
-Sourcing 2.0, Supplier Portal enhancements, WMS crossovers, Manufacturing hooks. Queued behind Batch N-Constraints.
