@@ -69,7 +69,15 @@ describe("wms phase 13 — RF/mobile shell architecture", () => {
 
   it("scan-driven flows (putaway/pick/count/receive) are all wired", () => {
     const routes = readFileSync(path.join(MOBILE, "routes.tsx"), "utf8");
-    for (const p of ["putaway/:id", "pick/:id", "count/:id", "receive/:id"]) {
+    for (const p of [
+      "putaway/:id",
+      "pick/:id",
+      "count/:id",
+      "receive/:id",
+      "pack/:packId",
+      "dispatch/:shipmentId",
+      "qc/:taskId",
+    ]) {
       expect(routes, `route missing: ${p}`).toContain(p);
     }
   });
