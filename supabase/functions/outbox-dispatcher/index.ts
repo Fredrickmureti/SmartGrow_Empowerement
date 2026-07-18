@@ -97,16 +97,6 @@ async function processOrg(orgId: string, batchSize = 25): Promise<{ ok: number; 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  // Simple shared-secret gate for the cron caller.
-  if (CRON_SECRET) {
-    const provided = req.headers.get("x-cron-secret") ?? "";
-    if (provided !== CRON_SECRET) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  }
 
   // Discover orgs with pending server-scope work. Cheap: distinct scan
   // filtered by index on (org_id, status). Cap orgs per tick to keep
