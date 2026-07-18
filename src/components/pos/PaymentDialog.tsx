@@ -26,8 +26,10 @@ import { resolvePaymentMethods, countReady } from "@/lib/pos/paymentMethodResolv
 import { cn } from "@/lib/utils";
 import { MpesaPaymentModal } from "./MpesaPaymentModal";
 import { MpesaC2BLookupModal } from "./MpesaC2BLookupModal";
+import { CardPaymentModal, type CardAuthPayload } from "./CardPaymentModal";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
+
 
 export interface PaymentDialogPayment {
   method: string;
