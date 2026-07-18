@@ -37,7 +37,9 @@ BEGIN
     'pos_transactions','pos_transaction_items','pos_transaction_payments',
     'pos_drawer_events','pos_cash_movements','pos_manager_overrides',
     -- Stage R1
-    'pos_held_transactions','pos_table_sessions','pos_cashier_registers','pos_floors'
+    'pos_held_transactions','pos_table_sessions','pos_cashier_registers','pos_floors',
+    -- Wave 3 · Phase 1 (payment sessions)
+    'pos_payment_sessions','pos_payment_session_tenders'
   ]
   LOOP
     IF NOT EXISTS (

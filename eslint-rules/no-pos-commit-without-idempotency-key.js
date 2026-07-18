@@ -1,21 +1,25 @@
 /**
  * no-pos-commit-without-idempotency-key
  *
- * ADR 0082 · Batch T2. Every call to `supabase.rpc("process_pos_transaction", ...)`
- * MUST pass a `p_idempotency_key` — the database trigger
- * `trg_pos_transactions_require_idempotency_key` rejects inserts without one,
- * and the previous `|| crypto.randomUUID()` fallback silently defeated
- * retry-collapse.
+ * ADR 0082 · Batch T2 + Wave 3 · Phase 1. Every call to the POS commit
+ * RPCs and the payment-session mutation RPCs MUST pass a
+ * `p_idempotency_key` — the underlying triggers and RPC guards reject
+ * inserts without one, and a `|| crypto.randomUUID()` fallback silently
+ * defeats retry-collapse.
  *
- * Detects the two forms we ship:
- *   supabase.rpc("process_pos_transaction", { ...payload })
- *   supabase.rpc("process_pos_transaction" as any, { ... })
- *
- * and reports if `p_idempotency_key` is absent from the payload object,
- * OR is a `||`/`??` fallback to `crypto.randomUUID()` / `uuid()`.
+ * Covered RPCs (all require `p_idempotency_key`):
+ *   - process_pos_transaction               (ADR 0082 · T2)
+ *   - pos_payment_session_open              (Wave 3 · P1)
+ *   - pos_payment_session_record_tender     (Wave 3 · P1)
  */
 
-function isProcessPosTransactionCall(node) {
+const GUARDED_RPCS = new Set([
+  "process_pos_transaction",
+  "pos_payment_session_open",
+  "pos_payment_session_record_tender",
+]);
+
+function isGuardedRpcCall(node) {
   if (node.type !== "CallExpression") return false;
   const callee = node.callee;
   if (
@@ -27,15 +31,14 @@ function isProcessPosTransactionCall(node) {
   }
   const first = node.arguments[0];
   if (!first) return false;
-  // "process_pos_transaction" or "process_pos_transaction" as any
-  const strNode =
-    first.type === "TSAsExpression" ? first.expression : first;
+  const strNode = first.type === "TSAsExpression" ? first.expression : first;
   return (
     strNode.type === "Literal" &&
     typeof strNode.value === "string" &&
-    strNode.value === "process_pos_transaction"
+    GUARDED_RPCS.has(strNode.value)
   );
 }
+
 
 function hasSafeIdempotencyKey(payloadNode) {
   if (!payloadNode || payloadNode.type !== "ObjectExpression") return false;
@@ -83,7 +86,7 @@ export default {
   create(context) {
     return {
       CallExpression(node) {
-        if (!isProcessPosTransactionCall(node)) return;
+        if (!isGuardedRpcCall(node)) return;
         const payload = node.arguments[1];
         const check = hasSafeIdempotencyKey(payload);
         if (check === false || (check && check.ok === false)) {
