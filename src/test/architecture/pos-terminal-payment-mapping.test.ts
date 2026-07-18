@@ -18,12 +18,15 @@ describe("POSTerminal payment mapping", () => {
   });
 
   it("forwards tendered_amount and change_given everywhere it builds a payment row", () => {
-    // Slice from handlePaymentComplete to the next top-level const/handler.
-    const start = code.indexOf("handlePaymentComplete");
-    expect(start).toBeGreaterThan(-1);
+    // Anchor on the actual declaration, not the first mention (which may be
+    // a comment reference higher in the file).
+    const declMatch = code.match(/const\s+handlePaymentComplete\s*=/);
+    expect(declMatch, "handlePaymentComplete declaration not found").toBeTruthy();
+    const start = declMatch!.index!;
     const tail = code.slice(start);
-    const end = tail.search(/\n\s{2}const\s+\w+\s*=\s*(?:async\s*)?\(/);
-    const region = end > -1 ? tail.slice(0, end) : tail;
+    const end = tail.slice(1).search(/\n\s{2}const\s+\w+\s*=\s*(?:async\s*)?\(/);
+    const region = end > -1 ? tail.slice(0, end + 1) : tail;
+
 
     // Every "method:" key inside this region (i.e. payment object literal)
     // must be matched by tendered_amount and change_given somewhere in the

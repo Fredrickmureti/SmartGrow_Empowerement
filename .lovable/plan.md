@@ -1,8 +1,66 @@
 # Wave 2 — Checkout & Transaction Engine
 
-## Audit summary (verified against the live DB and repo)
+## Status snapshot (2026-07-18)
+
+- ✅ **Phase A — Publish the audit.** `docs/architecture/POS_CHECKOUT_ENGINE.md`
+  is the shared vocabulary (17-event map, failure matrix, finance postings,
+  extensibility contract, verification checklist).
+- ✅ **Phase B — Payment method catalog extensibility.**
+  - Migration extends `pos_payment_methods` with `tender_kind`, `capture_mode`,
+    `requires_terminal`, `provider_key`, `settlement_gl_account_id` and
+    backfills the six seeded keys. CHECK constraints pin the vocabulary.
+  - New server-authoritative validator `pos_validate_payment_line(business_id,
+    method_key, payload)` enforces amount > 0, catalog-driven reference
+    contract, provider match, and (soft-in-B, hard-in-C) terminal auth.
+  - `_pos_record_payment` now runs the validator inside the sale transaction
+    so invalid tenders roll back atomically alongside the sale.
+  - `pos_transaction_payments` gains FSM columns
+    (`auth_state`, `auth_id`, `authorized_amount`, `vendor_txn_id`,
+    `capture_mode_used`, `tender_kind`) — pre-wired for Phase C.
+  - `PaymentDialog.tsx` refactored to route ONLY via catalog capabilities.
+    No `method_key === "cash|card|mobile_money|credit"` gates remain; cash /
+    credit / mpesa wallet method keys are resolved from the catalog.
+  - Arch guard `pos-payment-method-extensibility.test.ts` pins the contract
+    (no hardcoded method_key equality, catalog fields consulted, no
+    hardcoded `method: "..."` literals).
+  - Fixed pre-existing false-negative in `pos-terminal-payment-mapping.test.ts`
+    (anchored on declaration, not comment reference).
+- ⏳ **Phase D — Outbox worker as durable enterprise infra (T10).** NEXT.
+- ⏳ Phase E — Downstream sagas.
+- ⏳ Phase C — EMV / card FSM in the browser (DB layer already staged).
+- ⏳ Phase F — Return authorization / RMA.
+- ⏳ Phase G — Cash lifecycle hardening.
+
+## Handoff to the next agent
+
+1. **Verify Phase B before continuing.** Run the whole POS arch suite:
+   `bunx vitest run src/test/architecture/pos-` — all 15 files must be green.
+   Confirm the migration is live:
+   ```sql
+   SELECT method_key, tender_kind, capture_mode, requires_terminal, provider_key
+     FROM public.pos_payment_methods ORDER BY sort_order;
+   SELECT proname FROM pg_proc WHERE proname='pos_validate_payment_line';
+   ```
+   Confirm `_pos_record_payment` calls `pos_validate_payment_line` (see the
+   migration body for the definitive shape).
+2. **Do NOT jump to Phase C.** The roadmap order is
+   **A → B → D → E → C → F → G.** Phase D (durable outbox worker + DLQ) is
+   next because Phase E's downstream sagas would otherwise register on a
+   brittle browser-only worker.
+3. **Phase D scope** is spelled out below. Success criteria:
+   - `outbox-dispatcher` edge function claims + processes
+     `business_event_outbox` batches with exponential backoff.
+   - `business_event_outbox_dead` table + `handler_scope` column on
+     `business_event_topics` (`server|host`).
+   - `pg_cron` job invokes the dispatcher every 10 s.
+   - `BusinessSaga` in the browser is restricted to `host`-scoped topics
+     (drawer, printer).
+   - New arch guard verifies edge function + DLQ + cron job all exist.
+
+## Audit summary (Wave 1 baseline, kept for reference)
 
 **What works today (Wave 1 legacy carried over cleanly):**
+
 
 - **Atomic sale commit.** `process_pos_transaction` runs under
   `pg_advisory_xact_lock` per `(product, warehouse)`, calls

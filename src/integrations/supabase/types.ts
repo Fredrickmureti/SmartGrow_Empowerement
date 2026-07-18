@@ -38973,6 +38973,7 @@ export type Database = {
         Row: {
           branch_id: string | null
           business_id: string
+          capture_mode: string
           clearing_account_id: string | null
           created_at: string
           debit_account_id: string | null
@@ -38982,13 +38983,18 @@ export type Database = {
           is_enabled: boolean | null
           method_key: string
           organization_id: string
+          provider_key: string | null
           requires_reference: boolean | null
+          requires_terminal: boolean
+          settlement_gl_account_id: string | null
           sort_order: number | null
+          tender_kind: string
           updated_at: string
         }
         Insert: {
           branch_id?: string | null
           business_id: string
+          capture_mode?: string
           clearing_account_id?: string | null
           created_at?: string
           debit_account_id?: string | null
@@ -38998,13 +39004,18 @@ export type Database = {
           is_enabled?: boolean | null
           method_key: string
           organization_id: string
+          provider_key?: string | null
           requires_reference?: boolean | null
+          requires_terminal?: boolean
+          settlement_gl_account_id?: string | null
           sort_order?: number | null
+          tender_kind?: string
           updated_at?: string
         }
         Update: {
           branch_id?: string | null
           business_id?: string
+          capture_mode?: string
           clearing_account_id?: string | null
           created_at?: string
           debit_account_id?: string | null
@@ -39014,8 +39025,12 @@ export type Database = {
           is_enabled?: boolean | null
           method_key?: string
           organization_id?: string
+          provider_key?: string | null
           requires_reference?: boolean | null
+          requires_terminal?: boolean
+          settlement_gl_account_id?: string | null
           sort_order?: number | null
+          tender_kind?: string
           updated_at?: string
         }
         Relationships: [
@@ -39101,6 +39116,27 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_payment_methods_settlement_gl_account_id_fkey"
+            columns: ["settlement_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_payment_methods_settlement_gl_account_id_fkey"
+            columns: ["settlement_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "pos_payment_methods_settlement_gl_account_id_fkey"
+            columns: ["settlement_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -41218,8 +41254,12 @@ export type Database = {
       pos_transaction_payments: {
         Row: {
           amount: number
+          auth_id: string | null
+          auth_state: string | null
+          authorized_amount: number | null
           branch_id: string | null
           business_id: string
+          capture_mode_used: string | null
           card_last_four: string | null
           card_type: string | null
           change_given: number
@@ -41231,13 +41271,19 @@ export type Database = {
           processed_at: string | null
           reference: string | null
           status: string
+          tender_kind: string | null
           tendered_amount: number
           transaction_id: string
+          vendor_txn_id: string | null
         }
         Insert: {
           amount: number
+          auth_id?: string | null
+          auth_state?: string | null
+          authorized_amount?: number | null
           branch_id?: string | null
           business_id: string
+          capture_mode_used?: string | null
           card_last_four?: string | null
           card_type?: string | null
           change_given?: number
@@ -41249,13 +41295,19 @@ export type Database = {
           processed_at?: string | null
           reference?: string | null
           status?: string
+          tender_kind?: string | null
           tendered_amount?: number
           transaction_id: string
+          vendor_txn_id?: string | null
         }
         Update: {
           amount?: number
+          auth_id?: string | null
+          auth_state?: string | null
+          authorized_amount?: number | null
           branch_id?: string | null
           business_id?: string
+          capture_mode_used?: string | null
           card_last_four?: string | null
           card_type?: string | null
           change_given?: number
@@ -41267,8 +41319,10 @@ export type Database = {
           processed_at?: string | null
           reference?: string | null
           status?: string
+          tender_kind?: string | null
           tendered_amount?: number
           transaction_id?: string
+          vendor_txn_id?: string | null
         }
         Relationships: [
           {
@@ -67190,8 +67244,12 @@ export type Database = {
         Args: { _c2b_id: string; _pos_transaction_id: string }
         Returns: {
           amount: number
+          auth_id: string | null
+          auth_state: string | null
+          authorized_amount: number | null
           branch_id: string | null
           business_id: string
+          capture_mode_used: string | null
           card_last_four: string | null
           card_type: string | null
           change_given: number
@@ -67203,8 +67261,10 @@ export type Database = {
           processed_at: string | null
           reference: string | null
           status: string
+          tender_kind: string | null
           tendered_amount: number
           transaction_id: string
+          vendor_txn_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -74082,6 +74142,10 @@ export type Database = {
       pos_revoke_scanner_pairing: {
         Args: { p_register_id: string }
         Returns: number
+      }
+      pos_validate_payment_line: {
+        Args: { _business_id: string; _method_key: string; _payload: Json }
+        Returns: Json
       }
       post_count_session: { Args: { p_session_id: string }; Returns: Json }
       post_journal_entry_atomic: {
