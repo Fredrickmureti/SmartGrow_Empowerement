@@ -65788,11 +65788,45 @@ export type Database = {
         }[]
       }
       _pick_hq_branch: { Args: { _business_id: string }; Returns: string }
+      _pos_apply_lot_consumption: {
+        Args: {
+          _actor: string
+          _allocations: Json
+          _biz_id: string
+          _branch_id: string
+          _direction: string
+          _is_lot_tracked: boolean
+          _org_id: string
+          _packaging_id?: string
+          _product_id: string
+          _quantity: number
+          _txn_id: string
+          _txn_number: string
+          _unit_cost: number
+          _uom_id?: string
+          _warehouse_id: string
+        }
+        Returns: undefined
+      }
       _pos_assert_business_access: {
         Args: { _business: string; _org: string }
         Returns: undefined
       }
       _pos_build_receipt_snapshot: { Args: { p_tx_id: string }; Returns: Json }
+      _pos_insert_line: {
+        Args: { _payload: Json; _txn_id: string }
+        Returns: string
+      }
+      _pos_record_payment: {
+        Args: {
+          _biz_id: string
+          _branch_id: string
+          _org_id: string
+          _payload: Json
+          _txn_id: string
+        }
+        Returns: string
+      }
       _pos_resolve_branch_warehouse: {
         Args: {
           _biz_id: string
@@ -74231,13 +74265,13 @@ export type Database = {
       }
       process_pos_return: {
         Args: {
-          p_created_by?: string
+          p_created_by: string
           p_items: Json
-          p_notes?: string
+          p_notes: string
           p_organization_id: string
           p_original_transaction_id: string
-          p_override_id?: string
-          p_refund_method?: string
+          p_override_id: string
+          p_refund_method: string
           p_register_id: string
           p_shift_id: string
         }
@@ -74246,26 +74280,26 @@ export type Database = {
       process_pos_transaction: {
         Args: {
           p_business_id: string
-          p_cashier_id?: string
-          p_created_by?: string
-          p_customer_id?: string
-          p_customer_name?: string
-          p_customer_tin?: string
+          p_cashier_id: string
+          p_created_by: string
+          p_customer_id: string
+          p_customer_name: string
+          p_customer_tin: string
           p_discount_amount: number
-          p_idempotency_key?: string
+          p_idempotency_key: string
           p_items: Json
-          p_notes?: string
+          p_notes: string
           p_organization_id: string
-          p_original_transaction_id?: string
+          p_original_transaction_id: string
           p_payments: Json
           p_register_id: string
           p_shift_id: string
           p_subtotal: number
-          p_table_session_id?: string
+          p_table_session_id: string
           p_tax_amount: number
-          p_tip_amount?: number
+          p_tip_amount: number
           p_total: number
-          p_transaction_type?: string
+          p_transaction_type: string
         }
         Returns: Json
       }
