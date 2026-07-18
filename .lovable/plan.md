@@ -202,3 +202,18 @@ P0 → P3 lands the demand-to-commitment spine. P5 → P7 rebuilds fulfilment on
 - POS-side receiving (handled by WMS mobile).
 - Manufacturing procurement of components (later phase).
 - Multi-entity intercompany PO — deferred until entity model is finalised.
+
+---
+
+## Execution log
+
+### 2026-07-18 — P1 kickoff (Supplier Master shipped)
+- `.lovable/procurement-domain-audit.md` created.
+- Migration `procurement_p1_supplier_master`: 7 new tables (supplier_categories, suppliers, supplier_qualifications, supplier_qualification_documents, supplier_compliance_checks, supplier_bank_accounts, approved_supplier_list) with full GRANTs, business-scoped RLS via `user_has_business_access(auth.uid(), business_id)`, and `updated_at` triggers.
+- Backfill: every `contacts.type IN ('supplier','both')` now has a matching `suppliers` row (`lifecycle_state='approved'`, idempotent).
+- Lifecycle RPCs shipped: `submit_supplier_qualification`, `approve_supplier_qualification`, `reject_supplier_qualification`, `suspend_supplier`, `reinstate_supplier`. All `SECURITY DEFINER`, self-approval blocked, `supplier.*` events emitted to `business_event_outbox` with idempotency keys.
+
+### Next
+- P0 drift cleanup + land deferred `create_goods_receipt` WMS wrapper (14a.2).
+- P2 contracts schema.
+- Supplier 360 UI (once P1 is verified in preview).
