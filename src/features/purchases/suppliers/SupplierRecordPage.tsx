@@ -122,7 +122,7 @@ export default function SupplierRecordPage() {
   const [suspendReason, setSuspendReason] = useState("");
   const [busy, setBusy] = useState(false);
 
-  if (loading) return <LoadingState label="Loading supplier…" />;
+  if (loading) return <LoadingState />;
   if (error)
     return <ErrorState title="Failed to load supplier" description={error} />;
   if (!record)

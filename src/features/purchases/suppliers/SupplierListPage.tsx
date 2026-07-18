@@ -111,7 +111,7 @@ export default function SupplierListPage() {
         </FilterBar>
 
         {loading ? (
-          <LoadingState label="Loading suppliers…" />
+          <LoadingState />
         ) : error ? (
           <ErrorState title="Failed to load suppliers" description={error} />
         ) : filtered.length === 0 ? (
