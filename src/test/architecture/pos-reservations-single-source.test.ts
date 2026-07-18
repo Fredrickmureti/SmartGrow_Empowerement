@@ -31,13 +31,12 @@ function rgOrEmpty(pattern: string, ...paths: string[]): string[] {
 
 describe("POS reservations — stock_reservations is the single source", () => {
   it("no client-side writes into pos_stock_reservations", () => {
-    const hits = rgOrEmpty(
-      String.raw`from\(['"\`]pos_stock_reservations['"\`]\)`,
-      "src",
-    ).filter(
-      // .from('pos_stock_reservations').select(...) is fine (read-through
-      // view). Fail only on write-shaped calls that follow.
-      (line) => /\.(insert|update|upsert|delete)\s*\(/.test(line),
+    // Any line that both mentions the table name AND performs a
+    // write-shaped supabase-js call. rg pattern intentionally avoids
+    // backticks so bash JSON quoting stays valid.
+    const candidates = rgOrEmpty("pos_stock_reservations", "src");
+    const hits = candidates.filter((line) =>
+      /\.(insert|update|upsert|delete)\s*\(/.test(line),
     );
     expect(hits, `stray writes:\n${hits.join("\n")}`).toEqual([]);
   });
