@@ -243,4 +243,4 @@ What landed
 - Guards: new `pos-payment-method-extensibility.test.ts` (3 assertions) plus a fix to a pre-existing false-negative in `pos-terminal-payment-mapping.test.ts`. All 4 target POS arch guards green (14/14).
 - `.lovable/plan.md` updated with a status snapshot and a handoff block that pins the order A → B → D → E → C → F → G and points the next agent at Phase D (T10, outbox dispatcher + DLQ) with an explicit verification checklist.
 
-Ping me to proceed with Phase D.
+Ready to  proceed with Phase D.
