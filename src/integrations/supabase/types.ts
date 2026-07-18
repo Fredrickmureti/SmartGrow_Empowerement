@@ -53324,6 +53324,63 @@ export type Database = {
           },
         ]
       }
+      supplier_item_terms: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          currency_code: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          lead_time_days: number
+          min_order_qty: number
+          notes: string | null
+          preferred_rank: number
+          price_break_tiers: Json
+          product_id: string
+          supplier_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          lead_time_days?: number
+          min_order_qty?: number
+          notes?: string | null
+          preferred_rank?: number
+          price_break_tiers?: Json
+          product_id: string
+          supplier_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          lead_time_days?: number
+          min_order_qty?: number
+          notes?: string | null
+          preferred_rank?: number
+          price_break_tiers?: Json
+          product_id?: string
+          supplier_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       supplier_qualification_documents: {
         Row: {
           business_id: string
