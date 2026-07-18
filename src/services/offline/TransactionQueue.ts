@@ -286,6 +286,13 @@ class TransactionQueueService {
     let failed = 0;
 
     this.syncPromise = (async () => {
+      // Batch T2 — recover any rows the last process left in `syncing`
+      // before draining the queue. Safe because every RPC call carries
+      // the queued.id as idempotency key.
+      if (!this.recoveryDone) {
+        await this.recoverStuckSyncing();
+      }
+
       const pending = await this.getPendingTransactions();
       
       // Sort by creation time to maintain order
