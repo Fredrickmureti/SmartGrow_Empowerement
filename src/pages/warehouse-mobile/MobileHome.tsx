@@ -44,7 +44,7 @@ export default function MobileHome() {
       const { data, error } = await supabase
         .from("wms_count_sessions")
         .select("id, code, state")
-        .in("state", ["in_progress", "planned"])
+        .in("state", ["draft", "counting", "review"])
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
