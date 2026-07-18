@@ -820,7 +820,23 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
             }
           }}
         />
+
+        {/* Card Terminal Modal (Wave 2 · Phase C-2) */}
+        <CardPaymentModal
+          open={showCardModal}
+          onOpenChange={setShowCardModal}
+          amount={cardModalAmount}
+          captureMode={
+            (cardMethod?.capture_mode as "auth_only" | "auth_capture") ?? "auth_capture"
+          }
+          onSuccess={handleCardSuccess}
+          onCancel={() => {
+            setShowCardModal(false);
+            setCardModalAmount(0);
+          }}
+        />
       </DialogContent>
+
     </Dialog>
   );
 }
