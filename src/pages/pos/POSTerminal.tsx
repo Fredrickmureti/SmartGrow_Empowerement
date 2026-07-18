@@ -971,7 +971,7 @@ function POSTerminalInner() {
               // `_pos_record_payment` so the row starts in a legal state.
               card_last_four: p.card_last_four,
               card_type: p.card_type,
-              auth_state: p.auth_state,
+              auth_state: p.auth_state as "approved" | "captured" | undefined,
               auth_id: p.auth_id,
               vendor_txn_id: p.vendor_txn_id,
               authorized_amount: p.authorized_amount,
