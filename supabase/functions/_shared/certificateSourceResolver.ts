@@ -27,6 +27,15 @@ export interface CertificateTotals {
   employee: number;
   employer: number;
   taxable: number;
+  // Country-neutral aggregates derived from `payslip_lines.category`, so
+  // generic certificate templates (e.g. ANNUAL_EARNINGS_STATEMENT) can bind
+  // `totals.gross_pay` / `totals.deductions` / `totals.net_pay` without
+  // knowing any country-specific rule_codes. Reliefs (personal/insurance)
+  // are excluded from `deductions` because they are already netted inside
+  // PAYE in every pack; subtracting them again would double-count.
+  gross_pay: number;
+  deductions: number;
+  net_pay: number;
 }
 
 export interface CertificateProvenance {
@@ -78,10 +87,16 @@ export async function resolveCertificateYtd(params: {
       acc.employee += r.employee_amount;
       acc.employer += r.employer_amount;
       acc.taxable += r.taxable_amount;
+      const cat = r.category ?? "";
+      if (cat === "earning") acc.gross_pay += r.employee_amount;
+      if (cat === "statutory_employee" || cat === "deduction") {
+        acc.deductions += r.employee_amount;
+      }
       return acc;
     },
-    { employee: 0, employer: 0, taxable: 0 },
+    { employee: 0, employer: 0, taxable: 0, gross_pay: 0, deductions: 0, net_pay: 0 },
   );
+  totals.net_pay = totals.gross_pay - totals.deductions;
 
   // Provenance: capture the high-water mark of every run/payslip that fed
   // this employee's YTD projection for this fiscal year. Used by
