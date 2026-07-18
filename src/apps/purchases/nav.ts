@@ -16,6 +16,7 @@ import {
   Layers,
   Building2,
   FileSignature,
+  ClipboardList,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
@@ -27,6 +28,7 @@ export const PURCHASES_NAV: WorkspaceNav = {
         { to: "/purchases", label: "Overview", icon: LayoutGrid, end: true },
         { to: "/purchases/bills", label: "Bills", icon: Receipt },
         { to: "/purchases/rfqs", label: "RFQs", icon: FileQuestion },
+        { to: "/purchases/requisitions", label: "Requisitions", icon: ClipboardList },
         { to: "/purchases/orders", label: "Purchase orders", icon: ShoppingCart },
         { to: "/purchases/expenses", label: "Expenses", icon: Wallet },
         { to: "/purchases/returns", label: "Returns", icon: RotateCcw },
