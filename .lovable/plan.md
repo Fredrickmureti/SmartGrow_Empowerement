@@ -63,3 +63,23 @@ Batches E (P5 PO lifecycle + revisions + acknowledgement), F (P6 ASN / expected 
 
 Only Step 1 (Batch D-Verify smoke migration) plus any follow-up fixes it uncovers. Step 2 (Batch D.5) starts in the next turn once D-Verify is green — per the plan's own "no phase advances without a green smoke" rule.
 
+---
+
+## Execution log
+
+### Batch D-Verify ✅ LANDED (2026-07-18)
+
+Smoke migration applied and rolled back cleanly via `__SMOKE_ROLLBACK_MARKER__`. Drove create → open → score → self-close reject → close (user_b) → over-ceiling award reject → valid 50k award. Asserted:
+- `procurement_contracts.utilized_value` == 50000 post-valid-award and == 0 after the failed over-ceiling attempt.
+- ≥4 outbox rows for the event covering `procurement.sourcing.{created,opened,closed,awarded}`.
+- Awarded outbox idempotency key matches `procurement.sourcing.awarded:<event_id>:awarded`.
+- Reused Batch C-Verify fixtures (org, biz, user_a, user_b).
+
+**Non-obvious fix folded into the smoke** (apply to every future smoke):
+- `sourcing_events` has CHECK `closes_at > opens_at`, and `now()` is transaction-frozen inside a `DO` block. Pre-seed `opens_at = now() - interval '1 minute'` at create time so close's `COALESCE(closes_at, now())` still satisfies the constraint.
+- Expected-failure assertions live in inner `BEGIN … EXCEPTION WHEN OTHERS` blocks matching `SQLERRM ILIKE '%…%'`, so the outer smoke rollback handler doesn't swallow them.
+
+### Next pickup — Batch D.5 (Preferred suppliers & lead times)
+
+Spec unchanged from Step 2 above. Land the `supplier_item_terms` migration + phase-close smoke (insert / update / effective-window overlap rejection) before any Batch E work.
+
