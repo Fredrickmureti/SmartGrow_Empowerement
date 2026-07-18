@@ -128,15 +128,14 @@ export default function MobilePack() {
     try {
       let suggestedTypeId: string | null = null;
       if (task.business_id && remaining.length > 0) {
-        const { data: suggestion } = await supabase.rpc("suggest_carton", {
+        const sug = await enqueue<{ id?: string } | null>("suggest_carton", {
           p_business_id: task.business_id,
           p_product_ids: remaining.map((l) => l.product_id),
           p_quantities: remaining.map(
             (l) => (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0),
           ),
         });
-        const row = suggestion as { id?: string } | null;
-        if (row?.id) suggestedTypeId = row.id;
+        if (!sug.queued && sug.result?.id) suggestedTypeId = sug.result.id;
       }
       const openRes = await enqueue<string>("open_pack_carton", {
         p_wave_id: waveId!,
