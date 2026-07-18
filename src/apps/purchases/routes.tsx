@@ -433,6 +433,32 @@ export function PurchasesApp() {
           }
         />
 
+        {/* Contracts (P2 — procurement contracts workbench) */}
+        <Route
+          path="contracts"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Contracts"><ContractListPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="contracts/new"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Contract"><ContractCreatePage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="contracts/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Contract"><ContractRecordPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Vendors (legacy: filtered contacts). Retired at P11 workbench cutover. */}
         <Route
           path="vendors"
