@@ -50,10 +50,11 @@ Each batch ships as one migration + minimal code changes + an architecture test.
 - ESLint rule `local/no-pos-commit-without-idempotency-key` — registered and set to `error`.
 - Architecture test: `src/test/architecture/pos-mandatory-idempotency.test.ts` (4/4 green).
 
-### T3 — Unified reservations ⏳ NEXT
-- Migration: introduce `stock_reservations.source` enum incl. `pos`; backfill from `pos_stock_reservations`; deprecate the POS-specific table (view for compat during migration window).
-- `process_pos_transaction` reads/writes via `reserve_stock` / `release_stock`.
-- `usePOSStockReservation.ts` retargeted; drop parallel path.
+### T3 — Unified reservations ✅ SHIPPED (2026-07-18)
+- Migration: backfill `pos_stock_reservations` → `stock_reservations` (`source_type='pos'`, `source_id=register_id`), `DROP TABLE public.pos_stock_reservations CASCADE`, recreate `pos_stock_reservations` as a `security_invoker` compat view over `stock_reservations` (filtered to `source_type='pos'`, open, non-expired). `INSTEAD OF DELETE` trigger `trg_pos_stock_reservations_soft_delete` translates legacy `DELETE FROM pos_stock_reservations …` into `UPDATE stock_reservations SET released_at = now()` so `process_pos_transaction` and other legacy readers keep working with zero body changes.
+- RPCs rewritten to target `stock_reservations`: `reserve_pos_stock` (resolves warehouse from the open shift or default branch warehouse, collapses prior open POS holds per `register+product`, inserts with `source_type='pos'` + 15-min expiry), `release_pos_stock_reservation` (soft-release), `get_available_pos_stock` and `get_available_pos_stock_for_register` (aggregate open POS holds joined via `source_id → pos_registers.id`, branch-scoped, excluding self by default).
+- Client: `usePOSStockReservation.ts` (parallel path, unreferenced) removed; export dropped from `src/hooks/pos/index.ts`. `StockTab.tsx` collapsed to a single `stock_reservations` query — POS rows now surface with `source_type='pos'` instead of a separate branch, eliminating double-count risk.
+- Architecture test: `src/test/architecture/pos-unified-reservations.test.ts` (3/3 green). Combined T1+T2+T3 suite: 13/13 green.
 
 ### T4 — Pessimistic availability
 - Inside `process_pos_transaction`, replace the aggregate `SELECT` with a `SELECT … FOR UPDATE` over the relevant `stock_quants` rows before the movement insert. Add a concurrency test (two parallel commits, last-unit race).
