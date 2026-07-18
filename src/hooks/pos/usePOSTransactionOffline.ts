@@ -43,6 +43,13 @@ export interface PaymentMethod {
   reference?: string;
   card_last_four?: string;
   card_type?: string;
+  // Wave 2 · Phase C-2 — card FSM metadata captured by the terminal modal
+  // pre-commit. `_pos_record_payment` inserts the payment row with these
+  // fields so the FSM guard trigger validates the initial state.
+  auth_state?: "approved" | "captured";
+  auth_id?: string;
+  vendor_txn_id?: string;
+  authorized_amount?: number;
 }
 
 export interface CompleteTransactionData {
