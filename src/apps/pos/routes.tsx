@@ -133,6 +133,7 @@ function POSApp() {
         <Route path="kitchen" element={<KitchenDisplay />} />
         <Route path="bookings" element={<TableBookings />} />
         <Route path="reports" element={<POSReports />} />
+        <Route path="settlements" element={<CardSettlementReport />} />
         <Route path="settings" element={<POSSettings />} />
         {/* Wave 9b: hardware pages moved to /platform/hardware/*. App.tsx
             still maps the legacy /pos/hardware-* URLs via <Navigate>. */}
