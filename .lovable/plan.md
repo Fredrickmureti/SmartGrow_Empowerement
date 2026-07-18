@@ -1,5 +1,11 @@
 # WMS Handoff — Verification + Resume Plan
 
+## Progress (this session)
+- **14f QC** — landed. Seed extended (`wms_qc_hold_reasons` idempotent per business), `e2e/wms/qc.spec.ts` unskipped. Drives accept / reject(scrap) / cancel branches; asserts inspection terminal states, `stock_movements` row counts (open+accept=4, open+reject=4, open+cancel=2, cancel-only=0), and `warehouse.qc.opened|accepted|rejected|cancelled` outbox events with ADR-0076 `wms.qc.<id>:<state>` idempotency keys. Second cancel expected to throw (RPC is not idempotent by design).
+- **14a.2** deferred — not a blocker for 14f–14i; will fold into a housekeeping migration alongside 14i's snapshot dump.
+
+Next: 14g count spec.
+
 ## Verification of prior work (Phase 14a–14e)
 
 Independently checked against live `pg_proc`, migrations, and spec files:
