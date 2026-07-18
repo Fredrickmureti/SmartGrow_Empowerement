@@ -70,11 +70,18 @@ export class BusinessSaga {
     if (this.inFlight) return;
     this.inFlight = true;
     try {
+      // Wave 2 · Phase D: the browser saga is now the SECONDARY, host-only
+      // consumer. Server-scope events (loyalty, fiscal, analytics …) are
+      // drained by the `outbox-dispatcher` edge function on a pg_cron
+      // schedule. This tab only picks up events tied to physically-attached
+      // hardware (cash drawer, thermal printer) that must run on this host.
       const { data, error } = await supabase.rpc('claim_next_business_event', {
         p_org_id: this.orgId,
         p_limit: 5,
+        p_claimant: null,
         p_branch_id: this.branchId,
-      });
+        p_handler_scope: 'host',
+      } as never);
       if (error || !data) return;
       for (const row of data as OutboxRow[]) {
         await this.process(row);
