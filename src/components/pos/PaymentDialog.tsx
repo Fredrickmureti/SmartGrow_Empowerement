@@ -375,6 +375,16 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
   // Catalog-driven capability flags — no method_key string checks.
   const isCashEnabled   = Boolean(cashMethod);
   const isCreditEnabled = Boolean(creditLiabilityMethod);
+  const isCardEnabled   = Boolean(cardMethod);
+
+  const handleCardQuickPay = () => {
+    if (!cardMethod) return;
+    const amt = payments.length === 0 ? effectiveTotal : remaining;
+    if (amt <= 0) return;
+    setCardModalAmount(amt);
+    setCardModalMode(payments.length === 0 ? "full" : "split");
+    setShowCardModal(true);
+  };
 
   const handleCreditQuickPay = () => {
     if (!creditLiabilityMethod) return;
@@ -397,6 +407,7 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
       setPayments([...payments, creditLine]);
     }
   };
+
 
 
   return (
