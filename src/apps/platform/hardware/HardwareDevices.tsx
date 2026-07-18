@@ -42,6 +42,8 @@ import { runtimeCapability, type RuntimeCapability } from "@/services/hardware/H
 import type { DeviceRole } from "@/services/hardware/drivers/DriverInterface";
 import { useDeviceAssignments, type DeviceAssignment } from "@/hooks/useDeviceAssignments";
 import { DeviceRegistryCard } from "@/components/hardware/DeviceRegistryCard";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Cpu, Radar, ListChecks, PlugZap } from "lucide-react";
 
 const ROLE_LABELS: Record<string, { label: string; description: string }> = {
   receipt_printer: { label: "Receipt printer", description: "Customer receipt slips at sale commit." },
@@ -262,26 +264,309 @@ export function HardwareDevicesPage() {
   return (
     <div className="space-y-6 p-4 md:p-6" data-testid="hardware-devices-page">
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Hardware devices</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Bind printers, drawers, scales, and other peripherals to roles. Every test
-          dispatch flows through the audited hardware command router.
-        </p>
-        <p className="text-xs text-muted-foreground mt-2">
-          Something not behaving as expected? Open{" "}
-          <a href="/pos/hardware-diagnostics" className="underline">
-            hardware diagnostics
-          </a>{" "}
-          for a read-only snapshot of runtime, registries, and agent state.
-        </p>
+      {/* Compact page header + condensed runtime pill. Full runtime
+          self-report moved into the Runtime tab so the primary editor
+          surface is visible without scrolling. */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">Hardware devices</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Register peripherals, bind them to roles, and dispatch audited test commands.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="font-mono text-xs" data-testid="hardware-runtime-pill">
+            {capability
+              ? capability.runtime === 'electron' ? 'Desktop POS'
+                : capability.runtime === 'iot-agent' ? 'Local agent'
+                : capability.runtime === 'browser' ? 'Browser / PWA'
+                : 'Unsupported'
+              : 'Probing…'}
+          </Badge>
+          {capability?.warnings.length ? (
+            <Badge variant="outline" className="text-xs text-yellow-700 dark:text-yellow-400">
+              {capability.warnings.length} warning{capability.warnings.length === 1 ? '' : 's'}
+            </Badge>
+          ) : null}
+          <Button asChild size="sm" variant="outline">
+            <Link to="/platform/hardware/diagnostics">Diagnostics</Link>
+          </Button>
+        </div>
       </div>
 
-      {/* Runtime self-report (Wave 9d) — live capability probe.
-          Renders the actual transports the current runtime can use, plus
-          any operator-visible warnings (stale preload, agent unauthorized,
-          missing WebUSB, etc.). Replaces the static "browser mode" banner. */}
-      <Card data-testid="hardware-runtime-card">
+      {error && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-destructive">Failed to load assignments</CardTitle>
+            <CardDescription>{error.message}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => void refetch()}>Retry</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Tabs defaultValue="register" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid md:grid-cols-4">
+          <TabsTrigger value="register" data-testid="tab-register">
+            <PlugZap className="mr-2 h-4 w-4" /> Register
+          </TabsTrigger>
+          <TabsTrigger value="assignments" data-testid="tab-assignments">
+            <ListChecks className="mr-2 h-4 w-4" /> Assignments
+            <Badge variant="secondary" className="ml-2">{assignments.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="discover" data-testid="tab-discover">
+            <Radar className="mr-2 h-4 w-4" /> Discover
+          </TabsTrigger>
+          <TabsTrigger value="runtime" data-testid="tab-runtime">
+            <Cpu className="mr-2 h-4 w-4" /> Runtime
+          </TabsTrigger>
+        </TabsList>
+
+        {/* PRIMARY surface — the actual device editor is now the first
+            thing operators see. No scrolling past info cards. */}
+        <TabsContent value="register" className="space-y-4">
+          <DeviceRegistryCard registerId={undefined} />
+        </TabsContent>
+
+        <TabsContent value="assignments" className="space-y-4">
+          {!error && (
+            <div className="space-y-4">
+              {ROLE_ORDER.map((role) => {
+                const meta = ROLE_LABELS[role] ?? { label: role, description: "" };
+                const list = role === ("barcode_scanner" as DeviceRole)
+                  ? [...(byRole.get("scanner") ?? []), ...(byRole.get("barcode_scanner") ?? [])]
+                  : (byRole.get(role) ?? []);
+                const spec = TEST_OPS[role];
+                return (
+                  <Card key={role} data-testid={`role-card-${role}`}>
+                    <CardHeader className="flex flex-row items-start justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          {meta.label}
+                          <Badge variant={list.length > 0 ? "default" : "outline"}>
+                            {list.length > 0 ? `${list.length} assigned` : "unassigned"}
+                          </Badge>
+                          {role === "payment_terminal" && (
+                            <Link
+                              to="/pos/payment-terminals"
+                              className="text-xs underline text-primary"
+                              data-testid="configure-payment-terminal"
+                            >
+                              Configure provider
+                            </Link>
+                          )}
+                        </CardTitle>
+                        <CardDescription>{meta.description}</CardDescription>
+                      </div>
+                      {spec && list.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={Boolean(testing) || !electronAvailable}
+                          onClick={() => void handleTest(role)}
+                          data-testid={`test-${role}`}
+                          title={electronAvailable ? "Send a test dispatch" : "Open in the desktop POS client to send a test dispatch"}
+                        >
+                          Test
+                        </Button>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      {isLoading ? (
+                        <Skeleton className="h-12 w-full" />
+                      ) : list.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No device bound. Add one from the Register tab.
+                        </p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Transport</TableHead>
+                              <TableHead>Driver</TableHead>
+                              <TableHead>Scope</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Enabled</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {list.map((r) => (
+                              <TableRow key={r.id} data-testid={`assignment-row-${r.id}`}>
+                                <TableCell className="font-mono text-xs uppercase">{r.transport}</TableCell>
+                                <TableCell className="font-mono text-xs">{r.driver}</TableCell>
+                                <TableCell className="text-xs">
+                                  {r.scope_kind}
+                                  {r.scope_id ? `: ${r.scope_id.slice(0, 8)}…` : ""}
+                                </TableCell>
+                                <TableCell className="text-xs">
+                                  <Badge variant={r.status === "online" ? "default" : "outline"}>
+                                    {r.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={r.enabled ? "default" : "outline"}>
+                                    {r.enabled ? "yes" : "no"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={removing === r.id}
+                                    onClick={() => void handleRemove(r.id)}
+                                    data-testid={`remove-${r.id}`}
+                                  >
+                                    Remove
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="discover" className="space-y-4">
+          <Card data-testid="hardware-scan-card">
+            <CardHeader className="flex flex-row items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Scan for devices</CardTitle>
+                <CardDescription>
+                  {discoverAvailable
+                    ? "Enumerate USB and serial devices via the main process. Network broadcast discovery (mDNS) is not yet implemented — add network printers manually."
+                    : "Native discovery is only available in the desktop POS client. In the browser, use the Register tab — WebUSB and WebSerial will prompt you to pick devices."}
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!discoverAvailable || discovering}
+                onClick={() => void handleScan()}
+                data-testid="hardware-scan-button"
+              >
+                {discovering ? "Scanning…" : "Scan now"}
+              </Button>
+            </CardHeader>
+            {(discovery || discoveryError) && (
+              <CardContent className="space-y-4">
+                {discoveryError && (
+                  <p className="text-sm text-destructive">Scan failed: {discoveryError}</p>
+                )}
+                {discovery && (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium mb-2">USB ({discovery.usb.length})</p>
+                      {discovery.usb.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No USB devices detected.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Vendor</TableHead>
+                              <TableHead>Product</TableHead>
+                              <TableHead>VID</TableHead>
+                              <TableHead>PID</TableHead>
+                              <TableHead>Serial</TableHead>
+                              <TableHead className="text-right">Copy</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {discovery.usb.map((d) => {
+                              const id = `${d.vendorIdHex}:${d.productIdHex}:${d.serialNumber ?? ""}`;
+                              return (
+                                <TableRow key={id} data-testid={`scan-usb-${d.vendorIdHex}-${d.productIdHex}`}>
+                                  <TableCell className="text-xs">{d.manufacturer ?? "—"}</TableCell>
+                                  <TableCell className="text-xs">{d.product ?? "—"}</TableCell>
+                                  <TableCell className="font-mono text-xs">{d.vendorIdHex}</TableCell>
+                                  <TableCell className="font-mono text-xs">{d.productIdHex}</TableCell>
+                                  <TableCell className="font-mono text-xs">{d.serialNumber ?? "—"}</TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => void copyToClipboard(
+                                        JSON.stringify({
+                                          transport: "usb",
+                                          vendorId: d.vendorId,
+                                          productId: d.productId,
+                                          vendorIdHex: d.vendorIdHex,
+                                          productIdHex: d.productIdHex,
+                                          serialNumber: d.serialNumber ?? null,
+                                          manufacturer: d.manufacturer ?? null,
+                                          product: d.product ?? null,
+                                        }, null, 2),
+                                      )}
+                                    >
+                                      Copy
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium mb-2">Serial ({discovery.serial.length})</p>
+                      {discovery.serial.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No serial devices detected.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Path</TableHead>
+                              <TableHead>Manufacturer</TableHead>
+                              <TableHead>Serial</TableHead>
+                              <TableHead className="text-right">Copy</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {discovery.serial.map((d) => (
+                              <TableRow key={d.path} data-testid={`scan-serial-${d.path}`}>
+                                <TableCell className="font-mono text-xs">{d.path}</TableCell>
+                                <TableCell className="text-xs">{d.manufacturer ?? "—"}</TableCell>
+                                <TableCell className="font-mono text-xs">{d.serialNumber ?? "—"}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => void copyToClipboard(JSON.stringify({ transport: "serial", path: d.path }, null, 2))}
+                                  >
+                                    Copy
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                    {discovery.network?.notImplemented && (
+                      <p className="text-xs text-muted-foreground">
+                        Network: {discovery.network.note ?? "Broadcast discovery not yet implemented — add manually."}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Scanned at {new Date(discovery.ranAt).toLocaleTimeString()}.
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="runtime" className="space-y-4">
+          <Card data-testid="hardware-runtime-card">
         <CardHeader>
           <CardTitle className="text-base">
             Runtime: {capability
@@ -329,264 +614,8 @@ export function HardwareDevicesPage() {
           </CardDescription>
         </CardHeader>
       </Card>
-
-      {error && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-destructive">Failed to load assignments</CardTitle>
-            <CardDescription>{error.message}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" onClick={() => void refetch()}>Retry</Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {!error && (
-        <div className="space-y-4">
-          {ROLE_ORDER.map((role) => {
-            const meta = ROLE_LABELS[role] ?? { label: role, description: "" };
-            // device_assignments uses `scanner`, legacy used `barcode_scanner` — merge both.
-            const list = role === ("barcode_scanner" as DeviceRole)
-              ? [...(byRole.get("scanner") ?? []), ...(byRole.get("barcode_scanner") ?? [])]
-              : (byRole.get(role) ?? []);
-            const spec = TEST_OPS[role];
-            return (
-              <Card key={role} data-testid={`role-card-${role}`}>
-                <CardHeader className="flex flex-row items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      {meta.label}
-                      <Badge variant={list.length > 0 ? "default" : "outline"}>
-                        {list.length > 0 ? `${list.length} assigned` : "unassigned"}
-                      </Badge>
-                      {role === "payment_terminal" && (
-                        <Link
-                          to="/pos/payment-terminals"
-                          className="text-xs underline text-primary"
-                          data-testid="configure-payment-terminal"
-                        >
-                          Configure provider
-                        </Link>
-                      )}
-                    </CardTitle>
-                    <CardDescription>{meta.description}</CardDescription>
-                  </div>
-                  {spec && list.length > 0 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={Boolean(testing) || !electronAvailable}
-                      onClick={() => void handleTest(role)}
-                      data-testid={`test-${role}`}
-                      title={electronAvailable ? "Send a test dispatch" : "Open in the desktop POS client to send a test dispatch"}
-                    >
-                      Test
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <Skeleton className="h-12 w-full" />
-                  ) : list.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No device bound. Add an assignment to enable this role.
-                    </p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Transport</TableHead>
-                          <TableHead>Driver</TableHead>
-                          <TableHead>Scope</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Enabled</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {list.map((r) => (
-                          <TableRow key={r.id} data-testid={`assignment-row-${r.id}`}>
-                            <TableCell className="font-mono text-xs uppercase">{r.transport}</TableCell>
-                            <TableCell className="font-mono text-xs">{r.driver}</TableCell>
-                            <TableCell className="text-xs">
-                              {r.scope_kind}
-                              {r.scope_id ? `: ${r.scope_id.slice(0, 8)}…` : ""}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              <Badge variant={r.status === "online" ? "default" : "outline"}>
-                                {r.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={r.enabled ? "default" : "outline"}>
-                                {r.enabled ? "yes" : "no"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={removing === r.id}
-                                onClick={() => void handleRemove(r.id)}
-                                data-testid={`remove-${r.id}`}
-                              >
-                                Remove
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Phase 2 — native discovery (Electron only). Read-only enumeration
-          of USB + serial + network devices from the main process. The
-          renderer never claims an interface. Operators copy the
-          vendor/product/path values into the Add-device form below. */}
-      <Card data-testid="hardware-scan-card">
-        <CardHeader className="flex flex-row items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">Scan for devices</CardTitle>
-            <CardDescription>
-              {discoverAvailable
-                ? "Enumerate USB and serial devices via the main process. Network broadcast discovery (mDNS) is not yet implemented — add network printers manually."
-                : "Native discovery is only available in the desktop POS client. In the browser, use the Add-device form below — WebUSB and WebSerial will prompt you to pick devices."}
-            </CardDescription>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!discoverAvailable || discovering}
-            onClick={() => void handleScan()}
-            data-testid="hardware-scan-button"
-          >
-            {discovering ? "Scanning…" : "Scan now"}
-          </Button>
-        </CardHeader>
-        {(discovery || discoveryError) && (
-          <CardContent className="space-y-4">
-            {discoveryError && (
-              <p className="text-sm text-destructive">Scan failed: {discoveryError}</p>
-            )}
-            {discovery && (
-              <>
-                <div>
-                  <p className="text-sm font-medium mb-2">USB ({discovery.usb.length})</p>
-                  {discovery.usb.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No USB devices detected.</p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Vendor</TableHead>
-                          <TableHead>Product</TableHead>
-                          <TableHead>VID</TableHead>
-                          <TableHead>PID</TableHead>
-                          <TableHead>Serial</TableHead>
-                          <TableHead className="text-right">Copy</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {discovery.usb.map((d) => {
-                          const id = `${d.vendorIdHex}:${d.productIdHex}:${d.serialNumber ?? ""}`;
-                          return (
-                            <TableRow key={id} data-testid={`scan-usb-${d.vendorIdHex}-${d.productIdHex}`}>
-                              <TableCell className="text-xs">{d.manufacturer ?? "—"}</TableCell>
-                              <TableCell className="text-xs">{d.product ?? "—"}</TableCell>
-                              <TableCell className="font-mono text-xs">{d.vendorIdHex}</TableCell>
-                              <TableCell className="font-mono text-xs">{d.productIdHex}</TableCell>
-                              <TableCell className="font-mono text-xs">{d.serialNumber ?? "—"}</TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => void copyToClipboard(
-                                    JSON.stringify({
-                                      transport: "usb",
-                                      vendorId: d.vendorId,
-                                      productId: d.productId,
-                                      vendorIdHex: d.vendorIdHex,
-                                      productIdHex: d.productIdHex,
-                                      serialNumber: d.serialNumber ?? null,
-                                      manufacturer: d.manufacturer ?? null,
-                                      product: d.product ?? null,
-                                    }, null, 2),
-                                  )}
-                                >
-                                  Copy
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-2">Serial ({discovery.serial.length})</p>
-                  {discovery.serial.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No serial devices detected.</p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Path</TableHead>
-                          <TableHead>Manufacturer</TableHead>
-                          <TableHead>Serial</TableHead>
-                          <TableHead className="text-right">Copy</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {discovery.serial.map((d) => (
-                          <TableRow key={d.path} data-testid={`scan-serial-${d.path}`}>
-                            <TableCell className="font-mono text-xs">{d.path}</TableCell>
-                            <TableCell className="text-xs">{d.manufacturer ?? "—"}</TableCell>
-                            <TableCell className="font-mono text-xs">{d.serialNumber ?? "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => void copyToClipboard(JSON.stringify({ transport: "serial", path: d.path }, null, 2))}
-                              >
-                                Copy
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
-                {discovery.network?.notImplemented && (
-                  <p className="text-xs text-muted-foreground">
-                    Network: {discovery.network.note ?? "Broadcast discovery not yet implemented — add manually."}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Scanned at {new Date(discovery.ranAt).toLocaleTimeString()}.
-                </p>
-              </>
-            )}
-          </CardContent>
-        )}
-      </Card>
-
-      {/* Wave 9 — single authoritative hardware editor surface.
-          DeviceRegistryCard owns scan (WebUSB/WebSerial/WebHID), manual
-          add, driver pick, role assignment, IoT-agent config, and loopback
-          tests. Wave 8 removed its mount from POSSettings and orphaned it;
-          Wave 9 restores it here so /platform/hardware/devices is genuinely
-          the single source of truth. Architecture test
-          `platform-hardware-has-editor` prevents another silent removal. */}
-      <DeviceRegistryCard registerId={undefined} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
