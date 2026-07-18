@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { PostPaymentScreen } from "./PostPaymentScreen";
 import { VoidTransactionDialog } from "./VoidTransactionDialog";
+import { CardPaymentActions } from "./transaction-detail/CardPaymentActions";
 import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { useResolvedPrintPolicyWithDevice } from "@/hooks/useDocumentPrintPolicies";
 import { useBusinesses } from "@/hooks/useBusinesses";
