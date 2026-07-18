@@ -37500,6 +37500,66 @@ export type Database = {
           },
         ]
       }
+      pos_customer_purchase_history: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          customer_id: string
+          discount_amount: number
+          id: string
+          item_count: number
+          organization_id: string
+          register_id: string
+          sold_at: string
+          subtotal: number
+          tax_amount: number
+          tip_amount: number
+          total: number
+          transaction_id: string
+          transaction_number: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          customer_id: string
+          discount_amount?: number
+          id?: string
+          item_count?: number
+          organization_id: string
+          register_id: string
+          sold_at: string
+          subtotal?: number
+          tax_amount?: number
+          tip_amount?: number
+          total?: number
+          transaction_id: string
+          transaction_number: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          customer_id?: string
+          discount_amount?: number
+          id?: string
+          item_count?: number
+          organization_id?: string
+          register_id?: string
+          sold_at?: string
+          subtotal?: number
+          tax_amount?: number
+          tip_amount?: number
+          total?: number
+          transaction_id?: string
+          transaction_number?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pos_daily_sales_summary: {
         Row: {
           branch_id: string | null
@@ -39271,6 +39331,24 @@ export type Database = {
           },
         ]
       }
+      pos_projection_apply_log: {
+        Row: {
+          applied_at: string
+          projection_name: string
+          transaction_id: string
+        }
+        Insert: {
+          applied_at?: string
+          projection_name: string
+          transaction_id: string
+        }
+        Update: {
+          applied_at?: string
+          projection_name?: string
+          transaction_id?: string
+        }
+        Relationships: []
+      }
       pos_receipt_snapshots: {
         Row: {
           branch_id: string | null
@@ -39489,6 +39567,69 @@ export type Database = {
           requires_manager_override?: boolean
           requires_note?: boolean
           sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pos_sales_daily: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          discount_total: number
+          first_sale_at: string | null
+          gross_sales: number
+          id: string
+          item_count: number
+          last_sale_at: string | null
+          net_sales: number
+          organization_id: string
+          refund_total: number
+          register_id: string
+          sale_date: string
+          tax_total: number
+          tip_total: number
+          transaction_count: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          discount_total?: number
+          first_sale_at?: string | null
+          gross_sales?: number
+          id?: string
+          item_count?: number
+          last_sale_at?: string | null
+          net_sales?: number
+          organization_id: string
+          refund_total?: number
+          register_id: string
+          sale_date: string
+          tax_total?: number
+          tip_total?: number
+          transaction_count?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          discount_total?: number
+          first_sale_at?: string | null
+          gross_sales?: number
+          id?: string
+          item_count?: number
+          last_sale_at?: string | null
+          net_sales?: number
+          organization_id?: string
+          refund_total?: number
+          register_id?: string
+          sale_date?: string
+          tax_total?: number
+          tip_total?: number
+          transaction_count?: number
           updated_at?: string
         }
         Relationships: []
@@ -74622,6 +74763,10 @@ export type Database = {
       project_employee_cost_rate: {
         Args: { _employee_id: string; _project_id: string }
         Returns: number
+      }
+      project_pos_sale_committed: {
+        Args: { p_transaction_id: string }
+        Returns: Json
       }
       promote_pack_version: {
         Args: {
