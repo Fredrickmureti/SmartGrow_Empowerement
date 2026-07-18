@@ -1,152 +1,90 @@
+# Wave 3 · Phase 1 — `PaymentSession` durable aggregate + session RPCs
 
-# Wave 3 — POS Payment Engine: Enterprise Architecture Audit & Re-engineering
+## Verification summary (Phase 0 handoff)
 
-Wave 2 (checkout commit, card FSM, settlement→GL, drawer/shift lifecycle, return FSM) is shipped and green. This wave takes ownership of the **payment subsystem itself** — the layer between "cart ready to charge" and "transaction committed / accounted" — and lifts it to the standard set by Dynamics 365 Commerce, Oracle Retail, LS Central, and Square.
+Independent re-audit against the parent prompt, `.lovable/plan.md`, and the current codebase:
 
-Scope is deliberately narrow: **payment lifecycle, tender orchestration, authorization/capture, split & partial tender, refund/void, settlement handoff, and the events they emit.** Receipts, drawer UX, loyalty, promotions, hardware, and reporting are only touched where they consume payment events.
-
----
-
-## Status dashboard
-
-| Phase | Title | Status |
+| Handoff claim | Verified? | Evidence |
 |---|---|---|
-| 0 | Canonical lifecycle & audit deliverables | ✅ **Complete & verified** |
-| 1 | `PaymentSession` durable aggregate + session RPCs | ⏭️ **Next up — start here** |
-| 2 | `TenderDriver` interface + `PaymentSessionController` | ⏳ Pending |
-| 3 | Unified refund / void / reverse FSM across tenders | ⏳ Pending |
-| 4 | Offline & multi-currency posture for sessions | ⏳ Pending |
-| 5 | Cashier UX pass over the rebuilt domain | ⏳ Pending |
+| `docs/architecture/POS_PAYMENT_ENGINE.md` exists (208 lines) | ✅ | file present |
+| `docs/audit/pos-payment-engine.md` exists (135 lines) | ✅ | file present |
+| No code changed under `src/` / `supabase/migrations/` in Phase 0 | ✅ | no `pos_payment_session*` references anywhere in the repo |
+| `PaymentDialog.tsx:101-113` holds payment-in-progress in `useState` | ✅ | lines 101-113 are exactly the eleven `useState` hooks the audit cites |
+| `paymentMethodResolver.ts:129-193` switches on hardcoded `method_key` | ✅ | `switch (m.method_key)` at line 129, cases `cash / credit / mobile_money / card / bank_transfer / voucher` |
+| Wave 2 arch guards baseline | ⏳ | will re-run `bunx vitest run src/test/architecture` before writing the migration; must be green before Phase 1 lands |
 
-**Currently active phase:** none — Phase 0 landed, Phase 1 not yet started.
-**Next phase to tackle:** Phase 1 (schema + RPCs for `pos_payment_sessions`).
+**Conclusion:** Phase 0 landed as claimed. Phase 1 has not started. Resuming from the "start here" marker in `.lovable/plan.md`.
 
----
+**Plan additions from re-audit** (appended to the living plan, not new phases):
 
-## Phase 0 — Canonical lifecycle & audit deliverables ✅ COMPLETE
+- Phase 1 must register the outbox topics listed in `POS_PAYMENT_ENGINE.md §6` inside the same migration that ships the tables — otherwise `pos_payment_session_commit` publishes into nothing and downstream consumers silently no-op.
+- Phase 1 must also seed a `pos_payment_session_apply_log(session_id PK)` idempotency guard for the commit RPC, mirroring `pos_card_settlement_gl_apply_log` / `pos_return_apply_log`. The original plan implies but does not name it; without it, a retried `pos_payment_session_commit` can double-link tenders into `pos_transaction_payments`.
+- Arch test must additionally forbid client-side SELECT/INSERT on the two new tables from `src/components/pos/**` — the sessions layer is server-owned; the client reaches it only via RPCs.
 
-Two artifacts shipped and cross-referenced. No code changes, per plan.
-
-**Delivered:**
-
-- `docs/architecture/POS_PAYMENT_ENGINE.md` — canonical lifecycle (10-stage flow diagram), ownership contract per stage, tender-capability matrix, failure taxonomy, event topics with idempotency keys, explicit non-goals.
-- `docs/audit/pos-payment-engine.md` — 10-section stage-by-stage grading (Owned / Duplicated / Leaked / Missing) with file+line citations, ending in a gap→phase table.
-
-**Key findings that shape Phases 1–5 (do not re-litigate; verify against the docs):**
-
-1. **`pos_payment_sessions` is the highest-impact gap.** A payment in progress lives entirely in `PaymentDialog` `useState` (lines 101-113). Refresh, partition, or accidental close orphans captured card authorisations. Fixed in Phase 1.
-2. **`paymentMethodResolver.ts:129-193` violates the Phase B catalog-driven contract** by switching on hardcoded `method_key` strings. The existing extensibility guard (`pos-payment-method-extensibility.test.ts`) only covers the dialog file. Fixed in Phase 2 (switch on `tender_kind`; extend arch guard to the resolver).
-3. **`capabilities` (allowsChange / allowsPartial / allowsOffline / refundable) is missing everywhere.** Every consumer re-derives from `tender_kind`/`capture_mode` inline. Belongs on the catalog row + `ResolvedPaymentMethod`.
-4. **MPESA STK and MPESA C2B are two code paths for one tender.** Collapse behind a single `MobileMoneyDriver` with two `authorize()` strategies in Phase 2.
-5. **Gift cards, vouchers, credit notes, store credit are not first-class tenders** despite backing tables existing.
-6. **Card FSM, commit idempotency, settlement→GL, offline sale replay are all Owned.** Wave 3 must not regress them.
+Nothing else in Phases 2–5 changes shape.
 
 ---
 
-## Phase 1 — Domain model: `PaymentSession` as durable, idempotent aggregate ⏭️ NEXT
+## What Phase 1 delivers
 
-Introduce a first-class server-side aggregate so a payment in progress is a real record, not UI state.
+A first-class, server-owned aggregate for "payment in progress" so a mid-payment refresh, tab close, or network partition never orphans a captured card auth or a cash tender. `PaymentDialog` keeps working unchanged on the legacy path; the client migration is Phase 2.
 
-**Schema (new tables, both in `public`, both need `GRANT` + RLS + policies per house rules):**
+### 1. Migration — schema, grants, RLS, FSM trigger, outbox topics, idempotency log
 
-- `pos_payment_sessions(id, pos_transaction_id NULL, register_id, cashier_id, business_id, branch_id, currency, grand_total, tip_amount, status, idempotency_key UNIQUE, opened_at, closed_at, closed_reason)` — status ∈ `open | balanced | committed | cancelled | abandoned`.
-- `pos_payment_session_tenders(id, session_id, tender_kind, method_key, provider_key, amount, tendered_amount, change_given, reference, auth_state, auth_id, vendor_txn_id, driver_payload jsonb, created_at)` — one row per authorised/captured tender **before** commit. FSM enforced via a trigger that generalises the shape used by `pos_card_fsm_transitions`.
+Single migration, house-rule ordering (CREATE → GRANT → ENABLE RLS → CREATE POLICY):
 
-**RPCs (SECURITY DEFINER, service_role, all idempotent):**
+- `pos_payment_sessions` — `(id, pos_transaction_id null, register_id, cashier_id, business_id, branch_id, currency, grand_total, tip_amount, status, idempotency_key unique, opened_at, closed_at, closed_reason)`. Status enum: `open | balanced | committed | cancelled | abandoned`.
+- `pos_payment_session_tenders` — `(id, session_id, tender_kind, method_key, provider_key, amount, tendered_amount, change_given, reference, auth_state, auth_id, vendor_txn_id, driver_payload jsonb, created_at)`.
+- `pos_payment_session_apply_log(session_id primary key, applied_at, transaction_id)` — commit idempotency guard.
+- Generalised FSM guard trigger `tg_assert_pos_payment_session_tender_transition` (mirrors the existing `pos_card_fsm_transitions` shape) enforcing tender auth-state moves.
+- Branch-scope trigger `zzz_assert_pos_branch_caller_access` on both tables (matches the pattern locked by `supabase/tests/pos_branch_isolation_test.sql`).
+- Grants: `authenticated` gets read on sessions/tenders scoped by RLS; writes only via SECURITY DEFINER RPCs (no direct INSERT/UPDATE grants to `authenticated`). `service_role` gets ALL.
+- RLS policies: SELECT scoped to caller's branch via `assert_pos_caller_branch_access`; no INSERT/UPDATE/DELETE policies for `authenticated` (RPC-only surface).
+- Outbox topics registered in `business_event_topics`: `pos.payment.session.opened`, `pos.payment.tender.recorded`, `pos.payment.tender.reversed`, `pos.payment.session.committed`, `pos.payment.session.cancelled`.
+- Extend `supabase/tests/pos_branch_isolation_test.sql` to include the two new tables in its `missing[]` array.
 
-- `pos_payment_session_open(p_register_id, p_grand_total, p_idempotency_key)` — returns session id; idempotent on the key.
-- `pos_payment_session_record_tender(p_session_id, p_tender jsonb, p_idempotency_key)` — appends a tender row; FSM-validated; totals recomputed server-side; refuses over-allocation beyond the configured cash overtender cap.
-- `pos_payment_session_reverse_tender(p_session_id, p_tender_id, p_reason)` — pre-commit reversal (void for card, refund for wallet, offset for cash) with matching outbox event.
-- `pos_payment_session_commit(p_session_id)` — atomically links session to the sale via `process_pos_transaction` and marks committed. Tender rows are copied into `pos_transaction_payments` in the same tx so existing card-FSM guards keep working.
-- `pos_payment_session_cancel(p_session_id, p_reason)` — reverses every captured tender, marks cancelled.
+### 2. RPCs — five, all SECURITY DEFINER, all idempotent
 
-**Guards:**
+- `pos_payment_session_open(p_register_id, p_grand_total, p_currency, p_idempotency_key)` → returns session id; upsert-by-idempotency-key.
+- `pos_payment_session_record_tender(p_session_id, p_tender jsonb, p_idempotency_key)` → append tender row; FSM-validate; recompute allocated/remaining server-side; reject over-allocation past the configured cash overtender cap; emit `pos.payment.tender.recorded`.
+- `pos_payment_session_reverse_tender(p_session_id, p_tender_id, p_reason)` → pre-commit reversal (void card / refund wallet / offset cash); emit `pos.payment.tender.reversed`.
+- `pos_payment_session_commit(p_session_id)` → inside one tx: guard on `pos_payment_session_apply_log`, call existing `process_pos_transaction` / `finalize_table_order` with the session's tender rows mapped to `pos_transaction_payments` (preserving `tendered_amount` / `change_given` per ADR-0009), mark session `committed`, insert apply-log row, emit `pos.payment.session.committed`.
+- `pos_payment_session_cancel(p_session_id, p_reason)` → reverse every captured tender, mark `cancelled`, emit `pos.payment.session.cancelled`.
 
-- Extend ESLint rule `no-pos-commit-without-idempotency-key.js` to also cover `pos_payment_session_open` and `pos_payment_session_record_tender`.
-- New arch test `src/test/architecture/pos-payment-session-lifecycle.test.ts` locking: (a) commit only via `pos_payment_session_commit`, (b) no client-side writes to either new table, (c) status transitions match the FSM in the canonical doc.
+Every RPC uses `assert_pos_caller_branch_access` as its first line — no privilege leaks vs the rest of the POS surface.
 
-**Definition of done for Phase 1:** migrations applied, RPCs callable from a test, outbox events registered in `business_event_topics`, arch guards green. `PaymentDialog` continues to work unchanged (still on the legacy path) — the migration to sessions happens in Phase 2.
+### 3. Guards — ESLint + architecture tests
 
----
+- Extend `eslint-rules/no-pos-commit-without-idempotency-key.js` to also require the `p_idempotency_key` argument on `pos_payment_session_open` and `pos_payment_session_record_tender`.
+- New `src/test/architecture/pos-payment-session-lifecycle.test.ts` locking:
+  - commit path is exclusively `pos_payment_session_commit` (no other caller of `process_pos_transaction` gains a new tender-carrying overload);
+  - no file under `src/components/pos/**` or `src/hooks/pos/**` writes to `pos_payment_sessions` / `pos_payment_session_tenders` directly (RPC-only);
+  - the five status transitions and the tender FSM strings match the canonical doc verbatim (single source of truth).
 
-## Phase 2 — Client architecture: `TenderDriver` interface + `PaymentSessionController` ⏳
+### 4. Definition of done for Phase 1
 
-Refactor `PaymentDialog` from an 842-line god component to a thin orchestrator over a domain service.
+- Migration applies cleanly; `supabase/tests/pos_branch_isolation_test.sql` passes with the two new tables listed.
+- All five RPCs callable end-to-end from a Vitest RPC test (open → record cash tender → record card tender → commit → apply-log blocks second commit).
+- Outbox topics present in `business_event_topics`; a commit emits all expected events.
+- `bunx vitest run src/test/architecture` green, including the new `pos-payment-session-lifecycle.test.ts`.
+- `PaymentDialog.tsx` unchanged — still on the legacy `finalize_table_order` path. No client behaviour changes in this phase.
 
-- **New `src/domain/pos/payment/`**
-  - `PaymentSession.ts` — immutable value object: totals, remaining, allocations, `isBalanced()`, `changeDue()`, `canAcceptTender(kind, amount)`. Pure, unit-testable, no React, no supabase.
-  - `TenderDriver.ts` — interface `{ kind, capabilities: { allowsChange, allowsPartial, allowsOffline, refundable }, prepare(session), authorize(input), capture(authId), void(authId), refund(authId, amount) }`. Mirrors the electron `IPaymentTerminalDriver` shape.
-  - `drivers/CashDriver.ts` — overtender + rounding; no server auth.
-  - `drivers/CardDriver.ts` — thin wrapper around existing `CardTerminalController`.
-  - `drivers/MobileMoneyDriver.ts` — collapses `MpesaPaymentModal` + `MpesaC2BLookupModal` (STK vs C2B become two strategies of one driver's `authorize()`).
-  - `drivers/CustomerCreditDriver.ts`, `drivers/StoreCreditDriver.ts` — first-class tenders instead of PaymentDialog specials.
-  - `drivers/GiftCardDriver.ts` — uses existing `pos_gift_cards` tables via a new authorize/capture RPC pair.
-  - `PaymentSessionController.ts` — opens session, drives selected driver, records tenders, reverses on error, commits when balanced. What `PaymentDialog` calls.
-- **PaymentDialog** shrinks to layout + tender picker + amount input; every `if method === "cash" | "card" | ...` branch disappears.
-- **`paymentMethodResolver`** — switch on `tender_kind` (not `method_key`), and grow a `capabilities` field. Extend `pos-payment-method-extensibility.test.ts` to cover the resolver file, not just the dialog.
+### Explicitly out of scope for Phase 1
 
----
+- `PaymentDialog` refactor, `TenderDriver` interface, drivers, resolver changes → Phase 2.
+- Reversal-authorization FSM unification → Phase 3.
+- Offline queue + multi-currency snapshot on sessions → Phase 4.
+- Cashier UX pass → Phase 5.
 
-## Phase 3 — Unify refund / void / reverse across tenders ⏳
-
-Today only card has a real FSM; cash/mobile-money reversals write directly. Extend the Wave 2 return-authorization pattern to every tender:
-
-- New table `pos_tender_reversal_authorizations(id, session_id NULL, transaction_id NULL, tender_id, requested_by, approver_id, kind ∈ 'void'|'refund'|'reverse', state, reason_code_id, manager_pin_verified_at, applied_at)` with the same `requested → approved → applied` FSM used by `pos_return_authorizations`.
-- Every reversal routes through `TenderDriver.void|refund` → RPC → FSM → outbox `tender.reversed`. Dispatcher posts the reversing JE (mirror of the original tender's posting) keyed on `pos_tender_reversal_apply_log(authorization_id PK)`.
-- Delete direct UPDATEs on `pos_transaction_payments` outside the RPC surface; add arch guard `pos-tender-reversal-single-path.test.ts`.
-
----
-
-## Phase 4 — Offline & multi-currency posture ⏳
-
-Sales commit is already offline-capable; the payment layer isn't:
-
-- `pos_payment_sessions.status = 'open'` rows synced through the existing offline queue → `pos_payment_session_open` called with offline-generated `idempotency_key`, then tenders replay in order.
-- Drivers self-declare offline support: `capabilities.allowsOffline` — card/MPESA refuse offline; cash + customer credit + gift card allow it.
-- Session carries `currency` + `fx_rate_snapshot`; multi-tender across currencies computes per-tender applied amount in the sale's home currency at capture-time rate, stored on the tender row.
-- Extend `pos-offline-replay-uses-rpc.test.ts` to cover the session RPC path.
+Touching any of those now creates orphan code paths (the plan's stated reason for the phasing).
 
 ---
 
-## Phase 5 — Cashier UX pass (only after 1-4 land) ⏳
+## Technical notes
 
-With the domain rebuilt, redesign `PaymentDialog` for the enterprise cashier: numeric-keypad-first fast-path, always-visible "Balance due / Change due" ledger driven by `PaymentSession`, one-key split (`S`), one-key reverse-last-tender (`R`), resumable sessions surfaced in `HeldOrdersBar` alongside held carts. Zero new business logic — pure presentation over the Phase 1-2 domain.
+- All `process.env` reads inside RPCs stay in PL/pgSQL; no server-function surface added in this phase.
+- `pos_payment_session_commit` must run in one transaction with `process_pos_transaction`; the apply-log write is the last statement so a rollback leaves no ghost log row.
+- The FSM trigger is generalised (parameter-driven allowed-transitions table) rather than a copy of the card FSM — Phase 3 will reuse it for tender reversals.
+- Every new table gets the branch-scope trigger before any RLS policy is added — matches the locked pattern in `pos_branch_isolation_test.sql`, so the guard test can't be forgotten.
 
----
-
-## Definition of done (whole wave)
-
-- Phase 0 docs merged and referenced from `docs/audit/pos-transaction-lifecycle-canonical.md`. ✅
-- `pos_payment_sessions` + tenders table live; all commits go through `pos_payment_session_commit`; legacy "assemble array + call finalize" path removed from `PaymentDialog`.
-- Every tender (cash, card, mobile money, customer credit, store credit, gift card) implements a `TenderDriver`; no `method_key === "..."` branch survives in `src/components/pos/` **or** `src/lib/pos/`.
-- Every reversal (void/refund/reverse) goes through the unified authorization FSM; no direct writes to `pos_transaction_payments`.
-- All Wave 2 arch guards remain green; new guards added: `pos-payment-session-lifecycle`, `pos-tender-driver-contract`, `pos-tender-reversal-single-path`, `pos-payment-session-idempotency`.
-- ESLint rule `no-pos-commit-without-idempotency-key` covers session RPCs.
-- Every "Duplicated / Leaked" row in `docs/audit/pos-payment-engine.md` resolves to "Owned".
-
-## Not in scope
-
-Payment gateway integrations beyond what already exists (MPESA, sim card driver). Receipts, drawer/shift UX, loyalty accrual, promotions, fiscal device, physical hardware. Those wait for their own waves.
-
----
-
-## Handoff — instructions for the next agent
-
-**Before writing any code, verify Phase 0 was completed to enterprise standard:**
-
-1. Read `docs/architecture/POS_PAYMENT_ENGINE.md` end-to-end. Confirm the lifecycle diagram, ownership table, capabilities matrix, failure taxonomy, and event-topic table are internally consistent and cite real tables/RPCs that exist in this repo.
-2. Read `docs/audit/pos-payment-engine.md`. Spot-check three cited file:line references (e.g. `PaymentDialog.tsx:101-113`, `paymentMethodResolver.ts:129-193`, `CardTerminalController.ts`) and confirm the grading (Owned / Duplicated / Leaked / Missing) matches what's actually in those files today.
-3. Confirm no code was changed under `src/`, `supabase/migrations/`, or `electron/` in the Phase 0 turn — Phase 0 is docs-only by design.
-4. Run `bunx vitest run src/test/architecture` and confirm all Wave 2 arch guards are still green (baseline: 30/30 passing). Any red before Phase 1 starts is a regression to fix first.
-
-**If verification passes, resume with Phase 1 in this order** (do not skip ahead, do not pick from later phases):
-
-1. Write the migration for `pos_payment_sessions` and `pos_payment_session_tenders` — include `GRANT` + RLS + policies in the same migration (house rule), and the generalised FSM guard trigger.
-2. Write the five session RPCs (`open`, `record_tender`, `reverse_tender`, `commit`, `cancel`) as SECURITY DEFINER, all idempotent, all emitting the outbox topics listed in `POS_PAYMENT_ENGINE.md` §6. Register the topics in `business_event_topics`.
-3. Extend ESLint rule `no-pos-commit-without-idempotency-key.js` to cover `pos_payment_session_open` and `pos_payment_session_record_tender`.
-4. Add arch test `src/test/architecture/pos-payment-session-lifecycle.test.ts` per the Phase 1 spec above.
-5. Verify: migrations apply cleanly, arch tests green, `PaymentDialog` still works on the legacy path (no behaviour change yet — the client migration is Phase 2).
-
-**Do not** touch `PaymentDialog.tsx`, the resolver, the MPESA modals, or introduce driver classes in this phase. Those belong to Phase 2 and doing them now creates orphaned code paths (the sessions table would have no client writer, or drivers would have no session to write to). Keep each phase in a coherent, production-ready state before moving to the next.
-
-If the audit's findings do not match what you see in the code, **stop and re-scope Phases 1–5** before writing migrations — the audit is the source of truth for what's broken and its accuracy gates every downstream phase.
+Ready to switch to build mode and start with the migration.
