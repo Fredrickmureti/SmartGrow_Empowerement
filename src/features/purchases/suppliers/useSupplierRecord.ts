@@ -143,7 +143,7 @@ export function useSupplierRecord(id: string | null | undefined) {
     const { data: core, error: coreErr } = await s
       .from("suppliers")
       .select(
-        "*, contact:contacts(id, name, email, phone, tax_number, address, city, country), category:supplier_categories(id, code, name)",
+        "*, contact:contacts(id, name, email, phone, tax_id, address_line1, address_line2, city, country), category:supplier_categories(id, code, name)",
       )
       .eq("id", id)
       .maybeSingle();
