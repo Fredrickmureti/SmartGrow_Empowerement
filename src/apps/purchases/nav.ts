@@ -14,6 +14,7 @@ import {
   Hourglass,
   Tags,
   Layers,
+  Building2,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
