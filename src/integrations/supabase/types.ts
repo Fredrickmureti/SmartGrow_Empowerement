@@ -36941,6 +36941,35 @@ export type Database = {
         }
         Relationships: []
       }
+      pos_card_settlement_gl_apply_log: {
+        Row: {
+          applied_at: string
+          applied_by: string | null
+          journal_entry_id: string
+          settlement_id: string
+        }
+        Insert: {
+          applied_at?: string
+          applied_by?: string | null
+          journal_entry_id: string
+          settlement_id: string
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string | null
+          journal_entry_id?: string
+          settlement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_card_settlement_gl_apply_log_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: true
+            referencedRelation: "pos_card_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_card_settlement_lines: {
         Row: {
           amount: number
@@ -74568,6 +74597,10 @@ export type Database = {
           p_provider_key: string
         }
         Returns: string
+      }
+      pos_card_settlement_post_gl: {
+        Args: { p_settlement_id: string }
+        Returns: Json
       }
       pos_card_void: {
         Args: { p_payment_id: string; p_reason?: string }

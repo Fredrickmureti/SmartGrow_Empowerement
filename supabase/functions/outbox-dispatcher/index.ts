@@ -147,12 +147,17 @@ async function handleCardSettlementLine(
   if (error) throw new Error(`settlement apply (${kind}): ${error.message}`);
 }
 
-async function handleSettlementCardClosed(_row: OutboxRow): Promise<void> {
-  // Placeholder consumer — the settlement close RPC already persisted the
-  // batch. GL posting (clearing → bank) will be wired in Phase F.6 alongside
-  // acquirer-fee ingestion. For now this is a deliberate no-op so the event
-  // drains cleanly and reconciliation UIs can observe the state change via
-  // the settlement row directly.
+async function handleSettlementCardClosed(row: OutboxRow): Promise<void> {
+  // Wave 2 · Phase F.6 — post the closed batch to the general ledger.
+  // pos_card_settlement_post_gl is idempotent (settlement-id apply-log +
+  // post_journal_entry_atomic source-id dedupe) so outbox retries are safe.
+  const settlementId =
+    (row.payload as { settlement_id?: string } | null)?.settlement_id ?? row.source_doc_id;
+  if (!settlementId) throw new Error("settlement.card.closed: missing settlement_id");
+  const { error } = await admin.rpc("pos_card_settlement_post_gl", {
+    p_settlement_id: settlementId,
+  });
+  if (error) throw new Error(`settlement GL post: ${error.message}`);
 }
 
 // Phase E/F map. Extend with one entry per newly-durable topic. Unknown
