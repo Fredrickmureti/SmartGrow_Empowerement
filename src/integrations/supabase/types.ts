@@ -74206,17 +74206,29 @@ export type Database = {
         }
         Returns: Json
       }
-      process_pos_void: {
-        Args: {
-          p_organization_id: string
-          p_override_id?: string
-          p_transaction_id: string
-          p_void_note?: string
-          p_void_reason_id: string
-          p_voided_by?: string
-        }
-        Returns: Json
-      }
+      process_pos_void:
+        | {
+            Args: {
+              p_organization_id: string
+              p_override_id?: string
+              p_transaction_id: string
+              p_void_note?: string
+              p_void_reason_id: string
+              p_voided_by?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_organization_id: string
+              p_override_id?: string
+              p_transaction_id: string
+              p_void_note?: string
+              p_void_reason_id: string
+              p_voided_by: string
+            }
+            Returns: Json
+          }
       process_refund_atomic: {
         Args: {
           p_amount: number
