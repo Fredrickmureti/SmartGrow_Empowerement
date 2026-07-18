@@ -18,6 +18,40 @@ Verified against live DB + tree:
 ### T7 governance + tests follow-up ✅
 - Registered five POS duties in `governance_duties`: `pos.commit`, `pos.void`, `pos.return`, `pos.override_price`, `pos.override_discount`, each mapped in `governance_duty_permission_map` under `module='pos'` with the matching operation.
 - Added `src/test/architecture/pos-outbox-and-governance.test.ts` asserting the migrations register both outbox topics + triggers with deterministic idempotency keys and seed the five duties.
+- Added `src/test/architecture/no-client-pos-money-math.test.ts` pinning the `process_pos_transaction` response schema (`server_totals` object + `total_matches_server` flag) and asserting the `INSERT INTO pos_transactions` uses server-derived variables (`v_srv_subtotal / v_srv_total_tax / v_srv_total`) and never the raw `p_subtotal / p_tax_amount / p_total` params.
+- Added `src/test/architecture/pos-reservations-single-source.test.ts` scanning all of `src/` for stray `.insert/.update/.upsert/.delete` calls against `pos_stock_reservations`, and guarding against any post-T3 migration recreating the compat view as a real table.
+- 10/10 arch tests green (`bunx vitest run src/test/architecture/pos-outbox-and-governance.test.ts src/test/architecture/no-client-pos-money-math.test.ts src/test/architecture/pos-reservations-single-source.test.ts`).
+
+## Phase 4 — Deprecation followups (paused, do NOT start yet)
+
+Blocked until 1–2 releases pass with zero reader traffic on the compat surfaces. When ready:
+- Drop the `pos_stock_reservations` compat view + `trg_pos_stock_reservations_soft_delete` INSTEAD OF trigger.
+- Remove `usePOSStockReservation` legacy hook exports.
+- Retire the sales/COGS branches of `post_pos_shift_gl` now that `trg_pos_transaction_post_sale_gl` (T5) handles per-sale posting and `trg_pos_close_variance_gl` handles variance only.
+
+Do NOT ship any of Phase 4 without first: (a) grepping production logs for `pos_stock_reservations` read traffic, (b) confirming no shipped mobile / offline client still imports `usePOSStockReservation`, (c) auditing `post_pos_shift_gl` call sites for any consumer still depending on aggregate sales/COGS legs.
+
+## Handoff — next agent, read this first
+
+**Verification checklist before writing any new code:**
+1. Run the full POS arch guard suite:
+   ```
+   bunx vitest run src/test/architecture/pos-server-authoritative-money-math.test.ts \
+                   src/test/architecture/pos-mandatory-idempotency.test.ts \
+                   src/test/architecture/pos-unified-reservations.test.ts \
+                   src/test/architecture/pos-outbox-and-governance.test.ts \
+                   src/test/architecture/no-client-pos-money-math.test.ts \
+                   src/test/architecture/pos-reservations-single-source.test.ts
+   ```
+   All six files must pass. If any fail, STOP and repair — a red guard means an earlier batch regressed.
+2. Spot-check the live DB with `supabase--read_query`:
+   - `SELECT proname FROM pg_proc WHERE proname IN ('process_pos_transaction','post_pos_sale_gl','_pos_reverse_transaction_gl','_pos_resolve_branch_warehouse','_pos_write_stock_movement');` — expect all 5.
+   - `SELECT tgname FROM pg_trigger WHERE tgname IN ('trg_pos_transactions_require_idempotency_key','trg_pos_transaction_post_sale_gl','trg_pos_close_variance_gl','trg_pos_transaction_emit_event','trg_stock_movement_emit_event');` — expect all 5.
+   - `SELECT topic_prefix FROM public.business_event_topics WHERE topic_prefix IN ('pos.sale.committed','inventory.movement.recorded');` — expect both.
+   - `SELECT duty_code FROM public.governance_duties WHERE domain='pos';` — expect 5 rows.
+3. Confirm `.lovable/plan.md` (this file) still shows Phase 3 + T7 followups as ✅ and Phase 4 as paused.
+
+**Next milestone: DO NOT start Phase 4** (see above — it's release-gated). Instead the next natural batch on the roadmap outside the POS engine arc has NOT been scoped here; treat that as a scoping conversation with the user before touching code. If the user just says "continue" without new scope, revisit the deprecation followups' blockers (log grep + client import audit + call-site audit) and report readiness — do not execute the drops.
 
 ## Phase 2 — Batches to ship (in strict order)
 
