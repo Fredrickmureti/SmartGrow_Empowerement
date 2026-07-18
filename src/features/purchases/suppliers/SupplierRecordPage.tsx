@@ -104,6 +104,26 @@ function money(n: number | null | undefined, cur?: string | null) {
   })}`.trim();
 }
 
+/** Local label/value pair. Kept local since the design-system's FieldCell
+ *  is a span-only wrapper; supplier record needs an inline label pattern. */
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="text-sm mt-1">{children}</div>
+    </div>
+  );
+}
+
+
 export default function SupplierRecordPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
