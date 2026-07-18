@@ -13,11 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePOSReports, ShiftReport } from "@/hooks/pos/usePOSReports";
 import { useCurrency } from "@/hooks/useCurrency";
 import { format } from "date-fns";
-import { Printer, FileText, TrendingUp, DollarSign, CreditCard, Banknote, Loader2, RefreshCw, AlertTriangle, CheckCircle } from "lucide-react";
+import { Printer, FileText, TrendingUp, DollarSign, CreditCard, Banknote, Loader2, CheckCircle } from "lucide-react";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { normalizeError } from "@/services/resilience";
 
 interface ShiftReportDialogProps {
   open: boolean;
@@ -43,6 +40,7 @@ export function ShiftReportDialog({
   const [shiftReport, setShiftReport] = useState<ShiftReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
+  const [localGlPostedAt] = useState(glPostedAt);
   const [isRetryingGL, setIsRetryingGL] = useState(false);
   const [localGlPostedAt, setLocalGlPostedAt] = useState(glPostedAt);
   
