@@ -65465,6 +65465,10 @@ export type Database = {
         Args: { p_employee_id: string }
         Returns: undefined
       }
+      _emit_asn_outbox: {
+        Args: { _payload: Json; _shipment_id: string; _state: string }
+        Returns: undefined
+      }
       _emit_po_outbox: {
         Args: {
           _business_id: string
@@ -67413,6 +67417,10 @@ export type Database = {
         Args: { p_appointment_id: string; p_reason?: string }
         Returns: undefined
       }
+      cancel_inbound_shipment: {
+        Args: { p_reason?: string; p_shipment_id: string }
+        Returns: undefined
+      }
       cancel_ownership_transfer: {
         Args: { _transfer_id: string }
         Returns: Json
@@ -68415,6 +68423,20 @@ export type Database = {
         }
         Returns: Json
       }
+      create_inbound_shipment: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_carrier?: string
+          p_expected_arrival_at: string
+          p_notes?: string
+          p_purchase_order_id: string
+          p_tracking_number?: string
+          p_vendor_id: string
+          p_warehouse_id?: string
+        }
+        Returns: string
+      }
       create_invoice_from_delivery_atomic: {
         Args: { p_dn_id: string; p_user_id: string }
         Returns: Json
@@ -68671,6 +68693,10 @@ export type Database = {
       dispatch_delivery_atomic: {
         Args: { p_dn_id: string; p_payload?: Json; p_user_id: string }
         Returns: Json
+      }
+      dispatch_inbound_shipment: {
+        Args: { p_dispatched_at?: string; p_shipment_id: string }
+        Returns: undefined
       }
       dispatch_loading_manifest: {
         Args: { p_departure_at?: string; p_manifest_id: string }
@@ -71641,6 +71667,14 @@ export type Database = {
       mark_delivery_ready_atomic: {
         Args: { p_dn_id: string; p_user_id: string }
         Returns: Json
+      }
+      mark_inbound_shipment_arrived: {
+        Args: { p_arrived_at?: string; p_shipment_id: string }
+        Returns: undefined
+      }
+      mark_inbound_shipment_in_transit: {
+        Args: { p_shipment_id: string }
+        Returns: undefined
       }
       mark_onboarding_done: {
         Args: {
@@ -76495,6 +76529,10 @@ export type Database = {
       update_delivery_logistics_atomic: {
         Args: { p_dn_id: string; p_payload: Json; p_user_id: string }
         Returns: Json
+      }
+      update_inbound_shipment_eta: {
+        Args: { p_expected_arrival_at: string; p_shipment_id: string }
+        Returns: undefined
       }
       update_journal_entry_atomic: {
         Args: {
