@@ -43,6 +43,13 @@ export interface PaymentMethod {
   reference?: string;
   card_last_four?: string;
   card_type?: string;
+  // Wave 2 · Phase C-2 — card FSM metadata captured by the terminal modal
+  // pre-commit. `_pos_record_payment` inserts the payment row with these
+  // fields so the FSM guard trigger validates the initial state.
+  auth_state?: "approved" | "captured";
+  auth_id?: string;
+  vendor_txn_id?: string;
+  authorized_amount?: number;
 }
 
 export interface CompleteTransactionData {
@@ -224,8 +231,16 @@ async function processOnlineTransaction(
           card_last_four: p.card_last_four || null,
           card_type: p.card_type || null,
           mpesa_receipt_number: p.method === "mobile_money" ? p.reference : null,
+          // Wave 2 · Phase C-2 — card FSM initial state + vendor auth trail.
+          // Nullable for non-card tenders; `_pos_record_payment` treats
+          // empty strings as NULL so the FSM guard skips these rows.
+          auth_state: p.auth_state ?? null,
+          auth_id: p.auth_id ?? null,
+          vendor_txn_id: p.vendor_txn_id ?? null,
+          authorized_amount: p.authorized_amount ?? null,
         };
       }),
+
       p_subtotal: data.cart.subtotal,
       p_tax_amount: data.cart.tax_amount,
       p_discount_amount: data.cart.discount_amount,
@@ -351,8 +366,20 @@ async function processOfflineTransaction(
         tendered_amount: tendered,
         change_given: p.method === "cash" ? change : 0,
         reference: p.reference,
+        card_last_four: p.card_last_four,
+        card_type: p.card_type,
+        // Wave 2 · Phase C-2 — preserve card FSM metadata through the
+        // offline queue. SQLiteSyncManager must forward these to the RPC
+        // on replay so the FSM guard sees the same initial state as the
+        // online path. (Follow-up: sync manager still uses direct insert;
+        // migrating replay to `process_pos_transaction` is Phase C-3.)
+        auth_state: p.auth_state,
+        auth_id: p.auth_id,
+        vendor_txn_id: p.vendor_txn_id,
+        authorized_amount: p.authorized_amount,
       };
     }),
+
     transaction_type: data.transaction_type || "sale",
     offline_transaction_number: offlineTransactionNumber,
     created_by: userId,

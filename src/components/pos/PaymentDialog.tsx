@@ -26,8 +26,10 @@ import { resolvePaymentMethods, countReady } from "@/lib/pos/paymentMethodResolv
 import { cn } from "@/lib/utils";
 import { MpesaPaymentModal } from "./MpesaPaymentModal";
 import { MpesaC2BLookupModal } from "./MpesaC2BLookupModal";
+import { CardPaymentModal, type CardAuthPayload } from "./CardPaymentModal";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
+
 
 export interface PaymentDialogPayment {
   method: string;
@@ -38,7 +40,17 @@ export interface PaymentDialogPayment {
   /** Cash change due to the customer; 0 for non-cash. */
   change_given?: number;
   reference?: string;
+  // Wave 2 · Phase C-2 — card FSM metadata captured by CardPaymentModal.
+  // Persisted at commit-time by `_pos_record_payment` so the row starts
+  // in a legal FSM state (approved | captured) with vendor auth trail.
+  auth_state?: "approved" | "captured";
+  auth_id?: string;
+  vendor_txn_id?: string;
+  authorized_amount?: number;
+  card_last_four?: string;
+  card_type?: string;
 }
+
 
 interface PaymentDialogProps {
   open: boolean;
@@ -95,6 +107,11 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
   const [showSplitMpesaModal, setShowSplitMpesaModal] = useState(false);
   const [splitMpesaAmount, setSplitMpesaAmount] = useState<number>(0);
   const [showC2BLookup, setShowC2BLookup] = useState(false);
+  // Wave 2 · Phase C-2 — card terminal session.
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardModalAmount, setCardModalAmount] = useState<number>(0);
+  const [cardModalMode, setCardModalMode] = useState<"full" | "split">("full");
+
 
   // Cash rounding helper
   const applyCashRounding = (amount: number): number => {
@@ -137,9 +154,11 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
   const mpesaWalletMethod   = enabledPaymentMethods.find(
     m => m.tender_kind === "wallet" && m.provider_key === "mpesa",
   );
+  const cardMethod          = enabledPaymentMethods.find(m => m.tender_kind === "card");
   const selectedTenderKind  = selectedMethodConfig?.tender_kind;
   const selectedCaptureMode = selectedMethodConfig?.capture_mode;
   const selectedProviderKey = selectedMethodConfig?.provider_key;
+
 
   // Split payment is only meaningful when the register actually offers more
   // than one payment method. Splitting a pure-cash sale across two cash lines
@@ -159,6 +178,17 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
       setShowSplitMpesaModal(true);
       return;
     }
+
+    // Card tenders: route through the terminal modal so the driver runs a
+    // real authorization before we attach the line. The FSM metadata is
+    // persisted at commit-time by `_pos_record_payment`.
+    if (selectedTenderKind === "card") {
+      setCardModalAmount(paymentAmount);
+      setCardModalMode("split");
+      setShowCardModal(true);
+      return;
+    }
+
 
     // Credit-liability tenders (Store Credit / customer account) need a
     // named customer so A/R has a party to bill.
@@ -237,10 +267,46 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     setShowMpesaModal(false);
     setShowSplitMpesaModal(false);
     setSplitMpesaAmount(0);
+    setShowCardModal(false);
+    setCardModalAmount(0);
+    setCardModalMode("full");
     if (enabledPaymentMethods.length > 0) {
       setSelectedMethod(enabledPaymentMethods[0].method_key);
     }
   };
+
+  // Wave 2 · Phase C-2 — card terminal handlers. Full path completes the
+  // sale immediately; split path appends a card line to the running list.
+  const buildCardLine = (auth: CardAuthPayload, amountApplied: number): PaymentDialogPayment => {
+    if (!cardMethod) throw new Error("card tender missing from catalog");
+    return {
+      method: cardMethod.method_key,
+      amount: amountApplied,
+      tendered_amount: amountApplied,
+      change_given: 0,
+      reference: auth.authId,
+      auth_state: auth.initialAuthState,
+      auth_id: auth.authId,
+      vendor_txn_id: auth.vendorTxnId,
+      authorized_amount: auth.authorizedAmount,
+      card_last_four: auth.cardLastFour,
+      card_type: auth.cardType,
+    };
+  };
+
+  const handleCardSuccess = (auth: CardAuthPayload) => {
+    const line = buildCardLine(auth, cardModalAmount);
+    if (cardModalMode === "full") {
+      onComplete([line]);
+      resetForm();
+    } else {
+      setPayments((prev) => [...prev, line]);
+      setAmount("");
+    }
+    setShowCardModal(false);
+    setCardModalAmount(0);
+  };
+
 
   // Full M-Pesa payment (pay entire amount). M-Pesa never returns change —
   // the gateway authorizes the exact requested amount. Method key comes
@@ -309,6 +375,16 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
   // Catalog-driven capability flags — no method_key string checks.
   const isCashEnabled   = Boolean(cashMethod);
   const isCreditEnabled = Boolean(creditLiabilityMethod);
+  const isCardEnabled   = Boolean(cardMethod);
+
+  const handleCardQuickPay = () => {
+    if (!cardMethod) return;
+    const amt = payments.length === 0 ? effectiveTotal : remaining;
+    if (amt <= 0) return;
+    setCardModalAmount(amt);
+    setCardModalMode(payments.length === 0 ? "full" : "split");
+    setShowCardModal(true);
+  };
 
   const handleCreditQuickPay = () => {
     if (!creditLiabilityMethod) return;
@@ -331,6 +407,7 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
       setPayments([...payments, creditLine]);
     }
   };
+
 
 
   return (
@@ -409,6 +486,32 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
                 </div>
               </Button>
             )}
+
+            {/* Card Terminal Quick Pay (Wave 2 · Phase C-2) */}
+            {isCardEnabled && remaining > 0 && (
+              <Button
+                variant="outline"
+                className="w-full h-12 sm:h-14 border-2 border-blue-500 hover:bg-blue-500/10 justify-start gap-2 sm:gap-3"
+                onClick={handleCardQuickPay}
+              >
+                <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="font-medium text-sm sm:text-base">
+                    {payments.length === 0
+                      ? `Card · ${formatCurrency(effectiveTotal)}`
+                      : `Card · ${formatCurrency(remaining)}`}
+                  </p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                    {cardMethod?.capture_mode === "auth_only"
+                      ? "Authorize now, capture on settlement"
+                      : "Authorize + capture immediately"}
+                  </p>
+                </div>
+              </Button>
+            )}
+
 
             {/* Total Display */}
             <div className="text-center py-3 sm:py-4 bg-muted/50 rounded-lg">
@@ -717,7 +820,23 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
             }
           }}
         />
+
+        {/* Card Terminal Modal (Wave 2 · Phase C-2) */}
+        <CardPaymentModal
+          open={showCardModal}
+          onOpenChange={setShowCardModal}
+          amount={cardModalAmount}
+          captureMode={
+            (cardMethod?.capture_mode as "auth_only" | "auth_capture") ?? "auth_capture"
+          }
+          onSuccess={handleCardSuccess}
+          onCancel={() => {
+            setShowCardModal(false);
+            setCardModalAmount(0);
+          }}
+        />
       </DialogContent>
+
     </Dialog>
   );
 }

@@ -967,8 +967,17 @@ function POSTerminalInner() {
               tendered_amount: tendered,
               change_given: method === "cash" ? change : 0,
               reference: p.reference,
+              // Wave 2 · Phase C-2 — forward card FSM metadata to
+              // `_pos_record_payment` so the row starts in a legal state.
+              card_last_four: p.card_last_four,
+              card_type: p.card_type,
+              auth_state: p.auth_state,
+              auth_id: p.auth_id,
+              vendor_txn_id: p.vendor_txn_id,
+              authorized_amount: p.authorized_amount,
             };
           }),
+
           table_session_id: tableSessionId || undefined,
           tip_amount: tipAmount || 0,
         });

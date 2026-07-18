@@ -60,6 +60,32 @@ export const simCardDriver: CardDriver = {
 export class CardTerminalController {
   constructor(private readonly driver: CardDriver = simCardDriver) {}
 
+  /**
+   * Driver-only pre-authorization used by `CardPaymentModal` BEFORE the
+   * sale is committed (there is no `pos_transaction_payments.id` yet).
+   * The returned auth metadata is persisted at commit-time via
+   * `_pos_record_payment`, which inserts the payment row with
+   * `auth_state='approved'` (or `captured`) — the FSM guard trigger
+   * validates the initial state. Post-commit lifecycle (capture from
+   * `approved`, void, reverse) MUST go through the RPC-backed methods
+   * below so the state machine is enforced by the database.
+   */
+  async preAuthorize(amount: number, currency?: string): Promise<{
+    authId: string;
+    vendorTxnId: string;
+    authorizedAmount: number;
+    cardLastFour?: string;
+    cardType?: string;
+  }> {
+    return this.driver.authorize({
+      amount,
+      paymentId: `pre_${crypto.randomUUID()}`,
+      currency,
+    });
+  }
+
+
+
   async authorize(paymentId: string, amount: number, currency?: string): Promise<CardAuthResult> {
     const vendor = await this.driver.authorize({ paymentId, amount, currency });
     const { data, error } = await supabase.rpc("pos_card_authorize", {
