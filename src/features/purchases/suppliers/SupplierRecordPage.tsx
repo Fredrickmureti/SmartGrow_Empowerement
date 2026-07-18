@@ -329,50 +329,50 @@ export default function SupplierRecordPage() {
           <TabsContent value="overview" className="mt-4 space-y-6">
             <Section title="Identity">
               <FieldGrid>
-                <FieldCell label="Legal name">{record.contact?.name ?? "—"}</FieldCell>
-                <FieldCell label="Email">{record.contact?.email ?? "—"}</FieldCell>
-                <FieldCell label="Phone">{record.contact?.phone ?? "—"}</FieldCell>
-                <FieldCell label="Tax ID">{(record.contact as any)?.tax_id ?? "—"}</FieldCell>
-                <FieldCell label="Category">{record.category?.name ?? "—"}</FieldCell>
-                <FieldCell label="Supplier code">
+                <Field label="Legal name">{record.contact?.name ?? "—"}</Field>
+                <Field label="Email">{record.contact?.email ?? "—"}</Field>
+                <Field label="Phone">{record.contact?.phone ?? "—"}</Field>
+                <Field label="Tax ID">{(record.contact as any)?.tax_id ?? "—"}</Field>
+                <Field label="Category">{record.category?.name ?? "—"}</Field>
+                <Field label="Supplier code">
                   {record.supplier_code ?? "—"}
-                </FieldCell>
+                </Field>
               </FieldGrid>
             </Section>
 
             <Section title="Procurement defaults">
               <FieldGrid>
-                <FieldCell label="Default currency">
+                <Field label="Default currency">
                   {record.default_currency ?? "—"}
-                </FieldCell>
-                <FieldCell label="Incoterms">
+                </Field>
+                <Field label="Incoterms">
                   {record.default_incoterms ?? "—"}
-                </FieldCell>
-                <FieldCell label="Lead time (days)">
+                </Field>
+                <Field label="Lead time (days)">
                   {record.default_lead_time_days ?? "—"}
-                </FieldCell>
-                <FieldCell label="Minimum order value">
+                </Field>
+                <Field label="Minimum order value">
                   {money(record.minimum_order_value, record.default_currency)}
-                </FieldCell>
+                </Field>
               </FieldGrid>
             </Section>
 
             <Section title="Qualification summary">
               <FieldGrid>
-                <FieldCell label="Score">
+                <Field label="Score">
                   {record.qualification_score != null
                     ? Number(record.qualification_score).toFixed(1)
                     : "—"}
-                </FieldCell>
-                <FieldCell label="Last qualified">
+                </Field>
+                <Field label="Last qualified">
                   {fmt(record.last_qualified_at)}
-                </FieldCell>
-                <FieldCell label="Expires">
+                </Field>
+                <Field label="Expires">
                   {fmt(record.qualification_expires_at)}
-                </FieldCell>
-                <FieldCell label="Hold reason">
+                </Field>
+                <Field label="Hold reason">
                   {record.hold_reason ?? "—"}
-                </FieldCell>
+                </Field>
               </FieldGrid>
             </Section>
           </TabsContent>
