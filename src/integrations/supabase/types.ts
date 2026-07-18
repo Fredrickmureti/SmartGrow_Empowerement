@@ -39677,6 +39677,120 @@ export type Database = {
           },
         ]
       }
+      pos_return_apply_log: {
+        Row: {
+          applied_at: string
+          authorization_id: string
+          journal_entry_id: string | null
+          reversal_transaction_id: string | null
+        }
+        Insert: {
+          applied_at?: string
+          authorization_id: string
+          journal_entry_id?: string | null
+          reversal_transaction_id?: string | null
+        }
+        Update: {
+          applied_at?: string
+          authorization_id?: string
+          journal_entry_id?: string | null
+          reversal_transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_return_apply_log_authorization_id_fkey"
+            columns: ["authorization_id"]
+            isOneToOne: true
+            referencedRelation: "pos_return_authorizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_return_authorizations: {
+        Row: {
+          applied_at: string | null
+          applied_return_transaction_id: string | null
+          approved_at: string | null
+          approver_id: string | null
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          id: string
+          manager_pin_verified_at: string | null
+          organization_id: string
+          reason_code_id: string | null
+          reason_note: string | null
+          rejected_at: string | null
+          requested_at: string
+          requested_by: string | null
+          state: string
+          transaction_id: string
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_return_transaction_id?: string | null
+          approved_at?: string | null
+          approver_id?: string | null
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          id?: string
+          manager_pin_verified_at?: string | null
+          organization_id: string
+          reason_code_id?: string | null
+          reason_note?: string | null
+          rejected_at?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          state?: string
+          transaction_id: string
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_return_transaction_id?: string | null
+          approved_at?: string | null
+          approver_id?: string | null
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          id?: string
+          manager_pin_verified_at?: string | null
+          organization_id?: string
+          reason_code_id?: string | null
+          reason_note?: string | null
+          rejected_at?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          state?: string
+          transaction_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_return_authorizations_applied_return_transaction_id_fkey"
+            columns: ["applied_return_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "pos_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_return_authorizations_reason_code_id_fkey"
+            columns: ["reason_code_id"]
+            isOneToOne: false
+            referencedRelation: "pos_return_reasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_return_authorizations_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "pos_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_return_reasons: {
         Row: {
           code: string
@@ -40257,6 +40371,7 @@ export type Database = {
           cash_variance_tolerance: number
           cashier_id: string | null
           close_blocked_reasons: Json
+          close_mode: string | null
           closed_at: string | null
           closed_by: string | null
           created_at: string
@@ -40298,6 +40413,7 @@ export type Database = {
           cash_variance_tolerance?: number
           cashier_id?: string | null
           close_blocked_reasons?: Json
+          close_mode?: string | null
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
@@ -40339,6 +40455,7 @@ export type Database = {
           cash_variance_tolerance?: number
           cashier_id?: string | null
           close_blocked_reasons?: Json
+          close_mode?: string | null
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
@@ -72566,6 +72683,7 @@ export type Database = {
           cash_variance_tolerance: number
           cashier_id: string | null
           close_blocked_reasons: Json
+          close_mode: string | null
           closed_at: string | null
           closed_by: string | null
           created_at: string
@@ -74655,6 +74773,15 @@ export type Database = {
         }
         Returns: Json
       }
+      pos_close_register_period: {
+        Args: {
+          p_actual_cash?: number
+          p_mode?: string
+          p_notes?: string
+          p_shift_id: string
+        }
+        Returns: string
+      }
       pos_create_scanner_pairing: {
         Args: { p_register_id: string }
         Returns: {
@@ -74662,6 +74789,10 @@ export type Database = {
           register_id: string
           token: string
         }[]
+      }
+      pos_reconcile_register_period: {
+        Args: { p_actual_cash: number; p_notes?: string; p_shift_id: string }
+        Returns: string
       }
       pos_rename_scanner_device: {
         Args: { p_device_id: string; p_label: string; p_session: string }
@@ -74717,6 +74848,10 @@ export type Database = {
           p_requested_unit_price: number
         }
         Returns: Json
+      }
+      pos_return_authorization_transition: {
+        Args: { p_id: string; p_manager_pin?: string; p_to_state: string }
+        Returns: string
       }
       pos_revoke_scanner_pairing: {
         Args: { p_register_id: string }
