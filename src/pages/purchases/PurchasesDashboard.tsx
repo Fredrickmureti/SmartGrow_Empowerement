@@ -385,9 +385,10 @@ export default function PurchasesDashboard() {
             <Button variant="outline" size="sm" onClick={() => navigate("/purchases/expenses")}>
               Expenses <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate("/purchases/vendors")}>
-              Vendors <ArrowRight className="h-3 w-3 ml-1" />
+            <Button variant="outline" size="sm" onClick={() => navigate("/purchases/suppliers")}>
+              Suppliers <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
+
             <Button variant="outline" size="sm" onClick={() => navigate("/purchases/rfqs")}>
               RFQs <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
