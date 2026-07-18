@@ -179,6 +179,17 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
       return;
     }
 
+    // Card tenders: route through the terminal modal so the driver runs a
+    // real authorization before we attach the line. The FSM metadata is
+    // persisted at commit-time by `_pos_record_payment`.
+    if (selectedTenderKind === "card") {
+      setCardModalAmount(paymentAmount);
+      setCardModalMode("split");
+      setShowCardModal(true);
+      return;
+    }
+
+
     // Credit-liability tenders (Store Credit / customer account) need a
     // named customer so A/R has a party to bill.
     if (selectedTenderKind === "credit_liability" && !hasCustomer) {
