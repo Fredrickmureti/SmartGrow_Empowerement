@@ -41270,9 +41270,11 @@ export type Database = {
           customer_name: string | null
           customer_tin: string | null
           discount_amount: number | null
+          gl_posted_at: string | null
           id: string
           idempotency_key: string | null
           invoice_id: string | null
+          journal_entry_id: string | null
           notes: string | null
           organization_id: string
           original_transaction_id: string | null
@@ -41313,9 +41315,11 @@ export type Database = {
           customer_name?: string | null
           customer_tin?: string | null
           discount_amount?: number | null
+          gl_posted_at?: string | null
           id?: string
           idempotency_key?: string | null
           invoice_id?: string | null
+          journal_entry_id?: string | null
           notes?: string | null
           organization_id: string
           original_transaction_id?: string | null
@@ -41358,9 +41362,11 @@ export type Database = {
           customer_name?: string | null
           customer_tin?: string | null
           discount_amount?: number | null
+          gl_posted_at?: string | null
           id?: string
           idempotency_key?: string | null
           invoice_id?: string | null
+          journal_entry_id?: string | null
           notes?: string | null
           organization_id?: string
           original_transaction_id?: string | null
@@ -41437,6 +41443,48 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
           {
@@ -74051,6 +74099,11 @@ export type Database = {
         Returns: undefined
       }
       post_landed_cost_bill: { Args: { p_bill_id: string }; Returns: string }
+      post_pos_close_variance_gl: {
+        Args: { _shift_id: string }
+        Returns: string
+      }
+      post_pos_sale_gl: { Args: { _txn_id: string }; Returns: string }
       post_pos_shift_gl: { Args: { _shift_id: string }; Returns: string }
       post_source_to_gl: {
         Args: { p_source_id: string; p_source_type: string }
