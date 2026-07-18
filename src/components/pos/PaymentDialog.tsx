@@ -38,7 +38,17 @@ export interface PaymentDialogPayment {
   /** Cash change due to the customer; 0 for non-cash. */
   change_given?: number;
   reference?: string;
+  // Wave 2 · Phase C-2 — card FSM metadata captured by CardPaymentModal.
+  // Persisted at commit-time by `_pos_record_payment` so the row starts
+  // in a legal FSM state (approved | captured) with vendor auth trail.
+  auth_state?: "approved" | "captured";
+  auth_id?: string;
+  vendor_txn_id?: string;
+  authorized_amount?: number;
+  card_last_four?: string;
+  card_type?: string;
 }
+
 
 interface PaymentDialogProps {
   open: boolean;
