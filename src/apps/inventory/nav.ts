@@ -56,7 +56,7 @@ export const INVENTORY_NAV: WorkspaceNav = {
     {
       label: "Setup",
       items: [
-        { to: "/inventory-app/warehouses", label: "Warehouses", icon: Warehouse },
+        // Warehouses master data moved to Warehouse app per ADR 0080.
         { to: "/inventory-app/uom", label: "Units of measure", icon: Scale },
       ],
     },
