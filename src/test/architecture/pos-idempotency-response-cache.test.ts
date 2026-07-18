@@ -82,9 +82,10 @@ describe("POS architecture guard — idempotency response cache (T9)", () => {
   });
 
   it("no client-side code writes to pos_transaction_idempotency", () => {
-    // Only the SQL migration and test files may reference the table.
+    // Only the SQL migration, test files, and the auto-generated Supabase
+    // types file (read-only type surface) may reference the table.
     const hits = execSync(
-      "rg -l pos_transaction_idempotency src --glob '!src/test/**' || true",
+      "rg -l pos_transaction_idempotency src --glob '!src/test/**' --glob '!src/integrations/supabase/types.ts' || true",
       { encoding: "utf8" },
     )
       .split("\n")
