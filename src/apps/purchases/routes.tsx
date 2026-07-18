@@ -95,6 +95,17 @@ const SupplierRecordPage = lazy(
   () => import("@/features/purchases/suppliers/SupplierRecordPage"),
 );
 
+// P2 — Contracts workbench.
+const ContractListPage = lazy(
+  () => import("@/features/purchases/contracts/ContractListPage"),
+);
+const ContractCreatePage = lazy(
+  () => import("@/features/purchases/contracts/ContractCreatePage"),
+);
+const ContractRecordPage = lazy(
+  () => import("@/features/purchases/contracts/ContractRecordPage"),
+);
+
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>
