@@ -50,9 +50,9 @@ describe("POS money math — client-supplied totals are advisory only", () => {
     );
     expect(insertMatch, "process_pos_transaction must INSERT pos_transactions").toBeTruthy();
     const body = insertMatch![0];
-    expect(body).toMatch(/v_server_subtotal|v_subtotal/);
-    expect(body).toMatch(/v_server_tax|v_tax/);
-    expect(body).toMatch(/v_server_total|v_total/);
+    expect(body).toMatch(/v_(?:server_|srv_)?subtotal/);
+    expect(body).toMatch(/v_(?:server_|srv_)?(?:total_)?tax/);
+    expect(body).toMatch(/v_(?:server_|srv_)?total\b/);
     // Client-supplied money params must not be persisted verbatim.
     expect(body).not.toMatch(/\bp_subtotal\b/);
     expect(body).not.toMatch(/\bp_tax_amount\b/);
