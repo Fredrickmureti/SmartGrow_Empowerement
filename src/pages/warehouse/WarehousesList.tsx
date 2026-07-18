@@ -93,7 +93,7 @@ export default function Warehouses() {
       openUpgradeModal("warehouses");
       return;
     }
-    navigate("/inventory-app/warehouses/new");
+    navigate("/warehouse-app/warehouses/new");
   };
 
   const handleOpenWarehouseEdit = (warehouse: Warehouse) => {
@@ -101,7 +101,7 @@ export default function Warehouses() {
       openUpgradeModal("warehouses");
       return;
     }
-    navigate(`/inventory-app/warehouses/${warehouse.id}/edit`);
+    navigate(`/warehouse-app/warehouses/${warehouse.id}/edit`);
   };
 
   const executeDeleteWarehouse = async (warehouse: Warehouse) => {

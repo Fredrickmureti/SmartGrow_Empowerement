@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useWarehouses } from "@/hooks/useWarehouses";
 
-const LIST_PATH = "/inventory-app/warehouses";
+const LIST_PATH = "/warehouse-app/warehouses";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
