@@ -12,12 +12,15 @@ Verified against `pg_proc`, `information_schema`, and live tables in the connect
 - **Runtime exercise**: `suppliers` has **0 rows**, `contacts WHERE type IN ('supplier','both')` returns **0 rows**, `business_event_outbox WHERE event_type LIKE 'supplier.%'` returns **0 rows**. The backfill was a no-op (no vendor-typed contacts existed), and no RPC has ever been called in this environment. The plan's claim "backfill covered all vendor-typed contacts" is trivially true but not evidence of correctness. **Outbox emission is verified by code inspection, not by observed events.** Runtime verification is folded into P12 (E2E harness).
 - **UI**: no Supplier 360 workbench exists yet — plan already marks P1-UI pending.
 
-### P0 Foundation & drift removal — ❌ not started
+### P0 Foundation & drift removal — ✅ shipped (2026-07-18)
 
-- `create_goods_receipt` canonical wrapper: **absent** from `pg_proc`. The WMS 14a.2 deferral is still open.
-- `complete_goods_receipt_atomic` body still references `stock_movements` (position 3602) and `journal_entries` (position 5645) — Procurement still mutates Inventory and Finance inline.
-- No `procurement.*` events exist in `business_event_outbox`.
-- No `v_po_line_billed_progress` reconciliation view; no `src/test/architecture/procurement.test.ts` guard.
+- `public.business_event_topics` registry table + `supplier.*` / `procurement.*` / `sourcing.*` seed rows.
+- `public.business_event_subscriptions` registry table; `procurement.gr.posted` bound to `wms.gr_stock_applier` (`wms_apply_gr_stock`) and `finance.gr_journal_poster` (`finance_post_gr_journal`).
+- `create_goods_receipt(_business_id, _po_id, _lines, _actor, _warehouse_id?, _receipt_number?, _receipt_date?)` — canonical entry point used by both Procurement UI and WMS receive path.
+- `complete_goods_receipt_atomic` **reconstructed**. Body no longer references `stock_movements`, `stock_quants`, `cost_layers`, `journal_entries`, `journal_entry_lines`. It orchestrates: `wms_apply_gr_stock` → `finance_post_gr_journal` → mark completed → emit `procurement.gr.posted` (single emitter, idempotency-keyed).
+- `v_po_line_billed_progress` view (with `security_invoker=true`) reconciling `bill_grn_matches.matched_quantity` + direct `bill_items.purchase_order_item_id` against stored `quantity_billed`, exposing `billed_drift` per line.
+- Commit-time SQL invariant in the split migration RAISEs if `complete_goods_receipt_atomic` ever regains a forbidden table reference.
+- `src/test/architecture/procurement.test.ts` guard test verifies the topic registry, subscription registry, subscribers, canonical wrapper, and reconciliation view all remain declared.
 
 ### Everything else (P2 → P13) — ❌ not started
 
@@ -40,14 +43,12 @@ Nothing in the plan is dropped.
 
 Strict chronological order. Each phase closes only when its migration lands **and** the corresponding E2E spec (in P12 harness) is unskipped and asserts read-back + outbox rows.
 
-### Next batch — P1 closure + P0 (drift removal)
+### Next batch — P1-UI (Supplier 360) + P2 (Contracts)
 
-1. **P1 closure smoke** — add a Vitest that seeds one supplier + calls `submit_supplier_qualification` and `approve_supplier_qualification` via RPC, asserts 2 rows in `business_event_outbox` with `event_type LIKE 'supplier.%'` and matching idempotency keys.
-2. **P0 wrapper** — migration: `create_goods_receipt(_business_id, _po_id, _lines jsonb, _actor)` — returns `gr_id`; single canonical entry point used by both WMS receive path and Procurement UI. Existing `record_goods_receipt_line` + `complete_goods_receipt_atomic` become internal helpers.
-3. **P0 split** — migration: strip `stock_movements` + `journal_entries` INSERTs from `complete_goods_receipt_atomic`; replace with `INSERT INTO business_event_outbox (event_type='procurement.gr.posted', …)`. Add a SECURITY-DEFINER subscriber `wms_apply_gr_stock(_event_id uuid)` that reads the event payload and performs the stock movement + cost layer writes (moved verbatim from the stripped section). Register the subscription in a new `business_event_subscriptions` row.
-4. **P0 topic registry** — migration: `business_event_topics` table + seed rows for `supplier.*`, `procurement.*`, `sourcing.*`.
-5. **P0 billed-progress reconciliation** — migration: `v_po_line_billed_progress` view unifying `bill_grn_matches` + `sync_po_line_billed_quantities`; add invariants test asserting they agree for every PO line.
-6. **P0 architecture guard** — `src/test/architecture/procurement.test.ts`: fails the build if any Procurement RPC body (excluding the subscriber wrapper) references `stock_quants`, `stock_movements`, `cost_layers`, or `journal_entry_lines`.
+P0 is closed. P1 runtime verification (submit → approve → outbox rows) folds into the P12 E2E harness — a migration-time smoke is impossible because the supplier RPCs check `auth.uid()`. The next batch is:
+
+1. **P1-UI** — Supplier 360 workbench: identity, qualification timeline, compliance docs, contracts, price lists, PO/GR/Bill/Payment history, scorecard tab (empty until P10).
+2. **P2** — Contracts & Agreements (`procurement_contracts`, `_lines`, `_releases`; ceiling enforcement at PO approval; expiry outbox alerts; contracts workbench).
 
 ### Subsequent phases (unchanged from `.lovable/plan.md`)
 
