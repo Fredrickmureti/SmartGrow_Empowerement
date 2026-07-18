@@ -46,7 +46,14 @@ export default function SupplierCreatePage() {
   const [taxId, setTaxId] = useState("");
   const [code, setCode] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
-  const [currency, setCurrency] = useState("");
+  // H+1: default to workspace base currency (falls back to blank until BusinessContext hydrates)
+  const [currency, setCurrency] = useState(currentBusiness?.base_currency ?? "");
+  useEffect(() => {
+    if (!currency && currentBusiness?.base_currency) {
+      setCurrency(currentBusiness.base_currency);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBusiness?.base_currency]);
   const [incoterms, setIncoterms] = useState("");
   const [leadTime, setLeadTime] = useState<string>("");
   const [notes, setNotes] = useState("");
