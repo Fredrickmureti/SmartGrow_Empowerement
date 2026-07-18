@@ -19,7 +19,7 @@ import {
   BarChart3,
   Coins,
   Hourglass,
-  Warehouse,
+  Scale,
   Scale,
   CalendarClock,
   Truck,
