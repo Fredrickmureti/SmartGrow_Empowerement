@@ -122,6 +122,11 @@ export default tseslint.config(
       // transfer_employee_primary_branch. DB trigger enforces the same.
       "local/no-direct-employees-branch-write": "error",
 
+      // ADR 0082 · Batch T2 — every process_pos_transaction call must
+      // pass a deterministic p_idempotency_key. Fallbacks to
+      // crypto.randomUUID() silently defeat retry-collapse.
+      "local/no-pos-commit-without-idempotency-key": "error",
+
 
 
       // Platform stewardship — Phase F guardrail.
