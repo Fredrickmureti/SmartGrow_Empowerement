@@ -123,8 +123,9 @@ interface ReservedPopoverProps {
 
 /**
  * ReservedPopover — read-only drill into the origin of `warehouse_stock.reserved_quantity`.
- * Reads from `stock_reservations` (open: released_at IS NULL) and `pos_stock_reservations`
- * (active: expires_at > now()), scoped to product + warehouse + business.
+ * Reads from `stock_reservations` (open: released_at IS NULL). POS holds now live
+ * in the same table with `source_type='pos'` (ADR 0082 · T3), so the legacy
+ * `pos_stock_reservations` query has been removed to avoid double-counting.
  */
 function ReservedPopover({ productId, businessId, warehouseId, label, baseLabel, fmt }: ReservedPopoverProps) {
   const { data, isLoading } = useQuery({
@@ -132,26 +133,16 @@ function ReservedPopover({ productId, businessId, warehouseId, label, baseLabel,
     enabled: !!productId && !!businessId && !!warehouseId,
     staleTime: 30_000,
     queryFn: async () => {
-      const [{ data: openResv }, { data: posResv }] = await Promise.all([
-        supabase
-          .from("stock_reservations")
-          .select("id, quantity, source_type, source_id, expires_at, created_at")
-          .eq("product_id", productId!)
-          .eq("business_id", businessId!)
-          .eq("warehouse_id", warehouseId)
-          .is("released_at", null)
-          .order("created_at", { ascending: false })
-          .limit(10),
-        supabase
-          .from("pos_stock_reservations")
-          .select("id, quantity, register_id, expires_at, created_at, pos_registers(name)")
-          .eq("product_id", productId!)
-          .eq("business_id", businessId!)
-          .gt("expires_at", new Date().toISOString())
-          .order("created_at", { ascending: false })
-          .limit(10),
-      ]);
-      return { resv: openResv ?? [], pos: posResv ?? [] };
+      const { data: openResv } = await supabase
+        .from("stock_reservations")
+        .select("id, quantity, source_type, source_id, expires_at, created_at")
+        .eq("product_id", productId!)
+        .eq("business_id", businessId!)
+        .eq("warehouse_id", warehouseId)
+        .is("released_at", null)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return { resv: openResv ?? [], pos: [] as never[] };
     },
   });
 
