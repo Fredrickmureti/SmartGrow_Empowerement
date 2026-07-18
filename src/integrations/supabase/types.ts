@@ -66242,6 +66242,10 @@ export type Database = {
         Args: { _override_id: string; _payroll_run_id: string }
         Returns: Json
       }
+      apply_loyalty_accrual_for_sale: {
+        Args: { p_transaction_id: string }
+        Returns: Json
+      }
       apply_or_request_stock_adjustment: {
         Args: { p_input: Json; p_user_id: string }
         Returns: Json
