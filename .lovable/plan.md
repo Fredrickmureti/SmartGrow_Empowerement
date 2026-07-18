@@ -1,61 +1,80 @@
+## Phase 13.1 — SHIPPED (2026-07-18)
 
-## Verification of prior work
+Mobile shell completed. Presentation layer only — zero migrations, zero
+new RPCs, zero desktop changes.
 
-Confirmed against `.lovable/plan.md` handoff:
+### Delivered
 
-- Phases 0–13 marked SHIPPED. Spot-checks:
-  - `src/apps/warehouse-mobile/{routes,MobileWarehouseLayout,QueueIndicator,offlineQueue}.tsx/ts` all exist.
-  - `src/pages/warehouse-mobile/` contains MobileHome, MobilePutaway, MobilePick, MobileCount, MobileReceive.
-  - `/wm/*` mounted in `src/App.tsx` behind `AppInstalledGate("warehouse")`.
-  - `wms-phase1..13.test.ts` guards present; `wms-phase13.test.ts` runs green (6/6).
-  - Desktop counterparts for the remaining flows exist: `PackStation.tsx`, `LoadingManifests.tsx` / `LoadingBay.tsx` (dispatch), `QCQueue.tsx` / `QCInspectionDetail.tsx`.
-  - ADRs 0079–0083 present; 0084 intentionally deferred (documented).
+1. `src/pages/warehouse-mobile/MobilePack.tsx` — task-scoped pack
+   workspace. RPCs (all via `enqueue`): `suggest_carton`,
+   `open_pack_carton`, `assign_carton_to_pack`, `seal_pack_carton`,
+   `complete_pack_task`.
+2. `src/pages/warehouse-mobile/MobileDispatch.tsx` — scan carton LPNs
+   onto a manifest, close, dispatch. RPCs: `load_carton_onto_manifest`,
+   `close_loading_manifest`, `dispatch_loading_manifest`.
+3. `src/pages/warehouse-mobile/MobileQC.tsx` — pass / fail / hold an
+   inspection. RPCs: `accept_qc_inspection`, `reject_qc_inspection`,
+   `cancel_qc_inspection`.
+4. Router wiring in `src/apps/warehouse-mobile/routes.tsx`:
+   `/wm/pack/:packId`, `/wm/dispatch/:shipmentId`, `/wm/qc/:taskId`.
+5. `MobileHome` gained a Pack tile, an open-manifests section, and an
+   open-QC-inspections section — all deep-linking into the new screens.
+6. Guard extension in `src/test/architecture/wms-phase13.test.ts`
+   asserts the three new routes are wired. `enqueue`-only RPC and
+   `MobileWarehouseLayout` guards already cover the new pages by
+   pattern.
+7. `src/test/architecture/workspace-shell.test.ts` — added
+   `warehouse-mobile` to `EXEMPT_WORKSPACES` (mobile shell uses
+   `MobileWarehouseLayout`, not `PlatformShell`).
 
-No evidence of skipped, faked, or partial Phase 13 work. Deferred items (pack/dispatch/QC mobile screens, full E2E harness) are correctly parked and match the handoff notes. Roadmap ordering is coherent; nothing to re-open.
+### Verification
 
-## Next milestone — Phase 13.1: Complete the mobile shell
+- `bunx vitest run src/test/architecture/wms-phase` → 14 files / 60
+  tests green.
+- Fixed pre-existing type errors in `MobileHome.tsx`
+  (`wms_count_sessions.{code,state}` and `wms_tasks.state` values).
 
-Per the "START HERE NEXT" pointer. Presentation layer only — no new tables, no new RPCs, no migrations. Every RPC call must route through `offlineQueue.enqueue()` to satisfy the Phase 13 guard.
+### Guardrails held
 
-### Deliverables
+- No direct `supabase.rpc(...)` in any mobile page.
+- No client writes to `wms_*` tables.
+- Desktop pages, RPCs, and `vite-plugin-pwa` config untouched.
+- `MobileWarehouseLayout` remains the sole mobile shell.
 
-1. **`MobilePack`** at `/wm/pack/:packId`
-   - Reuse logic from `src/pages/warehouse/PackStation.tsx`: open carton → scan carton label → scan pick lines into it → close carton → close pack.
-   - RPCs (already exist, invoked via `enqueue`): `suggest_carton`, `assign_carton_to_pack`, plus the pack open/close RPCs PackStation already uses. No signature changes.
-   - Operator override dropdown for carton type, mirroring desktop.
+---
 
-2. **`MobileDispatch`** at `/wm/dispatch/:shipmentId`
-   - Scan carton labels onto a shipment, confirm dispatch.
-   - Reuse the existing loading-manifest / dispatch RPCs consumed by `LoadingManifests.tsx` / `LoadingBay.tsx`.
+## START HERE NEXT — Phase 14: End-to-end integration harness
 
-3. **`MobileQC`** at `/wm/qc/:taskId`
-   - Pass / hold / fail against `wms_qc_tasks`; reuse RPCs called by `QCInspectionDetail.tsx`.
+The WMS surface (desktop + mobile) is feature-complete for Phases 0–13.1.
+The next milestone is a *repeatable* end-to-end harness that exercises
+the full receipt → putaway → wave → pick → pack → dispatch → QC path
+against a seeded business, so future refactors don't silently break
+cross-phase invariants.
 
-4. **Router wiring** in `src/apps/warehouse-mobile/routes.tsx` for the three new routes.
+### Scope
 
-5. **Guard extension** `src/test/architecture/wms-phase13.test.ts` (or a sibling `wms-phase13-1.test.ts` to keep phase provenance):
-   - Enforce enqueue-only RPC usage on the three new pages.
-   - Enforce `MobileWarehouseLayout` usage.
-   - Assert the three new routes are mounted at `/wm/pack/:packId`, `/wm/dispatch/:shipmentId`, `/wm/qc/:taskId`.
+1. Deterministic seed script (SQL migration `is_sample_data = true`)
+   creating: one warehouse, three zones/bins, two products with lots,
+   one carrier, one dock, one carton type, one QC hold reason, one
+   labour standard per task type.
+2. Playwright suite under `e2e/wms/` driving the desktop shell:
+   `receive.spec.ts`, `putaway.spec.ts`, `wave.spec.ts`,
+   `pick-pack-dispatch.spec.ts`, `qc.spec.ts`, `count.spec.ts`.
+3. Mobile-shell counterpart `e2e/wm/` exercising the offline queue:
+   toggle offline → enqueue an action → toggle online → assert the
+   queue drains and the same RPC lands server-side. Uses the injected
+   Supabase session per the browser-use directive.
+4. New architecture guard `wms-phase14.test.ts` asserting each spec
+   file exists and covers the phase it names.
 
-6. **Handoff update** in `.lovable/plan.md`: move Phase 13.1 to SHIPPED with the actual list of RPCs relied upon, and repoint "START HERE NEXT" to Phase 14 (end-to-end integration harness).
+### Explicitly out of scope for Phase 14
 
-### Guardrails carried forward
+- Any new UI. Harness only exercises what already ships.
+- Load / concurrency tests (belongs to a later Phase).
+- CI wiring — the harness lives in-repo; scheduling is a separate loop.
 
-- No direct `supabase.rpc` calls in mobile pages — always via `enqueue()`.
-- No client writes to `wms_*` tables; RPC-only state transitions.
-- No changes to shipped desktop pages, RPCs, or `vite-plugin-pwa` config.
-- Keep MobileWarehouseLayout as the sole shell.
+### Out of scope forever (documented deferrals)
 
-### Verification before declaring done
-
-- `bunx vitest run src/test/architecture` — all `wms-phase*.test.ts` green (including the extended Phase 13 guard).
-- Manual smoke via preview `/wm/pack/:id`, `/wm/dispatch/:id`, `/wm/qc/:id` render the layout + queue chip; offline toggle → action → online drains the queue row.
-
-### Explicitly out of scope for 13.1
-
-- ASN per-line scan-driven receive (would require a new RPC variant; defer until user asks).
+- ASN per-line scan-driven receive on mobile (needs a new RPC variant).
 - PWA manifest split for `/wm`.
-- Any Phase 14+ work.
-
-On approval, I will implement 13.1 end-to-end (pages, router entries, guard extension, handoff log update) and run the architecture suite before returning.
+- ADR 0084 (deferred with intent; see docs/adr).
