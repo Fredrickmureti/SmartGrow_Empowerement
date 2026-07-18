@@ -872,7 +872,7 @@ function POSTerminalInner() {
     cashier: (activeSession as any)?.cashier ?? null,
   });
 
-  const handlePaymentComplete = async (payments: Array<{ method: string; amount: number; tendered_amount?: number; change_given?: number; reference?: string }>) => {
+  const handlePaymentComplete = async (payments: Array<{ method: string; amount: number; tendered_amount?: number; change_given?: number; reference?: string; card_last_four?: string | null; card_type?: string | null; auth_state?: string | null; auth_id?: string | null; vendor_txn_id?: string | null; authorized_amount?: number | null }>) => {
     if (!activeShift || !registerId) return;
 
     // Capture cart state before clearing (needed for post-transaction integrations)
