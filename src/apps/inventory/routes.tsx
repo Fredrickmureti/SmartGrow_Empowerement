@@ -50,6 +50,16 @@ const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: s
   </Suspense>
 );
 
+// Deep-link redirects for the retired /inventory-app/warehouses/* surface (ADR 0080).
+function InventoryWarehouseViewRedirect() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/warehouse-app/warehouses/${id}`} replace />;
+}
+function InventoryWarehouseEditRedirect() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/warehouse-app/warehouses/${id}/edit`} replace />;
+}
+
 /**
  * Inventory App Component
  */
