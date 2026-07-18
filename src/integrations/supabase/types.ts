@@ -74016,6 +74016,17 @@ export type Database = {
           tax_rate_name: string
         }[]
       }
+      pos_resolve_line: {
+        Args: {
+          p_business_id: string
+          p_discount_type: string
+          p_discount_value: number
+          p_product_id: string
+          p_quantity: number
+          p_requested_unit_price: number
+        }
+        Returns: Json
+      }
       pos_revoke_scanner_pairing: {
         Args: { p_register_id: string }
         Returns: number
