@@ -40,13 +40,14 @@ function latestMigrationDefining(fnSig: string): string {
 }
 
 function extractFunctionBody(sql: string, fnName: string): string {
-  // Grab from CREATE ... FUNCTION public.<fnName> up to the next matching $$;
+  // Match `CREATE ... FUNCTION public.<fn>(...) ... AS $tag$ ... $tag$`
+  // where `tag` may be empty ($$) or a named dollar-quote like $fn$.
   const re = new RegExp(
-    `CREATE(?:\\s+OR\\s+REPLACE)?\\s+FUNCTION\\s+public\\.${fnName}[\\s\\S]*?\\$\\$([\\s\\S]*?)\\$\\$`,
+    `CREATE(?:\\s+OR\\s+REPLACE)?\\s+FUNCTION\\s+public\\.${fnName}\\b[\\s\\S]*?AS\\s+\\$([A-Za-z_][A-Za-z0-9_]*)?\\$([\\s\\S]*?)\\$\\1?\\$`,
     "i",
   );
   const m = sql.match(re);
-  return m?.[1] ?? "";
+  return m?.[2] ?? "";
 }
 
 describe("POS Transaction Engine — RPCs must use internal helpers", () => {
