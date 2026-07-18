@@ -73,6 +73,7 @@ function resilientLazy<T extends ComponentType<unknown>>(
 }
 const PosTerminalsPage = lazy(() => import("@/pages/pos/PosTerminalsPage"));
 const ScannerTelemetry = lazy(() => import("@/pages/pos/ScannerTelemetry"));
+const CardSettlementReport = lazy(() => import("@/pages/pos/CardSettlementReport"));
 
 /**
  * POS app routing tree.
@@ -132,6 +133,7 @@ function POSApp() {
         <Route path="kitchen" element={<KitchenDisplay />} />
         <Route path="bookings" element={<TableBookings />} />
         <Route path="reports" element={<POSReports />} />
+        <Route path="settlements" element={<CardSettlementReport />} />
         <Route path="settings" element={<POSSettings />} />
         {/* Wave 9b: hardware pages moved to /platform/hardware/*. App.tsx
             still maps the legacy /pos/hardware-* URLs via <Navigate>. */}

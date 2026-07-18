@@ -14,6 +14,7 @@ import {
   Calendar,
   BarChart3,
   CreditCard,
+  Landmark,
   Settings,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
@@ -23,8 +24,9 @@ export const POS_NAV: WorkspaceNav = {
     {
       label: "Operations",
       items: [
-        { to: "/pos",         label: "POS Dashboard", icon: Monitor, end: true },
-        { to: "/pos/reports", label: "POS Reports",   icon: BarChart3 },
+        { to: "/pos",             label: "POS Dashboard",  icon: Monitor, end: true },
+        { to: "/pos/reports",     label: "POS Reports",    icon: BarChart3 },
+        { to: "/pos/settlements", label: "Card Settlements", icon: Landmark },
       ],
     },
     {
