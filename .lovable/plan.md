@@ -79,3 +79,19 @@ Extend `src/test/architecture/wms-phase1.test.ts` (or add `wms-phase-master-data
 
 Awaiting approval before I switch to build mode and execute batches W1–W7.
 
+
+---
+
+## Status — 2026-07-18: CLOSED
+
+Batches W1–W7 all shipped:
+
+- **W1 (ADR):** `docs/adr/0080-warehouse-master-data-ownership.md` published.
+- **W2 (page move):** `Warehouses.tsx` → `src/pages/warehouse/WarehousesList.tsx`; `WarehouseNew/Edit/View/Form` moved from `src/pages/inventory/` to `src/pages/warehouse/`.
+- **W3 (routing & nav):** Warehouse app lazy-imports from the new location. Inventory app keeps `warehouses`, `warehouses/new`, `warehouses/:id`, `warehouses/:id/edit` as `<Navigate replace>` redirects (bookmark parity preserved). Inventory sidebar entry removed.
+- **W4 (cross-refs):** All `/inventory-app/warehouses` deep links across UI (`InventoryDashboard`, `AdjustmentNew`, `WarehousePeekSheet`, `WarehouseScopeGate`, `StockTransferPeekSheet`, `SourceDocumentPeekSheet`, `POSReadinessBanner`, `lib/apps/registry.ts`) rewritten to `/warehouse-app/warehouses`.
+- **W5 (cycle-count contract):** ADR 0080 documents the `warehouse.count.session.completed` → `physical_counts` bridge. UI callouts added on both Warehouse `CycleCounts` and Inventory `PhysicalCountWorkspace` linking across the boundary.
+- **W6 (guardrail):** `src/test/architecture/wms-phase-master-data.test.ts` enforces (a) no `pages/inventory/Warehouse*.tsx`, (b) no `/inventory-app/warehouses` in Inventory nav, (c) every legacy `<Route path="warehouses*">` in Inventory routes resolves to `<Navigate>` / `*Redirect`.
+- **W7 (verify):** `tsgo -p tsconfig.app.json` clean; `vitest` architecture suite green.
+
+No DB schema changes. No changes to `stock_movements`, `stock_quants`, valuation, or `wms_*` operational tables.
