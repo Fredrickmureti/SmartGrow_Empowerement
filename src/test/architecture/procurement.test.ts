@@ -67,9 +67,12 @@ const PROCUREMENT_RPC_NAMES = [
 
 // RPCs allowed to write to inventory/finance tables during the P0 → P7 split.
 // Each entry is technical debt tracked in .lovable/plan.md; the list shrinks
-// as subscribers absorb the writes.
+// as subscribers absorb the writes. `complete_goods_receipt_atomic` was
+// removed on P0 close (2026-07-18) — writes now live in
+// `wms_apply_gr_stock` (warehouse-owned) and `finance_post_gr_journal`
+// (finance-owned), enforced by a commit-time invariant in the P0 split
+// migration that RAISEs if the RPC body ever references stock/GL tables again.
 const LEGACY_ALLOWLIST = new Set<string>([
-  "complete_goods_receipt_atomic", // ADR-forthcoming: split into wms_apply_gr_stock subscriber
   "allocate_landed_cost_bill",     // ADR-0077 landed-cost path, splits in P7 continuation
   "post_landed_cost_bill",         // ADR-0077 landed-cost path, splits in P7 continuation
   "reverse_landed_cost_bill",      // ADR-0077 landed-cost path, splits in P7 continuation
@@ -91,6 +94,31 @@ describe("procurement domain boundary (P0)", () => {
       return src.includes("business_event_topics") && src.includes("procurement.");
     });
     expect(anyHasTopic).toBe(true);
+  });
+
+  it("business_event_subscriptions registry is declared in some migration", () => {
+    const dir = path.resolve(__dirname, "../../../supabase/migrations");
+    if (!existsSync(dir)) return;
+    const { readdirSync } = require("fs");
+    const files: string[] = readdirSync(dir);
+    const found = files.some((f: string) =>
+      readFileSync(path.join(dir, f), "utf8").includes(
+        "public.business_event_subscriptions",
+      ),
+    );
+    expect(found).toBe(true);
+  });
+
+  it("wms and finance GR subscribers are declared in some migration", () => {
+    const dir = path.resolve(__dirname, "../../../supabase/migrations");
+    if (!existsSync(dir)) return;
+    const { readdirSync } = require("fs");
+    const files: string[] = readdirSync(dir);
+    const combined = files
+      .map((f: string) => readFileSync(path.join(dir, f), "utf8"))
+      .join("\n");
+    expect(combined).toContain("FUNCTION public.wms_apply_gr_stock");
+    expect(combined).toContain("FUNCTION public.finance_post_gr_journal");
   });
 
   it("canonical create_goods_receipt wrapper is declared in some migration", () => {
