@@ -67950,6 +67950,19 @@ export type Database = {
         Args: { p_opening_items: Json; p_product: Json; p_user_id: string }
         Returns: Json
       }
+      create_purchase_requisition: {
+        Args: {
+          p_business_id: string
+          p_cost_center?: string
+          p_currency?: string
+          p_justification?: string
+          p_lines?: Json
+          p_need_by_date?: string
+          p_notes?: string
+          p_priority?: string
+        }
+        Returns: string
+      }
       create_return_delivery_atomic: {
         Args: {
           p_lines: Json
@@ -70101,6 +70114,10 @@ export type Database = {
       }
       get_next_receipt_number: {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
+        Returns: string
+      }
+      get_next_requisition_number: {
+        Args: { _business_id: string; _org_id: string }
         Returns: string
       }
       get_next_rfq_number: { Args: { _org_id: string }; Returns: string }
