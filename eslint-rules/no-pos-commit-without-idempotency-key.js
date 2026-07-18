@@ -86,7 +86,7 @@ export default {
   create(context) {
     return {
       CallExpression(node) {
-        if (!isProcessPosTransactionCall(node)) return;
+        if (!isGuardedRpcCall(node)) return;
         const payload = node.arguments[1];
         const check = hasSafeIdempotencyKey(payload);
         if (check === false || (check && check.ok === false)) {
