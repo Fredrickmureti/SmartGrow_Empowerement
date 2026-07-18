@@ -1,6 +1,19 @@
-# Wave 3 · Phase 1 — `PaymentSession` durable aggregate + session RPCs
+# Wave 3 · Phase 1 — `PaymentSession` durable aggregate + session RPCs  ✅ COMPLETE
+
+> **Status (verified against live DB):** Phase 1 landed. Every DoD item below is checked against `information_schema` / `pg_catalog` / `business_event_topics` and against static guards in the repo. Next up: Phase 2 (client migration + `paymentSessionClient` wrapper).
+>
+> **Landed artefacts**
+> - Migration: 3 tables (`pos_payment_sessions`, `pos_payment_session_tenders`, `pos_payment_session_apply_log`), FSM trigger `zzz_assert_tender_fsm`, branch-scope trigger on both writable tables, 5 SECURITY DEFINER RPCs (`open` / `record_tender` / `reverse_tender` / `commit` / `cancel`) + helper `pos_payment_session_allocated`, 5 outbox topics.
+> - **Corrective migration (2026-07-18):** revoked direct `INSERT/UPDATE/DELETE` on all three tables from `authenticated`, revoked `SELECT` on `pos_payment_session_apply_log`. Session aggregate is now truly server-owned; writes only via the RPCs. Verified: `write_leaks = nil`.
+> - Guard: `eslint-rules/no-pos-commit-without-idempotency-key.js` extended to require `p_idempotency_key` on `pos_payment_session_open` and `pos_payment_session_record_tender`.
+> - Guard: `src/test/architecture/pos-payment-session-lifecycle.test.ts` — every reference to the 5 session RPCs must go through `src/lib/pos/paymentSessionClient.ts` (Phase 2 will add the wrapper; today the test allowlists nothing else, so any leak fails the build immediately).
+> - Guard: `supabase/tests/pos_branch_isolation_test.sql` — branch-scope trigger array extended to cover both new writable tables.
+> - Guard: `supabase/tests/pos_payment_session_lifecycle_test.sql` — structural contract: 3 tables exist, apply-log PK is `session_id` (commit idempotency), 5 RPCs are `SECURITY DEFINER`, `authenticated` has no direct writes, FSM + branch triggers attached, 5 outbox topics registered.
+>
+> Full end-to-end auth-required lifecycle simulation (open → tender → commit → apply-log blocks a second commit) is deferred to Phase 2, where the JWT test harness lands with `paymentSessionClient` and the first real client caller.
 
 ## Verification summary (Phase 0 handoff)
+
 
 Independent re-audit against the parent prompt, `.lovable/plan.md`, and the current codebase:
 
