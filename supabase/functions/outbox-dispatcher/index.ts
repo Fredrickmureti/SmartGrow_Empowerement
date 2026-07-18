@@ -19,7 +19,10 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const CRON_SECRET = Deno.env.get("OUTBOX_DISPATCHER_SECRET") ?? "";
+// The dispatcher is intentionally open (verify_jwt=false). It only drains
+// pending business_event_outbox rows atomically via RPC — no user data is
+// returned. Callers still need Supabase's anon key on Authorization by the
+// platform's default routing, and the pg_cron caller passes it.
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
