@@ -15,6 +15,7 @@ import {
   Tags,
   Layers,
   Building2,
+  FileSignature,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
