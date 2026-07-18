@@ -135,7 +135,7 @@ export default function MobilePack() {
             (l) => (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0),
           ),
         });
-        if (!sug.queued && sug.result?.id) suggestedTypeId = sug.result.id;
+        if (!sug.queued && sug.data?.id) suggestedTypeId = sug.data.id;
       }
       const openRes = await enqueue<string>("open_pack_carton", {
         p_wave_id: waveId!,
