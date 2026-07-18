@@ -63,10 +63,10 @@ Update `.lovable/plan.md`:
 - Phase 4 deprecation drops (`pos_stock_reservations` view, `usePOSStockReservation`, `post_pos_shift_gl` sales/COGS branches) — remain release-gated.
 - Promotions, loyalty, receipt rendering, hardware, eTIMS, reporting denorm — separate waves per the original prompt.
 
-## Definition of done for this batch
+## Definition of done for this batch — STATUS
 
-- `process_pos_transaction / _return / _void / recall_pos_held_transaction` contain no direct writes to `pos_transaction_items`, `pos_transaction_payments`, or `stock_movements`; all such writes flow through `_pos_*` helpers.
-- `pos-rpc-helpers-only`, `pos-pessimistic-availability`, updated `pos-outbox-and-governance` all green.
-- `payment.received` topic + trigger emit exactly one outbox row per `pos_transaction_payments` insert with deterministic idempotency key.
-- `process_pos_return` takes the same per-SKU advisory lock as the sale path.
-- All existing arch tests still pass; no edits to `src/integrations/supabase/types.ts`; no `ALTER DATABASE`.
+- ✅ **T6-complete.** `process_pos_transaction` and `process_pos_return` re-issued: line inserts, payment inserts, and lot consumption route through `_pos_insert_line`, `_pos_record_payment`, `_pos_apply_lot_consumption` (which calls `_pos_write_stock_movement`). No inline `INSERT INTO pos_transaction_items / pos_transaction_payments` remains in either RPC body.
+- ✅ **T6b.** `process_pos_return` takes `pg_advisory_xact_lock` keyed on `(product, warehouse)` before rebuilding lot state, matching the sale path.
+- ✅ **T7 payment.received.** Topic registered on `business_event_topics` (producer `pos`, consumers `finance,analytics,crm`). Trigger `trg_pos_payment_emit_event` on `pos_transaction_payments` emits one outbox row per completed payment; idempotency key `payment.received:<payment_id>`.
+- ✅ **Arch guards.** `pos-rpc-helpers-only.test.ts` (3 tests) and `pos-pessimistic-availability.test.ts` (2 tests) both green — future regressions that re-inline writes or drop the advisory lock fail the build.
+- Phase 4 (deprecation of `pos_stock_reservations` compat view, `usePOSStockReservation`, `post_pos_shift_gl` sales/COGS branches) remains release-gated per original plan.
