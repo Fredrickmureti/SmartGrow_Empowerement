@@ -74213,7 +74213,7 @@ export type Database = {
           p_transaction_id: string
           p_void_note?: string
           p_void_reason_id: string
-          p_voided_by?: string
+          p_voided_by: string
         }
         Returns: Json
       }

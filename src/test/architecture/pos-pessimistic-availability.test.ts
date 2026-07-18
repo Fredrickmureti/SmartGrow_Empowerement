@@ -36,14 +36,18 @@ function latestDefiningFile(fnName: string): string {
 
 function bodyOf(sql: string, fnName: string): string {
   const re = new RegExp(
-    `CREATE(?:\\s+OR\\s+REPLACE)?\\s+FUNCTION\\s+public\\.${fnName}[\\s\\S]*?\\$\\$([\\s\\S]*?)\\$\\$`,
+    `CREATE(?:\\s+OR\\s+REPLACE)?\\s+FUNCTION\\s+public\\.${fnName}\\b[\\s\\S]*?AS\\s+\\$([A-Za-z_][A-Za-z0-9_]*)?\\$([\\s\\S]*?)\\$\\1?\\$`,
     "i",
   );
-  return sql.match(re)?.[1] ?? "";
+  return sql.match(re)?.[2] ?? "";
 }
 
 describe("POS Transaction Engine — pessimistic availability locking", () => {
-  it.each([["process_pos_transaction"], ["process_pos_return"]])(
+  it.each([
+    ["process_pos_transaction"],
+    ["process_pos_return"],
+    ["process_pos_void"],
+  ])(
     "%s takes pg_advisory_xact_lock on (product, warehouse)",
     (fnName) => {
       const file = latestDefiningFile(fnName);

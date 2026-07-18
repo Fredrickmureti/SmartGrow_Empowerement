@@ -40,13 +40,14 @@ function latestMigrationDefining(fnSig: string): string {
 }
 
 function extractFunctionBody(sql: string, fnName: string): string {
-  // Grab from CREATE ... FUNCTION public.<fnName> up to the next matching $$;
+  // Match `CREATE ... FUNCTION public.<fn>(...) ... AS $tag$ ... $tag$`
+  // where `tag` may be empty ($$) or a named dollar-quote like $fn$.
   const re = new RegExp(
-    `CREATE(?:\\s+OR\\s+REPLACE)?\\s+FUNCTION\\s+public\\.${fnName}[\\s\\S]*?\\$\\$([\\s\\S]*?)\\$\\$`,
+    `CREATE(?:\\s+OR\\s+REPLACE)?\\s+FUNCTION\\s+public\\.${fnName}\\b[\\s\\S]*?AS\\s+\\$([A-Za-z_][A-Za-z0-9_]*)?\\$([\\s\\S]*?)\\$\\1?\\$`,
     "i",
   );
   const m = sql.match(re);
-  return m?.[1] ?? "";
+  return m?.[2] ?? "";
 }
 
 describe("POS Transaction Engine — RPCs must use internal helpers", () => {
@@ -66,6 +67,18 @@ describe("POS Transaction Engine — RPCs must use internal helpers", () => {
     // Positive assertion — helpers ARE referenced.
     expect(body).toMatch(/_pos_insert_line\s*\(/);
     expect(body).toMatch(/_pos_record_payment\s*\(/);
+  });
+
+  it("process_pos_void reverses stock through the lot-aware helper", () => {
+    // Void does not INSERT lines/payments (it flips statuses), but it MUST
+    // route stock reversal through `_pos_apply_lot_consumption` so lot
+    // layers are restored correctly for lot-tracked SKUs.
+    const file = latestMigrationDefining("FUNCTION public.process_pos_void\\(");
+    expect(file, "no migration defines process_pos_void").not.toEqual("");
+    const body = extractFunctionBody(readFileSync(file, "utf8"), "process_pos_void");
+    expect(body).not.toMatch(/INSERT\s+INTO\s+public\.stock_movements/i);
+    expect(body).toMatch(/_pos_apply_lot_consumption\s*\(/);
+    expect(body).toMatch(/_pos_reverse_transaction_gl\s*\(/);
   });
 
   it("helpers are defined with restricted grants", () => {
