@@ -104,3 +104,24 @@ Roadmap order remains A → B → D → **E** → C → F → G. Phase E's job i
 - `inventory.movement.recorded.*` → reorder-alert recompute (POS branch).
 - `payment.received.*` stays host-scope (drawer/printer) — additionally emit bank-reconciliation hint rows for `tender_kind IN ('bank','card','wallet')` (server-side handler; can be a separate topic).
 Each new handler ships with an arch guard asserting the map entry exists.
+
+=========================================
+Phase E (first cut) shipped and verified.
+
+What landed
+- Migration: new `apply_loyalty_accrual_for_sale(uuid)` SECURITY DEFINER function. Idempotent per `pos_transaction_id` (checks `loyalty_transactions.transaction_type='earned'`), skips returns / customerless sales, upserts `customer_loyalty`, inserts an `earned` `loyalty_transactions` row. Grants execute to `service_role` only.
+- Dispatcher handlers (`supabase/functions/outbox-dispatcher/index.ts`):
+  - `pos.sale.committed` → `handlePosSaleCommitted` — calls the loyalty RPC (hard-fail on error, retried by outbox), then best-effort `admin.functions.invoke('etims-transmit', { doc_type: 'pos', transaction_id, org_id })` (fiscal errors are logged, not thrown, since eTIMS has its own retry loop).
+  - `inventory.movement.recorded` → `handleInventoryMovementRecorded` — invokes `check_low_stock_products` so reorder alerts recompute after each POS movement.
+- Guard: `src/test/architecture/pos-outbox-handlers.test.ts` (5 assertions) — enforces both map entries, the loyalty RPC reference, the eTIMS call site, and the loyalty migration.
+- Verified: dispatcher redeployed, arch guards green (8 tests across dispatcher + handlers), backlog scan shows only the 2 host-scope `payment.received` rows remain pending (server dispatcher correctly ignores them).
+
+Still open in Phase E (future increments)
+- Delete UI-driven loyalty accrual in `usePOSLoyalty.awardPoints` call sites (now redundant with the server accrual). Left in place this pass because the RPC is idempotent — dedup guaranteed by `loyalty_transactions.pos_transaction_id` check.
+- `pos_sales_daily` projection table does not exist yet — needs a fresh table + trigger + handler.
+- Bank-reconciliation hint rows for card/wallet tenders (new topic + handler).
+- Customer purchase-history projection (new table).
+
+Next handoff — Phase C (Card/EMV FSM in browser)
+Per the roadmap, once the durable substrate has real subscribers, Phase C tackles the terminal-side card capture state machine (auth → capture → void/reverse) using the `pos_transaction_payments` FSM columns already landed in Phase B.
+
