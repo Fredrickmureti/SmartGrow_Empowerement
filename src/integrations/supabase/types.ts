@@ -36926,6 +36926,21 @@ export type Database = {
         }
         Relationships: []
       }
+      pos_card_fsm_transitions: {
+        Row: {
+          from_state: string
+          to_state: string
+        }
+        Insert: {
+          from_state: string
+          to_state: string
+        }
+        Update: {
+          from_state?: string
+          to_state?: string
+        }
+        Relationships: []
+      }
       pos_cash_movement_types: {
         Row: {
           business_id: string
@@ -74177,6 +74192,145 @@ export type Database = {
       pos_apply_default_method_gl: {
         Args: { _business_id: string; _method_keys?: string[] }
         Returns: Json
+      }
+      pos_card_authorize: {
+        Args: {
+          p_auth_id: string
+          p_authorized: number
+          p_card_last_four?: string
+          p_card_type?: string
+          p_payment_id: string
+          p_vendor_txn_id: string
+        }
+        Returns: {
+          amount: number
+          auth_id: string | null
+          auth_state: string | null
+          authorized_amount: number | null
+          branch_id: string | null
+          business_id: string
+          capture_mode_used: string | null
+          card_last_four: string | null
+          card_type: string | null
+          change_given: number
+          created_at: string
+          id: string
+          mpesa_receipt_number: string | null
+          organization_id: string | null
+          payment_method: string
+          processed_at: string | null
+          reference: string | null
+          status: string
+          tender_kind: string | null
+          tendered_amount: number
+          transaction_id: string
+          vendor_txn_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pos_transaction_payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      pos_card_capture: {
+        Args: { p_amount: number; p_payment_id: string }
+        Returns: {
+          amount: number
+          auth_id: string | null
+          auth_state: string | null
+          authorized_amount: number | null
+          branch_id: string | null
+          business_id: string
+          capture_mode_used: string | null
+          card_last_four: string | null
+          card_type: string | null
+          change_given: number
+          created_at: string
+          id: string
+          mpesa_receipt_number: string | null
+          organization_id: string | null
+          payment_method: string
+          processed_at: string | null
+          reference: string | null
+          status: string
+          tender_kind: string | null
+          tendered_amount: number
+          transaction_id: string
+          vendor_txn_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pos_transaction_payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      pos_card_reverse: {
+        Args: { p_payment_id: string; p_reason?: string }
+        Returns: {
+          amount: number
+          auth_id: string | null
+          auth_state: string | null
+          authorized_amount: number | null
+          branch_id: string | null
+          business_id: string
+          capture_mode_used: string | null
+          card_last_four: string | null
+          card_type: string | null
+          change_given: number
+          created_at: string
+          id: string
+          mpesa_receipt_number: string | null
+          organization_id: string | null
+          payment_method: string
+          processed_at: string | null
+          reference: string | null
+          status: string
+          tender_kind: string | null
+          tendered_amount: number
+          transaction_id: string
+          vendor_txn_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pos_transaction_payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      pos_card_void: {
+        Args: { p_payment_id: string; p_reason?: string }
+        Returns: {
+          amount: number
+          auth_id: string | null
+          auth_state: string | null
+          authorized_amount: number | null
+          branch_id: string | null
+          business_id: string
+          capture_mode_used: string | null
+          card_last_four: string | null
+          card_type: string | null
+          change_given: number
+          created_at: string
+          id: string
+          mpesa_receipt_number: string | null
+          organization_id: string | null
+          payment_method: string
+          processed_at: string | null
+          reference: string | null
+          status: string
+          tender_kind: string | null
+          tendered_amount: number
+          transaction_id: string
+          vendor_txn_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pos_transaction_payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       pos_claim_scanner_pairing: {
         Args: { p_device_label?: string; p_token: string }

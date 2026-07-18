@@ -122,6 +122,54 @@ Still open in Phase E (future increments)
 - Bank-reconciliation hint rows for card/wallet tenders (new topic + handler).
 - Customer purchase-history projection (new table).
 
-Next handoff — Phase C (Card/EMV FSM in browser)
-Per the roadmap, once the durable substrate has real subscribers, Phase C tackles the terminal-side card capture state machine (auth → capture → void/reverse) using the `pos_transaction_payments` FSM columns already landed in Phase B.
+=========================================
+Phase E cleanup (UI double-accrual removal) shipped.
+- Removed `earnPoints({...})` call in `src/pages/pos/POSTerminal.tsx` post-commit block; loyalty accrual is now exclusively server-side via `handlePosSaleCommitted` → `apply_loyalty_accrual_for_sale`.
+- Added assertion #6 to `pos-outbox-handlers.test.ts`: greps `POSTerminal.tsx` for `earnPoints(` to lock the invariant.
+- `usePOSLoyalty.earnPoints` mutation retained (still used by manual adjust flows / admin tooling) but no longer wired to the checkout path.
+
+=========================================
+Phase C-1 (Card/EMV FSM substrate) shipped.
+
+What landed
+- Migration:
+  - `pos_card_fsm_transitions` lookup table seeded with the canonical edge set
+    (idle→collecting→authorizing→approved→{captured,voided}→refunded, plus
+    declined/failed sinks with reset paths).
+  - `pos_card_fsm_guard` BEFORE trigger on `pos_transaction_payments` that
+    only fires for `tender_kind='card'` and rejects illegal `auth_state`
+    jumps / bad initial states.
+  - Four SECURITY DEFINER RPCs — `pos_card_authorize`, `pos_card_capture`,
+    `pos_card_void`, `pos_card_reverse` — each idempotent (early-return when
+    already in the target state) and row-locked via SELECT ... FOR UPDATE.
+    Capture rejects amounts exceeding the authorized hold. Void only from
+    `approved`; reverse only from `captured`.
+  - EXECUTE granted to `authenticated` + `service_role`, revoked from PUBLIC.
+- Client controller: `src/services/pos/CardTerminalController.ts`
+  - Typed `CardAuthState` union + `CardDriver` interface (swap point for a
+    real EMV SDK later — Stripe Terminal, Verifone, MPGS, etc.).
+  - `simCardDriver` for dev/e2e: approves <=50k, declines above; deterministic
+    auth_id / vendor_txn_id. Exported singleton `cardTerminal` uses it by default.
+  - All four FSM operations wrap the RPCs; UI code must go through this class.
+- Arch guard: `src/test/architecture/pos-card-fsm.test.ts` (4 assertions):
+  1. Migration defines all four `pos_card_*` RPCs.
+  2. Migration defines the transition table + `pos_card_fsm_guard` + trigger.
+  3. No file outside `CardTerminalController.ts` calls the `pos_card_*` RPCs.
+  4. No file writes `auth_state` on `pos_transaction_payments` directly.
+- Verified: all 4 assertions green; DB confirms 5 `pos_card_*` procs (4 RPCs
+  + guard trigger fn); 12 transition rows seeded.
+
+Still open in Phase C (next increment — C-2 UI wiring)
+- Wire `cardTerminal.authorize/capture/void` into `PaymentDialog.tsx` for
+  `tender_kind='card'` (branch on `capture_mode`: `auth_only` stops after
+  authorize, `auth_capture` continues to capture immediately).
+- Add an in-dialog terminal-status affordance ("Insert card…", "Approved",
+  "Declined — retry / cancel").
+- Emit business events on each transition:
+  `payment.card.authorized`, `payment.card.captured`, `payment.card.voided`,
+  `payment.card.reversed` (host-scope for now — receipt printing hooks off
+  captured; server-scope handlers TBD in Phase F for settlement).
+
+Next handoff — Phase C-2 (UI wiring) then Phase F (Settlement & Reconciliation).
+
 
