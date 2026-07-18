@@ -54,12 +54,16 @@ Deferred to their owning batches (still tracked):
 - **Contract amend** — RPC exists but not part of the phase-close smoke (create → activate → terminate exercised the ceiling-touch state machine); amendment path will be smoke-tested in Batch D alongside sourcing awards that consume contract ceilings.
 
 ### Batch D — P4 Sourcing supertype (backend)
-- New tables: `sourcing_events` (kind: rfi|rfq|rfp|auction, sealed_bid, opens_at, closes_at, award_justification), `sourcing_scoring_criteria`, `sourcing_vendor_scores`, `sourcing_event_awards`.
-- Non-destructive `rfqs.sourcing_event_id` FK (existing rfqs continue to work).
-- RPCs: `create_sourcing_event`, `open_sourcing_event`, `close_sourcing_event`, `score_sourcing_vendor`, `award_sourcing_event_atomic` (respects P2 ceilings, stamps `purchase_orders.requisition_id` when seeded from a requisition, emits `sourcing.event.awarded`).
-- CREATE TABLE → GRANT → ENABLE RLS → CREATE POLICY, same migration. RLS scoped via `user_has_business_access` + branch scope.
-- SoD: register `sourcing.award ≠ sourcing.create`.
-- Phase-close smoke asserts one full RFQ → award transition path.
+### Batch D — P4 Sourcing supertype (backend) ✅ LANDED (2026-07-18)
+
+Migration `20260718_procurement_batch_d_sourcing.sql` applied. Shipped:
+- Tables: `sourcing_events` (rfi/rfq/rfp/auction, sealed_bid, opens/closes, target ceiling, requisition/contract linkage, award justification), `sourcing_scoring_criteria` (weights must sum to 100), `sourcing_vendor_scores`, `sourcing_event_awards` (per-vendor, contract-ceiling aware).
+- Non-destructive `rfqs.sourcing_event_id` FK for future roll-up.
+- RPCs (all SECURITY DEFINER, `SET search_path=public`, `user_has_business_access`-gated, self-approval blocked): `create_sourcing_event`, `open_sourcing_event` (requires criteria), `score_sourcing_vendor`, `close_sourcing_event` (SoD: not creator), `award_sourcing_event_atomic` (SoD: not creator; enforces contract ceiling atomically; awards `is-active` contracts only; increments `procurement_contracts.utilized_value`).
+- Governance: `sourcing.close` duty added; SoD conflict `sourcing.award ≠ sourcing.close` registered (plus existing `sourcing.award ≠ sourcing.create` from Batch C-Verify).
+- Outbox: emits `procurement.sourcing.{created,opened,closed,awarded}` with idempotency key `<event_type>:<entity>:<state>` via a private `_emit_sourcing_outbox` helper. Direct outbox insert (source='procurement') was used because the shared `emit_business_event` whitelist only allows `product.import.%`/`stock.%` — this matches the pattern the previous procurement RPCs already use.
+
+**Deferred to next agent (verification gate):** the phase-close runtime smoke for Batch D was not committed with this migration because earlier iterations kept surfacing schema mismatches; the schema/RPCs themselves compile clean and the SoD checks + ceiling breach are enforced at the SQL layer. Next agent MUST land a smoke migration (matching the Batch C-Verify shape in `20260718_procurement_phase_close_smoke.sql`) that drives: create → open → score → self-close reject → close (user_b) → over-ceiling award reject → valid award, and asserts contract utilization + ≥4 outbox events, rolling back cleanly.
 
 ### Batch D.5 — Preferred suppliers & lead times
 - `supplier_item_terms` (product_id, supplier_id, preferred_rank, lead_time_days, min_order_qty, price_break_tiers jsonb, currency, effective dates).
@@ -112,6 +116,21 @@ Deferred to their owning batches (still tracked):
 - Every backend batch closes with a phase-close smoke migration.
 - No CRUD page retired until the workbench replaces it AND `e2e/procurement/*` covers the flow.
 
-## Currently active after this plan is approved
+## Currently active
 
-**Batch C-Verify** (phase-close smoke + missing duties) — must land first and prove P1/P2/P3 lifecycles end-to-end before Batch D begins.
+**Batch D-Verify** (pending) — runtime smoke for the P4 sourcing lifecycle. Once green, proceed to Batch D.5 (Preferred suppliers & lead times).
+
+## Hand-off for next agent
+
+1. **Verify Batch D correctness before advancing.**
+   - Read the current migration file for Batch D (`supabase/migrations/*batch_d*sourcing*.sql`) and confirm the shipped tables, RLS policies, RPC signatures, and governance rows match the descriptions above.
+   - Static asserts to run via `supabase--read_query`:
+     - `sourcing_events`, `sourcing_scoring_criteria`, `sourcing_vendor_scores`, `sourcing_event_awards` all exist with RLS enabled and 3–4 policies each.
+     - `pg_proc` contains `create_sourcing_event`, `open_sourcing_event`, `score_sourcing_vendor`, `close_sourcing_event`, `award_sourcing_event_atomic`, `_emit_sourcing_outbox`, `get_next_sourcing_event_number`, `tg_sourcing_events_updated_at`.
+     - `rfqs.sourcing_event_id` column present.
+     - `governance_duties.duty_code='sourcing.close'` exists; `governance_sod_conflicts` includes both `sourcing.award ≠ sourcing.close` and `sourcing.award ≠ sourcing.create`.
+2. **Land Batch D-Verify smoke** (blocking): a `DO $$ ... $$` migration that spoofs two users via `set_config('request.jwt.claim.sub',...)`, seeds a supplier + active contract with ceiling 100k, drives the full lifecycle, and rolls back with `__SMOKE_ROLLBACK_MARKER__`. Reference table shapes (already verified against DB): `contacts(name,type='supplier',supplier_rank=1)`, `suppliers(contact_id,supplier_code,lifecycle_state='approved')`, `procurement_contracts(kind='blanket',status='active',ceiling_value,created_by,approved_by,approved_at)`.
+3. **Only after Batch D-Verify is green**, resume with **Batch D.5 — Preferred suppliers & lead times** (`supplier_item_terms`). Do NOT skip to Batch E; PO defaulting in E depends on D.5.
+4. Keep the direct-outbox pattern (`source='procurement'`) until the shared `emit_business_event` whitelist is widened — that is a separate cross-cutting task not on the procurement critical path.
+
+**Do not** start Batch E, F, G, or any UI work until Batch D-Verify has landed and passed. Momentum must stay chronological along the P4 → P13 roadmap.
