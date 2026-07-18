@@ -7,7 +7,7 @@ export default function WarehouseEdit() {
   const { id } = useParams<{ id: string }>();
   const { warehouses, isLoading } = useWarehouses();
 
-  if (!id) return <Navigate to="/inventory-app/warehouses" replace />;
+  if (!id) return <Navigate to="/warehouse-app/warehouses" replace />;
   if (isLoading) return <LoadingState />;
 
   const warehouse = warehouses.find((w) => w.id === id);

@@ -5,7 +5,7 @@
  */
 
 import { lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
 import { InventoryLayout } from "./InventoryLayout";
@@ -16,10 +16,8 @@ const InventoryDashboard = lazy(() => import("@/pages/inventory/InventoryDashboa
 
 // Lazy imports
 const Inventory = lazy(() => import("@/pages/Inventory"));
-const Warehouses = lazy(() => import("@/pages/Warehouses"));
-const WarehouseNew = lazy(() => import("@/pages/inventory/WarehouseNew"));
-const WarehouseEdit = lazy(() => import("@/pages/inventory/WarehouseEdit"));
-const WarehouseView = lazy(() => import("@/pages/inventory/WarehouseView"));
+// Warehouse master data now owned by the Warehouse app (ADR 0080).
+// Inventory keeps deep-link parity via <Navigate> below.
 const StockReports = lazy(() => import("@/pages/reports/StockReports"));
 const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryValuationReport"));
 const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
@@ -51,6 +49,16 @@ const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: s
     {children}
   </Suspense>
 );
+
+// Deep-link redirects for the retired /inventory-app/warehouses/* surface (ADR 0080).
+function InventoryWarehouseViewRedirect() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/warehouse-app/warehouses/${id}`} replace />;
+}
+function InventoryWarehouseEditRedirect() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/warehouse-app/warehouses/${id}/edit`} replace />;
+}
 
 /**
  * Inventory App Component
@@ -133,53 +141,12 @@ export function InventoryApp() {
           }
         />
         
-        {/* Warehouses */}
-        <Route
-          path="warehouses"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Warehouses">
-                <Warehouses />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
-
-        {/* Warehouse — routed create */}
-        <Route
-          path="warehouses/new"
-          element={
-            <SubscriptionProtectedRoute>
-              <LazyRoute module="New Warehouse">
-                <WarehouseNew />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
-
-        {/* Warehouse — routed edit */}
-        <Route
-          path="warehouses/:id/edit"
-          element={
-            <SubscriptionProtectedRoute>
-              <LazyRoute module="Edit Warehouse">
-                <WarehouseEdit />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
-
-        {/* Warehouse — read-only object page */}
-        <Route
-          path="warehouses/:id"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Warehouse">
-                <WarehouseView />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
+        {/* Warehouses — ownership moved to Warehouse app per ADR 0080.
+            Preserve deep links from bookmarks / older Inventory nav. */}
+        <Route path="warehouses" element={<Navigate to="/warehouse-app/warehouses" replace />} />
+        <Route path="warehouses/new" element={<Navigate to="/warehouse-app/warehouses/new" replace />} />
+        <Route path="warehouses/:id/edit" element={<InventoryWarehouseEditRedirect />} />
+        <Route path="warehouses/:id" element={<InventoryWarehouseViewRedirect />} />
 
 
         

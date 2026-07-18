@@ -89,7 +89,7 @@ const DOC_CONFIG: Record<string, {
     titleField: "transfer_number",
     dateField: "transfer_date",
     statusField: "status",
-    route: "/inventory-app/warehouses",
+    route: "/warehouse-app/warehouses",
   },
 };
 

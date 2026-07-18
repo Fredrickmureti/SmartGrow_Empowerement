@@ -182,7 +182,7 @@ export function StockTransferPeekSheet({ open, onOpenChange, transferId }: Stock
               className="w-full"
               onClick={() => {
                 onOpenChange(false);
-                navigate(`/inventory-app/warehouses?selected=${transferId}`);
+                navigate(`/warehouse-app/warehouses?selected=${transferId}`);
               }}
             >
               <ExternalLink className="h-4 w-4 mr-2" />

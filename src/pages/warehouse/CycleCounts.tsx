@@ -46,6 +46,10 @@ export default function CycleCounts() {
         }
       />
       <PageBody>
+        <p className="text-sm text-muted-foreground -mt-2">
+          Adjustments from completed sessions are posted by Inventory —
+          {" "}<Link className="underline" to="/inventory-app/physical-counts">open the inventory count workspace</Link>.
+        </p>
         <Section title="Recent sessions">
           {isLoading ? <LoadingState /> : (
             <Card>

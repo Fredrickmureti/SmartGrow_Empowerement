@@ -83,7 +83,7 @@ export function WarehouseScopeGate({
         </CardHeader>
         <CardContent>
           <Button asChild>
-            <Link to="/inventory-app/warehouses">
+            <Link to="/warehouse-app/warehouses">
               <Plus className="h-4 w-4 mr-2" />
               Create warehouse
             </Link>

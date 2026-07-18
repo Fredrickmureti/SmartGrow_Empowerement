@@ -1,6 +1,6 @@
 /**
  * Warehouse peek sheet — opened from `?peek=<warehouseId>` on the
- * `/inventory-app/warehouses` list. Composed on `DetailSheet` per the
+ * `/warehouse-app/warehouses` list. Composed on `DetailSheet` per the
  * enterprise record-interaction standard (see
  * `docs/design-system/records.md`).
  */
@@ -100,7 +100,7 @@ export function WarehousePeekSheet({ open, onOpenChange, warehouseId }: Warehous
               className="flex-1"
               onClick={() => {
                 onOpenChange(false);
-                navigate(`/inventory-app/warehouses/${warehouse.id}`);
+                navigate(`/warehouse-app/warehouses/${warehouse.id}`);
               }}
             >
               <ExternalLink className="h-4 w-4 mr-2" />
@@ -110,7 +110,7 @@ export function WarehousePeekSheet({ open, onOpenChange, warehouseId }: Warehous
               className="flex-1"
               onClick={() => {
                 onOpenChange(false);
-                navigate(`/inventory-app/warehouses/${warehouse.id}/edit`);
+                navigate(`/warehouse-app/warehouses/${warehouse.id}/edit`);
               }}
             >
               Edit

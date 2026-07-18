@@ -947,7 +947,7 @@ export const LEGACY_ROUTE_MAPPINGS: Record<string, string> = {
   // Inventory (using inventory-app to avoid conflicts)
   "/products": "/inventory-app/products",
   "/inventory": "/inventory-app/stock",
-  "/warehouses": "/inventory-app/warehouses",
+  "/warehouses": "/warehouse-app/warehouses",
   
   // POS (dashboard is the main entry point, terminal requires register selection)
   "/pos": "/pos",

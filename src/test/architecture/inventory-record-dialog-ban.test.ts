@@ -70,7 +70,7 @@ function scanRecordSurfaces(): string[] {
  */
 const INVENTORY_LIST_PAGES = [
   "src/pages/Products.tsx",
-  "src/pages/Warehouses.tsx",
+  "src/pages/warehouse/WarehousesList.tsx",
   "src/pages/Inventory.tsx",
   "src/pages/inventory/Transfers.tsx",
   "src/pages/inventory/ScrapRecording.tsx",

@@ -109,7 +109,7 @@ export function WarehouseForm({ mode, warehouse }: WarehouseFormProps) {
         await createWarehouse(data);
         toast({ title: "Warehouse created successfully" });
       }
-      navigate("/inventory-app/warehouses");
+      navigate("/warehouse-app/warehouses");
     } catch (error: any) {
       toast({
         title: "Error",
@@ -126,7 +126,7 @@ export function WarehouseForm({ mode, warehouse }: WarehouseFormProps) {
       mode={mode}
       entityLabel="Warehouse"
       recordRef={mode === "edit" ? warehouse?.name : undefined}
-      cancelHref="/inventory-app/warehouses"
+      cancelHref="/warehouse-app/warehouses"
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
       submitDisabled={!form.name}
