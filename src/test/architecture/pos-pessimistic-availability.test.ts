@@ -43,7 +43,11 @@ function bodyOf(sql: string, fnName: string): string {
 }
 
 describe("POS Transaction Engine — pessimistic availability locking", () => {
-  it.each([["process_pos_transaction"], ["process_pos_return"]])(
+  it.each([
+    ["process_pos_transaction"],
+    ["process_pos_return"],
+    ["process_pos_void"],
+  ])(
     "%s takes pg_advisory_xact_lock on (product, warehouse)",
     (fnName) => {
       const file = latestDefiningFile(fnName);
