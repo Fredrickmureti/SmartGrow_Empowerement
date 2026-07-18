@@ -44,4 +44,11 @@ describe("pos-outbox-handlers: durable subscribers", () => {
     );
     expect(hasFn, "expected a migration defining apply_loyalty_accrual_for_sale").toBe(true);
   });
+
+  it("POSTerminal no longer awards loyalty points from the browser (would double-accrue)", () => {
+    const terminal = readFileSync(join(REPO, "src/pages/pos/POSTerminal.tsx"), "utf8");
+    // The UI-driven earnPoints({...}) call site was removed in Phase E cleanup.
+    expect(terminal).not.toMatch(/\bearnPoints\s*\(/);
+  });
 });
+
