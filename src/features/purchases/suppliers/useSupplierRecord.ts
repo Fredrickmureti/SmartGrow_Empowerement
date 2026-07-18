@@ -143,10 +143,11 @@ export function useSupplierRecord(id: string | null | undefined) {
     const { data: core, error: coreErr } = await s
       .from("suppliers")
       .select(
-        "*, contact:contacts(id, name, email, phone, tax_id, address_line1, address_line2, city, country), category:supplier_categories(id, code, name)",
+        "*, contact:contacts(id, name, email, phone, tax_id, address_line1, address_line2, city, country, default_payable_account_id, default_expense_account_id, default_payment_method_id, default_tax_rate_id, payment_term_id, withholding_tax_rate, tax_exemption_number, tax_exemption_expiry), category:supplier_categories(id, code, name)",
       )
       .eq("id", id)
       .maybeSingle();
+
     if (coreErr) {
       setState({ record: null, loading: false, error: coreErr.message });
       return;
