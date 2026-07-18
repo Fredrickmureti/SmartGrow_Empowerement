@@ -487,6 +487,32 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
               </Button>
             )}
 
+            {/* Card Terminal Quick Pay (Wave 2 · Phase C-2) */}
+            {isCardEnabled && remaining > 0 && (
+              <Button
+                variant="outline"
+                className="w-full h-12 sm:h-14 border-2 border-blue-500 hover:bg-blue-500/10 justify-start gap-2 sm:gap-3"
+                onClick={handleCardQuickPay}
+              >
+                <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="font-medium text-sm sm:text-base">
+                    {payments.length === 0
+                      ? `Card · ${formatCurrency(effectiveTotal)}`
+                      : `Card · ${formatCurrency(remaining)}`}
+                  </p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                    {cardMethod?.capture_mode === "auth_only"
+                      ? "Authorize now, capture on settlement"
+                      : "Authorize + capture immediately"}
+                  </p>
+                </div>
+              </Button>
+            )}
+
+
             {/* Total Display */}
             <div className="text-center py-3 sm:py-4 bg-muted/50 rounded-lg">
               {splitPortionLabel && (
