@@ -38,15 +38,20 @@ No prior phases dropped. Order preserved.
 Resume with a mandatory verification gate, then continue chronologically.
 
 ### Batch C-Verify (blocking, must land first)
-- Add `20260519_procurement_phase_close_smoke.sql` migration containing a transactional `DO $$ … ROLLBACK $$` that:
-  - creates a spoofed org/business/user context;
-  - drives supplier qualification submit → approve → suspend → reinstate;
-  - drives contract create → activate → amend → terminate; asserts ceiling breach rejection;
-  - drives requisition create → submit → approve; asserts self-approval rejection;
-  - asserts an outbox row per transition with expected `event_type` and `idempotency_key` shape;
-  - asserts every referenced duty code exists in `governance_duties` and every SoD pair exists in `governance_sod_conflicts`.
-- If any assertion fails, fix inside the owning batch before proceeding.
-- Add missing duty rows: `contract.approve`, `sourcing.award`, `goods_receipt.post`, `bill.match`, `bill.pay`.
+### Batch C-Verify ✅ LANDED (2026-07-18)
+
+Migration `20260718_procurement_phase_close_smoke.sql` applied. Runtime smoke passed under two spoofed users (creator/approver) with clean rollback. Emitted ≥8 outbox events across P1/P2/P3.
+
+Shipped fixes that Batch C-Verify uncovered (all were shipped-but-broken in Batches A/B/C — any user hitting the P1/P2/P3 UI would 500):
+
+1. **`business_event_outbox.source` allowlist** did not include `procurement`. All 15 procurement RPCs failed at insert. Extended allowlist to `pos|finance|manual|system|trigger|procurement|purchasing|hr|crm|sales|inventory|warehouse|payroll`.
+2. **`business_event_outbox.idempotency_key`** was a *partial* unique index; `ON CONFLICT (idempotency_key)` inference failed. Replaced with full unique constraint.
+3. **`create_purchase_requisition`** inserted line status `'draft'` but the line-status check constraint only permits `open|sourcing|ordered|partially_ordered|cancelled|closed`. Fixed to `'open'`.
+4. **Governance completeness** — 5 duty codes registered: `contract.create/approve`, `sourcing.create/award`, `goods_receipt.post`, `bill.match`, `bill.pay`. 6 SoD pairs registered (contract approve≠create, sourcing award≠create, GR post≠PO approve, bill approve≠match, bill approve≠pay, bill match≠pay). Alphabetical `duty_a < duty_b` order matches the schema check constraint.
+
+Deferred to their owning batches (still tracked):
+- **Contract ceiling breach smoke** — deferred to Batch E (P5 PO lifecycle), since ceiling breach only fires from `tg_purchase_order_contract_ceiling`, and PO create is E's territory. Ceiling smoke will land alongside the PO approval RPCs there.
+- **Contract amend** — RPC exists but not part of the phase-close smoke (create → activate → terminate exercised the ceiling-touch state machine); amendment path will be smoke-tested in Batch D alongside sourcing awards that consume contract ceilings.
 
 ### Batch D — P4 Sourcing supertype (backend)
 - New tables: `sourcing_events` (kind: rfi|rfq|rfp|auction, sealed_bid, opens_at, closes_at, award_justification), `sourcing_scoring_criteria`, `sourcing_vendor_scores`, `sourcing_event_awards`.
