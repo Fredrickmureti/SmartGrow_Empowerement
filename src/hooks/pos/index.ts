@@ -23,9 +23,11 @@ export * from "./usePOSSessions";
 export * from "./useManagerOverride";
 export { usePOSTransactionOffline } from "./usePOSTransactionOffline";
 export { usePOSCreditSale } from "./usePOSCreditSale";
-// usePOSAccountingSync removed — GL posting is owned by the DB trigger
-// `trg_pos_shift_close_journal` which calls `post_pos_shift_gl` on shift close.
-// Manual replays go through the `replay_pos_shift_gl` RPC (see ShiftReportDialog).
+// usePOSAccountingSync removed — GL posting is now per-transaction.
+// `post_pos_sale_gl` is called by `trg_pos_transaction_post_sale_gl` when
+// a sale/return completes, and `trg_pos_close_variance_gl` posts the
+// cash over/short entry (if any) when a shift is closed. The legacy
+// shift-close aggregator `post_pos_shift_gl` was dropped in Phase 4.
 export { usePOSLoyalty } from "./usePOSLoyalty";
 export { usePOSAgeVerification } from "./usePOSAgeVerification";
 export { usePOSStockSync } from "./usePOSStockSync";

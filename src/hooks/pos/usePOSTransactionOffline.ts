@@ -4,11 +4,13 @@ import { normalizeError } from "@/services/resilience";
  * Handles both online and offline transaction processing
  * Enforces allow_offline_transactions and max_offline_transaction_amount from security settings
  *
- * GL Posting Strategy: Session-based (Odoo-aligned)
- * - Transactions are posted to GL in aggregate when the shift is closed.
- * - The DB trigger `trg_pos_shift_close_journal` calls `post_pos_shift_gl`
- *   (single canonical posting path).
- * - Real-time per-transaction GL posting has been removed for scalability.
+ * GL Posting Strategy: Per-transaction (D365/SAP-aligned, Phase 4)
+ * - Each completed sale/return posts its own JE via `post_pos_sale_gl`,
+ *   fired by `trg_pos_transaction_post_sale_gl`.
+ * - Cash over/short is posted separately at shift close by
+ *   `trg_pos_close_variance_gl`.
+ * - The legacy shift-close aggregator was removed to eliminate the
+ *   double-posting risk and make each sale traceable to its own JE.
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -133,10 +135,9 @@ export function usePOSTransactionOffline() {
         }
       }
 
-      // NOTE: GL posting is handled at shift close by the DB trigger
-      // `trg_pos_shift_close_journal` → `post_pos_shift_gl`. This is the
-      // session-based aggregation pattern (Odoo-aligned) for scalability.
-      // Individual transactions are NOT posted to GL in real-time.
+      // NOTE: GL posting is handled per-transaction by the DB trigger
+      // `trg_pos_transaction_post_sale_gl` → `post_pos_sale_gl`. Cash
+      // over/short is posted separately at shift close.
 
       // Group D #6 — Single hardware path.
       // The DB constraint trigger `trg_pos_emit_payment_received` publishes

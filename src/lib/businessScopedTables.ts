@@ -118,7 +118,8 @@ export const BUSINESS_SCOPED_TABLES = [
   "pos_held_transactions",
   "pos_table_bookings",
   "pos_table_transfers",
-  "pos_stock_reservations",
+  // pos_stock_reservations dropped (Phase 4). POS holds live on the
+  // unified stock_reservations table (source_type='pos').
   "pos_cash_movements",
   "pos_approval_requests",
   "pos_gift_cards",
