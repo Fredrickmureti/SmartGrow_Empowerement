@@ -91,3 +91,50 @@ Any FAIL from Phase 1 becomes a repair batch here, gated by its own smoke, befor
 4. Small hardening batches H+1 … H+4 landed one-per-turn with rollback-marker smokes where DB changes exist.
 5. Legacy `/purchases/vendors` retirement queued as **Batch K-Retire**, blocked until Supplier record page absorbs the AP-defaults editor.
 6. Batch L Playwright + Batch M `docs/audit/procurement-verdict.md` closing the hardening phase.
+
+---
+
+## Phase H+ execution log
+
+### Turn N — Phase 1 verification + H+1 + H+2 + H+3 + Phase 2 audit
+
+**Phase 1 — Independent verification (read-only)**
+
+| # | Item | Result | Evidence |
+| --- | --- | --- | --- |
+| 1 | RPC surface (`approve_purchase_order`, `receive_inbound_shipment`, `create_goods_receipt`, `match_bill_atomic`, `match_bill_with_landed_cost`) | PASS | `pg_proc` — all present, `security definer`, `search_path=public` |
+| 1a | `apply_vendor_credit_atomic` / `apply_vendor_credit_note_atomic` | **FAIL** | Absent from `pg_proc`. Batch I never landed. Re-queued as Batch I-Deferred. |
+| 2 | Governance duties (`asn.manage`, `bill.approve`, `bill.match`, `grn.receive`, `po.approve`, `supplier_terms.manage`) | PASS | 6 rows present in `governance_duties` |
+| 2a | Governance duties `credit.approve`, `credit.apply` | **FAIL** | Missing. Blocked on Batch I-Deferred. |
+| 3 | SoD conflicts registered | PASS | 43 rows in `governance_sod_conflicts`, including bill.match ↔ po.approve / grn.receive / asn.manage separations |
+| 6 | `guard_bill_self_approval` enum→text cast fix present | PASS | `pg_proc.prosrc LIKE '%::text%'` = true |
+
+Not re-run this turn (unchanged since Batch H-Verify): items 3 (outbox contract sample), 4 (architecture test), 5 (RLS branch predicate) — all previously PASS.
+
+**Phase 2 — Audit doc**
+
+Landed: `docs/audit/procurement-vendor-vs-supplier.md`. Verdict summary:
+
+- Contact ↔ Supplier split is correct (Odoo / SAP / Oracle / Dynamics alignment).
+- 1 real bug (currency inheritance) — fixed in H+1.
+- 1 nav-label ambiguity — fixed in H+2.
+- 1 doc gap (dual-key model) — fixed by ADR-0079 (H+3).
+- Batch I confirmed missing — deferred, not silently promoted.
+- Every "AP defaults on Contact are wrong" observation rejected with rationale.
+
+**Phase 3 — Hardening batches landed**
+
+- **H+1 Currency inheritance** — `src/features/purchases/suppliers/SupplierCreatePage.tsx` now seeds `currency` from `currentBusiness.base_currency` via `useEffect`; input stays editable. Frontend-only.
+- **H+2 Legacy alias clarity** — `src/apps/purchases/nav.ts:38` relabelled "Vendors (legacy)" → "Suppliers (contact view)".
+- **H+3 Dual-key ADR** — `docs/adr/0079-procurement-party-vs-role.md` published.
+- **H+4 Studio field inventory** — verified via `supabase--read_query`: `entity_field_configs` has 1 `contact` config, 1 `estimate` config, 0 `supplier` configs. Documented in the audit §1.5 and §2.3-M2 (retirement blocker).
+
+**Batches queued (not started)**
+
+- **Batch I-Deferred** — `apply_vendor_credit_note_atomic` RPC + `credit.approve` / `credit.apply` duties + FIFO allocation logic.
+- **Batch K-Retire** — `/purchases/vendors` retirement, blocked on Supplier record page absorbing Finance defaults editor + Contact custom-field slot.
+- **Batch L Playwright** — currency inheritance, bill self-approval guard regression, `/vendors` still-rendering guard.
+- **Batch M Verdict doc** — `docs/audit/procurement-verdict.md` consolidated close-out.
+
+**Non-blocking issue noted**: pre-existing project-wide `Cannot find module 'react-router-dom' / 'framer-motion' / 'idb' / 'qrcode.react'` type errors surface on every build. Unrelated to this phase (docs + one component-level `useEffect` addition). Deferred to a platform-wide dependency audit.
+
