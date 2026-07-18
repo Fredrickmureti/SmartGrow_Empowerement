@@ -256,7 +256,7 @@ export default function AdjustmentNew() {
               <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
                 No warehouse exists in this scope yet.{" "}
                 <Link
-                  to="/inventory-app/warehouses/new"
+                  to="/warehouse-app/warehouses/new"
                   className="text-primary underline"
                 >
                   Create one first

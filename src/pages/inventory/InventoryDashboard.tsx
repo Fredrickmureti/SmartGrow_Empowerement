@@ -315,7 +315,7 @@ export default function InventoryDashboard() {
             <Button variant="outline" size="sm" onClick={() => navigate("/inventory-app/stock")}>
               Stock Levels <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate("/inventory-app/warehouses")}>
+            <Button variant="outline" size="sm" onClick={() => navigate("/warehouse-app/warehouses")}>
               Warehouses <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/inventory-app/replenishment")}>
