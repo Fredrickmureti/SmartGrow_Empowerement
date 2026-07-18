@@ -67,6 +67,38 @@ export default function MobileHome() {
     },
   });
 
+  const { data: manifests } = useQuery({
+    queryKey: ["wm-open-manifests"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_loading_manifests")
+        .select("id, code, state")
+        .in("state", ["loading", "closed"])
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data ?? []) as { id: string; code: string; state: string }[];
+    },
+  });
+
+  const { data: qcOpen } = useQuery({
+    queryKey: ["wm-open-qc"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_qc_inspections")
+        .select("id, state, product:product_id(sku)")
+        .in("state", ["pending", "in_progress"])
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data ?? []) as unknown as {
+        id: string;
+        state: string;
+        product: { sku: string | null } | null;
+      }[];
+    },
+  });
+
   const byType = new Map<string, Row[]>();
   for (const t of tasks ?? []) {
     const arr = byType.get(t.task_type) ?? [];
