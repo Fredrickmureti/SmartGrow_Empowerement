@@ -311,9 +311,15 @@ class SQLiteSyncManager {
             );
             continue;
           }
-          // Get items and payments
+          // Wave 2 · Phase C-3 — offline replay MUST route through
+          // `process_pos_transaction`, which delegates payment writes to
+          // `_pos_record_payment`. Direct inserts into
+          // `pos_transaction_payments` bypass the card FSM guard, the
+          // catalog validator, GL posting trigger, stock consumption, and
+          // idempotency collapse — the exact same failure modes the
+          // architecture guard test locks out of the server RPCs.
           const itemsResult = await executeQuery<any>(
-            'SELECT * FROM pos_transaction_items WHERE transaction_id = ?',
+            'SELECT * FROM pos_transaction_items WHERE transaction_id = ? ORDER BY sort_order ASC',
             [tx.id]
           );
           const paymentsResult = await executeQuery<any>(
@@ -321,74 +327,74 @@ class SQLiteSyncManager {
             [tx.id]
           );
 
-          // Insert transaction — stamp organization_id, business_id, AND
-          // branch_id so the server-side RLS check sees a fully-scoped row
-          // and the sale attributes to the correct branch in reports + GL.
-          const { data: serverTx, error: txError } = await supabase
-            .from('pos_transactions')
-            .insert({
-              organization_id: this.organizationId,
-              business_id: this.businessId,
-              branch_id: this.branchId,
-              transaction_number: tx.transaction_number,
-              register_id: tx.register_id,
-              shift_id: tx.shift_id,
-              customer_id: tx.customer_id,
-              subtotal: tx.subtotal,
-              tax_amount: tx.tax_amount,
-              discount_amount: tx.discount_amount,
-              discount_type: tx.discount_type,
-              total: tx.total,
-              payment_status: tx.payment_status,
-              status: tx.status,
-              notes: tx.notes,
-              created_by: tx.created_by,
-            } as any)
-            .select()
-            .single();
+          const items = (itemsResult.data ?? []).map((item: any) => ({
+            product_id: item.product_id,
+            name: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            discount_type: item.discount_type || null,
+            discount_value: item.discount_value ?? 0,
+            tax_rate: item.tax_rate ?? 0,
+            tax_amount: item.tax_amount ?? 0,
+            line_total: item.line_total,
+            cost_price: item.cost_price ?? null,
+            tax_rate_id: item.tax_rate_id ?? null,
+            etims_tax_code: item.etims_tax_code ?? null,
+            packaging_id: item.packaging_id ?? null,
+            display_uom_id: item.display_uom_id ?? null,
+            display_quantity: item.display_quantity ?? null,
+            base_uom_id: item.base_uom_id ?? null,
+          }));
 
-          if (txError) throw txError;
+          const payments = (paymentsResult.data ?? []).map((p: any) => ({
+            payment_method: p.payment_method,
+            amount: p.amount,
+            tendered_amount: p.tendered_amount ?? p.amount,
+            change_given: p.payment_method === 'cash' ? (p.change_given ?? 0) : 0,
+            reference: p.reference || null,
+            card_last_four: p.card_last_four ?? null,
+            card_type: p.card_type ?? null,
+            mpesa_receipt_number: p.mpesa_receipt ?? p.mpesa_receipt_number ?? null,
+            // Card FSM initial state + vendor auth trail — preserved
+            // through the offline queue so the guard trigger sees the
+            // same state it would on the online path.
+            auth_state: p.auth_state ?? null,
+            auth_id: p.auth_id ?? null,
+            vendor_txn_id: p.vendor_txn_id ?? null,
+            authorized_amount: p.authorized_amount ?? null,
+          }));
 
-          // Insert items
-          if (itemsResult.data?.length) {
-            const { error: itemsError } = await supabase
-              .from('pos_transaction_items')
-              .insert(
-                itemsResult.data.map((item: any) => ({
-                  transaction_id: serverTx.id,
-                  business_id: this.businessId,
-                  product_id: item.product_id,
-                  description: item.description,
-                  quantity: item.quantity,
-                  unit_price: item.unit_price,
-                  discount_type: item.discount_type,
-                  discount_value: item.discount_value,
-                  tax_rate: item.tax_rate,
-                  tax_amount: item.tax_amount,
-                  line_total: item.line_total,
-                  cost_price: item.cost_price,
-                  sort_order: item.sort_order,
-                }))
-              );
-            if (itemsError) console.warn('Items insert error:', itemsError);
-          }
+          const { data: rpcResult, error: rpcError } = await supabase.rpc(
+            'process_pos_transaction' as any,
+            {
+              p_organization_id: this.organizationId,
+              p_business_id: this.businessId,
+              p_register_id: tx.register_id,
+              p_shift_id: tx.shift_id,
+              p_items: items,
+              p_payments: payments,
+              p_subtotal: tx.subtotal,
+              p_tax_amount: tx.tax_amount,
+              p_discount_amount: tx.discount_amount,
+              p_total: tx.total,
+              p_customer_id: tx.customer_id || null,
+              p_customer_name: null,
+              p_notes: `${tx.notes || ''} [Synced from offline: ${tx.transaction_number}]`.trim(),
+              p_created_by: tx.created_by,
+              p_transaction_type: 'sale',
+              p_table_session_id: null,
+              p_tip_amount: 0,
+              p_original_transaction_id: null,
+              // The local row id is stable across retries — reuse it as
+              // the idempotency key so the RPC collapses replay attempts.
+              p_idempotency_key: tx.id,
+            }
+          );
 
-          // Insert payments
-          if (paymentsResult.data?.length) {
-            const { error: paymentsError } = await supabase
-              .from('pos_transaction_payments')
-              .insert(
-                paymentsResult.data.map((payment: any) => ({
-                  transaction_id: serverTx.id,
-                  business_id: this.businessId,
-                  payment_method: payment.payment_method,
-                  amount: payment.amount,
-                  reference: payment.reference,
-                  mpesa_receipt_number: payment.mpesa_receipt,
-                  status: payment.status,
-                }))
-              );
-            if (paymentsError) console.warn('Payments insert error:', paymentsError);
+          if (rpcError) throw rpcError;
+          const rr = rpcResult as any;
+          if (!rr?.success) {
+            throw new Error(rr?.error || 'Transaction processing failed');
           }
 
           // Mark as synced locally
@@ -396,7 +402,7 @@ class SQLiteSyncManager {
             `UPDATE pos_transactions 
              SET sync_status = 'synced', server_id = ?, synced_at = datetime('now'), sync_error = NULL 
              WHERE id = ?`,
-            [serverTx.id, tx.id]
+            [rr.transaction_id, tx.id]
           );
 
           synced++;
