@@ -95,6 +95,17 @@ const SupplierRecordPage = lazy(
   () => import("@/features/purchases/suppliers/SupplierRecordPage"),
 );
 
+// P2 — Contracts workbench.
+const ContractListPage = lazy(
+  () => import("@/features/purchases/contracts/ContractListPage"),
+);
+const ContractCreatePage = lazy(
+  () => import("@/features/purchases/contracts/ContractCreatePage"),
+);
+const ContractRecordPage = lazy(
+  () => import("@/features/purchases/contracts/ContractRecordPage"),
+);
+
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>
@@ -418,6 +429,32 @@ export function PurchasesApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Supplier"><SupplierRecordPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Contracts (P2 — procurement contracts workbench) */}
+        <Route
+          path="contracts"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Contracts"><ContractListPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="contracts/new"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Contract"><ContractCreatePage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="contracts/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Contract"><ContractRecordPage /></LazyRoute>
             </SubscriptionProtectedRoute>
           }
         />
