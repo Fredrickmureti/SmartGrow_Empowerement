@@ -109,4 +109,13 @@ describe("wms phase 14 — E2E harness scaffolding", () => {
   it("mobile offline-drain spec file exists", () => {
     expect(existsSync(path.join(ROOT, MOBILE_SPEC)), `${MOBILE_SPEC} missing`).toBe(true);
   });
+
+  it("no e2e spec still uses describe.skip (Phase 14i)", () => {
+    const allSpecs = [...SPECS.map((s) => s.file), MOBILE_SPEC];
+    for (const f of allSpecs) {
+      const src = readFileSync(path.join(ROOT, f), "utf8");
+      expect(src, `${f} still uses describe.skip — unskip when the sub-phase ships`)
+        .not.toMatch(/describe\.skip\s*\(/);
+    }
+  });
 });
