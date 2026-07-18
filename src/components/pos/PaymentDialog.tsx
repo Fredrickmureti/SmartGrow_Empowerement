@@ -504,7 +504,7 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
                       : `Card · ${formatCurrency(remaining)}`}
                   </p>
                   <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
-                    {cardMethod?.capture_mode === "auth_only"
+                    {cardMethod?.capture_mode === "two_step"
                       ? "Authorize now, capture on settlement"
                       : "Authorize + capture immediately"}
                   </p>
