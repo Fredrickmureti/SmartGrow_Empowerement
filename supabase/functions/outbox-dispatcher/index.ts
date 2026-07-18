@@ -61,7 +61,17 @@ async function handlePosSaleCommitted(row: OutboxRow): Promise<void> {
   );
   if (loyaltyErr) throw new Error(`loyalty accrual: ${loyaltyErr.message}`);
 
-  // 2. Fiscal transmission (KRA eTIMS) — best-effort. Not every org has
+  // 2. Wave 2 · Phase E-2 — read-model projections (daily rollup +
+  //    customer purchase history). Idempotent via pos_projection_apply_log
+  //    and the UNIQUE(transaction_id) constraint on the history table, so
+  //    outbox retries never double-count.
+  const { error: projErr } = await admin.rpc(
+    "project_pos_sale_committed",
+    { p_transaction_id: txnId },
+  );
+  if (projErr) throw new Error(`sales projection: ${projErr.message}`);
+
+  // 3. Fiscal transmission (KRA eTIMS) — best-effort. Not every org has
   //    eTIMS configured; the function itself decides whether to transmit.
   //    We swallow errors here so a fiscal outage does not block the whole
   //    sale-committed handler; eTIMS retries live inside etims-transmit.
