@@ -150,15 +150,15 @@ export default function MobileHome() {
             </div>
           ) : (
             <ul className="space-y-2">
-              {sessions!.map((s: { id: string; session_number: string; status: string }) => (
+              {sessions!.map((s) => (
                 <li key={s.id}>
                   <Link
                     to={`/wm/count/${s.id}`}
                     className="flex items-center justify-between rounded border p-3 active:bg-muted"
                   >
                     <div>
-                      <div className="font-mono text-sm">{s.session_number}</div>
-                      <div className="text-xs text-muted-foreground">{s.status}</div>
+                      <div className="font-mono text-sm">{s.code}</div>
+                      <div className="text-xs text-muted-foreground">{s.state}</div>
                     </div>
                     <span className="text-xs text-muted-foreground">tap →</span>
                   </Link>
