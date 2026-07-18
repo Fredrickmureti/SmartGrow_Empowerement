@@ -6593,6 +6593,39 @@ export type Database = {
         }
         Relationships: []
       }
+      business_event_subscriptions: {
+        Row: {
+          consumer_domain: string
+          created_at: string
+          event_type: string
+          handler_function: string
+          id: string
+          is_active: boolean
+          subscriber_name: string
+          updated_at: string
+        }
+        Insert: {
+          consumer_domain: string
+          created_at?: string
+          event_type: string
+          handler_function: string
+          id?: string
+          is_active?: boolean
+          subscriber_name: string
+          updated_at?: string
+        }
+        Update: {
+          consumer_domain?: string
+          created_at?: string
+          event_type?: string
+          handler_function?: string
+          id?: string
+          is_active?: boolean
+          subscriber_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       business_event_topics: {
         Row: {
           consumer_domains: string[]
@@ -68794,6 +68827,10 @@ export type Database = {
         }
         Returns: Json
       }
+      finance_post_gr_journal: {
+        Args: { _actor: string; _gr_id: string }
+        Returns: Json
+      }
       find_bill_vendor_business_mismatches: {
         Args: never
         Returns: {
@@ -75622,6 +75659,10 @@ export type Database = {
           rules_referencing: number
           work_entry_type_id: string
         }[]
+      }
+      wms_apply_gr_stock: {
+        Args: { _actor: string; _gr_id: string }
+        Returns: Json
       }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
     }
