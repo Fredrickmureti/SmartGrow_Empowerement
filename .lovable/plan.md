@@ -60,13 +60,16 @@ Update `.lovable/plan.md`:
 
 ## Out of scope
 
-- Phase 4 deprecation drops (`pos_stock_reservations` view, `usePOSStockReservation`, `post_pos_shift_gl` sales/COGS branches) — remain release-gated.
 - Promotions, loyalty, receipt rendering, hardware, eTIMS, reporting denorm — separate waves per the original prompt.
 
-## Definition of done for this batch — STATUS
+## Definition of done — STATUS
 
-- ✅ **T6-complete.** `process_pos_transaction` and `process_pos_return` re-issued: line inserts, payment inserts, and lot consumption route through `_pos_insert_line`, `_pos_record_payment`, `_pos_apply_lot_consumption` (which calls `_pos_write_stock_movement`). No inline `INSERT INTO pos_transaction_items / pos_transaction_payments` remains in either RPC body.
+- ✅ **T6-complete.** `process_pos_transaction` and `process_pos_return` route line inserts, payment inserts, and lot consumption through `_pos_insert_line`, `_pos_record_payment`, `_pos_apply_lot_consumption` (which calls `_pos_write_stock_movement`). No inline `INSERT INTO pos_transaction_items / pos_transaction_payments` remains in either RPC body.
 - ✅ **T6b.** `process_pos_return` takes `pg_advisory_xact_lock` keyed on `(product, warehouse)` before rebuilding lot state, matching the sale path.
 - ✅ **T7 payment.received.** Topic registered on `business_event_topics` (producer `pos`, consumers `finance,analytics,crm`). Trigger `trg_pos_payment_emit_event` on `pos_transaction_payments` emits one outbox row per completed payment; idempotency key `payment.received:<payment_id>`.
-- ✅ **Arch guards.** `pos-rpc-helpers-only.test.ts` (3 tests) and `pos-pessimistic-availability.test.ts` (2 tests) both green — future regressions that re-inline writes or drop the advisory lock fail the build.
-- Phase 4 (deprecation of `pos_stock_reservations` compat view, `usePOSStockReservation`, `post_pos_shift_gl` sales/COGS branches) remains release-gated per original plan.
+- ✅ **Arch guards.** `pos-rpc-helpers-only.test.ts` (3), `pos-pessimistic-availability.test.ts` (2), `pos-reservations-single-source.test.ts` (4), `pos-branch-stamping.test.ts` (3) — 12 tests green.
+- ✅ **Phase 4 deprecation drops.**
+  - `pos_stock_reservations` compat view + INSTEAD OF DELETE trigger + `tg_pos_stock_reservations_soft_delete` dropped. All reservation traffic now flows through `stock_reservations` via `reserve_pos_stock` / `release_pos_stock_reservation`.
+  - `post_pos_shift_gl`, `replay_pos_shift_gl`, `generate_pos_shift_journal_entry`, and the orphan `trg_pos_shift_close_journal_fn` dropped. GL posting is fully per-transaction (`post_pos_sale_gl` via `trg_pos_transaction_post_sale_gl`) plus per-shift cash variance (`trg_pos_close_variance_gl`).
+  - `ShiftReportDialog` "Retry GL" affordance removed; the dialog now surfaces only the cash-variance JE badge when present.
+  - `businessScopedTables.ts` no longer lists the dropped view; POS-hook barrel and offline hook comments now describe the per-transaction posting strategy.
