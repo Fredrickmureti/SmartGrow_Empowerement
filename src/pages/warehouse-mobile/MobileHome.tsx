@@ -43,12 +43,12 @@ export default function MobileHome() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_count_sessions")
-        .select("id, session_number, status")
-        .in("status", ["in_progress", "planned"])
+        .select("id, code, state")
+        .in("state", ["in_progress", "planned"])
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as { id: string; code: string; state: string }[];
     },
   });
 
