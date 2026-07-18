@@ -235,6 +235,16 @@ export function useSupplierRecord(id: string | null | undefined) {
       (q) => ({ ...q, documents: docsByQual.get(q.id) ?? [] }),
     );
 
+    // Requisitions come back as items with an embedded parent — dedupe.
+    const reqMap = new Map<string, RequisitionRow>();
+    for (const row of (requisitions.data ?? []) as any[]) {
+      const r = row.requisition as RequisitionRow | null;
+      if (r && !reqMap.has(r.id)) reqMap.set(r.id, r);
+    }
+    const reqRows = Array.from(reqMap.values()).sort((a, b) =>
+      (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+    );
+
     setState({
       record: {
         ...(core as any),
@@ -242,7 +252,7 @@ export function useSupplierRecord(id: string | null | undefined) {
         compliance: (compliance.data ?? []) as ComplianceCheckRow[],
         bank_accounts: (banks.data ?? []) as BankAccountRow[],
         contracts: (contracts.data ?? []) as ContractRow[],
-        requisitions: (requisitions.data ?? []) as RequisitionRow[],
+        requisitions: reqRows,
         purchase_orders: (pos.data ?? []) as POHistoryRow[],
         bills: (bills.data ?? []) as BillHistoryRow[],
       },
