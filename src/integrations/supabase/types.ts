@@ -40276,109 +40276,6 @@ export type Database = {
           },
         ]
       }
-      pos_stock_reservations: {
-        Row: {
-          branch_id: string
-          business_id: string
-          created_at: string
-          expires_at: string
-          id: string
-          organization_id: string
-          product_id: string
-          quantity: number
-          register_id: string
-          reserved_by: string | null
-        }
-        Insert: {
-          branch_id: string
-          business_id: string
-          created_at?: string
-          expires_at?: string
-          id?: string
-          organization_id: string
-          product_id: string
-          quantity: number
-          register_id: string
-          reserved_by?: string | null
-        }
-        Update: {
-          branch_id?: string
-          business_id?: string
-          created_at?: string
-          expires_at?: string
-          id?: string
-          organization_id?: string
-          product_id?: string
-          quantity?: number
-          register_id?: string
-          reserved_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pos_stock_reservations_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pos_stock_reservations_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "pos_stock_reservations_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pos_stock_reservations_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "pos_stock_reservations_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "pos_stock_reservations_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pos_stock_reservations_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "pos_stock_reservations_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pos_stock_reservations_register_id_fkey"
-            columns: ["register_id"]
-            isOneToOne: false
-            referencedRelation: "pos_registers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       pos_table_bookings: {
         Row: {
           booking_date: string
@@ -61325,6 +61222,102 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_stock_reservations: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string | null
+          organization_id: string | null
+          product_id: string | null
+          quantity: number | null
+          register_id: string | null
+          reserved_by: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          organization_id?: string | null
+          product_id?: string | null
+          quantity?: number | null
+          register_id?: string | null
+          reserved_by?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          organization_id?: string | null
+          product_id?: string | null
+          quantity?: number | null
+          register_id?: string | null
+          reserved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_reservations_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
