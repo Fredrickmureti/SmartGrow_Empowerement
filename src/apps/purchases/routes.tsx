@@ -395,8 +395,34 @@ export function PurchasesApp() {
           }
         />
 
-        
-        {/* Vendors (filtered contacts) */}
+
+        {/* Suppliers (P1 — canonical supplier master, Supplier 360) */}
+        <Route
+          path="suppliers"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Suppliers"><SupplierListPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="suppliers/new"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Supplier"><SupplierCreatePage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="suppliers/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Supplier"><SupplierRecordPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Vendors (legacy: filtered contacts). Retired at P11 workbench cutover. */}
         <Route
           path="vendors"
           element={
@@ -405,6 +431,7 @@ export function PurchasesApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        
         
         {/* Vendor Statements */}
         <Route
