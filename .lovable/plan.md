@@ -1,10 +1,14 @@
 # WMS Handoff — Verification + Resume Plan
 
 ## Progress (this session)
-- **14f QC** — landed. Seed extended (`wms_qc_hold_reasons` idempotent per business), `e2e/wms/qc.spec.ts` unskipped. Drives accept / reject(scrap) / cancel branches; asserts inspection terminal states, `stock_movements` row counts (open+accept=4, open+reject=4, open+cancel=2, cancel-only=0), and `warehouse.qc.opened|accepted|rejected|cancelled` outbox events with ADR-0076 `wms.qc.<id>:<state>` idempotency keys. Second cancel expected to throw (RPC is not idempotent by design).
-- **14a.2** deferred — not a blocker for 14f–14i; will fold into a housekeeping migration alongside 14i's snapshot dump.
+- **14f QC** — landed. Seed extended (`wms_qc_hold_reasons` idempotent per business), `e2e/wms/qc.spec.ts` unskipped. Drives accept / reject(scrap) / cancel branches; asserts inspection terminal states, `stock_movements` row counts, and `warehouse.qc.opened|accepted|rejected|cancelled` outbox events with ADR-0076 `wms.qc.<id>:<state>` idempotency keys.
+- **14g Count** — landed. `e2e/wms/count.spec.ts` unskipped. Drives `create_count_session` → `record_count_scan` (variance −1) → `approve_count_variance` → `post_count_session`. Asserts session state transitions (`counting → review → posted`), `posted_adjustment_id` stamped on variance lines, and `warehouse.count.recorded` + `warehouse.count.posted` outbox events (`wms.count.posted:<session>` idempotency key).
+- **14h Mobile offline drain** — landed. `e2e/wm/offline-drain.spec.ts` unskipped. Creates a real pending pick task via `create_pick_wave`+`release_pick_wave`, boots `/wm` (which starts `startDrainLoop`), seeds a `claim_pick_task` call into `wm-offline-queue` IndexedDB, dispatches `online`, then polls until the queue empties AND `wms_tasks.state='assigned'` — proves the RPC actually landed, not just that IDB drained.
+- **14i Guard hardening** — landed. `wms-phase14.test.ts` now asserts no `describe.skip(` remains across all Phase 14 specs (desktop + mobile). Bun install ran during this turn to restore `react-router-dom`, `framer-motion`, `idb`, `qrcode.react` (all declared but with an empty `node_modules`).
+- **14a.2** still deferred — thin `create_goods_receipt` wrapper. Not a blocker; `receive.spec.ts` currently inserts the GRN header directly.
 
-Next: 14g count spec.
+Phase 14 harness rollout is functionally complete pending 14a.2.
+
 
 ## Verification of prior work (Phase 14a–14e)
 
