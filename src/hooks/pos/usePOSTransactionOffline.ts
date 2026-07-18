@@ -366,8 +366,20 @@ async function processOfflineTransaction(
         tendered_amount: tendered,
         change_given: p.method === "cash" ? change : 0,
         reference: p.reference,
+        card_last_four: p.card_last_four,
+        card_type: p.card_type,
+        // Wave 2 · Phase C-2 — preserve card FSM metadata through the
+        // offline queue. SQLiteSyncManager must forward these to the RPC
+        // on replay so the FSM guard sees the same initial state as the
+        // online path. (Follow-up: sync manager still uses direct insert;
+        // migrating replay to `process_pos_transaction` is Phase C-3.)
+        auth_state: p.auth_state,
+        auth_id: p.auth_id,
+        vendor_txn_id: p.vendor_txn_id,
+        authorized_amount: p.authorized_amount,
       };
     }),
+
     transaction_type: data.transaction_type || "sale",
     offline_transaction_number: offlineTransactionNumber,
     created_by: userId,
