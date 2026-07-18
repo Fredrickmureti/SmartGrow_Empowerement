@@ -51,7 +51,41 @@ Landed:
 - Backfill: one `suppliers` row per `contacts` row where `contact_type = 'vendor'` OR `is_supplier = true` (idempotent).
 - RPCs: `submit_supplier_qualification`, `approve_supplier_qualification`, `reject_supplier_qualification`, `suspend_supplier`, `reinstate_supplier` — all `SECURITY DEFINER`, business-scoped, outbox emit.
 
+### 2026-07-18 — P0 Great Split (Procurement / WMS / Finance)
+Landed:
+- `business_event_topics` registry seeded with supplier/procurement/sourcing prefixes.
+- Canonical `create_goods_receipt` wrapper (single entry point for receiving).
+- `v_po_line_billed_progress` reconciliation view (`security_invoker=true`).
+- Domain subscribers `wms_apply_gr_stock` + `finance_post_gr_journal`; rewritten `complete_goods_receipt_atomic` no longer touches `stock_movements` or `journal_entries` inline.
+- Commit-time SQL invariant blocks any regression that would reintroduce forbidden refs.
+- Architecture guard test at `src/test/architecture/procurement.test.ts`.
+- `business_event_subscriptions` seeded for the two domain subscribers.
+
+### 2026-07-18 — P2 Contracts & Agreements
+Landed:
+- Tables: `procurement_contracts`, `procurement_contract_lines`, `procurement_contract_releases` (grants + RLS + updated_at).
+- PO linkage: `purchase_orders.contract_id`, `purchase_order_items.contract_line_id`.
+- BEFORE-UPDATE trigger `tg_purchase_order_contract_ceiling` enforces status/expiry/ceiling on PO approval, records releases, bumps utilization atomically.
+- RPCs: `create_procurement_contract`, `activate_procurement_contract`, `terminate_procurement_contract`, `amend_procurement_contract`.
+- Expiry sweep `procurement_contracts_sweep_expiries()`.
+- Topics: `procurement.contract.{created,activated,terminated,expired,amended,release_recorded,ceiling_breached_attempt}`.
+
+### 2026-07-18 — P3 Purchase Requisitions
+Landed:
+- Tables: `purchase_requisitions`, `purchase_requisition_items` (with generated `estimated_line_total`), `purchase_requisition_approvals`.
+- PO back-links: `purchase_orders.requisition_id`, `purchase_order_items.requisition_item_id`.
+- Lifecycle RPCs: `submit_requisition`, `approve_requisition`, `reject_requisition`, `cancel_requisition` — self-approval blocked, outbox events emitted.
+- Topics: `procurement.requisition.{submitted,approved,rejected,cancelled}`.
+
 Deferred (next batches):
-- P0 drift cleanup — split `complete_goods_receipt_atomic` and land the `create_goods_receipt` wrapper (14a.2).
-- Supplier 360 UI (waits until P1 schema is in prod).
-- P2 contracts, P3 requisitions, P4 sourcing extension, P5 PO lifecycle, P6 ASN, P7 GR rebuild, P8 match, P9 returns, P10 scorecards, P11 workbench UX, P12 E2E harness, P13 RLS re-audit.
+- **UI**: Supplier 360, Contracts list + record, Requisition workbench.
+- **P4** RFQ→Requisition wiring (award consumes contract, seeds PO with linkage).
+- **P5** PO lifecycle: revisions, acknowledgements, change orders, line state machine.
+- **P6** ASN model.
+- **P7** GR rebuild (multi-delivery, backorders).
+- **P8** 3-way match state machine + tolerance policy + exception queue.
+- **P9** Returns / vendor credits polish.
+- **P10** Supplier scorecards (KPI aggregation).
+- **P11** Workbench UX pass.
+- **P12** E2E harness across the whole flow.
+- **P13** RLS re-audit + security-definer view cleanup.
