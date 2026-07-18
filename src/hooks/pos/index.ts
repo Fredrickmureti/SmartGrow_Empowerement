@@ -42,7 +42,9 @@ export { usePOSSessionsOffline } from "./usePOSSessionsOffline";
 // useHardwareSettings removed — use useHardwareProxy or useDeviceAssignments instead.
 export { usePOSZReport, usePOSXReport } from "./usePOSReportViews";
 export { usePOSInvoiceRequest } from "./usePOSInvoiceRequest";
-export { usePOSStockReservation } from "./usePOSStockReservation";
+// usePOSStockReservation removed — POS holds go through reserve_pos_stock /
+// release_pos_stock_reservation, which now write the unified stock_reservations
+// table (ADR 0082 · T3).
 export { useHardwareEvent, useBarcodeScan, useScaleWeight, useDeviceDiscovery } from "./useHardwareEvents";
 
 // Restaurant mode hooks
