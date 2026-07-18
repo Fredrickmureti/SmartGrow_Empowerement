@@ -12,13 +12,12 @@ import { WarehouseLayout } from "./WarehouseLayout";
 
 const WarehouseDashboard = lazy(() => import("@/pages/warehouse/WarehouseDashboard"));
 const WarehouseLayoutPage = lazy(() => import("@/pages/warehouse/WarehouseLayoutPage"));
-// Reuse existing Inventory-authored CRUD screens for the warehouse master
-// until a WMS-native detail replaces them. They already read/write
-// `warehouses` cleanly and respect business/branch scope.
-const Warehouses = lazy(() => import("@/pages/Warehouses"));
-const WarehouseNew = lazy(() => import("@/pages/inventory/WarehouseNew"));
-const WarehouseEdit = lazy(() => import("@/pages/inventory/WarehouseEdit"));
-const WarehouseView = lazy(() => import("@/pages/inventory/WarehouseView"));
+// Warehouse master-data pages (ADR 0080). Warehouse app is the canonical
+// author of `warehouses` rows; Inventory consumes read-only.
+const Warehouses = lazy(() => import("@/pages/warehouse/WarehousesList"));
+const WarehouseNew = lazy(() => import("@/pages/warehouse/WarehouseNew"));
+const WarehouseEdit = lazy(() => import("@/pages/warehouse/WarehouseEdit"));
+const WarehouseView = lazy(() => import("@/pages/warehouse/WarehouseView"));
 const LicensePlates = lazy(() => import("@/pages/warehouse/LicensePlates"));
 const LicensePlateView = lazy(() => import("@/pages/warehouse/LicensePlateView"));
 const OperatorTasks = lazy(() => import("@/pages/warehouse/OperatorTasks"));
