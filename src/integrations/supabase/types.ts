@@ -36941,6 +36941,122 @@ export type Database = {
         }
         Relationships: []
       }
+      pos_card_settlement_lines: {
+        Row: {
+          amount: number
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          fee: number
+          id: string
+          kind: string
+          net: number
+          organization_id: string
+          payment_id: string
+          settlement_id: string
+          source_event_id: string | null
+          source_event_type: string | null
+        }
+        Insert: {
+          amount: number
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          fee?: number
+          id?: string
+          kind: string
+          net: number
+          organization_id: string
+          payment_id: string
+          settlement_id: string
+          source_event_id?: string | null
+          source_event_type?: string | null
+        }
+        Update: {
+          amount?: number
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          fee?: number
+          id?: string
+          kind?: string
+          net?: number
+          organization_id?: string
+          payment_id?: string
+          settlement_id?: string
+          source_event_id?: string | null
+          source_event_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_card_settlement_lines_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "pos_card_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_card_settlements: {
+        Row: {
+          actual_amount: number | null
+          batch_date: string
+          branch_id: string | null
+          business_id: string
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          expected_amount: number
+          fee_total: number
+          id: string
+          notes: string | null
+          opened_at: string
+          organization_id: string
+          provider_key: string
+          status: string
+          updated_at: string
+          variance: number | null
+        }
+        Insert: {
+          actual_amount?: number | null
+          batch_date?: string
+          branch_id?: string | null
+          business_id: string
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          expected_amount?: number
+          fee_total?: number
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          organization_id: string
+          provider_key: string
+          status?: string
+          updated_at?: string
+          variance?: number | null
+        }
+        Update: {
+          actual_amount?: number | null
+          batch_date?: string
+          branch_id?: string | null
+          business_id?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          expected_amount?: number
+          fee_total?: number
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          organization_id?: string
+          provider_key?: string
+          status?: string
+          updated_at?: string
+          variance?: number | null
+        }
+        Relationships: []
+      }
       pos_cash_movement_types: {
         Row: {
           business_id: string
@@ -74440,6 +74556,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      pos_card_settlement_apply: {
+        Args: {
+          p_amount: number
+          p_branch_id: string
+          p_business_id: string
+          p_event_id: string
+          p_kind: string
+          p_org_id: string
+          p_payment_id: string
+          p_provider_key: string
+        }
+        Returns: string
+      }
       pos_card_void: {
         Args: { p_payment_id: string; p_reason?: string }
         Returns: {
@@ -74484,6 +74613,14 @@ export type Database = {
           register_name: string
           session_id: string
         }[]
+      }
+      pos_close_card_settlement: {
+        Args: {
+          p_actual_amount: number
+          p_notes?: string
+          p_settlement_id: string
+        }
+        Returns: Json
       }
       pos_create_scanner_pairing: {
         Args: { p_register_id: string }
