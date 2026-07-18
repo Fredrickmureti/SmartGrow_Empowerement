@@ -249,6 +249,12 @@ export default function PhysicalCountWorkspace() {
         }
       />
 
+      <p className="text-xs text-muted-foreground">
+        Scan-first floor sessions live in Warehouse —
+        {" "}<Link className="underline" to="/warehouse-app/counts">open cycle counts</Link>.
+      </p>
+
+
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Card>
           <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6"><CardTitle className="text-xs text-muted-foreground">Active</CardTitle></CardHeader>
