@@ -43,10 +43,53 @@ type OutboxRow = {
 
 type HandlerFn = (row: OutboxRow) => Promise<void>;
 
-// Phase E will register real handlers here. Everything unhandled is a
-// deliberate no-op so the row is marked succeeded and does not block.
+// --- Phase E handlers -----------------------------------------------------
+// Each handler must be idempotent (the outbox retries on failure) and must
+// throw on unrecoverable errors so the row is dead-lettered after
+// max_attempts. Handlers should NOT call user-tenant supabase clients —
+// only the service-role `admin` client.
+
+async function handlePosSaleCommitted(row: OutboxRow): Promise<void> {
+  const payload = (row.payload ?? {}) as { transaction_id?: string };
+  const txnId = payload.transaction_id ?? row.source_doc_id;
+  if (!txnId) throw new Error("pos.sale.committed: missing transaction_id");
+
+  // 1. Loyalty accrual — idempotent per pos_transaction_id.
+  const { error: loyaltyErr } = await admin.rpc(
+    "apply_loyalty_accrual_for_sale",
+    { p_transaction_id: txnId },
+  );
+  if (loyaltyErr) throw new Error(`loyalty accrual: ${loyaltyErr.message}`);
+
+  // 2. Fiscal transmission (KRA eTIMS) — best-effort. Not every org has
+  //    eTIMS configured; the function itself decides whether to transmit.
+  //    We swallow errors here so a fiscal outage does not block the whole
+  //    sale-committed handler; eTIMS retries live inside etims-transmit.
+  try {
+    await admin.functions.invoke("etims-transmit", {
+      body: { doc_type: "pos", transaction_id: txnId, org_id: row.org_id },
+    });
+  } catch (e) {
+    console.warn(JSON.stringify({
+      event_id: row.id, event_type: row.event_type,
+      warn: "etims-transmit failed", error: e instanceof Error ? e.message : String(e),
+    }));
+  }
+}
+
+async function handleInventoryMovementRecorded(row: OutboxRow): Promise<void> {
+  // Reorder-alert recompute lives in check_low_stock_products; call it
+  // per-org so subsequent movements trigger fresh alerts. This is cheap
+  // enough (single RPC, per event batch) and idempotent.
+  const { error } = await admin.rpc("check_low_stock_products");
+  if (error) throw new Error(`reorder recompute: ${error.message}`);
+}
+
+// Phase E map. Extend with one entry per newly-durable topic. Unknown
+// topics remain deliberate no-op successes so the outbox drains.
 const HANDLERS: Record<string, HandlerFn> = {
-  // e.g. "pos.sale.committed.v1": handlePosSaleCommitted,
+  "pos.sale.committed": handlePosSaleCommitted,
+  "inventory.movement.recorded": handleInventoryMovementRecorded,
 };
 
 async function dispatch(row: OutboxRow): Promise<void> {
