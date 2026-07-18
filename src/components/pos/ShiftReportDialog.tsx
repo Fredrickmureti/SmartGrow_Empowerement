@@ -319,57 +319,19 @@ export function ShiftReportDialog({
           </div>
         </ScrollArea>
 
-        {/* GL Sync Status for closed shifts */}
-        {shiftStatus === "closed" && (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-            localGlPostedAt 
-              ? "bg-green-500/10 text-green-700 dark:text-green-400" 
-              : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400"
-          }`}>
-            {localGlPostedAt ? (
-              <>
-                <CheckCircle className="h-4 w-4 shrink-0" />
-                <span>GL posted {format(new Date(localGlPostedAt), "MMM d, h:mm a")}</span>
-              </>
-            ) : (
-              <>
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span>Accounting not posted</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isRetryingGL}
-                  className="ml-auto"
-                  onClick={async () => {
-                    setIsRetryingGL(true);
-                    try {
-                      // C-3b: single canonical replay path via RPC (no edge function).
-                      // The RPC delegates to post_pos_shift_gl which uses the same
-                      // post_journal_entry_atomic call as everything else.
-                      const { data: jeId, error } = await supabase.rpc(
-                        "replay_pos_shift_gl" as any,
-                        { _shift_id: shiftId }
-                      );
-                      if (error) {
-                        toast.error(normalizeError(error).message || "GL posting failed");
-                      } else if (jeId) {
-                        setLocalGlPostedAt(new Date().toISOString());
-                        toast.success("Accounting entries posted successfully");
-                      } else {
-                        toast.message("Nothing to post — shift had no completed sales.");
-                      }
-                    } catch (err: any) {
-                      toast.error(normalizeError(err).message || "Failed to retry GL posting");
-                    } finally {
-                      setIsRetryingGL(false);
-                    }
-                  }}
-                >
-                  {isRetryingGL ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-                  Retry
-                </Button>
-              </>
-            )}
+        {/*
+          Phase 4: shift-level "GL posted" status was tied to the
+          aggregating post_pos_shift_gl, which has been dropped. GL is
+          now posted per-transaction (post_pos_sale_gl) and per-close
+          for cash variance (trg_pos_close_variance_gl). There is no
+          single shift-level JE to badge; each sale and the variance
+          entry each have their own journal_entries row visible from
+          Finance → Journal.
+        */}
+        {shiftStatus === "closed" && localGlPostedAt && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-green-500/10 text-green-700 dark:text-green-400">
+            <CheckCircle className="h-4 w-4 shrink-0" />
+            <span>Cash variance posted {format(new Date(localGlPostedAt), "MMM d, h:mm a")}</span>
           </div>
         )}
 
