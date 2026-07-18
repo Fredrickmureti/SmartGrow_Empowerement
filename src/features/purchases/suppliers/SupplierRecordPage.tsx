@@ -60,6 +60,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useSupplierRecord } from "./useSupplierRecord";
+import { ContactCustomFieldsPanel } from "./ContactCustomFieldsPanel";
 import {
   approveSupplierQualification,
   rejectSupplierQualification,
@@ -67,6 +68,7 @@ import {
   submitSupplierQualification,
   suspendSupplier,
 } from "./supplierRpcs";
+
 
 const LIFECYCLE_TONE: Record<
   string,
@@ -376,6 +378,60 @@ export default function SupplierRecordPage() {
               </FieldGrid>
             </Section>
 
+            <Section
+              title="Finance defaults"
+              description="Sourced from the underlying Contact record (ADR-0079). Edit in the Contact profile."
+            >
+              <FieldGrid>
+                <Field label="Payment terms">
+                  {(record.contact as any)?.payment_term_id ? "Configured" : "—"}
+                </Field>
+                <Field label="Default payment method">
+                  {(record.contact as any)?.default_payment_method_id ? "Configured" : "—"}
+                </Field>
+                <Field label="AP (payable) account">
+                  {(record.contact as any)?.default_payable_account_id ? "Configured" : "Uses org default"}
+                </Field>
+                <Field label="Default expense account">
+                  {(record.contact as any)?.default_expense_account_id ? "Configured" : "Uses org default"}
+                </Field>
+                <Field label="Default tax rate">
+                  {(record.contact as any)?.default_tax_rate_id ? "Configured" : "—"}
+                </Field>
+                <Field label="Withholding tax rate">
+                  {(record.contact as any)?.withholding_tax_rate != null
+                    ? `${(record.contact as any).withholding_tax_rate}%`
+                    : "—"}
+                </Field>
+                <Field label="Tax exemption #">
+                  {(record.contact as any)?.tax_exemption_number ?? "—"}
+                </Field>
+                <Field label="Tax exemption expires">
+                  {fmt((record.contact as any)?.tax_exemption_expiry)}
+                </Field>
+              </FieldGrid>
+              {record.contact?.id && (
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/contacts/${record.contact!.id}/edit`)}
+                  >
+                    Edit finance defaults
+                  </Button>
+                </div>
+              )}
+            </Section>
+
+            {record.contact?.id && (
+              <Section
+                title="Custom fields"
+                description="Contact-scoped custom fields defined in Studio."
+              >
+                <ContactCustomFieldsPanel contactId={record.contact.id} />
+              </Section>
+            )}
+
             <Section title="Qualification summary">
               <FieldGrid>
                 <Field label="Score">
@@ -394,6 +450,7 @@ export default function SupplierRecordPage() {
                 </Field>
               </FieldGrid>
             </Section>
+
           </TabsContent>
 
           {/* Qualification */}

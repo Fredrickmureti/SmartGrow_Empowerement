@@ -35,7 +35,9 @@ export const PURCHASES_NAV: WorkspaceNav = {
         { to: "/purchases/credit-notes", label: "Credit notes", icon: FileMinus },
         { to: "/purchases/suppliers", label: "Suppliers", icon: Building2 },
         { to: "/purchases/contracts", label: "Contracts", icon: FileSignature },
-        { to: "/purchases/vendors", label: "Suppliers (contact view)", icon: Truck },
+        // Legacy "Suppliers (contact view)" retired in Batch K-Retire (2026-07).
+        //   Route /purchases/vendors now redirects to /purchases/suppliers.
+
         { to: "/purchases/statements", label: "Statements", icon: ScrollText },
       ],
     },

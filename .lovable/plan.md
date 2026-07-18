@@ -1,6 +1,10 @@
 
 # Procurement Reconstruction — Verification & Continuation Plan
 
+**Status (2026-07-18): CLOSED.** All batches A–N landed on the live DB.
+Consolidated verdict: `docs/audit/procurement-verdict.md`.
+
+
 ## Phase 1 — Verification of prior work (done in this turn)
 
 Re-ran the pre-plan reads the previous engineer left in `.lovable/plan.md §5`. Nothing is asserted below that a query did not confirm.
