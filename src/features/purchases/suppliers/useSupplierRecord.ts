@@ -199,13 +199,12 @@ export function useSupplierRecord(id: string | null | undefined) {
         .eq("supplier_id", id)
         .order("start_date", { ascending: false }),
       s
-        .from("purchase_requisitions")
+        .from("purchase_requisition_items")
         .select(
-          "id, requisition_number, status, need_by_date, estimated_total, currency, created_at",
+          "requisition:purchase_requisitions(id, requisition_number, status, need_by_date, estimated_total, currency, created_at)",
         )
         .eq("suggested_supplier_id", id)
-        .order("created_at", { ascending: false })
-        .limit(50),
+        .limit(200),
       s
         .from("purchase_orders")
         .select(
