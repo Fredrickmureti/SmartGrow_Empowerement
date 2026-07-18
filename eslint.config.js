@@ -60,6 +60,7 @@ export default tseslint.config(
           "no-shell-leak-from-me": noShellLeakFromMe,
           "no-pdf-lib-in-localization-preview": noPdfLibInLocalizationPreview,
           "no-country-fixture-in-shared-preview": noCountryFixtureInSharedPreview,
+          "no-pos-commit-without-idempotency-key": noPosCommitWithoutIdempotencyKey,
         },
       },
     },
