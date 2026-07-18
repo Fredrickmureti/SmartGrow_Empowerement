@@ -470,6 +470,32 @@ export function PurchasesApp() {
           }
         />
 
+        {/* Requisitions (P3 — purchase requisitions workbench) */}
+        <Route
+          path="requisitions"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Requisitions"><RequisitionListPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="requisitions/new"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Requisition"><RequisitionCreatePage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="requisitions/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Requisition"><RequisitionRecordPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Vendors (legacy: filtered contacts). Retired at P11 workbench cutover. */}
         <Route
           path="vendors"
