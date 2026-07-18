@@ -336,6 +336,7 @@ export function useVendorCreditNotes() {
     confirmVendorCreditNote,
     deleteVendorCreditNote,
     applyToBill,
+    applyCreditFifo,
     refreshCreditNotes: fetchCreditNotes,
   };
 }
