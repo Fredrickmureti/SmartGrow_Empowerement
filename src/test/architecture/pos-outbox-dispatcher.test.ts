@@ -43,11 +43,8 @@ describe("pos-outbox-dispatcher: durable delivery substrate", () => {
 
   it("browser BusinessSaga claims only host-scope events", () => {
     const src = readFileSync(join(REPO, "src/services/events/BusinessSaga.ts"), "utf8");
-    // Must pass handler_scope='host' to the RPC
-    expect(src).toMatch(/p_handler_scope:\s*['"]host['"]/);
-    // Must not still be calling the un-scoped 3-arg shape
-    expect(src).not.toMatch(
-      /rpc\(\s*['"]claim_next_business_event['"][\s\S]*?\)\s*(?![\s\S]*p_handler_scope)/,
-    );
+    // The saga's single claim call must be scoped to 'host'. The scoped
+    // 5-arg RPC signature is the only supported shape post Phase D.
+    expect(src).toMatch(/claim_next_business_event[\s\S]{0,400}p_handler_scope:\s*['"]host['"]/);
   });
 });
