@@ -51,11 +51,24 @@ describe("pos-card-settlement: substrate & write-path invariants", () => {
     expect(m, "close RPC must insert into business_event_outbox").not.toBeNull();
   });
 
-  it("outbox dispatcher wires capture + reversal handlers", () => {
+  it("outbox dispatcher wires capture + reversal + settlement-closed handlers", () => {
     const src = readFileSync(join(REPO, "supabase/functions/outbox-dispatcher/index.ts"), "utf8");
     expect(src).toMatch(/"payment\.card\.captured"\s*:/);
     expect(src).toMatch(/"payment\.card\.reversed"\s*:/);
     expect(src).toMatch(/pos_card_settlement_apply/);
+    // Phase F.6 — settlement.card.closed must post GL via the RPC.
+    expect(src).toMatch(/pos_card_settlement_post_gl/);
+  });
+
+  it("F.6 migration defines GL posting RPC + apply-log ledger", () => {
+    expect(migrations).toMatch(/CREATE TABLE IF NOT EXISTS public\.pos_card_settlement_gl_apply_log/);
+    expect(migrations).toMatch(/FUNCTION\s+public\.pos_card_settlement_post_gl/);
+    // Account resolution MUST route through the canonical helper — no
+    // direct default_accounts lookups from the GL posting path.
+    const fn = migrations.match(/FUNCTION\s+public\.pos_card_settlement_post_gl[\s\S]*?\$\$;/);
+    expect(fn, "pos_card_settlement_post_gl body must be present").not.toBeNull();
+    expect(fn![0]).toContain("resolve_default_account");
+    expect(fn![0]).toContain("post_journal_entry_atomic");
   });
 
   it("no src/ file writes to the settlement tables directly", () => {
