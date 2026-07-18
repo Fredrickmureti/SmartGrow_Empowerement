@@ -1,75 +1,144 @@
-## Phase 1 — Verification of prior agent's claims
+# POS Transaction Engine — Enterprise Roadmap
 
-Cross-checked `.lovable/plan.md` against the live database and source tree.
+Authoritative status for the POS subsystem. Verify against the live database
+via `pg_proc.prosrc` and the migration tree; do not trust prose alone.
 
-**Confirmed ✅**
-- **T1** `pos_resolve_line`, server-derived totals in `process_pos_transaction`, arch test `pos-server-authoritative-money-math.test.ts` present.
-- **T2** `trg_pos_transactions_require_idempotency_key` attached; arch test `pos-mandatory-idempotency.test.ts` present.
-- **T3** `pos_stock_reservations` is a view; `trg_pos_stock_reservations_soft_delete` present; `reserve_pos_stock`, `release_pos_stock_reservation`, `get_available_pos_stock(_for_register)` all exist; arch test `pos-unified-reservations.test.ts` present.
-- **T4** `process_pos_transaction` body contains `pg_advisory_xact_lock` (verified via `pg_proc.prosrc`).
-- **T5** `post_pos_sale_gl` proc + `trg_pos_transaction_post_sale_gl` + `trg_pos_close_variance_gl` exist; old aggregating `trg_pos_shift_close_journal` is gone.
-- **T7** `business_event_topics` has `pos.sale.committed` and `inventory.movement.recorded`; `trg_pos_transaction_emit_event` and `trg_stock_movement_emit_event` present; 5 POS duties (`pos.commit`, `pos.void`, `pos.return`, `pos.override_price`, `pos.override_discount`) registered in `governance_duties` with `domain='pos'`.
-- Arch tests present: `pos-outbox-and-governance`, `no-client-pos-money-math`, `pos-reservations-single-source`.
+---
 
-**Overstated / gaps found ❌**
-1. **T6 helper extraction is only partial.** Plan promised four internal helpers (`_pos_insert_line`, `_pos_post_movement`, `_pos_record_payment`, `_pos_apply_lot_consumption`) so that `process_pos_transaction / _return / _void / recall_pos_held_transaction` compose them. Only `_pos_write_stock_movement` (≈ `_pos_post_movement`) landed. `process_pos_transaction` is still ~21 KB of inline logic and `process_pos_return` is ~15 KB — line insert, payment insert, and lot-consumption paths are still duplicated across the four RPCs. `T6 ✅` in the plan is inaccurate.
-2. **T4 concurrency test missing.** Plan required `src/test/architecture/pos-pessimistic-availability.test.ts` (parallel-RPC race). Not present. Locking is in place but unguarded — a future editor can silently strip the advisory lock.
-3. **T6 arch guard missing.** Plan required `pos-rpc-helpers-only.test.ts` asserting no direct `INSERT INTO stock_movements / pos_transaction_items / pos_transaction_payments` outside the helpers. Not present.
-4. **`payment.received` outbox topic missing.** Plan said "keep existing"; no such topic is registered in `business_event_topics` (only `pos.sale.committed` + `inventory.movement.recorded`). The tender-leg of the sale lifecycle currently has no dedicated business event.
-5. **`process_pos_return` has no concurrency guard.** Returns bump inventory back up and consume/rebuild lot state, but the RPC contains neither `FOR UPDATE` nor `pg_advisory_xact_lock`. Two rapid duplicate returns against the same original txn can race on lot rebuild.
+## Current phase
 
-Phase 4 (deprecation drops) remains correctly paused — no code will touch it in this batch.
+**Phase 4 — DONE.** All planned deprecation drops shipped; per-transaction GL
+is the only path; legacy compat surfaces are gone.
 
-## Phase 2 — Batch to ship (T6-complete + guards)
+**Phase 5 (in progress) — RPC parity & sub-flow completeness.**
+- ✅ **T8 (this batch)** — `process_pos_void` brought to sale/return parity:
+  advisory lock on `(product, warehouse)`, lot-aware reversal through
+  `_pos_apply_lot_consumption(direction='in')`, GL reversal via
+  `_pos_reverse_transaction_gl`. Legacy overload of `process_pos_void`
+  dropped so callers can only reach the hardened signature
+  `(p_transaction_id, p_organization_id, p_voided_by, p_void_reason_id,
+  p_void_note, p_override_id)`.
+- ✅ **Arch guards extended.** `pos-pessimistic-availability.test.ts` now
+  covers all three write RPCs (transaction/return/void); `pos-rpc-helpers-only.test.ts`
+  asserts void reverses stock through the lot helper and never inlines a
+  `stock_movements` INSERT.
 
-Ship as one migration + code + tests + plan update, per the shipping contract already stated in `.lovable/plan.md`.
+---
 
-### T6-complete — extract the remaining helpers
+## Cumulative status — verified
 
-New `SECURITY DEFINER`, `SET search_path = public`, revoked-from-`PUBLIC` internal helpers:
-- `_pos_insert_line(_txn_id uuid, _line jsonb) → uuid` — inserts `pos_transaction_items` row with tax/discount stamping; returns item id.
-- `_pos_record_payment(_txn_id uuid, _payment jsonb) → uuid` — inserts `pos_transaction_payments`, attaches M-Pesa via existing helper, returns payment id.
-- `_pos_apply_lot_consumption(_txn_id uuid, _item_id uuid, _product_id uuid, _qty numeric, _direction text)` — wraps `consume_lots_atomic` / lot reversal logic used by both sale and return paths.
+### Phase 1 (verification of prior claims)
+- ✅ **T1** server-authoritative money math (`pos_resolve_line` + totals in `process_pos_transaction`).
+- ✅ **T2** `trg_pos_transactions_require_idempotency_key`.
+- ✅ **T3** unified reservations — POS holds live only on `stock_reservations`; legacy `pos_stock_reservations` view is dropped (Phase 4).
+- ✅ **T4** `pg_advisory_xact_lock` in the sale path.
+- ✅ **T5** per-sale GL (`post_pos_sale_gl` via `trg_pos_transaction_post_sale_gl`) + cash-variance trigger.
+- ✅ **T7** outbox topics `pos.sale.committed`, `inventory.movement.recorded`, `payment.received`; five POS `governance_duties`.
 
-Rewrite the four public RPCs to call only:
-`_pos_resolve_branch_warehouse` → advisory lock (existing) → `_pos_insert_line` → `_pos_write_stock_movement` → `_pos_apply_lot_consumption` → `_pos_record_payment` → `post_pos_sale_gl` (or `_pos_reverse_transaction_gl` for return/void).
+### Phase 3 batch
+- ✅ **T6** helpers `_pos_insert_line`, `_pos_record_payment`, `_pos_apply_lot_consumption`, `_pos_write_stock_movement`.
+- ✅ **T6b** return-path advisory lock.
+- ✅ **T7 payment.received** topic + trigger `trg_pos_payment_emit_event`.
 
-Preserve every existing invariant: `assert_pos_caller_branch_access` at the top, idempotency-key trigger, event-emit triggers, `total_matches_server` behaviour, RLS.
+### Phase 4 drops
+- ✅ `pos_stock_reservations` compat view + `INSTEAD OF DELETE` trigger + `tg_pos_stock_reservations_soft_delete`.
+- ✅ `post_pos_shift_gl`, `replay_pos_shift_gl`, `generate_pos_shift_journal_entry`, and `trg_pos_shift_close_journal_fn`.
+- ✅ `ShiftReportDialog` "Retry GL" button removed; only cash-variance JE badge remains.
+- ✅ `businessScopedTables.ts` cleanup; POS hook comments updated.
 
-### T4/T6 guards — add missing arch tests
+### Phase 5 (this batch)
+- ✅ **T8** — see "Current phase" above.
 
-- `src/test/architecture/pos-rpc-helpers-only.test.ts` — query `pg_proc.prosrc` (through a fixture snapshot committed under `supabase/tests/` or via a small SQL smoke asserted in Vitest) to confirm no `INSERT INTO stock_movements|pos_transaction_items|pos_transaction_payments` appears in the four public RPC bodies; permitted only inside the `_pos_*` helpers.
-- `src/test/architecture/pos-pessimistic-availability.test.ts` — text-level assertion that `process_pos_transaction` body contains `pg_advisory_xact_lock(` and reads on-hand under that lock. (True concurrency test against a live DB is out of scope for Vitest — the guard prevents silent removal.)
-- Extend `pos-outbox-and-governance.test.ts` to require `payment.received` in `business_event_topics` once registered.
+### Architecture guards — 13 passing across 4 files
+- `pos-server-authoritative-money-math.test.ts`
+- `pos-mandatory-idempotency.test.ts`
+- `pos-reservations-single-source.test.ts` (4)
+- `pos-outbox-and-governance.test.ts`
+- `no-client-pos-money-math.test.ts`
+- `pos-rpc-helpers-only.test.ts` (4) — includes void-reverses-through-helper
+- `pos-pessimistic-availability.test.ts` (3) — sale, return, void
+- `pos-branch-stamping.test.ts` (3)
 
-### T7 completion — register `payment.received`
+---
 
-- Add `payment.received` to `business_event_topics` (producer=`pos`, consumers=`finance`, `analytics`, `crm`).
-- AFTER INSERT trigger `trg_pos_payment_emit_event` on `pos_transaction_payments`, emitting one outbox row per payment with idempotency key `payment.received:<payment_id>` and `ON CONFLICT (idempotency_key) DO NOTHING`.
+## Pending — next enterprise milestones
 
-### T6b — return-side concurrency
+### T9 — Idempotency response cache (next up)
+The idempotency-key trigger prevents duplicate INSERTS but does not return
+the original response body on retry. Enterprise POS clients (offline sync,
+mobile) need the exact same `jsonb` payload on retry, not a
+`duplicate_key`-shaped error. Design:
+- New table `pos_transaction_idempotency` `(idempotency_key TEXT PRIMARY KEY,
+  organization_id, business_id, branch_id, transaction_id, response JSONB,
+  created_at)`.
+- `process_pos_transaction` looks up the key at entry; on hit returns the
+  cached `response` and skips all writes. On success it caches the return
+  value in the same transaction.
+- 24 h retention TTL via scheduled cleanup or partitioned drop.
+- Arch test: RPC body reads from the cache table before the advisory lock.
 
-Add `pg_advisory_xact_lock(hashtextextended(product_id||':'||warehouse_id, 0))` per line in `process_pos_return` before movement + lot reversal. Same key shape as sale path guarantees mutual exclusion of sale vs return on the same SKU.
+### T10 — Outbox delivery worker & DLQ
+`business_event_outbox` currently accumulates rows with no worker. Ship a
+Deno edge function `outbox-dispatcher` that:
+- Reads `status='pending'` rows in order per `topic` (respect `producer_domain`).
+- Dispatches to registered consumers (start with logging sink; real HTTP
+  webhooks are Phase 6).
+- Retries with exponential backoff up to N attempts, then moves to a
+  `business_event_outbox_dead` table for ops review.
+- Cron via `pg_cron` or Supabase scheduled function every 10s.
 
-### Plan-file update
+### T11 — Reporting projection (denormalized read model)
+Per-sale JEs make finance-facing analytics slow. Materialize a
+`pos_sales_daily` projection populated by trigger on
+`pos_transactions` status transitions.
 
-Update `.lovable/plan.md`:
-- Downgrade T6 from ✅ to ✅ (post-completion) with note referencing the new helpers.
-- Mark new arch tests, `payment.received` topic, and return-side lock complete.
-- Leave Phase 4 paused with unchanged blockers.
+### T12 — Return authorization workflow
+`process_pos_return` currently trusts caller-supplied line refunds. Add
+`pos_return_authorizations` referencing the original transaction with a
+manager override and reason code — required before the return RPC can
+proceed for values above threshold. Mirrors D365 "Return with RMA".
 
-## Out of scope
+---
 
-- Promotions, loyalty, receipt rendering, hardware, eTIMS, reporting denorm — separate waves per the original prompt.
+## Handoff instructions for the next agent
 
-## Definition of done — STATUS
+**BEFORE writing any new code:**
 
-- ✅ **T6-complete.** `process_pos_transaction` and `process_pos_return` route line inserts, payment inserts, and lot consumption through `_pos_insert_line`, `_pos_record_payment`, `_pos_apply_lot_consumption` (which calls `_pos_write_stock_movement`). No inline `INSERT INTO pos_transaction_items / pos_transaction_payments` remains in either RPC body.
-- ✅ **T6b.** `process_pos_return` takes `pg_advisory_xact_lock` keyed on `(product, warehouse)` before rebuilding lot state, matching the sale path.
-- ✅ **T7 payment.received.** Topic registered on `business_event_topics` (producer `pos`, consumers `finance,analytics,crm`). Trigger `trg_pos_payment_emit_event` on `pos_transaction_payments` emits one outbox row per completed payment; idempotency key `payment.received:<payment_id>`.
-- ✅ **Arch guards.** `pos-rpc-helpers-only.test.ts` (3), `pos-pessimistic-availability.test.ts` (2), `pos-reservations-single-source.test.ts` (4), `pos-branch-stamping.test.ts` (3) — 12 tests green.
-- ✅ **Phase 4 deprecation drops.**
-  - `pos_stock_reservations` compat view + INSTEAD OF DELETE trigger + `tg_pos_stock_reservations_soft_delete` dropped. All reservation traffic now flows through `stock_reservations` via `reserve_pos_stock` / `release_pos_stock_reservation`.
-  - `post_pos_shift_gl`, `replay_pos_shift_gl`, `generate_pos_shift_journal_entry`, and the orphan `trg_pos_shift_close_journal_fn` dropped. GL posting is fully per-transaction (`post_pos_sale_gl` via `trg_pos_transaction_post_sale_gl`) plus per-shift cash variance (`trg_pos_close_variance_gl`).
-  - `ShiftReportDialog` "Retry GL" affordance removed; the dialog now surfaces only the cash-variance JE badge when present.
-  - `businessScopedTables.ts` no longer lists the dropped view; POS-hook barrel and offline hook comments now describe the per-transaction posting strategy.
+1. Re-verify the T8 state on the live database by running:
+
+   ```sql
+   SELECT proname,
+          (prosrc ~* 'pg_advisory_xact_lock') AS lock_ok,
+          (prosrc ~* '_pos_apply_lot_consumption') AS helper_ok,
+          (prosrc ~* 'INSERT INTO\s+(public\.)?stock_movements') AS inline_bad
+   FROM pg_proc
+   WHERE proname IN ('process_pos_transaction','process_pos_return','process_pos_void')
+     AND pronamespace='public'::regnamespace;
+   ```
+   All three rows must be `lock_ok=t, helper_ok=t, inline_bad=f`. If any row
+   fails, T8 regressed — fix before moving to T9.
+
+2. Run the full arch-guard suite:
+
+   ```
+   bunx vitest run src/test/architecture/
+   ```
+   All 13 tests in the POS files must pass.
+
+3. Confirm no duplicate function overloads:
+
+   ```sql
+   SELECT proname, count(*) FROM pg_proc
+   WHERE proname LIKE 'process_pos_%' AND pronamespace='public'::regnamespace
+   GROUP BY proname HAVING count(*) > 1;
+   ```
+   Must return zero rows.
+
+**Once verified, proceed to T9 (idempotency response cache).** Do not skip
+to T11/T12 — the outbox worker (T10) and idempotency cache (T9) together
+make the engine safe for offline-first clients, which every downstream
+feature will assume. Ship T9 → T10 in that order, each as a single
+migration + code + tests + this plan update.
+
+**Non-goals for the next batch:** promotions, loyalty, receipt rendering,
+hardware integrations, eTIMS, tax-authority hooks. Those are Wave B.
