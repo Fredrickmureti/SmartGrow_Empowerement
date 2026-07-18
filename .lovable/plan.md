@@ -1,144 +1,142 @@
-# POS Transaction Engine — Enterprise Roadmap
+# POS Transaction Engine — Handoff Verification + T9 Plan
 
-Authoritative status for the POS subsystem. Verify against the live database
-via `pg_proc.prosrc` and the migration tree; do not trust prose alone.
+## Phase 1 — Verification of prior claims (done, read-only)
 
----
+Ran the handoff checks against the live DB and repo:
 
-## Current phase
+- ✅ `process_pos_transaction`, `process_pos_return`, `process_pos_void` all show `lock_ok=t`, `helper_ok=t`, `inline_bad=f` in `pg_proc.prosrc`. T8 is genuinely in place.
+- ✅ No duplicate `process_pos_%` overloads (each name has exactly 1 row).
+- ✅ Triggers present: `trg_pos_transactions_require_idempotency_key`, `trg_pos_transaction_post_sale_gl`, `trg_pos_emit_payment_received` / `trg_pos_payment_emit_event`, `trg_pos_close_variance_gl`, `trg_pos_transaction_emit_event`, branch-stamp + branch/business-match guards across every POS money-handling table.
+- ✅ `pos_stock_reservations` compat view is gone; only unified `stock_reservations` remains (Phase 4 drop confirmed).
+- ✅ Helper functions `_pos_insert_line`, `_pos_record_payment`, `_pos_apply_lot_consumption`, `_pos_write_stock_movement`, `_pos_reverse_transaction_gl`, `pos_resolve_line`, `post_pos_sale_gl` all exist. `_pos_write_stock_movement` is the sole owner of `INSERT INTO stock_movements` (expected — it's the helper).
+- ✅ Arch-test files listed in the plan all exist under `src/test/architecture/` (pos-pessimistic-availability, pos-rpc-helpers-only, pos-reservations-single-source, etc.).
+- ✅ Pending-work tables absent as expected: `pos_transaction_idempotency`, `business_event_outbox_dead`, `pos_sales_daily`, `pos_return_authorizations` do not exist.
 
-**Phase 4 — DONE.** All planned deprecation drops shipped; per-transaction GL
-is the only path; legacy compat surfaces are gone.
+Conclusion: the previous engineer's Phase 1–4 + T8 claims are accurate. Resume at T9 as documented.
 
-**Phase 5 (in progress) — RPC parity & sub-flow completeness.**
-- ✅ **T8 (this batch)** — `process_pos_void` brought to sale/return parity:
-  advisory lock on `(product, warehouse)`, lot-aware reversal through
-  `_pos_apply_lot_consumption(direction='in')`, GL reversal via
-  `_pos_reverse_transaction_gl`. Legacy overload of `process_pos_void`
-  dropped so callers can only reach the hardened signature
-  `(p_transaction_id, p_organization_id, p_voided_by, p_void_reason_id,
-  p_void_note, p_override_id)`.
-- ✅ **Arch guards extended.** `pos-pessimistic-availability.test.ts` now
-  covers all three write RPCs (transaction/return/void); `pos-rpc-helpers-only.test.ts`
-  asserts void reverses stock through the lot helper and never inlines a
-  `stock_movements` INSERT.
+## Phase 2 — Plan validation
 
----
+The T9→T10→T11→T12 ordering is correct for enterprise retail:
+- T9 (idempotency response cache) is the prerequisite for any offline/mobile client — retry-safety today only prevents duplicate INSERTs, it does not return a stable response body.
+- T10 (outbox dispatcher + DLQ) unblocks every downstream consumer (finance projections, analytics, fiscal, loyalty).
+- T11 (denormalized daily projection) and T12 (return authorization / RMA) sit on top of T9+T10.
 
-## Cumulative status — verified
+One addition worth appending to the roadmap after T9 lands, but **not** part of this batch: an arch test asserting that `_pos_reverse_transaction_gl` is the sole reverser and no code path inlines negated JE lines (parity with the existing "helpers only" guard for stock). Noted for a T8-follow-up ticket; not blocking T9.
 
-### Phase 1 (verification of prior claims)
-- ✅ **T1** server-authoritative money math (`pos_resolve_line` + totals in `process_pos_transaction`).
-- ✅ **T2** `trg_pos_transactions_require_idempotency_key`.
-- ✅ **T3** unified reservations — POS holds live only on `stock_reservations`; legacy `pos_stock_reservations` view is dropped (Phase 4).
-- ✅ **T4** `pg_advisory_xact_lock` in the sale path.
-- ✅ **T5** per-sale GL (`post_pos_sale_gl` via `trg_pos_transaction_post_sale_gl`) + cash-variance trigger.
-- ✅ **T7** outbox topics `pos.sale.committed`, `inventory.movement.recorded`, `payment.received`; five POS `governance_duties`.
+No other gaps found that justify reordering. Proceeding with T9.
 
-### Phase 3 batch
-- ✅ **T6** helpers `_pos_insert_line`, `_pos_record_payment`, `_pos_apply_lot_consumption`, `_pos_write_stock_movement`.
-- ✅ **T6b** return-path advisory lock.
-- ✅ **T7 payment.received** topic + trigger `trg_pos_payment_emit_event`.
+## Phase 3 — T9: Idempotency response cache
 
-### Phase 4 drops
-- ✅ `pos_stock_reservations` compat view + `INSTEAD OF DELETE` trigger + `tg_pos_stock_reservations_soft_delete`.
-- ✅ `post_pos_shift_gl`, `replay_pos_shift_gl`, `generate_pos_shift_journal_entry`, and `trg_pos_shift_close_journal_fn`.
-- ✅ `ShiftReportDialog` "Retry GL" button removed; only cash-variance JE badge remains.
-- ✅ `businessScopedTables.ts` cleanup; POS hook comments updated.
+### Goal
+`process_pos_transaction` (and, for symmetry, `process_pos_return` / `process_pos_void`) must return the **exact original JSONB response** when called again with the same `p_idempotency_key`, instead of surfacing a unique-violation from the idempotency-key trigger. This is the contract offline POS clients and network-retrying mobile apps rely on.
 
-### Phase 5 (this batch)
-- ✅ **T8** — see "Current phase" above.
+### Migration 1 — cache table
 
-### Architecture guards — 13 passing across 4 files
-- `pos-server-authoritative-money-math.test.ts`
-- `pos-mandatory-idempotency.test.ts`
-- `pos-reservations-single-source.test.ts` (4)
-- `pos-outbox-and-governance.test.ts`
-- `no-client-pos-money-math.test.ts`
-- `pos-rpc-helpers-only.test.ts` (4) — includes void-reverses-through-helper
-- `pos-pessimistic-availability.test.ts` (3) — sale, return, void
-- `pos-branch-stamping.test.ts` (3)
+```sql
+CREATE TABLE public.pos_transaction_idempotency (
+  idempotency_key   text PRIMARY KEY,
+  organization_id   uuid NOT NULL,
+  business_id       uuid NOT NULL,
+  branch_id         uuid NOT NULL,
+  rpc_name          text NOT NULL,        -- 'process_pos_transaction' | 'process_pos_return' | 'process_pos_void'
+  transaction_id    uuid,                 -- nullable for void (references existing txn)
+  response          jsonb NOT NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  expires_at        timestamptz NOT NULL DEFAULT (now() + interval '24 hours')
+);
 
----
+CREATE INDEX idx_pos_txn_idem_expires ON public.pos_transaction_idempotency(expires_at);
+CREATE INDEX idx_pos_txn_idem_branch  ON public.pos_transaction_idempotency(branch_id, created_at DESC);
 
-## Pending — next enterprise milestones
+GRANT SELECT ON public.pos_transaction_idempotency TO authenticated;
+GRANT ALL    ON public.pos_transaction_idempotency TO service_role;
 
-### T9 — Idempotency response cache (next up)
-The idempotency-key trigger prevents duplicate INSERTS but does not return
-the original response body on retry. Enterprise POS clients (offline sync,
-mobile) need the exact same `jsonb` payload on retry, not a
-`duplicate_key`-shaped error. Design:
-- New table `pos_transaction_idempotency` `(idempotency_key TEXT PRIMARY KEY,
-  organization_id, business_id, branch_id, transaction_id, response JSONB,
-  created_at)`.
-- `process_pos_transaction` looks up the key at entry; on hit returns the
-  cached `response` and skips all writes. On success it caches the return
-  value in the same transaction.
-- 24 h retention TTL via scheduled cleanup or partitioned drop.
-- Arch test: RPC body reads from the cache table before the advisory lock.
+ALTER TABLE public.pos_transaction_idempotency ENABLE ROW LEVEL SECURITY;
 
-### T10 — Outbox delivery worker & DLQ
-`business_event_outbox` currently accumulates rows with no worker. Ship a
-Deno edge function `outbox-dispatcher` that:
-- Reads `status='pending'` rows in order per `topic` (respect `producer_domain`).
-- Dispatches to registered consumers (start with logging sink; real HTTP
-  webhooks are Phase 6).
-- Retries with exponential backoff up to N attempts, then moves to a
-  `business_event_outbox_dead` table for ops review.
-- Cron via `pg_cron` or Supabase scheduled function every 10s.
+-- Read scoped to caller's branch/business; writes only through SECURITY DEFINER RPCs.
+CREATE POLICY pos_txn_idem_read ON public.pos_transaction_idempotency
+  FOR SELECT TO authenticated
+  USING (public.assert_pos_caller_branch_access(branch_id, business_id, organization_id));
+```
 
-### T11 — Reporting projection (denormalized read model)
-Per-sale JEs make finance-facing analytics slow. Materialize a
-`pos_sales_daily` projection populated by trigger on
-`pos_transactions` status transitions.
+### Migration 2 — RPC wiring
 
-### T12 — Return authorization workflow
-`process_pos_return` currently trusts caller-supplied line refunds. Add
-`pos_return_authorizations` referencing the original transaction with a
-manager override and reason code — required before the return RPC can
-proceed for values above threshold. Mirrors D365 "Return with RMA".
+For each of the three write RPCs, insert a lookup at the very top of the function body — **before** the advisory lock — and a cache write immediately before returning success:
 
----
+```
+  -- entry: return cached response on retry
+  SELECT response INTO v_cached
+    FROM public.pos_transaction_idempotency
+   WHERE idempotency_key = p_idempotency_key
+     AND expires_at > now()
+   LIMIT 1;
+  IF v_cached IS NOT NULL THEN
+    RETURN v_cached;
+  END IF;
 
-## Handoff instructions for the next agent
+  -- ... existing body (lock, resolve, insert, GL, emit) ...
 
-**BEFORE writing any new code:**
+  -- exit: cache the response before returning
+  INSERT INTO public.pos_transaction_idempotency
+    (idempotency_key, organization_id, business_id, branch_id,
+     rpc_name, transaction_id, response)
+  VALUES (p_idempotency_key, v_org, v_business, v_branch,
+          '<rpc>', v_transaction_id, v_response)
+  ON CONFLICT (idempotency_key) DO NOTHING;
 
-1. Re-verify the T8 state on the live database by running:
+  RETURN v_response;
+```
 
-   ```sql
-   SELECT proname,
-          (prosrc ~* 'pg_advisory_xact_lock') AS lock_ok,
-          (prosrc ~* '_pos_apply_lot_consumption') AS helper_ok,
-          (prosrc ~* 'INSERT INTO\s+(public\.)?stock_movements') AS inline_bad
-   FROM pg_proc
-   WHERE proname IN ('process_pos_transaction','process_pos_return','process_pos_void')
-     AND pronamespace='public'::regnamespace;
-   ```
-   All three rows must be `lock_ok=t, helper_ok=t, inline_bad=f`. If any row
-   fails, T8 regressed — fix before moving to T9.
+Notes:
+- `ON CONFLICT DO NOTHING` handles the very narrow race where two concurrent identical calls both pass the entry lookup; one will still complete real work (the `trg_..._require_idempotency_key` trigger on `pos_transactions` will reject the loser, which the wrapper translates to the cached response on the caller's next attempt).
+- Cache write happens in the same PL/pgSQL block as the state changes, so it commits atomically — no partial-write window.
+- Keep the existing `trg_pos_transactions_require_idempotency_key` in place; it is now the belt-and-braces guard behind the cache.
 
-2. Run the full arch-guard suite:
+### Migration 3 — TTL cleanup
 
-   ```
-   bunx vitest run src/test/architecture/
-   ```
-   All 13 tests in the POS files must pass.
+```sql
+CREATE OR REPLACE FUNCTION public.cleanup_pos_transaction_idempotency()
+RETURNS integer LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
+  WITH d AS (
+    DELETE FROM public.pos_transaction_idempotency
+     WHERE expires_at < now()
+     RETURNING 1
+  ) SELECT count(*)::int FROM d;
+$$;
+```
 
-3. Confirm no duplicate function overloads:
+Scheduled via `pg_cron` hourly (or via the existing Supabase scheduled-function runner if `pg_cron` isn't enabled — check during implementation).
 
-   ```sql
-   SELECT proname, count(*) FROM pg_proc
-   WHERE proname LIKE 'process_pos_%' AND pronamespace='public'::regnamespace
-   GROUP BY proname HAVING count(*) > 1;
-   ```
-   Must return zero rows.
+### Arch tests
 
-**Once verified, proceed to T9 (idempotency response cache).** Do not skip
-to T11/T12 — the outbox worker (T10) and idempotency cache (T9) together
-make the engine safe for offline-first clients, which every downstream
-feature will assume. Ship T9 → T10 in that order, each as a single
-migration + code + tests + this plan update.
+Add `src/test/architecture/pos-idempotency-response-cache.test.ts` asserting, via `pg_proc.prosrc`:
 
-**Non-goals for the next batch:** promotions, loyalty, receipt rendering,
-hardware integrations, eTIMS, tax-authority hooks. Those are Wave B.
+1. Each of the three RPCs contains a `SELECT ... FROM pos_transaction_idempotency` **before** the first `pg_advisory_xact_lock` call.
+2. Each RPC contains an `INSERT INTO pos_transaction_idempotency` before the final `RETURN`.
+3. No client-side code writes to `pos_transaction_idempotency` (grep `src/**/*.{ts,tsx}` for the table name outside `src/test/`).
+
+### Verification steps after implementation
+
+```sql
+-- 1. Cache table exists with expected columns.
+SELECT column_name, data_type FROM information_schema.columns
+ WHERE table_schema='public' AND table_name='pos_transaction_idempotency'
+ ORDER BY ordinal_position;
+
+-- 2. All three RPCs read the cache before locking.
+SELECT proname,
+       (prosrc ~* 'pos_transaction_idempotency[^;]*expires_at\s*>\s*now\(\)') AS reads_cache,
+       (prosrc ~* 'INSERT INTO\s+(public\.)?pos_transaction_idempotency')     AS writes_cache
+  FROM pg_proc
+ WHERE proname IN ('process_pos_transaction','process_pos_return','process_pos_void')
+   AND pronamespace='public'::regnamespace;
+-- expect reads_cache=t, writes_cache=t for all three
+```
+
+Then run the full POS arch-guard suite: `bunx vitest run src/test/architecture/pos-*.test.ts` — the existing 13 must still pass, plus the 3 new assertions in T9's test file.
+
+### Out of scope for this batch
+T10 (outbox dispatcher + DLQ), T11 (daily projection), T12 (RMA workflow), promotions, loyalty, receipt rendering, hardware, fiscal — all deferred to the next batches per the roadmap.
+
+### Deliverable
+1 migration bundle (3 files: table + RPC rewrites + cleanup fn), 1 new arch test file, `plan.md` updated to mark T9 ✅ and promote T10 to "Current phase".
