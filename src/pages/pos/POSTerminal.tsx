@@ -928,6 +928,15 @@ function POSTerminalInner() {
                 tendered_amount: tendered,
                 change_given: method === "cash" ? change : 0,
                 reference: p.reference || null,
+                // Wave 2 · Phase C-3 — forward card FSM metadata so the
+                // restaurant path also lands rows in a legal FSM state and
+                // the `trg_emit_pos_card_fsm_event` trigger fires.
+                card_last_four: p.card_last_four ?? null,
+                card_type: p.card_type ?? null,
+                auth_state: p.auth_state ?? null,
+                auth_id: p.auth_id ?? null,
+                vendor_txn_id: p.vendor_txn_id ?? null,
+                authorized_amount: p.authorized_amount ?? null,
               };
             }),
             p_tip_amount: tipAmount || 0,
