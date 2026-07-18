@@ -5,7 +5,7 @@
  */
 
 import { lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
 import { InventoryLayout } from "./InventoryLayout";
