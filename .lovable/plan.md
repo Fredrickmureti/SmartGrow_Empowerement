@@ -1,97 +1,159 @@
-# Warehouse Ownership & Domain Boundary — Audit Verdict + Redesign Plan
+# Project Implementation Roadmap — Authoritative Status
 
-## 1. First-principles verdict
-
-In every mature ERP (SAP S/4 + EWM, Oracle SCM + WMS, D365 SCM, NetSuite, Odoo Enterprise, Infor/Manhattan WMS) the pattern is identical:
-
-- **Warehouse identity** (the facility, its code, address, branch, activation, docks, zones, bins) is **enterprise/organisational master data**, authored in the WMS / logistics-structure module.
-- **Inventory** is a *consumer* of that master data. Inventory owns quantity, valuation, lots, movements — never the facility record itself.
-- **Warehouse Operations** (tasks, waves, picks, packs, appointments, LPNs) live above the facility, in WMS.
-- **Cycle counting** is universally split: WMS performs *scan-first execution* (sessions, blind counts, recounts on the floor); Inventory owns *variance approval + adjustment posting* because only Inventory may mutate stock state.
-
-Applied to our codebase:
-
-- `warehouses` table = enterprise master data → **canonical owner: Warehouse app**.
-- `stock_locations`, `stock_transfers`, `stock_quants`, `stock_movements` = inventory state → **canonical owner: Inventory app** (already correct per ADR-0079).
-- `wms_*` tables = operational execution → **Warehouse app** (already correct).
-- Cycle count split (`wms_count_sessions` in Warehouse, `physical_counts` in Inventory) = the textbook WMS↔Inventory boundary → **already correct, keep and formalise**.
-
-## 2. What the audit actually found
-
-Reads confirmed the following state (not opinion):
-
-1. **Duplicated route surface.** `src/apps/inventory/routes.tsx` lines 136–182 and `src/apps/warehouse/routes.tsx` lines 69–100 both expose `warehouses`, `warehouses/new`, `warehouses/:id`, `warehouses/:id/edit`, wired to the *same* page modules under `src/pages/inventory/` (`WarehouseNew`, `WarehouseEdit`, `WarehouseView`) and `src/pages/Warehouses`. That is why "Add Warehouse" in the Warehouse app *appears* to jump to Inventory — it doesn't; it renders the same component. The confusion is real but structural, not behavioural.
-2. **Nav duplicated.** `INVENTORY_NAV` (`src/apps/inventory/nav.ts:59`) and `WAREHOUSE_NAV` (`src/apps/warehouse/nav.ts:42`) both list "Warehouses" as master data. Two doors, one room.
-3. **Inventory app also exposes Transfers (`/inventory-app/transfers`)** — this is correct (transfers are inventory movements, not warehouse execution) and stays put. The user's mention of "Active Transfers / Stock Transfers under Inventory" is expected inventory behaviour.
-4. **Page files physically live under `src/pages/inventory/Warehouse{New,Edit,View}.tsx`** — a naming leftover from before ADR-0079. Warehouse routes import them from there (`src/apps/warehouse/routes.tsx:19-21`), which is the deepest reason ownership *looks* fragmented.
-5. **ADR-0079 already declared the split** (Inventory owns quants/valuation; Warehouse owns physical execution) but the master-data ownership question was left ambiguous — it said `stock_locations` is "shared, owned by Inventory schema, authored via Warehouse UI" but never made the same explicit call for the `warehouses` table itself.
-6. **Cycle counts are not duplicated.** `src/pages/warehouse/CycleCounts.tsx` + `CountSession.tsx` + `CountReview.tsx` operate on `wms_count_sessions` (scan-first execution). `src/apps/inventory` "Counts / Physical Count Workspace" operate on `physical_counts` and post adjustments via inventory RPCs. Two capabilities, one lifecycle — WMS session → emits event → Inventory posts. This is the enterprise pattern; **preserve it**.
-
-## 3. Decision
-
-**Warehouse master data (the `warehouses` row and its facility-level configuration) is owned by the Warehouse app.** Inventory becomes a read-only consumer. This aligns with SAP EWM, Oracle WMS, D365 SCM and matches ADR-0079's spirit.
-
-**Cycle Counts stay split as-is.** Warehouse = execution surface; Inventory = adjustment authority. Document the contract; do not merge.
-
-## 4. Plan (execution)
-
-### Batch W1 — Codify the decision (ADR)
-- New `docs/adr/0080-warehouse-master-data-ownership.md`: declares Warehouse app as canonical author of `warehouses` rows; Inventory holds a read-only badge/link; `stock_locations` continues per ADR-0079; cycle-count split formalised with the event contract (`warehouse.count.session.completed` → inventory posts).
-
-### Batch W2 — Consolidate the master-data pages under Warehouse
-- Move `src/pages/inventory/Warehouse{New,Edit,View,Form}.tsx` → `src/pages/warehouse/Warehouse{New,Edit,View,Form}.tsx`. Move `src/pages/Warehouses.tsx` → `src/pages/warehouse/WarehousesList.tsx`.
-- Update all imports (both `src/apps/warehouse/routes.tsx` and any strays). No behavioural change to the components themselves — this is a namespace move so ownership is enforceable by directory.
-
-### Batch W3 — Retire duplicate Inventory routes/nav for Warehouses
-- `src/apps/inventory/routes.tsx`: replace `warehouses`, `warehouses/new`, `warehouses/:id`, `warehouses/:id/edit` with `<Navigate to="/warehouse-app/warehouses[...]" replace />` (deep-link preserving, same pattern ADR-0079 already used for `/inventory-app/warehouses/*`).
-- `src/apps/inventory/nav.ts`: drop the "Warehouses" nav item from the Setup group. Keep "Transfers" (correctly Inventory).
-- Anywhere in Inventory pages that links to `/inventory-app/warehouses/*`, update to `/warehouse-app/warehouses/*` (grep for `/inventory-app/warehouses`).
-
-### Batch W4 — Inventory read-only consumer surface
-- In Inventory Overview / Stock filters where a warehouse chip appears, keep the chip but change any "manage warehouses" link to point at `/warehouse-app/warehouses`. Inventory never renders create/edit affordances for facilities.
-
-### Batch W5 — Cycle count contract, made explicit
-- Add a short section to ADR 0080 describing the current event: `wms_count_sessions` completion emits `warehouse.count.session.completed` → the Inventory posting workflow consumes it into `physical_counts` (variance review + adjustment post).
-- Add a UI callout on `/warehouse-app/counts` ("Adjustments are posted by Inventory → open the Inventory review here") and on Inventory's Counts page ("Scan sessions live in Warehouse → open here"). One sentence each, hyperlinked. No logic change.
-
-### Batch W6 — Guardrails (architecture tests)
-Extend `src/test/architecture/wms-phase1.test.ts` (or add `wms-phase-master-data.test.ts`) to assert:
-- No `src/pages/inventory/Warehouse*.tsx` files exist.
-- `src/apps/inventory/routes.tsx` contains no non-`Navigate` element for `path="warehouses*"`.
-- `src/apps/inventory/nav.ts` does not include `/inventory-app/warehouses`.
-- Every `warehouses`/`wms_*` create/update/delete originates from `src/pages/warehouse/**` or `src/hooks/useWarehouses.ts` (write helper); Inventory code is read-only.
-
-### Batch W7 — Verify
-- `tsgo -p tsconfig.app.json`.
-- `bunx vitest run src/test/architecture`.
-- Manual: `/inventory-app/warehouses` redirects to `/warehouse-app/warehouses`; deep links (`/inventory-app/warehouses/<id>`) redirect to `/warehouse-app/warehouses/<id>`; sidebars each show Warehouses only in the Warehouse app; Cycle Counts still function on both sides.
-
-## 5. What is explicitly NOT changing
-- `stock_locations`, `stock_transfers`, `stock_quants`, `stock_movements`, valuation, lots → remain Inventory.
-- WMS `wms_*` operational tables → remain Warehouse.
-- Cycle count *capabilities* on both sides → remain, contract formalised.
-- No DB schema changes. This is a pure ownership/navigation/module-boundary refactor plus one ADR.
-
-## 6. Technical notes
-- Redirects use `<Navigate replace>` and must preserve `:id` and `edit` sub-paths. Use `useParams` inside a small `<InventoryWarehouseRedirect />` wrapper rather than four static routes, so `/edit`, `/new`, and `/:id` all forward cleanly.
-- `useWarehouses.ts` stays where it is; both apps continue to read from it (read-only in Inventory is a UI concern, not a hook concern).
-- Architecture tests use the same walk-src pattern as `wms-phase1.test.ts`.
-
-Awaiting approval before I switch to build mode and execute batches W1–W7.
-
+**Last updated:** 2026-07-18
+**Maintainer note:** This file is the single source of truth for phase status. Update it at the end of every arc, not mid-flight.
 
 ---
 
-## Status — 2026-07-18: CLOSED
+## Roadmap at a glance
 
-Batches W1–W7 all shipped:
+| # | Phase / Arc | Status | Verdict doc |
+|---|---|---|---|
+| 1 | Procurement (P2P) — Batches A–N | ✅ CLOSED (2026-07-18) | `docs/audit/procurement-verdict.md` |
+| 2 | Warehouse Ownership & Domain Boundary — Batches W1–W7 | ✅ CLOSED (2026-07-18) | `docs/adr/0080-warehouse-master-data-ownership.md` |
+| 3 | **Inventory Domain Audit & Reconstruction** | 🔜 **NEXT — not started** | — |
+| 4 | Sales / Order-to-Cash Domain Audit | ⏸ Queued | — |
+| 5 | Finance / GL Consolidation Audit | ⏸ Queued | — |
+| 6 | Manufacturing hooks (backflush, subcontract) | ⏸ Queued | — |
+| 7 | Supplier Portal 2.0 & Sourcing (auctions, weighted award) | ⏸ Queued | — |
 
-- **W1 (ADR):** `docs/adr/0080-warehouse-master-data-ownership.md` published.
-- **W2 (page move):** `Warehouses.tsx` → `src/pages/warehouse/WarehousesList.tsx`; `WarehouseNew/Edit/View/Form` moved from `src/pages/inventory/` to `src/pages/warehouse/`.
-- **W3 (routing & nav):** Warehouse app lazy-imports from the new location. Inventory app keeps `warehouses`, `warehouses/new`, `warehouses/:id`, `warehouses/:id/edit` as `<Navigate replace>` redirects (bookmark parity preserved). Inventory sidebar entry removed.
-- **W4 (cross-refs):** All `/inventory-app/warehouses` deep links across UI (`InventoryDashboard`, `AdjustmentNew`, `WarehousePeekSheet`, `WarehouseScopeGate`, `StockTransferPeekSheet`, `SourceDocumentPeekSheet`, `POSReadinessBanner`, `lib/apps/registry.ts`) rewritten to `/warehouse-app/warehouses`.
-- **W5 (cycle-count contract):** ADR 0080 documents the `warehouse.count.session.completed` → `physical_counts` bridge. UI callouts added on both Warehouse `CycleCounts` and Inventory `PhysicalCountWorkspace` linking across the boundary.
-- **W6 (guardrail):** `src/test/architecture/wms-phase-master-data.test.ts` enforces (a) no `pages/inventory/Warehouse*.tsx`, (b) no `/inventory-app/warehouses` in Inventory nav, (c) every legacy `<Route path="warehouses*">` in Inventory routes resolves to `<Navigate>` / `*Redirect`.
-- **W7 (verify):** `tsgo -p tsconfig.app.json` clean; `vitest` architecture suite green.
+Currently **active phase:** none — Phase 2 just closed. Next agent picks up Phase 3 after verification (see below).
 
-No DB schema changes. No changes to `stock_movements`, `stock_quants`, valuation, or `wms_*` operational tables.
+---
+
+## Phase 1 — Procurement (P2P) — CLOSED
+
+Full verdict: `docs/audit/procurement-verdict.md`.
+
+Highlights:
+- 13 canonical `SECURITY DEFINER` RPCs, all SoD-guarded, all row-lock their aggregate.
+- FIFO multi-bill Vendor Credit Note application (`apply_vendor_credit_note_atomic`) with outbox emission; legacy `apply_vendor_credit_atomic` dropped in the same migration.
+- Governance duties (`credit.approve`, `credit.apply`) and SoD conflicts registered.
+- ADR-0079 party-vs-role model enforced — zero `supplier_id` FKs on transactional docs.
+- Batch N DB triggers enforce cross-table `business_id`/`branch_id` integrity on bills, POs, VCNs, bill payments, journal entries.
+- Supplier 360 workbench absorbs legacy `/purchases/vendors` — Finance defaults + custom-fields panel wired via Contact party.
+
+Guardrails (permanent): no client-side GL, no `supplier_id` on transactional docs, GRANTs required in same migration as CREATE TABLE, all cross-app writes via `business_event_outbox`.
+
+## Phase 2 — Warehouse Ownership & Domain Boundary — CLOSED
+
+Full verdict: `docs/adr/0080-warehouse-master-data-ownership.md`.
+
+Highlights:
+- Warehouse app is sole author of `warehouses` master data; Inventory is read-only consumer.
+- Master-data pages moved from `src/pages/inventory/Warehouse*.tsx` → `src/pages/warehouse/`.
+- Inventory `/inventory-app/warehouses[/*]` legacy paths preserved via `<Navigate replace>` deep-link parity.
+- Inventory sidebar entry removed; all cross-app links repointed.
+- Cycle-count contract formalised: WMS session (`wms_count_sessions`) executes → `warehouse.count.session.completed` event → Inventory (`physical_counts`) posts adjustments. Both surfaces link to each other.
+- Architecture guard: `src/test/architecture/wms-phase-master-data.test.ts` prevents regression.
+- No DB schema changes.
+
+---
+
+## Phase 3 — Inventory Domain Audit & Reconstruction — NEXT
+
+**Status:** not started. Scope to be defined by the next agent after verification of Phases 1 & 2.
+
+### Intended scope (subject to first-principles audit)
+
+Following the same enterprise pattern used for Procurement and Warehouse:
+
+1. **Ownership map.** Confirm Inventory owns and only owns: `stock_quants`, `stock_movements`, `stock_locations` (schema), `cost_layers`, valuation, lots/serials, reservations, `physical_counts` (adjustment authority), transfers.
+2. **Canonical RPC surface.** Enumerate every write path into stock state. Every one must be `SECURITY DEFINER`, `SET search_path = public`, SoD-guarded, and row-lock the target quant/movement `FOR UPDATE`. Candidates: `post_stock_adjustment_atomic`, `post_physical_count_atomic`, `execute_stock_transfer_atomic`, `reserve_stock_atomic`, `release_reservation_atomic`, `revalue_layer_atomic`, `write_off_lot_atomic`.
+3. **Governance duties.** Register `inventory.adjust.approve`, `inventory.adjust.post`, `inventory.transfer.approve`, `inventory.transfer.execute`, `inventory.revalue.post`, `inventory.count.approve` with SoD conflicts (approver ≠ poster).
+4. **Cross-domain contracts.** Verify inbound event handlers exist and are idempotent for: `procurement.grn.received`, `warehouse.count.session.completed`, `manufacturing.production.completed`, `sales.shipment.picked`, `sales.return.received`. Every one lands in `business_event_outbox` consumers, never as direct writes from other apps.
+5. **DB-level integrity (Batch N-equivalent).** Triggers to enforce `business_id`/`branch_id` alignment across `stock_movements` ↔ `warehouses` ↔ `stock_locations`, and to forbid negative `stock_quants` outside sanctioned reversal RPCs.
+6. **UI consolidation.** Any duplicate/legacy inventory pages left over from the ADR-0079/0080 refactors get retired the same turn their replacement ships — no orphans.
+7. **Architecture guardrails.** New tests forbidding: direct inserts into `stock_movements`/`stock_quants`/`cost_layers` from anywhere outside sanctioned RPCs; cross-app writers touching inventory tables directly.
+
+### Deliverables
+
+- ADR 0081 — Inventory domain ownership & write-path canonicalisation.
+- `docs/audit/inventory-verdict.md` at close.
+- Migration(s) for governance duties + integrity triggers + any missing canonical RPCs.
+- Architecture tests: `src/test/architecture/inventory-write-paths.test.ts`.
+
+---
+
+## Instructions for the next agent
+
+**Do not start Phase 3 by writing code.** Follow this order:
+
+### Step 1 — Verify Phases 1 & 2 are actually production-grade
+
+Before adding anything, prove the previous arcs meet the standards claimed in their verdicts. Failing checks = fix them in-arc before opening Phase 3.
+
+**Procurement verification (run all):**
+
+```sql
+-- 13 canonical RPCs present, all SECURITY DEFINER, all search_path pinned
+SELECT proname, prosecdef, proconfig FROM pg_proc
+WHERE proname IN (
+  'approve_purchase_order','receive_inbound_shipment','create_goods_receipt',
+  'match_bill_atomic','match_bill_with_landed_cost','confirm_bill_atomic',
+  'record_bill_payment_atomic','post_journal_entry_atomic',
+  'void_journal_entry_atomic','sync_po_line_billed_quantities',
+  'allocate_landed_cost_bill','post_landed_cost_bill',
+  'apply_vendor_credit_note_atomic'
+);
+-- expect 13 rows, all prosecdef=true, all proconfig contains 'search_path=public'
+
+-- Legacy retired
+SELECT count(*) FROM pg_proc WHERE proname='apply_vendor_credit_atomic'; -- expect 0
+
+-- Batch N triggers present
+SELECT count(*) FROM pg_trigger WHERE tgname IN (
+  'trg_bills_branch_business','trg_purchase_orders_branch_business',
+  'trg_vendor_credit_notes_branch_business','trg_bill_payments_branch_business',
+  'trg_journal_entries_branch_business','trg_bills_po_business',
+  'trg_vcn_applications_business'
+); -- expect 7
+
+-- No supplier_id leaks on transactional docs (ADR-0079)
+SELECT table_name FROM information_schema.columns
+WHERE table_schema='public' AND column_name='supplier_id'
+  AND table_name IN ('bills','purchase_orders','rfq_vendors',
+                     'purchase_returns','vendor_credit_notes'); -- expect 0
+
+-- Governance duties + SoD
+SELECT count(*) FROM governance_duties WHERE duty_code LIKE 'credit.%'; -- expect 2
+```
+
+Also confirm:
+- `rg -n "apply_vendor_credit_atomic" src/` returns nothing.
+- `/purchases/vendors` in browser 301s to `/purchases/suppliers`.
+- Supplier 360 (`/purchases/suppliers/:id`) shows Finance defaults + Custom fields panel.
+
+**Warehouse verification:**
+
+- `bunx vitest run src/test/architecture/wms-phase-master-data.test.ts` — green.
+- `rg -n "pages/inventory/Warehouse" src/` returns nothing (only historical references in `docs/` or migrations OK).
+- `/inventory-app/warehouses` and `/inventory-app/warehouses/<uuid>` in browser both redirect to `/warehouse-app/warehouses[...]` preserving the id.
+- Inventory sidebar has no "Warehouses" entry; Warehouse sidebar does.
+- Warehouse `CycleCounts` page and Inventory `PhysicalCountWorkspace` each render the cross-app callout linking to the other.
+
+**Global:**
+
+- `tsgo -p tsconfig.app.json` — clean.
+- `bunx vitest run src/test/architecture` — all green.
+- `supabase--linter` — no new errors introduced by the last two arcs.
+
+If any check fails, **fix under the owning phase (1 or 2)** and re-close before opening Phase 3. Do not paper over a Phase 1/2 defect inside Phase 3.
+
+### Step 2 — Open Phase 3 with the same discipline
+
+1. **Discovery pass first, no code.** Read `src/apps/inventory/**`, `src/hooks/useStock*`, `src/pages/inventory/**`, every migration touching `stock_*` / `cost_layers` / `physical_counts`. Produce a written ownership map + write-path inventory as the first turn's deliverable.
+2. **Draft ADR 0081** with the ownership decision before touching any migration.
+3. **Batch discipline.** Split into I1 (RPC canonicalisation), I2 (governance duties + SoD), I3 (integrity triggers), I4 (event-contract verification), I5 (UI consolidation), I6 (arch guardrails), I7 (verdict + close). Each batch ships to a coherent, production-ready state — no partials, no orphans, no jumping ahead.
+4. **Retire legacy in the same turn as the replacement.** Never leave a legacy RPC/route/page live past the migration that supersedes it. Update all callers + the arch-guard allow-list in the same turn.
+5. **Close with a verdict doc** at `docs/audit/inventory-verdict.md` and update this file to mark Phase 3 CLOSED + Phase 4 active.
+
+### Guardrails that apply to every future phase
+
+- Every new `public` table needs `GRANT`s in the same migration.
+- Every new RPC is `SECURITY DEFINER` + `SET search_path = public` + SoD-guarded + `FOR UPDATE` locks its aggregate.
+- No client-side writes to ledger/state tables. Cross-app writes go through `business_event_outbox`.
+- Party-vs-role (ADR-0079) is universal — no `<entity>_id` FKs where `contacts.id` is the correct party reference.
+- Ownership boundaries enforced at the directory + arch-test level, not by convention.
+
+Do not open Phase 4 (Sales) until Phase 3 is CLOSED with a published verdict.
