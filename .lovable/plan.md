@@ -85,18 +85,20 @@ Non-obvious decisions folded in (keep for future batches):
 - No `INSERT INTO stock_movements`, `journal_entries`, or `cost_layers` anywhere in the matcher — variance handling emits an outbox event; Finance/Inventory subscribers may consume it later (deferred to Batch J/M planning).
 - Skipped an inline smoke DO-block (it would roll back the whole migration). H-Verify is a standalone rollback-marker migration for the next turn.
 
-### Next pickup — Batch H-Verify smoke, then Batch I
+### Batch H-Verify ✅ LANDED (2026-07-18)
 
-Batch H-Verify: standalone `_verify_smoke.sql` migration with `__SMOKE_ROLLBACK_MARKER__` covering:
-1. Qty match (received=billed) → `matched`, `exception_state='none'`, one outbox row with key `procurement.bill.match.matched:<bill>:matched`.
-2. Under-bill (billed=6, received=10) → `under_billed`, exception row inserted.
-3. Over-bill (billed=15, received=10) → `over_billed`, worst-of wins over any price variance.
-4. Price variance beyond `price_tolerance_pct` → `price_variance`; below tolerance → `matched`.
-5. 4-way path via `match_bill_with_landed_cost` — uplift folded into target price, replay overwrites the same row.
-6. Replay overwrite: second `match_bill_atomic` call updates the row in place and does NOT insert a duplicate outbox row (idempotency key hit).
-7. Tolerance policy branching: with 0% qty tolerance a billed-qty of 10 vs received of 9 → `over_billed`; with a 20% policy the same input → `matched`.
-8. Self-approval SoD: bill approved by user_a, then user_a attempts match — rejects with `SoD violation`.
+Rollback-marker smoke migration ran green. Assertions H1–H7 all held: qty match + replay idempotency (single row, single outbox row), under-bill → exception raised, over-bill outranks price variance, price variance beyond default 0% tolerance vs matched under 25% policy, qty tolerance branching (0% vs 20%), 4-way landed-cost uplift folded into target price (100/2000 = 5% uplift, bill @ 105 → matched), and self-approval SoD hard-blocks user_a matching a bill they approved.
 
-Reuse Batch C-Verify user fixture (`user_a`/`user_b` seeded in `user_business_access`). Self-seed products/warehouse/PO/ASN/GR via `receive_inbound_shipment` — this doubles as the Batch G runtime smoke.
+Non-obvious findings folded in for future batches:
+- **Pre-existing bug fixed as drive-by**: `guard_bill_self_approval()` passed `bill_status` enum to `_sod_is_approved_status(text)` without a cast. This blocked every bill line insert (via `trg_bill_lines_repost_cost` → UPDATE bills). Fixed by casting both `NEW.status::text` and `OLD.status::text`. Every bill create in production was silently broken until this migration; add a regression check to Batch L Playwright.
+- **Insert-time 3-way guard vs matcher classification**: the pre-existing `sync_po_line_billed_quantities` trigger hard-rejects `billed > received` at INSERT. This makes `over_billed` unreachable via normal UI flow — the matcher's `over_billed` state only fires for imported/historical bills. The smoke used `SET LOCAL session_replication_role = replica` to bypass the trigger for the H3 over-bill scenario. **Batch M action**: decide whether to soften the trigger to a warning so the matcher owns the classification, or keep it as belt-and-braces. Documented in `docs/audit/procurement-verdict.md` (Batch M deliverable).
+- **Per-test isolation**: each H scenario now uses its own fresh `purchase_order_items` row so cumulative billed quantities don't leak across cases. Pattern to reuse in Batch I-Verify.
+- **Batch G runtime**: still not exercised via `receive_inbound_shipment` end-to-end (H-Verify seeds `quantity_received` directly to focus on matcher correctness). Batch L Playwright covers the full PR → PO → ASN → GR → match chain, so a dedicated G runtime smoke is de-scoped.
 
-Then Batch I per Phase 2 additions: vendor credit note auto-application FIFO by bill age + RPC SoD `credit.approve ≠ credit.apply`.
+### Next pickup — Batch I (returns + vendor credit notes)
+
+Per Phase 2 additions:
+- `apply_vendor_credit_note_atomic(_credit_id, _actor)` — FIFO application by bill age across the same vendor + business, idempotent per credit note, outbox event `procurement.vendor_credit.applied:<credit_id>:applied`.
+- New duty `credit.apply` + SoD rows `credit.apply ≠ credit.approve` (auth vs execution), `credit.apply ≠ bill.approve` (residual bill balance owner cannot self-apply).
+- Extend `PROCUREMENT_RPC_NAMES` in `src/test/architecture/procurement.test.ts` with the new RPC.
+- I-Verify rollback-marker smoke: FIFO ordering across three unpaid bills, over-credit exception (credit > total open balance), replay idempotency, self-approval SoD.
