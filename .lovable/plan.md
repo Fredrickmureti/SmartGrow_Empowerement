@@ -68,6 +68,49 @@ Executed in the exact order in the shipped plan (PO lifecycle → ASN → GR rec
 - Every lifecycle RPC: `SECURITY DEFINER`, `SET search_path = public`, scoped via `user_has_business_access`, atomic, self-approval blocked, outbox emit with deterministic idempotency key.
 - No CRUD page retired until the workbench replaces it AND `e2e/procurement/*` covers the flow.
 
-## Deliverable of the next build turn
+## Progress Log
 
-Batch A — Supplier 360 workbench wired to the 5 shipped supplier RPCs, with list + record pages, nav entry, and a real end-to-end submit→approve flow that produces the first `supplier.qualification_*` outbox rows this project has ever seen.
+### ✅ Batch A — Supplier 360 workbench (P1-UI) — DONE
+- `src/features/purchases/suppliers/{useSuppliers,useSupplierRecord,supplierRpcs}.ts`
+- List / Create / 8-tab Record pages wired to the 5 P1 lifecycle RPCs.
+- Nav + routes under `/purchases/suppliers`. Clean typecheck.
+
+### ✅ Batch B — Contracts workbench (P2-UI) — DONE
+- `src/features/purchases/contracts/{useContracts,contractRpcs}.ts`
+- List (with utilization bars) / Create (header + inline lines) / Record (Overview, Lines, Releases + activate/amend/terminate dialogs).
+- Nav + routes under `/purchases/contracts`. Clean typecheck.
+
+### ✅ Batch C — Requisitions workbench (P3-UI) — DONE
+Backend hardening:
+- New RPC `get_next_requisition_number(org, business)` → `PR-YYYY-XXXX` sequence.
+- New RPC `create_purchase_requisition(business, need_by, priority, currency, cost_center, justification, notes, lines)` — atomic draft creation with lines and estimated_total rollup.
+- Registered procurement duties (`requisition.submit`, `requisition.approve`, `bill.approve`) in `governance_duties`.
+- Registered 4 SoD conflict rows in `governance_sod_conflicts` (requester≠approver, approver≠buyer, buyer≠receiver, receiver≠AP). Self-approval remains enforced inside `approve_requisition`.
+
+Frontend:
+- `src/features/purchases/requisitions/{useRequisitions,requisitionRpcs}.ts`
+- `RequisitionListPage` (filter by status, requester/CC search).
+- `RequisitionCreatePage` (multi-line draft, suggested supplier per line, estimated total).
+- `RequisitionRecordPage` (Overview / Lines / Approvals tabs, Submit/Approve/Reject/Cancel dialogs).
+- Nav entry + routes `/purchases/requisitions[/new|/:id]`. Clean typecheck.
+
+Known runtime gap (unchanged from Phase 1 audit):
+- Still zero rows in `purchase_requisitions` / `procurement_contracts` / `suppliers`. First real transitions will land here once operators drive the new workbenches. `phase-close smoke` migration convention (Phase 2 amendment 1) is still TODO and is the next hardening candidate before Batch D.
+
+## Currently active
+
+Batch C shipped. **Next up: Batch D — P4 Sourcing supertype (backend)**.
+
+## Next agent — verification-first pickup instructions
+
+1. **Verify Batch C is complete and enterprise-grade before writing any new code.** Concretely:
+   - Run `bunx tsgo --noEmit`. Expect clean.
+   - Open `/purchases/requisitions`, create a draft with ≥1 line, submit it, then approve as a different user. Confirm `purchase_requisition_approvals` gets a row and `business_event_outbox` gets a `procurement.requisition.submitted` and `procurement.requisition.approved` row with idempotency key of the form `<topic>:<entity>:<state>`.
+   - Confirm self-approval is rejected end-to-end (approver == requester should surface "Approver cannot equal requester").
+   - Confirm `governance_sod_conflicts` now has 4 procurement rows and `governance_duties` has the 3 new procurement duty codes.
+   - Confirm the ceiling trigger on `procurement_contracts` still fires (create a contract with a line ceiling, then a PO exceeding it; expect rejection).
+2. If any of the above fails, **fix it inside Batch C first** — do not begin Batch D.
+3. Once verified, resume with **Batch D — P4 Sourcing supertype** exactly as described above (sourcing_events + scoring + `award_sourcing_event_atomic`, non-destructive `rfqs.sourcing_event_id` FK, phase-close smoke).
+4. Do NOT skip ahead to P5+ or jump to unrelated areas. Continue chronologically: D → E → F …
+5. When Batch D lands, add its own log entry to this file and update the "Currently active" and "Next up" pointers.
+
