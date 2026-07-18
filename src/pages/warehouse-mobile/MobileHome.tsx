@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
-import { PackageCheck, PackagePlus, ClipboardCheck, Truck } from "lucide-react";
+import { PackageCheck, PackagePlus, ClipboardCheck, Truck, Package, ShieldCheck } from "lucide-react";
 
 interface Row {
   id: string;
@@ -17,6 +17,7 @@ interface Row {
 const TILES = [
   { key: "putaway", to: (id: string) => `/wm/putaway/${id}`, label: "Put-away", icon: PackagePlus },
   { key: "pick", to: (id: string) => `/wm/pick/${id}`, label: "Pick", icon: PackageCheck },
+  { key: "pack", to: (id: string) => `/wm/pack/${id}`, label: "Pack", icon: Package },
 ] as const;
 
 export default function MobileHome() {
