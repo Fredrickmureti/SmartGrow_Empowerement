@@ -84,6 +84,17 @@ const VendorStatementRecordPage = lazy(
 const AgedPayables = lazy(() => import("@/pages/purchases/AgedPayables"));
 const LandedCosts = lazy(() => import("@/pages/purchases/LandedCosts"));
 
+// P1 — Supplier 360 workbench (canonical supplier master).
+const SupplierListPage = lazy(
+  () => import("@/features/purchases/suppliers/SupplierListPage"),
+);
+const SupplierCreatePage = lazy(
+  () => import("@/features/purchases/suppliers/SupplierCreatePage"),
+);
+const SupplierRecordPage = lazy(
+  () => import("@/features/purchases/suppliers/SupplierRecordPage"),
+);
+
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>
