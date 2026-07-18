@@ -68,6 +68,18 @@ describe("POS Transaction Engine — RPCs must use internal helpers", () => {
     expect(body).toMatch(/_pos_record_payment\s*\(/);
   });
 
+  it("process_pos_void reverses stock through the lot-aware helper", () => {
+    // Void does not INSERT lines/payments (it flips statuses), but it MUST
+    // route stock reversal through `_pos_apply_lot_consumption` so lot
+    // layers are restored correctly for lot-tracked SKUs.
+    const file = latestMigrationDefining("FUNCTION public.process_pos_void\\(");
+    expect(file, "no migration defines process_pos_void").not.toEqual("");
+    const body = extractFunctionBody(readFileSync(file, "utf8"), "process_pos_void");
+    expect(body).not.toMatch(/INSERT\s+INTO\s+public\.stock_movements/i);
+    expect(body).toMatch(/_pos_apply_lot_consumption\s*\(/);
+    expect(body).toMatch(/_pos_reverse_transaction_gl\s*\(/);
+  });
+
   it("helpers are defined with restricted grants", () => {
     const helpers = [
       "_pos_insert_line",
