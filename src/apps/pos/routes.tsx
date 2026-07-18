@@ -73,6 +73,7 @@ function resilientLazy<T extends ComponentType<unknown>>(
 }
 const PosTerminalsPage = lazy(() => import("@/pages/pos/PosTerminalsPage"));
 const ScannerTelemetry = lazy(() => import("@/pages/pos/ScannerTelemetry"));
+const CardSettlementReport = lazy(() => import("@/pages/pos/CardSettlementReport"));
 
 /**
  * POS app routing tree.
