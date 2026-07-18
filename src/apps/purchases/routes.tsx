@@ -496,15 +496,11 @@ export function PurchasesApp() {
           }
         />
 
-        {/* Vendors (legacy: filtered contacts). Retired at P11 workbench cutover. */}
-        <Route
-          path="vendors"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <Contacts defaultTypeFilter="supplier" />
-            </SubscriptionProtectedRoute>
-          }
-        />
+        {/* Legacy /purchases/vendors retired in Batch K-Retire. Redirects to
+            the canonical Supplier 360 workbench. */}
+        <Route path="vendors" element={<Navigate to="/purchases/suppliers" replace />} />
+        <Route path="vendors/*" element={<Navigate to="/purchases/suppliers" replace />} />
+
         
         
         {/* Vendor Statements */}
