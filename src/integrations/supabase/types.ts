@@ -5335,6 +5335,177 @@ export type Database = {
           },
         ]
       }
+      bill_match_exceptions: {
+        Row: {
+          bill_id: string
+          business_id: string
+          details: Json
+          id: string
+          match_state: Database["public"]["Enums"]["bill_match_state"]
+          organization_id: string
+          raised_at: string
+          raised_by: string | null
+          reason: string
+          resolution: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+        }
+        Insert: {
+          bill_id: string
+          business_id: string
+          details?: Json
+          id?: string
+          match_state: Database["public"]["Enums"]["bill_match_state"]
+          organization_id: string
+          raised_at?: string
+          raised_by?: string | null
+          reason: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Update: {
+          bill_id?: string
+          business_id?: string
+          details?: Json
+          id?: string
+          match_state?: Database["public"]["Enums"]["bill_match_state"]
+          organization_id?: string
+          raised_at?: string
+          raised_by?: string | null
+          reason?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_match_exceptions_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bill_match_results: {
+        Row: {
+          bill_id: string
+          business_id: string
+          created_at: string
+          details: Json
+          exception_state: Database["public"]["Enums"]["bill_match_exception_state"]
+          id: string
+          landed_cost_bill_id: string | null
+          landed_cost_uplift: number
+          match_state: Database["public"]["Enums"]["bill_match_state"]
+          matched_at: string
+          matched_by: string | null
+          organization_id: string
+          price_variance: number
+          purchase_order_id: string | null
+          qty_variance: number
+          updated_at: string
+        }
+        Insert: {
+          bill_id: string
+          business_id: string
+          created_at?: string
+          details?: Json
+          exception_state?: Database["public"]["Enums"]["bill_match_exception_state"]
+          id?: string
+          landed_cost_bill_id?: string | null
+          landed_cost_uplift?: number
+          match_state: Database["public"]["Enums"]["bill_match_state"]
+          matched_at?: string
+          matched_by?: string | null
+          organization_id: string
+          price_variance?: number
+          purchase_order_id?: string | null
+          qty_variance?: number
+          updated_at?: string
+        }
+        Update: {
+          bill_id?: string
+          business_id?: string
+          created_at?: string
+          details?: Json
+          exception_state?: Database["public"]["Enums"]["bill_match_exception_state"]
+          id?: string
+          landed_cost_bill_id?: string | null
+          landed_cost_uplift?: number
+          match_state?: Database["public"]["Enums"]["bill_match_state"]
+          matched_at?: string
+          matched_by?: string | null
+          organization_id?: string
+          price_variance?: number
+          purchase_order_id?: string | null
+          qty_variance?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_match_results_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: true
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_match_results_landed_cost_bill_id_fkey"
+            columns: ["landed_cost_bill_id"]
+            isOneToOne: false
+            referencedRelation: "landed_cost_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_match_results_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bill_match_tolerance_policies: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          notes: string | null
+          price_tolerance_pct: number
+          qty_tolerance_pct: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          price_tolerance_pct?: number
+          qty_tolerance_pct?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          price_tolerance_pct?: number
+          qty_tolerance_pct?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bill_payment_allocations: {
         Row: {
           amount: number
@@ -65469,6 +65640,10 @@ export type Database = {
         Args: { _payload: Json; _shipment_id: string; _state: string }
         Returns: undefined
       }
+      _emit_bill_match_outbox: {
+        Args: { _bill_id: string; _payload: Json; _state: string }
+        Returns: undefined
+      }
       _emit_grn_outbox: {
         Args: { _grn_id: string; _payload: Json; _state: string }
         Returns: undefined
@@ -71697,7 +71872,19 @@ export type Database = {
         Returns: number
       }
       mask_sensitive_value: { Args: { p_value: string }; Returns: string }
+      match_bill_atomic: {
+        Args: {
+          _actor: string
+          _bill_id: string
+          _landed_cost_bill_id?: string
+        }
+        Returns: Json
+      }
       match_bill_to_grn: { Args: { p_bill_id: string }; Returns: number }
+      match_bill_with_landed_cost: {
+        Args: { _actor: string; _bill_id: string; _landed_cost_bill_id: string }
+        Returns: Json
+      }
       materialize_pack_requirements: {
         Args: { p_business_id: string; p_pack_id: string }
         Returns: number
@@ -77008,6 +77195,17 @@ export type Database = {
         | "hired"
         | "rejected"
         | "withdrawn"
+      bill_match_exception_state:
+        | "none"
+        | "pending_review"
+        | "approved"
+        | "rejected"
+      bill_match_state:
+        | "matched"
+        | "under_billed"
+        | "over_billed"
+        | "price_variance"
+        | "no_po"
       bill_status:
         | "draft"
         | "received"
@@ -77718,6 +77916,19 @@ export const Constants = {
         "hired",
         "rejected",
         "withdrawn",
+      ],
+      bill_match_exception_state: [
+        "none",
+        "pending_review",
+        "approved",
+        "rejected",
+      ],
+      bill_match_state: [
+        "matched",
+        "under_billed",
+        "over_billed",
+        "price_variance",
+        "no_po",
       ],
       bill_status: ["draft", "received", "partial", "paid", "overdue", "void"],
       bulk_operation_kind: [
