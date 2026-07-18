@@ -38,6 +38,9 @@ const EXEMPT_WORKSPACES = new Map<string, string>([
   ["platform", "Super-admin console uses PlatformAdminLayout"],
   ["sms", "SMS console uses SmsConsoleLayout"],
   ["studio", "Internal studio tooling uses StudioLayout"],
+  // RF/mobile operator shell — full-screen touch-first chrome via
+  // MobileWarehouseLayout (see ADR referenced in wms-phase13 guard).
+  ["warehouse-mobile", "RF/mobile operator app uses MobileWarehouseLayout"],
 ]);
 
 function listDirs(root: string): string[] {
