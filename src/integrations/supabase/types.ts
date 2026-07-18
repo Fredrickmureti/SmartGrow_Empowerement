@@ -65793,6 +65793,39 @@ export type Database = {
         Returns: undefined
       }
       _pos_build_receipt_snapshot: { Args: { p_tx_id: string }; Returns: Json }
+      _pos_resolve_branch_warehouse: {
+        Args: {
+          _biz_id: string
+          _branch_id: string
+          _org_id: string
+          _shift_id: string
+        }
+        Returns: string
+      }
+      _pos_reverse_transaction_gl: {
+        Args: { _actor: string; _txn_id: string }
+        Returns: string
+      }
+      _pos_write_stock_movement: {
+        Args: {
+          _actor: string
+          _biz_id: string
+          _branch_id: string
+          _lot_number?: string
+          _movement_type: string
+          _org_id: string
+          _packaging_id?: string
+          _product_id: string
+          _quantity: number
+          _serial_number?: string
+          _txn_id: string
+          _txn_number: string
+          _unit_cost: number
+          _uom_id?: string
+          _warehouse_id: string
+        }
+        Returns: undefined
+      }
       _primary_business_for_org: { Args: { _org: string }; Returns: string }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
       _release_physical_count_reservations: {
