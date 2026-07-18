@@ -20,7 +20,6 @@ import {
   Coins,
   Hourglass,
   Scale,
-  Scale,
   CalendarClock,
   Truck,
 } from "lucide-react";
