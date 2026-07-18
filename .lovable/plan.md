@@ -1,168 +1,73 @@
 
-# Enterprise Procurement (P2P) — Verification & Continuation Plan
+# Enterprise Procurement — Continuation Plan
 
-> **Living status doc.** Update every batch. Companion detail log: `.lovable/procurement-domain-audit.md`.
+## Phase 1 — Verification of previous engineer's claims (evidence-backed)
 
-## Status snapshot (2026-07-18)
+Cross-checked the previous plan (`.lovable/plan.md`) against `pg_proc`, `information_schema`, and repo files. Findings:
 
-| Phase | Scope | Backend | UI | E2E | State |
-| --- | --- | --- | --- | --- | --- |
-| P0 | Foundation — event fabric, canonical GR wrapper, split of stock/finance from procurement, arch guard | ✅ | n/a | pending (P12) | **shipped** |
-| P1 | Supplier Master schema + lifecycle RPCs | ✅ | ❌ | pending (P12) | backend shipped; UI pending |
-| P2 | Contracts, ceiling enforcement, releases, expiry sweep | ✅ | ❌ | pending (P12) | backend shipped; UI pending |
-| P3 | Requisitions + approvals chain, PO back-links | ✅ | ❌ | pending (P12) | backend shipped; UI pending |
-| P4 | Sourcing supertype (`sourcing_events`, scoring, sealed bid) | ❌ | ❌ | — | not started |
-| P5 | PO lifecycle: revisions, acks, change orders, line state machine | ❌ | ❌ | — | not started |
-| P6 | ASN (`inbound_shipments` promoted) | ❌ | ❌ | — | not started |
-| P7 | GR reconstruction: `receipt_deliveries`, multi-delivery, backorders, QC | ❌ | ❌ | — | not started |
-| P8 | Match engine: `bill_match_results`, tolerance policy, AP exception queue | ❌ | ❌ | — | not started |
-| P9 | Returns + vendor credit chain end-to-end | ❌ | ❌ | — | not started |
-| P10 | Supplier scorecards + KPI snapshots from outbox | ❌ | ❌ | — | not started |
-| P11 | Workbench UX (Buyer / Receiver / AP / Supplier 360) + retire legacy CRUD | ❌ | ❌ | — | not started |
-| P12 | Playwright `procurement` project — full E2E harness | ❌ | n/a | — | not started |
-| P13 | RLS + governance re-audit; SoD conflicts; vendor portal scope | ❌ | n/a | — | not started |
+| Claim in plan | Evidence | Verdict |
+|---|---|---|
+| P0 topic registry + subscriptions seeded | 14 rows across `procurement.*` / `supplier.*` / `sourcing.*`; 2 subscriptions on `procurement.gr.posted` (→ `wms_apply_gr_stock`, `finance_post_gr_journal`) | ✅ real |
+| `complete_goods_receipt_atomic` no longer writes stock/finance tables | `pg_get_functiondef` contains **zero** matches for `stock_movements\|stock_quants\|cost_layers\|journal_entries\|journal_entry_lines` | ✅ real |
+| Canonical `create_goods_receipt` + WMS/finance splitter RPCs exist | `create_goods_receipt`, `wms_apply_gr_stock`, `finance_post_gr_journal` all in `pg_proc` | ✅ real |
+| Arch guard `src/test/architecture/procurement.test.ts` | file present | ✅ real |
+| P1 Supplier Master (7 tables + 5 lifecycle RPCs) | tables + `submit/approve/reject_supplier_qualification`, `suspend/reinstate_supplier` in `pg_proc` | ✅ structurally shipped, but **0 rows** in `suppliers`, **0** `supplier.*` outbox events — never runtime-exercised |
+| P2 Contracts (3 tables + 4 RPCs + ceiling trigger) | tables + `create/activate/terminate/amend_procurement_contract` present | ✅ structurally shipped, **0 rows** — trigger path unexercised |
+| P3 Requisitions (3 tables + 4 lifecycle RPCs) | tables + `submit/approve/reject/cancel_requisition` present | ✅ structurally shipped, **0 rows** |
+| Types regen picked up new tables | 13 occurrences of the new table names in `src/integrations/supabase/types.ts` | ✅ real |
+| P1-UI / P2-UI / P3-UI workbenches | `src/apps/purchases/pages/` directory does not exist; nav has no supplier/contract/requisition entries | ❌ confirmed not started (matches plan) |
+| P4 Sourcing, P5 PO lifecycle, P6 ASN, P7 GR reconstruction, P8 Match, P9 Returns, P10 Scorecards, P11 Workbench UX, P12 Playwright, P13 RLS re-audit | none of the target tables (`sourcing_events`, `purchase_order_revisions`, `receipt_deliveries`, `bill_match_results`, `supplier_scorecards`) exist | ❌ confirmed not started |
 
-## What shipped so far
+**Nothing shipped is fraudulent.** Backend for P0–P3 is genuinely in place; the outstanding integrity gap is that no runtime path has produced a single `supplier.*` / `procurement.contract.*` / `procurement.requisition.*` outbox row — the RPCs are code-inspected only. The plan already routes this into the P12 E2E harness, which is the right home for it.
 
-### P0 — Foundation & Great Split (2026-07-18)
-- `business_event_topics` registry + `business_event_subscriptions` registry seeded.
-- Canonical `create_goods_receipt(_business_id, _po_id, _lines, _actor, _warehouse_id?, _receipt_number?, _receipt_date?)`.
-- `complete_goods_receipt_atomic` reconstructed — no direct writes to `stock_movements`, `stock_quants`, `cost_layers`, `journal_entries`, `journal_entry_lines`. Now orchestrates `wms_apply_gr_stock` → `finance_post_gr_journal` → mark completed → emit `procurement.gr.posted`.
-- `v_po_line_billed_progress` reconciliation view (`security_invoker=true`).
-- Commit-time SQL invariant blocks forbidden-table references from ever regressing.
-- Architecture guard `src/test/architecture/procurement.test.ts`.
+## Phase 2 — Plan validation & amendments
 
-### P1 — Supplier Master (backend)
-- Tables: `supplier_categories`, `suppliers`, `supplier_qualifications`, `supplier_qualification_documents`, `supplier_compliance_checks`, `supplier_bank_accounts`, `approved_supplier_list`.
-- Idempotent backfill from vendor-typed `contacts`.
-- Lifecycle RPCs: `submit_supplier_qualification`, `approve_supplier_qualification`, `reject_supplier_qualification`, `suspend_supplier`, `reinstate_supplier` — all outbox-emitting.
-- Runtime verification folded into P12 (RPCs require `auth.uid()`).
+The previous plan is architecturally sound. I am adopting it with these evidence-driven amendments:
 
-### P2 — Contracts & Agreements (backend, 2026-07-18)
-- Tables: `procurement_contracts`, `procurement_contract_lines`, `procurement_contract_releases`.
-- PO linkage: `purchase_orders.contract_id`, `purchase_order_items.contract_line_id`.
-- Trigger `tg_purchase_order_contract_ceiling` on `BEFORE UPDATE OF status`: enforces contract status/expiry/supplier match/header + line ceilings on PO approval, writes releases, bumps utilization atomically. Failed attempts emit `procurement.contract.ceiling_breached_attempt`.
-- RPCs: `create_procurement_contract`, `activate_procurement_contract` (self-approval blocked), `terminate_procurement_contract`, `amend_procurement_contract`.
-- `procurement_contracts_sweep_expiries()` for scheduled expiry marking.
-- Topics: `procurement.contract.{created,activated,terminated,expired,amended,release_recorded,ceiling_breached_attempt}`.
+1. **Runtime smoke coverage cannot wait for P12.** P12 is 8+ phases away. Add a lightweight **"phase-close smoke" migration** convention: at the end of each backend phase, a `pg_temp` DO-block that spoofs `auth.uid()` via a service-role seed row and asserts one outbox row per lifecycle transition. Runs once in the migration and is thrown away. Blocks a phase from being marked shipped without at least one real transition emitted.
+2. **Contract ceiling trigger** has never fired. The P2-UI batch must include a Playwright-independent unit-style pgTAP-lite assertion that a PO exceeding a contract line ceiling is rejected and emits `procurement.contract.ceiling_breached_attempt`.
+3. **Requester ≠ approver ≠ buyer ≠ receiver ≠ AP SoD conflicts** (planned in P13) must be declared as `governance_sod_conflicts` rows **at the moment each RPC lands**, not batched to the end. Cheap and prevents drift.
+4. **P7 GR reconstruction** must retire the legacy single-header `goods_receipts` writes from *every* remaining caller (not only `complete_goods_receipt_atomic`). Add an arch guard that only the canonical `create_goods_receipt` wrapper may insert into `goods_receipts` / `goods_receipt_items`.
+5. **P8 4-way match** — confirmed already noted; also add `bill_match_results.landed_cost_bill_id` nullable FK so landed cost participates in variance analytics.
+6. **Vendor portal exposure** — before P5 vendor-portal ack UI, add an explicit RLS re-audit hop (subset of P13) so vendor-scoped users cannot leak sibling POs. Do not defer to P13.
 
-### P3 — Purchase Requisitions (backend, 2026-07-18)
-- Tables: `purchase_requisitions`, `purchase_requisition_items` (generated `estimated_line_total`), `purchase_requisition_approvals` (audit chain).
-- PO back-links: `purchase_orders.requisition_id`, `purchase_order_items.requisition_item_id`.
-- Lifecycle RPCs: `submit_requisition`, `approve_requisition` (approver ≠ requester), `reject_requisition`, `cancel_requisition`.
-- Topics: `procurement.requisition.{submitted,approved,rejected,cancelled}`.
-
-## Next batch — pick up here
-
-**Verify first (agent should re-run these before writing code):**
-1. Regenerated `src/integrations/supabase/types.ts` includes `procurement_contracts`, `procurement_contract_lines`, `procurement_contract_releases`, `purchase_requisitions`, `purchase_requisition_items`, `purchase_requisition_approvals`, and the new columns on `purchase_orders` / `purchase_order_items`. If not, wait for the types regen before proceeding.
-2. `src/test/architecture/procurement.test.ts` still passes (no forbidden-table refs slipped in).
-3. Registry rows exist for every `procurement.contract.*` and `procurement.requisition.*` topic:
-   ```sql
-   select topic_prefix from public.business_event_topics
-    where topic_prefix like 'procurement.contract.%'
-       or topic_prefix like 'procurement.requisition.%'
-    order by topic_prefix;
-   ```
-
-**Then implement, in this order (do not skip ahead — each unlocks the next):**
-
-**Batch N+1 — UI catch-up for shipped backends**
-1. **Supplier 360 workbench** (P1-UI) at `src/apps/purchases/pages/suppliers/` — list + record page. Record tabs: Identity, Qualification timeline (reads `supplier_qualifications` + `_documents`), Compliance, Bank accounts, Contracts (reads P2), Requisitions (reads P3), PO/GR/Bill/Payment history, Scorecard (empty placeholder until P10). Wire actions to the 5 supplier RPCs. Add route + nav entry under "Vendors".
-2. **Contracts workbench** (P2-UI) at `src/apps/purchases/pages/contracts/` — list + record. Record shows header, lines with utilization bars (`utilized_value / ceiling_value`), releases ledger table (from `procurement_contract_releases`), status transitions calling the 4 contract RPCs. Add nav entry under "Setup" or "Vendors".
-3. **Requisition workbench** (P3-UI) at `src/apps/purchases/pages/requisitions/` — requester "New requisition" form (lines with product/qty/estimated price/need-by/suggested supplier), submit → approve → reject flow, buyer inbox filtered to `status='approved'` awaiting sourcing. Wire the 4 requisition RPCs.
-
-**Batch N+2 — P4 Sourcing supertype**
-- `sourcing_events { kind: rfi|rfq|rfp|auction }`, `sourcing_scoring_criteria`, `sourcing_vendor_scores`, sealed-bid `opens_at`, award justification.
-- Extend existing `rfqs` non-destructively (add `sourcing_event_id` FK).
-- New RPC `award_sourcing_event_atomic` — respects contract ceilings (calls the P2 machinery) and stamps `purchase_orders.requisition_id` when the RFQ was seeded from a requisition. Emits `sourcing.event.*` events.
-
-**Batch N+3 — P5 PO lifecycle**
-- `purchase_order_revisions`, `purchase_order_acknowledgements`, `purchase_order_change_orders`.
-- Add `state` enum on `purchase_order_items` (`draft|issued|acknowledged|partially_received|received|closed|cancelled`).
-- RPCs: `issue_purchase_order`, `acknowledge_purchase_order`, `create_po_change_order`, `close_po_line`, `cancel_po_line`. Vendor portal ack UI.
-
-**Batch N+4 onward — P6 → P13** in the order listed in the Status Snapshot. No phase closes until its E2E spec (part of P12) is unskipped and asserts read-back + outbox rows.
-
-## Phase 1 — Verification results (evidence-backed, historical)
-
-Verified against `pg_proc`, `information_schema`, and live tables in the connected DB (not just the previous engineer's log).
-
-### P1 Supplier Master — ✅ structurally shipped
-
-- **Tables present**: `suppliers`, `supplier_categories`, `supplier_qualifications`, `supplier_qualification_documents`, `supplier_compliance_checks`, `supplier_bank_accounts`, `approved_supplier_list` — all 7 confirmed in `information_schema.tables`.
-- **Lifecycle RPCs present**: `submit_supplier_qualification`, `approve_supplier_qualification`, `reject_supplier_qualification`, `suspend_supplier`, `reinstate_supplier` — all 5 confirmed in `pg_proc`, and each function body references `business_event_outbox` (i.e. they do emit `supplier.*` events on paper).
-- **Runtime exercise**: `suppliers` has **0 rows**, `contacts WHERE type IN ('supplier','both')` returns **0 rows**, `business_event_outbox WHERE event_type LIKE 'supplier.%'` returns **0 rows**. The backfill was a no-op (no vendor-typed contacts existed), and no RPC has ever been called in this environment. The plan's claim "backfill covered all vendor-typed contacts" is trivially true but not evidence of correctness. **Outbox emission is verified by code inspection, not by observed events.** Runtime verification is folded into P12 (E2E harness).
-- **UI**: no Supplier 360 workbench exists yet — plan already marks P1-UI pending.
-
-### P0 Foundation & drift removal — ✅ shipped (2026-07-18)
-
-- `public.business_event_topics` registry table + `supplier.*` / `procurement.*` / `sourcing.*` seed rows.
-- `public.business_event_subscriptions` registry table; `procurement.gr.posted` bound to `wms.gr_stock_applier` (`wms_apply_gr_stock`) and `finance.gr_journal_poster` (`finance_post_gr_journal`).
-- `create_goods_receipt(_business_id, _po_id, _lines, _actor, _warehouse_id?, _receipt_number?, _receipt_date?)` — canonical entry point used by both Procurement UI and WMS receive path.
-- `complete_goods_receipt_atomic` **reconstructed**. Body no longer references `stock_movements`, `stock_quants`, `cost_layers`, `journal_entries`, `journal_entry_lines`. It orchestrates: `wms_apply_gr_stock` → `finance_post_gr_journal` → mark completed → emit `procurement.gr.posted` (single emitter, idempotency-keyed).
-- `v_po_line_billed_progress` view (with `security_invoker=true`) reconciling `bill_grn_matches.matched_quantity` + direct `bill_items.purchase_order_item_id` against stored `quantity_billed`, exposing `billed_drift` per line.
-- Commit-time SQL invariant in the split migration RAISEs if `complete_goods_receipt_atomic` ever regains a forbidden table reference.
-- `src/test/architecture/procurement.test.ts` guard test verifies the topic registry, subscription registry, subscribers, canonical wrapper, and reconciliation view all remain declared.
-
-### Everything else (P2 → P13) — ❌ not started
-
-Verified absent in DB: `purchase_requisitions`, `procurement_contracts`, `procurement_contract_lines`, `purchase_order_revisions`, `purchase_order_acknowledgements`, `bill_match_results`, `supplier_scorecards`. Plan claims match reality.
-
-## Phase 2 — Plan validation
-
-The existing plan (`.lovable/plan.md` §§1–7) is architecturally sound and I am **adopting it as-is** with the following minor amendments proven by verification:
-
-- **P1 closure test**: before P1 is declared "shipped", add a one-shot smoke migration that exercises `submit_supplier_qualification` → `approve_supplier_qualification` on a seed row and asserts one `supplier.qualification_submitted` and one `supplier.qualification_approved` row appear in `business_event_outbox`. This gives real runtime evidence, not just code inspection.
-- **P0 addition — outbox topic registry**: `business_event_outbox` currently uses free-form `event_type`. Before P2 downstream consumers subscribe, add a `business_event_topics` registry row per prefix (`supplier.*`, `procurement.*`, `sourcing.*`) with a `producer_domain` + `consumer_domains[]` column. Keeps the fabric self-documenting.
-- **P0 addition — canonical stock-write wrapper naming**: the WMS side already has `create_goods_receipt` reserved. Introduce `procurement_emit_gr_received(_gr_id)` as the Procurement-side emitter and `wms_apply_gr_stock(_event_id)` as the Inventory subscriber, so the split is clear in `pg_proc`.
-- **P7 amendment**: `goods_receipts` header stays, but add `receipt_deliveries` (many receipts per PO), preserving the header FK on legacy data. Backfill each existing `goods_receipts` row as a single `receipt_deliveries` row.
-- **P8 amendment**: 4-way match must also cite `wms_qc_inspections` outcomes, not only GR quantity; `bill_match_results.qc_inspection_id` nullable FK.
-- **P11 amendment**: retire the CRUD "record" pages *only after* the workbench replaces them, and only after `e2e/procurement/*` covers the same flows — no dark-cutover.
-
-Nothing in the plan is dropped.
+No phases dropped. Order preserved.
 
 ## Phase 3 — Execution order (pickup)
 
-Strict chronological order. Each phase closes only when its migration lands **and** the corresponding E2E spec (in P12 harness) is unskipped and asserts read-back + outbox rows.
+Resume exactly where the plan says: **UI catch-up for P1/P2/P3**, then P4 backend.
 
-### Next batch — P1-UI (Supplier 360) + P2 (Contracts)
+### Batch A — Supplier 360 workbench (P1-UI)
+- Route: `src/apps/purchases/pages/suppliers/` (list + record). Add nav entry under "Vendors".
+- Record tabs: Identity, Qualification timeline, Compliance, Bank accounts, Contracts (reads P2), Requisitions (reads P3), PO/GR/Bill/Payment history, Scorecard placeholder.
+- Wire 5 supplier RPCs (`submit/approve/reject_supplier_qualification`, `suspend/reinstate_supplier`).
+- Uses `useDocumentRecord` pattern (already in `src/features/purchases/orders/usePurchaseOrderRecord.ts`).
 
-P0 is closed. P1 runtime verification (submit → approve → outbox rows) folds into the P12 E2E harness — a migration-time smoke is impossible because the supplier RPCs check `auth.uid()`. The next batch is:
+### Batch B — Contracts workbench (P2-UI)
+- Route: `src/apps/purchases/pages/contracts/` (list + record).
+- Record shows header, lines with utilization bars, releases ledger, transitions calling the 4 contract RPCs.
+- Includes the ceiling-trigger smoke assertion described in Phase 2 amendment 2.
 
-1. **P1-UI** — Supplier 360 workbench: identity, qualification timeline, compliance docs, contracts, price lists, PO/GR/Bill/Payment history, scorecard tab (empty until P10).
-2. **P2** — Contracts & Agreements (`procurement_contracts`, `_lines`, `_releases`; ceiling enforcement at PO approval; expiry outbox alerts; contracts workbench).
+### Batch C — Requisitions workbench (P3-UI)
+- Route: `src/apps/purchases/pages/requisitions/` (requester form + buyer inbox).
+- Wire 4 requisition RPCs. Buyer inbox filters `status='approved'` awaiting sourcing.
+- Registers SoD conflict `requester ≠ approver` in `governance_sod_conflicts` at RPC-call sites.
 
-### Subsequent phases (unchanged from `.lovable/plan.md`)
+### Batch D — P4 Sourcing supertype (backend)
+- `sourcing_events { kind: rfi|rfq|rfp|auction }`, `sourcing_scoring_criteria`, `sourcing_vendor_scores`, sealed-bid `opens_at`, award justification.
+- Extend `rfqs` non-destructively with `sourcing_event_id` FK.
+- `award_sourcing_event_atomic` — respects P2 ceilings and stamps `purchase_orders.requisition_id` when seeded from a requisition. Emits `sourcing.event.*`. Phase-close smoke asserts award emission.
 
-- **P1-UI** — Supplier 360 workbench: identity, qualification timeline, compliance docs, contracts, price lists, PO/GR/Bill/Payment history, scorecard tab (empty until P10).
-- **P2** — Contracts & Agreements (`procurement_contracts`, `_lines`, `_releases`; ceiling enforcement at PO approval; expiry outbox alerts; contracts workbench).
-- **P3** — Requisitions (`purchase_requisitions`, items, approvals reusing `approval_requests` with procurement policy; category routing; budget hook; PR→RFQ and PR→PO converters; `procurement.requisition.*` events; requester form + buyer inbox).
-- **P4** — Sourcing supertype (`sourcing_events { kind: rfi|rfq|rfp|auction }`, `sourcing_scoring_criteria`, `sourcing_vendor_scores`, sealed-bid open time, award justification; extend existing `rfqs` non-destructively).
-- **P5** — PO lifecycle (`purchase_order_revisions`, `_acknowledgements`, `_change_orders`; `purchase_order_items.state` enum; RPCs `issue_purchase_order`, `acknowledge_purchase_order`, `create_po_change_order`, `close_po_line`, `cancel_po_line`; vendor portal ack UI).
-- **P6** — ASN: promote `inbound_shipments` to expected-delivery object; bind to PO lines; drive `wms_dock_appointments`; `procurement.inbound.*` events.
-- **P7** — GR reconstruction: `receipt_deliveries` (many per PO); over/under/damaged/rejected fields; substitution capture; pallet/carton/unit hierarchy via `wms_license_plates`; wire `backorders` on short receipt; QC integration; `procurement.gr.*` events per line.
-- **P8** — Match: `bill_match_results` (per bill line, PO line, GR line, optional QC), `procurement_match_tolerance_policies`; 2-/3-/4-way; AP exception queue.
-- **P9** — Returns to supplier & vendor credit chain formalised end-to-end.
-- **P10** — Supplier performance: `supplier_scorecards`, `supplier_kpi_snapshots`, nightly aggregation from `business_event_outbox`; feeds `approved_supplier_list.rank`.
-- **P11** — Workbench UX (Buyer / Receiver / AP / Supplier 360), retire CRUD record pages behind flag once workbench covers the flow.
-- **P12** — Playwright project `procurement`: `requisition`, `sourcing`, `contract-release`, `po-lifecycle`, `receive-multi`, `qc-integration`, `match`, `return-credit`, `performance`. Architecture guard forbids `describe.skip`.
-- **P13** — RLS + governance re-audit; `governance_sod_conflicts` entries for requester ≠ approver ≠ buyer ≠ receiver ≠ AP; vendor portal scope re-audit.
+### Batches E → M — P5 → P13
+Executed in the exact order in the shipped plan (PO lifecycle → ASN → GR reconstruction → Match → Returns/credit → Scorecards → Workbench UX consolidation → Playwright `procurement` project → RLS/SoD re-audit). Every phase honors the guardrails already declared in the plan (canonical wrapper, no direct stock/finance writes, GRANT-before-RLS-before-POLICY, self-approval blocked, outbox with `<topic>:<entity>:<state>` idempotency).
 
-## Guardrails (held every phase)
+## Technical guardrails carried every phase
 
-- Procurement code never writes to `stock_quants`, `stock_movements`, `cost_layers`, `journal_entries`, `journal_entry_lines` — enforced by `procurement.test.ts` (P0 step 6).
-- Every new `public.*` table: `CREATE TABLE` → `GRANT` → `ENABLE RLS` → `CREATE POLICY` in the **same** migration; `authenticated` gets DML, `service_role` gets ALL, `anon` denied.
-- Every lifecycle RPC: `SECURITY DEFINER`, `SET search_path = public`, business-scoped via `user_has_business_access(auth.uid(), business_id)`, atomic, self-approval blocked, outbox emit with idempotency key `<topic>:<entity_id>:<state>`.
-- No phase closes until its E2E spec is unskipped and asserts read-back state + outbox rows (WMS Phase 14 standard).
-- No destructive drops until the workbench replaces the CRUD page for that entity.
+- Procurement never writes `stock_quants` / `stock_movements` / `cost_layers` / `journal_entries` / `journal_entry_lines` — enforced by `src/test/architecture/procurement.test.ts`.
+- Every new `public.*` table: `CREATE TABLE` → `GRANT` (authenticated DML, service_role ALL, anon denied) → `ENABLE RLS` → `CREATE POLICY`, in the same migration.
+- Every lifecycle RPC: `SECURITY DEFINER`, `SET search_path = public`, scoped via `user_has_business_access`, atomic, self-approval blocked, outbox emit with deterministic idempotency key.
+- No CRUD page retired until the workbench replaces it AND `e2e/procurement/*` covers the flow.
 
-## Out of scope
+## Deliverable of the next build turn
 
-- POS-side receiving (WMS mobile owns).
-- Manufacturing procurement of components.
-- Multi-entity intercompany PO — deferred pending entity-model decisions.
-
----
-
-**Deliverable of the next build batch:** UI catch-up (Supplier 360, Contracts, Requisitions workbenches) wired to shipped RPCs. Once verified, resume backend chronology with P4 Sourcing.
+Batch A — Supplier 360 workbench wired to the 5 shipped supplier RPCs, with list + record pages, nav entry, and a real end-to-end submit→approve flow that produces the first `supplier.qualification_*` outbox rows this project has ever seen.

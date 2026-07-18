@@ -84,6 +84,17 @@ const VendorStatementRecordPage = lazy(
 const AgedPayables = lazy(() => import("@/pages/purchases/AgedPayables"));
 const LandedCosts = lazy(() => import("@/pages/purchases/LandedCosts"));
 
+// P1 — Supplier 360 workbench (canonical supplier master).
+const SupplierListPage = lazy(
+  () => import("@/features/purchases/suppliers/SupplierListPage"),
+);
+const SupplierCreatePage = lazy(
+  () => import("@/features/purchases/suppliers/SupplierCreatePage"),
+);
+const SupplierRecordPage = lazy(
+  () => import("@/features/purchases/suppliers/SupplierRecordPage"),
+);
+
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
   <Suspense fallback={<RouteLoadingFallback module={module} />}>
@@ -384,8 +395,34 @@ export function PurchasesApp() {
           }
         />
 
-        
-        {/* Vendors (filtered contacts) */}
+
+        {/* Suppliers (P1 — canonical supplier master, Supplier 360) */}
+        <Route
+          path="suppliers"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Suppliers"><SupplierListPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="suppliers/new"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Supplier"><SupplierCreatePage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="suppliers/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Supplier"><SupplierRecordPage /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Vendors (legacy: filtered contacts). Retired at P11 workbench cutover. */}
         <Route
           path="vendors"
           element={
@@ -394,6 +431,7 @@ export function PurchasesApp() {
             </SubscriptionProtectedRoute>
           }
         />
+        
         
         {/* Vendor Statements */}
         <Route
