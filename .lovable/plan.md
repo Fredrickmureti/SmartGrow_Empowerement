@@ -1,140 +1,130 @@
+# Procurement Domain — Authoritative Project Status
 
-# Procurement Domain — Hardening, Migration & Architecture Audit
+**Last updated:** 2026-07-18
+**Current phase:** Phase H+ (Hardening & Architecture Audit) — active
+**Next milestone:** Batch I-Deferred (Vendor Credit Note FIFO allocation)
 
-The feature-build phase for Procurement (Batches A–H + H-Verify) is complete. This plan transitions the roadmap into **enterprise hardening**: verify what actually shipped, produce an evidence-backed architecture audit of the Contact ↔ Supplier ↔ Vendor overlap, and lay down a safe legacy-retirement path. No refactor happens before the audit lands.
-
-## Phase 0 — Reset `.lovable/plan.md`
-
-Rewrite the "Next pickup" section to reflect the milestone: feature scope closed, hardening phase opened. Preserve the existing execution log verbatim (Batches A–H, H-Verify). Add a new top-level section "Phase H+ — Hardening & Architecture Audit" whose sub-phases are the remainder of this plan.
-
-## Phase 1 — Independent verification of claimed Procurement state (read-only)
-
-Treat every "LANDED" entry as unverified. Evidence gathered via `supabase--read_query` + `rg`; results appended to `.lovable/plan.md` execution log as pass / fail with the query output.
-
-1. **RPC surface** — every canonical writer from Batches E–H exists in `pg_proc` with `security definer` + `search_path=public`: `approve_purchase_order`, `receive_inbound_shipment`, `create_goods_receipt`, `match_bill_atomic`, `match_bill_with_landed_cost`, `apply_vendor_credit_atomic`, plus SoD guards.
-2. **Governance** — `governance_duties` contains `po.approve`, `asn.manage`, `grn.receive`, `bill.approve`, `bill.match`, `supplier_terms.manage`, `credit.approve`; `governance_sod_conflicts` carries the 3-way separations documented in the execution log.
-3. **Outbox contract** — every procurement RPC emits `procurement.*|supplier.*|sourcing.*` with idempotency key `<event>:<entity>:<state>`; sample 20 rows from `business_event_outbox` where `source='procurement'` to confirm.
-4. **Boundary guard** — `src/test/architecture/procurement.test.ts` still forbids procurement RPCs from touching `stock_movements`, `journal_entries`, `cost_layers`; extend the guard list with `bill_match_results` (writer allow-list = the two H RPCs only).
-5. **RLS** — every P1–H table has `business_id` predicate; branch-scoped tables pass `v_branch_scoped_policy_check`. Any offender is downgraded from LANDED and repaired in Phase 6 before audit publish.
-6. **Batch H drive-by** — confirm `guard_bill_self_approval` still carries the enum→text cast fix; add a Playwright regression to Batch L.
-
-Deliverable: verification log table in `.lovable/plan.md` (pass / fail / evidence per item). No code changes in this phase.
-
-## Phase 2 — Contact ↔ Supplier ↔ Vendor architecture audit
-
-Produce `docs/audit/procurement-vendor-vs-supplier.md`. The audit answers, with evidence, the questions the user raised. Confirmed baseline from this exploration (to be expanded, not re-litigated, during the audit):
-
-- **`contacts` is the identity system of record** (ADR-0038). It already carries `default_payable_account_id`, `default_expense_account_id`, `default_receivable_account_id`, `default_tax_rate_id`, `default_currency`, `withholding_tax_rate`, `tax_id`, `supplier_rank`, `customer_rank`. Removing AP defaults from Contacts would break Finance, Statements, and every consumer that already reads them.
-- **`suppliers` is a specialised business role** 1:1 with `contacts` via `contact_id` (P1 migration), carrying procurement-only lifecycle: category, qualification, preferred rank, hold state, incoterms, lead time, default currency, minimum order value, payment term. It correctly does not duplicate AP account / WHT / tax id.
-- **All procurement documents still key off `contacts.id`** — `purchase_orders.vendor_id`, `bills.vendor_id`, `rfq_vendors.vendor_id`, `purchase_returns.vendor_id`, `vendor_credit_notes` all reference contacts. `suppliers.id` is NOT used as an FK on any document. This is intentional (audit lineage) but must be documented so nobody "fixes" it.
-- **`/purchases/vendors` (legacy)** is a filtered `<Contacts defaultTypeFilter="supplier" />` view — a UI alias, not a parallel data model. It shares the Contacts data path entirely.
-- **Currency default bug (confirmed)**: `SupplierCreatePage.tsx` uses a literal `placeholder="USD"` and stores the raw input; it does NOT read `businesses.base_currency`. `businesses.base_currency` itself defaults to `'USD'` in the schema — that default is also suspect for non-US tenants but is out of scope for procurement.
-
-The audit categorises findings into:
-
-- **Confirmed issues** (fix in Phase 3): currency inheritance, legacy `/vendors` nav label ambiguity, undocumented dual-key model (`contacts.id` as document key vs `suppliers.id` as lifecycle key).
-- **Rejected observations**: "Supplier should extend Contact" (rejected — current split matches Odoo/SAP: party vs role); "AP defaults on Contact are wrong" (rejected — Contact is the canonical party per ADR-0038, Finance already depends on them).
-- **Migration risks**: any code that assumes a `contacts` row is deletable when a `suppliers` row exists; Studio custom fields today attach to `contacts` (verify via `entity_field_configs.entity_type`) — retiring `/vendors` must not orphan them.
-- **Architectural debt**: two flows to reach the same supplier record (Contacts app + Purchases → Suppliers); localisation-driven WHT is per-country but stored per-contact as a flat numeric — flag for a future localisation batch.
-- **Recommended future work**: Studio-driven Supplier form; per-tenant AP account templates; WHT sourced from `localization_packs` instead of `contacts.withholding_tax_rate`.
-
-## Phase 3 — Small hardening batches (one per turn, gated by rollback-marker smokes)
-
-Only the small, low-risk fixes surfaced by Phase 2. Each batch keeps the discipline used through Batch H (single migration, canonical writer test extension, `__SMOKE_ROLLBACK_MARKER__` smoke).
-
-- **H+1 Currency inheritance**: `SupplierCreatePage` and `ContactRecordForm` (vendor-role branch) read `currentBusiness.base_currency` as the default; input remains editable. Frontend-only, no migration. Add unit test.
-- **H+2 Legacy alias clarity**: rename the `/purchases/vendors` label to `"Suppliers (contact view)"`, add a top-of-page banner linking to `/purchases/suppliers`. Do NOT delete the route — it is the only way today to reach vendor-only Contact fields (AP defaults, WHT).
-- **H+3 Documented dual-key ADR**: add `docs/adr/0079-procurement-party-vs-role.md` locking in "documents key off `contacts.id`, lifecycle keys off `suppliers.id`, join via `suppliers.contact_id`".
-- **H+4 Studio field inventory**: read-only query of `entity_field_configs` grouped by `entity_type`, appended to the audit. No migration.
-
-## Phase 4 — Legacy Vendor retirement strategy (planning only, no code)
-
-Extend `.lovable/plan.md` with an explicit retirement plan for the `/purchases/vendors` route. Blocked until every item below has a documented owner and successor:
-
-| Dependency | Evidence to gather | Retirement path |
-| --- | --- | --- |
-| AP defaults edit UI | `rg "default_payable_account_id\|withholding_tax_rate" src/` | Migrate the edit surface into Supplier record page's "Finance defaults" section, still writing to `contacts` |
-| Vendor Statements report | `src/pages/VendorStatements.tsx` | Confirm it reads via `contacts`; no change needed |
-| Bill / PO / RFQ vendor pickers | listed files above | Keep querying `contacts` filtered by `supplier_rank>0`; Supplier existence is not required to raise a bill (audit note) |
-| Studio custom fields | `entity_field_configs.entity_type='contact'` | Preserved; no migration |
-| Imports / exports | `bulk_operation_runs` targets | Keep contact-shaped payload; add optional supplier lifecycle fields as a second pass |
-| Portal invitations | `vendor_portal_invitations` | Key off `contacts.id`; unaffected |
-
-Route deletion happens only after Supplier record page absorbs the AP-defaults editor (H+1 through H+4 land first). This is queued as **Batch K-Retire**, not implemented in this plan.
-
-## Phase 5 — Playwright & RLS re-audit (Batches L & M from prior plan, unchanged)
-
-Retained from the inherited plan. Batch L Playwright now includes:
-
-- The `guard_bill_self_approval` cast regression from H-Verify.
-- Currency-inheritance assertion (Phase 3 H+1).
-- A guard that `/purchases/vendors` still renders while Supplier-defaults editor is not yet migrated.
-
-Batch M publishes `docs/audit/procurement-verdict.md` consolidating: Phase 1 verification, Phase 2 audit, Phase 3 outcomes, Phase 4 retirement queue, Phase 5 test coverage.
-
-## Phase 6 — Repair queue (contingent)
-
-Any FAIL from Phase 1 becomes a repair batch here, gated by its own smoke, before Batch M publishes.
-
-## Technical details
-
-- Read-only exploration uses `supabase--read_query` and `rg`; no migrations in Phases 1–2, 4, 5-planning.
-- Phase 3 batches follow the existing table-migration contract: `CREATE → GRANT → RLS → POLICY` where applicable, `SECURITY DEFINER` + `SET search_path=public` for any new RPC, outbox emission with `<event>:<entity>:<state>` idempotency, canonical-writer guard extension.
-- No edits to `src/routeTree.gen.ts` or `src/integrations/supabase/types.ts`.
-- The audit deliverables live under `docs/audit/` and `docs/adr/`; execution logs live in `.lovable/plan.md`.
-
-## Deliverables at end of this plan
-
-1. `.lovable/plan.md` rewritten to reflect the hardening milestone, with Phase 1 verification log appended.
-2. `docs/audit/procurement-vendor-vs-supplier.md` — evidence-backed audit answering every user observation with a confirmed / rejected / deferred verdict.
-3. `docs/adr/0079-procurement-party-vs-role.md` — locks in dual-key model.
-4. Small hardening batches H+1 … H+4 landed one-per-turn with rollback-marker smokes where DB changes exist.
-5. Legacy `/purchases/vendors` retirement queued as **Batch K-Retire**, blocked until Supplier record page absorbs the AP-defaults editor.
-6. Batch L Playwright + Batch M `docs/audit/procurement-verdict.md` closing the hardening phase.
+> This file is the single source of truth for procurement-domain progress. Every claim below is backed by evidence gathered via `supabase--read_query` on the live schema, `rg` over `src/`, or a linked commit / doc. Nothing in this file may assert current state without a verifying read.
 
 ---
 
-## Phase H+ execution log
+## 1. Status dashboard
 
-### Turn N — Phase 1 verification + H+1 + H+2 + H+3 + Phase 2 audit
+### 1.1 Feature build phase — **CLOSED**
 
-**Phase 1 — Independent verification (read-only)**
+| Batch | Scope | Status | Evidence |
+| --- | --- | --- | --- |
+| A | `suppliers` master + categories + qualifications | ✅ Landed & verified | `information_schema` — `suppliers`, `supplier_categories`, `supplier_qualifications`, `supplier_qualification_documents` present |
+| B | `supplier_item_terms`, `vendor_pricelists`, `approved_supplier_list` | ✅ Landed & verified | tables present |
+| C | RFQ / sourcing (`rfqs`, `rfq_vendors`, `rfq_items`, `sourcing_events`, scoring) | ✅ Landed & verified | tables present |
+| D | Procurement contracts (`procurement_contracts`, lines, releases) | ✅ Landed & verified | tables present |
+| E | Purchase requisitions + PO approval RPC (`approve_purchase_order`) | ✅ Landed & verified | `pg_proc` — SECURITY DEFINER, search_path=public |
+| F | ASN (`inbound_shipments` + `receive_inbound_shipment` RPC) | ✅ Landed & verified | `pg_proc` |
+| G | GRN (`goods_receipts` + `create_goods_receipt` RPC + discrepancies) | ✅ Landed & verified | `pg_proc` |
+| H | 3/4-way match (`bill_match_tolerance_policies`, `bill_match_results`, `bill_match_exceptions`, `match_bill_atomic`, `match_bill_with_landed_cost`) | ✅ Landed & verified | `pg_proc` + tables |
+| H-Verify | Rollback-marker smoke: idempotency, over/under-billing, price variance, 4-way landed uplift, SoD self-approval | ✅ Landed & verified | execution log below |
+
+### 1.2 Hardening phase (Phase H+) — **ACTIVE**
+
+| Sub-phase | Scope | Status |
+| --- | --- | --- |
+| Phase 0 | Rewrite plan to reflect milestone | ✅ Done (this file) |
+| Phase 1 | Independent verification of feature-phase claims (read-only) | ✅ Done — see §3 |
+| Phase 2 | Publish Contact ↔ Supplier ↔ Vendor architecture audit | ✅ Done — `docs/audit/procurement-vendor-vs-supplier.md` |
+| Phase 3 | Small hardening batches | ⏳ Partial — H+1 / H+2 / H+3 / H+4 landed; no more identified |
+| Phase 4 | Legacy `/purchases/vendors` retirement strategy (planning only) | ✅ Done — documented in audit §2.3 + queued as Batch K-Retire |
+| Phase 5 | Playwright + RLS re-audit (Batch L + Batch M) | ⏸ Queued — not started |
+| Phase 6 | Repair queue (contingent on Phase 1 FAILs) | ⏳ 1 FAIL open — Batch I never landed; re-queued as I-Deferred |
+
+### 1.3 Confirmed gaps still to close (in execution order)
+
+| # | Item | Blocker for | Owner batch |
+| --- | --- | --- | --- |
+| G1 | `apply_vendor_credit_note_atomic` RPC missing from `pg_proc` | Vendor credit note lifecycle (returns → credit → allocation → JE) | **Batch I-Deferred** (next milestone) |
+| G2 | `governance_duties.credit.approve` and `credit.apply` missing | Cannot register SoD conflicts for credit workflow | Batch I-Deferred (same migration) |
+| G3 | Supplier record page lacks a "Finance defaults" section (AP account, WHT, tax id) | Prevents retirement of `/purchases/vendors` UI | Batch K-Retire (blocked on G1) |
+| G4 | Contact custom-field slot not rendered on Supplier record page | Same as G3 | Batch K-Retire |
+| G5 | No Playwright coverage for: currency inheritance, bill self-approval guard regression, `/vendors` still-rendering guard | Regression risk on H+1/H+2 + H-Verify fix | Batch L (queued after K-Retire) |
+| G6 | Consolidated verdict doc not published | Closes hardening phase | Batch M (queued last) |
+
+---
+
+## 2. Roadmap — chronological, do NOT reorder
+
+Each item is brought to production-ready state before the next begins.
+
+1. ✅ **Batches A → H** — feature build (closed).
+2. ✅ **Batch H-Verify** — matching smoke.
+3. ✅ **Phase 1 verification** — read-only audit of feature claims.
+4. ✅ **Phase 2 audit doc** — `docs/audit/procurement-vendor-vs-supplier.md` + ADR-0079.
+5. ✅ **H+1** — Supplier currency defaults from `businesses.base_currency`.
+6. ✅ **H+2** — Legacy nav label clarified ("Suppliers (contact view)").
+7. ✅ **H+3** — ADR-0079 (Party vs Role dual-key model).
+8. ✅ **H+4** — Studio field inventory (0 configs on `supplier` today; recorded).
+9. ⏭ **Batch I-Deferred — NEXT MILESTONE.** Vendor credit note FIFO. Single migration + RPC + governance duties + SoD conflicts + rollback-marker smoke. Emits `procurement.credit.applied` outbox. Must not touch `journal_entries` (Finance subscribes via outbox).
+10. ⏸ **Batch K-Retire** — Migrate AP-defaults editor + Contact custom-field slot onto Supplier record page; only THEN retire `/purchases/vendors` route. Blocked on G3/G4.
+11. ⏸ **Batch L** — Playwright: H+1 currency default, H-Verify self-approval guard, K-Retire route removal, I-Deferred credit lifecycle happy path.
+12. ⏸ **Batch M** — `docs/audit/procurement-verdict.md` consolidated close-out; flip Phase H+ to CLOSED.
+
+**Do not skip ahead.** Do not open unrelated procurement work (e.g. Sourcing 2.0, Supplier Portal enhancements, WMS crossovers) until Batch M closes.
+
+---
+
+## 3. Phase 1 verification log (evidence)
 
 | # | Item | Result | Evidence |
 | --- | --- | --- | --- |
-| 1 | RPC surface (`approve_purchase_order`, `receive_inbound_shipment`, `create_goods_receipt`, `match_bill_atomic`, `match_bill_with_landed_cost`) | PASS | `pg_proc` — all present, `security definer`, `search_path=public` |
-| 1a | `apply_vendor_credit_atomic` / `apply_vendor_credit_note_atomic` | **FAIL** | Absent from `pg_proc`. Batch I never landed. Re-queued as Batch I-Deferred. |
-| 2 | Governance duties (`asn.manage`, `bill.approve`, `bill.match`, `grn.receive`, `po.approve`, `supplier_terms.manage`) | PASS | 6 rows present in `governance_duties` |
-| 2a | Governance duties `credit.approve`, `credit.apply` | **FAIL** | Missing. Blocked on Batch I-Deferred. |
-| 3 | SoD conflicts registered | PASS | 43 rows in `governance_sod_conflicts`, including bill.match ↔ po.approve / grn.receive / asn.manage separations |
-| 6 | `guard_bill_self_approval` enum→text cast fix present | PASS | `pg_proc.prosrc LIKE '%::text%'` = true |
+| 1 | Canonical RPCs present + `SECURITY DEFINER` + `search_path=public` (`approve_purchase_order`, `receive_inbound_shipment`, `create_goods_receipt`, `match_bill_atomic`, `match_bill_with_landed_cost`) | PASS | `pg_proc` query |
+| 1a | `apply_vendor_credit_note_atomic` | **FAIL** → G1 | Absent from `pg_proc` |
+| 2 | Governance duties (`asn.manage`, `bill.approve`, `bill.match`, `grn.receive`, `po.approve`, `supplier_terms.manage`) | PASS | 6 rows in `governance_duties` |
+| 2a | `credit.approve`, `credit.apply` duties | **FAIL** → G2 | Missing |
+| 3 | SoD conflicts registered | PASS | 43 rows in `governance_sod_conflicts` including bill.match ↔ po.approve / grn.receive / asn.manage |
+| 4 | `guard_bill_self_approval` enum→text cast fix in place | PASS | `pg_proc.prosrc LIKE '%::text%'` |
+| 5 | Every procurement document keys off `contacts.id` (no `supplier_id` FKs) | PASS | `information_schema.columns` |
+| 6 | Studio `entity_field_configs` inventory | PASS | 1 `contact`, 1 `estimate`, 0 `supplier` |
+| 7 | RLS `business_id` predicate on P1–H tables + branch-scoped policy check | PASS (carried forward from Batch H-Verify; not re-run this turn) | `v_branch_scoped_policy_check` |
 
-Not re-run this turn (unchanged since Batch H-Verify): items 3 (outbox contract sample), 4 (architecture test), 5 (RLS branch predicate) — all previously PASS.
+---
 
-**Phase 2 — Audit doc**
+## 4. Files changed during Phase H+
 
-Landed: `docs/audit/procurement-vendor-vs-supplier.md`. Verdict summary:
+| Path | Change | Batch |
+| --- | --- | --- |
+| `docs/adr/0079-procurement-party-vs-role.md` | New — locks dual-key model | H+3 |
+| `docs/audit/procurement-vendor-vs-supplier.md` | New — evidence-backed audit | Phase 2 |
+| `src/features/purchases/suppliers/SupplierCreatePage.tsx` | `useEffect` seeds `currency` from `currentBusiness.base_currency` | H+1 |
+| `src/apps/purchases/nav.ts` | Label "Vendors (legacy)" → "Suppliers (contact view)" | H+2 |
+| `.lovable/plan.md` | Rewritten as authoritative status dashboard | Phase 0 |
 
-- Contact ↔ Supplier split is correct (Odoo / SAP / Oracle / Dynamics alignment).
-- 1 real bug (currency inheritance) — fixed in H+1.
-- 1 nav-label ambiguity — fixed in H+2.
-- 1 doc gap (dual-key model) — fixed by ADR-0079 (H+3).
-- Batch I confirmed missing — deferred, not silently promoted.
-- Every "AP defaults on Contact are wrong" observation rejected with rationale.
+No migrations landed in Phase H+ so far — all frontend + docs. The next migration is Batch I-Deferred.
 
-**Phase 3 — Hardening batches landed**
+---
 
-- **H+1 Currency inheritance** — `src/features/purchases/suppliers/SupplierCreatePage.tsx` now seeds `currency` from `currentBusiness.base_currency` via `useEffect`; input stays editable. Frontend-only.
-- **H+2 Legacy alias clarity** — `src/apps/purchases/nav.ts:38` relabelled "Vendors (legacy)" → "Suppliers (contact view)".
-- **H+3 Dual-key ADR** — `docs/adr/0079-procurement-party-vs-role.md` published.
-- **H+4 Studio field inventory** — verified via `supabase--read_query`: `entity_field_configs` has 1 `contact` config, 1 `estimate` config, 0 `supplier` configs. Documented in the audit §1.5 and §2.3-M2 (retirement blocker).
+## 5. Instructions for the next agent
 
-**Batches queued (not started)**
+**Before writing any code, verify the previous work is correct and enterprise-grade.**
 
-- **Batch I-Deferred** — `apply_vendor_credit_note_atomic` RPC + `credit.approve` / `credit.apply` duties + FIFO allocation logic.
-- **Batch K-Retire** — `/purchases/vendors` retirement, blocked on Supplier record page absorbing Finance defaults editor + Contact custom-field slot.
-- **Batch L Playwright** — currency inheritance, bill self-approval guard regression, `/vendors` still-rendering guard.
-- **Batch M Verdict doc** — `docs/audit/procurement-verdict.md` consolidated close-out.
+1. **Confirm the status dashboard (§1) is still accurate.** Run these queries and reconcile with §1.1 / §1.2 / §3:
+   - `SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('approve_purchase_order','receive_inbound_shipment','create_goods_receipt','match_bill_atomic','match_bill_with_landed_cost','apply_vendor_credit_note_atomic');`
+   - `SELECT code FROM governance_duties WHERE code LIKE 'credit.%' OR code IN ('po.approve','asn.manage','grn.receive','bill.approve','bill.match','supplier_terms.manage');`
+   - `SELECT table_name, column_name FROM information_schema.columns WHERE table_schema='public' AND column_name IN ('vendor_id','supplier_id') AND table_name IN ('purchase_orders','bills','rfq_vendors','purchase_returns','vendor_credit_notes');`
+2. **Confirm H+1 code fix survived.** `rg "currentBusiness\.base_currency" src/features/purchases/suppliers/SupplierCreatePage.tsx` must return a match inside a `useEffect`.
+3. **Read the audit + ADR** before touching any procurement code: `docs/audit/procurement-vendor-vs-supplier.md` and `docs/adr/0079-procurement-party-vs-role.md`. If your change would add a `supplier_id` FK to any transactional document, **stop** — that is explicitly forbidden by ADR-0079.
+4. **Then, and only then, start Batch I-Deferred (§2 item 9).** Do NOT jump to Batch K-Retire, Batch L, or unrelated procurement work. Batch I is a hard prerequisite for K-Retire's Finance-defaults editor (which will surface credit-note history), and the roadmap is strictly chronological.
 
-**Non-blocking issue noted**: pre-existing project-wide `Cannot find module 'react-router-dom' / 'framer-motion' / 'idb' / 'qrcode.react'` type errors surface on every build. Unrelated to this phase (docs + one component-level `useEffect` addition). Deferred to a platform-wide dependency audit.
+**Batch I-Deferred contract:**
+- Single migration file.
+- Add `governance_duties`: `credit.approve`, `credit.apply`.
+- Add SoD conflicts: `credit.approve` ↔ `bill.approve`, `credit.apply` ↔ `credit.approve`, `credit.apply` ↔ `bill.match`.
+- Create `apply_vendor_credit_note_atomic(p_credit_note_id uuid, p_bill_ids uuid[])` RPC:
+  - `SECURITY DEFINER`, `SET search_path = public`.
+  - FIFO allocation against `bills.balance_due` in `due_date ASC, created_at ASC` order.
+  - Writes to `vendor_credit_note_applications`; updates `vendor_credit_notes.status` and `bills.balance_due` / `bills.status`.
+  - Emits `procurement.credit.applied` to `business_event_outbox` with idempotency key `credit.applied:<credit_note_id>:<version>`.
+  - **Must not** insert into `journal_entries`, `journal_entry_lines`, `stock_movements`, or `cost_layers`. Finance subscribes to the outbox and posts the reversal JE. Extend `src/test/architecture/procurement.test.ts` writer allow-list accordingly.
+- Rollback-marker smoke migration: create a credit note, apply against 2 bills, assert FIFO order, assert idempotency (re-apply is a no-op), assert SoD blocks the credit-approver from applying, assert `__SMOKE_ROLLBACK_MARKER__` present.
+- Update this file's §1.2 and §1.3 rows once landed.
 
+**After Batch I-Deferred lands and is verified, proceed to Batch K-Retire (§2 item 10) — not before.**
+
+**Pre-existing project-wide TS errors** (`Cannot find module 'react-router-dom' | 'framer-motion' | 'idb' | 'qrcode.react'`) are a stale typecheck artifact — all four packages are present in `package.json`. They are **not** caused by this phase's edits and should not be "fixed" by reinstalling or editing types unless the user explicitly asks.
