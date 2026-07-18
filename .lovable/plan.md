@@ -97,3 +97,18 @@ Promotions engine, loyalty accrual/redemption, receipt rendering, hardware execu
 - GL posts per sale, in-transaction; shift close is variance-only.
 - `sale.committed` / `inventory.decremented` / `payment.received` outbox events cover the lifecycle and are consumed idempotently.
 - Architecture tests prevent regression on each of the above.
+
+## Status board (2026-07-18)
+
+- **Active phase:** Phase 3 — POS Transaction Engine Ownership & Integrity.
+- **Batches shipped:** T1 (server money math), T2 (mandatory idempotency + crash recovery + ESLint guard).
+- **Next batch:** **T3 — Unified reservations.** Consolidate `pos_stock_reservations` into the generic `stock_reservations` (`source='pos'`), backfill, expose a deprecation view, retarget `usePOSStockReservation.ts` and the availability lookup in `process_pos_transaction` to `reserve_stock` / `release_stock`.
+- **After T3:** T4 (pessimistic `FOR UPDATE` availability), T5 (per-sale GL), T6 (dedup return/void/recall via `_pos_*` helpers), T7 (`sale.committed` + `inventory.decremented` outbox events + governance duties).
+
+## Handoff — instructions for the next agent
+
+1. **Verify T1/T2 before extending.** Run:
+   `bunx vitest run src/test/architecture/pos-server-authoritative-money-math.test.ts src/test/architecture/pos-mandatory-idempotency.test.ts` — both must be 10/10 green. Confirm `tg_pos_transactions_require_idempotency_key` is attached to `public.pos_transactions`.
+2. **Do not skip ahead.** T3 → T4 → T5 → T6 → T7 in order. T4's `FOR UPDATE` lock assumes T3's unified table; T6's helper extraction assumes T5's per-sale GL RPC exists.
+3. **Every batch ships:** one migration (with `GRANT`s where relevant), the minimal code delta, an architecture test under `src/test/architecture/`, and a plan update. Preserve the R12 defense-in-depth contract on every money-handling RPC (`SECURITY DEFINER`, `SET search_path = public`, `PERFORM public.assert_pos_caller_branch_access(...)`) — `supabase/tests/pos_rpc_defense_in_depth_test.sql` fails otherwise.
+4. **Do not touch other phases.** Phases 1 (Procurement) and 2 (Warehouse Ownership) are closed. The Inventory Domain audit (batches I1–I7) is paused until Phase 3 POS batches T3–T7 land.
