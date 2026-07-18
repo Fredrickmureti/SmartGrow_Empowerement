@@ -43,6 +43,7 @@ const PROCUREMENT_RPC_SOURCE_GLOBS = [
 const PROCUREMENT_RPC_NAMES = [
   "create_goods_receipt",
   "record_goods_receipt_line",
+  "receive_inbound_shipment",
   "convert_rfq_to_po_atomic",
   "award_rfq_atomic",
   "approve_purchase_order",
@@ -129,6 +130,22 @@ describe("procurement domain boundary (P0)", () => {
     const found = files.some((f: string) =>
       readFileSync(path.join(dir, f), "utf8").includes(
         "FUNCTION public.create_goods_receipt(",
+      ),
+    );
+    expect(found).toBe(true);
+  });
+
+  it("canonical receive_inbound_shipment (ASN → GR) wrapper is declared", () => {
+    // Batch G — Procurement receives goods only through this canonical RPC.
+    // Any future non-canonical INSERT INTO goods_receipts writer must go
+    // through create_goods_receipt or receive_inbound_shipment.
+    const dir = path.resolve(__dirname, "../../../supabase/migrations");
+    if (!existsSync(dir)) return;
+    const { readdirSync } = require("fs");
+    const files: string[] = readdirSync(dir);
+    const found = files.some((f: string) =>
+      readFileSync(path.join(dir, f), "utf8").includes(
+        "FUNCTION public.receive_inbound_shipment(",
       ),
     );
     expect(found).toBe(true);
