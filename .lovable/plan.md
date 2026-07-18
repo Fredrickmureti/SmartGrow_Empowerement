@@ -105,3 +105,42 @@ ASN / inbound shipment lifecycle. Added `_validate_inbound_shipment_item` trigge
 
 Rebuild goods-receipt authoring on canonical writers. Extend `src/test/architecture/procurement.test.ts` to forbid non-canonical `INSERT INTO goods_receipts(_items)` writers. RPCs: `receive_inbound_shipment(shipment_id, lines[])` → creates `goods_receipts` + `goods_receipt_items`, flips `inbound_shipments.status='received'` and PO line received quantities. Emit `procurement.grn.<state>`. Register `grn.receive` duty (may already exist as `po.receive`) + SoD `grn.receive ≠ po.approve` + `grn.receive ≠ asn.manage` (latter is done). Smoke: partial receipt, over-receipt rejection, idempotent replay.
 
+### Batch G ✅ LANDED (2026-07-18)
+
+ASN → GR canonical writer. Added `receive_inbound_shipment(shipment_id, lines, actor, receipt_number?, receipt_date?)` (SECURITY DEFINER, `user_has_business_access`, FOR UPDATE on shipment + PO + PO lines). Behaviour:
+- rejects unless shipment is in `arrived`
+- rejects over-receipt per PO line (`quantity - quantity_received` outstanding cap)
+- creates GR (`status='draft'`) + GR items; increments `purchase_order_items.quantity_received`
+- flips shipment → `received` (stamps `received_at`)
+- flips PO header → `partial_received` or `received` (skips terminal statuses closed/cancelled/rejected)
+- emits `procurement.grn.received` via `_emit_grn_outbox` with key `procurement.grn.received:<grn_id>:received`
+
+Governance: registered `grn.receive` duty and 3 SoD conflicts:
+- `grn.receive ≠ po.approve`   (custody ≠ authorisation)
+- `grn.receive ≠ asn.manage`   (custody ≠ declaration)
+- `grn.receive ≠ bill.approve` (blocks single-actor 3-way match)
+
+Architecture guard extended (`src/test/architecture/procurement.test.ts`): `receive_inbound_shipment` added to `PROCUREMENT_RPC_NAMES` + a new declaration assertion. Non-canonical writers to `goods_receipts` remain blocked by the existing grep discipline; the two canonical writers are now `create_goods_receipt` (PO-driven, calls `complete_goods_receipt_atomic`) and `receive_inbound_shipment` (ASN-driven, produces a draft GR to be posted later).
+
+Smoke asserts: over-receipt (15/10) rejected, partial receipt (6/10) succeeds and stamps `quantity_received=6` + PO status `partial_received`, replay against a `received` shipment rejected, one `procurement.grn.received` outbox row.
+
+Non-obvious findings folded in during smoke bring-up:
+- `public.purchase_orders` has NO `warehouse_id` column in this schema. The pre-existing `create_goods_receipt` RPC references it and silently fails at runtime for POs without a directly-attached warehouse — the new RPC resolves warehouse exclusively from `inbound_shipments.warehouse_id`. Do NOT add `warehouse_id` to `purchase_orders` in future migrations without a migration-wide audit; fold warehouse resolution into the ASN header instead.
+- Products/warehouses are not seeded in the smoke fixture business — the smoke self-seeds them. Reuse this pattern in Batch H/I smokes.
+
+### Next pickup — Batch H (P8 3-way / 4-way match)
+
+Rebuild bill-match authoring on top of the now-canonical GR. Deliverables:
+1. Table `bill_match_results` if not present, with `landed_cost_bill_id` column (P7 migration guardrail). Every row = (bill_id, po_id, gr_id, landed_cost_bill_id?, variance_qty, variance_price, match_state) with unique key `(bill_id)` so re-matching overwrites deterministically.
+2. RPC `match_bill_atomic(bill_id, actor)` — resolves matched GR lines by PO line, computes qty/price variance, sets state (`matched`/`under_billed`/`over_billed`/`price_variance`), emits `procurement.bill.matched:<bill_id>:matched`.
+3. RPC `match_bill_with_landed_cost(bill_id, landed_cost_bill_id, actor)` for the 4-way path — same shape, links the landed-cost bill and rolls its per-unit uplift into the variance calc.
+4. Governance: register `bill.match` duty; SoD `bill.match ≠ bill.approve`, `bill.match ≠ grn.receive`, `bill.match ≠ po.approve`.
+5. Smoke: qty match (0 variance), qty under-bill, price variance, 4-way landed-cost path, replay overwrite.
+
+**Verification checklist for the next agent (do these BEFORE writing Batch H):**
+1. Run the Batch G smoke migration standalone (recreate a rollback-marker `DO $$` block re-executing `receive_inbound_shipment`) and confirm `RAISE NOTICE 'G-smoke: PASS'`.
+2. Confirm `pg_proc` has `receive_inbound_shipment` and `_emit_grn_outbox` and that both are `SECURITY DEFINER` with `SET search_path=public`.
+3. Confirm `governance_duties` has `grn.receive` and `governance_sod_conflicts` has all three rows above.
+4. `rg "FUNCTION public.receive_inbound_shipment\(" supabase/migrations/` returns at least one hit (architecture test relies on it).
+5. Only then start Batch H — do NOT jump to UI/Playwright/RLS re-audit while Batches H-J are pending.
+
