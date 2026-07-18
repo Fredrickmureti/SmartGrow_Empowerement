@@ -8,9 +8,10 @@ Verified against live DB + tree:
 - **T1 Server-authoritative money math** — `pos_resolve_line` present; `process_pos_transaction` re-derives totals; `src/test/architecture/pos-server-authoritative-money-math.test.ts` present. ✅
 - **T2 Mandatory idempotency** — trigger `trg_pos_transactions_require_idempotency_key` attached to `public.pos_transactions`; `TransactionQueue.recoverStuckSyncing` and ESLint rule referenced; arch test file present. ✅
 - **T3 Unified reservations** — `public.pos_stock_reservations` is a view (`relkind='v'`); `trg_pos_stock_reservations_soft_delete` INSTEAD OF trigger present; `reserve_pos_stock`, `release_pos_stock_reservation`, `get_available_pos_stock`, `get_available_pos_stock_for_register` all exist; arch test file present. ✅
-- **Not yet done:** `post_pos_sale_gl` absent (T5), no `sale.committed` / `inventory.decremented` outbox triggers (T7), `process_pos_return` / `process_pos_void` / `recall_pos_held_transaction` still exist as monolithic RPCs — helper extraction (T6) pending, and the availability check inside `process_pos_transaction` still needs pessimistic locking (T4).
+- **T4 Pessimistic availability locking ✅** — `process_pos_transaction` now acquires `pg_advisory_xact_lock(hashtextextended(product_id||':'||warehouse_id, 0))` per tracked line before reading on-hand + reservations. Concurrent commits against the same SKU serialise; loser correctly returns `insufficient_stock` after seeing the winner's `stock_movements` insert. Advisory (not row) locks used because `warehouse_stock` rows are created lazily.
+- **Not yet done:** `post_pos_sale_gl` absent (T5), no `sale.committed` / `inventory.decremented` outbox triggers (T7), `process_pos_return` / `process_pos_void` / `recall_pos_held_transaction` still exist as monolithic RPCs — helper extraction (T6) pending.
 
-Baseline holds. Continue from T4.
+Baseline holds. Continue from T5.
 
 ## Phase 2 — Batches to ship (in strict order)
 
