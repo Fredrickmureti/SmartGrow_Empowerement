@@ -1,69 +1,124 @@
-# Wave 2 — Checkout Engine · Continuation Plan
 
-## Verification of prior work (Phase 1)
+# Wave 3 — POS Payment Engine: Enterprise Architecture Audit & Re-engineering
 
-Confirmed against DB + filesystem, not the prior agent's claims:
+Wave 2 (checkout commit, card FSM, settlement→GL, drawer/shift lifecycle, return FSM) is shipped and green. This wave takes ownership of the **payment subsystem itself** — the layer that sits between "cart ready to charge" and "transaction committed / accounted" — and lifts it to the standard set by Dynamics 365 Commerce, Oracle Retail, LS Central, and Square.
 
-- **Phase F.1–F.5 shipped as advertised.** `pos_card_settlements`, `pos_card_settlement_lines`, `pos_card_fsm_transitions`, `pos_cash_movements`, `pos_drawer_events`, `pos_shifts`, `pos_shift_close_errors` all exist in `public`. RPCs `pos_card_settlement_apply`, `pos_close_card_settlement`, `project_pos_sale_committed`, `claim_next_business_event`, `finalize_table_order`, `process_pos_transaction` all exist. Settlement migration `20260718220628…f055434a` present. `CardSettlementReport.tsx` exists. Arch guards `pos-card-fsm.test.ts`, `pos-card-settlement.test.ts`, `pos-offline-replay-uses-rpc.test.ts` present.
-- **Real gaps to close before advancing:**
-  1. `CardSettlementReport` is not routed anywhere in `App.tsx` / router. Managers can't reach it.
-  2. `settlement.card.closed` is a dispatcher no-op — no GL entry is written yet (this is F.6, still pending as claimed).
-  3. G.1–G.4 (cash JEs, blind close reconciliation, return authorization FSM, arch guards) are untouched.
-- Before any new work, I will re-run the 21-test arch-guard suite listed in the handoff and simulate one capture → close → outbox flow. If any step fails, that becomes the first fix.
+Scope is deliberately narrow: **payment lifecycle, tender orchestration, authorization/capture, split & partial tender, refund/void, settlement handoff, and the events they emit.** Receipts, drawer UX, loyalty, promotions, hardware, and reporting are only touched where they consume payment events.
 
-## Plan validation & expansion
+---
 
-Original F.6 + G.1–G.4 spec is sound. Additions from re-reading the parent prompt against the current code:
+## Phase 0 — Canonical lifecycle & audit deliverables (no code changes)
 
-- **F.6a — routing + navigation entry.** Wire `/pos/settlements` into the POS router and add a nav item guarded by manager role; the report is useless if unreachable.
-- **F.6b — GL idempotency ledger.** New `pos_card_settlement_gl_apply_log(settlement_id PK, journal_entry_id, applied_at)` so dispatcher retries never double-post. Reuses the same "apply log" pattern already used for `pos_projection_apply_log`.
-- **G.0 — canonical outbox topics registered up front** (`pos.drawer.opened`, `pos.drawer.closed`, `pos.cash.drop.recorded`, `pos.cash.variance.detected`, `pos.return.authorized`, `pos.return.applied`) with correct `handler_scope` (`host` for drawer open/close, `server` for cash JE + returns) and `max_attempts`, so G.1–G.3 handlers have topics to bind to.
-- **G.3 arch guard extension:** in addition to "no inventory movement without an `applied` authorization", also enforce that reversing JEs originate only from the dispatcher handler — mirrors the F.5 posture and prevents UI-only refund side effects.
-- **Definition-of-done additions:** every new JE writes through `resolveDefaultAccount(business_id, purpose, branch_id)` (never a hard-coded account id), and every new outbox event uses `business_id`/`branch_id` scoping so multi-branch reporting remains correct.
+Produce two written artifacts that everything else is measured against:
+
+1. `docs/architecture/POS_PAYMENT_ENGINE.md` — the canonical payment lifecycle:
+
+    ```text
+    resolve tenders → open payment session → select tender →
+    validate (amount, currency, customer, provider readiness) →
+    authorize (tender-specific driver) → capture →
+    apply to session (split/partial/overtender/change) →
+    session balanced? ──no──▶ next tender
+                   └─yes──▶ commit sale (atomic) →
+    emit payment.captured + sale.committed → settlement handoff →
+    (later) settle → GL → reconcile
+    Failure paths: decline, timeout, cancel, reverse, void, refund.
+    ```
+
+    For every stage: owner, inputs, outputs, invariants, idempotency key, failure/retry policy, downstream events.
+
+2. `docs/audit/pos-payment-engine.md` — a stage-by-stage gap table (mirrors `pos-transaction-lifecycle-canonical.md`) grading each stage: **Owned / Duplicated / Leaked / Missing**, with file citations. This audit drives phases 1-4.
+
+Known suspects to grade (seeded from the file survey; each still gets a live read before assertions land in the audit):
+
+- `PaymentDialog.tsx` (842 lines) mixes tender selection, split-tender math, cash-rounding, tip capture, provider modals, and payment-row construction. Likely violates SRP; likely re-implements amount/change math that should live in a `PaymentSession` domain object.
+- Three tender modals (`CardPaymentModal`, `MpesaPaymentModal`, `MpesaC2BLookupModal`) each own their own auth/state — no common `TenderDriver` interface on the client side (contrast with the vendor-agnostic `IPaymentTerminalDriver` already established in `electron/hardware/payment/`).
+- `CardTerminalController` is the only tender that has a proper client-side FSM wrapper; cash/mobile-money/credit have none.
+- `paymentMethodResolver` correctly gates readiness but does not model tender **capabilities** (change-giving, partial capture, offline queueing, refund method) — routing decisions elsewhere have to re-derive them.
+- No `pos_payment_sessions` table: a "payment session" today is implicit state inside `PaymentDialog`. Nothing durable exists between "cashier started paying" and "sale committed", so an interrupted split-tender (crash, refresh, terminal timeout) loses all captured auths.
+- Refund/void paths for non-card tenders are not first-class — only `pos_card_*` RPCs enforce transitions; cash/mpesa reversals write directly.
+
+The audit's grading is what ships in Phase 0; the phases below are the **hypothesised** remediation and will be re-scoped once the audit is written.
+
+---
+
+## Phase 1 — Domain model: `PaymentSession` as durable, idempotent aggregate
+
+Introduce a first-class server-side aggregate so a payment in progress is a real thing, not UI state.
+
+- **New tables**
+  - `pos_payment_sessions(id, pos_transaction_id NULL, register_id, cashier_id, business_id, branch_id, currency, grand_total, tip_amount, status, idempotency_key UNIQUE, opened_at, closed_at, closed_reason)` — status ∈ `open | balanced | committed | cancelled | abandoned`.
+  - `pos_payment_session_tenders(id, session_id, tender_kind, method_key, provider_key, amount, tendered_amount, change_given, reference, auth_state, auth_id, vendor_txn_id, driver_payload jsonb, created_at)` — one row per authorized/captured tender **before** commit. FSM enforced by trigger reusing the existing `pos_card_fsm_transitions` shape, generalised.
+- **RPCs (SECURITY DEFINER, service_role)**
+  - `pos_payment_session_open(p_register_id, p_grand_total, p_idempotency_key)` — returns session id; idempotent on the key.
+  - `pos_payment_session_record_tender(p_session_id, p_tender jsonb, p_idempotency_key)` — appends a tender row; FSM-validated; totals recomputed server-side; refuses over-allocation beyond configured overtender cap (cash only).
+  - `pos_payment_session_reverse_tender(p_session_id, p_tender_id, p_reason)` — reverses a captured tender pre-commit (void for card, refund for mobile money, offset row for cash) with a matching outbox event.
+  - `pos_payment_session_commit(p_session_id)` — atomically links session to the sale via `process_pos_transaction` and marks committed. All existing card-FSM guards keep working because the tender rows are copied into `pos_transaction_payments` in the same tx.
+  - `pos_payment_session_cancel(p_session_id, p_reason)` — reverses every captured tender then marks cancelled.
+- **Idempotency**: `idempotency_key` is required by the ESLint rule `no-pos-commit-without-idempotency-key.js` — extend that rule to also cover `pos_payment_session_*` calls.
+
+Result: browser refresh, network retry, or terminal reboot mid-split-tender resumes the same session instead of double-charging or losing captured auths.
+
+---
+
+## Phase 2 — Client architecture: `TenderDriver` interface + `PaymentSessionController`
+
+Refactor `PaymentDialog` from a 842-line god component to a thin orchestrator over a domain service.
+
+- **New `src/domain/pos/payment/`**
+  - `PaymentSession.ts` — immutable value object: totals, remaining, allocations, `isBalanced()`, `changeDue()`, `canAcceptTender(kind, amount)`. Pure, unit-testable, no React, no supabase.
+  - `TenderDriver.ts` — interface: `{ kind, capabilities: { allowsChange, allowsPartial, allowsOffline, refundable }, prepare(session), authorize(input), capture(authId), void(authId), refund(authId, amount) }`. Mirrors the existing `IPaymentTerminalDriver` shape so the electron layer plugs in cleanly.
+  - `drivers/CashDriver.ts` — wraps overtender + rounding; no server auth.
+  - `drivers/CardDriver.ts` — thin wrapper around existing `CardTerminalController`.
+  - `drivers/MobileMoneyDriver.ts` — wraps MPESA STK / C2B (consolidates `MpesaPaymentModal` + `MpesaC2BLookupModal` behind one driver; the two modals become presentation shells for the same driver's `authorize()` flow).
+  - `drivers/CustomerCreditDriver.ts` and `drivers/StoreCreditDriver.ts` — treat customer/store credit as first-class tenders instead of PaymentDialog specials.
+  - `drivers/GiftCardDriver.ts` (net-new, thin) — uses existing `pos_gift_cards` tables via a new authorize/capture RPC pair; unlocks gift card as a real tender without touching PaymentDialog again in the future.
+  - `PaymentSessionController.ts` — orchestrates: opens the session RPC, drives selected `TenderDriver`, records tenders, cancels/reverses on error, commits when balanced. This is what `PaymentDialog` calls.
+- **PaymentDialog** shrinks to layout + tender picker + amount input; every branch that today does `if method === "cash" | "card" | ...` disappears (already prohibited by `pos-payment-method-extensibility.test.ts` — extend that guard to also fail on driver-selection by method_key).
+- **`paymentMethodResolver`** grows a `capabilities` field so the dialog can render "Partial", "Offline OK", "Change" affordances from data, not from hardcoded tender knowledge.
+
+---
+
+## Phase 3 — Unify refund / void / reverse across tenders
+
+Today only card has a real FSM; cash/mobile money reversals write directly. Extend the Wave 2 return-authorization pattern to every tender:
+
+- Add `pos_tender_reversal_authorizations(id, session_id NULL, transaction_id NULL, tender_id, requested_by, approver_id, kind ∈ 'void'|'refund'|'reverse', state, reason_code_id, manager_pin_verified_at, applied_at)` with the same `requested → approved → applied` FSM already used by `pos_return_authorizations`.
+- Route every reversal through `TenderDriver.void|refund` → RPC → FSM → outbox event `tender.reversed`. Dispatcher posts the reversing JE (mirror of the original tender's posting) with idempotency ledger `pos_tender_reversal_apply_log`.
+- Delete direct UPDATEs on `pos_transaction_payments` outside the RPC surface; add arch guard `pos-tender-reversal-single-path.test.ts`.
+
+---
+
+## Phase 4 — Offline & multi-currency posture
+
+The platform is already offline-capable for sales commit; the payment layer isn't:
+
+- `pos_payment_sessions.status = 'open'` rows synced through the existing offline queue → `pos_payment_session_open` is called with the offline-generated `idempotency_key`, then tenders replay in order. Card/MPESA drivers refuse offline (`capabilities.allowsOffline=false`); cash + customer credit + gift card allow it.
+- Session carries `currency` and `fx_rate_snapshot`; multi-tender across currencies computes per-tender applied amount in the sale's home currency at capture-time rate (from `exchange_rates`), stored on the tender row. Enables future FX tender without another refactor.
+- Extend `pos-offline-replay-uses-rpc.test.ts` to cover the session RPC path.
+
+---
+
+## Phase 5 — Cashier UX pass (only after 1-4 land)
+
+With the domain rebuilt, redesign `PaymentDialog` for the enterprise cashier: one primary tender fast-path (numeric-keypad first, tender selection second), always-visible "Balance due / Change due" ledger driven by `PaymentSession`, one-key split (`S`), one-key reverse-last-tender (`R`), and resumable sessions surfaced in `HeldOrdersBar` alongside held carts. Zero new business logic — pure presentation over the Phase 1-2 domain.
+
+---
+
+## Definition of done
+
+- `docs/architecture/POS_PAYMENT_ENGINE.md` + `docs/audit/pos-payment-engine.md` merged and referenced from `docs/audit/pos-transaction-lifecycle-canonical.md`.
+- `pos_payment_sessions` + tenders table live, all commits go through `pos_payment_session_commit`, legacy PaymentDialog "assemble array of payments then call finalize" path removed.
+- Every tender (cash, card, mobile money, customer credit, store credit, gift card) implements a `TenderDriver`; no `method_key === "..."` branch survives in `src/components/pos/`.
+- Every reversal (void/refund/reverse) goes through the unified authorization FSM; no direct writes to `pos_transaction_payments`.
+- All Wave 2 arch guards remain green; new guards added: `pos-payment-session-lifecycle`, `pos-tender-driver-contract`, `pos-tender-reversal-single-path`, `pos-payment-session-idempotency`.
+- ESLint rule `no-pos-commit-without-idempotency-key` covers session RPCs.
+- Duplicated logic map (from Phase 0 audit) shows every "Duplicated / Leaked" row resolved to "Owned".
+
+## Not in scope
+
+Payment gateway integrations beyond what already exists (MPESA, sim card driver). Receipts, drawer/shift UX, loyalty accrual, promotions, fiscal device, physical hardware. Those wait for their own waves.
 
 ## Execution order
 
-`Verification → F.6 (a + b + core) → G.0 → G.1 → G.2 → G.3 → G.4`
-
-Do not open unrelated systems (payroll, banking, reorder) mid-flight.
-
-## Technical detail — F.6 (GL posting for closed settlements)
-
-- **Trigger:** `settlement.card.closed` event in `business_event_outbox` (already emitted by `pos_close_card_settlement`).
-- **New table:** `pos_card_settlement_gl_apply_log` with GRANT + RLS + `service_role` writes only.
-- **New RPC (SECURITY DEFINER, service_role):** `pos_card_settlement_post_gl(p_settlement_id uuid)` — resolves accounts via `resolve_default_account` for purposes:
-  - `pos_cash_in_bank_merchant_clearing` (Dr `actual_amount`)
-  - `pos_card_processing_fees` (Dr `fee_total`)
-  - `pos_card_clearing` (Cr `expected_amount`)
-  - `pos_cash_short_over` (Dr/Cr `variance`)
-  - Inserts one balanced `journal_entries` + `journal_entry_lines` set, scoped by `business_id`/`branch_id`; writes `pos_card_settlement_gl_apply_log(settlement_id)` in the same tx. On unique-violation of the log PK, exits idempotently.
-- **Dispatcher (`outbox-dispatcher/index.ts`):** replace the current `settlement.card.closed` no-op with a call to `pos_card_settlement_post_gl(source_doc_id)`.
-- **UI wiring:** register `/pos/settlements` route → `CardSettlementReport`; add a nav entry in `src/apps/pos/nav.ts` gated by manager/admin role.
-- **Arch guards:** extend `pos-card-settlement.test.ts` with (a) apply-log table exists with unique settlement_id, (b) `pos_card_settlement_post_gl` exists, (c) dispatcher calls it for `settlement.card.closed`, (d) no `src/` file inserts into `journal_entries` for `source_module='pos_card_settlement'`.
-
-## Technical detail — G. Cash lifecycle & returns authorization
-
-- **G.0 — Topic registration.** Single migration that inserts the six outbox topics with correct scope/attempts and grants coverage to `pos-outbox-handlers.test.ts`.
-- **G.1 — Cash-drawer + drop events + JEs.**
-  - Triggers on `pos_drawer_events` and `pos_cash_movements` enqueue events (host-scope for open/close, server-scope for `cash.drop.recorded` and `cash.variance.detected`).
-  - New RPC `pos_cash_drop_post_gl(event_id)` (SECURITY DEFINER): Dr `Safe/Bank clearing`, Cr `Cash on hand`, resolved via `resolve_default_account`. Idempotency via `pos_cash_gl_apply_log(source_event_id PK)`.
-  - Variance handler posts to `pos_cash_short_over`.
-- **G.2 — Blind vs open close.** Extend `pos_shift_close` to accept `p_mode = 'blind' | 'open'`. Blind close stores `actual_cash = NULL` and does not emit `cash.variance.detected`. A separate `pos_shift_reconcile(shift_id, actual, notes)` manager RPC (role-gated via `has_role`) sets the actual, computes variance, and emits the variance event that the G.1 handler will post.
-- **G.3 — Return authorization FSM.**
-  - New table `pos_return_authorizations(id, transaction_id, requested_by, approver_id, state, reason_code_id, manager_pin_verified_at, applied_at, …)` with allowed transitions `requested → approved → applied` and `requested → rejected`; state changes only via `pos_return_authorization_transition(id, to_state, manager_pin?)` RPC (manager PIN required to reach `approved`).
-  - Trigger emits `pos.return.authorized` on `→ approved` and `pos.return.applied` on `→ applied`.
-  - Dispatcher handlers: reversing JE (mirror of original sale postings, keyed on `authorization_id`) + inventory reversal via `recordStockMovements` with pack provenance. Idempotency via `pos_return_apply_log(authorization_id PK)`.
-- **G.4 — Arch guards** (new `src/test/architecture/pos-cash-and-returns.test.ts`):
-  - No `src/` file inserts into `journal_entries` for `source_module IN ('pos_cash','pos_return')`.
-  - No `src/` file inserts into `stock_movements` referencing a return transaction without going through the return-authorization apply path.
-  - All six G.0 topics are registered with the expected `handler_scope`.
-  - Both new apply-log tables enforce PK on their idempotency column.
-
-## Definition of done (unchanged bullets + additions)
-
-- All existing POS arch guards remain green; new guards per phase are green.
-- `pos_transaction_payments.auth_state` only ever written via `pos_card_*` RPCs.
-- Restaurant + offline-replay sales are indistinguishable from retail at the DB level.
-- Every card capture produces exactly one settlement line; every settlement close produces exactly one balanced JE (via apply-log).
-- Cash drawer open/close, cash drops, variances, and returns all produce complete audit trails via the outbox; no UI-only side effects remain in the checkout or refund path.
-- Every new JE resolves accounts through `resolve_default_account`; no hard-coded account ids in code or migrations.
+Phase 0 (audit doc — the deliverable that decides whether phases 1-4 need re-scoping) → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5. I will pause after Phase 0 for your review of the audit before writing migrations.
