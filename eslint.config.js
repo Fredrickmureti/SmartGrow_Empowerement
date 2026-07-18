@@ -23,6 +23,7 @@ import noHandRolledMeHeader from "./eslint-rules/no-hand-rolled-me-header.js";
 import noShellLeakFromMe from "./eslint-rules/no-shell-leak-from-me.js";
 import noPdfLibInLocalizationPreview from "./eslint-rules/no-pdf-lib-in-localization-preview.js";
 import noCountryFixtureInSharedPreview from "./eslint-rules/no-country-fixture-in-shared-preview.js";
+import noPosCommitWithoutIdempotencyKey from "./eslint-rules/no-pos-commit-without-idempotency-key.js";
 
 
 export default tseslint.config(
@@ -59,6 +60,7 @@ export default tseslint.config(
           "no-shell-leak-from-me": noShellLeakFromMe,
           "no-pdf-lib-in-localization-preview": noPdfLibInLocalizationPreview,
           "no-country-fixture-in-shared-preview": noCountryFixtureInSharedPreview,
+          "no-pos-commit-without-idempotency-key": noPosCommitWithoutIdempotencyKey,
         },
       },
     },
@@ -119,6 +121,11 @@ export default tseslint.config(
       // ownership column. All writes go through assign_employee_to_branch /
       // transfer_employee_primary_branch. DB trigger enforces the same.
       "local/no-direct-employees-branch-write": "error",
+
+      // ADR 0082 · Batch T2 — every process_pos_transaction call must
+      // pass a deterministic p_idempotency_key. Fallbacks to
+      // crypto.randomUUID() silently defeat retry-collapse.
+      "local/no-pos-commit-without-idempotency-key": "error",
 
 
 

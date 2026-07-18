@@ -60,6 +60,7 @@ class TransactionQueueService {
   private isSyncing = false;
   private syncPromise: Promise<void> | null = null;
   private failedCallbacks: Set<FailedTransactionCallback> = new Set();
+  private recoveryDone = false;
 
   /**
    * Subscribe to transaction failure notifications (after max retries)
@@ -68,6 +69,42 @@ class TransactionQueueService {
     this.failedCallbacks.add(callback);
     return () => this.failedCallbacks.delete(callback);
   }
+
+  /**
+   * Batch T2 (ADR 0082 D3) — crash recovery.
+   *
+   * A row in `syncing` state older than `staleAfterMs` means the tab
+   * crashed / was closed mid-sync. The idempotency-key contract on
+   * `process_pos_transaction` makes re-sending safe: if the RPC did
+   * commit before we died, the unique index collapses the replay onto
+   * the same `pos_transactions` row; if it didn't, the retry commits
+   * for the first time. Either way, resetting to `pending` is safe.
+   *
+   * Runs once per process; call from app bootstrap or the first
+   * `syncAll()` invocation.
+   */
+  async recoverStuckSyncing(staleAfterMs = 30_000): Promise<number> {
+    const all = await offlineStorage.getAll<QueuedTransaction>(STORES.TRANSACTIONS_QUEUE);
+    const now = Date.now();
+    let recovered = 0;
+    for (const t of all) {
+      if (t.status !== "syncing") continue;
+      const started = t.lastAttemptAt ? new Date(t.lastAttemptAt).getTime() : 0;
+      if (now - started < staleAfterMs) continue;
+      await offlineStorage.put(STORES.TRANSACTIONS_QUEUE, {
+        ...t,
+        status: "pending",
+        error: `recovered from crashed syncing state at ${new Date(now).toISOString()}`,
+      });
+      recovered++;
+    }
+    if (recovered > 0) {
+      console.warn(`[TransactionQueue] Recovered ${recovered} stuck syncing transactions`);
+    }
+    this.recoveryDone = true;
+    return recovered;
+  }
+
 
   /**
    * Notify all subscribers about a permanently failed transaction
@@ -249,6 +286,13 @@ class TransactionQueueService {
     let failed = 0;
 
     this.syncPromise = (async () => {
+      // Batch T2 — recover any rows the last process left in `syncing`
+      // before draining the queue. Safe because every RPC call carries
+      // the queued.id as idempotency key.
+      if (!this.recoveryDone) {
+        await this.recoverStuckSyncing();
+      }
+
       const pending = await this.getPendingTransactions();
       
       // Sort by creation time to maintain order
