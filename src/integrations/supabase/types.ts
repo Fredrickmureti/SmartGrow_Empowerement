@@ -61274,102 +61274,6 @@ export type Database = {
           },
         ]
       }
-      pos_stock_reservations: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          created_at: string | null
-          expires_at: string | null
-          id: string | null
-          organization_id: string | null
-          product_id: string | null
-          quantity: number | null
-          register_id: string | null
-          reserved_by: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id?: string | null
-          created_at?: string | null
-          expires_at?: string | null
-          id?: string | null
-          organization_id?: string | null
-          product_id?: string | null
-          quantity?: number | null
-          register_id?: string | null
-          reserved_by?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string | null
-          created_at?: string | null
-          expires_at?: string | null
-          id?: string | null
-          organization_id?: string | null
-          product_id?: string | null
-          quantity?: number | null
-          register_id?: string | null
-          reserved_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "stock_reservations_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_reservations_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "stock_reservations_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_reservations_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "stock_reservations_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "stock_reservations_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_reservations_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "stock_reservations_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       project_member_workload_week: {
         Row: {
           business_id: string | null
@@ -74171,7 +74075,6 @@ export type Database = {
         Returns: string
       }
       post_pos_sale_gl: { Args: { _txn_id: string }; Returns: string }
-      post_pos_shift_gl: { Args: { _shift_id: string }; Returns: string }
       post_source_to_gl: {
         Args: { p_source_id: string; p_source_type: string }
         Returns: string
@@ -75172,7 +75075,6 @@ export type Database = {
           role_key: string
         }[]
       }
-      replay_pos_shift_gl: { Args: { _shift_id: string }; Returns: string }
       request_app_access: {
         Args: { _app_id: string; _message?: string }
         Returns: string
