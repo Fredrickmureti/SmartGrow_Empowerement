@@ -107,6 +107,11 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
   const [showSplitMpesaModal, setShowSplitMpesaModal] = useState(false);
   const [splitMpesaAmount, setSplitMpesaAmount] = useState<number>(0);
   const [showC2BLookup, setShowC2BLookup] = useState(false);
+  // Wave 2 · Phase C-2 — card terminal session.
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardModalAmount, setCardModalAmount] = useState<number>(0);
+  const [cardModalMode, setCardModalMode] = useState<"full" | "split">("full");
+
 
   // Cash rounding helper
   const applyCashRounding = (amount: number): number => {
