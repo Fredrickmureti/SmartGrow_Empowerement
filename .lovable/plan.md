@@ -1,71 +1,97 @@
-## Situation
 
-The previous engineer left `.lovable/plan.md` as the roadmap. **Phase 1 (Procurement)** and **Phase 2 (Warehouse Ownership & Domain Boundary)** are marked CLOSED. Spot checks confirm the Phase 2 claims match reality: `src/pages/inventory/Warehouse*.tsx` no longer exists, `/inventory-app/warehouses[/*]` is now `<Navigate replace>` into `/warehouse-app/warehouses[...]`, `src/test/architecture/wms-phase-master-data.test.ts` is in place, ADR 0080 documents the decision, and the warehouse nav + cycle-count contract are wired as described.
+# Phase 3 — POS Transaction Engine Ownership & Integrity
 
-The **parent prompt's questions are therefore already answered by Phase 2** — Warehouse master data is owned by the Warehouse app; Inventory is a read-only consumer; cycle counts split scan-first execution (WMS) from adjustment posting (Inventory) via `warehouse.count.session.completed`. The continuation prompt asks the next engineer to verify Phases 1 & 2, then start **Phase 3 — Inventory Domain Audit & Reconstruction**.
+Diagnostic evidence lives in the audit report just produced. This plan turns that report into an ADR + phased execution, matching the shape of Phase 2 (Warehouse). Refactor-freely posture: existing RPCs/tables may be renamed, replaced, or consolidated.
 
-This plan covers both.
+## Verdict (from audit)
 
----
+The engine has a single atomic commit RPC, branch-isolation guards, an outbox-based event fanout, and architecture tests preventing client writes to cash/drawer/shift. It is **not yet trustworthy** as the canonical orchestrator because:
 
-## Plan
+1. `process_pos_transaction` trusts client-supplied subtotal / tax / discount / total / unit_price verbatim — no server recomputation. The GL later posts these numbers as ground truth.
+2. Two disconnected reservation systems (`pos_stock_reservations` vs generic `stock_reservations` / `reserve_stock`) — overselling exposure.
+3. Idempotency has a silent fallback (`|| crypto.randomUUID()` in `usePOSTransactionOffline.ts:245`) that defeats replay-collapse on the online path.
+4. `process_pos_return` reimplements item / stock-movement / payment posting instead of reusing helpers shared with `process_pos_transaction`.
+5. `post_pos_shift_gl` failure at shift close re-raises and blocks the entire shift close — finance-config health becomes an operational availability risk.
+6. Stock availability check inside the commit is a non-locking `SELECT` aggregate → race under concurrent terminals.
 
-### Step 0 — Full verification of Phases 1 & 2 (no code)
+## Step 0 — Artefacts
 
-Run the verification battery from `.lovable/plan.md` verbatim:
+Write two audit docs (source of truth for the ADR and batches):
 
-- SQL: 13 canonical procurement RPCs present, `SECURITY DEFINER`, `search_path=public`; `apply_vendor_credit_atomic` gone; 7 Batch-N triggers present; zero `supplier_id` columns on transactional docs; `governance_duties` has both `credit.*` duties.
-- Code: `rg` for `apply_vendor_credit_atomic`, `pages/inventory/Warehouse`; both empty in `src/`.
-- Tests: `bunx vitest run src/test/architecture` — everything green, especially `wms-phase-master-data.test.ts` and `no-direct-stock-aggregate-writes.test.ts`.
-- Types: `tsgo -p tsconfig.app.json` clean.
-- Runtime: `/inventory-app/warehouses` and `/inventory-app/warehouses/<uuid>` redirect correctly; Inventory sidebar has no Warehouses entry; both cycle-count surfaces link to each other.
-- Supabase linter — no regressions.
+- `docs/audit/pos-transaction-engine.md` — the full lifecycle trace, ownership map, and ranked risk register from the subagent report, with `file:line` citations.
+- `docs/audit/pos-transaction-lifecycle-canonical.md` — the enterprise lifecycle we hold ourselves to (basket → resolve → availability → reserve → authorize → commit → movement → GL → analytics/audit → close) and where each stage lives today.
 
-Any failure gets fixed under its owning phase before Phase 3 opens. Findings written up in `docs/audit/phase-1-2-verification.md`.
+## Step 1 — ADR 0082: POS Transaction Engine Ownership
 
-### Step 1 — Phase 3 discovery pass (still no code)
+`docs/adr/0082-pos-transaction-engine-ownership.md`. Key decisions:
 
-Written deliverable only, produced as `docs/audit/inventory-ownership-map.md`:
+- **Server is the sole source of truth for money math.** Client sends `{ product_id, qty, requested_unit_price?, discount_intent }`; RPC re-derives unit price, tax, line total, subtotal, discount, and total from `products`, `price_lists`, `product_pricing`, `pos_happy_hours`, `tax_rates`, `tax_groups`. Client totals become advisory + a `total_matches_server` bool for UX, never persisted as authoritative.
+- **One reservation system.** `pos_stock_reservations` is deprecated in favour of the generic `stock_reservations` with a `source='pos'` scope. `process_pos_transaction` consumes / releases via the shared `reserve_stock` / `release_stock` primitives.
+- **Idempotency is mandatory.** `p_idempotency_key text NOT NULL`; the RPC rejects calls without one. Client fallback to `crypto.randomUUID()` is removed; `useCommitKey` is the only source, backed by both `sessionStorage` and IndexedDB.
+- **Commit posts the GL immediately per sale** (Square/D365-style) instead of at shift close (Odoo-style). Rationale: eliminates the "finance-config outage blocks cashier handoff" coupling and shortens ledger visibility from hours to seconds. Shift close becomes a variance-reconciliation step, not a batch GL post. Legacy `post_pos_shift_gl` retained as a variance/reconciliation helper only.
+- **Return / void / recall are thin wrappers** over shared internal helpers (`_pos_insert_line`, `_pos_post_movement`, `_pos_record_payment`) — no reimplemented posting.
+- **Sale emits `sale.committed` and `inventory.decremented` to the outbox** in the same transaction as the commit; `payment.received` already does this. Handlers must be idempotent by `pos_transaction_id`.
+- **Availability check is pessimistic** — `SELECT … FOR UPDATE` on the affected `stock_quants` rows within the commit.
 
-1. **Ownership map.** Enumerate every table Inventory should own (`stock_quants`, `stock_movements`, `stock_locations`, `cost_layers`, `cost_layer_consumptions`, `stock_lots`, `stock_serials`, `stock_reservations`, `stock_transfers`, `stock_transfer_items`, `stock_adjustments`, `stock_adjustment_items`, `physical_counts`, `physical_count_lines`, `warehouse_stock`, `warehouse_stock_lots`, `lot_quarantine`) and prove no other app writes to them today (`rg` for direct `.from('stock_...').insert|update|delete|upsert` outside `src/apps/inventory/**` and outside sanctioned RPC wrappers).
-2. **Write-path inventory.** For every current writer, list: caller → hook → RPC. Flag every path that is not `SECURITY DEFINER` + `search_path` + SoD-guarded + `FOR UPDATE`-locking its aggregate.
-3. **Cross-domain inbound events.** Confirm handlers exist and are idempotent for `procurement.grn.received`, `warehouse.count.session.completed`, `manufacturing.production.completed`, `sales.shipment.picked`, `sales.return.received`. Missing/non-idempotent handlers become I4 backlog items.
-4. **UI duplication scan.** After ADR-0079/0080, list any orphan pages/routes/hooks in `src/pages/inventory/**` that duplicate a warehouse or physical-count surface.
+## Step 2 — Execution batches
 
-### Step 2 — ADR 0081 draft
+Each batch ships as one migration + minimal code changes + an architecture test. Nothing runs without your explicit approval per batch.
 
-`docs/adr/0081-inventory-domain-ownership.md`. Decision, boundary contract with Warehouse/Procurement/Sales/Manufacturing, canonical RPC surface, event contracts, non-goals. No migration until this ADR is written.
+### T1 — Server-authoritative money math
+- New `pos_resolve_line(...)` helper: resolves unit price (price list → happy hour → product default), tax (product tax_group → tax_rates), discount policy validation.
+- `process_pos_transaction` recomputes every line and totals; overrides only when a `manager_override_id` row authorises the deviation.
+- Architecture test: fuzz RPC with tampered totals; server must reject or recompute.
 
-### Step 3 — Batched execution (I1 → I7)
+### T2 — Idempotency hardening
+- Migration: `ALTER FUNCTION process_pos_transaction … p_idempotency_key text NOT NULL`; add unique index `(org_id, business_id, register_id, idempotency_key)` explicitly if not already unique.
+- Remove `|| crypto.randomUUID()` fallback in `usePOSTransactionOffline.ts` and `TransactionQueue.ts` (verify offline path uses queued.id).
+- Add a `TransactionQueue` startup-recovery pass: rows stuck in `syncing` older than N seconds → back to `pending`.
+- ESLint rule `no-pos-commit-without-idempotency-key`.
 
-Each batch ships production-ready in one turn, no orphans, retires legacy in the same migration that supersedes it.
+### T3 — Unified reservations
+- Migration: introduce `stock_reservations.source` enum incl. `pos`; backfill from `pos_stock_reservations`; deprecate the POS-specific table (view for compat during migration window).
+- `process_pos_transaction` reads/writes via `reserve_stock` / `release_stock`.
+- `usePOSStockReservation.ts` retargeted; drop parallel path.
 
-- **I1 — RPC canonicalisation.** Consolidate to: `post_stock_adjustment_atomic`, `post_physical_count_atomic`, `execute_stock_transfer_atomic`, `reserve_stock_atomic`, `release_reservation_atomic`, `revalue_layer_atomic`, `write_off_lot_atomic`. Any pre-existing overloads/legacy names dropped in the same migration; all callers repointed.
-- **I2 — Governance duties + SoD.** Register `inventory.adjust.approve`, `inventory.adjust.post`, `inventory.transfer.approve`, `inventory.transfer.execute`, `inventory.revalue.post`, `inventory.count.approve`; SoD conflicts (approver ≠ poster).
-- **I3 — Integrity triggers.** DB-level `business_id`/`branch_id` alignment across `stock_movements` ↔ `warehouses` ↔ `stock_locations`; forbid negative `stock_quants` outside sanctioned reversal RPCs.
-- **I4 — Event-contract verification.** Idempotent handlers for the five inbound events above; outbox emission on every state change; matching architecture test.
-- **I5 — UI consolidation.** Retire orphan inventory pages found in Step 1; every route either lives or 301s.
-- **I6 — Architecture guardrails.** New `src/test/architecture/inventory-write-paths.test.ts` forbidding direct writes to `stock_movements` / `stock_quants` / `cost_layers` from anywhere outside the sanctioned RPCs, and forbidding cross-app writers touching inventory tables.
-- **I7 — Verdict + close.** `docs/audit/inventory-verdict.md`; update `.lovable/plan.md` marking Phase 3 CLOSED and Phase 4 (Sales / O2C) as next.
+### T4 — Pessimistic availability
+- Inside `process_pos_transaction`, replace the aggregate `SELECT` with a `SELECT … FOR UPDATE` over the relevant `stock_quants` rows before the movement insert. Add a concurrency test (two parallel commits, last-unit race).
 
-### Guardrails (permanent, applied every batch)
+### T5 — Per-sale GL posting
+- New `post_pos_sale_gl(_txn_id)` invoked in-transaction from `process_pos_transaction` (revenue / COGS / tax / tender lines per sale).
+- `trg_pos_shift_close_journal` demoted to variance-only (cash over/short); shift close no longer re-raises on GL config errors.
+- Backfill script + doc for existing open shifts.
 
-- Every new `public` table has `GRANT`s in the same migration.
-- Every RPC: `SECURITY DEFINER` + `SET search_path = public` + SoD-guarded + `FOR UPDATE` on the aggregate.
-- No client-side writes to ledger/state tables. Cross-app writes go through `business_event_outbox`.
-- Party-vs-role universal (no `<entity>_id` FKs where `contacts.id` is correct).
-- Legacy retired in the same turn as the replacement.
+### T6 — Deduplicate return / void / recall
+- Extract `_pos_insert_line`, `_pos_post_movement`, `_pos_record_payment`, `_pos_apply_lot_consumption` as `SECURITY DEFINER` internal helpers.
+- Rewrite `process_pos_return`, `process_pos_void`, `recall_pos_held_transaction` to compose these helpers.
+- Architecture test: grep RPC bodies to assert no direct `INSERT INTO stock_movements` / `INSERT INTO pos_transaction_items` outside the helpers.
 
----
+### T7 — Event completeness + guardrails
+- DB triggers emit `sale.committed` and `inventory.decremented` to `business_event_outbox` alongside existing `payment.received`.
+- `BusinessSaga` handler contract requires an `idempotencyKey` derived from `pos_transaction_id`; enforced by a runtime assertion + test.
+- Governance duties: `pos.commit`, `pos.void`, `pos.return`, `pos.override_price`, `pos.override_discount` registered in `governance_duties`.
+- Final architecture tests:
+  - `no-client-pos-money-math` — client cart may compute *display* totals but must not send authoritative values to the RPC (schema level).
+  - `pos-reservations-single-source` — no references to `pos_stock_reservations` outside the deprecation shim.
+  - `pos-rpc-helpers-only` — return/void/recall bodies match the composed shape.
 
-## Deliverables
+## Technical notes (for engineers, not the user)
 
-- `docs/audit/phase-1-2-verification.md` — evidence Phases 1 & 2 are production-grade (or the diffs that made them so).
-- `docs/audit/inventory-ownership-map.md` — Step 1 discovery output.
-- `docs/adr/0081-inventory-domain-ownership.md`.
-- Migrations for I1–I4.
-- `src/test/architecture/inventory-write-paths.test.ts` (I6).
-- `docs/audit/inventory-verdict.md` (I7).
-- Updated `.lovable/plan.md`.
+- Every new/modified RPC keeps `SECURITY DEFINER`, `SET search_path = public`, and `PERFORM public.assert_pos_caller_branch_access(...)` at the top (Stage R12 contract, already covered by `pos_rpc_defense_in_depth_test.sql`).
+- Public-schema tables added/altered here must ship their `GRANT` block in the same migration and keep RLS on.
+- No `ALTER DATABASE postgres` anywhere; no direct edits to `src/integrations/supabase/types.ts`.
+- Migration ordering respects existing FKs — reservation unification (T3) precedes T4 (which locks on the unified table). T5 precedes T6 so the extracted helpers already know about per-sale GL.
+- Every batch adds or extends an architecture test under `src/test/architecture/` or `supabase/tests/` so drift is caught in CI, not review.
 
-Confirm and I'll start with Step 0 verification, reporting findings before touching any code.
+## Out of scope (later waves)
+
+Promotions engine, loyalty accrual/redemption, receipt rendering, hardware execution topology, reporting/analytics denormalisation, fiscalisation (eTIMS) beyond what the commit RPC already stamps. These will be audited separately once T1–T7 land.
+
+## Definition of done
+
+- Every POS sale's totals are computed and validated server-side.
+- One reservation system, one movement-posting code path.
+- Idempotency key is mandatory and enforced end-to-end.
+- GL posts per sale, in-transaction; shift close is variance-only.
+- `sale.committed` / `inventory.decremented` / `payment.received` outbox events cover the lifecycle and are consumed idempotently.
+- Architecture tests prevent regression on each of the above.
