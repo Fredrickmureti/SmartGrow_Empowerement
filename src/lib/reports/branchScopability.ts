@@ -41,7 +41,7 @@ export type ReportKind =
   | "inventory"
   | "management"
   | "bank_reconciliation"
-  | "pos_shift_gl_integrity"
+  
   | "stock_adjustment"
   | "stock_transfer";
 
@@ -68,7 +68,7 @@ export const BRANCH_SCOPABLE: Record<ReportKind, boolean> = {
   inventory: true,
   management: true,
   bank_reconciliation: true,
-  pos_shift_gl_integrity: true,
+  
   stock_adjustment: true,
   stock_transfer: true,
 };
