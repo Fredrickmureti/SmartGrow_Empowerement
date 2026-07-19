@@ -18,6 +18,14 @@ function ContactRedirect() {
   return <Navigate to={`/contacts-app/profile?id=${id}`} replace />;
 }
 
+// Redirect legacy /finance/pos-posting-queue → /finance/operations/accounting-events
+// Preserves ?shift=… (POS deep-link) so bookmarks and email links keep working.
+function LegacyPosQueueRedirect() {
+  const [searchParams] = useSearchParams();
+  const qs = searchParams.toString();
+  return <Navigate to={`/finance/operations/accounting-events${qs ? `?${qs}` : ""}`} replace />;
+}
+
 // Eager imports for commonly accessed pages
 import Accounts from "@/pages/Accounts";
 const AccountCreatePage = lazy(() => import("@/features/finance/accounts/AccountCreatePage"));
