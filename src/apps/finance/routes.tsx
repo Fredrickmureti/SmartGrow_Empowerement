@@ -97,7 +97,8 @@ const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationRepo
 
 const FinanceSettingsPage = lazy(() => import("@/pages/finance/FinanceSettings"));
 const FinanceIntegrity = lazy(() => import("@/pages/finance/FinanceIntegrity"));
-const PosPostingQueue = lazy(() => import("@/pages/finance/PosPostingQueue"));
+// Legacy PosPostingQueue page is superseded by AccountingEventsWorkspace (B4).
+// It stays in the codebase until B7 (legacy cleanup) but is no longer routed.
 const AccountingEventsWorkspace = lazy(() => import("@/pages/finance/AccountingEventsWorkspace"));
 
 
