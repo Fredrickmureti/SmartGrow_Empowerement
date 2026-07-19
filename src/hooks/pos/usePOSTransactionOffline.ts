@@ -323,6 +323,12 @@ async function processOnlineTransaction(
     transactionNumber: envelope.transaction_number ?? "",
     change: envelope.change ?? Math.max(0, totalPaid - data.cart.total),
     isOffline: false,
+    // S2 — surface server-authoritative totals so downstream consumers
+    // (customer display, analytics, offline sync reconciliation) never
+    // depend on the client's advisory cart math. Receipt rendering is
+    // already server-authoritative via `pos_receipt_snapshots`.
+    serverTotals: envelope.server_totals ?? null,
+    totalMatchesServer: envelope.total_matches_server ?? true,
   };
 }
 
