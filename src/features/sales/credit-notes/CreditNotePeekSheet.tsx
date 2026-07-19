@@ -16,6 +16,7 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import type { CreditNote } from "@/hooks/useCreditNotes";
 import { useCreditNoteRecord } from "./useCreditNoteRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
   draft: "neutral", issued: "info", partially_applied: "warning",
@@ -96,6 +97,7 @@ export function CreditNotePeekSheet({ creditNoteId, onOpenChange }: Props) {
               { id: "created", at: fmt(record.created_at), actor: "System", title: `Credit note ${record.credit_note_number} created` },
             ]} />
           </Section>
+          <DocumentVersionsSection documentType="credit_note" documentId={creditNoteId} />
         </div>
       )}
     </DocumentPeekShell>

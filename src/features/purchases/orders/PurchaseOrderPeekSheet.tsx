@@ -18,6 +18,7 @@ import {
 } from "@/design-system";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePurchaseOrderRecord } from "./usePurchaseOrderRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const TONE: Record<
   string,
@@ -169,6 +170,7 @@ export function PurchaseOrderPeekSheet({ poId, onOpenChange }: Props) {
               ]}
             />
           </Section>
+          <DocumentVersionsSection documentType="purchase_order" documentId={poId} />
         </div>
       )}
     </DocumentPeekShell>

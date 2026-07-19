@@ -16,6 +16,7 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import type { SalesReturn } from "@/hooks/useSalesReturns";
 import { useSalesReturnRecord } from "./useSalesReturnRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
   draft: "neutral", pending: "warning", approved: "info",
@@ -91,6 +92,7 @@ export function SalesReturnPeekSheet({ salesReturnId, onOpenChange }: Props) {
               { id: "created", at: fmt(record.created_at), actor: "System", title: `Return ${record.return_number} created` },
             ]} />
           </Section>
+          <DocumentVersionsSection documentType="sales_return" documentId={salesReturnId} />
         </div>
       )}
     </DocumentPeekShell>

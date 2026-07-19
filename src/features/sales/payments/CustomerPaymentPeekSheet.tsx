@@ -12,6 +12,7 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Payment } from "@/hooks/usePayments";
 import { useCustomerPaymentRecord } from "./useCustomerPaymentRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const fmt = (v?: string | null) => { if (!v) return "—"; try { return format(new Date(v), "PP"); } catch { return v; } };
 const methodLabel = (m?: string) => (m ?? "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -91,6 +92,7 @@ export function CustomerPaymentPeekSheet({ paymentId, onOpenChange }: Props) {
               { id: "created", at: fmt(record.created_at), actor: "System", title: `Payment received` },
             ]} />
           </Section>
+          <DocumentVersionsSection documentType="receipt" documentId={paymentId} />
         </div>
       )}
     </DocumentPeekShell>

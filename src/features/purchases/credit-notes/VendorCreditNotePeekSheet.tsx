@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useVendorCreditNoteRecord } from "./useVendorCreditNoteRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 
 const TONE: Record<
@@ -217,6 +218,7 @@ export function VendorCreditNotePeekSheet({ creditNoteId, onOpenChange }: Props)
               ]}
             />
           </Section>
+          <DocumentVersionsSection documentType="vendor_credit_note" documentId={creditNoteId} />
         </div>
       )}
     </DocumentPeekShell>

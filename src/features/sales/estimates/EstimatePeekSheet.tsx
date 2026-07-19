@@ -17,6 +17,7 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Estimate } from "@/hooks/useEstimates";
 import { useEstimateRecord } from "./useEstimateRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 type Status = Estimate["status"];
 const TONE: Record<Status, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
@@ -113,6 +114,7 @@ export function EstimatePeekSheet({ estimateId, onOpenChange }: Props) {
               ...(record.converted_at ? [{ id: "converted", at: fmt(record.converted_at), title: "Converted to invoice", tone: "success" as const }] : []),
             ]} />
           </Section>
+          <DocumentVersionsSection documentType="estimate" documentId={estimateId} />
         </div>
       )}
     </DocumentPeekShell>

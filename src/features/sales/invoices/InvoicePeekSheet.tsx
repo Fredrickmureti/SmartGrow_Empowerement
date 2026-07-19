@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Invoice } from "@/hooks/useInvoices";
 import { useInvoiceRecord } from "./useInvoiceRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 type InvoiceStatus = Invoice["status"];
 
@@ -269,6 +270,7 @@ export function InvoicePeekSheet({ invoiceId, onOpenChange }: InvoicePeekSheetPr
               ]}
             />
           </Section>
+          <DocumentVersionsSection documentType="invoice" documentId={invoiceId} />
         </div>
       )}
     </DetailSheet>
