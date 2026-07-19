@@ -1,81 +1,223 @@
-## The honest answer
 
-Yes — what Enerpize does is the correct industry pattern, and our current flow conflates two things that must stay separate:
+# Thermal Receipt Rendering — Architecture Audit & Redesign Plan
 
-1. **The visual receipt** the cashier looks at on screen (an in-app card).
-2. **The physical output** that goes to a device (thermal roll, A4 sheet, or a browser Chrome print dialog).
+## 1. What is actually in the code today
 
-We currently drive both from the same server-rendered PDF pipeline, and we force that PDF to a thermal width even when the destination is a desktop browser. That's why we get either "a4 crammed into 80mm" or "a tall receipt with dead space" — we're printing a thermal artifact through a non-thermal transport.
+Tracing a single POS sale from event to paper reveals **five** independent
+renderers that all claim to describe "the receipt", plus a duplicated
+layout engine:
 
-Enerpize's flow you described is doing three separate things:
+| # | Path | Where | Engine | Consumed by |
+|---|------|-------|--------|-------------|
+| 1 | `PreviewRenderer.tsx` | `src/lib/pos/receipt/renderers/` | HTML/JSX + Tailwind, freeform flexbox, QR via `qrcode.react` | `PostPaymentScreen` |
+| 2 | `MonospacePreview.tsx` + `buildReceiptLines.ts` | `src/lib/receipt/preview/` | Shared column engine (`ColumnLayout` + `PrinterProfile`) | `ReceiptPreviewDialog` |
+| 3 | `buildDocumentEscPos()` | `supabase/functions/_shared/escpos/builder.ts` | Same shared column engine (server copy) → ESC/POS bytes | Thermal printer |
+| 4 | `generateDocumentPdf()` | `supabase/functions/_shared/pdfGenerator.ts` (+ `pdf/PdfBuilder`, `pdf/components/*`) | **Coordinate-drawn `pdf-lib`** — the A4 invoice pipeline, forced onto 58/80/40 mm | The "PDF receipt" the user is complaining about |
+| 5 | `CustomerDisplayRenderer.ts` | `src/lib/pos/receipt/renderers/` | Bespoke text sink | Customer-facing display |
 
-- **On-screen preview** = a styled HTML "receipt card" (not a PDF). That's the 80mm-looking panel with Cancel / Clone / Print. It is pure presentation, always looks crisp, and never depends on paper size.
-- **Print action, no thermal bound** = open Chrome's native print dialog on an **A4/Letter invoice document** (a full-page invoice, not the 80mm receipt). The receipt shape is meant for a roll; a sheet printer gets a sheet-shaped invoice.
-- **Print action, thermal bound** = send ESC/POS bytes straight to the roll printer, no dialog, no PDF.
+The layout engine itself (`ColumnLayout.ts`, `PrinterProfile.ts`) is
+**physically duplicated** between `src/lib/receipt/engine/` and
+`supabase/functions/_shared/receipt/engine/`. `ColumnLayout.ts` is
+byte-identical, `PrinterProfile.ts` has already drifted.
 
-The paper size is a property of the **target device**, not of the document. We've been treating "receipt" as a fixed 80mm artifact and then trying to make every transport render it, which is what makes the output look amateurish.
+## 2. Why the PDF looks worse than the preview
 
-## Target behaviour
+The on-screen previews (#1, #2) and the ESC/POS bytes (#3) either use the
+shared column engine directly or an HTML analog of it. The PDF path (#4)
+does **not**. It reuses the A4 invoice components (`drawBrandedHeader`,
+`drawDocumentMeta`, `drawLineItemsTable`, `drawTotalsBlock`,
+`drawNotesBlock`, `BrandedFooter` …) which:
 
-At the end of a POS sale, regardless of hardware state, we show the same in-app HTML **Receipt Card** panel (slide-down, styled like a real 80mm receipt, Cancel / Clone / Print). This panel is HTML only — no iframe, no PDF, no Chrome chrome — so it is always visually clean and identical on every screen.
+- draw text at absolute `(x, y)` coordinates in `pdf-lib` units;
+- were designed for a 595 pt (A4) canvas and only branch on a `density`
+  flag when the page is ≤ 90 mm wide;
+- share margins, gutters, column widths and line-heights across every
+  document type — no per-paper measurement, no per-section owner, no
+  wrap-aware column solver;
+- lay out separators, meta blocks and totals independently of the item
+  table, so any change in one block silently overlaps another on the
+  narrow page.
 
-The **Print** button then routes by resolved policy + bound hardware:
+The failure modes the user reports (text collisions, separators through
+content, uneven spacing, unstable flow) are the deterministic consequence
+of running a coordinate-based A4 renderer on a 48-column continuous
+strip. They cannot be "styled out"; they must be reproduced from the
+same source of truth that produced the preview and the ESC/POS bytes.
 
-| Bound receipt device        | What Print does                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------- |
-| Thermal 80/58/40mm printer  | Send ESC/POS bytes to the printer. No dialog. (unchanged)                       |
-| A4/Letter printer (or none) | Open Chrome's native print dialog on a **full-page invoice PDF** (A4/Letter).   |
-| User chose "Save as PDF"    | Download the A4/Letter invoice PDF.                                             |
+## 3. First-principles ownership (target model)
 
-Key rule: **we never send a thermal-shaped document to a sheet transport, and we never send a sheet-shaped document to a thermal transport.** The receipt-card HTML panel exists so the cashier always has a nice visual confirmation, decoupled from whichever transport actually runs.
+An enterprise ERP owns the receipt in exactly five layers, and every
+render surface reads from the layer above it. **No layer skips down and
+no layer is duplicated.**
 
-## What changes in the code
+```text
+Business event  (POS sale, refund, payment, void)
+      │
+      ▼
+Receipt DOCUMENT MODEL           <-- domain snapshot (already exists: ReceiptDocumentModel)
+      │
+      ▼
+Receipt LAYOUT DEFINITION        <-- declarative sections + column specs
+      │  (single registry keyed by document type + paper width)
+      ▼
+Flow LAYOUT ENGINE               <-- solves widths, wraps, measures, paginates
+      │  (single: PrinterProfile + ColumnLayout + section runtime)
+      ▼
+Render TARGETS (thin adapters)
+   ├─ ESC/POS bytes         (thermal printer)
+   ├─ Monospace strip       (on-screen WYSIWYG preview)
+   ├─ Thermal PDF           (email/download/archive, driven from the SAME rows)
+   ├─ Customer display      (VFD/second screen)
+   └─ Kitchen ticket        (already parallel — same engine)
+```
 
-Presentation-only work; the PDF and ESC/POS renderers built in T1–T5 stay as they are.
+Ownership rules:
 
-### 1. New in-app Receipt Card component
+- **Document model** owns identity, totals, tender, flags, snapshot
+  linkage.
+- **Layout definition** owns *what appears and in what order* — header,
+  identity block, meta, cashier, customer, item table columns,
+  discounts, taxes, totals, payments, change, eTIMS block, footer,
+  legal. Paper width and font are inputs; the definition selects a
+  layout variant from a registry.
+- **Layout engine** owns typography, line-height, column solving, word
+  wrap, separator placement, section spacing, page break / cut logic.
+  Nothing above it deals with points, columns, or characters.
+- **Render targets** own only the mapping from a laid-out row to their
+  medium (ESC/POS byte, DOM node, PDF `drawText`, ZPL command).
+- **Printer profile** owns paper width × font × margins × capabilities.
+  It is the only thing that knows a physical printer.
 
-`src/components/pos/ReceiptCardPanel.tsx` — a pure HTML/Tailwind component that renders the sale using the existing `ReceiptDocumentModel` (already used by `PreviewRenderer`). Fixed narrow width (~360px), monospace body font, dashed dividers, org header, items table, totals block, payment lines, footer notes — the same look as the screenshot. No iframe, no PDF blob. Cancel / Clone / Print buttons in a sticky footer bar.
+This is the same partition Odoo (report engine → paperformat →
+receipt template → printer), NetSuite (advanced PDF/HTML with paper
+profiles) and Square (declarative "receipt spec" → three renderers)
+converge on. We infer, not copy.
 
-Replace the current PDF-iframe body of `src/components/pos/ReceiptPreviewDialog.tsx` with this card. The dialog stays; only its body changes.
+## 4. Concrete redesign
 
-### 2. Split "receipt" from "invoice" at the transport boundary
+### 4.1 Consolidate the engine
+- Delete the duplicated `src/lib/receipt/engine/*` copy. Serve the
+  engine from **one** location (browser + Deno-safe) — the shared
+  `_shared/receipt/engine/` becomes canonical and is imported by both
+  the edge function and the browser via a thin re-export module.
+  `ColumnLayout` and `PrinterProfile` become single-source.
+- Add a `SectionRuntime` layer on top of `ColumnLayout` that owns:
+  vertical rhythm (line-height in engine units, not px/pt), section
+  gaps, rule/separator drawing rules, and continuation-row alignment.
+  Coordinates disappear from every caller above this line.
 
-In `src/services/printing/PrintClient.ts`, the `receipt` intent currently always resolves to `escpos` and falls through to a PDF that was rendered at thermal width. Change the resolver so:
+### 4.2 Promote a single Receipt Layout Registry
+- Move `_shared/receipt/layouts/` and `src/lib/receipt/layouts/` into
+  one authored registry keyed by `(document_type, paper_width)` with
+  named variants (`pos_receipt.compact_80`, `pos_receipt.compact_58`,
+  `pos_receipt.narrow_40`, `kitchen_ticket.default_80`, …).
+- Each layout is declarative: an ordered list of sections
+  (`Header`, `Identity`, `Meta`, `Items`, `Discounts`, `Taxes`,
+  `Totals`, `Payments`, `Change`, `Fiscal`, `Footer`, `Legal`) plus a
+  `ColumnSpec` for the items table. No layout contains rendering code.
+- `pickFittingLayout()` (already scaffolded) becomes the only chooser;
+  `buildDocumentEscPos`, the monospace preview builder, the PDF
+  renderer and the customer display all call it.
 
-- `intent: 'receipt'` + a bound thermal device → ESC/POS (unchanged).
-- `intent: 'receipt'` + no thermal device (or policy resolves to `pdf` on a sheet profile) → render `documentType: 'pos_invoice'` (full A4/Letter invoice layout), not `pos_receipt` at 80mm. Route through `printPdfInPage(blob)` so Chrome's native print dialog opens on an A4 page — exactly the Enerpize behaviour you saw.
+### 4.3 Rebuild the "thermal PDF" on the same rows
+- The thermal PDF path stops calling `generateDocumentPdf` /
+  `drawBrandedHeader` / `drawLineItemsTable` entirely.
+- New `renderThermalPdf(layoutRows, profile)` walks the exact same
+  `LineMeta[]` produced for the monospace preview and the ESC/POS
+  byte stream, and emits each row into a `pdf-lib` page whose width =
+  paper width and whose height = measured content height (continuous
+  media, already supported by `PdfBuilder`).
+- Font: a single embedded monospace TTF (thermal-appropriate metrics).
+  Every measurement flows from the engine, not from `pdf-lib`.
+- Result: a PDF that is a pixel-faithful facsimile of the preview and
+  of the printer output. Separator collisions, uneven rhythm, unstable
+  flow become **structurally impossible** because there is no
+  coordinate math outside the engine.
+- `generateDocumentPdf` remains the owner of A4/Letter/A5 documents
+  (invoices, POs, statements). It is no longer routed for thermal
+  widths; the coercer in `coercePaperRenderMode` is updated so any
+  thermal paper × PDF combination lands in `renderThermalPdf`.
 
-The `pos_invoice` document type already exists as a first-class sheet template in `supabase/functions/_shared/pdf`; we just weren't selecting it on the no-thermal path.
+### 4.4 Retire the divergent HTML preview
+- `PostPaymentScreen` migrates from `PreviewRenderer` (HTML/JSX
+  free-flow) to `MonospacePreview` (engine-driven). QR / logo become
+  engine-level `qr` / `image` row types rendered as SVG in the DOM
+  target and as native ESC/POS commands in the printer target.
+- `PreviewRenderer.tsx` is deleted after migration.
 
-### 3. Wire the Print button in the new card
+### 4.5 Information architecture (what customers see)
+The layout registry codifies the following hierarchy per paper width,
+tuned by the engine's rhythm rules, not by ad-hoc spacing:
 
-`ReceiptCardPanel`'s Print button calls `printClient.print({ intent: 'receipt', businessId, branchId, documentType: 'pos_receipt', documentId })`. `PrintClient` picks the right document type + transport per the table above. Cancel just closes the dialog. Clone re-opens the POS session pre-filled from `TransactionSummaryView`'s existing clone hook.
+1. Business identity (logo, legal name, address, tax id)
+2. Document identity (title, number, timestamp)
+3. Transaction metadata (cashier, register, customer)
+4. Items table (product, qty × unit, line total; wraps into
+   continuation rows aligned to the totals column)
+5. Discounts / taxes (only when present, engine hides empty sections)
+6. Totals (subtotal → discount → tax → **TOTAL** emphasised)
+7. Tender / change
+8. Fiscal / eTIMS block + QR
+9. Footer text, return policy, legal
+10. Cut marker (physical) or dashed rule (preview/PDF)
 
-### 4. Kill the "tall PDF" fallback path
+### 4.6 Cross-module consistency
+- POS receipt, Sales receipt, Kitchen ticket, Payment receipt (AR),
+  Vendor payment receipt: all switch to the same registry. Only their
+  `document_type → layout variant` mapping differs; the pipeline is
+  one.
+- Architecture test extended: forbid any new `drawText` /
+  coordinate-drawn PDF component from being called with a paper width
+  ≤ 90 mm. Forbid any new preview component that does not consume
+  `LineMeta[]` from the shared engine.
 
-Remove the `SafePdfViewer`/iframe usage inside `ReceiptPreviewDialog`. The PDF now only ever exists at the moment of printing — never as an on-screen artifact. This makes the "long ass space at the bottom" impossible by construction, because nothing renders a thermal PDF to the screen anymore.
+## 5. Delivery plan (implementation order)
 
-### 5. Guardrail test
+1. **Freeze single engine** — collapse `src/lib/receipt/engine/*` into
+   the shared package (re-export shim); reconcile drifted
+   `PrinterProfile`. Extend engine with `SectionRuntime` (rhythm,
+   separators, section gaps).
+2. **Layout registry unification** — merge client + server layouts
+   into one registry; add explicit `pos_receipt.{40,58,80}` variants
+   with authored column specs.
+3. **`renderThermalPdf`** — new module in
+   `supabase/functions/_shared/receipt/pdf/`, driven by `LineMeta[]`.
+   Wire it into `generate-document` for every thermal-width PDF
+   request; route A4/Letter/A5 unchanged through `generateDocumentPdf`.
+4. **Preview convergence** — replace `PreviewRenderer` usage in
+   `PostPaymentScreen` with `MonospacePreview`; remove
+   `PreviewRenderer.tsx`.
+5. **Guard rails** — architecture tests (a) forbid coordinate PDF
+   components at ≤ 90 mm, (b) forbid non-engine preview components,
+   (c) forbid re-introducing a second engine copy.
+6. **Golden tests per width** — 40 / 58 / 80 mm goldens for both the
+   monospace preview and the new thermal PDF (screenshot the PDF,
+   compare byte-stable text extraction), plus the existing ESC/POS
+   goldens. Same fixture drives all three targets.
+7. **Cleanup** — remove dead A4 branches from the thermal path
+   (density switches in `PdfBuilder`, thermal-only margin overrides in
+   `BrandedHeader`/`DataTable`/`NotesBlock`).
 
-Add `src/test/pos/receipt-transport-shape.test.ts`:
+## 6. Non-goals (explicitly out of scope)
 
-- Thermal bound → `PrintClient` requests `pos_receipt` (thermal).
-- No thermal bound → `PrintClient` requests `pos_invoice` (A4/Letter).
-- On-screen preview never instantiates a PDF blob.
+- Redesigning the visual look-and-feel of any specific receipt beyond
+  what deterministic rhythm and column solving produce.
+- Migrating A4 invoices/POs/statements off `generateDocumentPdf` —
+  that pipeline is correct for its medium and stays.
+- Changing fiscal (eTIMS) semantics, receipt titles, or the
+  snapshot / reprint contract — those live in the document model and
+  are already correct.
+- Kitchen ticket byte format (already engine-driven; only benefits
+  from the unified registry).
 
-## Out of scope
+## 7. Success criteria
 
-- No changes to ESC/POS byte generation or the T1–T5 continuous-paper work.
-- No changes to statutory documents (they stay sheet-locked).
-- No new server-side templates — `pos_invoice` already exists.
-
-## Files touched
-
-- `src/components/pos/ReceiptPreviewDialog.tsx` (body swap)
-- `src/components/pos/ReceiptCardPanel.tsx` (new)
-- `src/services/printing/PrintClient.ts` (intent → documentType branching on hardware state)
-- `src/test/pos/receipt-transport-shape.test.ts` (new)
-- `docs/audit/2026-05-11-printing-architecture.md` (Section 11: "Receipt card vs. transport artifact")
-
-Ready to implement on approval.
+- Exactly **one** module builds `LineMeta[]` for a given
+  `(ReceiptDocumentModel, PrinterProfile)`.
+- Exactly **one** engine solves columns, wraps and paginates.
+- Preview, PDF, ESC/POS bytes and customer display all diff-match on
+  the fixture set at 40 / 58 / 80 mm.
+- No `pdf-lib` `drawText` call is reachable from a thermal-width
+  render.
+- Removing a section from the layout definition removes it
+  simultaneously from preview, PDF and printer.
