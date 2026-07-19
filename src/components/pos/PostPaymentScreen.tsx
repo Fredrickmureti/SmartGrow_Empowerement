@@ -255,7 +255,7 @@ export function PostPaymentScreen({
     if (!model) return;
     setIsSavingPdf(true);
     try {
-      const blob = await renderReceiptPdf(model);
+      const blob = await printClient.renderReceiptPdfBlob(model.meta.transaction_id);
       downloadPdfBlob(blob, `receipt-${model.meta.transaction_number}.pdf`);
       toast({ title: "Receipt saved", description: "PDF downloaded" });
     } catch (err) {
