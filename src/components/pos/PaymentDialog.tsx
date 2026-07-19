@@ -175,7 +175,7 @@ export function PaymentDialog({
 
   // Server-authoritative payment session. This is the ONLY source of
   // truth for tenders and their totals inside the dialog — no local
-  // useState<PaymentDialogPayment[]>, no `.reduce` over payments. The
+  // truth for tenders and their totals inside the dialog — no local
   // architecture guard `no-client-payment-math` blocks that pattern.
   const session = usePaymentSession({
     registerId: sessionContext.registerId,
