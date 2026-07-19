@@ -70,7 +70,11 @@ describe("Accounting Posting Engine — B6 architectural surface", () => {
       "src/services/events/BusinessSaga.ts",
       "src/services/events/domainEventBus.ts",
     ]);
-    const files = rgFiles("business_event_outbox", "src");
+    // Only match actual PostgREST reads, not comments/documentation.
+    const files = rgFiles(
+      "\\.from\\(['\"\\`]business_event_outbox(_dead)?['\"\\`]\\)",
+      "src",
+    );
     const offenders = files.filter((f) => {
       if (f.startsWith("src/test/")) return false;
       if (f.startsWith("src/__tests__/")) return false;
