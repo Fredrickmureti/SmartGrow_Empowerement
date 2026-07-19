@@ -1,11 +1,23 @@
+# Wave 3 · Phase 3 — Retail commit path on the payment-session lifecycle  ✅ COMPLETE
+
+> **Status:** the online retail commit now runs through `openSession → recordTender × N → commitSession`. The direct `supabase.rpc("process_pos_transaction")` call is gone from `usePOSTransactionOffline.ts`; the session RPC forwards to it on the server. Restaurant mode (`finalize_table_order`) and offline replay stay on the legacy path — those move in Phase 4.
+>
+> **Landed artefacts (Phase 3)**
+> - Migration (Phase 3.a): `pos_payment_session_commit` now returns `jsonb` — the full `process_pos_transaction` envelope augmented with `session_id`. Business failures from `process_pos_transaction` (`insufficient_stock`, `no_payments`, …) bubble as an exception so the outer transaction rolls back and the session isn't marked `committed`. Replays via the apply-log return the cached envelope of the first successful commit verbatim.
+> - Migration (Phase 3.b): commit RPC's tender materialisation now promotes `card_last_four`, `card_type`, `authorized_amount`, and the M-Pesa receipt number from the tender's `driver_payload` up to top-level fields so `_pos_record_payment` inserts them onto the row (card FSM guard sees the same shape as the legacy path).
+> - `src/lib/pos/paymentSessionClient.ts` — `commitSession` return type is now `CommitSessionResult` (typed envelope with `transaction_id`, `transaction_number`, `change`, `branch_id`, `session_id`, totals, `idempotent_replay`).
+> - `src/hooks/pos/usePOSTransactionOffline.ts` — `processOnlineTransaction` rewritten to drive the three-stage session flow. Per-tender idempotency keys are derived from the register/shift commit key (`${key}:tender:${i}`), so retries at every stage collapse server-side. Card metadata is carried through `driver_payload`.
+> - Updated `paymentSessionClient.test.ts` to assert the new envelope shape.
+>
+> **Guard status:** all 18 tests across `paymentSessionClient`, `pos-payment-session-lifecycle`, and `posScopeContaminationGuard` are green. The architecture guard now has a real second caller (the retail commit hook) proving the wrapper is the only route to the RPCs.
+>
+> **Explicitly out of scope in Phase 3** — Restaurant/table-order commit (`finalize_table_order`), offline replay via `TransactionQueue.processQueuedTransaction`, `PaymentDialog` state migration (still local `useState`, still works). Those are Phase 4.
+
+---
+
 # Wave 3 · Phase 2 — `paymentSessionClient` wrapper  ✅ COMPLETE
 
-> **Status:** the typed client wrapper is landed and covered by 13 contract tests + the pre-existing architecture guard. The five session RPCs now have a single, guarded entry point from application code — every future client caller (PaymentDialog migration, offline replay, etc.) is forced through it by `src/test/architecture/pos-payment-session-lifecycle.test.ts`. Next up: Phase 3 (migrate `PaymentDialog` + retail commit path onto the session lifecycle; retire the legacy `useState`-array + direct `process_pos_transaction` call).
->
-> **Landed artefacts (Phase 2)**
-> - `src/lib/pos/paymentSessionClient.ts` — typed wrappers for `openSession` / `recordTender` / `reverseTender` / `commitSession` / `cancelSession`, plus `newIdempotencyKey` and a `POSPaymentSessionError` class carrying `{ rpc, code, hint, details }`. Refuses empty idempotency keys client-side so a mis-wired caller can't collapse the server's dedupe guard.
-> - `src/lib/pos/__tests__/paymentSessionClient.test.ts` — 13 tests pinning the RPC wire format (arg names, defaults, error surface, namespaced-vs-named exports).
-> - Architecture guard (`pos-payment-session-lifecycle.test.ts`) unchanged but now has a real allow-listed file to point to; any future `supabase.rpc("pos_payment_session_*")` outside the wrapper fails the build.
+
 
 ---
 
