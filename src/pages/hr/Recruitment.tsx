@@ -207,6 +207,9 @@ function RequisitionPipeline({ requisition }: { requisition: JobRequisition }) {
                         )}
                       </>
                     )}
+                    {stage === "offer" && (
+                      <OfferActions application={a} candidateName={c?.full_name ?? "Candidate"} />
+                    )}
                     {stage === "hired" && a.converted_employee_id && (
                       <Badge variant="secondary" className="text-xs">Employee created</Badge>
                     )}
@@ -217,6 +220,9 @@ function RequisitionPipeline({ requisition }: { requisition: JobRequisition }) {
           </CardContent>
         </Card>
       ))}
+
+      <PipelinePrintDialogMount />
+
 
       <WorkflowSheet
         open={!!hireOpen}
