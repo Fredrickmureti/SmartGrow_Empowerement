@@ -137,7 +137,9 @@ Deno.test("CP858 encoding: € becomes single byte 0xD5, ellipsis becomes '.'", 
   );
   // € → 0xD5
   assert(Array.from(bytes).includes(0xd5), "€ maps to CP858 0xD5");
-  // … → '.' (0x2E), no 0x85 (unmapped ellipsis) leakage
+  // … → '.' (0x2E). "€ 10.00" contributes one dot, "long…" contributes one.
   const dotCount = bytes.filter((b) => b === 0x2e).length;
-  assert(dotCount >= 3, "ellipsis transliterates to single '.'");
+  assertEquals(dotCount, 2, "ellipsis transliterates to a single '.' byte");
+  // And the raw UTF-8 lead byte 0xE2 (…) never leaks through.
+  assert(!Array.from(bytes).includes(0xe2), "no stray UTF-8 lead bytes");
 });
