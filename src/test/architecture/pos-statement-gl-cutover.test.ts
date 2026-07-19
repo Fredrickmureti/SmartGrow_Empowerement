@@ -82,13 +82,16 @@ describe("POS statement-centric GL posting — S5 architectural surface", () => 
     expect(sql).toMatch(/'pos\.statement\.posting\.requested'[\s\S]{0,300}'server'/);
   });
 
-  it("outbox dispatcher wires the statement-posting handler", () => {
+  it("outbox dispatcher routes POS statement posting through the single Accounting Posting Engine (B6)", () => {
     const dispatcher = readFileSync(
       "supabase/functions/outbox-dispatcher/index.ts",
       "utf8",
     );
     expect(dispatcher).toMatch(/handlePosStatementPostingRequested/);
     expect(dispatcher).toMatch(/"pos\.statement\.posting\.requested"/);
-    expect(dispatcher).toMatch(/post_pos_statement_gl/);
+    // B6: dispatcher must NOT call producer-specific writers; only the
+    // engine + typed AccountingPostingResult.
+    expect(dispatcher).toMatch(/accounting_post_event/);
+    expect(dispatcher).not.toMatch(/post_pos_statement_gl/);
   });
 });
