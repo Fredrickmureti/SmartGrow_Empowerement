@@ -42,9 +42,13 @@ Resume at **S2**. Each step ships as one migration + one code PR + one architect
 - Historical shifts backfilled as `posting_status='historical'` so S5's GL job skips them.
 - Guarded by `src/test/architecture/pos-statements-schema.test.ts`.
 
-### S4 — Holding accounts
-- New default account roles: `cash_in_drawer`, `merchant_clearing_<processor>`, `mobile_money_clearing_<provider>`, `cash_over_short`, `tip_liability`, `rounding_gain_loss`.
-- Business feature flag `use_holding_accounts`. Redirected mappings applied only when flag is on; validation script surfaces which orgs are ready.
+### S4 — Holding accounts ✅ COMPLETE
+- Feature flag `businesses.use_holding_accounts` (default `false` — enterprise-grade opt-in per business after finance sign-off).
+- Four new roles in `system_account_roles`: `cash_in_drawer`, `merchant_card_clearing`, `mobile_money_clearing`, `tip_liability`. Single generic `merchant_card_clearing` role (not per-processor) — provider dimension is carried by the mapping table below, matching SAP POS DM / D365 Commerce sub-ledger pattern.
+- New table `pos_tender_holding_account_map(business_id, branch_id, tender_kind, provider_key, role_key, account_id)` — RLS-locked, admin-only writes, unique index on the (business, branch, tender, provider, role) tuple. Lets one tender_kind (`wallet`) settle to different clearing accounts per provider (M-Pesa vs MoMo).
+- Resolver `resolve_pos_tender_gl_account(business_id, branch_id, tender_kind, provider_key, payment_method_id)` — SECURITY DEFINER, STABLE, `search_path = public`. When flag off returns `pos_payment_methods.debit_account_id` (backward compatibility contract). When on: map → default_accounts → legacy fallback. Never returns NULL when legacy mapping exists.
+- Readiness view `v_pos_holding_account_readiness` — surfaces `is_ready` + `missing_roles` per business so finance can decide when to flip the flag.
+- Guarded by `src/test/architecture/pos-holding-accounts-schema.test.ts` (6 tests, passing). No live posting behavior changes yet — S5 wires the resolver into the GL cutover.
 
 ### S5 — GL cutover
 - New RPC `post_pos_statement_gl(statement_id, p_idempotency_key)` — sole finance write path from POS.
