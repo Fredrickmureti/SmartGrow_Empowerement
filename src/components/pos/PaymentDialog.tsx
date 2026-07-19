@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,17 +7,17 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link as RouterLink } from "react-router-dom";
-import { 
-  Banknote, 
-  CreditCard, 
-  Smartphone, 
+import {
+  Banknote,
+  CreditCard,
+  Smartphone,
   Building,
   FileText,
   Wallet,
-  Plus, 
+  Plus,
   Trash2,
   CheckCircle,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePOSSettings } from "@/hooks/pos/usePOSSettings";
@@ -29,26 +29,54 @@ import { MpesaC2BLookupModal } from "./MpesaC2BLookupModal";
 import { CardPaymentModal, type CardAuthPayload } from "./CardPaymentModal";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
+import {
+  usePaymentSession,
+  type PaymentSessionTenderRow,
+} from "@/hooks/pos/usePaymentSession";
+import type {
+  PosTenderKind,
+  PosSessionTenderInput,
+} from "@/lib/pos/paymentSessionClient";
 
 
+/**
+ * Shape returned to the parent at commit. Mirrors the historical
+ * external contract of this dialog — the internal source of truth is
+ * `pos_payment_session_tenders` fetched via `usePaymentSession`.
+ */
 export interface PaymentDialogPayment {
   method: string;
-  /** Amount applied to the invoice (<= tendered_amount). */
   amount: number;
-  /** What the customer presented; for non-cash equals `amount`. */
   tendered_amount?: number;
-  /** Cash change due to the customer; 0 for non-cash. */
   change_given?: number;
   reference?: string;
-  // Wave 2 · Phase C-2 — card FSM metadata captured by CardPaymentModal.
-  // Persisted at commit-time by `_pos_record_payment` so the row starts
-  // in a legal FSM state (approved | captured) with vendor auth trail.
   auth_state?: "approved" | "captured";
   auth_id?: string;
   vendor_txn_id?: string;
   authorized_amount?: number;
   card_last_four?: string;
   card_type?: string;
+}
+
+
+/**
+ * Context required to open (or rehydrate) the payment session that
+ * backs this dialog. Retail passes `useCommitKey.get(register, shift)`
+ * as the idempotency key; restaurant passes `cart.transactionId` (the
+ * draft id) so the commit RPC forwards to `finalize_table_order`.
+ */
+export interface PaymentSessionContext {
+  registerId: string;
+  shiftId: string;
+  cashierId?: string | null;
+  /**
+   * Stable idempotency key for the session. The same value MUST be
+   * reused on retries and mid-payment refreshes so the DB session
+   * collapses to a single row.
+   */
+  idempotencyKey: string;
+  /** Currency of the sale — passed through to `pos_payment_session_open`. */
+  currency?: string;
 }
 
 
@@ -61,7 +89,13 @@ interface PaymentDialogProps {
   onTipChange?: (tip: number) => void;
   splitPortionLabel?: string;
   hasCustomer?: boolean;
-  registerPaymentMethods?: string[] | null; // from pos_registers.default_payment_methods
+  registerPaymentMethods?: string[] | null;
+  /**
+   * Required — identifies the payment session. Without this the dialog
+   * cannot record tenders and would silently fall back to client-only
+   * math (Wave 3 · Phase 4.c-follow).
+   */
+  sessionContext: PaymentSessionContext;
   onComplete: (payments: PaymentDialogPayment[]) => void;
 }
 
