@@ -104,9 +104,13 @@ export interface UsePaymentSession {
   tenders: PaymentSessionTenderRow[];
   /** Sum of active tender amounts as reported by the server. */
   allocated: number;
+  /** Sum of active tender `tendered_amount` (defaults to `amount`) — server-derived. */
+  totalTendered: number;
+  /** Sum of active tender `change_given` — server-derived. */
+  totalChange: number;
   /** grandTotal - allocated, clamped >= 0. Derived from server values only. */
   remaining: number;
-  /** Change due, only meaningful after a commit. */
+  /** Change due for display: totalChange when >0 else max(totalTendered - grandTotal, 0). */
   change: number;
   error: Error | null;
   /**
