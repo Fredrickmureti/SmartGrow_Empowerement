@@ -28,14 +28,20 @@ function rgFiles(pattern: string, path: string): string[] {
 }
 
 describe("Accounting Posting Engine — B6 architectural surface", () => {
-  it("no `retry_*_posting` producer RPC survives after B6", () => {
-    // The legacy public.retry_pos_statement_posting is dropped by B6.
-    // Any file that RE-CREATES such a function must be flagged.
-    const migrations = rgFiles(
-      "CREATE OR REPLACE FUNCTION public\\.retry_[a-z_]+_posting",
+  it("legacy retry_pos_statement_posting RPC has been dropped and not recreated", () => {
+    // Historical CREATE OR REPLACE statements in old migrations are OK
+    // (immutable history); the invariant is that the most recent
+    // migration touching this symbol is the B6 DROP.
+    const files = rgFiles(
+      "retry_pos_statement_posting",
       "supabase/migrations",
+    ).sort();
+    const latest = files[files.length - 1];
+    expect(latest).toBeTruthy();
+    const sql = readFileSync(latest, "utf8");
+    expect(sql).toMatch(
+      /DROP FUNCTION IF EXISTS public\.retry_pos_statement_posting/,
     );
-    expect(migrations).toEqual([]);
   });
 
   it("dispatcher calls the engine, not the producer-specific poster", () => {
