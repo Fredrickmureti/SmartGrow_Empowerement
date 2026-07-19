@@ -183,6 +183,17 @@ export function usePOSTransactionOffline() {
       } else {
         toast.success(`Sale completed: ${result.transactionNumber}`);
       }
+
+      // S2 — advisory: if the client's cart math diverged from the server
+      // aggregate, log it. The server row + receipt are always authoritative
+      // (see `_pos_write_receipt_snapshot`); this is diagnostics only.
+      if (!result.isOffline && result.totalMatchesServer === false) {
+        console.warn("[pos] client cart total diverged from server", {
+          transactionId: result.transaction.id,
+          serverTotals: result.serverTotals,
+          clientTotal: data.cart.total,
+        });
+      }
     },
     onError: (error: Error) => {
       toast.error(`Transaction failed: ${normalizeError(error).message}`);
