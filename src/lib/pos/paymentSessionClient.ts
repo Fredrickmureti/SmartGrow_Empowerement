@@ -85,6 +85,10 @@ export interface OpenSessionArgs {
   idempotencyKey: string;
   tipAmount?: number;
   cashierId?: string | null;
+  /** Wave 3 · Phase 4.d — frozen at session-open, immutable after. */
+  fxRate?: number;
+  settlementCurrency?: string | null;
+  tipPolicy?: string | null;
 }
 
 export interface RecordTenderArgs {
