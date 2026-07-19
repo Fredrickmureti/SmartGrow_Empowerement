@@ -524,6 +524,15 @@ export function ReceiptPreviewDialog({
               Email
             </Button>
           )}
+          {onClone && (
+            <Button
+              variant="secondary"
+              className="flex-1 h-10 sm:h-9 text-sm"
+              onClick={() => { onClone(); onOpenChange(false); }}
+            >
+              Clone
+            </Button>
+          )}
           <Button className="flex-1 h-10 sm:h-9 text-sm" onClick={() => onOpenChange(false)}>
             Done
           </Button>
