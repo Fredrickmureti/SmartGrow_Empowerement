@@ -338,15 +338,25 @@ export async function generateDocumentPdf(
 
   builder.newPage();
 
-  // Document meta on the right (under masthead, before bill-to)
+  // Document meta. On wide paper (A4/Letter) the meta is right-aligned and
+  // the recipient renders alongside it on the left. On narrow thermal paper
+  // there is no horizontal room for two columns, so the meta stacks
+  // full-width and the recipient flows beneath it.
+  const narrowLayout = builder.state.density === "narrow";
   const metaTopY = builder.y;
   drawDocumentMeta(builder, data, customFields);
-  // Reset y to meta top so the bill-to renders at the same vertical position
-  // on the LEFT (the meta only consumed the right column).
-  builder.y = metaTopY;
+  if (!narrowLayout) {
+    // Reset y to meta top so the bill-to renders at the same vertical position
+    // on the LEFT (the meta only consumed the right column).
+    builder.y = metaTopY;
+  }
 
-  // Recipient (bill-to) on the left
-  drawSalesRecipient(builder, billToLabel, data.contact, customFields);
+  // Recipient (bill-to). Skipped on narrow paper when the contact is empty
+  // (walk-in POS sales) — printing "Customer:" with no body wastes rows.
+  const hasRecipient = !!(data.contact && (data.contact.name || data.contact.company || data.contact.email || data.contact.phone || data.contact.address_line1));
+  if (!narrowLayout || hasRecipient) {
+    drawSalesRecipient(builder, billToLabel, data.contact, customFields);
+  }
 
   // Line items — for customer-payment receipts with allocation rows we
   // render a dedicated "Applied To Invoices" table instead of the generic
