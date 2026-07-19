@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Search,
   ArrowUpDown,
+  Printer,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,8 @@ import {
   type ContractStatus,
 } from "@/hooks/hr/useContracts";
 import { RenewContractDialog } from "./RenewContractDialog";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 
 export interface ContractsListPageProps {
   eyebrow: string;
