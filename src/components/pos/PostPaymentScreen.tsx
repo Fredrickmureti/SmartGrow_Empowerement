@@ -64,11 +64,10 @@ import {
 } from "@/lib/pos/receipt/ReceiptDocumentModel";
 import {
   PreviewRenderer,
-  printThermal,
-  renderReceiptPdf,
   showSuccessOnCustomerDisplay,
   type ReceiptPaperWidth,
 } from "@/lib/pos/receipt/renderers";
+import { printClient } from "@/services/printing/PrintClient";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionSummaryView } from "@/components/pos/TransactionSummaryView";
