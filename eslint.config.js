@@ -64,6 +64,9 @@ export default tseslint.config(
           "no-pdf-lib-in-localization-preview": noPdfLibInLocalizationPreview,
           "no-country-fixture-in-shared-preview": noCountryFixtureInSharedPreview,
           "no-pos-commit-without-idempotency-key": noPosCommitWithoutIdempotencyKey,
+          "no-raw-pdf-lib-in-app": noRawPdfLibInApp,
+          "no-direct-barcode-lib": noDirectBarcodeLib,
+
         },
       },
     },
