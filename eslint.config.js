@@ -24,6 +24,9 @@ import noShellLeakFromMe from "./eslint-rules/no-shell-leak-from-me.js";
 import noPdfLibInLocalizationPreview from "./eslint-rules/no-pdf-lib-in-localization-preview.js";
 import noCountryFixtureInSharedPreview from "./eslint-rules/no-country-fixture-in-shared-preview.js";
 import noPosCommitWithoutIdempotencyKey from "./eslint-rules/no-pos-commit-without-idempotency-key.js";
+import noRawPdfLibInApp from "./eslint-rules/no-raw-pdf-lib-in-app.js";
+import noDirectBarcodeLib from "./eslint-rules/no-direct-barcode-lib.js";
+
 
 
 export default tseslint.config(
@@ -61,6 +64,9 @@ export default tseslint.config(
           "no-pdf-lib-in-localization-preview": noPdfLibInLocalizationPreview,
           "no-country-fixture-in-shared-preview": noCountryFixtureInSharedPreview,
           "no-pos-commit-without-idempotency-key": noPosCommitWithoutIdempotencyKey,
+          "no-raw-pdf-lib-in-app": noRawPdfLibInApp,
+          "no-direct-barcode-lib": noDirectBarcodeLib,
+
         },
       },
     },
@@ -242,4 +248,16 @@ export default tseslint.config(
       "local/no-country-fixture-in-shared-preview": "error",
     },
   },
+  // ADR-0085 — rendering ownership guards. pdf-lib is banned from the
+  // app bundle (server-side _shared/pdf only); raw barcode libs
+  // (bwip-js, qrcode) are banned from app code. qrcode.react remains
+  // allowed for on-screen SVG.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "local/no-raw-pdf-lib-in-app": "error",
+      "local/no-direct-barcode-lib": "error",
+    },
+  },
 );
+

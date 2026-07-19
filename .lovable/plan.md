@@ -123,55 +123,102 @@ Ready to execute B3.2 → B1 Step 3 → B3.4 → Phase 4 → Phase 5 in order on
 | Wave B3.2 — artifact persistence in `generate-document` (PDF + ESC/POS) | ✅ shipped |
 | Wave B1 Step 3 — 12 shadow-path pages migrated to `usePrintOrPreview` | ✅ shipped |
 | Wave B3.4 — `DocumentHistoryPanel` mounted in peek sheets | ✅ shipped |
-| Phase 4 — ADR-0085 + ESLint `no-raw-pdf-lib-in-app` / `no-direct-barcode-lib` | ⏳ pending |
-| Phase 5 — architecture tests mirroring the new ESLint rules | ⏳ pending |
+| Phase 4 — ADR-0085 + ESLint `no-raw-pdf-lib-in-app` / `no-direct-barcode-lib` | ✅ shipped |
+| Phase 5 — architecture tests mirroring the new ESLint rules | ✅ shipped |
 | Wave B3.5 — mount `DocumentVersionsSection` on full record pages | ⏳ pending (peek parity done, record page still to do) |
+| Phase 6 — HR letter renderers + POS receipt demotion + CSV/XLSX export on `generate-document` | ⏳ pending |
 
-**Active phase**: Phase 4 (rendering ownership guards).
+**Active phase**: Wave B3.5 → then Phase 6.
+
+## Execution log — 2026-07-19 (Phase 4 + 5)
+
+- **Phase 4 (rendering ownership guards)**: shipped.
+  - `docs/architecture/decisions/0085-barcode-and-pdf-rendering-ownership.md`
+    codifies: `pdf-lib` may only live under
+    `supabase/functions/_shared/pdf/**` (+ sibling edge functions);
+    `bwip-js` and raw `qrcode` may only live under
+    `supabase/functions/_shared/**` and `electron/**`; `qrcode.react`
+    remains allowed anywhere in `src/**` because it renders on-screen
+    SVG only. Per-line opt-out: `// RENDERER-EXEMPT: <reason>`.
+  - `eslint-rules/no-raw-pdf-lib-in-app.js` — bans static and dynamic
+    `pdf-lib` imports in `src/**`.
+  - `eslint-rules/no-direct-barcode-lib.js` — bans static and dynamic
+    `bwip-js` / raw `qrcode` imports in `src/**`; `qrcode.react` is
+    NOT matched (distinct top-level package name).
+  - Both rules registered in `eslint.config.js` under a new
+    `files: ["src/**/*.{ts,tsx}"]` block at `error` severity.
+- **Phase 5 (architecture tests)**: shipped.
+  - `src/test/architecture/adr-0085-rendering-ownership.test.ts`
+    walks `src/**` and asserts zero `pdf-lib`, `bwip-js`, or raw
+    `qrcode` imports. Excludes itself to avoid regex self-hits.
+    All 3 tests pass on the current codebase — the ban is a
+    forward-guard, no existing offenders.
 
 ## Next agent — verification checklist before writing new code
 
-Before starting Phase 4, VERIFY the current state matches the log above.
-Do not trust the log; re-check each claim against source:
+Before starting the next milestone, VERIFY the current state matches
+the log above. Do not trust the log; re-check each claim against source:
 
-1. `supabase/functions/generate-document/index.ts` — confirm both the
-   ESC/POS branch (~line 2430) and the PDF branch (~line 2495 after the
-   ESC/POS injection) call `persistArtifact` via a dynamic import of
-   `../_shared/documents/persistArtifact.ts`, honour `body.persist !==
-   false`, and expose `X-Document-Artifact-Id` / `-Version` headers for
-   blocking types.
-2. `src/hooks/usePrintOrPreview.ts` — confirm the returned object
-   includes both `printOrPreview` and a `generateDocument(type, id,
-   title, comm?)` alias, and that every `src/pages/*.tsx` in the
-   shadow-path allowlist imports `usePrintOrPreview` (not
-   `useDocumentPrint`). Run `rg "useDocumentPrint" src/pages` — the only
-   allowed hit should be zero. Only `PrintPreviewDialog.tsx` and
-   settings surfaces may still reference `useDocumentPrint`.
-3. `src/components/documents/DocumentVersionsSection.tsx` exists and is
-   imported by all 12 peek sheets under `src/features/sales/**` and
-   `src/features/purchases/**` listed in the log above.
-4. Run `bun run typecheck` (or `tsgo`) and ensure the build is clean
-   before starting Phase 4.
+1. **Phase 4 verification** — run:
+   ```
+   rg -n "from ['\"]pdf-lib" src           # must be empty
+   rg -n "from ['\"]bwip-js" src           # must be empty
+   rg -n "from ['\"]qrcode(/|['\"])" src   # must be empty (qrcode.react is OK)
+   ```
+   Confirm `eslint.config.js` registers `no-raw-pdf-lib-in-app` and
+   `no-direct-barcode-lib` at `error` under the `src/**` block, and
+   that `docs/architecture/decisions/0085-*.md` exists.
+2. **Phase 5 verification** — run
+   `bunx vitest run src/test/architecture/adr-0085-rendering-ownership.test.ts`
+   and expect 3 passing tests.
+3. Re-confirm earlier waves are still healthy:
+   - `rg "useDocumentPrint" src/pages` should only surface
+     `src/pages/pos/POSTerminal.tsx` and `src/pages/pos/POSSettings.tsx`
+     (settings-adjacent surfaces on the ESLint allowlist).
+   - `rg "persistArtifact" supabase/functions/generate-document/index.ts`
+     should show both ESC/POS and PDF branches wired.
+   - `rg "DocumentVersionsSection" src/features` should show 12
+     peek-sheet mounts.
+4. Run `bun run typecheck` (or `tsgo`) — the build must be clean.
 
 ## Next agent — resume from here
 
-Once verification passes, resume with **Phase 4**:
+Once verification passes, resume with **Wave B3.5** (record-page
+parity for the version history section):
 
-1. Write ADR-0085 "Barcode rendering ownership" under `docs/adr/`
-   documenting that only `src/services/barcode/*` may import `bwip-js` /
-   `qrcode`, and only `supabase/functions/_shared/pdf/*` may import
-   `pdf-lib`.
-2. Add `eslint-rules/no-raw-pdf-lib-in-app.js` — bans `pdf-lib` imports
-   outside `supabase/functions/_shared/pdf/**`. Register in
-   `eslint.config.js` alongside the existing
-   `no-pdf-lib-in-localization-preview` rule.
-3. Add `eslint-rules/no-direct-barcode-lib.js` — bans `bwip-js` /
-   `qrcode` imports outside the sanctioned barcode service module.
-4. Then proceed to **Phase 5**: add matching architecture tests under
-   `src/test/architecture/` so the rules have runtime coverage even when
-   ESLint is skipped.
+1. Mount `<DocumentVersionsSection documentType="..." documentId="..." />`
+   on each full record page (Sales: Invoice, Estimate, SalesOrder,
+   CreditNote, Proforma, DeliveryNote, CustomerPayment, SalesReturn.
+   Purchases: Bill, PurchaseOrder, VendorCreditNote, PurchaseReturn).
+   Place it below the record's existing Activity/Timeline section so
+   peek and record pages present identical version history. The
+   component self-hides when there are no artifacts, so no per-page
+   guards are needed.
+2. Add a smoke test under `src/test/architecture/` that asserts every
+   Sales/Purchases record page under `src/features/{sales,purchases}/record/`
+   imports `DocumentVersionsSection`, mirroring the peek-sheet guard.
 
-Do NOT skip Phase 4 to work on Wave B3.5, unrelated bug fixes, or new
-features. The rendering-ownership guards are the last piece needed to
-lock the enterprise document platform architecture in place; without
-them the migration can regress.
+Then proceed to **Phase 6** in this order:
+
+1. **HR letter renderers** — extend `supabase/functions/generate-document`
+   with `offer_letter`, `promotion_letter`, `warning_letter`,
+   `contract_letter` document types. Reuse `_shared/pdf/components`
+   (`BrandedHeader`, `RecipientBlock`, `NotesBlock`). Add these types
+   to the `PERSIST_ALLOWLIST` in
+   `supabase/functions/_shared/documents/persistArtifact.ts` so HR
+   letters land in `document_artifacts` too.
+2. **POS receipt renderer demotion** — move
+   `src/lib/pos/receipt/renderers/{ThermalPrintRenderer,PdfRenderer}`
+   to pure builders consumed via `printClient.print()`. Add an
+   architecture test forbidding POS UI (`src/pages/pos/**`,
+   `src/features/pos/**`) from importing them directly.
+3. **Tabular exports** — add `format=csv|xlsx` support to
+   `generate-document` for `statement`, `general_ledger`,
+   `trial_balance` document types only. Receipts and labels stay
+   out. Return the artifact through the same `document_artifacts`
+   path so exports are auditable.
+
+Do NOT skip ahead to unrelated features or bug fixes. Each milestone
+must be brought to a production-ready state (types clean, tests
+green, ESLint clean) before advancing.
+
