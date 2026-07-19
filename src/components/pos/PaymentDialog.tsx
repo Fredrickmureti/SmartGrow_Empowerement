@@ -391,7 +391,7 @@ export function PaymentDialog({
       setIsRecording(true);
       await session.reverseTender(row.id, "cashier removed");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to remove payment");
+      toast.error(paymentSessionErrorMessage(e, "Failed to remove payment"));
     } finally {
       setIsRecording(false);
     }
