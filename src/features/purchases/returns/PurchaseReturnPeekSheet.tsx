@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePurchaseReturnRecord } from "./usePurchaseReturnRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 
 const TONE: Record<
@@ -191,6 +192,7 @@ export function PurchaseReturnPeekSheet({ returnId, onOpenChange }: Props) {
               ]}
             />
           </Section>
+          <DocumentVersionsSection documentType="purchase_return" documentId={returnId} />
         </div>
       )}
     </DocumentPeekShell>

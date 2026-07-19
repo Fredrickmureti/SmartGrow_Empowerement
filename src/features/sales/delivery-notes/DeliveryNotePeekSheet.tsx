@@ -14,6 +14,7 @@ import {
 } from "@/features/sales/record";
 import type { DeliveryNote } from "@/hooks/useDeliveryNotes";
 import { useDeliveryNoteRecord } from "./useDeliveryNoteRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
   draft: "neutral", pending: "warning", in_transit: "info",
@@ -82,6 +83,7 @@ export function DeliveryNotePeekSheet({ deliveryNoteId, onOpenChange }: Props) {
               ...(record.delivered_at ? [{ id: "delivered", at: fmt(record.delivered_at), title: `Delivered${record.received_by ? ` — received by ${record.received_by}` : ""}`, tone: "success" as const }] : []),
             ]} />
           </Section>
+          <DocumentVersionsSection documentType="delivery_note" documentId={deliveryNoteId} />
         </div>
       )}
     </DocumentPeekShell>

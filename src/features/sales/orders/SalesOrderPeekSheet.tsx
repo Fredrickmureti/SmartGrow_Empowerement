@@ -16,6 +16,7 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import type { SalesOrder } from "@/hooks/useSalesOrders";
 import { useSalesOrderRecord } from "./useSalesOrderRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
   draft: "neutral", pending_approval: "warning", confirmed: "info",
@@ -96,6 +97,7 @@ export function SalesOrderPeekSheet({ salesOrderId, onOpenChange }: Props) {
               ...(record.converted_at ? [{ id: "converted", at: fmt(record.converted_at), title: "Converted to invoice", tone: "success" as const }] : []),
             ]} />
           </Section>
+          <DocumentVersionsSection documentType="sales_order" documentId={salesOrderId} />
         </div>
       )}
     </DocumentPeekShell>

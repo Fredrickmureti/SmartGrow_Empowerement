@@ -19,6 +19,7 @@ import {
 } from "@/design-system";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useBillRecord } from "./useBillRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const TONE: Record<
   string,
@@ -177,6 +178,7 @@ export function BillPeekSheet({ billId, onOpenChange }: Props) {
               ]}
             />
           </Section>
+          <DocumentVersionsSection documentType="bill" documentId={billId} />
         </div>
       )}
     </DocumentPeekShell>

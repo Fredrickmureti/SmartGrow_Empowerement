@@ -16,6 +16,7 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ProformaInvoice } from "@/hooks/useProformaInvoices";
 import { useProformaRecord } from "./useProformaRecord";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
   draft: "neutral", sent: "info", viewed: "accent", accepted: "success",
@@ -94,6 +95,7 @@ export function ProformaPeekSheet({ proformaId, onOpenChange }: Props) {
               ...(record.converted_at ? [{ id: "converted", at: fmt(record.converted_at), title: "Converted to invoice", tone: "success" as const }] : []),
             ]} />
           </Section>
+          <DocumentVersionsSection documentType="proforma" documentId={proformaId} />
         </div>
       )}
     </DocumentPeekShell>
