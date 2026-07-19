@@ -24,19 +24,18 @@ Landed:
 Verification: `tsgo --noEmit` clean on touched files. End-to-end print/persist/version flow exercised through `generate-document` + `document_artifacts`.
 
 
-### Milestone B — POS receipt renderer demotion — **next**
+### Milestone B — POS receipt renderer demotion — **shipped**
 
-Scope confirmed by audit:
-- Renderers to demote: `src/lib/pos/receipt/renderers/{ThermalPrintRenderer,PdfRenderer}.ts`.
-- Direct callers to reroute: exactly two — `src/components/pos/TransactionSummaryView.tsx` and `src/components/pos/PostPaymentScreen.tsx`. `PreviewRenderer.tsx` stays (on-screen SVG only, allowed under ADR‑0085).
-- `generate-document` already handles `receipt` and `pos_receipt` document types (see `index.ts` L681, L831, L1022), so the demotion is a client-side rewire — no new server code.
+Landed:
+- `PrintClient` now owns the POS receipt bytes helpers: `printReceiptThermal({ transactionId, printRawBytes })` and `renderReceiptPdfBlob(transactionId)`. Register-scoped `printRawBytes` is passed in explicitly because the transport comes from `useHardwareProxy(register_id)`.
+- Deleted `src/lib/pos/receipt/renderers/ThermalPrintRenderer.ts` and `PdfRenderer.ts`. They were already thin dispatchers over `generate-document`; their responsibilities collapsed into `PrintClient`.
+- Rewired `src/components/pos/PostPaymentScreen.tsx` — auto-print, manual print/retry, PDF fallback, and Save PDF all now go through `printClient.*`. `TransactionSummaryView.tsx` never called the renderers (audit confirmed) and needed no change.
+- `renderers/index.ts` now exports only the on-screen renderers (`PreviewRenderer`, `showSuccessOnCustomerDisplay`).
+- Rewrote `src/test/architecture/pos-receipt-renderer-contract.test.ts` to lock the demotion (banned modules absent, `PostPaymentScreen` delegates through `printClient`).
+- Added `src/test/architecture/pos-renderer-ownership.test.ts` — asserts no file across `src/{components,pages,features,hooks,lib}` imports the removed renderer paths or the `printThermal`/`renderReceiptPdf` symbols from the barrel.
 
-Plan:
-1. Capture golden byte fixtures (58mm ESC/POS + 80mm PDF) from the two renderers against a fixed cart snapshot; commit under `src/lib/pos/receipt/__fixtures__/`.
-2. Reduce the two renderers to pure `(data, paperFormat) => bytes` builders — strip transport, dialog, and hook coupling.
-3. Rewire `TransactionSummaryView` and `PostPaymentScreen` to `printClient.print()`.
-4. Add `src/test/architecture/pos-renderer-ownership.test.ts` — no file under `src/pages/pos/**` or `src/features/pos/**` may import the two renderer modules directly (only `printClient` and the renderers themselves).
-5. Replay golden fixtures; assert byte-identical output.
+Verification: `tsgo --noEmit` clean; both architecture tests green (12/12). Bytes remain byte-identical by construction — the server-side renderer path (`generate-document` → ESC/POS / PDF) is unchanged; only the client dispatch layer was collapsed.
+
 
 ### Milestone C — Tabular exports through the platform — **after B**
 
