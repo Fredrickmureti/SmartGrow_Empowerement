@@ -183,6 +183,7 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
   const [tenders, setTenders] = useState<PaymentSessionTenderRow[]>([]);
   const [change, setChange] = useState<number>(0);
   const [error, setError] = useState<Error | null>(null);
+  const sessionKeyRef = useRef<string | null>(null);
 
   // Guard against setting state on unmounted component (a hard refresh
   // can race with the rehydration query).
@@ -215,11 +216,13 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
         const existing = await rehydrateOpen(params.registerId, idempotencyKey);
         if (cancelled || !alive.current) return;
         if (existing) {
+          sessionKeyRef.current = idempotencyKey;
           setSessionId(existing.id);
           setStatus("open");
           const rows = await fetchTenders(existing.id);
           if (!cancelled && alive.current) setTenders(rows);
         } else {
+          sessionKeyRef.current = null;
           setSessionId(null);
           setTenders([]);
           setChange(0);
@@ -236,7 +239,7 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
 
   // 2. Lazy open on first tender.
   const ensureSession = useCallback(async (): Promise<string> => {
-    if (sessionId) return sessionId;
+    if (sessionId && sessionKeyRef.current === idempotencyKey) return sessionId;
     setStatus("opening");
     const id = await openSessionRpc({
       registerId: params.registerId,
@@ -250,6 +253,7 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
       tipPolicy: params.totals.tipPolicy,
     });
     if (alive.current) {
+      sessionKeyRef.current = idempotencyKey;
       setSessionId(id);
       setStatus("open");
     }
@@ -330,6 +334,7 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
         await cancelSessionRpc({ sessionId, reason });
         if (alive.current) {
           setStatus("cancelled");
+          sessionKeyRef.current = null;
           setSessionId(null);
           setTenders([]);
         }
