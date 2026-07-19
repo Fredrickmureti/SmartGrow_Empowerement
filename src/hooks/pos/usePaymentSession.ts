@@ -97,7 +97,13 @@ export interface PaymentSessionTenderRow {
   auth_id: string | null;
   vendor_txn_id: string | null;
   driver_payload: Record<string, unknown> | null;
-  status: string;
+  /**
+   * `reversed_at IS NULL` means the tender is still applied. There is
+   * no `status` column on `pos_payment_session_tenders` — reversal
+   * timestamp is the source of truth.
+   */
+  reversed_at: string | null;
+  reversal_reason: string | null;
   created_at: string;
 }
 
