@@ -330,23 +330,44 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
     [sessionId],
   );
 
-  // Derived, from server-authoritative rows only.
-  const allocated = useMemo(
-    () => tenders.filter((t) => t.status === "active").reduce((s, t) => s + Number(t.amount || 0), 0),
+  // Derived, from server-authoritative rows only. Consumers must not
+  // re-derive these client-side; `no-client-payment-math` fails the
+  // build if PaymentDialog.tsx introduces `.reduce` over payments/tenders.
+  const activeTenders = useMemo(
+    () => tenders.filter((t) => t.status === "active"),
     [tenders],
+  );
+  const allocated = useMemo(
+    () => activeTenders.reduce((s, t) => s + Number(t.amount || 0), 0),
+    [activeTenders],
+  );
+  const totalTendered = useMemo(
+    () => activeTenders.reduce((s, t) => s + Number(t.tendered_amount ?? t.amount ?? 0), 0),
+    [activeTenders],
+  );
+  const totalChange = useMemo(
+    () => activeTenders.reduce((s, t) => s + Number(t.change_given ?? 0), 0),
+    [activeTenders],
   );
   const remaining = useMemo(
     () => Math.max(0, Number(params.totals.grandTotal || 0) - allocated),
     [params.totals.grandTotal, allocated],
   );
+  const displayChange = useMemo(() => {
+    if (totalChange > 0) return totalChange;
+    return Math.max(0, totalTendered - Number(params.totals.grandTotal || 0));
+  }, [totalChange, totalTendered, params.totals.grandTotal]);
+  const effectiveChange = change > 0 ? change : displayChange;
 
   return {
     sessionId,
     status,
     tenders,
     allocated,
+    totalTendered,
+    totalChange,
     remaining,
-    change,
+    change: effectiveChange,
     error,
     recordTender,
     reverseTender,
