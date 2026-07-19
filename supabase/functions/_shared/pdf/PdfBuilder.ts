@@ -207,6 +207,17 @@ export class PdfBuilder {
    * Y is stored on this.y.
    */
   newPage(): PDFPage {
+    // Continuous media (thermal roll) is a single continuous strip by
+    // definition — a page break makes no physical sense. If a caller
+    // tries to paginate on continuous paper, fail loudly rather than
+    // silently emit a multi-page PDF that no thermal driver can honour.
+    if (this.state.heightMode === "continuous" && this.state.pageNum >= 1) {
+      throw new Error(
+        "PdfBuilder: newPage() is not allowed on continuous paper " +
+          `(${this.state.paper.widthMm}mm roll). Continuous media is a ` +
+          "single-page strip; ensure narrow-density components fit on one page.",
+      );
+    }
     this.page = this.doc.addPage([this.state.pageWidth, this.state.pageHeight]);
     this.state.pageNum++;
     this.y = this.state.pageHeight - this.state.margin;
@@ -215,6 +226,7 @@ export class PdfBuilder {
     }
     return this.page;
   }
+
 
   /**
    * Reserve `needed` pts of vertical space on the current page; if not
