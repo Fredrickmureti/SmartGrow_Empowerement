@@ -244,14 +244,15 @@ export async function reverseTender(args: ReverseTenderArgs): Promise<void> {
   if (error) throwRpcError("pos_payment_session_reverse_tender", error);
 }
 
-export async function commitSession(args: CommitSessionArgs): Promise<string> {
+export async function commitSession(args: CommitSessionArgs): Promise<CommitSessionResult> {
   const { data, error } = await supabase.rpc("pos_payment_session_commit", {
     p_session_id: args.sessionId,
     p_transaction_envelope: args.envelope as unknown as never,
   });
   if (error) throwRpcError("pos_payment_session_commit", error);
-  return data as string;
+  return data as unknown as CommitSessionResult;
 }
+
 
 export async function cancelSession(args: CancelSessionArgs): Promise<void> {
   const { error } = await supabase.rpc("pos_payment_session_cancel", {
