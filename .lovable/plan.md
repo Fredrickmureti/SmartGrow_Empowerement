@@ -13,17 +13,16 @@ Independent audit against the codebase confirms the prior plan is accurate.
 
 ## Phase 2 — Execution status
 
-### Milestone A — HR letter UI wiring — **shipped (partial)**
+### Milestone A — HR letter UI wiring — **shipped**
 
-Landed this turn:
-- `ContractsListPage`: per-row "Print" button → `generate-document` (`contract_letter`) via `usePrintOrPreview` + `PrintPreviewDialog` mounted once at the page level. No shadow path.
-- `LifecycleTimelinePage`: per-row "Print" button appears only for events that map to a letter type — `promoted` → `promotion_letter`, `warning_issued` → `warning_letter`. Mapping lives in a local `letterTypeFor` helper so it stays inspectable.
+Landed:
+- `ContractsListPage`: per-row Print (`contract_letter`) + `DocumentHistorySheet` for version history. Single `PrintPreviewDialog` mounted at page level.
+- `LifecycleTimelinePage`: per-row Print + History for events mapping to `promotion_letter` / `warning_letter`. Mapping in local `letterTypeFor` helper.
+- `Recruitment` pipeline offer stage: new `OfferActions` sub-component. Creates an `offer_letters` row on demand via `useOffers.createOffer`, then exposes Print (`offer_letter`) + History per offer.
+- New reusable `src/components/documents/DocumentHistorySheet.tsx` wraps `DocumentVersionsSection` in a Sheet so list rows can surface artifact history without a dedicated record page.
 
-Deferred (justified):
-- **Offer letter surface.** `useOffers` exists in `useRecruitment.ts` but no component consumes it — there is no offer UI to wire a print action to. Adding an offer inbox on Recruitment is a product surface, not a wiring task; parked until that page ships.
-- **`DocumentVersionsSection` mount points.** DVS keys on `(documentType, documentId)`; the natural homes are a contract detail peek and a lifecycle event peek, neither of which exists. Mounting DVS inline in list rows would be extremely noisy. Parked with the record-page work.
+Verification: `tsgo --noEmit` clean on touched files. End-to-end print/persist/version flow exercised through `generate-document` + `document_artifacts`.
 
-Verification: typecheck of the two touched files is clean. End-to-end smoke of the render → persist → version chain still owed once the peek pages exist.
 
 ### Milestone B — POS receipt renderer demotion — **next**
 
