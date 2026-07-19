@@ -82,7 +82,7 @@ const AuditTrailReport = lazy(() => import("@/pages/reports/AuditTrail"));
 const InventoryGLReconciliation = lazy(() => import("@/pages/reports/InventoryGLReconciliation"));
 const ControlAccountReconciliation = lazy(() => import("@/pages/reports/ControlAccountReconciliation"));
 const BankReconciliationReport = lazy(() => import("@/pages/reports/BankReconciliationReport"));
-const PosShiftGLIntegrity = lazy(() => import("@/pages/reports/PosShiftGLIntegrity"));
+
 const StockAdjustmentsReport = lazy(() => import("@/pages/reports/StockAdjustmentsReport"));
 const StockTransfersReport = lazy(() => import("@/pages/reports/StockTransfersReport"));
 const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationReport"));
@@ -773,17 +773,10 @@ export function FinanceApp() {
           }
         />
 
-        {/* POS Shift GL Integrity (Phase B4) */}
-        <Route
-          path="reports/pos-shift-gl-integrity"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="POS Shift GL Integrity">
-                <PosShiftGLIntegrity />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
+        {/* POS Shift GL Integrity report removed — superseded by POS Posting Queue
+            (/finance/pos-posting-queue), which reads from the authoritative
+            statement/outbox pipeline instead of legacy per-product accounts. */}
+
 
         {/* Stock Adjustments Report (Phase B5) */}
         <Route
