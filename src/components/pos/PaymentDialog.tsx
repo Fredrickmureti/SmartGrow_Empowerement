@@ -915,25 +915,24 @@ export function PaymentDialog({
           onOpenChange={setShowC2BLookup}
           posTransactionId={posTransactionId ?? null}
           remaining={remaining > 0 ? remaining : effectiveTotal}
-          onAttached={({ transId, amount }) => {
-            // Mirror the payment line locally so the dialog reflects the
-            // attach. The RPC has already inserted the row in the DB.
-            const newPayments: PaymentDialogPayment[] = [
-              ...payments,
-              {
-                method: mpesaWalletMethod?.method_key ?? "mobile_money",
-
-                amount,
-                tendered_amount: amount,
-                change_given: 0,
-                reference: transId,
-              },
-            ];
-            setPayments(newPayments);
-            const newTotal = newPayments.reduce((s, p) => s + p.amount, 0);
-            if (newTotal >= effectiveTotal) {
-              onComplete(newPayments);
-              resetForm();
+          onAttached={async ({ transId, amount: attachedAmount }) => {
+            // Mirror the payment line into the session so the dialog reflects
+            // the attach. The C2B RPC has already inserted the ledger row on
+            // the server; recording here keeps the tender list authoritative.
+            const row = await recordTenderRow({
+              tender_kind: "wallet",
+              method_key: mpesaWalletMethod?.method_key ?? "mobile_money",
+              provider_key: "mpesa",
+              amount: attachedAmount,
+              tendered_amount: attachedAmount,
+              change_given: 0,
+              reference: transId,
+            });
+            if (!row) return;
+            const nextRows = [...tenderRows, row];
+            const nextTotal = nextRows.reduce((s, r) => s + Number(r.amount), 0);
+            if (nextTotal >= effectiveTotal) {
+              finalizeWith(nextRows);
             }
           }}
         />
