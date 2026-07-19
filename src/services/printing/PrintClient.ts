@@ -186,7 +186,14 @@ class PrintClient {
     const copies = policy && policy.copies > 0 ? policy.copies : 1;
     try {
       if (fmt === 'pdf') {
-        const blob = await generateDocumentPdf(req.documentType, req.documentId);
+        // Receipt intent rendering to PDF means no thermal printer is
+        // bound (or the policy explicitly asked for PDF). The document
+        // shape must follow the destination device: hand Chrome's native
+        // print dialog an A4/Letter sheet, never a tall thermal strip.
+        const paperOverride = req.intent === 'receipt' || req.intent === 'kitchen_ticket'
+          ? ('a4' as const)
+          : undefined;
+        const blob = await generateDocumentPdf(req.documentType, req.documentId, paperOverride ? { paperFormat: paperOverride } : undefined);
         for (let i = 0; i < copies; i++) {
           await printPdfInPage(blob);
         }

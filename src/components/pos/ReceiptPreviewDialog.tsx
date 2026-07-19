@@ -74,6 +74,12 @@ interface ReceiptPreviewDialogProps {
   } | null;
   onPrint?: () => void;
   onEmail?: () => void;
+  /**
+   * Optional — when supplied, a "Clone" button appears next to Print and
+   * fires this callback so the caller can re-open a POS session
+   * pre-filled with the same line items. Enerpize-style flow.
+   */
+  onClone?: () => void;
 }
 
 export function ReceiptPreviewDialog({
@@ -82,6 +88,7 @@ export function ReceiptPreviewDialog({
   transaction,
   onPrint,
   onEmail,
+  onClone,
 }: ReceiptPreviewDialogProps) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -210,9 +217,15 @@ export function ReceiptPreviewDialog({
         return;
       }
 
-      // No thermal printer → server PDF + in-page print.
+      // No thermal printer → render on a real A4 sheet, not a tall 80 mm
+      // strip. Paper size is a property of the target device, not of the
+      // document: if we're about to hand this to Chrome's native print
+      // dialog on a desktop/laptop, it must be shaped like a sheet.
       try {
-        const blob = await generateDocumentPdf('pos_receipt', transaction.id, { forceRefreshSettings: useCurrentSettings });
+        const blob = await generateDocumentPdf('pos_receipt', transaction.id, {
+          forceRefreshSettings: useCurrentSettings,
+          paperFormat: 'a4',
+        });
         await printPdfInPage(blob);
         onPrint?.();
       } catch (err) {
@@ -509,6 +522,15 @@ export function ReceiptPreviewDialog({
             <Button variant="outline" className="flex-1 h-10 sm:h-9 text-sm" onClick={onEmail}>
               <Mail className="h-4 w-4 mr-2" />
               Email
+            </Button>
+          )}
+          {onClone && (
+            <Button
+              variant="secondary"
+              className="flex-1 h-10 sm:h-9 text-sm"
+              onClick={() => { onClone(); onOpenChange(false); }}
+            >
+              Clone
             </Button>
           )}
           <Button className="flex-1 h-10 sm:h-9 text-sm" onClick={() => onOpenChange(false)}>

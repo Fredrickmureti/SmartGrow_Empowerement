@@ -195,3 +195,45 @@ and preserves the document identifiers. Any future fork of the shared
 model breaks this test before it can ship.
 
 
+
+## 11 — Receipt card vs. transport artifact (Enerpize parity)
+
+**Symptom reported by operator:** printing a POS sale on a laptop with no
+thermal printer bound sent an 80mm-shaped PDF to Chrome's native print
+dialog, producing a narrow strip with a tall blank tail on an A4 sheet.
+
+**Root cause:** the fallback path (`ReceiptPreviewDialog.handlePrint` and
+`PrintClient.print` with `fmt === 'pdf'`) rendered `pos_receipt` at its
+policy paper (80mm) regardless of destination. Paper size was being
+treated as a property of the document; it is a property of the *target
+device*.
+
+**Rule locked in:** the on-screen preview stays HTML (already true — the
+dialog uses `TransactionSummaryView` + `MonospacePreview`, not a PDF
+iframe). At the transport boundary the shape follows the destination:
+
+- Thermal-bound → ESC/POS (unchanged).
+- Sheet transport (browser print dialog / OS printer / no printer) →
+  server PDF forced to A4.
+
+**Implementation:**
+
+- `generateDocumentPdf` accepts an optional `paperFormat` override, forwarded
+  as `body.paperFormat` to `generate-document` (already honoured by the
+  edge function).
+- `ReceiptPreviewDialog.handlePrint` passes `paperFormat: 'a4'` on the
+  no-thermal branch.
+- `PrintClient.print` forces `paperFormat: 'a4'` whenever a `receipt` or
+  `kitchen_ticket` intent resolves to the PDF transport. Non-receipt
+  intents (`invoice`, `a4_document`, etc.) are untouched — their
+  templates already render as sheets.
+- `ReceiptPreviewDialog` gained an optional `onClone` prop so the sale
+  can be duplicated from the completion dialog, matching the Enerpize
+  Cancel / Clone / Print action bar.
+
+**Guardrail:** `src/test/pos/receipt-transport-shape.test.ts` asserts:
+
+1. Receipt intent + PDF fallback → `generateDocumentPdf` called with
+   `paperFormat: 'a4'`.
+2. Receipt intent + ESC/POS → no PDF is rendered.
+3. Non-receipt PDF intents → no A4 override is injected.

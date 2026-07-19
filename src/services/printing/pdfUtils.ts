@@ -142,7 +142,16 @@ export function downloadPdfBlob(blob: Blob, filename: string): void {
 export async function generateDocumentPdf(
   documentType: string,
   documentId: string,
-  opts?: { forceRefreshSettings?: boolean }
+  opts?: {
+    forceRefreshSettings?: boolean;
+    /**
+     * Override the resolved policy's paper format for this render only.
+     * Used by the POS receipt fallback path: when no thermal printer is
+     * bound we render the same receipt on a real A4 sheet instead of
+     * emitting a tall 80 mm PDF into Chrome's native print dialog.
+     */
+    paperFormat?: "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm";
+  },
 ): Promise<Blob> {
   const { data, error } = await supabase.functions.invoke("generate-document", {
     body: {
@@ -150,6 +159,7 @@ export async function generateDocumentPdf(
       documentId,
       format: "pdf",
       ...(opts?.forceRefreshSettings ? { force_refresh_settings: true } : {}),
+      ...(opts?.paperFormat ? { paperFormat: opts.paperFormat } : {}),
     },
   });
 
