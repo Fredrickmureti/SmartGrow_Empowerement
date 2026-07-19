@@ -20,38 +20,20 @@ No regressions or superficial patches detected. Resume from C.2.
 
 ## Phase 2 — Execution: Milestone C.2 (tabular exports)
 
-Sequential steps. Each step ends with tests green + typecheck clean before the next begins.
+**Plan correction (this session):** finance/GL/TB reports do NOT flow through `generate-document`; they flow through `render-report`, which owns the report registry + column specs + branding + prebuilt/server-build modes. Adding CSV/XLSX to `generate-document` would have created a second report pipeline. C.2 was therefore landed against `render-report` instead. Reports are computed views (not immutable business artifacts), so they are intentionally NOT added to the `document_artifacts` `PERSIST_ALLOWLIST` — export requests re-run against fresh journal data every time.
 
-### C.2.1 — GL + Trial Balance CSV (lowest risk, reuses the shipped CSV branch)
+### C.2 — SHIPPED
 
-1. Confirm PDF fetcher functions for `general_ledger` and `trial_balance` in `supabase/functions/_shared/pdf/**` (or the equivalent `_shared/reports/**`); reuse them — no new queries in the export path.
-2. Add `_shared/exports/ledgerCsv.ts` and `_shared/exports/trialBalanceCsv.ts` — pure `DocumentData → Uint8Array`, same BOM/CRLF/RFC-4180 rules as `statementCsv.ts`.
-3. Extend `CSV_EXPORT_ALLOWED` in `generate-document/index.ts` to include `general_ledger`, `trial_balance`; dispatch to the right builder.
-4. Deno tests mirroring `statementCsv_test.ts` (BOM, CRLF, quoting, section coverage, `Uint8Array`) + extend `csv-export-registered_test.ts` for the two new types.
+1. **Shared builders** — `supabase/functions/_shared/exports/reportCsv.ts` and `reportXlsx.ts` are pure `(ReportExportConfig) → Uint8Array` builders. CSV: UTF-8 BOM + CRLF + RFC-4180 escaping. XLSX: `xlsx@0.18.5` via `esm.sh` with Deno target — same version pinned by the client, so historical workbook shape is preserved. Column widths, currency (`#,##0.00`) / number (`#,##0`) format codes, title-row merges applied.
+2. **`render-report` prebuilt-mode dispatch** — accepts `format ∈ { pdf, csv, xlsx }`. Tabular formats short-circuit before the PDF renderer and resolve `companyName` via `getOrganizationBranding` so the masthead matches the PDF path exactly. Server-build mode (used only by scheduled reports) still emits PDF/JSON; adding CSV/XLSX there requires exposing the column registry through `renderReport`, deferred as a follow-up.
+3. **Client migration** — `src/services/reports/ReportExportService.ts` no longer imports `xlsx`. `exportToCSV`/`exportToExcel` are now thin `supabase.functions.invoke('render-report', { body: { format } })` wrappers returning `Promise<void>`. Call sites (`ReportExportButtons`, `PrintPreviewDialog`) updated to `await`.
+4. **Architecture guard** — `eslint-rules/no-raw-xlsx-in-app.js` forbids the WRITE-side APIs (`XLSX.write`, `XLSX.writeFile`, `XLSX.utils.book_new`, `XLSX.utils.aoa_to_sheet`, `XLSX.utils.json_to_sheet`, `XLSX.utils.book_append_sheet`) across `src/**`. READ-side APIs (`XLSX.read`, `sheet_to_json`) stay legal for bank-statement / generic import parsers. Two legitimate template-scaffold call sites in `src/lib/importUtils.ts` carry `// RENDERER-EXEMPT` markers (blank import template + per-import error report — not report artifacts). Wired into `eslint.config.js` under the existing rendering-ownership block.
+5. **Tests** — `reportCsv_test.ts` (BOM/CRLF/RFC-4180/masthead/footer/currency) and `reportXlsx_test.ts` (OOXML round-trip via SheetJS to assert cell values + format codes + merges) added under `_shared/exports/`.
 
-### C.2.2 — XLSX branch in `generate-document`
-
-1. Add `xlsx-populate` via `esm.sh` import in `_shared/exports/xlsx/` (pure JS, ~200 KB — matches the risk table). If bundle size or compat blocks it, fall back to `sheetjs`/`xlsx` via `esm.sh` **inside the edge function only**.
-2. Extend the `format` union to `"xlsx"`; keep the same allowlist as CSV to start (`customer_statement`, `vendor_statement`, `general_ledger`, `trial_balance`).
-3. `statementXlsx.ts` + `ledgerXlsx.ts` + `trialBalanceXlsx.ts` builders — column widths, header row bold, currency formatting; each returns `Uint8Array` with the OOXML mime.
-4. `persistArtifact({ metadata: { export_format: "xlsx" } })`; ensure `EXT_FOR_MIME` already resolves `.xlsx` (verified — plan claims it does; re-check).
-5. Deno tests: builder unit tests (round-trip via `xlsx-populate.fromDataAsync` in test to assert cell values) + a `xlsx-export-registered_test.ts` sibling to the CSV one.
-
-### C.2.3 — Migrate finance-report client exports
-
-1. `src/services/reports/ReportExportService.ts` — replace the direct `xlsx.utils.book_new`/`writeFile` pipeline with `printClient.downloadExport({ documentType, id, format: "xlsx" | "csv" })`. Keep the public method signatures so `ReportExportButtons` and consumers don't churn.
-2. `src/components/reports/ReportExportButtons.tsx` — no API change; only the underlying service swap.
-3. Verify every finance report page (`src/pages/reports/**`) still gets identical CSV/XLSX output by diffing a sample export before/after.
-
-### C.2.4 — Architecture guard + dependency cleanup
-
-1. New ESLint rule `eslint-rules/no-raw-xlsx-in-app.js` (or extend `no-raw-pdf-lib-in-app.js`) forbidding `import ... from "xlsx"|"exceljs"|"xlsx-populate"` outside:
-   - `supabase/functions/_shared/exports/**`
-   - `src/lib/importUtils.ts` (inbound import parser — explicit allowlist)
-   - `src/lib/bankStatementParsers/**` (inbound bank-statement parser — explicit allowlist)
-2. Add an architecture test (`src/test/architecture/no-raw-xlsx.test.ts`) mirroring the existing PDF-lib guard to keep the invariant enforced independently of ESLint.
-3. Remove `xlsx` from `package.json` **only if** no in-app consumer remains. If the inbound parsers still need it, keep the dep and rely on the guard.
-4. Update `.lovable/plan.md` — mark C.2 shipped; move to Phase 3.
+**Not done (deliberately out of scope, tracked as follow-ups):**
+- Server-build (scheduled reports) CSV/XLSX — requires column registry passthrough from `renderReport` to the shared builders.
+- `xlsx` package removal from `package.json` — the two inbound parsers (`bankStatementParsers/csvParser.ts`, `importUtils.ts`) still depend on it. Guard is sufficient.
+- Migration of `_shared/reports/renderReport.ts` internal export path to the same builders (currently only the edge-function entrypoint dispatches).
 
 ## Phase 3 — Deferred: HR letter record-page peek sheets
 
@@ -59,27 +41,13 @@ Milestone A wired list-row Print/History via `DocumentHistorySheet`. Once the HR
 
 ## Non-negotiables (carried forward from prior engineer)
 
-- Single-renderer / single-fetcher invariant: every new export format consumes the same `DocumentData` the PDF path uses. No parallel fetching.
-- Every persisted artifact goes through `persistArtifact` — never write directly to storage or `document_artifacts`.
-- No client-side XLSX/CSV serialisation for platform documents once C.2.3 lands.
-- HR/POS/Finance/Sales/Purchases all remain consumers of `generate-document` + `printClient` — no app-local rendering paths reintroduced.
-
-## Definition of done
-
-- `generate-document` accepts `format ∈ { pdf, escpos, zpl, csv, xlsx }`, gated by per-type allowlists.
-- CSV and XLSX available for `customer_statement`, `vendor_statement`, `general_ledger`, `trial_balance`.
-- `ReportExportService` contains zero direct spreadsheet-library imports.
-- Architecture test + ESLint rule prevent regression.
-- `bunx tsgo --noEmit -p tsconfig.app.json` clean; `deno test` under `supabase/functions` green; existing architecture tests still pass.
-
-## Risks
-
-| Risk | Mitigation |
-|---|---|
-| `xlsx-populate` bundle size on edge function | Measure after C.2.2; fall back to `sheetjs` via `esm.sh` if regressed. |
-| GL / TB fetchers return shapes the PDF path already relies on but export needs flatter | Add a thin adapter in the builder — do not change the fetcher. |
-| Finance-report consumers depended on `xlsx` cell-level formatting the server builder doesn't reproduce | Diff sample exports before removing the client path; extend server builder before deleting client code. |
+- Single-renderer / single-fetcher invariant: every new export format consumes the same fetch path the PDF renderer uses. No parallel fetching.
+- Every persisted BUSINESS-DOCUMENT artifact goes through `persistArtifact` — never write directly to storage or `document_artifacts`. Reports are exempt (computed views, always re-runnable).
+- No client-side XLSX/CSV serialisation for platform reports — enforced by `no-raw-xlsx-in-app` + `ReportExportService` service surface.
+- HR/POS/Finance/Sales/Purchases all remain consumers of `generate-document` + `printClient`; Finance reports consume `render-report`.
 
 ## Handover cue for the next agent
 
-Resume at **C.2.1** (GL + TB CSV). Do not skip to XLSX or the client migration first — the CSV allowlist extension is the smallest verifiable step and unblocks the report-export migration path.
+Two follow-ups worth picking up:
+1. Extend `render-report` server-build mode to dispatch CSV/XLSX by exposing the report registry columns through `renderReport`. Unblocks scheduled-report tabular attachments.
+2. Phase 3 (HR letter record-page peek sheets) is fully specified above and blocks on a new HR record-page pattern landing — currently no HR record page exists to mount `DocumentVersionsSection` in.
