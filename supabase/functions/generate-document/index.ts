@@ -2666,8 +2666,28 @@ serve(async (req) => {
     const isReceiptLike =
       documentType === "pos_receipt" || documentType === "receipt";
 
+    // Wave 6a (ADR-0085 follow-up) — POS receipts must NEVER fall through
+    // to the A4 invoice pipeline. Even when the resolved policy paper
+    // format is A4/Letter/A5 (org has no explicit thermal policy row) the
+    // receipt is still fundamentally a thermal-column artifact: the
+    // operator's preview, the ESC/POS bytes and the archived PDF all have
+    // to be structurally identical. Resolve the render width from the
+    // receipt editor (`pos_receipt_settings.paper_size`), fall back to
+    // the policy width if it is already thermal, else default to 80mm.
+    const rsFromDoc = (documentData as unknown as {
+      pos_receipt_settings?: { paper_size?: string };
+    }).pos_receipt_settings ?? {};
+    const rsPaperSize = rsFromDoc.paper_size;
+    const thermalWidthForReceipt: "40mm" | "58mm" | "80mm" =
+      rsPaperSize === "40mm" || effectivePaper === "40mm" ? "40mm" :
+      rsPaperSize === "58mm" || effectivePaper === "58mm" ? "58mm" :
+      rsPaperSize === "80mm" || effectivePaper === "80mm" ? "80mm" :
+      "80mm";
+    const routeThroughThermalEngine =
+      isReceiptLike && !isStatement && (isThermalWidth || documentType === "pos_receipt");
+
     let pdfBytes: Uint8Array;
-    if (isThermalWidth && isReceiptLike && !isStatement) {
+    if (routeThroughThermalEngine) {
       const { buildReceiptLines } = await import(
         "../_shared/receipt/lines.ts"
       );
@@ -2677,13 +2697,13 @@ serve(async (req) => {
       const { renderThermalPdf } = await import(
         "../_shared/receipt/pdf/renderThermalPdf.ts"
       );
-      // Force the engine's paper width to the resolved policy paper,
-      // regardless of what `pos_receipt_settings.paper_size` says.
+      // Pin the engine's paper width to the resolved thermal width so
+      // the row producer, PDF and ESC/POS stream all share one grid.
       const rsForPdf = {
         ...((documentData as unknown as {
           pos_receipt_settings?: Record<string, unknown>;
         }).pos_receipt_settings ?? {}),
-        paper_size: effectivePaper,
+        paper_size: thermalWidthForReceipt,
       };
       const engineInput = documentToReceiptInput(documentData, {
         settings: rsForPdf,
@@ -2694,9 +2714,10 @@ serve(async (req) => {
       const rows = buildReceiptLines(engineInput);
       pdfBytes = await renderThermalPdf(rows);
       policyHeaders["X-Print-Policy-Renderer"] = "thermal-engine";
+      policyHeaders["X-Print-Policy-Effective-Paper"] = thermalWidthForReceipt;
       policyHeaders["X-Print-Policy-Columns"] = String(rows.columns);
       policyHeaders["Access-Control-Expose-Headers"] +=
-        ", X-Print-Policy-Renderer, X-Print-Policy-Columns";
+        ", X-Print-Policy-Renderer, X-Print-Policy-Columns, X-Print-Policy-Effective-Paper";
     } else {
       pdfBytes = isStatement
         ? await generateStatementPdf(documentData, template, renderOptions)
