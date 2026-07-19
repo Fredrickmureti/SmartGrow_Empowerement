@@ -22,10 +22,10 @@ const cases: { preset: PaperPreset; widthMm: number; heightMm: number }[] = [
 ];
 
 for (const c of cases) {
-  Deno.test(`PdfBuilder renders ${c.preset} at ${c.widthMm}x${c.heightMm} mm`, async () => {
-    const builder = await PdfBuilder.create({ paperFormat: c.preset });
+  Deno.test(`PdfBuilder(portrait) renders ${c.preset} at ${c.widthMm}x${c.heightMm} mm`, async () => {
+    const builder = await PdfBuilder.create({ orientation: "portrait", paperFormat: c.preset });
+    builder.newPage();
     const [w, h] = [builder.page.getWidth(), builder.page.getHeight()];
-    // Allow 0.5pt slack for rounding.
     const expectedW = c.widthMm * MM_TO_PT;
     const expectedH = c.heightMm * MM_TO_PT;
     if (Math.abs(w - expectedW) > 0.5 || Math.abs(h - expectedH) > 0.5) {
@@ -33,9 +33,7 @@ for (const c of cases) {
         `${c.preset}: expected ~${expectedW.toFixed(1)}x${expectedH.toFixed(1)}pt, got ${w}x${h}pt`,
       );
     }
-    // Narrow density MUST activate for thermal widths so components stack.
-    const expectedDensity =
-      c.widthMm <= 90 ? "narrow" : "wide";
+    const expectedDensity = c.widthMm <= 90 ? "narrow" : "wide";
     assertEquals(builder.state.density, expectedDensity, `${c.preset} density`);
   });
 }
