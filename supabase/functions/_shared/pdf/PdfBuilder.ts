@@ -233,10 +233,16 @@ export class PdfBuilder {
    * available, start a new page (and return the new Y position).
    */
   ensureSpace(needed: number): void {
+    // Continuous media grows downward on a single strip — there is no
+    // page break. Callers that would have triggered `newPage()` on wide
+    // paper just keep drawing on the provisional strip; save() crops the
+    // media box to whatever was consumed.
+    if (this.state.heightMode === "continuous") return;
     if (this.y - needed < this.state.bottomMargin) {
       this.newPage();
     }
   }
+
 
   /** Total page count, for "Page n of m" stamping in finalize(). */
   get pageCount(): number {
