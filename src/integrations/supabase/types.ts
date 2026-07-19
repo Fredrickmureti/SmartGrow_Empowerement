@@ -169,6 +169,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "accounting_integrity_reports_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "accounting_integrity_reports_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -264,6 +271,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "accounts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -492,6 +506,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "advance_repayment_schedule_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "advance_repayment_schedule_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -659,6 +680,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_insights_cache_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -855,6 +883,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "analytic_accounts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "analytic_accounts_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
@@ -940,6 +975,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "analytic_distributions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "analytic_distributions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1002,6 +1044,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "analytic_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -1494,6 +1543,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "approval_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "approval_requests_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1581,6 +1637,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "approval_rule_logs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -1689,6 +1752,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "approval_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "approval_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1792,6 +1862,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "approval_workflows_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -1983,6 +2060,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "asset_categories_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "asset_categories_depreciation_account_id_fkey"
             columns: ["depreciation_account_id"]
             isOneToOne: false
@@ -2106,6 +2190,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "asset_maintenance_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -2342,6 +2433,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "attendance_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -2614,6 +2712,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -3115,6 +3220,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "attendance_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "attendance_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -3192,6 +3304,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "audit_logs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -3282,6 +3401,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "automated_action_logs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -3442,6 +3568,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "automated_actions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "automated_actions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -3505,6 +3638,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "automation_execution_tracker_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -3576,6 +3716,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "backorders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -3770,6 +3917,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -3983,6 +4137,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "bank_reconciliation_matches_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "bank_reconciliation_matches_matched_bill_payment_id_fkey"
             columns: ["matched_bill_payment_id"]
             isOneToOne: false
@@ -4160,6 +4321,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "bank_reconciliation_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "bank_reconciliation_rules_counterpart_account_id_fkey"
             columns: ["counterpart_account_id"]
             isOneToOne: false
@@ -4323,6 +4491,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_sessions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -4633,6 +4808,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "bank_statements_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "bank_statements_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -4882,6 +5064,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "bank_transactions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "bank_transactions_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -5072,6 +5261,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "benefit_plans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -5661,6 +5857,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "bill_payments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "bill_payments_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -5884,6 +6087,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bills_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -6136,6 +6346,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "branch_setting_overrides_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "branch_setting_overrides_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -6244,6 +6461,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "branches_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "branches_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -6334,6 +6558,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "budget_actuals_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -6467,6 +6698,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "budgets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -6621,6 +6859,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "bulk_operation_runs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "bulk_operation_runs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -6677,6 +6922,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "business_active_currencies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -6941,6 +7193,7 @@ export type Database = {
           tax_id: string | null
           timezone: string | null
           updated_at: string
+          use_holding_accounts: boolean
           website: string | null
           week_starts_on: number
           weekly_hours_target: number
@@ -6992,6 +7245,7 @@ export type Database = {
           tax_id?: string | null
           timezone?: string | null
           updated_at?: string
+          use_holding_accounts?: boolean
           website?: string | null
           week_starts_on?: number
           weekly_hours_target?: number
@@ -7043,6 +7297,7 @@ export type Database = {
           tax_id?: string | null
           timezone?: string | null
           updated_at?: string
+          use_holding_accounts?: boolean
           website?: string | null
           week_starts_on?: number
           weekly_hours_target?: number
@@ -7821,6 +8076,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "compliance_checklist_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "compliance_checklist_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -7901,6 +8163,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "contact_addresses_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -8078,6 +8347,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "contacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -8440,6 +8716,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "contract_amendments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -8852,6 +9135,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "core_field_overrides_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -9338,6 +9628,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "credit_notes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "credit_notes_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -9475,6 +9772,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "crm_activities_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "crm_activities_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
@@ -9544,6 +9848,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "crm_activity_types_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -9624,6 +9935,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "crm_lead_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -9809,6 +10127,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "crm_leads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "crm_leads_company_contact_id_fkey"
             columns: ["company_contact_id"]
             isOneToOne: false
@@ -9900,6 +10225,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "crm_lost_reasons_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "crm_lost_reasons_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -9977,6 +10309,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "crm_stages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -10117,6 +10456,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "custom_deduction_types_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "custom_deduction_types_gl_expense_account_id_fkey"
             columns: ["gl_expense_account_id"]
             isOneToOne: false
@@ -10220,6 +10566,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "customer_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "customer_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -10297,6 +10650,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "customer_loyalty_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -10516,6 +10876,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "customer_statements_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -10856,6 +11223,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "default_account_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "default_account_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -10950,6 +11324,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "default_accounts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -11354,6 +11735,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "delivery_notes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "delivery_notes_carrier_id_fkey"
             columns: ["carrier_id"]
             isOneToOne: false
@@ -11617,6 +12005,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "departments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "departments_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
@@ -11771,6 +12166,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "depreciation_entries_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "depreciation_entries_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -11914,6 +12316,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "depreciation_schedules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -12261,6 +12670,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "device_assignments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "device_assignments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -12359,6 +12775,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "document_emails_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "document_emails_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -12436,6 +12859,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "document_print_policies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -12649,6 +13079,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "document_templates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "document_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -12798,6 +13235,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "email_templates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "email_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -12896,6 +13340,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_advances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -13041,6 +13492,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_benefits_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -13565,6 +14023,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employee_contracts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employee_contracts_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -13782,6 +14247,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employee_custom_deduction_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employee_custom_deduction_events_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
@@ -13901,6 +14373,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_custom_deductions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -14237,6 +14716,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_documents_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -14581,6 +15067,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_field_configs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -15014,6 +15507,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employee_loans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employee_loans_disbursement_journal_entry_id_fkey"
             columns: ["disbursement_journal_entry_id"]
             isOneToOne: false
@@ -15305,6 +15805,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -15709,6 +16216,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employee_statutory_identifiers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employee_statutory_identifiers_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -15963,6 +16477,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -16269,6 +16790,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "entity_field_configs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "entity_field_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -16340,6 +16868,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "entity_field_values_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -16638,6 +17173,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "estimates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "estimates_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -16776,6 +17318,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "etims_tax_categories_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "etims_tax_categories_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -16868,6 +17417,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "etims_transmission_logs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "etims_transmission_logs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -16927,6 +17483,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "exchange_rates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -17013,6 +17576,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "expense_categories_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -17188,6 +17758,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "expenses_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -17598,6 +18175,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "fiscal_periods_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "fiscal_periods_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -17990,6 +18574,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "fixed_assets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "fixed_assets_category_id_fkey"
             columns: ["category_id"]
             isOneToOne: false
@@ -18107,6 +18698,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "form_layouts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -18300,6 +18898,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "fx_revaluation_runs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -19156,6 +19761,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "goods_receipts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -20083,6 +20695,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "installed_localization_packs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "installed_localization_packs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -20211,6 +20830,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "invoice_activities_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "invoice_activities_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -20327,6 +20953,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "invoice_emails_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -20450,6 +21083,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "invoice_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "invoice_items_display_uom_id_fkey"
             columns: ["display_uom_id"]
             isOneToOne: false
@@ -20560,6 +21200,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "invoice_reminders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "invoice_reminders_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -20623,6 +21270,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "invoice_sequences_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -20891,6 +21545,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "invoices_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "invoices_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -21092,6 +21753,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "je_number_sequences_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -21365,6 +22033,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "journal_books_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "journal_books_default_account_id_fkey"
             columns: ["default_account_id"]
             isOneToOne: false
@@ -21576,6 +22251,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "journal_entries_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "journal_entries_fiscal_period_id_fkey"
             columns: ["fiscal_period_id"]
             isOneToOne: false
@@ -21772,6 +22454,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -22470,6 +23159,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "leave_allocations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "leave_allocations_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -22665,6 +23361,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "leave_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "leave_requests_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -22849,6 +23552,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "leave_types_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -23430,6 +24140,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "loan_types_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -24661,6 +25378,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "loyalty_programs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "loyalty_programs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -24762,6 +25486,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "member_permission_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -25060,6 +25791,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "migration_sessions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "migration_sessions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -25229,6 +25967,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "mpesa_c2b_transactions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "mpesa_c2b_transactions_matched_contact_id_fkey"
             columns: ["matched_contact_id"]
             isOneToOne: false
@@ -25345,6 +26090,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "notification_alert_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "notification_alert_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -25458,6 +26210,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "notification_digest_queue_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "notification_digest_queue_notification_id_fkey"
             columns: ["notification_id"]
             isOneToOne: false
@@ -25533,6 +26292,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "notification_preferences_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -25622,6 +26388,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "notifications_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -25773,6 +26546,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "onboarding_attempts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "onboarding_attempts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -25850,6 +26630,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "onboarding_status_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -26010,6 +26797,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "onboarding_templates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -26507,6 +27301,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "organization_api_integrations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "organization_api_integrations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -26821,6 +27622,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "organization_payment_gateways_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "organization_payment_gateways_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -26925,6 +27733,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "organization_payment_methods_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "organization_payment_methods_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -26993,6 +27808,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "organization_statutory_identifiers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -27200,6 +28022,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "overtime_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -28063,6 +28892,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payment_provider_configs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payment_provider_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -28161,6 +28997,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payment_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -28313,6 +29156,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payment_terms_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -28473,6 +29323,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -29446,6 +30303,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_liabilities_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_liabilities_garnishment_id_fkey"
             columns: ["garnishment_id"]
             isOneToOne: false
@@ -29733,6 +30597,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_loan_recovery_policy_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -30349,6 +31220,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_periods_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_periods_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -30459,6 +31337,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_readiness_findings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -30676,6 +31561,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_readiness_runs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -31059,6 +31951,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_remittance_payments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_remittance_payments_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -31196,6 +32095,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_remittances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -31811,6 +32717,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_rule_traces_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_rule_traces_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -32360,6 +33273,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_run_loan_skip_overrides_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_run_loan_skip_overrides_consumed_payslip_id_fkey"
             columns: ["consumed_payslip_id"]
             isOneToOne: false
@@ -32754,6 +33674,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_runs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_runs_final_settlement_employee_id_fkey"
             columns: ["final_settlement_employee_id"]
             isOneToOne: false
@@ -33074,6 +34001,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_salary_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_salary_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -33290,6 +34224,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_statutory_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -33782,6 +34723,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_work_entry_types_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_work_entry_types_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -34204,6 +35152,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payslips_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -34926,6 +35881,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "permission_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -36843,6 +37805,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_approval_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_approval_requests_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -37169,6 +38138,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_cash_movement_types_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_cash_movement_types_gl_credit_account_id_fkey"
             columns: ["gl_credit_account_id"]
             isOneToOne: false
@@ -37308,6 +38284,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_cash_movements_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -37552,6 +38535,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_cashiers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_cashiers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -37620,6 +38610,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_courses_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -37805,6 +38802,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_daily_sales_summary_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_daily_sales_summary_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -37915,6 +38919,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_daily_summary_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_daily_summary_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -38009,6 +39020,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_discounts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -38201,6 +39219,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_floors_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_floors_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -38276,6 +39301,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_gift_card_transactions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -38390,6 +39422,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_gift_cards_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -38546,6 +39585,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_happy_hours_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_happy_hours_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -38649,6 +39695,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_held_transactions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -38781,6 +39834,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_kitchen_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -38927,6 +39987,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_manager_overrides_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_manager_overrides_cashier_id_fkey"
             columns: ["cashier_id"]
             isOneToOne: false
@@ -39017,6 +40084,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_manager_pins_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_manager_pins_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -39094,6 +40168,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_modifier_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_modifier_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -39159,6 +40240,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_modifiers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -39240,6 +40328,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_override_matrix_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -39349,6 +40444,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_payment_methods_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -39840,6 +40942,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_registers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_registers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -40218,6 +41327,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_security_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_security_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -40318,6 +41434,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_sessions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -40461,6 +41584,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -40692,6 +41822,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_shifts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -40952,6 +42089,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_split_bills_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -41232,6 +42376,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_table_bookings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_table_bookings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -41330,6 +42481,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_table_sessions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_table_sessions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -41413,6 +42571,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_table_transfers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -41530,6 +42695,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_tables_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_tables_floor_id_fkey"
             columns: ["floor_id"]
             isOneToOne: false
@@ -41549,6 +42721,112 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_tender_holding_account_map: {
+        Row: {
+          account_id: string
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          provider_key: string | null
+          role_key: string
+          tender_kind: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          provider_key?: string | null
+          role_key: string
+          tender_kind: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          provider_key?: string | null
+          role_key?: string
+          tender_kind?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_tender_holding_account_map_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_tender_holding_account_map_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "pos_tender_holding_account_map_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_tender_holding_account_map_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_tender_holding_account_map_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "pos_tender_holding_account_map_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_tender_holding_account_map_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_tender_holding_account_map_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_tender_holding_account_map_role_key_fkey"
+            columns: ["role_key"]
+            isOneToOne: false
+            referencedRelation: "system_account_roles"
+            referencedColumns: ["role_key"]
           },
         ]
       }
@@ -41646,6 +42924,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_terminal_provider_configs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_terminal_provider_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -41720,6 +43005,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_terminal_sessions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -42350,6 +43642,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_transactions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_transactions_cashier_id_fkey"
             columns: ["cashier_id"]
             isOneToOne: false
@@ -42754,6 +44053,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_waitlist_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_waitlist_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -43033,6 +44339,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "price_lists_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "price_lists_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -43122,6 +44435,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "printer_profiles_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
         ]
@@ -43679,6 +44999,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "product_categories_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "product_categories_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -43824,6 +45151,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "product_packaging_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -44145,6 +45479,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "product_reorder_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "product_reorder_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -44429,6 +45770,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "products_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -44809,6 +46157,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "proforma_invoices_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -45698,6 +47053,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "project_tasks_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "project_tasks_milestone_id_fkey"
             columns: ["milestone_id"]
             isOneToOne: false
@@ -45813,6 +47175,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "project_templates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -46052,6 +47421,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "projects_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "projects_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -46196,6 +47572,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "promotions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "promotions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -46270,6 +47653,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "public_holidays_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -46604,6 +47994,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -47092,6 +48489,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "purchase_returns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "purchase_returns_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -47374,6 +48778,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "reconciliation_sessions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "reconciliation_sessions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -47563,6 +48974,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "recurring_invoices_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "recurring_invoices_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -47656,6 +49074,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "recurring_journal_templates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "recurring_journal_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -47730,6 +49155,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "replenishment_logs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -47950,6 +49382,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "report_field_configs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "report_field_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -48033,6 +49472,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "report_generation_logs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -48168,6 +49614,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "report_saved_views_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -49009,6 +50462,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "rfqs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "rfqs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -49105,6 +50565,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "salary_components_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "salary_components_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -49183,6 +50650,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "salary_structure_lifecycle_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -49324,6 +50798,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "salary_structures_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -49594,6 +51075,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sales_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -49879,6 +51367,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "sales_returns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "sales_returns_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -49974,6 +51469,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "saved_views_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -50386,6 +51888,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "scheduled_reports_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -51347,6 +52856,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "sms_event_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "sms_event_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -51470,6 +52986,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "sms_log_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "sms_log_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -51533,6 +53056,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sms_opt_outs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -51643,6 +53173,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sms_provider_configs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -51797,6 +53334,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sms_templates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -52622,6 +54166,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "stock_adjustments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "stock_adjustments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -52851,6 +54402,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "stock_lots_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "stock_lots_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -52996,6 +54554,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -53375,6 +54940,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "stock_reservations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "stock_reservations_lot_id_fkey"
             columns: ["lot_id"]
             isOneToOne: false
@@ -53692,6 +55264,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -55392,6 +56971,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "tax_compliance_configs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "tax_compliance_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -55487,6 +57073,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "tax_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "tax_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -55573,6 +57166,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "tax_rates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -55694,6 +57294,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "tax_report_templates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -55908,6 +57515,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "timesheet_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "timesheet_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: true
@@ -56017,6 +57631,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "timesheet_submissions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -56220,6 +57841,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -56756,6 +58384,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "transaction_categorization_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "transaction_categorization_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -56913,6 +58548,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "transactions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "transactions_expense_id_fkey"
             columns: ["expense_id"]
             isOneToOne: false
@@ -57008,6 +58650,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "units_of_measure_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "units_of_measure_category_id_fkey"
             columns: ["category_id"]
             isOneToOne: false
@@ -57060,6 +58709,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "uom_categories_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "uom_categories_reference_uom_fk"
             columns: ["reference_uom_id"]
             isOneToOne: false
@@ -57100,6 +58756,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "user_active_business_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -57236,6 +58899,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "user_branch_assignments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "user_branch_assignments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -57301,6 +58971,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "user_business_access_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -57372,6 +59049,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "user_business_module_permissions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -57685,6 +59369,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "vendor_credit_note_applications_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "vendor_credit_note_applications_credit_note_id_fkey"
             columns: ["credit_note_id"]
             isOneToOne: false
@@ -57940,6 +59631,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "vendor_credit_notes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "vendor_credit_notes_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -58060,6 +59758,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "vendor_portal_invitations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "vendor_portal_invitations_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -58170,6 +59875,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "vendor_pricelists_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "vendor_pricelists_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -58274,6 +59986,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "vendor_statements_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -58429,6 +60148,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "warehouse_stock_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "warehouse_stock_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -58515,6 +60241,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_lots_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -58662,6 +60395,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "warehouses_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "warehouses_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -58796,6 +60536,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "wms_billable_activities_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "wms_billable_activities_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -58880,6 +60627,13 @@ export type Database = {
             columns: ["client_business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wms_billing_tariffs_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
         ]
@@ -60587,6 +62341,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "work_schedules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "work_schedules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -60698,6 +62459,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "stock_adjustments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "stock_adjustments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -60764,6 +62532,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -60843,6 +62618,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -61107,6 +62889,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "journal_entries_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "journal_entries_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -61166,6 +62955,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "products_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "products_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -61208,6 +63004,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_contracts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -61474,6 +63277,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employees_department_id_fkey"
             columns: ["department_id"]
             isOneToOne: false
@@ -61699,6 +63509,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -62070,6 +63887,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "default_account_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "default_account_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -62184,6 +64008,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "purchase_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "purchase_orders_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -62266,6 +64097,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "stock_reservations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "stock_reservations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -62320,6 +64158,13 @@ export type Database = {
             referencedRelation: "v_payroll_settings_effective"
             referencedColumns: ["business_id"]
           },
+          {
+            foreignKeyName: "projects_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
         ]
       }
       project_portfolio_kpis: {
@@ -62344,6 +64189,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "projects_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -62488,6 +64340,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "stock_adjustments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "stock_adjustments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -62572,6 +64431,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "sms_provider_configs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "sms_provider_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -62609,6 +64475,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sms_log_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -62745,6 +64618,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "attendance_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -63072,6 +64952,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employees_department_id_fkey"
             columns: ["department_id"]
             isOneToOne: false
@@ -63188,6 +65075,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -63311,6 +65205,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -63504,6 +65405,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employees_department_id_fkey"
             columns: ["department_id"]
             isOneToOne: false
@@ -63678,6 +65586,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employee_contracts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employee_contracts_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -63766,6 +65681,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employees_department_id_fkey"
             columns: ["department_id"]
             isOneToOne: false
@@ -63830,6 +65752,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -63906,6 +65835,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_runs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_runs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -63974,6 +65910,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employees_department_id_fkey"
             columns: ["department_id"]
             isOneToOne: false
@@ -64018,6 +65961,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -64139,6 +66089,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "leave_allocations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "leave_allocations_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -64239,6 +66196,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employee_loans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employee_loans_loan_type_id_fkey"
             columns: ["loan_type_id"]
             isOneToOne: false
@@ -64313,6 +66277,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -64412,6 +66383,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employee_loans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employee_loans_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -64450,6 +66428,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -64518,6 +66503,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -64663,6 +66655,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_lots_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -64931,6 +66930,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "employees_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "employees_department_id_fkey"
             columns: ["department_id"]
             isOneToOne: false
@@ -65049,6 +67055,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "installed_localization_packs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -65325,6 +67338,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_runs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_runs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -65583,6 +67603,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_liabilities_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_liabilities_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -65712,6 +67739,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "payroll_statutory_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "payroll_statutory_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -65792,6 +67826,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_statutory_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -65907,6 +67948,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_statutory_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
           {
@@ -66036,6 +68084,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "pos_shifts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "pos_shifts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -66057,6 +68112,18 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_pos_holding_account_readiness: {
+        Row: {
+          business_id: string | null
+          business_name: string | null
+          flag_enabled: boolean | null
+          is_ready: boolean | null
+          mapped_role_count: number | null
+          missing_roles: string[] | null
+          required_role_count: number | null
+        }
+        Relationships: []
       }
       v_pos_returnable_qty: {
         Row: {
@@ -66270,6 +68337,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "timesheets_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -66381,6 +68455,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "accounts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "accounts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -66463,6 +68544,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "journal_entries_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
             foreignKeyName: "journal_entries_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -66512,6 +68600,13 @@ export type Database = {
             columns: ["client_business_id"]
             isOneToOne: false
             referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wms_billable_activities_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
           },
         ]
@@ -76770,6 +78865,16 @@ export type Database = {
           _setting_key: string
         }
         Returns: Json
+      }
+      resolve_pos_tender_gl_account: {
+        Args: {
+          p_branch_id: string
+          p_business_id: string
+          p_payment_method_id: string
+          p_provider_key: string
+          p_tender_kind: string
+        }
+        Returns: string
       }
       resolve_product_price: {
         Args: {
