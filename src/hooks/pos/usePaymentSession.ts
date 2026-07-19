@@ -165,7 +165,7 @@ async function rehydrateOpen(
     .select("id, status")
     .eq("register_id", registerId)
     .eq("idempotency_key", idempotencyKey)
-    .in("status", ["open", "recording"])
+    .in("status", ["open", "balanced"])
     .limit(1)
     .maybeSingle();
   if (error) throw error;
