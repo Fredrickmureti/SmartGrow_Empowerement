@@ -39454,6 +39454,60 @@ export type Database = {
           },
         ]
       }
+      pos_gl_shadow_postings: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          cogs_amount: number
+          created_at: string
+          id: string
+          net_amount: number
+          organization_id: string
+          proposed_lines: Json
+          reason: string | null
+          shift_id: string | null
+          tax_amount: number
+          tender_breakdown: Json
+          transaction_id: string
+          transaction_number: string | null
+          transaction_type: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          cogs_amount?: number
+          created_at?: string
+          id?: string
+          net_amount?: number
+          organization_id: string
+          proposed_lines?: Json
+          reason?: string | null
+          shift_id?: string | null
+          tax_amount?: number
+          tender_breakdown?: Json
+          transaction_id: string
+          transaction_number?: string | null
+          transaction_type: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          cogs_amount?: number
+          created_at?: string
+          id?: string
+          net_amount?: number
+          organization_id?: string
+          proposed_lines?: Json
+          reason?: string | null
+          shift_id?: string | null
+          tax_amount?: number
+          tender_breakdown?: Json
+          transaction_id?: string
+          transaction_number?: string | null
+          transaction_type?: string
+        }
+        Relationships: []
+      }
       pos_happy_hour_items: {
         Row: {
           created_at: string
@@ -42121,6 +42175,45 @@ export type Database = {
           },
         ]
       }
+      pos_statement_gl_apply_log: {
+        Row: {
+          id: string
+          idempotency_key: string
+          journal_entry_id: string | null
+          posted_at: string
+          statement_id: string
+        }
+        Insert: {
+          id?: string
+          idempotency_key: string
+          journal_entry_id?: string | null
+          posted_at?: string
+          statement_id: string
+        }
+        Update: {
+          id?: string
+          idempotency_key?: string
+          journal_entry_id?: string | null
+          posted_at?: string
+          statement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_statement_gl_apply_log_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "pos_statements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_statement_gl_apply_log_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_gl_posting_drift"
+            referencedColumns: ["statement_id"]
+          },
+        ]
+      }
       pos_statement_tender_lines: {
         Row: {
           branch_id: string
@@ -42174,6 +42267,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pos_statements"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_statement_tender_lines_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_gl_posting_drift"
+            referencedColumns: ["statement_id"]
           },
         ]
       }
@@ -68113,6 +68213,44 @@ export type Database = {
           },
         ]
       }
+      v_pos_gl_posting_drift: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          delta_gross: number | null
+          delta_tax: number | null
+          journal_entry_id: string | null
+          organization_id: string | null
+          posting_status:
+            | Database["public"]["Enums"]["pos_statement_posting_status"]
+            | null
+          shadow_gross: number | null
+          shadow_tax: number | null
+          shadow_tx_count: number | null
+          shift_id: string | null
+          statement_gross: number | null
+          statement_id: string | null
+          statement_number: string | null
+          statement_tax: number | null
+          statement_tx_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_statements_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "pos_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_statements_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_cash_expected"
+            referencedColumns: ["shift_id"]
+          },
+        ]
+      }
       v_pos_holding_account_readiness: {
         Row: {
           business_id: string | null
@@ -77517,6 +77655,10 @@ export type Database = {
         Returns: string
       }
       post_pos_sale_gl: { Args: { _txn_id: string }; Returns: string }
+      post_pos_statement_gl: {
+        Args: { p_idempotency_key?: string; p_statement_id: string }
+        Returns: Json
+      }
       post_source_to_gl: {
         Args: { p_source_id: string; p_source_type: string }
         Returns: string
