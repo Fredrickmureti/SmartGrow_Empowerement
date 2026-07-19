@@ -212,6 +212,21 @@ export function ContractsListPage(props: ContractsListPageProps) {
                       )}
                       <Button
                         variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          generateDocument(
+                            "contract_letter",
+                            c.id,
+                            `Contract ${c.contract_reference ?? c.employee_name ?? ""}`.trim(),
+                          )
+                        }
+                        title="Print contract letter"
+                      >
+                        <Printer className="mr-1 h-3.5 w-3.5" />
+                        Print
+                      </Button>
+                      <Button
+                        variant="ghost"
                         size="icon"
                         onClick={() =>
                           navigate(`/hr/employees/${c.employee_id}?section=contracts`)
