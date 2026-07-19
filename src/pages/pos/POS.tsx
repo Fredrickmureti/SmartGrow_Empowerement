@@ -169,7 +169,7 @@ export default function POS() {
                     size="sm"
                     variant="outline"
                     className="border-yellow-500/60 text-yellow-800 dark:text-yellow-300 hover:bg-yellow-500/10"
-                    onClick={() => navigate("/finance/pos-posting-queue?status=not_posted")}
+                    onClick={() => navigate("/finance/operations/accounting-events?state=open")}
                   >
                     Review & Post
                   </Button>

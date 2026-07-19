@@ -50,7 +50,7 @@ export const FINANCE_NAV: WorkspaceNav = {
         { to: "/finance/banking", label: "Banking", icon: Landmark },
         { to: "/finance/reconciliation", label: "Reconciliation", icon: GitCompare },
         { to: "/finance/bank-feeds", label: "Bank feeds", icon: Rss },
-        { to: "/finance/pos-posting-queue", label: "POS posting queue", icon: Inbox },
+        { to: "/finance/operations/accounting-events", label: "Accounting events", icon: Inbox },
       ],
     },
 
