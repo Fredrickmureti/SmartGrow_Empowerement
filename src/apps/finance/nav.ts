@@ -31,7 +31,9 @@ import {
   Tags,
   Briefcase,
   Settings,
+  Inbox,
 } from "lucide-react";
+
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
 export const FINANCE_NAV: WorkspaceNav = {
@@ -48,8 +50,10 @@ export const FINANCE_NAV: WorkspaceNav = {
         { to: "/finance/banking", label: "Banking", icon: Landmark },
         { to: "/finance/reconciliation", label: "Reconciliation", icon: GitCompare },
         { to: "/finance/bank-feeds", label: "Bank feeds", icon: Rss },
+        { to: "/finance/pos-posting-queue", label: "POS posting queue", icon: Inbox },
       ],
     },
+
     {
       label: "Insights",
       items: [
