@@ -181,3 +181,17 @@ Test: `supabase/functions/_shared/pdf/__tests__/paper-format_test.ts`
 now asserts the media box is cropped for thermal presets and that
 `newPage()` throws on continuous.
 
+## 10. Phase T5 — ESC/POS ↔ PDF parity guardrail (2026-07-19)
+
+Phases T2 (statutory hardening) and T3 (policy UI copy) shipped alongside
+T1. T4 is a no-op: `src/services/printing/previewSurface.ts` opens the
+already-generated PDF blob (no HTML re-render layer to keep in parity).
+
+T5 closes the roadmap with an architecture test —
+`supabase/functions/_shared/pdf/__tests__/escpos-parity_test.ts` — that
+feeds a single `DocumentData` fixture through both `buildDocumentEscPos`
+and `PdfBuilder` (80 mm continuous) and asserts each renderer succeeds
+and preserves the document identifiers. Any future fork of the shared
+model breaks this test before it can ship.
+
+
