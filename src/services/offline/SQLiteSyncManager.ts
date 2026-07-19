@@ -5,6 +5,12 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import {
+  openSession as openPaymentSession,
+  recordTender as recordPaymentTender,
+  commitSession as commitPaymentSession,
+  type PosTenderKind,
+} from '@/lib/pos/paymentSessionClient';
+import {
   isElectron,
   isDatabaseReady,
   executeQuery,
