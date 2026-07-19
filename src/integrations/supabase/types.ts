@@ -77661,6 +77661,10 @@ export type Database = {
         Args: { _shift_id: string }
         Returns: string
       }
+      post_pos_register_period_gl_now: {
+        Args: { p_shift_id: string }
+        Returns: Json
+      }
       post_pos_sale_gl: { Args: { _txn_id: string }; Returns: string }
       post_pos_statement_gl: {
         Args: { p_idempotency_key?: string; p_statement_id: string }
