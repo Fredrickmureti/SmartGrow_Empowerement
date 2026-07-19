@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Invoice } from "@/hooks/useInvoices";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 type InvoiceStatus = Invoice["status"];
 
@@ -334,6 +335,8 @@ export default function InvoiceRecordPage() {
           )}
         </Section>
       )}
+
+      <DocumentVersionsSection documentType="invoice" documentId={invoice.id} />
     </RecordShell>
   );
 }

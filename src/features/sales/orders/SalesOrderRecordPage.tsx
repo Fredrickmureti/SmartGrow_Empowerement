@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { SalesOrder } from "@/hooks/useSalesOrders";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const STATUS_TONE: Record<
   string,
@@ -311,6 +312,8 @@ export default function SalesOrderRecordPage() {
           <p className="whitespace-pre-wrap text-sm">{order.notes}</p>
         </Section>
       )}
+
+      <DocumentVersionsSection documentType="sales_order" documentId={order.id} />
     </RecordShell>
   );
 }

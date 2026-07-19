@@ -215,6 +215,8 @@ export default function PurchaseReturnRecordPage() {
           <p className="whitespace-pre-wrap text-sm">{record.notes}</p>
         </Section>
       )}
+
+      <DocumentVersionsSection documentType="purchase_return" documentId={record.id} />
     </RecordShell>
   );
 }
