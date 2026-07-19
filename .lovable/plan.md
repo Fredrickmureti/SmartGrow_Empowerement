@@ -77,3 +77,28 @@ I audited the codebase against `.lovable/plan.md` and ADR-0084 without trusting 
 | History panel appears on documents without artifacts | Panel self-hides when `list()` returns empty |
 
 Ready to execute B3.2 → B1 Step 3 → B3.4 → Phase 4 → Phase 5 in order on approval.
+
+## Execution log — 2026-07-19
+
+- **Wave B3.2 (artifact persistence in generate-document)**: shipped.
+  Both PDF and ESC/POS return branches in `supabase/functions/generate-document/index.ts`
+  now dynamically import `_shared/documents/persistArtifact.ts` and call
+  `persistArtifact()` before returning. Blocking types (invoice, pos_receipt,
+  receipt, payslip) await persistence and expose
+  `X-Document-Artifact-Id` / `X-Document-Artifact-Version` response headers;
+  non-blocking types fire-and-forget. Callers can opt out with `persist:false`
+  in the request body (used by preview flows).
+- **Wave B1 Step 3 (shadow-path migration)**: shipped.
+  12 pages (Invoices, Bills, Estimates, SalesOrders, DeliveryNotes,
+  CreditNotes, ProformaInvoices, CustomerPayments, PurchaseOrders,
+  PurchaseReturns, SalesReturns, POSReports) now import
+  `usePrintOrPreview` instead of `useDocumentPrint`. Hook now exposes a
+  drop-in `generateDocument(type, id, title, comm?)` alias that routes
+  through the policy resolver first (auto-print when configured) and
+  falls back to the preview dialog on `ask_user` / errors. Zero call-site
+  rewrites required beyond the import swap.
+- **Remaining**: Wave B3.4 (mount `DocumentHistoryPanel` in per-entity peek
+  sheets — mechanical: pass `{ businessId, documentType, documentId }` via
+  `extraAside` on each `SalesPeekScaffold` caller), Phase 4 (ADR-0085 +
+  ESLint `no-raw-pdf-lib-in-app` / `no-direct-barcode-lib`), Phase 5
+  (architecture tests).
