@@ -38,7 +38,6 @@ import { useCallback } from "react";
 import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { printClient, type PrintIntent } from "@/services/printing/PrintClient";
 import { useBusinesses } from "@/contexts/BusinessContext";
-import { useBranch } from "@/contexts/BranchContext";
 import { toast } from "sonner";
 
 export interface PrintOrPreviewRequest {
@@ -47,6 +46,8 @@ export interface PrintOrPreviewRequest {
   title: string;
   /** Defaults to `a4_document` — override for receipts, labels, etc. */
   intent?: PrintIntent;
+  /** Optional explicit branch scope. Falls back to null (business-wide policy). */
+  branchId?: string | null;
   /**
    * When the resolver hits `askUser`, additional context passed to
    * `generateDocument()` (e.g. email addresses for the Send action).
@@ -59,15 +60,6 @@ export interface PrintOrPreviewRequest {
 export function usePrintOrPreview() {
   const docPrint = useDocumentPrint();
   const { currentBusiness } = useBusinesses();
-  // The Branch context is optional on some surfaces; guard against missing provider.
-  let branchId: string | null = null;
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { currentBranch } = useBranch();
-    branchId = currentBranch?.id ?? null;
-  } catch {
-    branchId = null;
-  }
 
   const printOrPreview = useCallback(
     async (req: PrintOrPreviewRequest) => {
