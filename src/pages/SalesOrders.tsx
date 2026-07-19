@@ -63,7 +63,7 @@ import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
@@ -92,7 +92,7 @@ export default function SalesOrders() {
   const { formatCurrency, baseCurrency } = useCurrency();
   const { exportSalesOrders } = useExport();
   const { toast: shadcnToast } = useToast();
-  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, isGeneratingPdf, generateDocument } = useDocumentPrint();
+  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, isGeneratingPdf, generateDocument } = usePrintOrPreview();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { contacts } = useContacts();
   const { products } = useProducts();

@@ -2429,6 +2429,68 @@ serve(async (req) => {
       }
       policyHeaders["Access-Control-Expose-Headers"] =
         "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Coerce-Reason, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id, X-Receipt-Settings-Source";
+
+      // ADR-0084 Wave B3.2 — persist ESC/POS bytes for byte-identical
+      // reprint + fiscal audit. Blocking for pos_receipt (auditors need
+      // the guarantee); fire-and-forget for others via the allow-list.
+      const escposPersistOptIn = body.persist !== false;
+      try {
+        const {
+          shouldPersistArtifact,
+          isBlockingType,
+          persistArtifact,
+        } = await import("../_shared/documents/persistArtifact.ts");
+        if (shouldPersistArtifact(documentType, { persistOptIn: escposPersistOptIn })) {
+          const persistPromise = persistArtifact({
+            supabase,
+            bytes: escposBytes as Uint8Array,
+            organizationId: orgId,
+            businessId: bizId,
+            branchId: effectiveBranchId,
+            documentType,
+            documentId,
+            documentNumber:
+              (documentData as any)?.document_number ?? null,
+            intent: typeof body.intent === "string" ? body.intent : null,
+            templateId: (template as any)?.id ?? null,
+            templateVersion: (template as any)?.version ?? null,
+            policyId: (policy as any)?.policy_id ?? null,
+            mimeType: "application/octet-stream",
+            renderMode: "escpos",
+            paperFormat: String(policyHeaders["X-Print-Policy-Paper"] ?? coerced.paper_format),
+            copies: Number((policy as any)?.copies ?? 1),
+            renderedBy: userData.user.id,
+            renderedVia: "generate-document",
+            metadata: {
+              columns: policyHeaders["X-Print-Policy-Columns"] ?? null,
+              font: policyHeaders["X-Print-Policy-Font"] ?? null,
+            },
+          }).then((res) => {
+            if (res) {
+              console.log(
+                `[artifact] ${documentType}/${documentId} escpos v${res.version}` +
+                  (res.deduped ? " (deduped)" : " (new)"),
+              );
+            }
+            return res;
+          });
+          if (isBlockingType(documentType)) {
+            const persisted = await persistPromise;
+            if (persisted) {
+              policyHeaders["X-Document-Artifact-Id"] = persisted.id;
+              policyHeaders["X-Document-Artifact-Version"] = String(persisted.version);
+              policyHeaders["Access-Control-Expose-Headers"] +=
+                ", X-Document-Artifact-Id, X-Document-Artifact-Version";
+            }
+          }
+        }
+      } catch (err) {
+        console.error(
+          "[artifact] escpos persistence hook failed (non-fatal):",
+          (err as Error).message,
+        );
+      }
+
       return new Response(escposBytes as unknown as BodyInit, {
         headers: {
           ...corsHeaders,
@@ -2439,11 +2501,75 @@ serve(async (req) => {
       });
     }
 
+
     const effectivePaper = effectivePaperOverride ?? coerced.paper_format;
     const renderOptions = { paperFormat: effectivePaper };
     const pdfBytes = isStatement
       ? await generateStatementPdf(documentData, template, renderOptions)
       : await generateDocumentPdf(documentData, template, renderOptions);
+
+    // ADR-0084 Wave B3.2 — persist an immutable artifact row + storage
+    // object so reprints are byte-identical and regenerations preserve
+    // the supersedes_id chain. Idempotent by content-sha256. Callers
+    // that only want a preview can pass `persist:false` in the request
+    // body to opt out.
+    const persistOptIn = body.persist !== false;
+    try {
+      const {
+        shouldPersistArtifact,
+        isBlockingType,
+        persistArtifact,
+      } = await import("../_shared/documents/persistArtifact.ts");
+      if (shouldPersistArtifact(documentType, { persistOptIn })) {
+        const persistPromise = persistArtifact({
+          supabase,
+          bytes: pdfBytes as Uint8Array,
+          organizationId: orgId,
+          businessId: bizId,
+          branchId: effectiveBranchId,
+          documentType,
+          documentId,
+          documentNumber:
+            (documentData as any)?.document_number ?? null,
+          intent: typeof body.intent === "string" ? body.intent : null,
+          templateId: (template as any)?.id ?? null,
+          templateVersion: (template as any)?.version ?? null,
+          policyId: (policy as any)?.policy_id ?? null,
+          mimeType: "application/pdf",
+          renderMode: effectiveFormat,
+          paperFormat: String(effectivePaper),
+          copies: Number((policy as any)?.copies ?? 1),
+          renderedBy: userData.user.id,
+          renderedVia: "generate-document",
+          metadata: {
+            coerced: coerced.coerced === true,
+            coerce_reason: coerced.reason ?? null,
+          },
+        }).then((res) => {
+          if (res) {
+            console.log(
+              `[artifact] ${documentType}/${documentId} v${res.version}` +
+                (res.deduped ? " (deduped)" : " (new)"),
+            );
+          }
+          return res;
+        });
+        if (isBlockingType(documentType)) {
+          const persisted = await persistPromise;
+          if (persisted) {
+            policyHeaders["X-Document-Artifact-Id"] = persisted.id;
+            policyHeaders["X-Document-Artifact-Version"] = String(persisted.version);
+            policyHeaders["Access-Control-Expose-Headers"] +=
+              ", X-Document-Artifact-Id, X-Document-Artifact-Version";
+          }
+        }
+      }
+    } catch (err) {
+      console.error(
+        "[artifact] persistence hook failed (non-fatal):",
+        (err as Error).message,
+      );
+    }
 
     return new Response(pdfBytes as unknown as BodyInit, {
       headers: {
@@ -2453,6 +2579,7 @@ serve(async (req) => {
         "Content-Disposition": buildContentDisposition(documentType, documentData.document_number, "pdf"),
       },
     });
+
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("Error generating document:", error);

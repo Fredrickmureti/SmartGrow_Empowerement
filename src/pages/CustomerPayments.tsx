@@ -12,7 +12,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useDefaultAccounts } from "@/hooks/useDefaultAccounts";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
 import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
@@ -135,7 +135,7 @@ export default function CustomerPayments() {
     generateDocument,
     downloadPdf,
     printDocument,
-  } = useDocumentPrint();
+  } = usePrintOrPreview();
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");

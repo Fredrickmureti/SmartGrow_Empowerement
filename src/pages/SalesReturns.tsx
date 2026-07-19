@@ -49,7 +49,7 @@ import { Plus, Search, MoreHorizontal, CheckCircle, XCircle, Loader2, RotateCcw,
 import { format } from "date-fns";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
@@ -116,7 +116,7 @@ export default function SalesReturns() {
   const { formatCurrency, baseCurrency } = useCurrency();
   const { contacts } = useContacts();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, generateDocument } = useDocumentPrint();
+  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, generateDocument } = usePrintOrPreview();
   const { currentView, selectedSavedView, setView } = useViewMode({ entityType: "sales_return" });
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters } = useCustomFieldFiltering("sales_return");
   const [searchQuery, setSearchQuery] = useState("");

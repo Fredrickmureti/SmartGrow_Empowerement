@@ -43,7 +43,7 @@ import {
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { InvoicePeekSheet } from "@/features/sales/invoices/InvoicePeekSheet";
@@ -183,7 +183,7 @@ export default function Invoices() {
   const draftSelectedCount = selectedInvoices.filter((inv) => inv.status === "draft").length;
 
   // Print
-  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, isGeneratingPdf, generateDocument } = useDocumentPrint();
+  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, isGeneratingPdf, generateDocument } = usePrintOrPreview();
 
   // Import
   const contactResolverRef = useRef<ContactResolver | null>(null);

@@ -49,7 +49,7 @@ import { ReceiptPreviewDialog } from "@/components/pos/ReceiptPreviewDialog";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranch } from "@/contexts/BranchContext";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import {
   exportToCSV,
@@ -144,7 +144,7 @@ export default function POSReports() {
   const { registers } = usePOSRegisters();
   const { formatCurrency, getCurrencySymbol, baseCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
-  const { downloadPdf, isGeneratingPdf } = useDocumentPrint();
+  const { downloadPdf, isGeneratingPdf } = usePrintOrPreview();
 
   // Filter registers by selected branch so the register picker stays coherent
   const visibleRegisters =

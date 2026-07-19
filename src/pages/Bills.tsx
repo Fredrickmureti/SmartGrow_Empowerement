@@ -18,7 +18,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { queryKeys } from "@/lib/queryKeys";
 
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { ViewSwitcher } from "@/components/common/ViewSwitcher";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
@@ -208,7 +208,7 @@ export default function Bills() {
     printCommunication,
     isGeneratingPdf,
     generateDocument,
-  } = useDocumentPrint();
+  } = usePrintOrPreview();
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [isPrinting, setIsPrinting] = useState<string | null>(null);
