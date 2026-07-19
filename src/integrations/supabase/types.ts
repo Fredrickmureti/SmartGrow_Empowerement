@@ -6957,6 +6957,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           event_type: string
+          handler_scope: string
           id: string
           idempotency_key: string
           last_error: string | null
@@ -6979,6 +6980,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           event_type: string
+          handler_scope?: string
           id?: string
           idempotency_key: string
           last_error?: string | null
@@ -7001,6 +7003,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           event_type?: string
+          handler_scope?: string
           id?: string
           idempotency_key?: string
           last_error?: string | null
@@ -71247,6 +71250,7 @@ export type Database = {
               completed_at: string | null
               created_at: string
               event_type: string
+              handler_scope: string
               id: string
               idempotency_key: string
               last_error: string | null
@@ -71278,6 +71282,7 @@ export type Database = {
               completed_at: string | null
               created_at: string
               event_type: string
+              handler_scope: string
               id: string
               idempotency_key: string
               last_error: string | null
@@ -71314,6 +71319,7 @@ export type Database = {
               completed_at: string | null
               created_at: string
               event_type: string
+              handler_scope: string
               id: string
               idempotency_key: string
               last_error: string | null
@@ -71351,6 +71357,7 @@ export type Database = {
               completed_at: string | null
               created_at: string
               event_type: string
+              handler_scope: string
               id: string
               idempotency_key: string
               last_error: string | null
@@ -79146,6 +79153,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           event_type: string
+          handler_scope: string
           id: string
           idempotency_key: string
           last_error: string | null
