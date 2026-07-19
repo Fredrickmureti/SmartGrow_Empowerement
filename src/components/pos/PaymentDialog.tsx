@@ -274,102 +274,13 @@ export function PaymentDialog({
     [session],
   );
 
-  const handleAddPayment = () => {
-    if (!amount || parseFloat(amount) <= 0) return;
-
-    const paymentAmount = parseFloat(amount);
-
-    // Wallet tenders backed by a real provider go through the gateway
-    // instead of a manual reference — the provider returns the vendor
-    // receipt that satisfies the requires_reference contract server-side.
-    if (selectedTenderKind === "wallet" && selectedProviderKey === "mpesa" && isMpesaEnabled) {
-      setSplitMpesaAmount(paymentAmount);
-      setShowSplitMpesaModal(true);
-      return;
-    }
-
-    // Card tenders: route through the terminal modal so the driver runs a
-    // real authorization before we attach the line. The FSM metadata is
-    // persisted at commit-time by `_pos_record_payment`.
-    if (selectedTenderKind === "card") {
-      setCardModalAmount(paymentAmount);
-      setCardModalMode("split");
-      setShowCardModal(true);
-      return;
-    }
-
-
-    // Credit-liability tenders (Store Credit / customer account) need a
-    // named customer so A/R has a party to bill.
-    if (selectedTenderKind === "credit_liability" && !hasCustomer) {
-      toast.error("Please select a customer before using Store Credit");
-      return;
-    }
-
-    // Reference contract is catalog-driven. Server also enforces it via
-    // pos_validate_payment_line, but we fail fast in the UI.
-    if (selectedMethodConfig?.requires_reference && !reference.trim()) {
-      toast.error(`A reference is required for ${selectedMethodConfig.display_name} so finance can reconcile this payment.`);
-      return;
-    }
-
-    // Non-cash split lines: tender == applied, no change.
-    setPayments([
-      ...payments,
-      {
-        method: selectedMethod,
-        amount: paymentAmount,
-        tendered_amount: paymentAmount,
-        change_given: 0,
-        reference: reference || undefined,
-      },
-    ]);
-    setAmount("");
-    setReference("");
-  };
-
-
-  const handleRemovePayment = (index: number) => {
-    setPayments(payments.filter((_, i) => i !== index));
-  };
-
-  const handleQuickCashPayment = () => {
-    // The applied amount is the rounded sale total (so cash rounding is
-    // honoured). The tendered amount is what the cashier actually entered —
-    // if they leave it blank we assume they collected exact cash. Any
-    // overage becomes change_given. We never clamp `tendered` to the total;
-    // doing so would silently lose the 20,000-bill / 19,000-sale case.
-    if (!cashMethod) return;
-    const applied = cashRoundingSettings.enabled ? roundedEffectiveTotal : effectiveTotal;
-    const parsed = parseFloat(cashTendered);
-    const tendered = Number.isFinite(parsed) && parsed >= applied ? parsed : applied;
-    const changeGiven = Math.max(0, tendered - applied);
-    onComplete([
-      {
-        method: cashMethod.method_key,
-        amount: applied,
-        tendered_amount: tendered,
-        change_given: changeGiven,
-      },
-    ]);
-    resetForm();
-  };
-
-
-  const handleSplitPayment = () => {
-    if (totalApplied < effectiveTotal) return;
-    onComplete(payments);
-    resetForm();
-  };
-
-  const handleTipQuick = (percent: number) => {
-    const tip = Math.round(total * percent) / 100;
-    setLocalTip(tip.toString());
-    onTipChange?.(tip);
-  };
-
-  const resetForm = () => {
-    setPayments([]);
+  /**
+   * Reset transient input state. We do NOT clear session tenders here —
+   * those live in the DB, and are cleared by either successful commit
+   * (POSTerminal calls session.commit → completeTransaction) or the
+   * abandoned-session sweeper.
+   */
+  const resetForm = useCallback(() => {
     setAmount("");
     setReference("");
     setCashTendered("");
@@ -382,14 +293,121 @@ export function PaymentDialog({
     if (enabledPaymentMethods.length > 0) {
       setSelectedMethod(enabledPaymentMethods[0].method_key);
     }
+  }, [enabledPaymentMethods]);
+
+  /**
+   * Finalize with the current server-authoritative tender list. The
+   * parent commits through its own `useCommitKey`-scoped
+   * `process_pos_transaction` (retail) or `finalize_table_order`
+   * (restaurant) call. Both use the same idempotency key as the
+   * session, so the RPC collapses duplicates on retry.
+   */
+  const finalizeWith = useCallback(
+    (rows: PaymentSessionTenderRow[]) => {
+      const active = rows.filter((t) => t.reversed_at == null);
+      onComplete(active.map(tenderRowToDialogPayment));
+      resetForm();
+    },
+    [onComplete, resetForm],
+  );
+
+  const handleAddPayment = async () => {
+    if (!amount || parseFloat(amount) <= 0) return;
+    const paymentAmount = parseFloat(amount);
+
+    if (selectedTenderKind === "wallet" && selectedProviderKey === "mpesa" && isMpesaEnabled) {
+      setSplitMpesaAmount(paymentAmount);
+      setShowSplitMpesaModal(true);
+      return;
+    }
+
+    if (selectedTenderKind === "card") {
+      setCardModalAmount(paymentAmount);
+      setCardModalMode("split");
+      setShowCardModal(true);
+      return;
+    }
+
+    if (selectedTenderKind === "credit_liability" && !hasCustomer) {
+      toast.error("Please select a customer before using Store Credit");
+      return;
+    }
+
+    if (selectedMethodConfig?.requires_reference && !reference.trim()) {
+      toast.error(
+        `A reference is required for ${selectedMethodConfig.display_name} so finance can reconcile this payment.`,
+      );
+      return;
+    }
+
+    if (!selectedMethodConfig) return;
+    const row = await recordTenderRow({
+      tender_kind: selectedMethodConfig.tender_kind as PosTenderKind,
+      method_key: selectedMethodConfig.method_key,
+      provider_key: selectedMethodConfig.provider_key ?? null,
+      amount: paymentAmount,
+      tendered_amount: paymentAmount,
+      change_given: 0,
+      reference: reference.trim() || null,
+    });
+    if (row) {
+      setAmount("");
+      setReference("");
+    }
   };
 
-  // Wave 2 · Phase C-2 — card terminal handlers. Full path completes the
-  // sale immediately; split path appends a card line to the running list.
-  const buildCardLine = (auth: CardAuthPayload, amountApplied: number): PaymentDialogPayment => {
+  const handleRemovePayment = async (index: number) => {
+    const row = tenderRows[index];
+    if (!row) return;
+    try {
+      setIsRecording(true);
+      await session.reverseTender(row.id, "cashier removed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove payment");
+    } finally {
+      setIsRecording(false);
+    }
+  };
+
+  const handleQuickCashPayment = async () => {
+    if (!cashMethod) return;
+    const applied = cashRoundingSettings.enabled ? roundedEffectiveTotal : effectiveTotal;
+    const parsed = parseFloat(cashTendered);
+    const tendered = Number.isFinite(parsed) && parsed >= applied ? parsed : applied;
+    const changeGiven = Math.max(0, tendered - applied);
+    const row = await recordTenderRow({
+      tender_kind: "cash",
+      method_key: cashMethod.method_key,
+      amount: applied,
+      tendered_amount: tendered,
+      change_given: changeGiven,
+    });
+    if (!row) return;
+    // Read the freshly-updated tender list off the session.
+    finalizeWith([...tenderRows, row]);
+  };
+
+  const handleSplitPayment = () => {
+    if (totalApplied < effectiveTotal) return;
+    finalizeWith(tenderRows);
+  };
+
+  const handleTipQuick = (percent: number) => {
+    const tip = Math.round(total * percent) / 100;
+    setLocalTip(tip.toString());
+    onTipChange?.(tip);
+  };
+
+  // Wave 2 · Phase C-2 — card handlers now funnel through the session.
+  const cardAuthToTender = (
+    auth: CardAuthPayload,
+    amountApplied: number,
+  ): PosSessionTenderInput => {
     if (!cardMethod) throw new Error("card tender missing from catalog");
     return {
-      method: cardMethod.method_key,
+      tender_kind: "card",
+      method_key: cardMethod.method_key,
+      provider_key: cardMethod.provider_key ?? null,
       amount: amountApplied,
       tendered_amount: amountApplied,
       change_given: 0,
@@ -397,77 +415,69 @@ export function PaymentDialog({
       auth_state: auth.initialAuthState,
       auth_id: auth.authId,
       vendor_txn_id: auth.vendorTxnId,
-      authorized_amount: auth.authorizedAmount,
-      card_last_four: auth.cardLastFour,
-      card_type: auth.cardType,
+      driver_payload: {
+        authorized_amount: auth.authorizedAmount,
+        card_last_four: auth.cardLastFour,
+        card_type: auth.cardType,
+      },
     };
   };
 
-  const handleCardSuccess = (auth: CardAuthPayload) => {
-    const line = buildCardLine(auth, cardModalAmount);
-    if (cardModalMode === "full") {
-      onComplete([line]);
-      resetForm();
-    } else {
-      setPayments((prev) => [...prev, line]);
-      setAmount("");
-    }
+  const handleCardSuccess = async (auth: CardAuthPayload) => {
+    const wasFull = cardModalMode === "full";
+    const row = await recordTenderRow(cardAuthToTender(auth, cardModalAmount));
     setShowCardModal(false);
     setCardModalAmount(0);
+    if (!row) return;
+    if (wasFull) {
+      finalizeWith([...tenderRows, row]);
+    } else {
+      setAmount("");
+    }
   };
 
-
-  // Full M-Pesa payment (pay entire amount). M-Pesa never returns change —
-  // the gateway authorizes the exact requested amount. Method key comes
-  // from the wallet+mpesa catalog row.
-  const handleMpesaSuccess = (receiptNumber: string) => {
+  const handleMpesaSuccess = async (receiptNumber: string) => {
     if (!mpesaWalletMethod) return;
-    onComplete([{
-      method: mpesaWalletMethod.method_key,
+    const row = await recordTenderRow({
+      tender_kind: "wallet",
+      method_key: mpesaWalletMethod.method_key,
+      provider_key: mpesaWalletMethod.provider_key ?? "mpesa",
       amount: effectiveTotal,
       tendered_amount: effectiveTotal,
       change_given: 0,
       reference: receiptNumber,
-    }]);
-    resetForm();
+    });
+    if (!row) return;
+    finalizeWith([...tenderRows, row]);
   };
 
-  // Split M-Pesa payment (pay partial amount)
-  const handleSplitMpesaSuccess = (receiptNumber: string) => {
+  const handleSplitMpesaSuccess = async (receiptNumber: string) => {
     if (!mpesaWalletMethod) return;
-    setPayments([
-      ...payments,
-      {
-        method: mpesaWalletMethod.method_key,
-        amount: splitMpesaAmount,
-        tendered_amount: splitMpesaAmount,
-        change_given: 0,
-        reference: receiptNumber,
-      },
-    ]);
+    const row = await recordTenderRow({
+      tender_kind: "wallet",
+      method_key: mpesaWalletMethod.method_key,
+      provider_key: mpesaWalletMethod.provider_key ?? "mpesa",
+      amount: splitMpesaAmount,
+      tendered_amount: splitMpesaAmount,
+      change_given: 0,
+      reference: receiptNumber,
+    });
     setShowSplitMpesaModal(false);
-    setAmount("");
     setSplitMpesaAmount(0);
+    if (!row) return;
+    setAmount("");
   };
 
-
-  const handleMpesaClick = () => {
-    setShowMpesaModal(true);
-  };
+  const handleMpesaClick = () => setShowMpesaModal(true);
 
   const handleClose = (open: boolean) => {
     if (!open) resetForm();
     onOpenChange(open);
   };
 
-  // Quick cash amounts - dynamically calculated based on effective total
   const getQuickAmounts = () => {
     const amounts: number[] = [];
-    
-    // Add exact amount
     amounts.push(effectiveTotal);
-    
-    // Add common round-ups
     const roundUps = [10, 20, 50, 100];
     for (const round of roundUps) {
       const rounded = Math.ceil(effectiveTotal / round) * round;
@@ -475,16 +485,14 @@ export function PaymentDialog({
         amounts.push(rounded);
       }
     }
-    
     return amounts.slice(0, 4).sort((a, b) => a - b);
   };
 
   const quickAmounts = getQuickAmounts();
 
-  // Catalog-driven capability flags — no method_key string checks.
-  const isCashEnabled   = Boolean(cashMethod);
+  const isCashEnabled = Boolean(cashMethod);
   const isCreditEnabled = Boolean(creditLiabilityMethod);
-  const isCardEnabled   = Boolean(cardMethod);
+  const isCardEnabled = Boolean(cardMethod);
 
   const handleCardQuickPay = () => {
     if (!cardMethod) return;
@@ -495,7 +503,7 @@ export function PaymentDialog({
     setShowCardModal(true);
   };
 
-  const handleCreditQuickPay = () => {
+  const handleCreditQuickPay = async () => {
     if (!creditLiabilityMethod) return;
     if (!hasCustomer) {
       toast.error("Please select a customer before using Store Credit");
@@ -503,17 +511,17 @@ export function PaymentDialog({
     }
     const creditAmount = payments.length === 0 ? effectiveTotal : remaining;
     if (creditAmount <= 0) return;
-    const creditLine: PaymentDialogPayment = {
-      method: creditLiabilityMethod.method_key,
+    const wasFull = payments.length === 0;
+    const row = await recordTenderRow({
+      tender_kind: "credit_liability",
+      method_key: creditLiabilityMethod.method_key,
       amount: creditAmount,
       tendered_amount: creditAmount,
       change_given: 0,
-    };
-    if (payments.length === 0) {
-      onComplete([creditLine]);
-      resetForm();
-    } else {
-      setPayments([...payments, creditLine]);
+    });
+    if (!row) return;
+    if (wasFull) {
+      finalizeWith([...tenderRows, row]);
     }
   };
 
