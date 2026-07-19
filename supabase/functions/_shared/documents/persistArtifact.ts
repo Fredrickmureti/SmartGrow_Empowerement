@@ -35,6 +35,12 @@ const PERSIST_ALLOWLIST = new Set<string>([
   "payment",
   "sales_return",
   "purchase_return",
+  // Phase 6.1 — HR letter renderers. Each letter is an immutable
+  // artifact for HR audit + employee record trails (ADR-0084).
+  "offer_letter",
+  "promotion_letter",
+  "warning_letter",
+  "contract_letter",
 ]);
 
 const BLOCKING_TYPES = new Set<string>([
@@ -42,6 +48,10 @@ const BLOCKING_TYPES = new Set<string>([
   "pos_receipt",
   "receipt",
   "payslip",
+  // HR: an issued letter must survive the request lifecycle so that the
+  // employee copy delivered downstream matches the archived version.
+  "offer_letter",
+  "contract_letter",
 ]);
 
 const EXT_FOR_MIME: Record<string, string> = {
