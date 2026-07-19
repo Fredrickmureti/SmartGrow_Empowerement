@@ -210,9 +210,15 @@ export function ReceiptPreviewDialog({
         return;
       }
 
-      // No thermal printer → server PDF + in-page print.
+      // No thermal printer → render on a real A4 sheet, not a tall 80 mm
+      // strip. Paper size is a property of the target device, not of the
+      // document: if we're about to hand this to Chrome's native print
+      // dialog on a desktop/laptop, it must be shaped like a sheet.
       try {
-        const blob = await generateDocumentPdf('pos_receipt', transaction.id, { forceRefreshSettings: useCurrentSettings });
+        const blob = await generateDocumentPdf('pos_receipt', transaction.id, {
+          forceRefreshSettings: useCurrentSettings,
+          paperFormat: 'a4',
+        });
         await printPdfInPage(blob);
         onPrint?.();
       } catch (err) {
