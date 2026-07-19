@@ -332,6 +332,10 @@ function POSTerminalInner() {
   }, [allFloorTables, tableId]);
   // Tip state
   const [tipAmount, setTipAmount] = useState(0);
+  const paymentSessionIdempotencyKey = useMemo(() => {
+    if (!registerId || !activeShift?.id) return "";
+    return `${commitKey.get(registerId, activeShift.id)}:${Math.round((cart.total + (tipAmount || 0)) * 100)}`;
+  }, [registerId, activeShift?.id, commitKey, cart.total, tipAmount]);
   
   // Hardware — proxy-based device management (replaces old direct-service approach)
   const { printerStatus, isConnecting: isPrinterAutoConnecting, openDrawer: openDrawerHw, printRawBytes } = useHardwareProxy(registerId);
@@ -1027,6 +1031,7 @@ function POSTerminalInner() {
 
           table_session_id: tableSessionId || undefined,
           tip_amount: tipAmount || 0,
+          idempotency_key: paymentSessionIdempotencyKey,
         });
       }
       
@@ -2244,15 +2249,14 @@ function POSTerminalInner() {
             registerId,
             shiftId: activeShift.id,
             cashierId: activeShift.user_id ?? null,
-            // Restaurant path uses the draft transaction id as the
-            // idempotency key so the session collapses with the
-            // downstream `finalize_table_order` call. Retail uses the
-            // register+shift-scoped commit key from `useCommitKey`,
-            // which is cleared on successful commit.
+            // Restaurant uses the draft transaction id so the session
+            // collapses with `finalize_table_order`. Retail binds the key
+            // to the amount because payment sessions freeze their grand
+            // total at open; checkout commit receives this exact same key.
             idempotencyKey:
               cart.isRestaurantMode && cart.transactionId
                 ? cart.transactionId
-                : commitKey.get(registerId, activeShift.id),
+                : paymentSessionIdempotencyKey,
           }}
           onComplete={handlePaymentComplete}
         />
