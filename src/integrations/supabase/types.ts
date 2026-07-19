@@ -12767,6 +12767,104 @@ export type Database = {
           },
         ]
       }
+      document_artifacts: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          byte_size: number
+          content_sha256: string
+          copies: number
+          created_at: string
+          document_id: string
+          document_number: string | null
+          document_type: string
+          id: string
+          intent: string | null
+          metadata: Json
+          mime_type: string
+          organization_id: string
+          page_count: number | null
+          paper_format: string
+          policy_id: string | null
+          regeneration_reason: string | null
+          render_mode: string
+          rendered_by: string | null
+          rendered_via: string
+          storage_bucket: string
+          storage_path: string
+          supersedes_id: string | null
+          template_id: string | null
+          template_version: number | null
+          version: number
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          byte_size: number
+          content_sha256: string
+          copies?: number
+          created_at?: string
+          document_id: string
+          document_number?: string | null
+          document_type: string
+          id?: string
+          intent?: string | null
+          metadata?: Json
+          mime_type?: string
+          organization_id: string
+          page_count?: number | null
+          paper_format?: string
+          policy_id?: string | null
+          regeneration_reason?: string | null
+          render_mode?: string
+          rendered_by?: string | null
+          rendered_via?: string
+          storage_bucket?: string
+          storage_path: string
+          supersedes_id?: string | null
+          template_id?: string | null
+          template_version?: number | null
+          version?: number
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          byte_size?: number
+          content_sha256?: string
+          copies?: number
+          created_at?: string
+          document_id?: string
+          document_number?: string | null
+          document_type?: string
+          id?: string
+          intent?: string | null
+          metadata?: Json
+          mime_type?: string
+          organization_id?: string
+          page_count?: number | null
+          paper_format?: string
+          policy_id?: string | null
+          regeneration_reason?: string | null
+          render_mode?: string
+          rendered_by?: string | null
+          rendered_via?: string
+          storage_bucket?: string
+          storage_path?: string
+          supersedes_id?: string | null
+          template_id?: string | null
+          template_version?: number | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_artifacts_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "document_artifacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_emails: {
         Row: {
           attachment_filename: string | null
@@ -72385,6 +72483,48 @@ export type Database = {
           to: "departments"
           isOneToOne: true
           isSetofReturn: false
+        }
+      }
+      document_artifacts_latest: {
+        Args: {
+          p_business_id: string
+          p_document_id: string
+          p_document_type: string
+        }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          byte_size: number
+          content_sha256: string
+          copies: number
+          created_at: string
+          document_id: string
+          document_number: string | null
+          document_type: string
+          id: string
+          intent: string | null
+          metadata: Json
+          mime_type: string
+          organization_id: string
+          page_count: number | null
+          paper_format: string
+          policy_id: string | null
+          regeneration_reason: string | null
+          render_mode: string
+          rendered_by: string | null
+          rendered_via: string
+          storage_bucket: string
+          storage_path: string
+          supersedes_id: string | null
+          template_id: string | null
+          template_version: number | null
+          version: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "document_artifacts"
+          isOneToOne: false
+          isSetofReturn: true
         }
       }
       earth: { Args: never; Returns: number }
