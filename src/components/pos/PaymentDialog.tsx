@@ -33,10 +33,39 @@ import {
   usePaymentSession,
   type PaymentSessionTenderRow,
 } from "@/hooks/pos/usePaymentSession";
-import type {
-  PosTenderKind,
-  PosSessionTenderInput,
+import {
+  POSPaymentSessionError,
+  type PosTenderKind,
+  type PosSessionTenderInput,
 } from "@/lib/pos/paymentSessionClient";
+
+/**
+ * Compose a diagnostic-preserving toast message for payment-session
+ * failures. `POSPaymentSessionError` carries PostgREST's structured
+ * `code` / `hint` / `details`; the generic `ErrorNormalizer` collapses
+ * every 400 to "Some of the information you entered is not valid.",
+ * which historically masked schema/overload drift (see Wave 3 · Phase 4
+ * postmortem). This helper surfaces the real cause without swallowing
+ * the exception — the caller still rethrows / returns null as before.
+ */
+function paymentSessionErrorMessage(e: unknown, fallback: string): string {
+  if (e instanceof POSPaymentSessionError) {
+    const parts = [e.message];
+    if (e.code) parts.push(`[${e.code}]`);
+    // Log the full triple for engineers; user sees a compact prefix.
+    // eslint-disable-next-line no-console
+    console.error("[pos-payment-session]", {
+      rpc: e.rpc,
+      code: e.code,
+      hint: e.hint,
+      details: e.details,
+      message: e.message,
+    });
+    if (e.hint) parts.push(`— ${e.hint}`);
+    return parts.join(" ");
+  }
+  return e instanceof Error ? e.message : fallback;
+}
 
 
 /**
@@ -264,8 +293,7 @@ export function PaymentDialog({
         const row = await session.recordTender(input);
         return row;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to record payment";
-        toast.error(msg);
+        toast.error(paymentSessionErrorMessage(e, "Failed to record payment"));
         return null;
       } finally {
         setIsRecording(false);
@@ -363,7 +391,7 @@ export function PaymentDialog({
       setIsRecording(true);
       await session.reverseTender(row.id, "cashier removed");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to remove payment");
+      toast.error(paymentSessionErrorMessage(e, "Failed to remove payment"));
     } finally {
       setIsRecording(false);
     }

@@ -74988,32 +74988,20 @@ export type Database = {
         Args: { p_session_id: string; p_transaction_envelope: Json }
         Returns: Json
       }
-      pos_payment_session_open:
-        | {
-            Args: {
-              p_cashier_id?: string
-              p_currency: string
-              p_grand_total: number
-              p_idempotency_key: string
-              p_register_id: string
-              p_tip_amount?: number
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_cashier_id?: string
-              p_currency: string
-              p_fx_rate?: number
-              p_grand_total: number
-              p_idempotency_key: string
-              p_register_id: string
-              p_settlement_currency?: string
-              p_tip_amount?: number
-              p_tip_policy?: string
-            }
-            Returns: string
-          }
+      pos_payment_session_open: {
+        Args: {
+          p_cashier_id?: string
+          p_currency: string
+          p_fx_rate?: number
+          p_grand_total: number
+          p_idempotency_key: string
+          p_register_id: string
+          p_settlement_currency?: string
+          p_tip_amount?: number
+          p_tip_policy?: string
+        }
+        Returns: string
+      }
       pos_payment_session_record_tender: {
         Args: {
           p_idempotency_key: string
