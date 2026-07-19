@@ -39546,6 +39546,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string
+          fx_rate: number | null
           grand_total: number
           id: string
           idempotency_key: string
@@ -39553,8 +39554,10 @@ export type Database = {
           organization_id: string | null
           pos_transaction_id: string | null
           register_id: string
+          settlement_currency: string | null
           status: Database["public"]["Enums"]["pos_payment_session_status"]
           tip_amount: number
+          tip_policy: string | null
           updated_at: string
         }
         Insert: {
@@ -39566,6 +39569,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string
+          fx_rate?: number | null
           grand_total: number
           id?: string
           idempotency_key: string
@@ -39573,8 +39577,10 @@ export type Database = {
           organization_id?: string | null
           pos_transaction_id?: string | null
           register_id: string
+          settlement_currency?: string | null
           status?: Database["public"]["Enums"]["pos_payment_session_status"]
           tip_amount?: number
+          tip_policy?: string | null
           updated_at?: string
         }
         Update: {
@@ -39586,6 +39592,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string
+          fx_rate?: number | null
           grand_total?: number
           id?: string
           idempotency_key?: string
@@ -39593,8 +39600,10 @@ export type Database = {
           organization_id?: string | null
           pos_transaction_id?: string | null
           register_id?: string
+          settlement_currency?: string | null
           status?: Database["public"]["Enums"]["pos_payment_session_status"]
           tip_amount?: number
+          tip_policy?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -74979,17 +74988,32 @@ export type Database = {
         Args: { p_session_id: string; p_transaction_envelope: Json }
         Returns: Json
       }
-      pos_payment_session_open: {
-        Args: {
-          p_cashier_id?: string
-          p_currency: string
-          p_grand_total: number
-          p_idempotency_key: string
-          p_register_id: string
-          p_tip_amount?: number
-        }
-        Returns: string
-      }
+      pos_payment_session_open:
+        | {
+            Args: {
+              p_cashier_id?: string
+              p_currency: string
+              p_grand_total: number
+              p_idempotency_key: string
+              p_register_id: string
+              p_tip_amount?: number
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_cashier_id?: string
+              p_currency: string
+              p_fx_rate?: number
+              p_grand_total: number
+              p_idempotency_key: string
+              p_register_id: string
+              p_settlement_currency?: string
+              p_tip_amount?: number
+              p_tip_policy?: string
+            }
+            Returns: string
+          }
       pos_payment_session_record_tender: {
         Args: {
           p_idempotency_key: string
@@ -75001,6 +75025,10 @@ export type Database = {
       pos_payment_session_reverse_tender: {
         Args: { p_reason: string; p_session_id: string; p_tender_id: string }
         Returns: undefined
+      }
+      pos_payment_session_sweep_abandoned: {
+        Args: { p_older_than_minutes?: number }
+        Returns: number
       }
       pos_reconcile_register_period: {
         Args: { p_actual_cash: number; p_notes?: string; p_shift_id: string }
