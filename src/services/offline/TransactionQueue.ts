@@ -199,15 +199,66 @@ class TransactionQueueService {
         lastAttemptAt: new Date().toISOString(),
       });
 
-      // Use the same atomic RPC as online transactions for data integrity
-      const { data: result, error } = await supabase.rpc(
-        "process_pos_transaction" as any,
-        {
-          p_organization_id: data.organization_id,
-          p_business_id: data.business_id,
-          p_register_id: data.register_id,
-          p_shift_id: data.shift_id,
-          p_items: data.cart.items.map((item) => ({
+      // Wave 3 · Phase 4.b — replay routes through the payment-session
+      // lifecycle. `queued.id` is the base idempotency key so a partial
+      // replay collapses on the server: openSession dedupes on the same
+      // key, recordTender dedupes on `${queued.id}:tender:${i}`, and
+      // commitSession returns the cached envelope via the apply-log guard.
+      const tenderKindFor = (m: string): PosTenderKind => {
+        switch (m) {
+          case "cash":          return "cash";
+          case "card":          return "card";
+          case "mobile_money":
+          case "mpesa":         return "wallet";
+          case "voucher":       return "voucher";
+          case "credit":        return "credit_liability";
+          case "bank_transfer": return "bank_transfer";
+          default:              return "other";
+        }
+      };
+
+      const sessionId = await openSession({
+        registerId: data.register_id,
+        grandTotal: data.cart.total,
+        currency: "KES",
+        idempotencyKey: queued.id,
+        cashierId: data.created_by,
+      });
+
+      for (let i = 0; i < data.payments.length; i++) {
+        const p = data.payments[i];
+        const method = p.method === "mpesa" ? "mobile_money" : p.method;
+        const tendered = p.tendered_amount ?? p.amount;
+        const changeGiven = p.change_given ?? Math.max(0, tendered - p.amount);
+        await recordTender({
+          sessionId,
+          idempotencyKey: `${queued.id}:tender:${i}`,
+          tender: {
+            tender_kind: tenderKindFor(method),
+            method_key: method,
+            provider_key: method === "mobile_money" ? "mpesa" : undefined,
+            amount: p.amount,
+            tendered_amount: tendered,
+            change_given: method === "cash" ? changeGiven : 0,
+            reference: p.reference ?? null,
+            auth_state: p.auth_state ?? undefined,
+            auth_id: p.auth_id ?? null,
+            vendor_txn_id: p.vendor_txn_id ?? null,
+            driver_payload: {
+              card_last_four: p.card_last_four ?? null,
+              card_type: p.card_type ?? null,
+              authorized_amount: p.authorized_amount ?? null,
+            },
+          },
+        });
+      }
+
+      const commitResult = await commitSession({
+        sessionId,
+        envelope: {
+          organization_id: data.organization_id,
+          shift_id: data.shift_id,
+          items: data.cart.items.map((item) => ({
             product_id: item.product_id,
             name: item.name,
             quantity: item.quantity,
@@ -221,41 +272,15 @@ class TransactionQueueService {
             tax_rate_id: null,
             etims_tax_code: null,
           })),
-          p_payments: data.payments.map((p) => ({
-            payment_method: p.method,
-            amount: p.amount,
-            reference: p.reference || null,
-            card_last_four: null,
-            card_type: null,
-            mpesa_receipt_number: p.method === "mobile_money" ? p.reference : null,
-          })),
-          p_subtotal: data.cart.subtotal,
-          p_tax_amount: data.cart.tax_amount,
-          p_discount_amount: data.cart.discount_amount,
-          p_total: data.cart.total,
-          p_customer_id: data.cart.customer?.id || null,
-          p_customer_name: data.cart.customer?.name || null,
-          p_notes: `${data.cart.notes || ""} [Synced from offline: ${data.offline_transaction_number}]`.trim(),
-          p_created_by: data.created_by,
-          p_transaction_type: data.transaction_type,
-          p_table_session_id: null,
-          // Idempotency: replays of the same queued offline transaction
-          // (e.g. retries after a network blip) collapse to a single row.
-          p_idempotency_key: queued.id,
-        }
-      );
-
-      if (error) throw error;
-
-      const rpcResult = result as any;
-
-      if (!rpcResult?.success) {
-        const errMsg =
-          rpcResult?.error === "insufficient_stock"
-            ? `Insufficient stock for: ${(rpcResult.details as any[]).map((d: any) => d.product_name).join(", ")}`
-            : rpcResult?.error || "Transaction processing failed";
-        throw new Error(errMsg);
-      }
+          subtotal: data.cart.subtotal,
+          tax_amount: data.cart.tax_amount,
+          discount_amount: data.cart.discount_amount,
+          transaction_type: data.transaction_type === "return" ? "return" : "sale",
+          customer_id: data.cart.customer?.id ?? null,
+          customer_name: data.cart.customer?.name ?? null,
+          notes: `${data.cart.notes || ""} [Synced from offline: ${data.offline_transaction_number}]`.trim(),
+        },
+      });
 
       // Mark as completed
       await offlineStorage.put(STORES.TRANSACTIONS_QUEUE, {
@@ -265,7 +290,9 @@ class TransactionQueueService {
         lastAttemptAt: new Date().toISOString(),
       });
 
-      console.log(`Transaction synced atomically: ${queued.id} -> ${rpcResult.transaction_number}`);
+      console.log(
+        `Transaction synced via payment session: ${queued.id} -> ${commitResult.transaction_number ?? commitResult.transaction_id}`,
+      );
       return true;
     } catch (error) {
       console.error(`Failed to sync transaction ${queued.id}:`, error);
