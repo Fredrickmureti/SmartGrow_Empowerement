@@ -235,10 +235,6 @@ function POSTerminalInner() {
   });
   const { completeTransaction } = usePOSTransactionOffline();
   const commitKey = useCommitKey();
-  const paymentSessionIdempotencyKey = useMemo(() => {
-    if (!registerId || !activeShift?.id) return "";
-    return `${commitKey.get(registerId, activeShift.id)}:${Math.round((cart.total + (tipAmount || 0)) * 100)}`;
-  }, [registerId, activeShift?.id, commitKey, cart.total, tipAmount]);
   const sound = usePOSSound();
   const { heldCount, holdTransaction } = usePOSHeldTransactions(registerId);
   const { receiptSettings } = usePOSSettings();
@@ -336,6 +332,10 @@ function POSTerminalInner() {
   }, [allFloorTables, tableId]);
   // Tip state
   const [tipAmount, setTipAmount] = useState(0);
+  const paymentSessionIdempotencyKey = useMemo(() => {
+    if (!registerId || !activeShift?.id) return "";
+    return `${commitKey.get(registerId, activeShift.id)}:${Math.round((cart.total + (tipAmount || 0)) * 100)}`;
+  }, [registerId, activeShift?.id, commitKey, cart.total, tipAmount]);
   
   // Hardware — proxy-based device management (replaces old direct-service approach)
   const { printerStatus, isConnecting: isPrinterAutoConnecting, openDrawer: openDrawerHw, printRawBytes } = useHardwareProxy(registerId);
