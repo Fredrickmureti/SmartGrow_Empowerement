@@ -19,9 +19,8 @@
 
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, ChevronRight, AlertTriangle, ArrowRight, Loader2, Send } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, ArrowRight, Inbox } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -44,6 +43,7 @@ import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import type {
   ExportConfig, ExportColumn, ExportRow,
 } from "@/services/reports/ReportExportService";
+
 
 type StatusFilter = "all" | "clean" | "errors" | "not_posted" | "posted";
 
@@ -379,7 +379,6 @@ interface GLSummary {
 function ShiftDetail({
   shiftId, journalEntryId, currency, isPosted,
 }: { shiftId: string; journalEntryId: string | null; currency: string; isPosted: boolean }) {
-  const qc = useQueryClient();
   const summary = useQuery({
     queryKey: ["pos-shift-gl-summary", shiftId],
     queryFn: async () => {
@@ -401,33 +400,6 @@ function ShiftDetail({
     },
   });
 
-  const postNow = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.rpc(
-        "post_pos_register_period_gl_now" as never,
-        { p_shift_id: shiftId } as never,
-      );
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data: unknown) => {
-      const d = (data ?? {}) as Record<string, unknown>;
-      if (d.already_posted) {
-        toast.success("Already posted to accounting");
-      } else if (d.empty) {
-        toast.info("Nothing to post — no tender or revenue on this shift");
-      } else {
-        toast.success("Posted to accounting");
-      }
-      qc.invalidateQueries({ queryKey: ["pos-shift-gl-integrity"] });
-      qc.invalidateQueries({ queryKey: ["pos-shift-gl-summary", shiftId] });
-    },
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Post failed: ${msg}`);
-    },
-  });
-
   const s = summary.data ?? null;
   const revenueTotal = (s?.revenue ?? []).reduce((a, r) => a + Number(r.total_amount ?? 0), 0);
   const cogsTotal = (s?.cogs ?? []).reduce((a, r) => a + Number(r.total_cogs ?? 0), 0);
@@ -444,19 +416,18 @@ function ShiftDetail({
           </Button>
         )}
         {!isPosted && (
-          <Button
-            size="sm"
-            onClick={() => postNow.mutate()}
-            disabled={postNow.isPending}
-          >
-            {postNow.isPending ? (
-              <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Posting…</>
-            ) : (
-              <><Send className="h-3 w-3 mr-1" /> Post to accounting now</>
-            )}
+          <Button asChild size="sm" variant="secondary">
+            <Link to={`/finance/pos-posting-queue?shift=${shiftId}`}>
+              <Inbox className="h-3 w-3 mr-1" /> Open in Posting Queue
+            </Link>
           </Button>
         )}
+        <span className="text-[11px] text-muted-foreground">
+          This report is read-only. All posting actions live in the POS Posting Queue.
+        </span>
       </div>
+
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Card>
