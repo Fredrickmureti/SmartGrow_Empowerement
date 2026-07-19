@@ -32,7 +32,7 @@ function latestMigrationWith(pattern: string): string {
 
 describe("POS statement-centric GL posting — S5 architectural surface", () => {
   const sql = readFileSync(
-    latestMigrationWith("post_pos_statement_gl"),
+    latestMigrationWith("CREATE OR REPLACE FUNCTION public.post_pos_statement_gl"),
     "utf8",
   );
 
