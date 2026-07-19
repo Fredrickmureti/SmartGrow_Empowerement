@@ -12,7 +12,7 @@ type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purch
  * Default behaviour (A4 PDF) is preserved when omitted.
  */
 export type PaperFormatOption =
-  | "a4" | "letter" | "a5" | "80mm" | "58mm"
+  | "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm"
   | { widthMm: number; heightMm: number | "auto" };
 
 export function useDocumentPrint() {
