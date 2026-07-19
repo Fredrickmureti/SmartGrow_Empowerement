@@ -183,6 +183,17 @@ export function usePOSTransactionOffline() {
       } else {
         toast.success(`Sale completed: ${result.transactionNumber}`);
       }
+
+      // S2 — advisory: if the client's cart math diverged from the server
+      // aggregate, log it. The server row + receipt are always authoritative
+      // (see `_pos_write_receipt_snapshot`); this is diagnostics only.
+      if (!result.isOffline && result.totalMatchesServer === false) {
+        console.warn("[pos] client cart total diverged from server", {
+          transactionId: result.transaction.id,
+          serverTotals: result.serverTotals,
+          clientTotal: data.cart.total,
+        });
+      }
     },
     onError: (error: Error) => {
       toast.error(`Transaction failed: ${normalizeError(error).message}`);
@@ -323,6 +334,12 @@ async function processOnlineTransaction(
     transactionNumber: envelope.transaction_number ?? "",
     change: envelope.change ?? Math.max(0, totalPaid - data.cart.total),
     isOffline: false,
+    // S2 — surface server-authoritative totals so downstream consumers
+    // (customer display, analytics, offline sync reconciliation) never
+    // depend on the client's advisory cart math. Receipt rendering is
+    // already server-authoritative via `pos_receipt_snapshots`.
+    serverTotals: envelope.server_totals ?? null,
+    totalMatchesServer: envelope.total_matches_server ?? true,
   };
 }
 
