@@ -45,11 +45,20 @@ const ALLOWED_DIRECT_CALLERS = new Set([
 ]);
 
 describe("Stage X6 — POS receipt renderer contract", () => {
-  it("on-screen renderer modules exist (PreviewRenderer, CustomerDisplayRenderer)", () => {
+  it("on-screen renderer modules exist (CustomerDisplayRenderer + barrel)", () => {
     const present = readdirSync(RENDERER_DIR);
-    expect(present).toContain("PreviewRenderer.tsx");
     expect(present).toContain("CustomerDisplayRenderer.ts");
     expect(present).toContain("index.ts");
+  });
+
+  it("Wave 4 — legacy HTML PreviewRenderer is retired in favour of MonospacePreview", () => {
+    // The old Tailwind-based `PreviewRenderer` fragmented the pipeline:
+    // the operator saw an HTML approximation while the printer / PDF
+    // used a different engine. All POS previews now flow through the
+    // unified `buildReceiptLines` + `MonospacePreview` chain.
+    const present = readdirSync(RENDERER_DIR);
+    expect(present).not.toContain("PreviewRenderer.tsx");
+    expect(present).not.toContain("PreviewRenderer.ts");
   });
 
   it("Milestone B — legacy print renderer modules (ThermalPrintRenderer, PdfRenderer) are demoted and removed", () => {
@@ -61,9 +70,18 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(present).not.toContain("PdfRenderer.ts");
   });
 
-  it("ReceiptDocumentModel builder is the single shape used by on-screen renderers", () => {
-    const preview = readFileSync(join(RENDERER_DIR, "PreviewRenderer.tsx"), "utf8");
-    expect(preview).toMatch(/ReceiptDocumentModel/);
+  it("ReceiptDocumentModel remains the single shape POS surfaces feed to buildReceiptLines", () => {
+    // Post PreviewRenderer removal, the invariant moves one layer up:
+    // POS surfaces build a `ReceiptDocumentModel` and hand it to
+    // `buildReceiptLines`, which is the single row producer shared by
+    // the on-screen preview, the ESC/POS bytes and the thermal PDF.
+    const src = readFileSync(
+      join(root, "src", "components", "pos", "PostPaymentScreen.tsx"),
+      "utf8",
+    );
+    expect(src).toMatch(/ReceiptDocumentModel|buildReceiptDocument/);
+    expect(src).toMatch(/buildReceiptLines/);
+    expect(src).toMatch(/MonospacePreview/);
   });
 
   it("POSTerminal no longer inlines `generate-document` auto-print bytes in the success path", () => {
