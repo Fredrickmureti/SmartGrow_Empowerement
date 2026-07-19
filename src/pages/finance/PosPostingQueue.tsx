@@ -449,7 +449,12 @@ function StatementDrawer({
         "retry_pos_statement_posting" as never,
         { p_statement_id: statementId, p_reason: reason.trim() || null } as never,
       );
-      if (error) throw error;
+      if (error) {
+        const e = error as { message?: string; details?: string; hint?: string; code?: string };
+        const parts = [e.message, e.details, e.hint].filter(Boolean);
+        const composed = parts.join(" — ") || `Supabase error${e.code ? ` (${e.code})` : ""}`;
+        throw new Error(composed);
+      }
       return data;
     },
     onSuccess: (data: unknown) => {
@@ -464,7 +469,9 @@ function StatementDrawer({
       qc.invalidateQueries({ queryKey: ["pos-statement-posting-preview", statementId] });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error && err.message
+        ? err.message
+        : typeof err === "string" ? err : JSON.stringify(err);
       toast.error(`Retry failed: ${msg}`);
     },
   });
