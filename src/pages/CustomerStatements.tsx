@@ -748,6 +748,23 @@ export default function CustomerStatements() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={async () => {
+                                  const res = await printClient.downloadExport({
+                                    documentType: "customer_statement",
+                                    documentId: statement.id,
+                                    format: "csv",
+                                    filename: `customer-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "contact"}.csv`,
+                                  });
+                                  if (!res.success) {
+                                    toast.error("Export failed: " + (res.error ?? "Unknown error"));
+                                  } else {
+                                    toast.success("CSV export archived to version history");
+                                  }
+                                }}
+                              >
+                                <Download className="mr-2 h-4 w-4" />
+                                Export CSV
+                              <DropdownMenuItem
+                                onClick={async () => {
                                   try {
                                     const data = await generateStatementData({
                                       contact_id: statement.contact_id,
