@@ -219,6 +219,11 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
           setStatus("open");
           const rows = await fetchTenders(existing.id);
           if (!cancelled && alive.current) setTenders(rows);
+        } else {
+          setSessionId(null);
+          setTenders([]);
+          setChange(0);
+          setStatus("idle");
         }
       } catch (e) {
         if (!cancelled && alive.current) setError(e as Error);
