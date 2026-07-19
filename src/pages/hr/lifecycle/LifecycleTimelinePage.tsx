@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, History, Filter, ExternalLink } from "lucide-react";
+import { Loader2, History, Filter, ExternalLink, Printer } from "lucide-react";
 import { PageHeader, PageBody } from "@/design-system";
 import {
   useLifecycleEvents,
@@ -21,6 +21,18 @@ import {
   lifecycleEventTone,
   type LifecycleEventType,
 } from "@/hooks/hr/useLifecycleEvents";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+
+/**
+ * Map a lifecycle event_type to the HR letter document type served by
+ * generate-document. Events that don't produce a formal letter return null.
+ */
+function letterTypeFor(eventType: string): "promotion_letter" | "warning_letter" | null {
+  if (eventType === "promoted") return "promotion_letter";
+  if (eventType === "warning_issued") return "warning_letter";
+  return null;
+}
 
 const WINDOWS: Array<{ label: string; days: number }> = [
   { label: "Last 7 days", days: 7 },
@@ -34,6 +46,15 @@ export default function LifecycleTimelinePage() {
   const [windowDays, setWindowDays] = useState<number>(30);
   const [eventType, setEventType] = useState<LifecycleEventType | "all">("all");
   const [search, setSearch] = useState("");
+  const {
+    printPreviewOpen,
+    setPrintPreviewOpen,
+    printPreviewTitle,
+    printDocumentType,
+    printDocumentId,
+    printCommunication,
+    generateDocument,
+  } = usePrintOrPreview();
 
   const { events, isLoading } = useLifecycleEvents({
     sinceDays: windowDays,
@@ -147,15 +168,38 @@ export default function LifecycleTimelinePage() {
                         </p>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={() => navigate(`/hr/employees/${e.employee_id}?section=history`)}
-                      title="Open employee"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {(() => {
+                        const lt = letterTypeFor(e.event_type);
+                        if (!lt) return null;
+                        const label = lt === "promotion_letter" ? "Promotion letter" : "Warning letter";
+                        return (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              generateDocument(
+                                lt,
+                                e.id,
+                                `${label} — ${e.employee_name ?? ""}`.trim(),
+                              )
+                            }
+                            title={`Print ${label.toLowerCase()}`}
+                          >
+                            <Printer className="mr-1 h-3.5 w-3.5" />
+                            Print
+                          </Button>
+                        );
+                      })()}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigate(`/hr/employees/${e.employee_id}?section=history`)}
+                        title="Open employee"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -163,6 +207,15 @@ export default function LifecycleTimelinePage() {
           </Card>
         )}
       </PageBody>
+
+      <PrintPreviewDialog
+        open={printPreviewOpen}
+        onOpenChange={setPrintPreviewOpen}
+        title={printPreviewTitle}
+        documentType={printDocumentType}
+        documentId={printDocumentId}
+        communication={printCommunication}
+      />
     </>
   );
 }

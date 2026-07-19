@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Search,
   ArrowUpDown,
+  Printer,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,8 @@ import {
   type ContractStatus,
 } from "@/hooks/hr/useContracts";
 import { RenewContractDialog } from "./RenewContractDialog";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 
 export interface ContractsListPageProps {
   eyebrow: string;
@@ -74,6 +77,15 @@ export function ContractsListPage(props: ContractsListPageProps) {
   const [search, setSearch] = useState("");
   const [renewTarget, setRenewTarget] = useState<Contract | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
+  const {
+    printPreviewOpen,
+    setPrintPreviewOpen,
+    printPreviewTitle,
+    printDocumentType,
+    printDocumentId,
+    printCommunication,
+    generateDocument,
+  } = usePrintOrPreview();
 
   const { contracts, isLoading } = useContracts({
     status,
@@ -200,6 +212,21 @@ export function ContractsListPage(props: ContractsListPageProps) {
                       )}
                       <Button
                         variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          generateDocument(
+                            "contract_letter",
+                            c.id,
+                            `Contract ${c.contract_reference ?? c.employee_name ?? ""}`.trim(),
+                          )
+                        }
+                        title="Print contract letter"
+                      >
+                        <Printer className="mr-1 h-3.5 w-3.5" />
+                        Print
+                      </Button>
+                      <Button
+                        variant="ghost"
                         size="icon"
                         onClick={() =>
                           navigate(`/hr/employees/${c.employee_id}?section=contracts`)
@@ -221,6 +248,15 @@ export function ContractsListPage(props: ContractsListPageProps) {
         contract={renewTarget}
         open={!!renewTarget}
         onOpenChange={(o) => !o && setRenewTarget(null)}
+      />
+
+      <PrintPreviewDialog
+        open={printPreviewOpen}
+        onOpenChange={setPrintPreviewOpen}
+        title={printPreviewTitle}
+        documentType={printDocumentType}
+        documentId={printDocumentId}
+        communication={printCommunication}
       />
     </>
   );
