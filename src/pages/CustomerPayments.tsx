@@ -134,7 +134,7 @@ export default function CustomerPayments() {
     isGeneratingPdf,
     generateDocument,
     downloadPdf,
-    printDocument,
+    printOrPreview,
   } = usePrintOrPreview();
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
@@ -645,7 +645,7 @@ export default function CustomerPayments() {
                 onDownloadReceipt={handleDownloadReceipt}
                 onPrintReceipt={(payment) => {
                   const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
-                  printDocument("receipt", payment.id, `Receipt ${receiptNum}`);
+                  printOrPreview({ documentType: "receipt", documentId: payment.id, title: `Receipt ${receiptNum}` });
                 }}
                 onEmailReceipt={(payment) => {
                   const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;

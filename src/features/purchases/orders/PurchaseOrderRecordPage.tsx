@@ -34,6 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import type { PurchaseOrder } from "@/hooks/usePurchaseOrders";
 
 const STATUS_TONE: Record<
