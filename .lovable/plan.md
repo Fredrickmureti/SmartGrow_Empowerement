@@ -1,142 +1,79 @@
-# Enterprise Document Platform — Audit Verdict & Foundation Plan (v2)
+# Enterprise Document Platform — Resumption Plan
 
-Defaults locked in per enterprise-ERP norms (Odoo, SAP, Oracle, NetSuite). No further questions.
+## Verification of prior agent's claims (Phase 1)
 
-## 1. Verdict
+I audited the codebase against `.lovable/plan.md` and ADR-0084 without trusting any claim. Results:
 
-The platform exists — it is not finished. Building a new platform on top of what already exists would be the mistake. The work is to **complete, consolidate, and enforce** it.
+**Confirmed landed (do not redo):**
+- `document_artifacts` table + `document-artifacts` private bucket + versioning trigger + `document_artifacts_latest` RPC + storage RLS (migrations present under `supabase/migrations/`).
+- `print_policies_resolve` RPC (typed in `src/integrations/supabase/types.ts`; consumed by `PrintClient.ts`, `resolvePolicy.ts`, `renderReport.ts`, `send-document-email`). Contract test `src/test/printing/print-policies-resolve.test.ts` exists.
+- `PrintClient` calls the resolver (ADR-0026 wave B1 Step 1–2 done).
+- `no-document-print-shadow-path` ESLint rule active at `error` with the 12-page allowlist.
+- `src/services/documents/DocumentArtifactStore.ts` (read-only client) exists.
+- `src/components/documents/DocumentHistoryPanel.tsx` exists.
+- `src/hooks/usePrintOrPreview.ts` exists.
+- ADR-0084 written.
 
-### 1a. Already canonical (do not rebuild)
+**Confirmed still pending (log matches reality):**
+1. **Wave B3.2** — `supabase/functions/generate-document/index.ts` (2,501 lines) has **zero** references to `document_artifacts`, sha256, or storage upload. No artifact is ever persisted; reprints still re-render live templates.
+2. **Wave B1 Step 3** — all 12 shadow-path pages (`Invoices`, `Bills`, `CreditNotes`, `CustomerPayments`, `DeliveryNotes`, `Estimates`, `ProformaInvoices`, `PurchaseOrders`, `PurchaseReturns`, `SalesOrders`, `SalesReturns`, `pos/POSReports`) still call `useDocumentPrint()` directly. `usePrintOrPreview` has zero page consumers.
+3. **Wave B3.4** — `DocumentHistoryPanel` has no importers; never mounted in a detail dialog.
 
-| Concern | Owner |
-|---|---|
-| Domain → PDF | `supabase/functions/generate-document` + `_shared/pdf/PdfBuilder` + `themes/accountantMono` (ADR-0008) |
-| Paper format / render-mode policy | `document_print_policies` table |
-| Client print/preview/download | `src/services/printing/pdfUtils.ts` (3 sanctioned fns) |
-| Cross-app print entry point | `PrintClient.print({documentType, documentId, intent})` (ADR-0026) |
-| Hardware chokepoint + audit | `hardwareClient` → `hardware_exec_log` (ADR-0014, ADR-0037) |
-| ESC/POS receipts | `supabase/functions/_shared/receipt/engine` |
-| ZPL / EPL / ESC-POS labels | `electron/hardware/drivers/*LabelDriver` + `_shared/printing/zpl/builder` |
-| Localization → documents | Packs → fiscal blocks (`_shared/pos/fiscalBlock`, `EtimsQRCode`) |
-| Statutory paper pinning | `assertStatutoryPaper("a4")` |
-| Country-agnostic apps | `architecture.fiscal-country-agnostic.test.ts` |
+**Phases 4 & 5 (from the original plan) also outstanding:**
+- HR letter renderers (offer/promotion/warning/contract) not in `generate-document`.
+- Client POS receipt renderers (`ThermalPrintRenderer`, `PdfRenderer` under `src/lib/pos/receipt/renderers`) still owned by POS UI, not demoted to pure builders consumed via `PrintClient`.
+- `format=csv|xlsx` on `generate-document` for statements / GL / trial balance not added.
+- ADR-0085 (barcode ownership), `no-raw-pdf-lib-in-app`, `no-direct-barcode-lib` ESLint rules — not landed.
 
-### 1b. Verified gaps (the deliverables)
+**Plan validation:** the existing plan is architecturally sound and aligned with Odoo / SAP / NetSuite norms (canonical `DocumentData`, policy resolver, immutable artifact store, single renderer). No structural revisions needed. Two small additions justified by the audit:
+- **B3.2a** — the artifact write must be idempotent under retry: check `content_sha256` against the latest artifact for `(business, type, doc)` and skip both upload and insert on match. ADR-0084 already specifies dedupe; the plan didn't spell out that "skip" means "do not insert a duplicate row either" — I'll enforce a `(document_type, document_id, content_sha256)` uniqueness guard.
+- **B1 Step 3.5** — before flipping each page, tighten `usePrintOrPreview` to forward the *entire* `useDocumentPrint` return surface the pages currently destructure (`printPreviewOpen`, `setPrintPreviewOpen`, `printPreviewTitle`, `printDocumentType`, `printDocumentId`, `printCommunication`, `isGeneratingPdf`, `generateDocument`). Today it only exposes `printOrPreview`; a naive swap on 12 pages would break each one.
 
-1. Shadow print path live on 12 surfaces (Invoices, SalesOrders, Estimates, DeliveryNotes, CreditNotes, ProformaInvoices, CustomerPayments, Bills, PurchaseOrders, PurchaseReturns, SalesReturns, CreditNoteDetailDialog). A4 prints bypass `hardware_exec_log`.
-2. `print_policies.resolve` RPC does not exist — ADR-0026 wave B1 never landed.
-3. Labels are a parallel stack (`labelDispatch`, `useInventoryLabelPrinter`, `Products.tsx`) not routed through `PrintClient.print({intent:"label"})`.
-4. No `document_artifacts` table — reprints re-render; issued bytes are not preserved for audit.
-5. No template/theme/pack version pin on outputs.
-6. Barcode/QR generation fragmented (`EtimsQRCode`, ZPL builder, `bwip-js`, `qrcode`, `suggest-scanner-label`).
-7. HR letter renderers (offer, promotion, warning, contract) not in `generate-document`.
-8. Tabular exports (CSV/XLSX) are ad-hoc — explicitly scoped, not universally centralized.
+## Execution order
 
-### 1c. Duplication to eliminate
+### Wave B3.2 — Persist artifacts (edge function)
+1. In `supabase/functions/generate-document/index.ts`, after each successful non-preview render:
+   - Compute `sha256(bytes)`.
+   - `select` latest `document_artifacts` row for `(business_id, document_type, document_id)`; if `content_sha256` matches, reuse `id` and skip upload.
+   - Else upload to `document-artifacts/<business_id>/<document_type>/<document_id>/<artifact_id>.<ext>` with `service_role`, insert row (auto-versioned by existing trigger), and set `supersedes_id` to the prior latest.
+   - Return `{ artifactId, version }` alongside the bytes so clients can pin.
+2. Persist allow-list: `invoice`, `bill`, `credit_note`, `vendor_credit_note`, `receipt`, `delivery_note`, `purchase_order`, `sales_order`, `estimate`, `proforma_invoice`, `statement`, `payslip`, `payment` (matches the ADR + the 12 shadow-path surfaces).
+3. Preview intents (`intent=preview`) skip persistence entirely.
+4. Wrap in try/catch — a storage failure logs but does NOT fail the render (fire-and-forget for non-fiscal types; blocking only for invoice/receipt as ADR-0084 §Consequences specifies).
+5. Add edge-function test verifying: first render inserts; identical second render dedupes; changed bytes create v2 with `supersedes_id` = v1.
 
-- POS client renderers (`ThermalPrintRenderer`, `PdfRenderer` in `src/lib/pos/receipt/renderers`) coexist with `PrintClient.print({intent:"receipt"})` — demote to pure builders consumed by `PrintClient`.
-- `useDocumentPrint` retained only as fallback driver behind `PrintPreviewDialog` (ADR-0026).
+### Wave B1 Step 3 — Route the 12 pages through `PrintClient`
+1. Extend `usePrintOrPreview` to expose the full destructured surface the pages consume today, so each page swap is a one-liner (import + one-hook rename). Internally it calls `printClient.print()` first and falls back to `useDocumentPrint`'s preview dialog on `ask_user=true` or thrown errors.
+2. Migrate the 12 pages one at a time (`Invoices` → `Bills` → `CreditNotes` → `CustomerPayments` → `DeliveryNotes` → `Estimates` → `ProformaInvoices` → `PurchaseOrders` → `PurchaseReturns` → `SalesOrders` → `SalesReturns` → `pos/POSReports`). Keep each page in the ESLint allowlist (dialog remains the fallback surface).
+3. After each swap, run the existing `src/test/printing/cross-app-print-routing.test.ts` golden test.
 
-## 2. Target architecture
-
-```
-Domain apps (Sales/Purchases/Inventory/WMS/POS/HR/Payroll/Finance)
-        │  emit canonical business data + doc identity only
-        ▼
-Document Platform
-  ├─ Policy resolver ...... print_policies.resolve(business, branch, docType, intent)
-  ├─ Renderer .............. generate-document → PdfBuilder / EscPos / Zpl / Epl / Html
-  ├─ Barcode service ....... renderBarcode() shared by PDF + label + web
-  ├─ Localization hook ..... pack fiscal blocks + legal text (apps stay country-agnostic)
-  ├─ Artifact store ........ document_artifacts (immutable bytes + sha256 + versions)
-  └─ Delivery .............. PrintClient → hardwareClient → hardware_exec_log
-        ▼
-Thermal / Laser / Label / Fiscal / Bluetooth / USB / Network / Email / Download
-```
-
-Business apps only call: `printClient.print(...)`, `documentPlatform.preview(...)`, `documentPlatform.download(...)`, `documentPlatform.email(...)`. They never know paper size, printer, or template.
-
-## 3. Locked defaults (enterprise-ERP norms)
-
-- **Rollout:** Phases 1 → 2 → 3 in one continuous wave (Odoo/SAP standard: land the platform, migrate consumers, add immutability together). Phase 4 & 5 follow immediately after.
-- **Policy resolver default:** `ask_user=true` when no `document_print_policies` row exists — preserves existing UX for unconfigured tenants (SAP output-determination default).
-- **Artifact retention:** Indefinite, content-addressed (sha256 dedupe). Matches SAP ArchiveLink, Oracle WebCenter Content, NetSuite File Cabinet defaults. Per-tenant retention policy is a later add-on, not day-1.
-
-## 4. Phased implementation
-
-### Phase 1 — Close ADR-0026
-1. Migration: `print_policies.resolve(p_business_id, p_branch_id, p_document_type, p_intent)` RPC → `{device_id, paper_format, copies, ask_user}`. Returns `ask_user=true` when no policy row.
-2. Extend `PrintClient.print()` to call the resolver; lazy-import `PrintPreviewDialog` only when `ask_user=true`.
-3. Migrate all 12 shadow-path surfaces to `printClient.print(...)`.
-4. Ship ESLint rules `no-document-print-shadow-path` and `no-direct-window-print` at `error`.
-5. Golden test `src/test/printing/cross-app-print-routing.test.ts` covering the 12 pages.
-
-### Phase 2 — Unify labels & barcodes
-1. `src/services/documents/renderBarcode.ts` (browser) + `supabase/functions/_shared/barcode/render.ts` (edge). Symbologies: EAN/UPC, Code128, ITF, GS1-128, QR, DataMatrix, PDF417.
-2. Route `useInventoryLabelPrinter`, `Products.tsx`, shelf/bin/pallet/LP label paths through `printClient.print({intent:"label", documentType:...})`.
-3. Add label templates as first-class `documentType`s in `generate-document`; retire `labelDispatch` bespoke transport.
-4. Architecture test `src/test/architecture/labels-through-document-platform.test.ts`.
-
-### Phase 3 — Document artifact store & regen history
-1. Migration `document_artifacts(id, business_id, document_type, document_id, version, sha256, storage_path, template_version, theme_version, pack_version, locale, paper_format, render_mode, rendered_at, rendered_by, superseded_by)` — full GRANTs, RLS scoped to `business_id`, unique `(document_type, document_id, version)`, sha256 index for dedupe.
-2. Private storage bucket `document-artifacts`.
-3. `generate-document`: on first render, write artifact + return; on reprint, fetch latest non-superseded bytes; on explicit "Regenerate", write N+1 and set `superseded_by` on N.
-4. Shared `DocumentHistoryPanel` in `src/features/documents/` — preview / print / download / email / regenerate / view history / audit trail — mounted via `DocumentPeekShell`.
+### Wave B3.4 — Mount `DocumentHistoryPanel`
+1. Mount inside each Sales/Purchases/Finance detail dialog via the existing `DocumentPeekShell` (`src/features/sales/record/DocumentPeekShell.tsx`) as a right-column panel — appears only when at least one artifact row exists.
+2. Wire the panel's `signedUrl` action through the existing `PrintPreviewDialog` for preview and `<a download>` for download; regenerate goes through `printClient.print({ intent:"reprint" })`.
 
 ### Phase 4 — Close remaining domain gaps
-1. HR letter renderers in `generate-document` (offer, promotion, warning, contract) reusing `BrandedHeader` / `RecipientBlock` / `NotesBlock`.
-2. Demote client receipt renderers to pure builders consumed by `PrintClient`; architecture test forbids POS UI from calling them directly.
-3. Add `format=csv|xlsx` to `generate-document` for statements / GL / trial balance only (justified tabular exports). Receipts/labels explicitly out of scope.
+1. Add HR letter document types to `generate-document` (offer, promotion, warning, contract), reusing `_shared/pdf` components (`BrandedHeader`, `RecipientBlock`, `NotesBlock`).
+2. Demote `ThermalPrintRenderer` / `PdfRenderer` under `src/lib/pos/receipt/renderers` to pure builders consumed by `PrintClient`; add an architecture test forbidding POS UI from importing them directly.
+3. Add `format=csv|xlsx` to `generate-document` for `statement`, `general_ledger`, `trial_balance` only (justified tabular exports). Receipts/labels stay out.
 
-### Phase 5 — Governance
-- ADR-0084 "Document artifact immutability and regeneration".
-- ADR-0085 "Barcode rendering ownership".
-- ESLint `no-raw-pdf-lib-in-app` (only `_shared/pdf/*` may import `pdf-lib`).
-- ESLint `no-direct-barcode-lib` (only barcode service may import `bwip-js` / `qrcode`).
-- Architecture tests in `src/test/architecture/`.
+### Phase 5 — Governance (short ADRs + ESLint)
+- ADR-0085 "Barcode rendering ownership" (short).
+- ESLint `no-raw-pdf-lib-in-app` — only `supabase/functions/_shared/pdf/*` may import `pdf-lib`.
+- ESLint `no-direct-barcode-lib` — only the barcode service (Wave B2 already shipped `renderBarcode`) may import `bwip-js` / `qrcode`.
+- Architecture tests under `src/test/architecture/` mirroring the ESLint rules for runtime coverage.
 
-## 5. What we are NOT doing
+## Definition of done (unchanged from original plan)
+- Zero `useDocumentPrint` imports outside `PrintPreviewDialog.tsx` and settings surfaces (ESLint allowlist shrinks to those).
+- Every domain Print button routes through `printClient.print` (golden test green).
+- Every printed persistable document has a `document_artifacts` row; reprints byte-identical; regenerations preserve `supersedes_id` chain.
+- No app-owned `pdf-lib` / barcode-lib imports outside sanctioned modules (ESLint).
 
-- Not building a new PDF engine — `PdfBuilder` stays.
-- Not replacing `document_print_policies` — extending it.
-- Not centralizing every export format — only where domain-justified.
-- Not deleting `useDocumentPrint` — demoted to fallback driver.
-- Not writing long speculative docs — short ADRs where they materially help.
-
-## 6. Risks & mitigations
-
+## Risks
 | Risk | Mitigation |
 |---|---|
-| Resolver default breaks existing prints | `ask_user=true` default; resolver contract test |
-| Artifact storage growth | sha256 content-addressed dedupe; retention policy hook reserved for later |
-| Label migration touches Inventory/WMS | One documentType per slice, golden test per slice |
-| Regenerated invoice replaces original in audit | `superseded_by` chain + immutable bytes forever |
-| POS receipt renderer regressions | Existing `stage-b-receipt-snapshot.test.ts` + new `pos-receipt-renderer-contract.test.ts` guard |
+| B3.2 storage write on hot path slows renders | Non-blocking for non-fiscal types; blocking only for invoice/receipt |
+| Duplicate artifact rows under retry | sha256 uniqueness check before insert |
+| Page swap breaks a destructured field | `usePrintOrPreview` forwards full surface; per-page test after each swap |
+| History panel appears on documents without artifacts | Panel self-hides when `list()` returns empty |
 
-## 7. Definition of done
-
-- Zero imports of `useDocumentPrint` outside `PrintPreviewDialog.tsx` (ESLint).
-- Every domain Print button routes through `printClient.print` (golden test).
-- All labels + barcodes go through the document platform (architecture test).
-- Every printed document has a `document_artifacts` row; reprints are byte-identical; regenerations preserve history.
-- No app-owned `pdf-lib` / barcode-lib imports outside `_shared/pdf/*` and the barcode service (ESLint).
-
-Ready to execute Phases 1–3 back-to-back on approval.
-
-==================================================================
-Wave B3 foundation shipped. Summary:
-
-Landed this turn
-
-Migration: document_artifacts table + document-artifacts private bucket + auto-versioning trigger + document_artifacts_latest RPC + storage RLS (business-prefix read, service-role writes).
-src/services/documents/DocumentArtifactStore.ts — read-only client (latest / list / signedUrl).
-src/components/documents/DocumentHistoryPanel.tsx — drop-in reprint / version-history UI.
-src/hooks/usePrintOrPreview.ts — shared migration helper that tries printClient.print() first and falls back to the preview dialog on ask_user or error. Added to the shadow-path ESLint allowlist.
-ADR-0084 documenting the artifact store and the pending generate-document write step (Wave B3.2).
-Prior audit findings confirmed already merged (no rework needed): print_policies_resolve RPC, PrintClient policy consumption, no-document-print-shadow-path at error, contract test.
-
-Sequential work remaining for a future turn (mechanical, one file each):
-
-Wave B3.2 — extend generate-document edge function to compute sha256, dedupe against latest artifact, and upload+insert on non-preview renders.
-Wave B1 Step 3 — swap useDocumentPrint().generateDocument(...) calls for usePrintOrPreview().printOrPreview(...) on the 12 pages in the ESLint allowlist (Invoices, Bills, CreditNotes, CustomerPayments, DeliveryNotes, Estimates, ProformaInvoices, PurchaseOrders, PurchaseReturns, SalesOrders, SalesReturns, pos/POSReports). Allowlist entries stay — the dialog is still the fallback surface.
-Wave B3.4 — mount <DocumentHistoryPanel /> inside each detail dialog once B3.2 starts writing rows.
+Ready to execute B3.2 → B1 Step 3 → B3.4 → Phase 4 → Phase 5 in order on approval.
