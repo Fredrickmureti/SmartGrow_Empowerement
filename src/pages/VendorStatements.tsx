@@ -75,6 +75,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { normalizeError } from "@/services/resilience";
+import { printClient } from "@/services/printing/PrintClient";
 
 export default function VendorStatements() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -628,6 +629,18 @@ export default function VendorStatements() {
                               } catch (err: any) { toast.error("Failed to download: " + normalizeError(err).message); }
                             }}>
                               <Download className="mr-2 h-4 w-4" />Download PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={async () => {
+                              const res = await printClient.downloadExport({
+                                documentType: "vendor_statement",
+                                documentId: statement.id,
+                                format: "csv",
+                                filename: `vendor-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "vendor"}.csv`,
+                              });
+                              if (!res.success) toast.error("Export failed: " + (res.error ?? "Unknown error"));
+                              else toast.success("CSV export archived to version history");
+                            }}>
+                              <Download className="mr-2 h-4 w-4" />Export CSV
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
                               try {
