@@ -37,13 +37,23 @@ Landed:
 Verification: `tsgo --noEmit` clean; both architecture tests green (12/12). Bytes remain byte-identical by construction — the server-side renderer path (`generate-document` → ESC/POS / PDF) is unchanged; only the client dispatch layer was collapsed.
 
 
-### Milestone C — Tabular exports through the platform — **after B**
+### Milestone C — Tabular exports through the platform — **C.1 shipped (CSV for statements); C.2 pending (XLSX + GL/TB)**
 
-1. Extend `generate-document` with `format: "csv" | "xlsx"`, gated to `statement`, `general_ledger`, `trial_balance`.
-2. Reuse `persistArtifact` with `render_mode: "export"`.
-3. Extend `DocumentVersionsSection` to render a download affordance for non-PDF mime types.
-4. Migrate the three finance pages' export buttons to `printClient.print({ format })`.
-5. Deno test on the CSV path.
+**C.1 — Shipped (this turn):**
+- New shared builder `supabase/functions/_shared/exports/statementCsv.ts` — RFC 4180 CSV with UTF-8 BOM + CRLF, consuming the exact `DocumentData` shape the PDF fetchers produce (single source of truth).
+- `generate-document/index.ts` accepts `format: "csv"`, gated by `CSV_EXPORT_ALLOWED = { customer_statement, vendor_statement }`; short-circuit branch calls `buildStatementCsv` → `persistArtifact({ renderMode: "export", meta: { export_format: "csv" } })` → returns bytes with `text/csv; charset=utf-8`.
+- `persistArtifact.EXT_FOR_MIME` extended for `text/csv` and `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+- `PrintClient.exportDocument()` + `PrintClient.downloadExport()` — single chokepoint for tabular downloads; blob returned or archived + downloaded via anchor.
+- `DocumentHistoryPanel` extension resolves `.csv` / `.xlsx` from mime — CSV artifacts now open/download correctly from any version-history surface.
+- UI wiring: "Export CSV" dropdown row action in `CustomerStatements.tsx` and `VendorStatements.tsx`.
+- Tests: `_shared/exports/statementCsv_test.ts` (4 tests — BOM/CRLF, RFC 4180 escaping, section coverage, Uint8Array output); `generate-document/csv-export-registered_test.ts` (6 tests — format acceptance, allowlist, builder delegation, `render_mode: "export"`, content-type, module existence). All 10 green.
+- `tsgo --noEmit` clean.
+
+**C.2 — Pending:**
+1. XLSX branch behind bundle-size review — prefer `xlsx-populate` (~200KB) over `exceljs`; same `render_mode: "export"` shape.
+2. Extend the CSV allowlist + build a shared `ledgerCsv`/`trialBalanceCsv` for `general_ledger` and `trial_balance` — reuse ledger/TB fetchers; do NOT re-fetch inline.
+3. Migrate `ReportExportButtons` (finance pages) from client-side XLSX serialisation to `printClient.downloadExport({ format })` — kills the last direct `xlsx` usage in `src/services/reports/ReportExportService.ts`.
+4. Architecture guard: extend `no-raw-pdf-lib-in-app` (or a sibling rule) to forbid `xlsx`/`exceljs` imports outside `supabase/functions/_shared/exports/**`.
 
 ## Definition of done
 
