@@ -235,6 +235,10 @@ function POSTerminalInner() {
   });
   const { completeTransaction } = usePOSTransactionOffline();
   const commitKey = useCommitKey();
+  const paymentSessionIdempotencyKey = useMemo(() => {
+    if (!registerId || !activeShift?.id) return "";
+    return `${commitKey.get(registerId, activeShift.id)}:${Math.round((cart.total + (tipAmount || 0)) * 100)}`;
+  }, [registerId, activeShift?.id, commitKey, cart.total, tipAmount]);
   const sound = usePOSSound();
   const { heldCount, holdTransaction } = usePOSHeldTransactions(registerId);
   const { receiptSettings } = usePOSSettings();
@@ -999,7 +1003,6 @@ function POSTerminalInner() {
         };
       } else {
         // Retail mode: create new transaction via RPC
-        const paymentSessionIdempotencyKey = `${commitKey.get(registerId, activeShift.id)}:${Math.round((cart.total + (tipAmount || 0)) * 100)}`;
         result = await completeTransaction.mutateAsync({
           register_id: registerId,
           shift_id: activeShift.id,
@@ -2256,7 +2259,7 @@ function POSTerminalInner() {
             idempotencyKey:
               cart.isRestaurantMode && cart.transactionId
                 ? cart.transactionId
-                : `${commitKey.get(registerId, activeShift.id)}:${Math.round((cart.total + (tipAmount || 0)) * 100)}`,
+                : paymentSessionIdempotencyKey,
           }}
           onComplete={handlePaymentComplete}
         />
