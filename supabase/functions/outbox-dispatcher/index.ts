@@ -160,31 +160,27 @@ async function handleSettlementCardClosed(row: OutboxRow): Promise<void> {
   if (error) throw new Error(`settlement GL post: ${error.message}`);
 }
 
-// S5 — statement-centric GL posting. Closing a pos_statements row enqueues
-// pos.statement.posting.requested; we drain it by calling the single
-// authoritative POS finance writer. `post_pos_statement_gl` is idempotent
-// via pos_statement_gl_apply_log (statement_id, idempotency_key) and via
-// post_journal_entry_atomic's source dedupe, so outbox retries are safe.
+// S5 — statement-centric GL posting, now routed through the single
+// Accounting Posting Engine (see .lovable/plan.md §4.3, migration
+// creating public.accounting_post_event). The dispatcher does NOT call
+// producer-specific writers anymore; it resolves the accounting_event
+// for the statement and invokes the engine, then translates the
+// engine's AccountingPostingResult into an outbox outcome.
 //
-// B1 (plan .lovable/plan.md § 4.1) — contract enforcement. The dispatcher
-// may only mark this row `succeeded` when the RPC returns a shape that
-// *proves* the business invariant held: a fresh post (journal_entry_id
-// non-null), an idempotent replay (already_posted=true), a deliberate
-// skip (skipped=true with a reason), or an empty-lines close that still
-// wrote an apply-log row (empty=true; the RPC writes the apply-log itself
-// on this branch, so the outbox row is a legitimate no-op). Any other
-// shape is an architectural failure and must be dead-lettered, never
-// silently succeeded.
-type PosStatementPostResult = {
-  statement_id?: string;
+// Contract enforced here (B1 + B3):
+//   outcome='posted' | 'noop'         → outbox 'succeeded'
+//   outcome='needs_mapping' | 'invalid' → thrown as contract violation
+//                                         so the row goes to failed / DLQ
+//                                         and is visible to accountants
+//                                         (they resolve via the new
+//                                         workspace, not via retry).
+//   outcome='deferred' or missing     → thrown; outbox retries with backoff.
+//   thrown exception                  → outbox retries with backoff.
+type AccountingPostingResult = {
+  event_id?: string;
+  outcome?: "posted" | "noop" | "needs_mapping" | "invalid" | "deferred";
   journal_entry_id?: string | null;
-  already_posted?: boolean;
-  skipped?: boolean;
-  reason?: string;
-  empty?: boolean;
-  via?: string;
-  entry_number?: string;
-  tender_total?: number;
+  diagnostics?: unknown;
 };
 
 async function handlePosStatementPostingRequested(row: OutboxRow): Promise<void> {
@@ -195,29 +191,62 @@ async function handlePosStatementPostingRequested(row: OutboxRow): Promise<void>
       "posting.contract_violation: pos.statement.posting.requested missing statement_id",
     );
   }
-  const { data, error } = await admin.rpc("post_pos_statement_gl", {
-    p_statement_id: statementId,
+
+  // Resolve the accounting_event for this statement. The producer
+  // trigger dual-writes it at close time; if it's missing (very old row
+  // or dual-write failed) fall back to creating one via the RPC so we
+  // never lose an event.
+  const { data: eventId, error: resolveError } = await admin.rpc(
+    "accounting_event_for_pos_statement",
+    { p_statement_id: statementId },
+  );
+  if (resolveError) {
+    throw new Error(`accounting_event lookup: ${resolveError.message}`);
+  }
+  if (!eventId) {
+    throw new Error(
+      `posting.contract_violation: no accounting_event exists for pos_statement ${statementId} — producer trigger dual-write was skipped or failed`,
+    );
+  }
+
+  const { data, error } = await admin.rpc("accounting_post_event", {
+    p_event_id: eventId,
     p_idempotency_key: `outbox:${row.id}`,
   });
-  if (error) throw new Error(`statement GL post: ${error.message}`);
+  if (error) throw new Error(`accounting_post_event: ${error.message}`);
 
-  const result = (data ?? null) as PosStatementPostResult | null;
-  if (!result || typeof result !== "object") {
+  const result = (data ?? null) as AccountingPostingResult | null;
+  if (!result || typeof result !== "object" || !result.outcome) {
     throw new Error(
-      `posting.contract_violation: post_pos_statement_gl returned no result for statement ${statementId}`,
+      `posting.contract_violation: accounting_post_event returned no outcome for event ${eventId}: ${JSON.stringify(result)}`,
     );
   }
-  const posted =
-    (typeof result.journal_entry_id === "string" && result.journal_entry_id.length > 0) ||
-    result.already_posted === true ||
-    result.skipped === true ||
-    result.empty === true;
-  if (!posted) {
-    throw new Error(
-      `posting.contract_violation: post_pos_statement_gl returned no posted/skipped proof for statement ${statementId}: ${JSON.stringify(result)}`,
-    );
+
+  switch (result.outcome) {
+    case "posted":
+    case "noop":
+      return; // outbox → succeeded
+    case "needs_mapping":
+    case "invalid":
+      // These are configuration problems, not transient. Throwing here
+      // marks the outbox row failed, which surfaces to admins. The
+      // authoritative state ('needs_mapping' / 'invalid') lives on the
+      // accounting_event itself — the workspace acts on that, not on
+      // the outbox.
+      throw new Error(
+        `posting.blocked: event ${eventId} → ${result.outcome} — ${JSON.stringify(result.diagnostics ?? {})}`,
+      );
+    case "deferred":
+      throw new Error(
+        `posting.deferred: event ${eventId} — ${JSON.stringify(result.diagnostics ?? {})}`,
+      );
+    default:
+      throw new Error(
+        `posting.contract_violation: unknown outcome ${result.outcome} for event ${eventId}`,
+      );
   }
 }
+
 
 // Phase E/F map. Extend with one entry per newly-durable topic.
 //
