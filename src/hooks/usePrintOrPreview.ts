@@ -68,7 +68,7 @@ export function usePrintOrPreview() {
       // Fast path: no business context yet — the resolver would 400 anyway.
       if (!businessId) {
         return docPrint.generateDocument(
-          req.documentType,
+          req.documentType as Parameters<typeof docPrint.generateDocument>[0],
           req.documentId,
           req.title,
           req.communication,
@@ -98,7 +98,7 @@ export function usePrintOrPreview() {
       }
 
       return docPrint.generateDocument(
-        req.documentType,
+        req.documentType as Parameters<typeof docPrint.generateDocument>[0],
         req.documentId,
         req.title,
         req.communication,

@@ -134,7 +134,6 @@ export default function CustomerPayments() {
     isGeneratingPdf,
     generateDocument,
     downloadPdf,
-    printDocument,
   } = usePrintOrPreview();
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);

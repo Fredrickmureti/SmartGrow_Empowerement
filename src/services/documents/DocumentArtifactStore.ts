@@ -95,10 +95,10 @@ export const documentArtifactStore = {
         .limit(1)
         .maybeSingle();
       if (fallback.error) throw fallback.error;
-      return (fallback.data as DocumentArtifact | null) ?? null;
+      return (fallback.data as unknown as DocumentArtifact | null) ?? null;
     }
 
-    const rows = (data ?? []) as DocumentArtifact[];
+    const rows = (data ?? []) as unknown as DocumentArtifact[];
     return rows[0] ?? null;
   },
 
@@ -116,7 +116,7 @@ export const documentArtifactStore = {
       .order("version", { ascending: false });
 
     if (error) throw error;
-    return (data ?? []) as DocumentArtifact[];
+    return (data ?? []) as unknown as DocumentArtifact[];
   },
 
   /**
