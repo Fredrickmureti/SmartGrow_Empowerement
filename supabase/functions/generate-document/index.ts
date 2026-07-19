@@ -2364,27 +2364,13 @@ serve(async (req) => {
       explicitFormat,
     );
     let effectiveFormat: "pdf" | "escpos" = coerced.render_mode;
+    // Phase 4 (ADR-0008): paper-format and render-mode are orthogonal. The
+    // coercer now returns the resolved thermal paper directly when an
+    // explicit PDF is requested — no POS-only escape hatch needed. The PDF
+    // builder handles 40/58/80mm via density: "narrow" for every document
+    // type routed through this function.
     let effectivePaperOverride: typeof coerced.paper_format | null = null;
-    // UX-1: for explicit PDF preview at thermal width, undo the
-    // "switch to A4" coercion so the iframe shows what the receipt
-    // will actually look like on 80mm/58mm paper.
-    // UX-2: thermal-width PDF preview is reserved for POS receipts. For
-    // every other document type (invoices, sales orders, bills, etc.) the
-    // PDF artifact is the archival / email / preview format and MUST
-    // render at a printable paper size — never at a 58/80 mm strip. The
-    // thermal width applies only to the ESC/POS byte stream that the
-    // Print button streams to the physical printer.
-    const isReceiptType =
-      documentType === "pos_receipt" || documentType === "pos_receipt_preview";
-    if (
-      previewAtThermalWidth &&
-      isReceiptType &&
-      explicitFormat === "pdf" &&
-      (policy.paper_format === "80mm" || policy.paper_format === "58mm")
-    ) {
-      effectiveFormat = "pdf";
-      effectivePaperOverride = policy.paper_format;
-    }
+    void previewAtThermalWidth; // deprecated flag — kept for wire compatibility.
 
     // V1 (ADR-0008): expose the resolved policy back to the UI so operators
     // can see whether a request was driven by an override / branch / business

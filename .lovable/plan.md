@@ -1,53 +1,93 @@
+# Enterprise Document Platform — Printer-Profile Verification
 
-# Enterprise Document Platform — Continuation
+## TL;DR (root cause)
 
-## Phase 1 — Verification of prior engineer's claims (done)
+The printer-profile subsystem **is** wired end-to-end — DB → resolver → `generate-document` → renderer — but a **deliberate server-side coercion** rewrites `(thermal paper) + (pdf render_mode)` to `A4 + PDF` for every non-POS document type. The admin UI in `Settings → Printing` still lets operators pick that exact combination. That mismatch is what you're observing: the config is saved, resolved, then overridden one call later. This is **not a rendering bug and not a lost value** — it is an **authority conflict between the admin UI and the coercion policy**.
 
-Cross-checked `.lovable/plan.md` against the codebase. All landed items confirmed:
+## Evidence (traced flow for Sales Invoice = "Thermal 80mm + PDF")
 
-- **Rendering ownership guards**: `eslint-rules/no-raw-pdf-lib-in-app.js` + `no-direct-barcode-lib.js` present. ADRs 0084 (document-artifacts) and 0085 (barcode-and-pdf-rendering-ownership) committed.
-- **Single-renderer path**: `supabase/functions/generate-document/index.ts` is the sole PDF/ESC-POS/ZPL entry, composing `_shared/pdf/*`, `_shared/printing/*`, `_shared/exports/*`.
-- **Immutable artifact store**: `document_artifacts` table + `_shared/documents/persistArtifact.ts`; HR types in allowlist.
-- **Milestone A — HR letters**: `ContractsListPage`, `LifecycleTimelinePage`, `Recruitment/OfferActions`, `DocumentHistorySheet` — all wired through `PrintPreviewDialog` → `generate-document`.
-- **Milestone B — POS receipt renderer demotion**: `ThermalPrintRenderer.ts` / `PdfRenderer.ts` gone. `PostPaymentScreen` delegates to `printClient.*`. Architecture tests `pos-receipt-renderer-contract` + `pos-renderer-ownership` in place.
-- **Milestone C.1 — CSV export for statements**: `_shared/exports/statementCsv.ts` + `statementCsv_test.ts` present; `generate-document/index.ts` has the `format === "csv"` branch gated by `CSV_EXPORT_ALLOWED = { customer_statement, vendor_statement }`, persisting via `persistArtifact({ metadata: { export_format: "csv" } })`; `PrintClient.exportDocument` / `downloadExport` exist; `CustomerStatements` + `VendorStatements` expose "Export CSV". `csv-export-registered_test.ts` present.
+1. **Admin UI writes the row.** `src/components/settings/PrintingSettings.tsx` L42–44 offers `80mm / 58mm / 40mm` for every document type in the registry, and L211–223 lets `render_mode` stay `pdf`. Upserts land in `document_print_policies` (migrations `20260511*`, `20260513*`, `20260617*`, `20260618*`).
+2. **Client asks for the PDF.** `useDocumentPrint` / `PrintPreviewDialog` call `generate-document` with `format: "pdf"` (explicit) and no `paperFormat` override.
+3. **Policy is resolved correctly.** `supabase/functions/_shared/printing/resolvePolicy.ts` returns `{ paper_format: "80mm", render_mode: "pdf", source: "business" }`. ✅ Value survives to the edge function.
+4. **Coercion overrides it.** `supabase/functions/generate-document/index.ts` L2358–2387 → `coercePaperRenderMode` in `_shared/printing/coercePolicy.ts` L82–95:
+   - Non-POS doc + thermal paper + explicit `format=pdf` → **rewritten to `a4 / pdf`** with reason *"Explicit PDF requested for … — switching paper from thermal to A4"*.
+   - The `previewAtThermalWidth` escape hatch (L2377–2387) is gated on `documentType === "pos_receipt" | "pos_receipt_preview"`. Every other document type is excluded by design.
+5. **PDF renderer builds A4.** `_shared/pdfGenerator.ts` → `PdfBuilder` receives `a4`, pageMargin 72pt, produces the observed A4 output. The renderer itself is paper-agnostic and *would* emit a 80mm-wide PDF if asked — it never gets the chance.
+6. **UI reinforces the coercion.** `src/components/common/PrintSettingsPopover.tsx` L28–35 explicitly hides thermal from the per-print paper override, documenting *"rendering an A4 invoice as a tall narrow PDF preview is a category error"*.
 
-**Outstanding client-side spreadsheet usage confirming C.2 is genuinely pending:**
-- `src/services/reports/ReportExportService.ts` still imports `xlsx` directly.
-- `src/lib/importUtils.ts` and `src/lib/bankStatementParsers/csvParser.ts` import `xlsx` but are **inbound** (import/parse), not document generation — they are out of scope for the document-platform guard and will be explicitly allowlisted.
+So the pipeline is real; the paper value flows correctly; **the coercion is the authority that wins**, and the admin UI does not reflect that.
 
-No regressions or superficial patches detected. Resume from C.2.
+## Enterprise-pattern comparison (Phase 1 findings)
 
-## Phase 2 — Execution: Milestone C.2 (tabular exports)
+| Platform | Paper vs format | Thermal-width PDF? | Authority |
+| --- | --- | --- | --- |
+| Odoo | `paperformat` (dims) is orthogonal to report type (`ir.actions.report`). | **Yes** — receipt reports have their own paperformat and emit narrow PDFs for email/preview. | Report action + paperformat, per company. |
+| SAP CC / Xstore / Dynamics 365 Commerce | Layout profile per document; format is transport (PDF/ESCPOS/ZPL). | Receipt PDFs are narrow-width by convention. | Store profile > document profile. |
+| Square / Shopify / Toast / Lightspeed | Receipts are ESC/POS on device; email/archive uses narrow-column PDF. | **Yes** for archive/email. | Location settings. |
+| QuickBooks / Xero | Business documents pinned to A4/Letter; thermal not exposed. | N/A | Company defaults. |
 
-**Plan correction (this session):** finance/GL/TB reports do NOT flow through `generate-document`; they flow through `render-report`, which owns the report registry + column specs + branding + prebuilt/server-build modes. Adding CSV/XLSX to `generate-document` would have created a second report pipeline. C.2 was therefore landed against `render-report` instead. Reports are computed views (not immutable business artifacts), so they are intentionally NOT added to the `document_artifacts` `PERSIST_ALLOWLIST` — export requests re-run against fresh journal data every time.
+**Extracted principles**
+- Paper size and render format are **orthogonal**; both are legal degrees of freedom.
+- ESC/POS is a **transport**, not a substitute renderer, but the layout must match the paper. A narrow PDF is a valid *rendering* of a receipt-shaped document.
+- One document model → many serializers (PDF/ESCPOS/HTML/ZPL/image). Coercion should reject **impossible** combinations, not **inconvenient** ones.
 
-### C.2 — SHIPPED
+Measured against that: our coercion is too aggressive. It treats "narrow PDF of a receipt-style invoice" as illegal when it is actually the norm for wholesale/thermal-first businesses (the exact scenario ADR-0008 was written to unblock).
 
-1. **Shared builders** — `supabase/functions/_shared/exports/reportCsv.ts` and `reportXlsx.ts` are pure `(ReportExportConfig) → Uint8Array` builders. CSV: UTF-8 BOM + CRLF + RFC-4180 escaping. XLSX: `xlsx@0.18.5` via `esm.sh` with Deno target — same version pinned by the client, so historical workbook shape is preserved. Column widths, currency (`#,##0.00`) / number (`#,##0`) format codes, title-row merges applied.
-2. **`render-report` prebuilt-mode dispatch** — accepts `format ∈ { pdf, csv, xlsx }`. Tabular formats short-circuit before the PDF renderer and resolve `companyName` via `getOrganizationBranding` so the masthead matches the PDF path exactly. Server-build mode (used only by scheduled reports) still emits PDF/JSON; adding CSV/XLSX there requires exposing the column registry through `renderReport`, deferred as a follow-up.
-3. **Client migration** — `src/services/reports/ReportExportService.ts` no longer imports `xlsx`. `exportToCSV`/`exportToExcel` are now thin `supabase.functions.invoke('render-report', { body: { format } })` wrappers returning `Promise<void>`. Call sites (`ReportExportButtons`, `PrintPreviewDialog`) updated to `await`.
-4. **Architecture guard** — `eslint-rules/no-raw-xlsx-in-app.js` forbids the WRITE-side APIs (`XLSX.write`, `XLSX.writeFile`, `XLSX.utils.book_new`, `XLSX.utils.aoa_to_sheet`, `XLSX.utils.json_to_sheet`, `XLSX.utils.book_append_sheet`) across `src/**`. READ-side APIs (`XLSX.read`, `sheet_to_json`) stay legal for bank-statement / generic import parsers. Two legitimate template-scaffold call sites in `src/lib/importUtils.ts` carry `// RENDERER-EXEMPT` markers (blank import template + per-import error report — not report artifacts). Wired into `eslint.config.js` under the existing rendering-ownership block.
-5. **Tests** — `reportCsv_test.ts` (BOM/CRLF/RFC-4180/masthead/footer/currency) and `reportXlsx_test.ts` (OOXML round-trip via SheetJS to assert cell values + format codes + merges) added under `_shared/exports/`.
+## Root-cause classification
 
-**Not done (deliberately out of scope, tracked as follow-ups):**
-- Server-build (scheduled reports) CSV/XLSX — requires column registry passthrough from `renderReport` to the shared builders.
-- `xlsx` package removal from `package.json` — the two inbound parsers (`bankStatementParsers/csvParser.ts`, `importUtils.ts`) still depend on it. Guard is sufficient.
-- Migration of `_shared/reports/renderReport.ts` internal export path to the same builders (currently only the edge-function entrypoint dispatches).
+- **Not** a renderer bug (`PdfBuilder` handles mm paper sizes).
+- **Not** a lost value (resolver + policy row are correct).
+- **Not** an abandoned feature (`resolvePolicy` + coercion + settings UI + tests are all live).
+- **Is** an **architectural policy conflict**: the coercion rule "non-POS + thermal + explicit PDF → A4" collides with the admin UI's promise that the combination is valid, and with ADR-0008's stated goal of unifying wholesale invoices onto thermal hardware.
+- **Is** a **UI/authority mismatch**: `PrintingSettings` exposes combinations that `coercePaperRenderMode` will silently reject. `PrintSettingsPopover` already hides them for per-print overrides — the admin surface is out of step.
 
-## Phase 3 — Deferred: HR letter record-page peek sheets
+## Remediation plan (smallest correct fix, preserves single-renderer architecture)
 
-Milestone A wired list-row Print/History via `DocumentHistorySheet`. Once the HR module gets record pages for contracts / lifecycle events / offers, mount `DocumentVersionsSection` there for parity with the Sales/Purchases record pages the architecture test already enforces. No new document types; renderer + persistence unchanged.
+Two changes, both inside the existing pipeline. No new renderer, no new fetcher, no bypass.
 
-## Non-negotiables (carried forward from prior engineer)
+### Step 1 — Make thermal-width PDF a **first-class** output for non-POS documents
 
-- Single-renderer / single-fetcher invariant: every new export format consumes the same fetch path the PDF renderer uses. No parallel fetching.
-- Every persisted BUSINESS-DOCUMENT artifact goes through `persistArtifact` — never write directly to storage or `document_artifacts`. Reports are exempt (computed views, always re-runnable).
-- No client-side XLSX/CSV serialisation for platform reports — enforced by `no-raw-xlsx-in-app` + `ReportExportService` service surface.
-- HR/POS/Finance/Sales/Purchases all remain consumers of `generate-document` + `printClient`; Finance reports consume `render-report`.
+Lift the POS-only gate around the `previewAtThermalWidth` branch so it applies to any document whose resolved policy is thermal + explicit PDF. Concretely, in `generate-document/index.ts` L2377–2387:
 
-## Handover cue for the next agent
+- Remove `isReceiptType` restriction.
+- When `policy.paper_format ∈ {40mm,58mm,80mm}` **and** the caller's `explicitFormat === "pdf"`, set `effectiveFormat = "pdf"` and `effectivePaperOverride = policy.paper_format` so `PdfBuilder` runs in `density: "narrow"` at the correct mm width.
+- `coercePaperRenderMode` keeps its role for the two *genuinely* illegal cases: (a) `escpos` requested on A4/Letter/A5 → coerce to 80mm, (b) `pos_receipt` on thermal + auto-print → ESC/POS.
+- Update `coercePolicy.ts` so the "switch thermal → A4 on explicit PDF" branch fires **only** when the document type is on a `PDF_MUST_BE_WIDE` allow-list (statutory returns, payslips, tax certificates — already `assertStatutoryPaper`-pinned per ADR-0008). Everything else is allowed to render narrow.
+- Extend `_shared/pdf/themes/accountantMono.ts` narrow-density branch (already 6pt margin) to be exercised by the invoice/statement/bill components, which already read `density` from the builder per `docs/printing-pipeline.md`.
 
-Two follow-ups worth picking up:
-1. Extend `render-report` server-build mode to dispatch CSV/XLSX by exposing the report registry columns through `renderReport`. Unblocks scheduled-report tabular attachments.
-2. Phase 3 (HR letter record-page peek sheets) is fully specified above and blocks on a new HR record-page pattern landing — currently no HR record page exists to mount `DocumentVersionsSection` in.
+### Step 2 — Make the admin UI reflect the coercion matrix
+
+`PrintingSettings.tsx` should not offer combinations the platform will reject:
+
+- Drive the `(paper × render_mode)` matrix from a shared exported constant (`LEGAL_COMBOS_BY_DOC_TYPE`) derived from `coercePolicy.ts`. Both `PrintingSettings` and `PrintSettingsPopover` import it — one source of truth.
+- For statutory/pinned document types, disable thermal paper entirely with an inline "A4 required (regulator)" caption.
+- For every other doc type, expose the full matrix now that Step 1 makes it real.
+- Surface `X-Print-Policy-Coerced` + `X-Print-Policy-Coerce-Reason` (already emitted) in `ResolvedPrintPolicyPanel` for admin diagnostics on the settings page (currently only POS test-print uses it).
+
+### Step 3 — Guards + tests
+
+- Extend `supabase/tests/print_policies_resolve_test.sql` and `src/test/printing/print-policies-resolve.test.ts` with cases: `(sales_invoice, 80mm, pdf, explicit=pdf) → 80mm/pdf`, `(payslip, 80mm, pdf, explicit=pdf) → a4/pdf coerced`, `(pos_receipt, 80mm, pdf, explicit=pdf) → 80mm/pdf (preview)`.
+- Add an architecture test: `PrintingSettings` and `PrintSettingsPopover` must both import `LEGAL_COMBOS_BY_DOC_TYPE`; string literals for paper/render mode outside that constant are disallowed (mirrors the existing rendering-ownership guards).
+- Deno test for `_shared/pdf/PdfBuilder` at `paper=80mm density=narrow` proves the invoice components lay out without overflow.
+
+### Step 4 — Handover
+
+Update `.lovable/plan.md`:
+- Mark Phase 1–3 + Milestones A/B/C.1/C.2 as previously completed (unchanged).
+- Add **Phase 4 — Printer-profile authority reconciliation** with the three steps above.
+- Note follow-ups: extend narrow-PDF density to statement/bill/estimate templates; audit `send-document-email` to confirm it consumes the same resolved policy (it already imports `resolvePolicy`, verify format propagation); consider ZPL as a third render_mode when the label-printing milestone lands.
+
+## What we are **not** doing (and why)
+
+- Not adding a second renderer or a "receipt-PDF" edge function — would violate the single-renderer invariant (ADR-0084/0085).
+- Not deleting the coercion — the ESC/POS-vs-printable coercion is still correct.
+- Not hardcoding A4 anywhere new — the whole point is to remove the last hidden A4 fallback for non-statutory docs.
+- Not touching statutory pins (`assertStatutoryPaper`) — regulator-facing PDFs stay A4.
+
+## Deliverables tracker
+
+- [x] Architecture audit (this document).
+- [x] Traced execution flow with file:line evidence.
+- [x] Enterprise-pattern comparison.
+- [x] Root-cause classification: **authority conflict / partial implementation** (UI exposes combinations the coercion rejects).
+- [ ] Implementation of Steps 1–4 (awaiting approval).
