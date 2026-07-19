@@ -69,7 +69,7 @@ import { useExport } from "@/hooks/useExport";
 import { format } from "date-fns";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 import { usePeekParam } from "@/features/sales/record";
@@ -138,7 +138,7 @@ export default function CreditNotes() {
     printDocumentId,
     printCommunication,
     generateDocument,
-  } = useDocumentPrint();
+  } = usePrintOrPreview();
 
   // Handle ?action=create from global create menu or invoice dropdown —
   // redirect to the new create route with any pre-fill params.

@@ -91,7 +91,7 @@ import { AdditionalCost } from "@/components/common/AdditionalCostsSection";
 // `/sales/estimates/:id/edit` routes on top of RecordFormShell.
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { AITextAssist } from "@/components/shared/AITextAssist";
@@ -261,7 +261,7 @@ export default function Estimates() {
     printCommunication,
     isGeneratingPdf,
     generateDocument,
-  } = useDocumentPrint();
+  } = usePrintOrPreview();
   
   // Bulk operations state
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);

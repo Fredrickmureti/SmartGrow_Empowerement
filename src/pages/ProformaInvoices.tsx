@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
@@ -98,7 +98,7 @@ export default function ProformaInvoices() {
     printDocumentId,
     printCommunication,
     generateDocument,
-  } = useDocumentPrint();
+  } = usePrintOrPreview();
 
   const handleSendEmail = (inv: typeof proformaInvoices[0]) => {
     setEmailDocument({

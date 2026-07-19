@@ -75,7 +75,7 @@ import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendD
 // Create-PO dialog retired — creation is now the RecordFormShell route at
 // /purchases/orders/new. See src/features/purchases/orders/PurchaseOrderCreatePage.tsx.
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
@@ -294,7 +294,7 @@ export default function PurchaseOrders() {
     printCommunication,
     isGeneratingPdf,
     generateDocument,
-  } = useDocumentPrint();
+  } = usePrintOrPreview();
   const [printPONumber, setPrintPONumber] = useState("");
 
   const handlePrintPO = async (po: PurchaseOrder) => {

@@ -56,7 +56,7 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { format } from "date-fns";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { useToast } from "@/hooks/use-toast";
@@ -108,7 +108,7 @@ export default function DeliveryNotes() {
   const { exportDeliveryNotes } = useExport();
   const { toast } = useToast();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, generateDocument } = useDocumentPrint();
+  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, generateDocument } = usePrintOrPreview();
   const { currentView, selectedSavedView, setView } = useViewMode({ entityType: "delivery_note" });
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters } = useCustomFieldFiltering("delivery_note");
   

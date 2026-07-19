@@ -69,7 +69,7 @@ import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { Printer, Mail, Loader2 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
@@ -152,7 +152,7 @@ export default function PurchaseReturns() {
     printCommunication,
     isGeneratingPdf,
     generateDocument,
-  } = useDocumentPrint();
+  } = usePrintOrPreview();
   const [printReturnNumber, setPrintReturnNumber] = useState("");
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
