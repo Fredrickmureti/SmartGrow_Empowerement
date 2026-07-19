@@ -654,12 +654,17 @@ function Kpi({
 }
 
 function SummaryLine({
-  label, amount, currency, warn,
-}: { label: string; amount: number; currency: string; warn?: boolean }) {
+  label, amount, currency, warn, account,
+}: { label: string; amount: number; currency: string; warn?: boolean; account?: string }) {
   return (
-    <div className={`flex justify-between rounded border px-3 py-2 ${warn ? "border-amber-400 bg-amber-50/40 dark:bg-amber-950/10" : ""}`}>
-      <span className="text-muted-foreground">{label}</span>
-      <span className="tabular-nums font-medium">{fmtMoney(amount, currency)}</span>
+    <div className={`flex flex-col gap-0.5 rounded border px-3 py-2 ${warn ? "border-amber-400 bg-amber-50/40 dark:bg-amber-950/10" : ""}`}>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="tabular-nums font-medium">{fmtMoney(amount, currency)}</span>
+      </div>
+      {account && (
+        <div className="text-[11px] text-muted-foreground truncate">{account}</div>
+      )}
     </div>
   );
 }
