@@ -24,6 +24,9 @@ import noShellLeakFromMe from "./eslint-rules/no-shell-leak-from-me.js";
 import noPdfLibInLocalizationPreview from "./eslint-rules/no-pdf-lib-in-localization-preview.js";
 import noCountryFixtureInSharedPreview from "./eslint-rules/no-country-fixture-in-shared-preview.js";
 import noPosCommitWithoutIdempotencyKey from "./eslint-rules/no-pos-commit-without-idempotency-key.js";
+import noRawPdfLibInApp from "./eslint-rules/no-raw-pdf-lib-in-app.js";
+import noDirectBarcodeLib from "./eslint-rules/no-direct-barcode-lib.js";
+
 
 
 export default tseslint.config(
