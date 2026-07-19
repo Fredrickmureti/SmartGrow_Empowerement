@@ -118,15 +118,44 @@ Nine engines. Each owns exactly one business concept. Ownership is enforced by a
 
 None of this ships as a big-bang. Each step is independently deployable and reversible.
 
-- **S0 — Freeze the drift surface (this batch).** Introduce `event_source_domain` type; migrate `business_event_outbox.source` to it; rewrite every remaining emitter to use a valid domain tag. This kills the class of failure the user has been hitting.
-- **S1 — Extract `_pos_*` helpers** and rewrite `process_pos_transaction`, `process_pos_return`, `process_pos_void`, `recall_pos_held_transaction`, `finalize_table_order` to compose them. Add architecture test forbidding direct writes.
-- **S2 — Move money math server-side.** Deprecate client-supplied `p_subtotal/p_tax/p_discount/p_total`; server re-derives; RPC returns `total_matches_server`. UI keeps advisory display math for latency.
-- **S3 — Introduce `pos_statements`.** Populated on shift close (or trading-day close). Backfill historical statements from `pos_shifts` + `pos_transactions` so reporting continuity is preserved.
-- **S4 — Introduce holding accounts.** New default account roles: `cash_in_drawer`, `merchant_clearing`, `mobile_money_clearing`, `cash_over_short`, `tip_liability`, `rounding_gain_loss`. `pos_payment_methods.debit_account_id` is redirected to the appropriate holding account. Existing bank accounts stay put — deposits/settlements are what move money out of holding.
-- **S5 — Cutover accounting posting.** New `post_pos_statement_gl(statement_id)` becomes the sole finance write path from POS. `post_pos_sale_gl` and its constraint trigger are demoted to a *shadow* mode (writes to `accounting_integrity_reports`, never to `journal_entries`) for one release, then dropped. Existing per-sale journals remain in place historically; new sales post via statement.
-- **S6 — Guardrails.** Architecture tests: (a) `journal_entries` inserts are forbidden inside `process_pos_transaction`'s call graph; (b) `pos_statements` is the only argument type accepted by the POS accounting RPC; (c) no CHECK-based enum for outbox source.
+**Status legend:** ✅ shipped & verified · 🟡 in progress · ⬜ not started
+
+- ✅ **S0 — Freeze the drift surface.** Introduced `event_source_domain` type; `business_event_outbox.source` now typed by it; every emitter using invalid literals (`client_rpc`, `db_trigger`, `stock_movements`, `rpc:pos_close_card_settlement`) rewritten to a valid domain tag. The 400-at-commit class from constraint drift is structurally impossible from here on.
+- ✅ **S1 — POS write-helper isolation.** All POS RPCs (`process_pos_transaction`, `process_pos_return`, `process_pos_void`, `recall_pos_held_transaction`, `finalize_table_order`) already compose `_pos_insert_line` / `_pos_record_payment` / `_pos_apply_lot_consumption`. Enforcement now hardened at the DB layer: BEFORE INSERT triggers `trg_pos_items_helper_only` and `trg_pos_payments_helper_only` on `pos_transaction_items` and `pos_transaction_payments` reject any write whose caller did not set the `pos.writer` capability token. Helpers stamp `'helper'`; `archive_old_pos_transactions` stamps `'maintenance'`. `attach_c2b_to_pos_transaction` (M-Pesa late attach) rewritten to route through `_pos_record_payment` so it participates in FSM guard + catalog validation like every other tender. Any future direct `INSERT INTO pos_transaction_items|pos_transaction_payments` fails with `insufficient_privilege` + a HINT pointing at the helpers.
+- 🟡 **S2 — Move money math server-side (NEXT).** Deprecate client-supplied `p_subtotal/p_tax/p_discount/p_total` on `process_pos_transaction`; server already re-derives (`v_srv_*`), but still accepts and stores client totals in `snapshot`. Step S2: (a) mark those parameters `DEPRECATED` in the RPC signature (keep for compat), (b) surface `total_matches_server` boolean + `server_totals` in the response, (c) update the frontend commit call to ignore client-computed totals and rely on server response for the receipt; UI keeps advisory display math for latency.
+- ⬜ **S3 — Introduce `pos_statements`.** Populated on shift close (or trading-day close). Backfill historical statements from `pos_shifts` + `pos_transactions` so reporting continuity is preserved.
+- ⬜ **S4 — Introduce holding accounts.** New default account roles: `cash_in_drawer`, `merchant_clearing`, `mobile_money_clearing`, `cash_over_short`, `tip_liability`, `rounding_gain_loss`. `pos_payment_methods.debit_account_id` is redirected to the appropriate holding account. Existing bank accounts stay put — deposits/settlements are what move money out of holding.
+- ⬜ **S5 — Cutover accounting posting.** New `post_pos_statement_gl(statement_id)` becomes the sole finance write path from POS. `post_pos_sale_gl` and its constraint trigger are demoted to *shadow* mode (writes to `accounting_integrity_reports`, never to `journal_entries`) for one release, then dropped. Existing per-sale journals remain in place historically; new sales post via statement.
+- ⬜ **S6 — Guardrails.** Architecture tests: (a) `journal_entries` inserts are forbidden inside `process_pos_transaction`'s call graph; (b) `pos_statements` is the only argument type accepted by the POS accounting RPC; (c) no CHECK-based enum for outbox source.
 
 Each step ships as one migration + one PR + one architecture test. Reversal is: drop the new object, restore the previous default account mapping.
+
+## Handoff — instructions for the next agent
+
+**Before writing new code, verify S1 is correct:**
+
+1. Guard triggers live and correctly wired:
+   ```sql
+   SELECT tgname, tgrelid::regclass FROM pg_trigger
+   WHERE tgname IN ('trg_pos_items_helper_only','trg_pos_payments_helper_only');
+   -- expect 2 rows: pos_transaction_items, pos_transaction_payments
+   ```
+2. Direct insert is rejected:
+   ```sql
+   -- should raise ERRCODE 42501 (insufficient_privilege):
+   INSERT INTO public.pos_transaction_items (transaction_id, description, quantity, unit_price, line_total)
+   VALUES (gen_random_uuid(), 'x', 1, 1, 1);
+   ```
+3. Round-trip a real Quick Cash sale end-to-end (register `cba22f78-2624-4c1d-841b-9dd760ae4e28`) and confirm `pos_payment_session_commit` still returns 200 and `pos_transactions.status='completed'`. If any regression, the token stamp inside a helper was dropped — re-inspect `_pos_insert_line` / `_pos_record_payment` for the `set_config('pos.writer', 'helper', true)` line.
+4. Confirm C2B attach still writes payment with correct `tender_kind` / `capture_mode_used` (populated by `pos_validate_payment_line`, not present in the pre-S1 version).
+
+**If verification passes, resume with S2 (server-authoritative money math). Do NOT skip to S3+**: S2 removes the last piece of client trust and is a prerequisite for the statement-engine work in S3, because the statement aggregates *server* totals. Concretely, S2 delivers:
+
+- Migration: `process_pos_transaction` response gains `server_totals` and `total_matches_server`; unchanged column signature to preserve backward compat.
+- Frontend: the commit call in `src/services/pos/**` reads server totals for receipt rendering; client totals become advisory only. Any test that asserts client-side totals equal server totals should be updated to `expect(total_matches_server).toBe(true)`.
+- Architecture test in `src/test/pos/` locking in "commit response includes `server_totals`".
+
+Only after S2 is verified end-to-end (Quick Cash + a mixed-tender + a discounted sale), start S3.
 
 ## 6. What this does *not* touch
 
