@@ -841,16 +841,25 @@ export function FinanceApp() {
           }
         />
 
-        {/* POS Posting Queue — operational workspace for POS→GL posting. */}
+        {/* Accounting Events Workspace (B4) — producer-agnostic sub-ledger
+            operational surface. Supersedes the POS Posting Queue. */}
         <Route
-          path="pos-posting-queue"
+          path="operations/accounting-events"
           element={
             <SubscriptionProtectedRoute>
-              <LazyRoute module="POS Posting Queue">
-                <PosPostingQueue />
+              <LazyRoute module="Accounting Events">
+                <AccountingEventsWorkspace />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
+        />
+
+        {/* Legacy POS Posting Queue URL — 301-style client redirect to the
+            new producer-agnostic workspace. Preserves ?shift=… so existing
+            deep-links from POS ops keep working. */}
+        <Route
+          path="pos-posting-queue"
+          element={<LegacyPosQueueRedirect />}
         />
 
 
