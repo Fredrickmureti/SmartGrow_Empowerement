@@ -63,10 +63,11 @@ import {
   type LiveTransactionInput,
 } from "@/lib/pos/receipt/ReceiptDocumentModel";
 import {
-  PreviewRenderer,
   showSuccessOnCustomerDisplay,
   type ReceiptPaperWidth,
 } from "@/lib/pos/receipt/renderers";
+import { buildReceiptLines } from "@/lib/receipt/preview/buildReceiptLines";
+import { MonospacePreview } from "@/lib/receipt/preview/MonospacePreview";
 import { printClient } from "@/services/printing/PrintClient";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -517,7 +518,58 @@ export function PostPaymentScreen({
             </TabsContent>
             <TabsContent value="printer" className="mt-4">
               <div className="flex justify-center">
-                <PreviewRenderer model={model} paperWidth={paperWidth} trueWidth />
+                {(() => {
+                  // Stage X (Wave 2): the operator-facing thermal preview
+                  // is now the same monospace grid engine (`buildReceiptLines`
+                  // + `MonospacePreview`) that drives the ReceiptPreviewDialog
+                  // reprint surface AND the server ESC/POS / thermal PDF
+                  // pipelines. No divergent HTML renderer.
+                  const rs = { ...liveSettings, paper_size: paperWidth };
+                  const built = buildReceiptLines({
+                    settings: rs,
+                    company: {
+                      name: branding?.name || currentOrg?.name || "Store",
+                      logo_url: branding?.logo_url ?? null,
+                      address: branding?.address ?? null,
+                      city: branding?.city ?? null,
+                      phone: branding?.phone ?? null,
+                      email: branding?.email ?? null,
+                      tax_id: null,
+                    },
+                    transaction: {
+                      id: transaction.id,
+                      transaction_number: transaction.transaction_number,
+                      created_at: transaction.created_at,
+                      subtotal: transaction.subtotal,
+                      tax_amount: transaction.tax_amount,
+                      discount_amount: transaction.discount_amount,
+                      total_amount: transaction.total_amount,
+                      customer_name: transaction.customer_name,
+                      cashier_name: transaction.cashier_name,
+                      register_id: transaction.register_id,
+                      items: transaction.items.map((it) => ({
+                        product_name: it.product_name,
+                        sku: it.sku,
+                        quantity: it.quantity,
+                        unit_price: it.unit_price,
+                        discount_amount: it.discount_amount,
+                        line_total: it.line_total,
+                      })),
+                      payments: transaction.payments,
+                      etims_cu_number: transaction.etims_cu_number,
+                      etims_qr_data: transaction.etims_qr_data,
+                    },
+                  });
+                  return (
+                    <MonospacePreview
+                      lines={built.lines}
+                      meta={built.meta}
+                      columns={built.columns}
+                      marginCols={built.marginCols}
+                      paper={built.paper}
+                    />
+                  );
+                })()}
               </div>
             </TabsContent>
           </Tabs>
