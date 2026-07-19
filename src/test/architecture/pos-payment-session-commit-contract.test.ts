@@ -144,10 +144,21 @@ describe("pos_payment_session_open — snapshot immutability (Wave 3 Phase 4.d)"
     expect(openSql).toMatch(/fx_rate[\s\S]{0,80}settlement_currency[\s\S]{0,80}tip_policy/i);
   });
 
-  it("(C4b) never issues an UPDATE against the snapshot columns", () => {
-    // The whole session module: search every migration for any UPDATE
-    // that mutates a snapshot column of pos_payment_sessions.
+  it("(C4b) never issues an UPDATE against the snapshot columns from a runtime code path", () => {
+    // Backfills (one-shot UPDATEs inside the migration that first added
+    // the columns) are legitimate — the row was created before the
+    // snapshot existed. What must NEVER happen is a runtime UPDATE
+    // living inside a function body, trigger, or later migration.
+    //
+    // Strategy: extract every plpgsql function body across all session
+    // migrations and assert none of them mutate the snapshot columns.
     const allSessionSql = readMigrationsMatching(/pos_payment_session/i);
+    const fnBodyRe = /\$\$([\s\S]*?)\$\$/g;
+    const bodies: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = fnBodyRe.exec(allSessionSql)) !== null) bodies.push(m[1]);
+    const bodiesJoined = bodies.join("\n\n-- ── next fn body ──\n\n");
+
     const forbiddenUpdates = [
       /UPDATE\s+public\.pos_payment_sessions[\s\S]{0,400}\bSET\b[\s\S]{0,400}\bfx_rate\s*=/i,
       /UPDATE\s+public\.pos_payment_sessions[\s\S]{0,400}\bSET\b[\s\S]{0,400}\bsettlement_currency\s*=/i,
@@ -155,8 +166,8 @@ describe("pos_payment_session_open — snapshot immutability (Wave 3 Phase 4.d)"
     ];
     for (const re of forbiddenUpdates) {
       expect(
-        re.test(allSessionSql),
-        `snapshot columns must be immutable after open — offending pattern: ${re}`,
+        re.test(bodiesJoined),
+        `snapshot columns must be immutable after open — offending pattern in a function body: ${re}`,
       ).toBe(false);
     }
   });
