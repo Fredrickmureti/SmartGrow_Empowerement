@@ -15,6 +15,7 @@ import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ProformaInvoice, ProformaInvoiceItem } from "@/hooks/useProformaInvoices";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 type Row = ProformaInvoice & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
@@ -130,6 +131,7 @@ export default function ProformaRecordPage() {
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Proforma ${row.proforma_number} created` },
         ...(row.converted_at ? [{ id: "converted", at: fmt(row.converted_at), title: "Converted to invoice", tone: "success" as const }] : []),
       ] : undefined}
+      extraSections={row ? <DocumentVersionsSection documentType="proforma" documentId={row.id} /> : undefined}
     />
   );
 }

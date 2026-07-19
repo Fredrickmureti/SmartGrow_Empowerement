@@ -14,6 +14,7 @@ import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { SalesReturn, SalesReturnItem } from "@/hooks/useSalesReturns";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 type Row = SalesReturn & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
@@ -125,6 +126,7 @@ export default function SalesReturnRecordPage() {
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Return ${row.return_number} created` },
         ...(row.credit_note_id ? [{ id: "credit", at: fmt(row.updated_at), title: "Credit note issued", tone: "info" as const }] : []),
       ] : undefined}
+      extraSections={row ? <DocumentVersionsSection documentType="sales_return" documentId={row.id} /> : undefined}
     />
   );
 }

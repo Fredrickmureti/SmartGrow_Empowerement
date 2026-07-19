@@ -12,6 +12,7 @@ import { SalesRecordScaffold } from "@/features/sales/record";
 import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import type { DeliveryNote, DeliveryNoteItem } from "@/hooks/useDeliveryNotes";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 type Row = DeliveryNote & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
@@ -114,6 +115,7 @@ export default function DeliveryNoteRecordPage() {
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Delivery ${row.delivery_number} created` },
         ...(row.delivered_at ? [{ id: "delivered", at: fmt(row.delivered_at), title: "Delivered", tone: "success" as const }] : []),
       ] : undefined}
+      extraSections={row ? <DocumentVersionsSection documentType="delivery_note" documentId={row.id} /> : undefined}
     />
   );
 }

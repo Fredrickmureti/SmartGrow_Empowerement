@@ -15,6 +15,7 @@ import { SalesRecordScaffold } from "@/features/sales/record";
 import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 interface AllocationRow {
   id: string;
@@ -145,6 +146,7 @@ export default function CustomerPaymentRecordPage() {
       activity={row ? [
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Payment ${row.receipt_number ?? id.slice(0, 8)} recorded` },
       ] : undefined}
+      extraSections={row ? <DocumentVersionsSection documentType="receipt" documentId={row.id} /> : undefined}
     />
   );
 }
