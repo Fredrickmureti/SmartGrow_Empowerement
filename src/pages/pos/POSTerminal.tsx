@@ -49,6 +49,7 @@ import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { usePOSCartAdapter } from "@/hooks/pos/usePOSCartAdapter";
 import { usePOSShifts } from "@/hooks/pos/usePOSShifts";
 import { usePOSTransactionOffline } from "@/hooks/pos/usePOSTransactionOffline";
+import { useCommitKey } from "@/hooks/pos/useCommitKey";
 import { usePOSHeldTransactions } from "@/hooks/pos/usePOSHeldTransactions";
 import { usePOSSettings } from "@/hooks/pos/usePOSSettings";
 import { usePOSLoyalty } from "@/hooks/pos/usePOSLoyalty";
