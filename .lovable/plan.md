@@ -221,3 +221,89 @@ tuned by the engine's rhythm rules, not by ad-hoc spacing:
   render.
 - Removing a section from the layout definition removes it
   simultaneously from preview, PDF and printer.
+
+---
+
+## 8. Execution log (chronological status)
+
+Each wave lands one horizontal slice of the target architecture and is
+considered done only when (a) code merged, (b) tests green, (c) plan
+updated. The **Next agent must first verify the previous wave using the
+listed checks** before starting the next.
+
+| Wave | Scope | Status | Verification |
+|------|-------|--------|--------------|
+| 1 | Shared row producer `_shared/receipt/lines.ts` (server-side) + `documentToInput.ts` adapter | ✅ Done | `deno test _shared/receipt/lines_test.ts` |
+| 2 | `renderThermalPdf` + `generate-document` thermal PDF branch (headers `X-Print-Policy-Renderer: thermal-engine`) | ✅ Done | Curl `/generate-document` with `format:pdf, documentType:pos_receipt` → response has `X-Print-Policy-Renderer: thermal-engine` |
+| 3 | `PostPaymentScreen` migrated to `MonospacePreview`; architecture-guard test extended | ✅ Done | `bunx vitest run pos-receipt-renderer-contract` |
+| 4 | `PreviewRenderer.tsx` **deleted**; barrel exports cleaned; guards flipped to assert absence | ✅ Done | `bunx vitest run pos-renderer-ownership pos-receipt-renderer-contract` |
+| 5 | New `_shared/escpos/renderLinesEscPos.ts` emitter (CP858, per-row bold/large/align, native QR); 10 Deno tests locking preamble, LF-per-row, state reset, align transitions, native QR gating, feed+cut, transliteration | ✅ Done | `supabase test _shared/escpos/renderLinesEscPos_test.ts` (10/10 pass) |
+| **6a** | **POS PDF always routes through thermal engine — no more A4 fallback for `pos_receipt`.** `generate-document` now resolves the render width from `pos_receipt_settings.paper_size` → policy → 80mm, and drops the previous `isThermalWidth &&` guard for POS receipts. Response advertises `X-Print-Policy-Effective-Paper`. | ✅ Done (this wave) | Curl `/generate-document {documentType:'pos_receipt', format:'pdf'}` on an org whose print policy resolves to A4 → response now has `X-Print-Policy-Renderer: thermal-engine` and `X-Print-Policy-Effective-Paper: 80mm`; the downloaded PDF is a thermal strip, not an A4 invoice |
+| 6b | Retire `_shared/escpos/builder.ts` internals — reimplement as thin shim over `buildReceiptLines` + `renderLinesEscPos`; migrate/replace the byte-fingerprint tests in `builder_test.ts` (~40 assertions) with structural checks driven by `LineMeta[]`. | ⏳ **Pending — next milestone** | Byte-parity golden between old builder output and new emitter for the fixture set (`goldenDoc` at 80/58/40mm), then swap and delete legacy internals |
+| 7 | Golden diff tests per width (40 / 58 / 80 mm) across the three targets (monospace preview, thermal PDF, ESC/POS bytes) from a single fixture | ⏳ Pending |
+| 8 | Delete dead A4 branches from the thermal path (`PdfBuilder` `density: "narrow"` code, thermal margin overrides in `BrandedHeader` / `DataTable` / `NotesBlock`) | ⏳ Pending |
+
+### 8.1 Active phase
+
+**Wave 6b — ESC/POS builder retirement.** Wave 6a shipped the
+user-visible fix (POS "Save PDF" no longer regenerates the A4 invoice
+look for pos_receipt); the ESC/POS byte generator is still the legacy
+procedural walker in `_shared/escpos/builder.ts`. Retiring it requires a
+byte-parity golden gate before the swap.
+
+### 8.2 Instructions for the next agent
+
+Do these **before** starting Wave 6b:
+
+1. **Verify Wave 6a as shipped**:
+   - Read `supabase/functions/generate-document/index.ts` around the
+     thermal PDF branch (search for `routeThroughThermalEngine`).
+     Confirm the condition is `isReceiptLike && !isStatement &&
+     (isThermalWidth || documentType === "pos_receipt")` — i.e. POS
+     receipts always route through `renderThermalPdf` regardless of
+     policy paper.
+   - Confirm the response sets `X-Print-Policy-Renderer:
+     thermal-engine` and `X-Print-Policy-Effective-Paper`.
+   - Sanity-run: from the POS "Save PDF" surface in
+     `ReceiptPreviewDialog.tsx`, save a receipt for a transaction and
+     open the downloaded PDF — it must be a continuous thermal strip
+     structurally identical to the on-screen `MonospacePreview`.
+   - Do NOT proceed if you observe an A4-sized PDF; that means the
+     branch was bypassed or the client is passing `paperFormat: 'a4'`
+     explicitly (the "no printer" fallback path in
+     `handlePrint()` still forces A4 for browser-native print — that
+     is intentional and must not be changed here).
+
+2. **Then start Wave 6b (retire legacy ESC/POS builder)**:
+   - Add a Deno test that fingerprints `buildDocumentEscPos(goldenDoc)`
+     and `renderLinesEscPos(buildReceiptLines(documentToReceiptInput(goldenDoc)))`
+     at 40/58/80mm. Adjust `documentToReceiptInput` / `lines.ts` until
+     the two fingerprints match on the fixture set (allowing only
+     documented byte-level deltas — record any diffs in the plan).
+   - Once green, replace the body of `buildDocumentEscPos` in
+     `_shared/escpos/builder.ts` with:
+     ```ts
+     const input = documentToReceiptInput(doc, { settings: opts.receiptSettings, ... });
+     const rows = buildReceiptLines(input);
+     return renderLinesEscPos(rows, { caps: opts.capabilities, cut: opts.cut });
+     ```
+     Delete the ~800 lines of procedural section walking, CP858 map,
+     and per-block emitters.
+   - Update `builder_test.ts` byte-fingerprint tests: keep the fixture,
+     re-baseline the fingerprints in ONE commit (recorded in this plan
+     under a "Byte-parity re-baseline" heading with the old→new hashes
+     for auditability), and convert per-block assertions to structural
+     `LineMeta[]` checks where possible.
+   - Do NOT proceed to Wave 7 until every test file listed in the Wave
+     5 grep output (`builder_test.ts`, `blocks_test.ts`,
+     `line_width_clamp_test.ts`, `escposBuilder.test.ts`,
+     `escpos-parity_test.ts`) is green against the shim.
+
+3. **Then start Wave 7 (goldens per width)** — only after Wave 6b is
+   done. A single fixture drives all three targets; diverging outputs
+   are architecture regressions, not test bugs.
+
+**Do not** jump to Wave 8 (dead-code deletion in A4 pipeline) before
+Wave 6b — the ESC/POS shim proves the row producer covers every field
+the legacy builder covered; deleting A4 thermal branches earlier risks
+leaving unreachable fixtures without a canary to catch them.
