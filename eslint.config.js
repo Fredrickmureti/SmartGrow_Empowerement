@@ -26,6 +26,7 @@ import noCountryFixtureInSharedPreview from "./eslint-rules/no-country-fixture-i
 import noPosCommitWithoutIdempotencyKey from "./eslint-rules/no-pos-commit-without-idempotency-key.js";
 import noRawPdfLibInApp from "./eslint-rules/no-raw-pdf-lib-in-app.js";
 import noDirectBarcodeLib from "./eslint-rules/no-direct-barcode-lib.js";
+import noRawXlsxInApp from "./eslint-rules/no-raw-xlsx-in-app.js";
 
 
 
@@ -66,6 +67,7 @@ export default tseslint.config(
           "no-pos-commit-without-idempotency-key": noPosCommitWithoutIdempotencyKey,
           "no-raw-pdf-lib-in-app": noRawPdfLibInApp,
           "no-direct-barcode-lib": noDirectBarcodeLib,
+          "no-raw-xlsx-in-app": noRawXlsxInApp,
 
         },
       },
@@ -257,6 +259,9 @@ export default tseslint.config(
     rules: {
       "local/no-raw-pdf-lib-in-app": "error",
       "local/no-direct-barcode-lib": "error",
+      // Milestone C.2 — xlsx WRITE APIs are server-only. Read APIs
+      // (XLSX.read / sheet_to_json) stay legal for user-uploaded imports.
+      "local/no-raw-xlsx-in-app": "error",
     },
   },
 );

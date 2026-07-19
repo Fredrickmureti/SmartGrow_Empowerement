@@ -85,11 +85,11 @@ export function ReportExportButtons({
 
       switch (format) {
         case "excel":
-          exportToExcel(config);
+          await exportToExcel(config);
           toast.success("Excel file exported successfully");
           break;
         case "csv":
-          exportToCSV(config);
+          await exportToCSV(config);
           toast.success("CSV file exported successfully");
           break;
       }

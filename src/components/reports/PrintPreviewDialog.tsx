@@ -137,9 +137,9 @@ export function PrintPreviewDialog({
     downloadPdfBlob(pdfBlob, `${filename}.pdf`);
   };
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     if (config) {
-      exportToExcel(config);
+      await exportToExcel(config);
     }
   };
 

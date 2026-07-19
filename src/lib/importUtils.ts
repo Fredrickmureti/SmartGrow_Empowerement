@@ -220,9 +220,14 @@ export function applyMapping(
  */
 export function downloadTemplate(entityName: string, fieldDefinitions: FieldDefinition[]) {
   const headers = fieldDefinitions.map((f) => f.label);
+  // RENDERER-EXEMPT: blank import template, not a report artifact. Milestone C.2's
+  // no-raw-xlsx-in-app rule targets report generation; import scaffolds stay client-side.
   const ws = XLSX.utils.aoa_to_sheet([headers]);
+  // RENDERER-EXEMPT: import template scaffold (see above).
   const wb = XLSX.utils.book_new();
+  // RENDERER-EXEMPT: import template scaffold (see above).
   XLSX.utils.book_append_sheet(wb, ws, entityName);
+  // RENDERER-EXEMPT: import template scaffold (see above).
   XLSX.writeFile(wb, `${entityName}_Import_Template.csv`, { bookType: "csv" });
 }
 
@@ -237,8 +242,12 @@ export function downloadErrorReport(
   const headers = [...Object.keys(failedRows[0].data), "Errors"];
   const rows = failedRows.map((r) => [...Object.values(r.data), r.errors]);
 
+  // RENDERER-EXEMPT: per-import error report, not a report artifact (Milestone C.2).
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  // RENDERER-EXEMPT: per-import error report (see above).
   const wb = XLSX.utils.book_new();
+  // RENDERER-EXEMPT: per-import error report (see above).
   XLSX.utils.book_append_sheet(wb, ws, "Errors");
+  // RENDERER-EXEMPT: per-import error report (see above).
   XLSX.writeFile(wb, "Import_Errors.csv", { bookType: "csv" });
 }
