@@ -77,3 +77,27 @@ Hardware topology, receipt rendering, scanner pipeline, promotions, loyalty accr
 - `v_pos_gl_posting_drift` returns rows with `delta=0` across a full release before shadow objects are dropped.
 - Missing tender mapping falls back to legacy `pos_payment_methods.debit_account_id`; cashier never sees a 400.
 - Adding a new tender/provider = INSERT into `pos_tender_holding_account_map`, zero code change.
+
+## S5 — GL cutover ✅ COMPLETE (shadow mode live)
+
+Shipped in one atomic migration (see `supabase/migrations/*post_pos_statement_gl*.sql`):
+
+- `pos_gl_shadow_postings` — captures what the legacy per-sale poster would have posted; unique on `transaction_id`, RLS by `user_can_access_branch(auth.uid(), branch_id)`.
+- `pos_statement_gl_apply_log` — statement-post idempotency (`UNIQUE(statement_id, idempotency_key)`).
+- Trigger `trg_pos_stmt_enqueue_gl_post` on `pos_statements` — enqueues `pos.statement.posting.requested` on close (skips `historical_backfill`).
+- Outbox topic registered in `business_event_topics` with `handler_scope='server'`, `max_attempts=10`.
+- `post_pos_statement_gl(statement_id, idempotency_key)` — SECURITY DEFINER, `search_path=public`. One balanced JE per statement: per-tender debits via `resolve_pos_tender_gl_account` (holding accounts when flag on, legacy `pos_payment_methods.debit_account_id` fallback when off); revenue net-of-returns-and-tax credit; aggregate output-tax credit; optional tips-liability credit. Refuses to write unbalanced JE. Marks statement `posted` + stamps `journal_entry_id`.
+- `post_pos_sale_gl` demoted: body now only inserts into `pos_gl_shadow_postings`. Trigger `trg_pos_transaction_post_sale_gl` stays for shadow audit continuity.
+- `v_pos_gl_posting_drift` view — per-statement diff of shadow gross/tax/tx-count vs statement totals.
+- Outbox dispatcher (`supabase/functions/outbox-dispatcher/index.ts`) drains `pos.statement.posting.requested` by calling `post_pos_statement_gl` with `outbox:{event_id}` as idempotency key.
+- Architecture guard: `src/test/architecture/pos-statement-gl-cutover.test.ts` — 10 tests pin every S5 surface (SECURITY DEFINER, balance check, shadow-only per-sale poster, outbox enqueue, topic registration, drift view, dispatcher wiring).
+
+Backward compatibility: with `businesses.use_holding_accounts=false` (default), the resolver returns the legacy `pos_payment_methods.debit_account_id`, so every existing tender mapping keeps posting to the same account it did before — the change is the *aggregation granularity* (per-statement, not per-receipt), not the account map.
+
+## S6 — Guardrails & cleanup (next loop)
+
+- Additional negative test: exec-time DB proof that direct `INSERT INTO pos_transaction_items` as a non-service role returns `42501` (auth-harness driven, not mocked).
+- Domain-event contract test: `pos.statement.posting.requested` is the only POS event that reaches the finance handler chain.
+- ADR `docs/adr/00XX-pos-statement-centric-gl-posting.md` — statement=accounting unit, receipt=operational unit, holding accounts as cash-flow bridge, outbox-driven posting, per-processor sub-ledger via `pos_tender_holding_account_map`.
+- After one release with `v_pos_gl_posting_drift.delta_gross = 0` everywhere: drop `trg_pos_transaction_post_sale_gl`, `post_pos_sale_gl`, and `pos_gl_shadow_postings` in a follow-up migration.
+
