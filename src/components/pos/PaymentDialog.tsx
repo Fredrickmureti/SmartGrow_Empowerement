@@ -293,8 +293,7 @@ export function PaymentDialog({
         const row = await session.recordTender(input);
         return row;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to record payment";
-        toast.error(msg);
+        toast.error(paymentSessionErrorMessage(e, "Failed to record payment"));
         return null;
       } finally {
         setIsRecording(false);
