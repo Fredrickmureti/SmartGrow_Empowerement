@@ -39,7 +39,9 @@ const fixture = {
 
 Deno.test("buildStatementCsv emits BOM + CRLF", () => {
   const bytes = buildStatementCsv(fixture);
-  const text = new TextDecoder().decode(bytes);
+  // `ignoreBOM: true` — the default TextDecoder strips U+FEFF; keep it so
+  // we can assert the byte-level prefix Excel needs for UTF-8 detection.
+  const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes);
   assert(text.startsWith("\uFEFF"), "must start with UTF-8 BOM for Excel");
   assert(text.includes("\r\n"), "must use CRLF separators");
 });
