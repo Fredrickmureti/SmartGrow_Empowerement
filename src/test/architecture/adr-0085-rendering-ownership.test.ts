@@ -62,7 +62,11 @@ function importedFrom(text: string, pkg: string): { line: number; raw: string }[
 }
 
 describe("ADR-0085 — rendering ownership (runtime mirror of ESLint)", () => {
-  const files = walk(ROOT);
+  // Exclude this test file itself — its regex source and comments would
+  // otherwise be flagged as offending imports.
+  const SELF = resolve(__dirname, "adr-0085-rendering-ownership.test.ts");
+  const files = walk(ROOT).filter((f) => f !== SELF);
+
 
   it("no src/** file imports pdf-lib", () => {
     const offenders: string[] = [];
