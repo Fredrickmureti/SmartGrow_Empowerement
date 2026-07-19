@@ -67,10 +67,19 @@ export interface PaymentSessionParams {
   shiftId: string;
   cashierId?: string | null;
   /**
-   * Stable digest of the cart contents. Two dialogs open against the
-   * same cart MUST resolve to the same digest so the session collapses.
+   * Stable digest of the cart contents. Ignored when `idempotencyKey`
+   * is provided — that path is preferred whenever the caller already
+   * owns a stable key.
    */
-  cartHash: string;
+  cartHash?: string;
+  /**
+   * Explicit idempotency key. Use this when the caller already owns a
+   * stable key (e.g. `useCommitKey.get(register, shift)` for retail,
+   * `cart.transactionId` for restaurant draft finalisation). Takes
+   * precedence over the `cartHash`-derived key so the dialog's session
+   * collapses with the downstream commit path on retry.
+   */
+  idempotencyKey?: string;
   totals: PaymentSessionCartTotals;
   /** When false, the hook does not query for rehydration on mount. */
   autoRehydrate?: boolean;
