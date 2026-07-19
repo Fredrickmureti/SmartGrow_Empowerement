@@ -118,6 +118,12 @@ import { usePOSKeyboardShortcuts } from "@/hooks/pos/usePOSKeyboardShortcuts";
 import { useRegisterBranchGuard } from "@/hooks/pos/useRegisterBranchGuard";
 import { CrossBranchRedirect } from "@/components/pos/CrossBranchRedirect";
 // usePOSCart is now used via usePOSCartAdapter
+import {
+  openSession as openPaymentSession,
+  recordTender as recordPaymentTender,
+  commitSession as commitPaymentSession,
+  type PosTenderKind,
+} from "@/lib/pos/paymentSessionClient";
 
 /**
  * Stage B branch isolation guard wrapper. Doing the guard in an outer
@@ -912,52 +918,82 @@ function POSTerminalInner() {
     try {
       let result: { transaction: { id: string; created_at: string }; transactionNumber: string; change: number; isOffline?: boolean };
 
-      // Restaurant mode: finalize existing draft transaction
+      // Restaurant mode: finalize existing draft transaction via the
+      // payment-session lifecycle (Wave 3 · Phase 4.a).
+      //
+      //   openSession(idempotencyKey = cart.transactionId)
+      //     → recordTender × N (key = `${cart.transactionId}:tender:${i}`)
+      //     → commitSession(envelope.existing_transaction_id = cart.transactionId)
+      //
+      // The commit RPC materialises the tenders and forwards to
+      // finalize_table_order server-side, so card FSM metadata and
+      // idempotency behave identically to the retail path.
       if (cart.isRestaurantMode && cart.transactionId) {
-        const { data: rpcResult, error: rpcErr } = await supabase.rpc(
-          "finalize_table_order" as any,
-          {
-            p_transaction_id: cart.transactionId,
-            p_payments: payments.map(p => {
-              const method = p.method === "mpesa" ? "mobile_money" : p.method;
-              const tendered = p.tendered_amount ?? p.amount;
-              const change = p.change_given ?? Math.max(0, tendered - p.amount);
-              return {
-                payment_method: method,
-                amount: p.amount,
-                tendered_amount: tendered,
-                change_given: method === "cash" ? change : 0,
-                reference: p.reference || null,
-                // Wave 2 · Phase C-3 — forward card FSM metadata so the
-                // restaurant path also lands rows in a legal FSM state and
-                // the `trg_emit_pos_card_fsm_event` trigger fires.
+        const draftId = cart.transactionId;
+
+        const tenderKindFor = (m: string): PosTenderKind => {
+          switch (m) {
+            case "cash":          return "cash";
+            case "card":          return "card";
+            case "mobile_money":
+            case "mpesa":         return "wallet";
+            case "voucher":       return "voucher";
+            case "credit":        return "credit_liability";
+            case "bank_transfer": return "bank_transfer";
+            default:              return "other";
+          }
+        };
+
+        const grandTotal = cart.total + (tipAmount || 0);
+        const sessionId = await openPaymentSession({
+          registerId,
+          grandTotal,
+          currency: "KES",
+          idempotencyKey: draftId,
+          tipAmount: tipAmount || 0,
+          cashierId: user?.id ?? null,
+        });
+
+        for (let i = 0; i < payments.length; i++) {
+          const p = payments[i];
+          const method = p.method === "mpesa" ? "mobile_money" : p.method;
+          const tendered = p.tendered_amount ?? p.amount;
+          const changeGiven = p.change_given ?? Math.max(0, tendered - p.amount);
+          await recordPaymentTender({
+            sessionId,
+            idempotencyKey: `${draftId}:tender:${i}`,
+            tender: {
+              tender_kind: tenderKindFor(method),
+              method_key: method,
+              provider_key: method === "mobile_money" ? "mpesa" : undefined,
+              amount: p.amount,
+              tendered_amount: tendered,
+              change_given: method === "cash" ? changeGiven : 0,
+              reference: p.reference ?? null,
+              auth_state: (p.auth_state as "approved" | "captured" | undefined) ?? undefined,
+              auth_id: p.auth_id ?? null,
+              vendor_txn_id: p.vendor_txn_id ?? null,
+              driver_payload: {
                 card_last_four: p.card_last_four ?? null,
                 card_type: p.card_type ?? null,
-                auth_state: p.auth_state ?? null,
-                auth_id: p.auth_id ?? null,
-                vendor_txn_id: p.vendor_txn_id ?? null,
                 authorized_amount: p.authorized_amount ?? null,
-              };
-            }),
-            p_tip_amount: tipAmount || 0,
-            p_created_by: user?.id || null,
-          }
-        );
-
-        if (rpcErr) throw rpcErr;
-        const res = rpcResult as any;
-        if (!res?.success) {
-          const errMsg = res?.error === "insufficient_stock"
-            ? `Insufficient stock for: ${(res.details as any[]).map((d: any) => d.product_name).join(", ")}`
-            : res?.error || "Transaction finalization failed";
-          throw new Error(errMsg);
+              },
+            },
+          });
         }
+
+        const commitEnvelope = await commitPaymentSession({
+          sessionId,
+          envelope: {
+            existing_transaction_id: draftId,
+          },
+        });
 
         const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
         result = {
-          transaction: { id: res.transaction_id, created_at: new Date().toISOString() },
-          transactionNumber: res.transaction_number,
-          change: res.change ?? Math.max(0, totalPaid - cart.total),
+          transaction: { id: commitEnvelope.transaction_id, created_at: new Date().toISOString() },
+          transactionNumber: commitEnvelope.transaction_number ?? "",
+          change: commitEnvelope.change ?? Math.max(0, totalPaid - cart.total),
         };
       } else {
         // Retail mode: create new transaction via RPC
