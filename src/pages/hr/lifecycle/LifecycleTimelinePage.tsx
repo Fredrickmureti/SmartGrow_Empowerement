@@ -23,6 +23,7 @@ import {
 } from "@/hooks/hr/useLifecycleEvents";
 import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { DocumentHistorySheet } from "@/components/documents/DocumentHistorySheet";
 
 /**
  * Map a lifecycle event_type to the HR letter document type served by
