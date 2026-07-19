@@ -148,6 +148,7 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     const targets = [
       "src/components/settings/ReceiptLivePreview.tsx",
       "src/components/pos/ReceiptPreviewDialog.tsx",
+      "src/components/pos/PostPaymentScreen.tsx",
     ];
     for (const rel of targets) {
       const src = readFileSync(join(root, rel), "utf8");
