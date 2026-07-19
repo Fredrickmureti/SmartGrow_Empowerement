@@ -74977,7 +74977,7 @@ export type Database = {
       }
       pos_payment_session_commit: {
         Args: { p_session_id: string; p_transaction_envelope: Json }
-        Returns: string
+        Returns: Json
       }
       pos_payment_session_open: {
         Args: {
