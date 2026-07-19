@@ -210,7 +210,15 @@ export function PaymentDialog({
     registerId: sessionContext.registerId,
     shiftId: sessionContext.shiftId,
     cashierId: sessionContext.cashierId ?? null,
-    idempotencyKey: sessionContext.idempotencyKey,
+    // The upstream key (`useCommitKey`) is register+shift-scoped and
+    // only cleared after a *successful* commit. If a previous sale's
+    // commit failed (or the cart was rebuilt with a different total),
+    // the same key would rehydrate the stale `pos_payment_sessions`
+    // row whose `expected_total` is frozen at open — every new tender
+    // then trips `over-allocation`. Bind the session key to the
+    // grand-total-in-minor-units so a different cart total opens a
+    // fresh session while identical retries still collapse to one.
+    idempotencyKey: `${sessionContext.idempotencyKey}:${Math.round(effectiveTotal * 100)}`,
     totals: {
       grandTotal: effectiveTotal,
       currency: sessionContext.currency ?? "KES",
