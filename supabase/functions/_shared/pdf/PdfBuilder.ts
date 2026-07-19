@@ -105,7 +105,11 @@ export interface BuilderState {
   density: Density;
   /** Resolved paper spec for downstream components / debugging. */
   paper: PaperSpec;
+  /** Height mode. `"continuous"` means the final page will be cropped to
+   *  consumed content at save() time (thermal receipts / ADR-0008 T1). */
+  heightMode: "fixed" | "continuous";
 }
+
 
 export class PdfBuilder {
   readonly doc: PDFDocument;
