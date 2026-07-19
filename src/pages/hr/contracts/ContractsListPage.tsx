@@ -33,6 +33,7 @@ import {
 import { RenewContractDialog } from "./RenewContractDialog";
 import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { DocumentHistorySheet } from "@/components/documents/DocumentHistorySheet";
 
 export interface ContractsListPageProps {
   eyebrow: string;
