@@ -45,31 +45,30 @@ const ALLOWED_DIRECT_CALLERS = new Set([
 ]);
 
 describe("Stage X6 — POS receipt renderer contract", () => {
-  it("renderer modules exist (PreviewRenderer, ThermalPrintRenderer, PdfRenderer, CustomerDisplayRenderer)", () => {
+  it("on-screen renderer modules exist (PreviewRenderer, CustomerDisplayRenderer)", () => {
     const present = readdirSync(RENDERER_DIR);
     expect(present).toContain("PreviewRenderer.tsx");
-    expect(present).toContain("ThermalPrintRenderer.ts");
-    expect(present).toContain("PdfRenderer.ts");
     expect(present).toContain("CustomerDisplayRenderer.ts");
     expect(present).toContain("index.ts");
   });
 
-  it("ReceiptDocumentModel builder is the single shape used by renderers", () => {
+  it("Milestone B — legacy print renderer modules (ThermalPrintRenderer, PdfRenderer) are demoted and removed", () => {
+    // Their responsibilities moved into `printClient.printReceiptThermal`
+    // and `printClient.renderReceiptPdfBlob`. Recreating them would
+    // fragment the print chokepoint again.
+    const present = readdirSync(RENDERER_DIR);
+    expect(present).not.toContain("ThermalPrintRenderer.ts");
+    expect(present).not.toContain("PdfRenderer.ts");
+  });
+
+  it("ReceiptDocumentModel builder is the single shape used by on-screen renderers", () => {
     const preview = readFileSync(join(RENDERER_DIR, "PreviewRenderer.tsx"), "utf8");
-    const thermal = readFileSync(join(RENDERER_DIR, "ThermalPrintRenderer.ts"), "utf8");
-    const pdf = readFileSync(join(RENDERER_DIR, "PdfRenderer.ts"), "utf8");
     expect(preview).toMatch(/ReceiptDocumentModel/);
-    expect(thermal).toMatch(/ReceiptDocumentModel/);
-    expect(pdf).toMatch(/ReceiptDocumentModel/);
   });
 
   it("POSTerminal no longer inlines `generate-document` auto-print bytes in the success path", () => {
     const src = readFileSync(join(root, "src", "pages", "pos", "POSTerminal.tsx"), "utf8");
-    // The Stage W6 inline auto-print branch was: invoke("generate-document",
-    // { body: { ...format: "escpos"... } }) immediately followed by
-    // printRawBytes. Stage X3 routes that through PostPaymentScreen.
     expect(src).not.toMatch(/format:\s*"escpos"[\s\S]{0,200}printRawBytes/);
-    // Sanity: PostPaymentScreen IS mounted.
     expect(src).toMatch(/PostPaymentScreen/);
   });
 
@@ -90,15 +89,17 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("PostPaymentScreen delegates print to the renderer modules (printThermal + renderReceiptPdf)", () => {
+  it("PostPaymentScreen delegates print to printClient (Milestone B chokepoint)", () => {
     const src = readFileSync(
       join(root, "src", "components", "pos", "PostPaymentScreen.tsx"),
       "utf8",
     );
-    expect(src).toMatch(/printThermal/);
-    expect(src).toMatch(/renderReceiptPdf/);
+    expect(src).toMatch(/printClient\.printReceiptThermal/);
+    expect(src).toMatch(/printClient\.renderReceiptPdfBlob/);
     expect(src).toMatch(/showSuccessOnCustomerDisplay/);
-    // No direct server-engine import here.
+    // Legacy renderer helpers must not resurface.
+    expect(src).not.toMatch(/\bprintThermal\b/);
+    expect(src).not.toMatch(/\brenderReceiptPdf\b/);
     expect(src).not.toMatch(/generateDocumentEscPosBytes/);
   });
 

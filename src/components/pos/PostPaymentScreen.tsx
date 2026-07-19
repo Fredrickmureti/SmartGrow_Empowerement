@@ -64,11 +64,10 @@ import {
 } from "@/lib/pos/receipt/ReceiptDocumentModel";
 import {
   PreviewRenderer,
-  printThermal,
-  renderReceiptPdf,
   showSuccessOnCustomerDisplay,
   type ReceiptPaperWidth,
 } from "@/lib/pos/receipt/renderers";
+import { printClient } from "@/services/printing/PrintClient";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionSummaryView } from "@/components/pos/TransactionSummaryView";
@@ -196,7 +195,7 @@ export function PostPaymentScreen({
   const renderAndShowPdf = useCallback(async () => {
     if (!model) return;
     try {
-      const blob = await renderReceiptPdf(model);
+      const blob = await printClient.renderReceiptPdfBlob(model.meta.transaction_id);
       await printPdfInPage(blob);
       setPrintState({ kind: "printed", channel: "pdf" });
     } catch (err) {
@@ -211,7 +210,10 @@ export function PostPaymentScreen({
     setPrintState({ kind: "printing" });
     try {
       if (thermalAvailable) {
-        const res = await printThermal(model, printRawBytes);
+        const res = await printClient.printReceiptThermal({
+          transactionId: model.meta.transaction_id,
+          printRawBytes,
+        });
         if (res.success) {
           setPrintState({ kind: "printed", channel: "thermal" });
           return;
@@ -226,7 +228,7 @@ export function PostPaymentScreen({
         return;
       }
       // No thermal printer at all → server PDF in-page.
-      const blob = await renderReceiptPdf(model);
+      const blob = await printClient.renderReceiptPdfBlob(model.meta.transaction_id);
       await printPdfInPage(blob);
       setPrintState({ kind: "printed", channel: "pdf" });
     } catch (err) {
@@ -253,7 +255,7 @@ export function PostPaymentScreen({
     if (!model) return;
     setIsSavingPdf(true);
     try {
-      const blob = await renderReceiptPdf(model);
+      const blob = await printClient.renderReceiptPdfBlob(model.meta.transaction_id);
       downloadPdfBlob(blob, `receipt-${model.meta.transaction_number}.pdf`);
       toast({ title: "Receipt saved", description: "PDF downloaded" });
     } catch (err) {
