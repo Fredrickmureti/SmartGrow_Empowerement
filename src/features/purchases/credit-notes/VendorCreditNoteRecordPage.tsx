@@ -25,6 +25,7 @@ import {
   type LineItemColumn,
   type LineItemRow,
 } from "@/design-system";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useVendorCreditNoteRecord } from "./useVendorCreditNoteRecord";
