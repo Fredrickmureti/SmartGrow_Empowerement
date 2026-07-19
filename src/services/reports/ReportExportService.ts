@@ -1,13 +1,20 @@
 /**
  * Report Export Service
- * 
- * Enterprise-grade export functionality using:
- * - xlsx library for proper Excel files with formatting
- * - In-page print via hidden iframe (no new tab)
- * - Native CSV generation with proper escaping
+ *
+ * Enterprise-grade export functionality. Milestone C.2:
+ *   - CSV and XLSX are generated server-side by the `render-report` edge
+ *     function using the same `_shared/exports/*` builders that back
+ *     scheduled + emailed exports. The client no longer imports the
+ *     `xlsx` library; frontend serialization would drift from PDF over
+ *     time (masthead, currency formatting, branding). See ADR-0084.
+ *   - PDF: unchanged — routed through `render-report`.
+ *   - Print-in-page: unchanged — reuses the PDF path.
+ *
+ * The `no-raw-xlsx-in-app` ESLint rule pins this — anything under
+ * `src/` (outside this file's `render-report` invocation) importing
+ * `xlsx` is a bug.
  */
 
-import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { getCachedPdf, cachePdf } from "./pdfCache";
 
@@ -63,6 +70,11 @@ export interface ExportConfig {
    * INTERNAL ONLY — for CSV/Excel header rows that need a company-name
    * line. Populated by `ReportContext.enrichExportConfig`. Do NOT set
    * this from a page.
+   *
+   * NOTE (C.2): kept in the type for backwards compatibility, but
+   * `render-report` now resolves the company name server-side from
+   * `getOrganizationBranding(organizationId)` for tabular exports so
+   * the CSV / XLSX masthead matches the PDF masthead exactly.
    */
   companyName?: string;
   /**
@@ -75,107 +87,44 @@ export interface ExportConfig {
   reportType?: string;
 }
 
-// ─── CSV Export ──────────────────────────────────────────────────────
+// ─── CSV / XLSX Export (server-side via render-report) ───────────────
 
-function escapeCSV(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return "";
-  const str = String(value);
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
-export function exportToCSV(config: ExportConfig): void {
-  const lines: string[] = [];
-  lines.push(escapeCSV(config.title));
-  if (config.companyName) lines.push(escapeCSV(config.companyName));
-  if (config.dateRange) lines.push(escapeCSV(config.dateRange));
-  lines.push("");
-  lines.push(config.columns.map((c) => escapeCSV(c.header)).join(","));
-
-  for (const row of config.rows) {
-    const values = config.columns.map((col) => {
-      const val = row[col.key];
-      if (col.format === "currency" && typeof val === "number") {
-        return escapeCSV(val.toFixed(2));
-      }
-      if (typeof val === "boolean") return escapeCSV(String(val));
-      return escapeCSV(val as string | number | null | undefined);
-    });
-    lines.push(values.join(","));
-  }
-
-  lines.push("");
-  lines.push(`Generated: ${format(config.generatedAt || new Date(), "yyyy-MM-dd HH:mm:ss")}`);
-
-  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+export async function exportToCSV(config: ExportConfig): Promise<void> {
+  const blob = await fetchReportTabularBlob(config, "csv");
   downloadBlob(blob, `${sanitizeFilename(config.title)}_${format(new Date(), "yyyy-MM-dd")}.csv`);
 }
 
-// ─── Excel Export ────────────────────────────────────────────────────
-
-export function exportToExcel(config: ExportConfig): void {
-  const wb = XLSX.utils.book_new();
-
-  const headerData: (string | number)[][] = [];
-  headerData.push([config.title]);
-  if (config.companyName) headerData.push([config.companyName]);
-  if (config.dateRange) headerData.push([config.dateRange]);
-  headerData.push([]);
-  headerData.push(config.columns.map((c) => c.header));
-
-  const dataRows: (string | number | null)[][] = config.rows.map((row) =>
-    config.columns.map((col) => {
-      const val = row[col.key];
-      if (val === undefined || val === null) return null;
-      return val as string | number;
-    })
-  );
-
-  const footerRows: (string | number)[][] = [
-    [],
-    [`Generated: ${format(config.generatedAt || new Date(), "yyyy-MM-dd HH:mm:ss")}`],
-  ];
-
-  const allRows = [...headerData, ...dataRows, ...footerRows];
-  const ws = XLSX.utils.aoa_to_sheet(allRows);
-
-  ws["!cols"] = config.columns.map((col) => ({
-    wch: col.width || (col.format === "currency" ? 18 : 20),
-  }));
-
-  const headerRowCount = headerData.length;
-
-  for (let colIdx = 0; colIdx < config.columns.length; colIdx++) {
-    const col = config.columns[colIdx];
-    if (col.format === "currency" || col.format === "number") {
-      for (let rowIdx = 0; rowIdx < dataRows.length; rowIdx++) {
-        const cellRef = XLSX.utils.encode_cell({ r: headerRowCount + rowIdx, c: colIdx });
-        const cell = ws[cellRef];
-        if (cell && typeof cell.v === "number") {
-          cell.z = col.format === "currency" ? "#,##0.00" : "#,##0";
-          cell.t = "n";
-        }
-      }
-    }
-  }
-
-  const colCount = config.columns.length;
-  if (colCount > 1) {
-    ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
-    ];
-    if (config.companyName) {
-      ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } });
-    }
-  }
-
-  XLSX.utils.book_append_sheet(wb, ws, config.sheetName || "Report");
-
-  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+export async function exportToExcel(config: ExportConfig): Promise<void> {
+  const blob = await fetchReportTabularBlob(config, "xlsx");
   downloadBlob(blob, `${sanitizeFilename(config.title)}_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+}
+
+async function fetchReportTabularBlob(
+  config: ExportConfig,
+  wireFormat: "csv" | "xlsx",
+): Promise<Blob> {
+  const { supabase } = await import("@/integrations/supabase/client");
+  const mime =
+    wireFormat === "csv"
+      ? "text/csv;charset=utf-8;"
+      : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const payload = {
+    title: config.title,
+    subtitle: config.subtitle,
+    dateRange: config.dateRange,
+    columns: config.columns,
+    rows: config.rows,
+    organizationId: config.organizationId,
+    reportType: config.reportType,
+    currency: config.currency,
+    format: wireFormat,
+  };
+  const { data, error } = await supabase.functions.invoke("render-report", {
+    body: payload,
+    headers: { "Content-Type": "application/json" },
+  });
+  if (error) throw error;
+  return data instanceof Blob ? data : new Blob([data as ArrayBuffer], { type: mime });
 }
 
 // ─── Print Export (in-page, no new tab) ──────────────────────────────

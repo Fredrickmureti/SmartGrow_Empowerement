@@ -245,12 +245,73 @@ serve(async (req) => {
         branchId,
       } = body;
 
+      // Milestone C.2 — tabular exports (CSV, XLSX). Same columns/rows
+      // the PDF path receives so every serialization is byte-identical.
+      const prebuiltFormat = (body?.format ?? "pdf") as "pdf" | "csv" | "xlsx";
+      if (prebuiltFormat !== "pdf" && prebuiltFormat !== "csv" && prebuiltFormat !== "xlsx") {
+        return new Response(
+          JSON.stringify({ error: `Unsupported format "${prebuiltFormat}". Supported: pdf, csv, xlsx.` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
       if (organizationId) {
         const { checkSubscriptionActive, entitlementDeniedResponse } = await import(
           "../_shared/entitlementCheck.ts"
         );
         const subResult = await checkSubscriptionActive(supabase, organizationId);
         if (!subResult.allowed) return entitlementDeniedResponse(subResult, corsHeaders);
+      }
+
+      const safeTitle = (title || reportType || "Report").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+      // Tabular exports short-circuit here — never touch the PDF renderer.
+      if (prebuiltFormat === "csv" || prebuiltFormat === "xlsx") {
+        // Resolve the company name from the canonical branding path so
+        // the CSV/XLSX masthead matches the PDF masthead exactly.
+        let companyName: string | undefined;
+        if (organizationId) {
+          try {
+            const { getOrganizationBranding } = await import("../_shared/branding/index.ts");
+            const branding = await getOrganizationBranding(supabase, organizationId);
+            companyName = branding?.name ?? undefined;
+          } catch (err) {
+            console.warn("[render-report] branding lookup failed for export:", (err as Error).message);
+          }
+        }
+
+        const exportConfig = {
+          title: title ?? safeTitle,
+          subtitle,
+          dateRange,
+          companyName,
+          currency,
+          columns,
+          rows,
+          generatedAt: new Date().toISOString(),
+        };
+
+        if (prebuiltFormat === "csv") {
+          const { buildReportCsv } = await import("../_shared/exports/reportCsv.ts");
+          const csvBytes = buildReportCsv(exportConfig);
+          return new Response(csvBytes as unknown as BodyInit, {
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "text/csv; charset=utf-8",
+              "Content-Disposition": `attachment; filename="${safeTitle}.csv"`,
+            },
+          });
+        }
+
+        const { buildReportXlsx, XLSX_MIME } = await import("../_shared/exports/reportXlsx.ts");
+        const xlsxBytes = buildReportXlsx(exportConfig);
+        return new Response(xlsxBytes as unknown as BodyInit, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": XLSX_MIME,
+            "Content-Disposition": `attachment; filename="${safeTitle}.xlsx"`,
+          },
+        });
       }
 
       const pdfBytes = await renderReport(supabase, {
@@ -275,7 +336,6 @@ serve(async (req) => {
         branchId,
       });
 
-      const safeTitle = (title || reportType || "Report").replace(/[^a-zA-Z0-9_-]/g, "_");
       return new Response(pdfBytes as unknown as BodyInit, {
         headers: {
           ...corsHeaders,
