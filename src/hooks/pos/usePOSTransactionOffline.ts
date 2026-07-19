@@ -249,7 +249,7 @@ async function processOnlineTransaction(
     const p = data.payments[i];
     const tendered = p.tendered_amount ?? p.amount;
     const changeGiven = p.change_given ?? Math.max(0, tendered - p.amount);
-    const methodKey = p.method === "mpesa" ? "mobile_money" : p.method;
+    const methodKey = p.method;
     const tenderKind = tenderKindFor(p.method);
     await recordTender({
       sessionId,
