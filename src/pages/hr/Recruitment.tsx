@@ -382,3 +382,83 @@ function CandidatesTab() {
     </Card>
   );
 }
+
+/**
+ * OfferActions — offer-stage row helper.
+ *
+ * Lists offer_letters attached to an application and exposes the enterprise
+ * document platform surface for each one:
+ *   • Print → generate-document(offer_letter, offer.id) via usePrintOrPreview.
+ *   • History → DocumentHistorySheet mounts DocumentVersionsSection scoped
+ *     to (offer_letter, offer.id) so prior artifacts are auditable inline.
+ *
+ * When no offer exists yet, a lightweight "Create offer" button seeds one
+ * via useOffers.createOffer so the user can immediately print.
+ */
+function OfferActions({
+  application,
+  candidateName,
+}: {
+  application: CandidateApplication;
+  candidateName: string;
+}) {
+  const { offers, createOffer } = useOffers(application.id);
+  const {
+    printPreviewOpen,
+    setPrintPreviewOpen,
+    printPreviewTitle,
+    printDocumentType,
+    printDocumentId,
+    printCommunication,
+    generateDocument,
+  } = usePrintOrPreview();
+
+  return (
+    <div className="w-full space-y-1 pt-1 border-t">
+      {offers.length === 0 ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-7 text-xs"
+          onClick={() =>
+            createOffer.mutate({ application_id: application.id, status: "draft" })
+          }
+          disabled={createOffer.isPending}
+        >
+          <FileText className="h-3 w-3 mr-1" /> Create offer
+        </Button>
+      ) : (
+        offers.map((o: OfferLetter) => (
+          <div key={o.id} className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">{o.status}</Badge>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs flex-1"
+              onClick={() =>
+                generateDocument("offer_letter", o.id, `Offer — ${candidateName}`)
+              }
+              title="Print offer letter"
+            >
+              <Printer className="h-3 w-3 mr-1" /> Print
+            </Button>
+            <DocumentHistorySheet
+              documentType="offer_letter"
+              documentId={o.id}
+              triggerLabel=""
+              title={`Offer — ${candidateName}`}
+            />
+          </div>
+        ))
+      )}
+      <PrintPreviewDialog
+        open={printPreviewOpen}
+        onOpenChange={setPrintPreviewOpen}
+        title={printPreviewTitle}
+        documentType={printDocumentType}
+        documentId={printDocumentId}
+        communication={printCommunication}
+      />
+    </div>
+  );
+}
