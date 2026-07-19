@@ -107,3 +107,9 @@ export {
   type LineItem,
   type LineItemsTableConfig,
 } from "./components/LineItemsTable.ts";
+
+export {
+  drawSignatureBlock,
+  type Signatory,
+  type SignatureBlockConfig,
+} from "./components/SignatureBlock.ts";
