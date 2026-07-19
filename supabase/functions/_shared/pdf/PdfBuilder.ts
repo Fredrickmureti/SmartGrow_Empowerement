@@ -37,25 +37,42 @@ export type Density = "wide" | "narrow";
 /** Named paper presets recognised by the builder. */
 export type PaperPreset = "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm";
 
-/** Explicit paper dimensions in millimetres. `heightMm: "auto"` is reserved
- *  for future continuous-receipt support and is currently treated as 297 mm
- *  (A4 height) so existing renderers never break. */
+/** Explicit paper dimensions in millimetres.
+ *
+ *  `heightMm: "continuous"` means "continuous roll" — width is fixed by the
+ *  profile, height is auto-sized by the renderer to the consumed content
+ *  (single page only). This is the correct model for thermal receipts,
+ *  matching Odoo `paperformat` with `page_height=0`, SAP POS DM receipts,
+ *  Xstore ReceiptDoc, and Toast/Square/Shopify POS receipt renderers.
+ *
+ *  `heightMm: "auto"` is retained as a deprecated alias for `"continuous"`
+ *  for one release; new code should use `"continuous"`.
+ */
 export interface PaperSpec {
   widthMm: number;
-  heightMm: number | "auto";
+  heightMm: number | "continuous" | "auto";
 }
 
 const MM_TO_PT = 72 / 25.4;
+
+/** Provisional page height (in points) used while rendering continuous
+ *  media. Large enough to fit any reasonable single receipt (~1 metre of
+ *  paper) but not so large that pdf-lib allocates absurd coordinate space. */
+const CONTINUOUS_PROVISIONAL_PT = 3000;
 
 const PRESETS: Record<PaperPreset, PaperSpec> = {
   a4: { widthMm: 210, heightMm: 297 },
   letter: { widthMm: 215.9, heightMm: 279.4 },
   a5: { widthMm: 148, heightMm: 210 },
-  "80mm": { widthMm: 80, heightMm: 297 },
-  "58mm": { widthMm: 58, heightMm: 297 },
-  // Phase 4 (ADR-0008): 40mm label/handheld strip PDF preview.
-  "40mm": { widthMm: 40, heightMm: 297 },
+  // Thermal presets — continuous roll, height auto-sized to content
+  // (ADR-0008 Phase T1). Previously seeded with `heightMm: 297`, which
+  // caused thermal PDFs to render as tall blank strips with content at
+  // the very top — that is the defect this phase closes.
+  "80mm": { widthMm: 80, heightMm: "continuous" },
+  "58mm": { widthMm: 58, heightMm: "continuous" },
+  "40mm": { widthMm: 40, heightMm: "continuous" },
 };
+
 
 export function resolvePaperSpec(input: PaperPreset | PaperSpec | undefined): PaperSpec {
   if (!input) return PRESETS.a4;
