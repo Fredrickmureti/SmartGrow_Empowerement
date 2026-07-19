@@ -105,17 +105,35 @@ export interface CancelSessionArgs {
 }
 
 /**
- * Transaction envelope forwarded to `process_pos_transaction` inside the
- * commit RPC. Mirrors the retail-mode payload used by `useCompleteTransaction`
- * MINUS `payments` (the session's tenders are the payments) and MINUS the
- * business/register/shift ids that are read from the session row itself.
+ * Transaction envelope forwarded by the commit RPC.
+ *
+ * The commit RPC has two modes, distinguished only by whether
+ * `existing_transaction_id` is set:
+ *
+ *   - **Retail** (unset): the RPC calls `process_pos_transaction` to
+ *     create a new transaction from `items` + the session's tenders.
+ *     All cart fields (`items`, `subtotal`, `tax_amount`, `shift_id`, …)
+ *     are required.
+ *
+ *   - **Restaurant / table order** (set): the RPC calls
+ *     `finalize_table_order(existing_transaction_id, …)` against a
+ *     pre-existing draft transaction. The draft already owns the cart
+ *     lines, tax, and shift context, so the cart fields on this envelope
+ *     are IGNORED. Only the session's tenders + tip amount are forwarded.
  */
 export interface CommitSessionEnvelope {
+  /**
+   * When set, commit finalises this existing draft transaction (dine-in
+   * flow that started a check before payment). When unset, commit creates
+   * a new retail transaction from the cart fields below.
+   */
+  existing_transaction_id?: string | null;
+
   organization_id?: string | null;
-  shift_id: string;
-  items: unknown; // cart items array — passed through opaquely
-  subtotal: number;
-  tax_amount: number;
+  shift_id?: string;
+  items?: unknown; // cart items array — passed through opaquely
+  subtotal?: number;
+  tax_amount?: number;
   discount_amount?: number;
   transaction_type?: "sale" | "refund" | "return" | "void";
   customer_id?: string | null;
