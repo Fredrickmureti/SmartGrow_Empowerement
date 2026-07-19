@@ -78,7 +78,7 @@ describe("Accounting Posting Engine — B6 architectural surface", () => {
     ]);
     // Only match actual PostgREST reads, not comments/documentation.
     const files = rgFiles(
-      "\\.from\\(['\"\\`]business_event_outbox(_dead)?['\"\\`]\\)",
+      "\\.from\\((\"|')business_event_outbox",
       "src",
     );
     const offenders = files.filter((f) => {
