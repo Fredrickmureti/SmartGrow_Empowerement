@@ -122,3 +122,21 @@ Business apps only call: `printClient.print(...)`, `documentPlatform.preview(...
 - No app-owned `pdf-lib` / barcode-lib imports outside `_shared/pdf/*` and the barcode service (ESLint).
 
 Ready to execute Phases 1–3 back-to-back on approval.
+
+==================================================================
+Wave B3 foundation shipped. Summary:
+
+Landed this turn
+
+Migration: document_artifacts table + document-artifacts private bucket + auto-versioning trigger + document_artifacts_latest RPC + storage RLS (business-prefix read, service-role writes).
+src/services/documents/DocumentArtifactStore.ts — read-only client (latest / list / signedUrl).
+src/components/documents/DocumentHistoryPanel.tsx — drop-in reprint / version-history UI.
+src/hooks/usePrintOrPreview.ts — shared migration helper that tries printClient.print() first and falls back to the preview dialog on ask_user or error. Added to the shadow-path ESLint allowlist.
+ADR-0084 documenting the artifact store and the pending generate-document write step (Wave B3.2).
+Prior audit findings confirmed already merged (no rework needed): print_policies_resolve RPC, PrintClient policy consumption, no-document-print-shadow-path at error, contract test.
+
+Sequential work remaining for a future turn (mechanical, one file each):
+
+Wave B3.2 — extend generate-document edge function to compute sha256, dedupe against latest artifact, and upload+insert on non-preview renders.
+Wave B1 Step 3 — swap useDocumentPrint().generateDocument(...) calls for usePrintOrPreview().printOrPreview(...) on the 12 pages in the ESLint allowlist (Invoices, Bills, CreditNotes, CustomerPayments, DeliveryNotes, Estimates, ProformaInvoices, PurchaseOrders, PurchaseReturns, SalesOrders, SalesReturns, pos/POSReports). Allowlist entries stay — the dialog is still the fallback surface.
+Wave B3.4 — mount <DocumentHistoryPanel /> inside each detail dialog once B3.2 starts writing rows.
