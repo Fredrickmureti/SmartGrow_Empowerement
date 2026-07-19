@@ -18,7 +18,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { WorkflowSheet, WorkflowSheetSection, WorkflowSheetGrid, WorkflowField } from "@/components/workflow/WorkflowSheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Briefcase, Plus, UserPlus, ArrowRight, Star } from "lucide-react";
+import { Briefcase, Plus, UserPlus, ArrowRight, Star, Printer, FileText } from "lucide-react";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { DocumentHistorySheet } from "@/components/documents/DocumentHistorySheet";
 
 const STAGES: ApplicationStage[] = ["applied", "screen", "interview", "assessment", "offer", "hired", "rejected", "withdrawn"];
 const REQ_STATUS: RequisitionStatus[] = ["draft", "open", "on_hold", "filled", "closed", "cancelled"];
