@@ -102,3 +102,76 @@ Ready to execute B3.2 → B1 Step 3 → B3.4 → Phase 4 → Phase 5 in order on
   `extraAside` on each `SalesPeekScaffold` caller), Phase 4 (ADR-0085 +
   ESLint `no-raw-pdf-lib-in-app` / `no-direct-barcode-lib`), Phase 5
   (architecture tests).
+
+## Execution log — 2026-07-19 (continued)
+
+- **Wave B3.4 (version history mounted in peek sheets)**: shipped.
+  Added `src/components/documents/DocumentVersionsSection.tsx` — a
+  business-scoped, self-hiding wrapper around `DocumentHistoryPanel` that
+  probes `documentArtifactStore.list()` and returns `null` when the
+  document has never been rendered. Mounted below the Activity section in
+  every fiscal peek sheet: Invoice, Estimate, SalesOrder, CreditNote,
+  Proforma, DeliveryNote, CustomerPayment (receipt), SalesReturn, Bill,
+  PurchaseOrder, VendorCreditNote, PurchaseReturn. Older records with
+  no persisted artifact remain visually unchanged; once a document is
+  re-rendered via `generate-document` the section appears automatically.
+
+## Status snapshot
+
+| Phase | Status |
+|---|---|
+| Wave B3.2 — artifact persistence in `generate-document` (PDF + ESC/POS) | ✅ shipped |
+| Wave B1 Step 3 — 12 shadow-path pages migrated to `usePrintOrPreview` | ✅ shipped |
+| Wave B3.4 — `DocumentHistoryPanel` mounted in peek sheets | ✅ shipped |
+| Phase 4 — ADR-0085 + ESLint `no-raw-pdf-lib-in-app` / `no-direct-barcode-lib` | ⏳ pending |
+| Phase 5 — architecture tests mirroring the new ESLint rules | ⏳ pending |
+| Wave B3.5 — mount `DocumentVersionsSection` on full record pages | ⏳ pending (peek parity done, record page still to do) |
+
+**Active phase**: Phase 4 (rendering ownership guards).
+
+## Next agent — verification checklist before writing new code
+
+Before starting Phase 4, VERIFY the current state matches the log above.
+Do not trust the log; re-check each claim against source:
+
+1. `supabase/functions/generate-document/index.ts` — confirm both the
+   ESC/POS branch (~line 2430) and the PDF branch (~line 2495 after the
+   ESC/POS injection) call `persistArtifact` via a dynamic import of
+   `../_shared/documents/persistArtifact.ts`, honour `body.persist !==
+   false`, and expose `X-Document-Artifact-Id` / `-Version` headers for
+   blocking types.
+2. `src/hooks/usePrintOrPreview.ts` — confirm the returned object
+   includes both `printOrPreview` and a `generateDocument(type, id,
+   title, comm?)` alias, and that every `src/pages/*.tsx` in the
+   shadow-path allowlist imports `usePrintOrPreview` (not
+   `useDocumentPrint`). Run `rg "useDocumentPrint" src/pages` — the only
+   allowed hit should be zero. Only `PrintPreviewDialog.tsx` and
+   settings surfaces may still reference `useDocumentPrint`.
+3. `src/components/documents/DocumentVersionsSection.tsx` exists and is
+   imported by all 12 peek sheets under `src/features/sales/**` and
+   `src/features/purchases/**` listed in the log above.
+4. Run `bun run typecheck` (or `tsgo`) and ensure the build is clean
+   before starting Phase 4.
+
+## Next agent — resume from here
+
+Once verification passes, resume with **Phase 4**:
+
+1. Write ADR-0085 "Barcode rendering ownership" under `docs/adr/`
+   documenting that only `src/services/barcode/*` may import `bwip-js` /
+   `qrcode`, and only `supabase/functions/_shared/pdf/*` may import
+   `pdf-lib`.
+2. Add `eslint-rules/no-raw-pdf-lib-in-app.js` — bans `pdf-lib` imports
+   outside `supabase/functions/_shared/pdf/**`. Register in
+   `eslint.config.js` alongside the existing
+   `no-pdf-lib-in-localization-preview` rule.
+3. Add `eslint-rules/no-direct-barcode-lib.js` — bans `bwip-js` /
+   `qrcode` imports outside the sanctioned barcode service module.
+4. Then proceed to **Phase 5**: add matching architecture tests under
+   `src/test/architecture/` so the rules have runtime coverage even when
+   ESLint is skipped.
+
+Do NOT skip Phase 4 to work on Wave B3.5, unrelated bug fixes, or new
+features. The rendering-ownership guards are the last piece needed to
+lock the enterprise document platform architecture in place; without
+them the migration can regress.
