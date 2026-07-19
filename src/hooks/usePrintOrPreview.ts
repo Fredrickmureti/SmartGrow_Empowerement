@@ -37,7 +37,7 @@
 import { useCallback } from "react";
 import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { printClient, type PrintIntent } from "@/services/printing/PrintClient";
-import { useBusiness } from "@/contexts/BusinessContext";
+import { useBusinesses } from "@/contexts/BusinessContext";
 import { useBranch } from "@/contexts/BranchContext";
 import { toast } from "sonner";
 
