@@ -233,6 +233,7 @@ function POSTerminalInner() {
     tableNumber: tableNumber || undefined,
   });
   const { completeTransaction } = usePOSTransactionOffline();
+  const commitKey = useCommitKey();
   const sound = usePOSSound();
   const { heldCount, holdTransaction } = usePOSHeldTransactions(registerId);
   const { receiptSettings } = usePOSSettings();
