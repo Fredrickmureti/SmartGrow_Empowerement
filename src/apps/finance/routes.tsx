@@ -783,9 +783,10 @@ export function FinanceApp() {
           }
         />
 
-        {/* POS Shift GL Integrity report removed — superseded by POS Posting Queue
-            (/finance/pos-posting-queue), which reads from the authoritative
-            statement/outbox pipeline instead of legacy per-product accounts. */}
+        {/* POS Shift GL Integrity report removed — superseded by the producer-agnostic
+            Accounting Events workspace (/finance/operations/accounting-events), which
+            reads from the authoritative `accounting_events` sub-ledger rather than
+            legacy per-product accounts or outbox-row state. */}
 
 
         {/* Stock Adjustments Report (Phase B5) */}

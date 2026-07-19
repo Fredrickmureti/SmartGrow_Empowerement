@@ -143,3 +143,33 @@ The **POS Shift GL Integrity** report stays read-only and stops referencing the 
 
 - Multi-currency revaluation and inter-company elimination — orthogonal, addressed in a later plan on top of this canonical pipeline.
 - Real-time streaming replacement of `pg_cron`+outbox — the transport is fine; the audit is about the domain model on top.
+
+---
+
+## 8. Execution status (live)
+
+### Completed & verified
+- **B0 — Diagnose silent no-op.** Root cause identified: dispatcher's `if (!handler) return; // no-op success` on unrecognized topics marked business events succeeded without executing posting. Documented in `docs/audit/pos-posting-silent-noop.md`. Direct RPC probe confirmed `post_pos_statement_gl` itself is functional.
+- **B1 — Contract enforcement.** `supabase/functions/outbox-dispatcher/index.ts` now: (a) throws `posting.contract_violation` on unknown topics (dead-letters instead of silent success); (b) `handlePosStatementPostingRequested` requires an `AccountingPostingResult`-shaped response with proof of invariant (`journal_entry_id | already_posted | skipped | empty`). Verified: incident statement `4344c0db-…` posted as `JE-00002`, apply-log written, `posting_status='posted'`.
+- **B2 — `accounting_events` sub-ledger domain.** Table + enum + RLS `accounting_events_branch_read` via `user_can_access_branch`. `business_idempotency_key = <producer>:<doc_type>:<doc_id>:<version>` UNIQUE. `_pos_stmt_enqueue_gl_post` trigger dual-writes an `accounting_events` row alongside the outbox enqueue, wrapped in `EXCEPTION WHEN OTHERS` so producer failure never blocks the sale. One-time backfill of existing `pos_statements` executed.
+- **B3 — Single Posting Engine.** `public.accounting_post_event(event_id, idempotency_key)` dispatches by `producer + event_kind`; POS builder wraps `post_pos_statement_gl`. Outcome contract: `posted | noop | needs_mapping | invalid | deferred`; `check_violation` on tender-account resolution mapped to `needs_mapping` (no retry-budget consumption). Helper `accounting_event_for_pos_statement`. Dispatcher rerouted through the engine — outbox transport is now decoupled from domain logic.
+- **B4 — Unified operational workspace.** New page `src/pages/finance/AccountingEventsWorkspace.tsx` at `/finance/operations/accounting-events`: producer-agnostic, state-filtered (Ready / Needs Mapping / Failed / Posting / Posted / Superseded / Cancelled), KPI cards, `EventDrawer` with `Post now` invoking `accounting_post_event`. POS rows enriched with `business_event_outbox` + `_dead` for admin diagnostics. Sidebar (`src/apps/finance/nav.ts`) updated to "Accounting events". POS "Review in Queue" deep-link (`src/pages/pos/POS.tsx:172`) points to the new workspace. Legacy `/finance/pos-posting-queue` client-redirects (preserving `?shift=`) via `LegacyPosQueueRedirect`.
+- **B5 — Report cleanup.** Stale routes comment updated to reference `/finance/operations/accounting-events` and the `accounting_events` sub-ledger. Orphaned `src/pages/finance/PosPostingQueue.tsx` deleted (no remaining importers; verified via `rg`). No other UI surfaces read `pos_statements.posting_status` or `pos_statement_gl_apply_log` — those are already audit-only projections.
+
+### Active phase
+- **B6 — Delete POS-specific posting infrastructure** (next).
+
+### Pending
+- **B6** — Remove `retry_pos_statement_posting` RPC (superseded by `accounting_post_event`), inline `post_pos_statement_gl` as the POS builder (`build_pos_shift_close_lines`) inside the engine, drop the dual-write transitional wiring once the outbox handler resolves purely via `accounting_events`. Add architecture tests (§6) forbidding new producer-specific posting RPCs / UI reads from `business_event_outbox` on non-admin surfaces.
+
+## 9. Handoff — instructions for the next agent
+
+**Before writing any code, verify B1–B5 were done enterprise-grade:**
+
+1. **Dispatcher contract (B1).** Read `supabase/functions/outbox-dispatcher/index.ts`. Confirm: (a) unknown topics throw; (b) the POS handler validates the RPC response shape and refuses to return success without positive proof. Run `supabase--curl_edge_functions` against a synthetic unknown-topic event and confirm the outbox row lands in `_dead`, not `succeeded`.
+2. **Sub-ledger (B2).** `supabase--read_query` on `information_schema` to confirm `accounting_events` exists with the UNIQUE `business_idempotency_key`, RLS enabled, and `accounting_events_branch_read` policy. Verify GRANTs (`authenticated` SELECT, `service_role` ALL) — no `anon`. Sample-query recent POS statements and confirm each has exactly one matching `accounting_events` row.
+3. **Engine (B3).** Read `accounting_post_event` in the DB. Confirm: (a) outcomes are the five typed variants; (b) `check_violation` → `needs_mapping`; (c) idempotency short-circuits on `already_posted`. Force a missing-tender-mapping event and confirm it lands as `state='needs_mapping'` with no outbox retry storm.
+4. **Workspace (B4).** Load `/finance/operations/accounting-events`. Confirm state filters, KPI counts, `Post now` action wired to `accounting_post_event`, admin diagnostics panel visible only via the outbox enrichment. Hit `/finance/pos-posting-queue?shift=x` and confirm the redirect preserves the query.
+5. **Report cleanup (B5).** `rg "PosPostingQueue|pos-posting-queue" src/` must return only the redirect + comments — no live imports of the deleted page.
+
+**Only after all five checks pass, proceed with B6** exactly as scoped in §5 and §8. Do not open new fronts (multi-currency, streaming transport, other producers) — those are §7 out-of-scope and belong to a future plan built on top of this canonical pipeline.
