@@ -85,15 +85,20 @@ interface PreviewUnresolved {
   hint: string;
 }
 
-interface PreviewTender {
+interface AccountRef {
+  account_id: string | null;
+  account_code: string | null;
+  account_name: string | null;
+  resolved: boolean;
+}
+
+interface PreviewTender extends AccountRef {
   tender_method: string;
   processor: string | null;
   tender_kind: string | null;
   net_amount: number;
   gross_amount: number;
   refund_amount: number;
-  account_id: string | null;
-  resolved: boolean;
 }
 
 interface PreviewData {
@@ -110,21 +115,20 @@ interface PreviewData {
   total_tip: number;
   net_revenue: number;
   tenders: PreviewTender[];
-  revenue: {
-    amount: number; account_id: string | null; resolved: boolean;
-  } | null;
-  tax: {
-    amount: number; account_id: string | null; resolved: boolean;
-  } | null;
-  tip: {
-    amount: number; account_id: string | null; resolved: boolean;
-    optional?: boolean;
-  } | null;
+  revenue: (AccountRef & { amount: number }) | null;
+  tax: (AccountRef & { amount: number }) | null;
+  tip: (AccountRef & { amount: number; optional?: boolean }) | null;
   unresolved: PreviewUnresolved[];
   total_debit: number;
   total_credit: number;
   balanced: boolean;
   ready_to_post: boolean;
+}
+
+function fmtAccount(a: AccountRef | null | undefined): string {
+  if (!a || !a.account_id) return "—";
+  if (a.account_code && a.account_name) return `${a.account_code} — ${a.account_name}`;
+  return a.account_name || a.account_code || a.account_id.slice(0, 8) + "…";
 }
 
 function fmtMoney(n: number | null | undefined, ccy: string) {
