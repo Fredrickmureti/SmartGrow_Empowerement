@@ -149,16 +149,31 @@ export default function POS() {
         {(() => {
           const unsyncedShifts = shifts.filter(s => s.status === "closed" && !s.gl_posted_at);
           if (unsyncedShifts.length === 0) return null;
+          const plural = unsyncedShifts.length > 1;
           return (
             <Card className="border-yellow-500/50 bg-yellow-500/5">
-              <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+              <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
                 <div className="flex items-center gap-2 text-sm text-yellow-700 dark:text-yellow-400">
                   <RotateCcw className="h-4 w-4 shrink-0" />
-                  <span>{unsyncedShifts.length} closed shift{unsyncedShifts.length > 1 ? "s" : ""} not yet posted to accounting</span>
+                  <span>
+                    {unsyncedShifts.length} closed shift{plural ? "s" : ""} awaiting GL posting.
+                    Posting runs automatically via the finance outbox — usually
+                    within a minute. Use Review to inspect status or retry.
+                  </span>
                 </div>
-                <Badge variant="outline" className="border-yellow-500/50 text-yellow-700 dark:text-yellow-400 w-fit">
-                  Action needed
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="border-yellow-500/50 text-yellow-700 dark:text-yellow-400 w-fit">
+                    Action needed
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-yellow-500/60 text-yellow-800 dark:text-yellow-300 hover:bg-yellow-500/10"
+                    onClick={() => navigate("/finance/reports/pos-shift-gl-integrity?status=not_posted")}
+                  >
+                    Review & Post
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );
