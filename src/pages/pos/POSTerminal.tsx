@@ -2243,7 +2243,7 @@ function POSTerminalInner() {
           sessionContext={{
             registerId,
             shiftId: activeShift.id,
-            cashierId: activeShift.cashier_id ?? null,
+            cashierId: activeShift.user_id ?? null,
             // Restaurant path uses the draft transaction id as the
             // idempotency key so the session collapses with the
             // downstream `finalize_table_order` call. Retail uses the
