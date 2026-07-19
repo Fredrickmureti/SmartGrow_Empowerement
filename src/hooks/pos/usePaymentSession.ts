@@ -207,6 +207,15 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
     }
   }, [sessionId]);
 
+  useEffect(() => {
+    sessionKeyRef.current = null;
+    setSessionId(null);
+    setTenders([]);
+    setChange(0);
+    setError(null);
+    setStatus("idle");
+  }, [params.registerId, idempotencyKey]);
+
   // 1. Rehydrate any open session on mount / when the cart identity changes.
   useEffect(() => {
     if (params.autoRehydrate === false) return;
@@ -265,8 +274,8 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
       setError(null);
       setStatus("recording");
       try {
+        const nextIndex = sessionKeyRef.current === idempotencyKey ? tenders.length : 0;
         const id = await ensureSession();
-        const nextIndex = tenders.length;
         const tenderId = await recordTenderRpc({
           sessionId: id,
           idempotencyKey: `${idempotencyKey}:tender:${nextIndex}`,
