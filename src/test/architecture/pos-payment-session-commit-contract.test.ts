@@ -45,6 +45,23 @@ function readMigrationsMatching(pattern: RegExp): string {
     .join("\n\n-- ── next migration ──\n\n");
 }
 
+/**
+ * Return only the LATEST migration body that matches `pattern`. Used
+ * when we need to reason about the current definition of a function
+ * (e.g., "exactly one apply-log INSERT") rather than every historical
+ * revision concatenated together.
+ */
+function readLatestMigrationMatching(pattern: RegExp): string {
+  const files = readdirSync(MIG)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+  for (let i = files.length - 1; i >= 0; i--) {
+    const body = readFileSync(join(MIG, files[i]), "utf8");
+    if (pattern.test(body)) return body;
+  }
+  return "";
+}
+
 describe("pos_payment_session_commit — SQL contract (Wave 3 Phase 4)", () => {
   const commitSql = readMigrationsMatching(
     /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.pos_payment_session_commit/i,
