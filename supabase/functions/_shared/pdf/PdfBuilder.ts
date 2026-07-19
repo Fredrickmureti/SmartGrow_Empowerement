@@ -35,7 +35,7 @@ export type PageSize = "letter" | "a4";
 export type Density = "wide" | "narrow";
 
 /** Named paper presets recognised by the builder. */
-export type PaperPreset = "a4" | "letter" | "a5" | "80mm" | "58mm";
+export type PaperPreset = "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm";
 
 /** Explicit paper dimensions in millimetres. `heightMm: "auto"` is reserved
  *  for future continuous-receipt support and is currently treated as 297 mm
@@ -53,6 +53,8 @@ const PRESETS: Record<PaperPreset, PaperSpec> = {
   a5: { widthMm: 148, heightMm: 210 },
   "80mm": { widthMm: 80, heightMm: 297 },
   "58mm": { widthMm: 58, heightMm: 297 },
+  // Phase 4 (ADR-0008): 40mm label/handheld strip PDF preview.
+  "40mm": { widthMm: 40, heightMm: 297 },
 };
 
 export function resolvePaperSpec(input: PaperPreset | PaperSpec | undefined): PaperSpec {
