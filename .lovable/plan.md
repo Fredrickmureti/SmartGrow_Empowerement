@@ -25,9 +25,20 @@ The existing S2–S6 sequence stands. Additions justified by re-reading the code
 - **S5.a — Shadow-mode observability.** While `post_pos_sale_gl` runs in shadow, expose a report view `pos_gl_posting_drift` diffing shadow per-sale totals vs statement post totals, so finance can verify equivalence before drop.
 - **S6.a — Add negative-test in CI:** an inserted-by-hand direct `INSERT INTO pos_transaction_items` must be rejected with `42501`; asserted in `src/test/pos/pos-writes-through-helpers-only.test.ts` at DB level via a service-role harness (not a mock).
 
-## Phase 3 — Execution sequence to resume
+## Phase 3 — Execution sequence
 
-Resume at **S2**. Each step ships as one migration + one code PR + one architecture test; each is independently reversible.
+**Currently active: S5 (GL cutover). Next agent: verify S4 was shipped correctly per the checklist below, then start S5.**
+
+Each step ships as one migration + one code PR + one architecture test; each is independently reversible.
+
+### Verification checklist for the next agent (before starting S5)
+1. Re-run `bunx vitest run src/test/architecture` — all four arch tests (no-client-pos-money-math, pos-commit-response-shape, pos-statements-schema, pos-holding-accounts-schema) must pass.
+2. Query `SELECT column_default FROM information_schema.columns WHERE table_name='businesses' AND column_name='use_holding_accounts'` — must be `false`. Any migration that flips this default is a regression.
+3. `SELECT * FROM public.v_pos_holding_account_readiness` — sanity-check the view returns rows and never errors.
+4. `\df resolve_pos_tender_gl_account` — confirm SECURITY DEFINER + STABLE, and that no other RPC has started calling it yet (S5 will be the first consumer).
+5. Confirm the S3 trigger `trg_pos_open_stmt_on_close` is still on `pos_shifts` (S5 depends on statements being auto-materialised).
+6. Only after 1–5 pass, resume at S5.
+
 
 ### S2 — Server-authoritative money math ✅ COMPLETE
 1. DB response returns `server_totals` + `total_matches_server`; `pos_transactions` row is stamped from `v_srv_*` aggregates — guarded by `src/test/architecture/no-client-pos-money-math.test.ts`.
