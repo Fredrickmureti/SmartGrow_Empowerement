@@ -1,10 +1,21 @@
 /**
  * Transaction Queue Service for Offline POS Operations
- * Queues transactions when offline and syncs when connection is restored
+ * Queues transactions when offline and syncs when connection is restored.
+ *
+ * Wave 3 · Phase 4.b — replay routes through the payment-session
+ * lifecycle (`openSession → recordTender × N → commitSession`) via
+ * `paymentSessionClient`, using `queued.id` as the base idempotency
+ * key. The session apply-log collapses any partial-success retry to a
+ * single `pos_transactions` row.
  */
 
 import { offlineStorage, STORES, QueuedTransaction } from "./OfflineStorageService";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  openSession,
+  recordTender,
+  commitSession,
+  type PosTenderKind,
+} from "@/lib/pos/paymentSessionClient";
 
 export interface OfflineTransactionData {
   organization_id: string;
@@ -36,7 +47,15 @@ export interface OfflineTransactionData {
   payments: Array<{
     method: string;
     amount: number;
+    tendered_amount?: number;
+    change_given?: number;
     reference?: string;
+    card_last_four?: string;
+    card_type?: string;
+    auth_state?: "approved" | "captured";
+    auth_id?: string;
+    vendor_txn_id?: string;
+    authorized_amount?: number;
   }>;
   transaction_type: "sale" | "return" | "exchange";
   offline_transaction_number: string;
