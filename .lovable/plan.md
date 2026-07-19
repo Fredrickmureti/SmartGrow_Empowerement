@@ -68,5 +68,31 @@ Verification: `tsgo --noEmit` clean; both architecture tests green (12/12). Byte
 |---|---|
 | HR letter surface choice is wrong for the product | Wired on existing list pages; no new record pages invented. Trivial to relocate later. |
 | POS demotion changes receipt bytes | Golden fixtures captured before the move; CI diffs bytes. |
-| xlsx bundle bloats the edge function | Prefer `xlsx-populate` (pure JS, ~200KB) over `exceljs` if size regresses. |
+| xlsx bundle bloats the edge function | Prefer `xlsx-populate` (pure JS, ~200KB) over `exceljs` if size regresses. Defer until C.2. |
 | `render_mode: "export"` schema drift | `document_artifacts.render_mode` is TEXT — no migration; add a check constraint only after the format stabilises. |
+
+## Handover — next agent
+
+**Active phase:** Milestone C — Tabular exports. **C.1 (CSV for statements) shipped this turn. Resume at C.2.**
+
+**Step 1 — verify C.1 (do this before writing new code):**
+1. Read `supabase/functions/_shared/exports/statementCsv.ts` and confirm: UTF-8 BOM present, CRLF row separators, RFC 4180 quoting (`"` doubled to `""`, field wrapped in `"..."` when it contains `,`, `"`, `\r`, or `\n`), no direct DB access — pure `DocumentData -> Uint8Array`.
+2. Read the `format === "csv"` branch in `supabase/functions/generate-document/index.ts` (search `CSV_EXPORT_ALLOWED`). Confirm it: (a) rejects non-statement types with 400, (b) reuses the same fetcher path as PDF for `documentData`, (c) calls `persistArtifact({ renderMode: "export", meta: { export_format: "csv" } })`, (d) returns `text/csv; charset=utf-8`.
+3. `cd supabase/functions && deno test --allow-read --allow-net _shared/exports/statementCsv_test.ts generate-document/csv-export-registered_test.ts` — expect 10/10 green.
+4. `bunx tsgo --noEmit -p tsconfig.app.json` — expect zero errors.
+5. Manually verify a customer + vendor statement "Export CSV" round-trip in preview: dropdown → CSV downloads → new row appears in `DocumentHistoryPanel` with `.csv` extension.
+6. Confirm `PrintClient.exportDocument` is the ONLY call site of `functions.invoke("generate-document", { body: { format: "csv" } })` from the frontend (grep for `format: "csv"` under `src/`).
+
+If any of the above fails, fix before continuing.
+
+**Step 2 — resume at C.2 (do NOT jump to unrelated work):**
+1. XLSX support in `generate-document`: add `xlsx-populate` (or equivalent lightweight, pure-JS lib) via esm.sh import; extend `format` union; keep the allowlist gate; persist with `meta.export_format: "xlsx"`. Add matching `statementXlsx.ts` builder + Deno tests.
+2. General Ledger + Trial Balance CSV: extend `CSV_EXPORT_ALLOWED` and add `ledgerCsv.ts` / `trialBalanceCsv.ts` builders. Reuse the fetchers already used by the PDF renderers — do NOT re-query in the export path.
+3. Migrate finance-report client exports: replace `ReportExportService`'s direct `xlsx` writes in `src/pages/reports/*` and `src/components/reports/ReportExportButtons.tsx` with `printClient.downloadExport({ format })`. Keep the API surface of `ReportExportButtons` stable so consumers don't churn.
+4. Add ESLint rule (or extend `no-raw-pdf-lib-in-app.js`) forbidding `import ... from "xlsx"|"exceljs"` outside `supabase/functions/_shared/exports/**`. Delete `xlsx` from `package.json` once the last import is gone.
+5. Update this plan on completion; mark C fully shipped; propose Phase 3 (record-page peek sheets for HR letter surfaces, deferred from Milestone A) as the next milestone.
+
+**Non-negotiables carried forward:**
+- Single-renderer / single-fetcher invariant: every new export format MUST consume the same `DocumentData` the PDF path uses. No parallel data fetching.
+- Every persisted artifact goes through `persistArtifact` — never write directly to storage or `document_artifacts`.
+- No client-side XLSX/CSV serialisation for platform documents once C.2 lands.
