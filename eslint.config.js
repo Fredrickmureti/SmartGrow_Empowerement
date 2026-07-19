@@ -248,4 +248,16 @@ export default tseslint.config(
       "local/no-country-fixture-in-shared-preview": "error",
     },
   },
+  // ADR-0085 — rendering ownership guards. pdf-lib is banned from the
+  // app bundle (server-side _shared/pdf only); raw barcode libs
+  // (bwip-js, qrcode) are banned from app code. qrcode.react remains
+  // allowed for on-screen SVG.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "local/no-raw-pdf-lib-in-app": "error",
+      "local/no-direct-barcode-lib": "error",
+    },
+  },
 );
+
