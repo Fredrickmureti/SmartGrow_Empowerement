@@ -160,14 +160,31 @@ async function handleSettlementCardClosed(row: OutboxRow): Promise<void> {
   if (error) throw new Error(`settlement GL post: ${error.message}`);
 }
 
+// S5 — statement-centric GL posting. Closing a pos_statements row enqueues
+// pos.statement.posting.requested; we drain it by calling the single
+// authoritative POS finance writer. `post_pos_statement_gl` is idempotent
+// via pos_statement_gl_apply_log (statement_id, idempotency_key) and via
+// post_journal_entry_atomic's source dedupe, so outbox retries are safe.
+async function handlePosStatementPostingRequested(row: OutboxRow): Promise<void> {
+  const payload = (row.payload ?? {}) as { statement_id?: string };
+  const statementId = payload.statement_id ?? row.source_doc_id;
+  if (!statementId) throw new Error("pos.statement.posting.requested: missing statement_id");
+  const { error } = await admin.rpc("post_pos_statement_gl", {
+    p_statement_id: statementId,
+    p_idempotency_key: `outbox:${row.id}`,
+  });
+  if (error) throw new Error(`statement GL post: ${error.message}`);
+}
+
 // Phase E/F map. Extend with one entry per newly-durable topic. Unknown
 // topics remain deliberate no-op successes so the outbox drains.
 const HANDLERS: Record<string, HandlerFn> = {
-  "pos.sale.committed":          handlePosSaleCommitted,
-  "inventory.movement.recorded": handleInventoryMovementRecorded,
-  "payment.card.captured":       (r) => handleCardSettlementLine(r, "capture"),
-  "payment.card.reversed":       (r) => handleCardSettlementLine(r, "reversal"),
-  "settlement.card.closed":      handleSettlementCardClosed,
+  "pos.sale.committed":              handlePosSaleCommitted,
+  "inventory.movement.recorded":     handleInventoryMovementRecorded,
+  "payment.card.captured":           (r) => handleCardSettlementLine(r, "capture"),
+  "payment.card.reversed":           (r) => handleCardSettlementLine(r, "reversal"),
+  "settlement.card.closed":          handleSettlementCardClosed,
+  "pos.statement.posting.requested": handlePosStatementPostingRequested,
 };
 
 async function dispatch(row: OutboxRow): Promise<void> {
