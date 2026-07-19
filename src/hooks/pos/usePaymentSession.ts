@@ -126,7 +126,8 @@ export interface UsePaymentSession {
 // ---------------------------------------------------------------------------
 
 function deriveSessionKey(p: PaymentSessionParams): string {
-  return `pos.session:${p.registerId}:${p.shiftId}:${p.cartHash}`;
+  if (p.idempotencyKey) return p.idempotencyKey;
+  return `pos.session:${p.registerId}:${p.shiftId}:${p.cartHash ?? "no-cart-hash"}`;
 }
 
 async function fetchTenders(sessionId: string): Promise<PaymentSessionTenderRow[]> {
