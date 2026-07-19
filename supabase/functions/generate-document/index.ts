@@ -1979,6 +1979,90 @@ serve(async (req) => {
       );
     }
 
+    // ─── HR letters (Phase 6.1) ────────────────────────────────────────
+    // HR letters are prose documents, not tabular sales documents. They
+    // do NOT go through the sales template / payment_methods / escpos /
+    // statement pipeline. They render via the dedicated HR generator,
+    // and still land in `document_artifacts` for audit parity.
+    if (isHrLetterType(documentType)) {
+      const tenancy = await getHrLetterTenancy(supabase, documentType, documentId);
+      if (!tenancy.organization_id) {
+        return new Response(
+          JSON.stringify({ error: "Document not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const { data: membership } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userData.user.id)
+        .eq("organization_id", tenancy.organization_id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!membership) {
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const hrData = await fetchHrLetter(supabase, documentType, documentId);
+      const hrBytes = await generateHrLetterPdf(hrData, { paperFormat: "a4" }, supabase);
+
+      // Immutable artifact — same persistence pipeline as sales docs.
+      const hrPolicyHeaders: Record<string, string> = {
+        "Access-Control-Expose-Headers": "X-Document-Artifact-Id, X-Document-Artifact-Version",
+      };
+      try {
+        const {
+          shouldPersistArtifact,
+          isBlockingType,
+          persistArtifact,
+        } = await import("../_shared/documents/persistArtifact.ts");
+        if (shouldPersistArtifact(documentType, { persistOptIn: body.persist !== false })) {
+          const p = persistArtifact({
+            supabase,
+            bytes: hrBytes,
+            organizationId: tenancy.organization_id,
+            businessId: tenancy.business_id,
+            branchId: null,
+            documentType,
+            documentId,
+            documentNumber: hrData.document_number ?? null,
+            intent: typeof body.intent === "string" ? body.intent : null,
+            templateId: null,
+            templateVersion: null,
+            policyId: null,
+            mimeType: "application/pdf",
+            renderMode: "pdf",
+            paperFormat: "a4",
+            copies: 1,
+            renderedBy: userData.user.id,
+            renderedVia: "generate-document",
+            metadata: { hr_letter: true },
+          });
+          if (isBlockingType(documentType)) {
+            const persisted = await p;
+            if (persisted) {
+              hrPolicyHeaders["X-Document-Artifact-Id"] = persisted.id;
+              hrPolicyHeaders["X-Document-Artifact-Version"] = String(persisted.version);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[artifact] HR letter persistence hook failed (non-fatal):", (err as Error).message);
+      }
+
+      return new Response(hrBytes as unknown as BodyInit, {
+        headers: {
+          ...corsHeaders,
+          ...hrPolicyHeaders,
+          "Content-Type": "application/pdf",
+          "Content-Disposition": buildContentDisposition(documentType, hrData.document_number, "pdf"),
+        },
+      });
+    }
+
     const fetcher = FETCHER_MAP[documentType];
     if (!fetcher) {
       return new Response(
