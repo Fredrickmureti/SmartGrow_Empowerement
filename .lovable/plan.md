@@ -1,10 +1,14 @@
 # POS Payment Engine — Wave 3 Phase 4
 
-## Status
+## Current status
 
-**Phase 4 landed:** 4.a, 4.b, 4.d, 4.e, 4.f. Session lifecycle is now the single write path into `pos_transaction_payments` for both retail and restaurant, online and offline. Frozen fx/tip snapshot columns exist on `pos_payment_sessions`; a pg_cron sweeper cancels abandoned sessions every 5 min through the FSM.
+- **Active phase:** Phase 4 (POS payment-session lifecycle).
+- **Landed:** 4.a, 4.b, 4.d, 4.e, 4.f, and the SQL contract hardening pass (4.g).
+- **Next up:** 4.c-follow — `PaymentDialog.tsx` cutover onto `usePaymentSession`.
+- **Blocked / deferred:** none.
 
-**Phase 4 deferred:** 4.c (PaymentDialog full state rip-out). The `usePaymentSession` hook is shipped and rehydration-ready, but the 842-line dialog itself still owns its 11 `useState` hooks — cutover is a separate slice so cashier UX regressions are testable in isolation.
+The session lifecycle is now the single write path into `pos_transaction_payments` for retail + restaurant, online + offline. Frozen fx/tip snapshot columns exist on `pos_payment_sessions`; a pg_cron sweeper cancels abandoned sessions every 5 min through the FSM. The commit RPC's routing, idempotency, apply-log discipline, and snapshot immutability are locked by 8 build-time assertions.
+
 
 ## What shipped this wave
 
