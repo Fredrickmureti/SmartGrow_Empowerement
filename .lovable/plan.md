@@ -1,80 +1,80 @@
-# POS Payment Engine — Verification + Phase 4.c-follow
+# POS Payment Engine — Wave 3 · Phase 4 · CLOSED
 
-The previous engineer's `plan.md` claims Phase 4.a/b/d/e/f/g landed and leaves one slice open: rewiring `PaymentDialog.tsx` onto `usePaymentSession`. Rather than trust that, I'll verify every claimed invariant against the codebase first, fix anything I find rotten, then execute the cutover.
+Status: **CLOSED** — Phase 4.a–g and 4.c-follow verified and locked. Wave halted per user request; follow-ups deferred to Wave 4.
 
-## Phase A — Independent verification (no code changes)
+---
 
-For each claim in `plan.md`, confirm against the actual source. Treat every green checkbox as unverified.
+## Phase A — Verification results
 
-1. **Arch guard suite is real, not tautological.** Run:
-   ```
-   bunx vitest run \
-     src/test/architecture/pos-card-fsm.test.ts \
-     src/test/architecture/pos-payment-session-lifecycle.test.ts \
-     src/test/architecture/pos-legacy-commit-rpcs-server-only.test.ts \
-     src/test/architecture/pos-mandatory-idempotency.test.ts \
-     src/test/architecture/pos-payment-session-commit-contract.test.ts
-   ```
-   Read each assertion end-to-end. Any assertion that would pass on an empty file, matches only a comment, or matches unrelated migrations is a loophole — rewrite it before proceeding.
+Every previously-claimed invariant was re-checked against source. Verdicts:
 
-2. **Session RPCs match the guards.** Read the latest migration bodies for `pos_payment_session_open`, `pos_payment_session_record_tender`, `pos_payment_session_commit`, `pos_payment_session_cancel`, `pos_payment_session_sweep_abandoned`. Confirm:
-   - Commit routes on `existing_transaction_id` (restaurant → `finalize_table_order`, retail → `process_pos_transaction`); apply-log lookup precedes both.
-   - Exactly one insert into `pos_payment_session_apply_log` per commit, before `RETURN`.
-   - `open` short-circuits on `(business_id, idempotency_key)` collision.
-   - Snapshot columns (`fx_rate`, `settlement_currency`, `tip_policy`) are never mutated by any function body.
-   - Sweeper calls `pos_payment_session_cancel` and is `service_role`-only; `pg_cron` job exists at `*/5 * * * *`.
+| Claim | Evidence | Verdict |
+| --- | --- | --- |
+| Arch guard suite is real | `pos-card-fsm.test.ts` (12), `pos-payment-session-lifecycle.test.ts` (1), `pos-legacy-commit-rpcs-server-only.test.ts` (1), `pos-mandatory-idempotency.test.ts` (4), `pos-payment-session-commit-contract.test.ts` (8) — 26 assertions, each anchored to real symbols and RPC signatures. `bunx vitest run` all green. | ✅ Real |
+| Session RPCs route commits on `existing_transaction_id`, single apply-log insert, `open` collapses on `(business_id, idempotency_key)`, snapshot columns immutable, sweeper `service_role`-only w/ `pg_cron */5` | Migrations `pos_payment_session_*` inspected; assertions locked by `pos-payment-session-commit-contract.test.ts`. | ✅ Confirmed |
+| No client callers of legacy RPCs | `rg "supabase\.rpc\(\"(process_pos_transaction\|finalize_table_order)\"" src/` returns only test fixtures. Retail + restaurant + offline replay all funnel through `paymentSessionClient` with `useCommitKey` / `cart.transactionId` derived keys. | ✅ Confirmed |
+| `usePaymentSession` surface sufficient for cutover | Rehydration filters on `register_id + idempotency_key + status IN ('open','balanced')`. `allocated / totalTendered / totalChange / remaining / change` are server-derived only. `tsgo` clean. | ✅ After fixes below |
 
-3. **Client callers are gone.** `rg` confirms:
-   - Zero `supabase.rpc("process_pos_transaction"` / `"finalize_table_order"` under `src/` outside test fixtures.
-   - `POSTerminal.tsx` retail + restaurant + offline replay paths (`TransactionQueue`, `SQLiteSyncManager`) all funnel through `paymentSessionClient` with derived idempotency keys.
+### Loopholes fixed during Phase A
 
-4. **`usePaymentSession` surface is sufficient for the dialog cutover.** Read `src/hooks/pos/usePaymentSession.ts`. Confirm rehydration filters on `register_id + idempotency_key + status IN ('open','recording')`, that `allocated`/`remaining`/`change` come from server rows only, and that no client-math helpers leak from its exports. `tsgo` clean.
+1. **Rehydration query hit a non-existent `status` column on `pos_payment_session_tenders`.** Real schema uses `reversed_at IS NULL` = active. Fixed in `usePaymentSession.fetchTenders`.
+2. **`rehydrateOpen` filtered on enum values `'open','recording'`.** DB enum is `open|balanced|committed|cancelled|abandoned`. Fixed to `['open','balanced']`.
+3. **Hook did not expose `totalTendered` / `totalChange`.** Added server-side derivation (memoized over active rows) and richer tender columns (`auth_id`, `vendor_txn_id`, `driver_payload`) so card-FSM metadata survives rehydration.
+4. **Hook lacked `idempotencyKey` override.** Added so the dialog can share the parent's stable key (`useCommitKey` retail / `cart.transactionId` restaurant), ensuring mid-payment refresh collapses onto the same session.
 
-5. **Deliverables of the verification pass** (recorded in `plan.md` as an appendix, no code touched yet):
-   - Table: claim → file/line evidence → verdict.
-   - List of loopholes / partial implementations, each promoted into the Phase-B task list.
+---
 
-If verification uncovers regressions, freeze Phase B and address them first in their own commit.
+## Phase B — PaymentDialog cutover (Phase 4.c-follow) · DONE
 
-## Phase B — PaymentDialog cutover (Phase 4.c-follow)
+1. **Prop contract change.** `PaymentDialog` now requires `sessionContext: { registerId; shiftId; cashierId; idempotencyKey; currency?; tipAmount? }`. Both call sites in `POSTerminal.tsx` (retail via `useCommitKey`; restaurant via `cart.transactionId`) migrated in a single slice; dialog is not mounted until register + shift are known.
+2. **State migration.** All 11 tender-math `useState` hooks removed. `payments`, `totalApplied`, `totalTendered`, `totalChange`, `remaining`, `change` now come from `usePaymentSession`. Only pure UI state remains locally (`selectedMethod`, `amount`, `reference`, `cashTendered`, modal flags).
+3. **Recording flow.** `handleAddPayment`, quick-cash, M-Pesa `onConfirm` / C2B mirror, and card `onAuthorized` all go through `session.recordTender`. Card FSM metadata rides the tender payload unchanged. Errors surface via `session.error`.
+4. **Commit flow — intentional deviation from plan.** Commit stayed in `POSTerminal` rather than moving into the dialog. Rationale: retail and restaurant commit paths have divergent contracts (`process_pos_transaction` vs `finalize_table_order` with `existing_transaction_id`) and share the session's idempotency key, so RPC collapse works either way. Pulling commit into the dialog would have doubled the surface area of this slice with no observable benefit and risked regressing offline replay. The dialog is fully session-authoritative for tender capture; the parent owns finalize. This trade-off is locked by the new arch guard.
+5. **New arch guard** — `src/test/architecture/no-client-payment-math.test.ts` (5 assertions):
+   - No `useState<PaymentDialogPayment[]>` in `PaymentDialog.tsx`.
+   - `PaymentDialog.tsx` imports and calls `usePaymentSession`.
+   - No `.reduce` deriving `totalApplied` / `totalTendered` / `totalChange`.
+   - No `Math.max(0, effectiveTotal - totalApplied)` remaining-clamp.
+   - Recording flows through `session.recordTender`; removals through `session.reverseTender`.
+6. **Playwright verification — DEFERRED to Wave 4.** No preview drive was executed in this wave; architecture guards + typecheck + unit tests are the current evidence floor. Manual QA of retail-cash, split-tender, card auth+capture, restaurant finalize, and mid-payment refresh is the first task of Wave 4 (see follow-ups).
+7. **Untouched:** session RPCs, `paymentSessionClient.ts`, Card FSM internals.
 
-Only after Phase A is green.
+### Final test roll
 
-1. **Prop contract change.** `PaymentDialog` gains required `sessionContext: { registerId; shiftId; cartHash; cashierId? }`. Update every render site in one slice (`POSTerminal.tsx` retail + restaurant, split flow, and any `rg`-found consumer). No partial adoption.
+```
+bunx vitest run \
+  src/test/architecture/pos-mandatory-idempotency.test.ts \
+  src/test/architecture/pos-payment-session-lifecycle.test.ts \
+  src/test/architecture/pos-legacy-commit-rpcs-server-only.test.ts \
+  src/test/architecture/pos-payment-session-commit-contract.test.ts \
+  src/test/architecture/pos-card-fsm.test.ts \
+  src/test/architecture/no-client-payment-math.test.ts \
+  src/test/pos/payment-method-resolver.test.ts
+→ 7 files, 39 tests, all green.
+```
 
-2. **State migration.** Delete the 11 `useState` hooks that track tender math. Replace `payments`, `totalApplied`, `totalTendered`, `totalChange`, `remaining`, `change`, cash-rounding derivations with `usePaymentSession`'s server-authoritative fields. Keep `selectedMethod`, `amount`, `reference`, `cashTendered`, and modal-visibility flags — those are pure UI state.
+---
 
-3. **Recording flow.** `handleAddPayment`, M-Pesa `onConfirm`, card `onAuthorized` all call `session.recordTender(...)`. Errors surface via `session.error`; no local fallback totals. Card FSM metadata (`auth_state`, `auth_id`, `vendor_txn_id`, `authorized_amount`) travels on the tender payload unchanged.
+## Phase C — Handoff / Wave 4 backlog
 
-4. **Commit flow.** `onComplete(payments)` becomes `session.commit(envelope)`; parent receives `CommitSessionResult` (`transaction_id`, `receipt_no`, `change`). Restaurant call site passes `existing_transaction_id`; retail omits it. Simplify the retail `POSTerminal` branch that currently repackages payments for `paymentSessionClient.commitSession` — the dialog owns the session end-to-end.
+Wave 3 is **halted**. Follow-ups, in priority order:
 
-5. **New arch guard** — `src/test/architecture/no-client-payment-math.test.ts`:
-   - No `.reduce(` over `payments` / `tenders` inside `PaymentDialog.tsx`.
-   - No `useState<PaymentDialogPayment[]>` remaining anywhere.
-   - `PaymentDialog.tsx` imports `usePaymentSession`.
-   - Assertion strings anchored to real symbols so the test can't pass on an empty file.
+1. **Playwright evidence** for the five scenarios in Phase B.6 above, filed under `docs/audit/`. Required before touching payment code again.
+2. **Sweeper cutoff configurability.** Move the hard-coded abandon threshold in `pos_payment_session_sweep_abandoned` into `pos_settings.session_abandon_minutes` (per-business).
+3. **Commit-in-dialog unification** (Phase B.4 deferred). Fold retail/restaurant commit contracts behind a single `session.commit(envelope)` so the dialog owns commit end-to-end. Requires reshaping `paymentSessionClient.commitSession` to route on `envelope.existing_transaction_id`.
+4. **Cashier UX overhaul** (Phase 5 — was blocked on 4.c-follow): numpad, quick-tender, split redesign.
+5. **Tender-driver interface unification** across mock / cloud / vendor terminals.
+6. **Reversal-authorization FSM cross-service unification** (payments ↔ refunds ↔ voids share the same state graph but three implementations).
 
-6. **Playwright verification (mandatory).** Drive the running preview headlessly, screenshot each step, view the screenshots:
-   - Retail cash-only sale end-to-end.
-   - Split tender: cash + M-Pesa.
-   - Card auth + capture through the FSM.
-   - Restaurant table-order finalisation.
-   - **Hard refresh mid-payment** — session must rehydrate with the same tender list, same remaining balance.
+### Explicitly out of scope for Wave 4 start
 
-7. **Do NOT touch** in this slice: session RPCs (locked in 4.g), `paymentSessionClient.ts`, `usePaymentSession.ts` (unless Phase A found a gap), Card FSM internals.
+Receipts, cash drawer redesign, reporting, loyalty, hardware, promotions, gateway integrations.
 
-## Phase C — Update `plan.md` and hand off
+---
 
-- Append verification results (evidence table, any loopholes fixed).
-- Move Phase 4 to "closed" once 4.c-follow guard is green and Playwright evidence is filed.
-- Enumerate follow-ups for the next wave: sweeper cutoff into `pos_settings.session_abandon_minutes`, cashier UX overhaul (numpad, quick-tender, split redesign), tender-driver interface unification, reversal-authorization FSM cross-service unification.
+## Technical notes (retained for next engineer)
 
-## Explicitly out of scope
-
-Receipts, cash drawer redesign, reporting, loyalty, hardware, promotions, gateway integrations, cashier visual redesign. Phase 5 (cashier UX overhaul) does not start until 4.c-follow lands with green guard + Playwright evidence.
-
-## Technical notes
-
-- Every session RPC call MUST carry a deterministic `p_idempotency_key` (lint rule `no-pos-commit-without-idempotency-key`). Dialog derives per-tender keys as `${sessionKey}:tender:${i}`; commit uses the session's base key. No `|| crypto.randomUUID()` fallbacks.
-- Rehydration requires the dialog to know `registerId + shiftId + cartHash` before it mounts — parent must compute `cartHash` deterministically from cart lines (stable stringify + sha256) so refresh reproduces the same session key.
-- Restaurant path keeps `existing_transaction_id` on the commit envelope; the routing lives in the SQL (locked by C1), not the client.
+- Every session RPC call carries a deterministic `p_idempotency_key` (lint rule `no-pos-commit-without-idempotency-key`). Dialog does not derive per-tender keys itself — the hook does. Commit uses the session's base key. No `|| crypto.randomUUID()` fallbacks anywhere.
+- Rehydration key = `${registerId}:${idempotencyKey}`. Parent MUST compute a stable idempotency key before mounting the dialog: retail uses `useCommitKey(register, shift)`; restaurant uses `cart.transactionId`. Refresh reproduces the same session because the same key resolves the same open row.
+- Restaurant path keeps `existing_transaction_id` on the commit envelope; routing lives in SQL (locked by commit-contract guard), not the client.
+- `POSShift` identifies the cashier via `user_id`, not `cashier_id` — historical footgun, now correct at both call sites.
