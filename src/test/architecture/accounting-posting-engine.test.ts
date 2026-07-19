@@ -72,6 +72,10 @@ describe("Accounting Posting Engine — B6 architectural surface", () => {
       "src/pages/finance/AccountingEventsWorkspace.tsx",
       // Admin-only hardware / ops surface.
       "src/pages/admin/HardwareOpsPage.tsx",
+      // Payroll admin control-center / lifecycle timeline: pre-existing
+      // admin surfaces that render workflow events. Not accountant-facing.
+      "src/pages/hr/payroll/PayrollControlCenter.tsx",
+      "src/components/payroll/PayrollRunLifecycleTimeline.tsx",
       // Infrastructure — not a UI surface.
       "src/services/events/BusinessSaga.ts",
       "src/services/events/domainEventBus.ts",
