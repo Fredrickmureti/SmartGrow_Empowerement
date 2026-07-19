@@ -63,7 +63,7 @@ function readLatestMigrationMatching(pattern: RegExp): string {
 }
 
 describe("pos_payment_session_commit — SQL contract (Wave 3 Phase 4)", () => {
-  const commitSql = readMigrationsMatching(
+  const commitSql = readLatestMigrationMatching(
     /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.pos_payment_session_commit/i,
   );
 
