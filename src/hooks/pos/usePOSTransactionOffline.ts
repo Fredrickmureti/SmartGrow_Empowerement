@@ -23,10 +23,17 @@ import { transactionQueue, syncManager } from "@/services/offline";
 import { usePOSSecuritySettings } from "./usePOSSecuritySettings";
 import { usePOSCreditSale } from "./usePOSCreditSale";
 import { useCommitKey } from "./useCommitKey";
+import {
+  openSession,
+  recordTender,
+  commitSession,
+  type PosTenderKind,
+} from "@/lib/pos/paymentSessionClient";
 // hardwareClient import removed — POS hardware side-effects flow through the
 // `payment.received` business event + SharedCommandQueueWorker (Group D #6).
 
 import type { CartState } from "./usePOSCart";
+
 
 export interface PaymentMethod {
   method: "cash" | "card" | "mobile_money" | "voucher" | "credit" | "bank_transfer" | "other";
