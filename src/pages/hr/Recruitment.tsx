@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import {
   useRequisitions, useCandidates, useApplications, useOffers, useInterviewFeedback,
   type JobRequisition, type Candidate, type CandidateApplication,
-  type ApplicationStage, type RequisitionStatus,
+  type ApplicationStage, type RequisitionStatus, type OfferLetter,
 } from "@/hooks/useRecruitment";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
