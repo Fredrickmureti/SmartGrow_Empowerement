@@ -244,6 +244,23 @@ export class PdfBuilder {
   }
 
   async save(): Promise<Uint8Array> {
+    // Continuous media: crop the media box to the top strip that actually
+    // holds content. `this.y` is the current cursor (drops as components
+    // render); the visible area runs from y to pageHeight. We keep a small
+    // bottomMargin below the last drawn baseline.
+    if (this.state.heightMode === "continuous" && this.page) {
+      const contentBottom = Math.max(0, this.y - this.state.bottomMargin);
+      const finalHeight = this.state.pageHeight - contentBottom;
+      // pdf-lib PDFPage.setMediaBox(x, y, width, height): lower-left corner
+      // stays in the provisional coordinate space; only the visible window
+      // changes. Content coordinates are untouched — drawings that fell
+      // below contentBottom (e.g. drawPageNumber's y = margin - 25) are
+      // outside the media box and therefore not rendered.
+      this.page.setMediaBox(0, contentBottom, this.state.pageWidth, finalHeight);
+      // Keep state consistent for anything that reads pageHeight after save.
+      this.state.pageHeight = finalHeight;
+    }
     return await this.doc.save();
   }
+
 }
