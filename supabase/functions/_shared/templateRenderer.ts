@@ -144,7 +144,13 @@ export type DocumentType =
   // pipeline routes them to a dedicated ESC/POS builder — they are NOT
   // receipts, do not carry totals/tax/fiscal blocks, and resolve to the
   // `kitchen_printer` role via the print policy resolver.
-  | 'kitchen_ticket';
+  | 'kitchen_ticket'
+  // Phase 6.1 — HR letter renderers. Each letter is a prose document
+  // with a signature block instead of a line-items table. They compose
+  // the same shared PDF primitives (BrandedHeader / NotesBlock /
+  // SignatureBlock / BrandedFooter) so branding, footers, and page
+  // numbering stay identical to sales documents (ADR-0084).
+  | 'offer_letter' | 'promotion_letter' | 'warning_letter' | 'contract_letter';
 
 export interface PaymentMethodData {
   id: string;

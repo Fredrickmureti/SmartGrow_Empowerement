@@ -57,3 +57,45 @@ The remaining plan (Wave B3.5 → Phase 6) is architecturally sound. One small a
 | `xlsx` bundle size in the edge function | Use a Workers-compatible xlsx writer (e.g. `xlsx-populate`-style pure JS); no native deps |
 
 Execute B3.5 → 6.1 → 6.2 → 6.3 in order. Each milestone must land with typecheck, tests, and ESLint clean before advancing.
+
+---
+
+## Phase 4 — Execution log (live)
+
+### ✅ Wave B3.5 — COMPLETE
+- `DocumentVersionsSection` mounted on all 12 Sales + Purchases record pages (via `RecordShell` children or `SalesRecordScaffold.extraSections`).
+- Architecture guard: `src/test/architecture/document-versions-record-pages.test.ts` enforces the mount on every full record page.
+- Pre-existing build blockers fixed: `usePrintOrPreview.ts` (DocumentType cast), `DocumentArtifactStore.ts` (Supabase type inference), `CustomerPayments.tsx` (printOrPreview API).
+
+### 🚧 Phase 6.1 — HR letter renderers — IN PROGRESS (core landed)
+**Landed this turn:**
+- `supabase/functions/_shared/pdf/components/SignatureBlock.ts` — shared signature-block component (single or side-by-side signatories), now exported from `_shared/pdf/index.ts`.
+- `supabase/functions/_shared/templateRenderer.ts` — `DocumentType` union extended with the four HR types.
+- `supabase/functions/_shared/hrLetterGenerator.ts` — dedicated prose renderer composing `PdfBuilder` + `BrandedHeader` + `NotesBlock` + `SignatureBlock` + `drawFinalFooter`. Emits: recipient block, right-aligned meta (ref# / issue / effective), subject line, facts grid, salutation, multi-paragraph body, closing, notes, signatures, audit footer.
+- `supabase/functions/generate-document/hrLetterFetchers.ts` — fetchers for all four HR types: `offer_letter` (from `offer_letters` + candidate join), `contract_letter` (from `employee_contracts` + employee join), `promotion_letter` / `warning_letter` (from `employee_lifecycle_events` + employee join, payload-driven).
+- `supabase/functions/generate-document/index.ts` — dedicated HR branch runs BEFORE the sales `FETCHER_MAP` dispatch: fetches tenancy, enforces org membership, renders, and persists to `document_artifacts` via the standard `persistArtifact` pipeline. HR path deliberately bypasses template / payment_methods / escpos / statement stages (none apply to prose letters).
+- `supabase/functions/_shared/documents/persistArtifact.ts` — HR types added to `PERSIST_ALLOWLIST`; `offer_letter` + `contract_letter` marked as blocking-persist (audit integrity).
+- Architecture guards:
+  - `supabase/functions/_shared/documents/persistArtifact_hr_test.ts` — allowlist regression guard.
+  - `supabase/functions/generate-document/hr-letters-registered_test.ts` — asserts type-guard coverage, HR branch precedence over `FETCHER_MAP`, and dispatcher coverage of every HR type.
+
+**Pending in Phase 6.1:**
+- Step 4 of the original plan: wire each HR page's "Print / Preview" button through `usePrintOrPreview` / `printClient.print()`. The four HR pages do not yet exist as dedicated Record pages in `src/features/hr/**`; the backend contract is ready and any caller can `supabase.functions.invoke("generate-document", { body: { documentType: "offer_letter", documentId } })`.
+  - When HR record pages are added (or if they already live under a different path — audit `src/features/hr/**` and `src/pages/hr/**` first), each must import `usePrintOrPreview` **and** mount `DocumentVersionsSection`, matching the sales/purchases contract.
+- Manual smoke: invoke `generate-document` for one seeded row of each HR type and confirm a fresh row lands in `document_artifacts` with the correct `document_type` + version chain.
+
+### ⏭ Next milestone — Phase 6.2 (POS receipt renderer demotion)
+Only start after 6.1's UI wiring + smoke tests pass. See "Phase 6.2" above.
+
+---
+
+## Handoff — instructions for the next agent
+
+1. **VERIFY 6.1 CORE FIRST.** Do not start new work until you have:
+   - Read `supabase/functions/_shared/hrLetterGenerator.ts`, `supabase/functions/generate-document/hrLetterFetchers.ts`, and the HR branch inside `supabase/functions/generate-document/index.ts` end-to-end. Confirm they compose ONLY shared `_shared/pdf/components` primitives (no forked pdf-lib code, no bespoke theme).
+   - Run the two new Deno tests: `persistArtifact_hr_test.ts` and `hr-letters-registered_test.ts`. Both must pass.
+   - Manually invoke `generate-document` against a real row of each HR type (or seed one). Confirm the returned PDF renders, has header/footer/signature block, and a `document_artifacts` row was created with the correct `document_type`.
+   - Confirm the sales pipeline is unaffected: render one invoice and one bill, verify byte-identical output vs. pre-6.1.
+2. **FINISH 6.1 STEP 4.** Audit `src/features/hr/**` and `src/pages/hr/**` for existing HR letter pages. For each: mount `usePrintOrPreview` on the Print/Preview button (documentType = the HR slug) and add `DocumentVersionsSection` for parity with sales. If pages do not yet exist, coordinate with the HR feature owner before scaffolding new UI — do NOT invent new record pages unilaterally.
+3. **THEN advance to Phase 6.2** (POS receipt renderer demotion). Do NOT jump to 6.3 first — chronological order preserves the architectural narrative.
+4. Update this plan file at the end of each milestone. Keep the ✅ / 🚧 / ⏭ markers accurate.
