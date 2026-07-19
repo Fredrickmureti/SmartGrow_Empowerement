@@ -443,5 +443,9 @@ async function processOfflineTransaction(
     transactionNumber: offlineTransactionNumber,
     change: Math.max(0, totalPaid - data.cart.total),
     isOffline: true,
+    // S2 parity: offline commit has no server aggregate yet — sync will
+    // reconcile on replay. Nulls flag "unknown", not "matched".
+    serverTotals: null as null | Record<string, number>,
+    totalMatchesServer: null as null | boolean,
   };
 }
