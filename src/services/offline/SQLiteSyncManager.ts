@@ -5,6 +5,12 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import {
+  openSession as openPaymentSession,
+  recordTender as recordPaymentTender,
+  commitSession as commitPaymentSession,
+  type PosTenderKind,
+} from '@/lib/pos/paymentSessionClient';
+import {
   isElectron,
   isDatabaseReady,
   executeQuery,
@@ -311,13 +317,10 @@ class SQLiteSyncManager {
             );
             continue;
           }
-          // Wave 2 · Phase C-3 — offline replay MUST route through
-          // `process_pos_transaction`, which delegates payment writes to
-          // `_pos_record_payment`. Direct inserts into
-          // `pos_transaction_payments` bypass the card FSM guard, the
-          // catalog validator, GL posting trigger, stock consumption, and
-          // idempotency collapse — the exact same failure modes the
-          // architecture guard test locks out of the server RPCs.
+          // Wave 3 · Phase 4.b — offline replay routes through the
+          // payment-session lifecycle (openSession → recordTender × N →
+          // commitSession). The local row id is the base idempotency
+          // key so partial replays collapse server-side.
           const itemsResult = await executeQuery<any>(
             'SELECT * FROM pos_transaction_items WHERE transaction_id = ? ORDER BY sort_order ASC',
             [tx.id]
@@ -346,63 +349,80 @@ class SQLiteSyncManager {
             base_uom_id: item.base_uom_id ?? null,
           }));
 
-          const payments = (paymentsResult.data ?? []).map((p: any) => ({
-            payment_method: p.payment_method,
-            amount: p.amount,
-            tendered_amount: p.tendered_amount ?? p.amount,
-            change_given: p.payment_method === 'cash' ? (p.change_given ?? 0) : 0,
-            reference: p.reference || null,
-            card_last_four: p.card_last_four ?? null,
-            card_type: p.card_type ?? null,
-            mpesa_receipt_number: p.mpesa_receipt ?? p.mpesa_receipt_number ?? null,
-            // Card FSM initial state + vendor auth trail — preserved
-            // through the offline queue so the guard trigger sees the
-            // same state it would on the online path.
-            auth_state: p.auth_state ?? null,
-            auth_id: p.auth_id ?? null,
-            vendor_txn_id: p.vendor_txn_id ?? null,
-            authorized_amount: p.authorized_amount ?? null,
-          }));
+          const rawPayments = (paymentsResult.data ?? []) as any[];
 
-          const { data: rpcResult, error: rpcError } = await supabase.rpc(
-            'process_pos_transaction' as any,
-            {
-              p_organization_id: this.organizationId,
-              p_business_id: this.businessId,
-              p_register_id: tx.register_id,
-              p_shift_id: tx.shift_id,
-              p_items: items,
-              p_payments: payments,
-              p_subtotal: tx.subtotal,
-              p_tax_amount: tx.tax_amount,
-              p_discount_amount: tx.discount_amount,
-              p_total: tx.total,
-              p_customer_id: tx.customer_id || null,
-              p_customer_name: null,
-              p_notes: `${tx.notes || ''} [Synced from offline: ${tx.transaction_number}]`.trim(),
-              p_created_by: tx.created_by,
-              p_transaction_type: 'sale',
-              p_table_session_id: null,
-              p_tip_amount: 0,
-              p_original_transaction_id: null,
-              // The local row id is stable across retries — reuse it as
-              // the idempotency key so the RPC collapses replay attempts.
-              p_idempotency_key: tx.id,
+          const tenderKindFor = (m: string): PosTenderKind => {
+            switch (m) {
+              case 'cash':          return 'cash';
+              case 'card':          return 'card';
+              case 'mobile_money':
+              case 'mpesa':         return 'wallet';
+              case 'voucher':       return 'voucher';
+              case 'credit':        return 'credit_liability';
+              case 'bank_transfer': return 'bank_transfer';
+              default:              return 'other';
             }
-          );
+          };
 
-          if (rpcError) throw rpcError;
-          const rr = rpcResult as any;
-          if (!rr?.success) {
-            throw new Error(rr?.error || 'Transaction processing failed');
+          const sessionId = await openPaymentSession({
+            registerId: tx.register_id,
+            grandTotal: tx.total,
+            currency: 'KES',
+            idempotencyKey: tx.id,
+            cashierId: tx.created_by,
+          });
+
+          for (let i = 0; i < rawPayments.length; i++) {
+            const p = rawPayments[i];
+            const method = p.payment_method === 'mpesa' ? 'mobile_money' : p.payment_method;
+            const tendered = p.tendered_amount ?? p.amount;
+            const changeGiven = method === 'cash' ? (p.change_given ?? Math.max(0, tendered - p.amount)) : 0;
+            await recordPaymentTender({
+              sessionId,
+              idempotencyKey: `${tx.id}:tender:${i}`,
+              tender: {
+                tender_kind: tenderKindFor(method),
+                method_key: method,
+                provider_key: method === 'mobile_money' ? 'mpesa' : undefined,
+                amount: p.amount,
+                tendered_amount: tendered,
+                change_given: changeGiven,
+                reference: p.reference ?? null,
+                auth_state: p.auth_state ?? undefined,
+                auth_id: p.auth_id ?? null,
+                vendor_txn_id: p.vendor_txn_id ?? null,
+                driver_payload: {
+                  card_last_four: p.card_last_four ?? null,
+                  card_type: p.card_type ?? null,
+                  mpesa_receipt_number: p.mpesa_receipt ?? p.mpesa_receipt_number ?? null,
+                  authorized_amount: p.authorized_amount ?? null,
+                },
+              },
+            });
           }
+
+          const commitResult = await commitPaymentSession({
+            sessionId,
+            envelope: {
+              organization_id: this.organizationId,
+              shift_id: tx.shift_id,
+              items,
+              subtotal: tx.subtotal,
+              tax_amount: tx.tax_amount,
+              discount_amount: tx.discount_amount,
+              transaction_type: 'sale',
+              customer_id: tx.customer_id || null,
+              customer_name: null,
+              notes: `${tx.notes || ''} [Synced from offline: ${tx.transaction_number}]`.trim(),
+            },
+          });
 
           // Mark as synced locally
           await executeQuery(
             `UPDATE pos_transactions 
              SET sync_status = 'synced', server_id = ?, synced_at = datetime('now'), sync_error = NULL 
              WHERE id = ?`,
-            [rr.transaction_id, tx.id]
+            [commitResult.transaction_id, tx.id]
           );
 
           synced++;

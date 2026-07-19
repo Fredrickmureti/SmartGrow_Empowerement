@@ -1,85 +1,70 @@
 # POS Payment Engine — Wave 3 Phase 4
 
-## Phase 1 · Verification of prior work (read-only)
+## Status
 
-Confirmed against the live codebase before planning Phase 4:
+**Phase 4 landed:** 4.a, 4.b, 4.d, 4.e, 4.f. Session lifecycle is now the single write path into `pos_transaction_payments` for both retail and restaurant, online and offline. Frozen fx/tip snapshot columns exist on `pos_payment_sessions`; a pg_cron sweeper cancels abandoned sessions every 5 min through the FSM.
 
-- Phase 0 docs present: `docs/architecture/POS_PAYMENT_ENGINE.md`, `docs/audit/pos-payment-engine.md`.
-- Phase 1 schema + 5 SECURITY DEFINER RPCs shipped (`pos_payment_sessions`, `pos_payment_session_tenders`, `pos_payment_session_apply_log`).
-- Phase 2 wrapper `src/lib/pos/paymentSessionClient.ts` is the only caller of the 5 session RPCs (architecture guard `pos-payment-session-lifecycle.test.ts` locks this).
-- Phase 3 retail online commit — `src/hooks/pos/usePOSTransactionOffline.ts` runs `openSession → recordTender × N → commitSession`; direct `process_pos_transaction` call removed from that hook.
-- Two legacy commit paths remain, matching plan.md's "out of scope for Phase 3":
-  - `src/pages/pos/POSTerminal.tsx:918` — restaurant flow calls `finalize_table_order` directly.
-  - `src/services/offline/TransactionQueue.ts:185` — offline replay calls `process_pos_transaction` directly.
-- `PaymentDialog.tsx` still holds all payment-in-progress state in local `useState` (11 hooks).
+**Phase 4 deferred:** 4.c (PaymentDialog full state rip-out). The `usePaymentSession` hook is shipped and rehydration-ready, but the 842-line dialog itself still owns its 11 `useState` hooks — cutover is a separate slice so cashier UX regressions are testable in isolation.
 
-Prior claims hold. No corrective work needed before Phase 4.
+## What shipped this wave
 
-## Phase 4 — Scope
+### 4.a — Restaurant commit onto session lifecycle ✅
 
-Bring every remaining commit path and the cashier's in-flight payment state onto the server-owned session aggregate. After Phase 4, `pos_payment_session_commit` is the single write path into `pos_transaction_payments` and `PaymentDialog` survives refresh/network loss.
+- `pos_payment_session_commit` now accepts `existing_transaction_id` in its envelope; when set, it forwards to `finalize_table_order` server-side.
+- `POSTerminal.tsx` restaurant branch calls `commitPaymentSession(...)` via `paymentSessionClient`. Card FSM metadata (`auth_state`, `auth_id`, `vendor_txn_id`, `authorized_amount`) travels on the tender.
+- `finalize_table_order` remains as the server-only forwardee — no client caller left.
 
-### 4.a — Restaurant commit onto session lifecycle
+### 4.b — Offline replay onto session lifecycle ✅
 
-- Extend `pos_payment_session_commit` (or add a sibling `pos_payment_session_commit_table_order`) to accept an optional `p_table_session_id` / `p_order_id` and forward to `finalize_table_order` when present, `process_pos_transaction` otherwise. Same apply-log guard, same envelope shape, same outbox emission.
-- Migrate `POSTerminal.tsx` restaurant branch to call `commitSession` via `paymentSessionClient`. Card FSM metadata continues via `driver_payload` promotion (already shipped in Phase 3.b).
-- Update `pos-card-fsm.test.ts` expectation from `finalize_table_order` string match to the wrapper call.
-- Delete the direct `supabase.rpc("finalize_table_order")` invocation from the client; keep the DB function itself (server-only forwardee).
+- Both offline replay paths (`TransactionQueue.syncTransaction` and `SQLiteSyncManager.pushPending`) now run `openSession → recordTender × N → commitSession`.
+- Base idempotency key is `queued.id` / `tx.id`; per-tender key is `${baseId}:tender:${i}`. Partial-success retries collapse server-side.
+- `pos-card-fsm.test.ts` and `pos-mandatory-idempotency.test.ts` updated to assert the wrapper path.
 
-### 4.b — Offline replay onto session lifecycle
+### 4.c — usePaymentSession hook (dialog cutover deferred)
 
-- `TransactionQueue.processQueuedTransaction` currently posts the whole cart to `process_pos_transaction` with the queued id as idempotency key. Rewrite it to:
-  1. `openSession` with the queued id as idempotency key (offline row already carries totals + currency + register).
-  2. `recordTender` per queued tender, key `${queuedId}:tender:${i}`.
-  3. `commitSession` — returns the same envelope shape the queue already logs.
-- Because RPCs are idempotent by `p_idempotency_key`, replays after partial success collapse server-side without producing dupes.
-- Extend `pos-offline-replay-uses-rpc.test.ts` to require the wrapper (not the raw RPC) and add a queue-replay integration test that asserts two runs of the same queued row produce a single `pos_transactions` insert + a single set of tenders.
+- `src/hooks/pos/usePaymentSession.ts` shipped. Full surface: `{ sessionId, status, tenders, allocated, remaining, change, error, recordTender, reverseTender, commit, cancel, refresh }`.
+- Rehydrates any `open` session for the current register + idempotency key on mount — refresh-safe by construction.
+- Session key is derived: `pos.session:${registerId}:${shiftId}:${cartHash}`. Tender key is `${sessionKey}:tender:${i}`.
+- Server rows are the only source of `allocated` / `remaining` / `change`. No client math helpers exported.
 
-### 4.c — PaymentDialog state migration
+**Not yet done:** rewire `PaymentDialog.tsx` off its 11 `useState` hooks. Recommend a follow-up slice that swaps the tender list + running totals to the hook while keeping every method-specific dialog (M-Pesa, card, split, C2B lookup) intact. Adding the `no-client-payment-math.test.ts` guard belongs with that slice.
 
-- Replace the 11 `useState` hooks with a `usePaymentSession(registerId, cartTotals)` hook that:
-  - Opens a session lazily on first tender entry (idempotency key derived from cart hash + register + shift).
-  - Records each tender through `recordTender` as the cashier confirms it — server is the source of truth for allocated/remaining.
-  - Exposes `{ session, tenders, allocated, remaining, change, status, recordTender, reverseTender, commit, cancel }`.
-  - Rehydrates on mount from `pos_payment_sessions` where `status='open'` for the current register — survives refresh, tab close, network partition.
-- Client-side change/overtender math deleted; the RPC already returns authoritative values. Enforce with a new arch guard `no-client-payment-math.test.ts` scoped to `src/components/pos/PaymentDialog*`.
-- Keep the visual layout untouched in this phase — Phase 5 owns the UX pass. This is a pure state relocation.
+### 4.d — Multi-currency + tip snapshot ✅
 
-### 4.d — Multi-currency + tip snapshot on sessions
+- `pos_payment_sessions` gained `fx_rate numeric`, `settlement_currency text`, `tip_policy text` (backfilled to `(1, currency, 'none')` for historical rows).
+- `pos_payment_session_open` accepts `p_fx_rate`, `p_settlement_currency`, `p_tip_policy` — immutable after first insert (replay does not refresh them).
+- `paymentSessionClient.openSession` exposes `fxRate`, `settlementCurrency`, `tipPolicy` args.
 
-- Add columns to `pos_payment_sessions`: `fx_rate numeric`, `settlement_currency text`, `tip_policy text`. Populate from `pos_settings` at `open` time (immutable for the life of the session — prevents mid-payment drift if an admin changes FX).
-- Tender rows already carry `amount` in transaction currency; commit-time posting uses the session's frozen fx_rate.
+### 4.e — Cancel + abandonment sweeper ✅
 
-### 4.e — Cancel + abandonment sweeper
+- `public.pos_payment_session_sweep_abandoned(p_older_than_minutes int)` — cancels every `open` session older than the cutoff through `pos_payment_session_cancel` (so captured card tenders are reversed via the FSM, never orphaned).
+- Scheduled via `pg_cron` job `pos-payment-session-sweep-abandoned`, `*/5 * * * *`, cutoff 30 min.
+- Function is `service_role`-only; the cron job runs as the DB owner.
 
-- Server-side scheduled job (pg_cron under `/api/public/*` or a Supabase scheduled function — reuse whichever the project already uses for POS housekeeping): every N minutes, mark `open` sessions older than `pos_settings.session_abandon_minutes` (default 30) as `abandoned`, reversing captured card tenders through `pos_payment_session_cancel`.
-- Emits `pos.payment.session.cancelled` with reason `abandoned` so downstream (audit, analytics, drawer if cash was captured) can react.
+### 4.f — Guards & tests ✅
 
-### 4.f — Guards & tests
+- `src/test/architecture/pos-legacy-commit-rpcs-server-only.test.ts` — bans `supabase.rpc("process_pos_transaction")` and `supabase.rpc("finalize_table_order")` anywhere under `src/` except test fixtures.
+- `pos-card-fsm.test.ts` updated: expects `paymentSessionClient` / `commitPaymentSession` on the replay + restaurant paths, forbids the legacy RPC strings.
+- `pos-mandatory-idempotency.test.ts` updated: expects `idempotencyKey: queued.id` + `${queued.id}:tender:${i}` derivation.
+- Existing `pos-payment-session-lifecycle.test.ts` allowlist already locked the 5 session RPCs to `paymentSessionClient.ts` — no change needed.
 
-- Architecture test additions:
-  - No `supabase.rpc("finalize_table_order")` or `supabase.rpc("process_pos_transaction")` anywhere under `src/` — allowlist only `paymentSessionClient.ts` and `TransactionQueue.ts` (until 4.b lands, then only `paymentSessionClient.ts`).
-  - `PaymentDialog.tsx` may not import from `@/services/pos/paymentMethodResolver` for change/overtender math — those are server responsibilities now.
-- SQL contract test: `pos_payment_session_commit` accepts the new table-order forward param and preserves apply-log idempotency for both paths.
-- End-to-end Vitest RPC test: open → 2 tenders → commit twice (second is a no-op returning the cached envelope) for both retail and restaurant modes.
+## Follow-ups (post-Phase 4)
 
-### 4.g — Definition of done
-
-- Grep proves zero direct `process_pos_transaction` / `finalize_table_order` client calls remain.
-- `PaymentDialog` survives a hard refresh mid-payment: reopening the register restores tenders, remaining, and status from the server.
-- `bunx vitest run src/test/architecture` and `src/test/pos` green.
-- All five session outbox topics fire on both retail and restaurant commits.
-- Legacy `useState`-based payment math deleted, not just bypassed.
+- **PaymentDialog cutover (4.c-follow):** delete the 11 `useState` hooks, drive the dialog off `usePaymentSession`, add `no-client-payment-math.test.ts`.
+- **SQL contract test:** `pos_payment_session_commit` accepts both retail and table-order envelopes; apply-log idempotency verified for both.
+- **E2E RPC test:** open → 2 tenders → commit twice, verify second call returns the cached envelope, for both retail and restaurant modes.
+- **Sweeper policy:** move the 30-minute cutoff into `pos_settings.session_abandon_minutes` when the pos_settings schema next gets touched.
 
 ## Explicitly out of scope for Phase 4
 
 - Cashier UX overhaul (numpad, quick-tender chips, split-flow redesign) → Phase 5.
-- Tender-driver interface unification for card providers → separate wave already scoped.
-- Reversal-authorization FSM cross-service unification → Phase 3-style follow-up, tracked separately.
+- Tender-driver interface unification for card providers → separate wave.
+- Reversal-authorization FSM cross-service unification → Phase 3-style follow-up.
 
-## Technical notes
+## Verification checklist
 
-- Reuse the `${commitKey}:tender:${i}` idempotency derivation already proven in Phase 3 — no new key scheme.
-- Apply-log stays `session_id PK`; the table-order forward reuses it, so a retried restaurant commit is as safe as retail.
-- Session rehydration query is scoped by `register_id + status='open'` — RLS already restricts by branch, so no new policy needed.
-- The abandonment sweeper must run through `pos_payment_session_cancel` (not direct UPDATE) so captured card tenders are actually voided, not just orphaned.
+- [x] Zero direct `process_pos_transaction` / `finalize_table_order` client calls remain (grep + arch test).
+- [x] `bunx vitest run src/test/architecture/pos-card-fsm.test.ts src/test/architecture/pos-payment-session-lifecycle.test.ts src/test/architecture/pos-legacy-commit-rpcs-server-only.test.ts src/test/architecture/pos-mandatory-idempotency.test.ts` — 18/18 pass.
+- [x] Restaurant and retail commits both flow through `pos_payment_session_commit`; outbox topics unchanged.
+- [x] Abandonment sweeper scheduled and calls `pos_payment_session_cancel` (never a raw UPDATE).
+- [ ] PaymentDialog survives hard refresh mid-payment — infrastructure ready via `usePaymentSession`, wiring pending (see follow-ups).

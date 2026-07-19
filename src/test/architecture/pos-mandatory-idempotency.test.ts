@@ -56,8 +56,11 @@ describe("POS architecture guard — mandatory idempotency (T2)", () => {
     expect(src).toMatch(/recoverStuckSyncing\s*\(/);
     // syncAll must call it before draining.
     expect(src).toMatch(/this\.recoverStuckSyncing\(\)/);
-    // queued.id remains the idempotency key so recovery is safe.
-    expect(src).toMatch(/p_idempotency_key:\s*queued\.id/);
+    // Wave 3 · Phase 4.b — replay routes through the payment-session
+    // wrapper. `queued.id` is the base idempotency key on both
+    // openSession and every derived tender key, so retries collapse.
+    expect(src).toMatch(/idempotencyKey:\s*queued\.id/);
+    expect(src).toMatch(/\$\{queued\.id\}:tender:\$\{i\}/);
   });
 
   it("registers and enables the no-pos-commit-without-idempotency-key ESLint rule", () => {

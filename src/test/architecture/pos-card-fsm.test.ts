@@ -106,12 +106,21 @@ describe("pos-card-fsm: substrate & entry-point invariants", () => {
     expect(ctrl).toMatch(/async\s+preAuthorize\s*\(/);
   });
 
-  // Wave 2 · Phase C-3 — restaurant parity, offline replay, events, post-commit UI.
+  // Wave 3 · Phase 4 — offline replay + restaurant commit both route
+  // through the payment-session lifecycle (paymentSessionClient), not
+  // the legacy RPCs. The card FSM metadata is forwarded as `auth_state`
+  // + `driver_payload` on each recorded tender.
 
-  it("SQLiteSyncManager routes offline replay through process_pos_transaction (no direct payment inserts)", () => {
+  it("SQLiteSyncManager routes offline replay through paymentSessionClient (no direct payment inserts)", () => {
     const p = join(REPO, "src/services/offline/SQLiteSyncManager.ts");
     const s = readFileSync(p, "utf8");
-    expect(s, "must call the canonical RPC").toMatch(/process_pos_transaction/);
+    expect(s, "must use the payment-session wrapper").toMatch(/paymentSessionClient|openSession|commitSession/);
+    // The legacy commit RPC must no longer be called from the replay path.
+    expect(s, "must not call process_pos_transaction directly").not.toMatch(
+      /\.rpc\s*\(\s*["']process_pos_transaction["']/,
+    );
+    // Card FSM metadata still flows through — as auth_state on the tender.
+    expect(s).toMatch(/auth_state:\s*p\.auth_state/);
     // No direct writes to any POS table on the replay path.
     for (const t of ["pos_transactions", "pos_transaction_items", "pos_transaction_payments"]) {
       expect(
@@ -121,9 +130,12 @@ describe("pos-card-fsm: substrate & entry-point invariants", () => {
     }
   });
 
-  it("POSTerminal restaurant branch forwards card FSM metadata into finalize_table_order", () => {
+  it("POSTerminal restaurant branch commits via paymentSessionClient and forwards card FSM metadata", () => {
     const src = readFileSync(join(REPO, "src/pages/pos/POSTerminal.tsx"), "utf8");
-    expect(src).toMatch(/finalize_table_order/);
+    expect(src, "restaurant branch must call commitPaymentSession").toMatch(/commitPaymentSession/);
+    expect(src, "must not call finalize_table_order directly").not.toMatch(
+      /\.rpc\s*\(\s*["']finalize_table_order["']/,
+    );
     // Restaurant branch must forward the same FSM fields the retail branch does.
     for (const field of ["auth_state", "auth_id", "vendor_txn_id", "authorized_amount"]) {
       expect(src, `POSTerminal must forward ${field}`).toMatch(new RegExp(`${field}`));
