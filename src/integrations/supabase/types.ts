@@ -69335,6 +69335,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      accounting_event_for_pos_statement: {
+        Args: { p_statement_id: string }
+        Returns: string
+      }
+      accounting_post_event: {
+        Args: { p_event_id: string; p_idempotency_key?: string }
+        Returns: Json
+      }
       acknowledge_employee_document: {
         Args: { _document_id: string }
         Returns: {
