@@ -90,6 +90,7 @@ const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationRepo
 const FinanceSettingsPage = lazy(() => import("@/pages/finance/FinanceSettings"));
 const FinanceIntegrity = lazy(() => import("@/pages/finance/FinanceIntegrity"));
 const PosPostingQueue = lazy(() => import("@/pages/finance/PosPostingQueue"));
+const AccountingEventsWorkspace = lazy(() => import("@/pages/finance/AccountingEventsWorkspace"));
 
 
 // Wrapper for lazy routes
