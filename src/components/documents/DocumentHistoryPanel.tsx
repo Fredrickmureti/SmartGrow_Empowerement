@@ -70,16 +70,22 @@ export function DocumentHistoryPanel({
     };
   }, [businessId, documentType, documentId]);
 
+  const extForMime = (mime: string): string => {
+    if (mime === "application/pdf") return "pdf";
+    if (mime.startsWith("text/csv")) return "csv";
+    if (mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") return "xlsx";
+    return "bin";
+  };
+
   const open = async (artifact: DocumentArtifact, download: boolean) => {
     setOpeningId(artifact.id);
     try {
       const url = await documentArtifactStore.signedUrl(artifact);
+      const ext = extForMime(artifact.mime_type);
       if (download) {
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${artifact.document_number ?? documentType}-v${artifact.version}.${
-          artifact.mime_type === "application/pdf" ? "pdf" : "bin"
-        }`;
+        a.download = `${artifact.document_number ?? documentType}-v${artifact.version}.${ext}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
