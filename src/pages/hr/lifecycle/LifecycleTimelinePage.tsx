@@ -46,6 +46,15 @@ export default function LifecycleTimelinePage() {
   const [windowDays, setWindowDays] = useState<number>(30);
   const [eventType, setEventType] = useState<LifecycleEventType | "all">("all");
   const [search, setSearch] = useState("");
+  const {
+    printPreviewOpen,
+    setPrintPreviewOpen,
+    printPreviewTitle,
+    printDocumentType,
+    printDocumentId,
+    printCommunication,
+    generateDocument,
+  } = usePrintOrPreview();
 
   const { events, isLoading } = useLifecycleEvents({
     sinceDays: windowDays,
