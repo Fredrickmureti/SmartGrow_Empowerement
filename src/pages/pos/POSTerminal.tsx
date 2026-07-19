@@ -118,6 +118,12 @@ import { usePOSKeyboardShortcuts } from "@/hooks/pos/usePOSKeyboardShortcuts";
 import { useRegisterBranchGuard } from "@/hooks/pos/useRegisterBranchGuard";
 import { CrossBranchRedirect } from "@/components/pos/CrossBranchRedirect";
 // usePOSCart is now used via usePOSCartAdapter
+import {
+  openSession as openPaymentSession,
+  recordTender as recordPaymentTender,
+  commitSession as commitPaymentSession,
+  type PosTenderKind,
+} from "@/lib/pos/paymentSessionClient";
 
 /**
  * Stage B branch isolation guard wrapper. Doing the guard in an outer
