@@ -19,8 +19,9 @@
 
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, ChevronRight, AlertTriangle, ArrowRight } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, ArrowRight, Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -336,6 +337,7 @@ function PosShiftGLIntegrityInner() {
                               shiftId={r.id}
                               journalEntryId={r.journal_entry_id}
                               currency={baseCurrency}
+                              isPosted={!!r.gl_posted_at}
                             />
                           </TableCell>
                         </TableRow>
@@ -365,15 +367,25 @@ function KpiCard({ label, value, tone }: { label: string; value: string; tone?: 
   );
 }
 
+interface GLSummary {
+  shift_id?: string;
+  shift_number?: string;
+  revenue?: Array<{ sales_account_id: string | null; total_amount: number }>;
+  payments?: Array<{ payment_method: string; debit_account_id: string | null; total_amount: number }>;
+  tax_total?: number;
+  cogs?: Array<{ cogs_account_id: string | null; inventory_account_id: string | null; total_cogs: number }>;
+}
+
 function ShiftDetail({
-  shiftId, journalEntryId, currency,
-}: { shiftId: string; journalEntryId: string | null; currency: string }) {
+  shiftId, journalEntryId, currency, isPosted,
+}: { shiftId: string; journalEntryId: string | null; currency: string; isPosted: boolean }) {
+  const qc = useQueryClient();
   const summary = useQuery({
     queryKey: ["pos-shift-gl-summary", shiftId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_pos_shift_gl_summary", { p_shift_id: shiftId });
       if (error) throw error;
-      return data as unknown;
+      return data as unknown as GLSummary | null;
     },
   });
   const errs = useQuery({
@@ -389,34 +401,122 @@ function ShiftDetail({
     },
   });
 
+  const postNow = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc(
+        "post_pos_register_period_gl_now" as never,
+        { p_shift_id: shiftId } as never,
+      );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: unknown) => {
+      const d = (data ?? {}) as Record<string, unknown>;
+      if (d.already_posted) {
+        toast.success("Already posted to accounting");
+      } else if (d.empty) {
+        toast.info("Nothing to post — no tender or revenue on this shift");
+      } else {
+        toast.success("Posted to accounting");
+      }
+      qc.invalidateQueries({ queryKey: ["pos-shift-gl-integrity"] });
+      qc.invalidateQueries({ queryKey: ["pos-shift-gl-summary", shiftId] });
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Post failed: ${msg}`);
+    },
+  });
+
+  const s = summary.data ?? null;
+  const revenueTotal = (s?.revenue ?? []).reduce((a, r) => a + Number(r.total_amount ?? 0), 0);
+  const cogsTotal = (s?.cogs ?? []).reduce((a, r) => a + Number(r.total_cogs ?? 0), 0);
+  const paymentsTotal = (s?.payments ?? []).reduce((a, r) => a + Number(r.total_amount ?? 0), 0);
+
   return (
     <div className="space-y-3 py-2">
-      {journalEntryId && (
-        <div>
+      <div className="flex flex-wrap items-center gap-2">
+        {journalEntryId && (
           <Button asChild variant="outline" size="sm">
             <Link to={`/finance/journal-entries/${journalEntryId}`}>
               View posted journal entry <ArrowRight className="h-3 w-3 ml-1" />
             </Link>
           </Button>
-        </div>
-      )}
+        )}
+        {!isPosted && (
+          <Button
+            size="sm"
+            onClick={() => postNow.mutate()}
+            disabled={postNow.isPending}
+          >
+            {postNow.isPending ? (
+              <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Posting…</>
+            ) : (
+              <><Send className="h-3 w-3 mr-1" /> Post to accounting now</>
+            )}
+          </Button>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Card>
-          <CardContent className="pt-4 space-y-2">
+          <CardContent className="pt-4 space-y-3">
             <div className="text-xs font-semibold uppercase text-muted-foreground">GL Summary</div>
             {summary.isLoading && <div className="text-xs text-muted-foreground">Loading…</div>}
             {summary.error && (
               <div className="text-xs text-destructive">{(summary.error as Error).message}</div>
             )}
-            {summary.data != null && (
-              <pre className="text-xs whitespace-pre-wrap bg-muted/40 rounded p-2 max-h-80 overflow-auto">
-                {JSON.stringify(summary.data, null, 2)}
-              </pre>
+            {s && (
+              <div className="space-y-4 text-xs">
+                <SummarySection title="Revenue" total={revenueTotal} currency={currency}>
+                  {(s.revenue ?? []).map((r, i) => (
+                    <SummaryRow
+                      key={`rev-${i}`}
+                      label={r.sales_account_id ? `Account ${r.sales_account_id.slice(0, 8)}…` : "Unmapped sales account"}
+                      warn={!r.sales_account_id}
+                      amount={Number(r.total_amount ?? 0)}
+                      currency={currency}
+                    />
+                  ))}
+                </SummarySection>
+
+                <SummarySection title="Payments received" total={paymentsTotal} currency={currency}>
+                  {(s.payments ?? []).map((p, i) => (
+                    <SummaryRow
+                      key={`pay-${i}`}
+                      label={p.payment_method}
+                      warn={!p.debit_account_id}
+                      amount={Number(p.total_amount ?? 0)}
+                      currency={currency}
+                    />
+                  ))}
+                </SummarySection>
+
+                <SummarySection title="Cost of goods sold" total={cogsTotal} currency={currency}>
+                  {(s.cogs ?? []).map((c, i) => (
+                    <SummaryRow
+                      key={`cogs-${i}`}
+                      label={
+                        c.cogs_account_id
+                          ? `COGS ${c.cogs_account_id.slice(0, 8)}…`
+                          : "Unmapped COGS account"
+                      }
+                      warn={!c.cogs_account_id || !c.inventory_account_id}
+                      amount={Number(c.total_cogs ?? 0)}
+                      currency={currency}
+                    />
+                  ))}
+                </SummarySection>
+
+                <div className="flex justify-between border-t pt-2">
+                  <span className="text-muted-foreground">Tax collected</span>
+                  <span className="tabular-nums font-medium">{fmtMoney(Number(s.tax_total ?? 0), currency)}</span>
+                </div>
+              </div>
             )}
-            {summary.data == null && !summary.isLoading && !summary.error && (
-              <div className="text-xs text-muted-foreground">No GL summary returned (shift not posted).</div>
+            {s == null && !summary.isLoading && !summary.error && (
+              <div className="text-xs text-muted-foreground">No GL summary returned.</div>
             )}
-            <div className="text-[10px] text-muted-foreground">Currency: {currency}</div>
           </CardContent>
         </Card>
         <Card>
@@ -444,6 +544,36 @@ function ShiftDetail({
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function SummarySection({
+  title, total, currency, children,
+}: { title: string; total: number; currency: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between items-baseline">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
+        <span className="tabular-nums font-medium">{fmtMoney(total, currency)}</span>
+      </div>
+      <div className="space-y-0.5 pl-2 border-l">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({
+  label, amount, currency, warn,
+}: { label: string; amount: number; currency: string; warn?: boolean }) {
+  return (
+    <div className="flex justify-between items-center py-0.5">
+      <span className={warn ? "text-amber-700 dark:text-amber-400 flex items-center gap-1" : "text-muted-foreground"}>
+        {warn && <AlertTriangle className="h-3 w-3" />}
+        {label}
+      </span>
+      <span className="tabular-nums">{fmtMoney(amount, currency)}</span>
     </div>
   );
 }
