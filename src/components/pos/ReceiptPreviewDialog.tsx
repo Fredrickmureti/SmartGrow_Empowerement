@@ -88,6 +88,7 @@ export function ReceiptPreviewDialog({
   transaction,
   onPrint,
   onEmail,
+  onClone,
 }: ReceiptPreviewDialogProps) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
