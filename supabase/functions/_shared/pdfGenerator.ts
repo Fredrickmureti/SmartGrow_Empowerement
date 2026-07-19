@@ -240,6 +240,32 @@ function drawDocumentMeta(
     metas.push({ label: cf.field_label, value: String(cf.field_value) });
   }
 
+  // On narrow (thermal) paper there is no room for a right-aligned meta
+  // column beside a left-aligned recipient — the two blocks collide (the
+  // "Customer:" overlap defect). Stack the meta as full-width label/value
+  // rows and let the recipient block flow beneath it in document order.
+  const isNarrow = state.density === "narrow";
+  if (isNarrow) {
+    const leftX = margin;
+    const rightX = pageWidth - margin;
+    const rowH = 11;
+    for (const m of metas) {
+      builder.ensureSpace(rowH);
+      page.drawText(m.label, {
+        x: leftX, y: builder.y,
+        size: labelSize, font: fontRegular, color: theme.color.medGray,
+      });
+      const vw = fontBold.widthOfTextAtSize(m.value, valueSize);
+      page.drawText(m.value, {
+        x: rightX - vw, y: builder.y,
+        size: valueSize, font: fontBold, color: theme.color.text,
+      });
+      builder.y -= rowH;
+    }
+    builder.y -= 4;
+    return;
+  }
+
   let y = startY;
   for (const m of metas) {
     const labelW = fontRegular.widthOfTextAtSize(m.label, labelSize);
@@ -312,15 +338,25 @@ export async function generateDocumentPdf(
 
   builder.newPage();
 
-  // Document meta on the right (under masthead, before bill-to)
+  // Document meta. On wide paper (A4/Letter) the meta is right-aligned and
+  // the recipient renders alongside it on the left. On narrow thermal paper
+  // there is no horizontal room for two columns, so the meta stacks
+  // full-width and the recipient flows beneath it.
+  const narrowLayout = builder.state.density === "narrow";
   const metaTopY = builder.y;
   drawDocumentMeta(builder, data, customFields);
-  // Reset y to meta top so the bill-to renders at the same vertical position
-  // on the LEFT (the meta only consumed the right column).
-  builder.y = metaTopY;
+  if (!narrowLayout) {
+    // Reset y to meta top so the bill-to renders at the same vertical position
+    // on the LEFT (the meta only consumed the right column).
+    builder.y = metaTopY;
+  }
 
-  // Recipient (bill-to) on the left
-  drawSalesRecipient(builder, billToLabel, data.contact, customFields);
+  // Recipient (bill-to). Skipped on narrow paper when the contact is empty
+  // (walk-in POS sales) — printing "Customer:" with no body wastes rows.
+  const hasRecipient = !!(data.contact && (data.contact.name || data.contact.company || data.contact.email || data.contact.phone || data.contact.address_line1));
+  if (!narrowLayout || hasRecipient) {
+    drawSalesRecipient(builder, billToLabel, data.contact, customFields);
+  }
 
   // Line items — for customer-payment receipts with allocation rows we
   // render a dedicated "Applied To Invoices" table instead of the generic
