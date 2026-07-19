@@ -342,8 +342,10 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
   // Derived, from server-authoritative rows only. Consumers must not
   // re-derive these client-side; `no-client-payment-math` fails the
   // build if PaymentDialog.tsx introduces `.reduce` over payments/tenders.
+  // Active = not reversed. There is no `status` column on the tenders
+  // table; `reversed_at IS NULL` is the source of truth.
   const activeTenders = useMemo(
-    () => tenders.filter((t) => t.status === "active"),
+    () => tenders.filter((t) => t.reversed_at == null),
     [tenders],
   );
   const allocated = useMemo(
