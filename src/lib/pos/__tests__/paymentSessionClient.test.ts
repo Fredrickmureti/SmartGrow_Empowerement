@@ -156,8 +156,17 @@ describe("paymentSessionClient", () => {
   });
 
   describe("commitSession", () => {
-    it("forwards the envelope as p_transaction_envelope and returns the transaction id", async () => {
-      rpcMock.mockResolvedValueOnce({ data: "txn-1", error: null });
+    it("forwards the envelope as p_transaction_envelope and returns the full envelope", async () => {
+      const serverEnvelope = {
+        success: true,
+        idempotent_replay: false,
+        session_id: "sess-1",
+        transaction_id: "txn-1",
+        transaction_number: "R-0001",
+        change: 0,
+        branch_id: "br-1",
+      };
+      rpcMock.mockResolvedValueOnce({ data: serverEnvelope, error: null });
       const envelope = {
         shift_id: "sh-1",
         items: [{ product_id: "p1", quantity: 1 }],
@@ -165,8 +174,10 @@ describe("paymentSessionClient", () => {
         tax_amount: 16,
         discount_amount: 0,
       };
-      const txn = await commitSession({ sessionId: "sess-1", envelope });
-      expect(txn).toBe("txn-1");
+      const result = await commitSession({ sessionId: "sess-1", envelope });
+      expect(result.transaction_id).toBe("txn-1");
+      expect(result.transaction_number).toBe("R-0001");
+      expect(result.session_id).toBe("sess-1");
       expect(rpcMock).toHaveBeenCalledWith("pos_payment_session_commit", {
         p_session_id: "sess-1",
         p_transaction_envelope: envelope,
@@ -189,6 +200,7 @@ describe("paymentSessionClient", () => {
       });
     });
   });
+
 
   describe("cancelSession", () => {
     it("calls pos_payment_session_cancel with the reason", async () => {

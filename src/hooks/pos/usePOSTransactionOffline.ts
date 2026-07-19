@@ -23,10 +23,17 @@ import { transactionQueue, syncManager } from "@/services/offline";
 import { usePOSSecuritySettings } from "./usePOSSecuritySettings";
 import { usePOSCreditSale } from "./usePOSCreditSale";
 import { useCommitKey } from "./useCommitKey";
+import {
+  openSession,
+  recordTender,
+  commitSession,
+  type PosTenderKind,
+} from "@/lib/pos/paymentSessionClient";
 // hardwareClient import removed — POS hardware side-effects flow through the
 // `payment.received` business event + SharedCommandQueueWorker (Group D #6).
 
 import type { CartState } from "./usePOSCart";
+
 
 export interface PaymentMethod {
   method: "cash" | "card" | "mobile_money" | "voucher" | "credit" | "bank_transfer" | "other";
@@ -186,20 +193,95 @@ export function usePOSTransactionOffline() {
   };
 }
 
+/**
+ * Wave 3 · Phase 3 — online retail commit runs through the payment-session
+ * lifecycle instead of calling `process_pos_transaction` directly.
+ *
+ *   openSession(idempotencyKey = commitKey)
+ *     → for each payment: recordTender(idempotencyKey = `${commitKey}:tender:${i}`)
+ *     → commitSession(envelope) → returns the full process_pos_transaction envelope
+ *
+ * Retries collapse on the server for all three stages because every
+ * mutating call carries a deterministic idempotency key derived from
+ * `useCommitKey(register, shift)`. The apply-log on the session guarantees
+ * a second commit returns the cached envelope of the first.
+ *
+ * Offline replay still uses `process_pos_transaction` directly (Phase 4).
+ */
+function tenderKindFor(method: PaymentMethod["method"]): PosTenderKind {
+  switch (method) {
+    case "cash":          return "cash";
+    case "card":          return "card";
+    case "mobile_money":  return "wallet";
+    case "voucher":       return "voucher";
+    case "credit":        return "credit_liability";
+    case "bank_transfer": return "bank_transfer";
+    default:              return "other";
+  }
+}
+
 async function processOnlineTransaction(
   data: CompleteTransactionData,
   organizationId: string,
   businessId: string,
-  userId: string
+  userId: string,
 ) {
-  const { data: result, error } = await supabase.rpc(
-    "process_pos_transaction" as any,
-    {
-      p_organization_id: organizationId,
-      p_business_id: data.business_id || businessId,
-      p_register_id: data.register_id,
-      p_shift_id: data.shift_id,
-      p_items: data.cart.items.map((item) => ({
+  const idempotencyKey = data.idempotency_key;
+  if (!idempotencyKey || typeof idempotencyKey !== "string" || idempotencyKey.trim().length === 0) {
+    throw new Error(
+      "POS commit missing idempotency_key — resolve via useCommitKey(register, shift) before opening a session (ADR 0082 D3).",
+    );
+  }
+
+  // 1. Open (or resume) the session. Idempotent on (business_id, idempotency_key).
+  const sessionId = await openSession({
+    registerId: data.register_id,
+    grandTotal: data.cart.total,
+    currency: "KES",
+    idempotencyKey,
+    tipAmount: data.tip_amount ?? 0,
+    cashierId: userId,
+  });
+
+  // 2. Record each tender. Deterministic per-tender key so a mid-flight retry
+  //    of the whole request lands on the same rows.
+  for (let i = 0; i < data.payments.length; i++) {
+    const p = data.payments[i];
+    const tendered = p.tendered_amount ?? p.amount;
+    const changeGiven = p.change_given ?? Math.max(0, tendered - p.amount);
+    const methodKey = p.method === "mpesa" ? "mobile_money" : p.method;
+    const tenderKind = tenderKindFor(p.method);
+    await recordTender({
+      sessionId,
+      idempotencyKey: `${idempotencyKey}:tender:${i}`,
+      tender: {
+        tender_kind: tenderKind,
+        method_key: methodKey,
+        provider_key: p.method === "mobile_money" ? "mpesa" : undefined,
+        amount: p.amount,
+        tendered_amount: tendered,
+        change_given: p.method === "cash" ? changeGiven : 0,
+        reference: p.reference ?? null,
+        auth_state: p.auth_state ?? undefined,
+        auth_id: p.auth_id ?? null,
+        vendor_txn_id: p.vendor_txn_id ?? null,
+        driver_payload: {
+          card_last_four: p.card_last_four ?? null,
+          card_type: p.card_type ?? null,
+          authorized_amount: p.authorized_amount ?? null,
+        },
+      },
+    });
+  }
+
+  // 3. Commit — session RPC forwards to process_pos_transaction and returns
+  //    its full envelope (with session_id appended).
+  const envelope = await commitSession({
+    sessionId,
+    envelope: {
+      organization_id: organizationId,
+      shift_id: data.shift_id,
+      items: data.cart.items.map((item) => ({
         product_id: item.product_id,
         name: item.name,
         quantity: item.quantity,
@@ -212,91 +294,39 @@ async function processOnlineTransaction(
         cost_price: item.cost_price || null,
         tax_rate_id: item.tax_rate_id || null,
         etims_tax_code: item.etims_tax_code || null,
-        // Phase B UoM unification — provenance for the line. The RPC
-        // normalizes via packaging triggers; `quantity` stays in base units.
         packaging_id: item.packaging_id ?? null,
         display_uom_id: item.display_uom_id ?? null,
         display_quantity: item.display_quantity ?? null,
         base_uom_id: item.base_uom_id ?? null,
       })),
-      p_payments: data.payments.map((p) => {
-        const tendered = p.tendered_amount ?? p.amount;
-        const change = p.change_given ?? Math.max(0, tendered - p.amount);
-        return {
-          payment_method: p.method,
-          amount: p.amount,
-          tendered_amount: tendered,
-          change_given: p.method === "cash" ? change : 0,
-          reference: p.reference || null,
-          card_last_four: p.card_last_four || null,
-          card_type: p.card_type || null,
-          mpesa_receipt_number: p.method === "mobile_money" ? p.reference : null,
-          // Wave 2 · Phase C-2 — card FSM initial state + vendor auth trail.
-          // Nullable for non-card tenders; `_pos_record_payment` treats
-          // empty strings as NULL so the FSM guard skips these rows.
-          auth_state: p.auth_state ?? null,
-          auth_id: p.auth_id ?? null,
-          vendor_txn_id: p.vendor_txn_id ?? null,
-          authorized_amount: p.authorized_amount ?? null,
-        };
-      }),
-
-      p_subtotal: data.cart.subtotal,
-      p_tax_amount: data.cart.tax_amount,
-      p_discount_amount: data.cart.discount_amount,
-      p_total: data.cart.total,
-      p_customer_id: data.cart.customer?.id || null,
-      p_customer_name: data.cart.customer?.name || null,
-      p_notes: data.cart.notes || null,
-      p_created_by: userId,
-      p_transaction_type: data.transaction_type || "sale",
-      p_table_session_id: data.table_session_id || null,
-      p_tip_amount: data.tip_amount || 0,
-      p_original_transaction_id: data.original_transaction_id || null,
-      // Batch T2 (ADR 0082 D3): idempotency key is mandatory. The database
-      // trigger `trg_pos_transactions_require_idempotency_key` rejects any
-      // insert without one, and the previous `|| crypto.randomUUID()`
-      // fallback silently defeated retry-collapse. Callers must supply a
-      // deterministic key (useCommitKey / queued.id); we throw here if
-      // that contract is violated so the bug surfaces at the boundary,
-      // not deep inside the RPC.
-      p_idempotency_key: (() => {
-        const k = data.idempotency_key;
-        if (!k || typeof k !== "string" || k.trim().length === 0) {
-          throw new Error(
-            "POS commit missing idempotency_key — resolve via useCommitKey(register, shift) before calling process_pos_transaction (ADR 0082 D3).",
-          );
-        }
-        return k;
-      })(),
-    }
-  );
-
-  if (error) throw error;
-
-  const rpcResult = result as any;
-
-  if (!rpcResult?.success) {
-    const errMsg =
-      rpcResult?.error === "insufficient_stock"
-        ? `Insufficient stock for: ${(rpcResult.details as any[]).map((d: any) => d.product_name).join(", ")}`
-        : rpcResult?.error || "Transaction processing failed";
-    throw new Error(errMsg);
-  }
+      subtotal: data.cart.subtotal,
+      tax_amount: data.cart.tax_amount,
+      discount_amount: data.cart.discount_amount,
+      transaction_type: data.transaction_type === "return" ? "return" : "sale",
+      customer_id: data.cart.customer?.id ?? null,
+      customer_name: data.cart.customer?.name ?? null,
+      notes: data.cart.notes ?? null,
+      original_transaction_id: data.original_transaction_id ?? null,
+      table_session_id: data.table_session_id ?? null,
+    },
+  });
 
   const totalPaid = data.payments.reduce((sum, p) => sum + p.amount, 0);
 
   return {
     transaction: {
-      id: rpcResult.transaction_id,
-      branch_id: rpcResult.branch_id,
+      id: envelope.transaction_id,
+      branch_id: envelope.branch_id,
       created_at: new Date().toISOString(),
     },
-    transactionNumber: rpcResult.transaction_number,
-    change: rpcResult.change ?? Math.max(0, totalPaid - data.cart.total),
+    transactionNumber: envelope.transaction_number ?? "",
+    change: envelope.change ?? Math.max(0, totalPaid - data.cart.total),
     isOffline: false,
   };
 }
+
+
+
 
 async function processOfflineTransaction(
   data: CompleteTransactionData,
