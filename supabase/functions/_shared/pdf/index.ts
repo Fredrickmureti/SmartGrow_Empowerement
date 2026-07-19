@@ -51,6 +51,16 @@ export function assertStatutoryPaper(
   allowed: readonly string[] = STATUTORY_PAPER_ALLOWLIST,
 ): void {
   const normalized = (received ?? "a4").toLowerCase();
+  // Belt-and-braces guard against the continuous-roll sentinel leaking
+  // through as a stringified paper format (ADR-0008 Phase T2). The
+  // allowlist check below would already reject it, but naming it here
+  // produces a clearer error and makes the intent auditable.
+  if (normalized === "continuous" || normalized === "auto") {
+    throw new Error(
+      `Statutory paper pin violated: requested "${normalized}" (continuous roll). ` +
+        `Statutory documents are regulator-locked to fixed-height sheets [${allowed.join(", ")}].`,
+    );
+  }
   if (!allowed.includes(normalized)) {
     throw new Error(
       `Statutory paper pin violated: requested "${normalized}", allowed [${allowed.join(", ")}]. ` +
@@ -58,6 +68,7 @@ export function assertStatutoryPaper(
     );
   }
 }
+
 
 export {
   drawBrandedHeader,
