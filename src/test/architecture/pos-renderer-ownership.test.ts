@@ -79,8 +79,13 @@ describe("Milestone B — POS renderer ownership", () => {
       join(root, "src", "lib", "pos", "receipt", "renderers", "index.ts"),
       "utf8",
     );
-    expect(src).toMatch(/PreviewRenderer/);
+    // After Wave 4 the HTML `PreviewRenderer` is gone; the barrel only
+    // re-exports the customer-display renderer and the paper-width
+    // type alias used by POS surfaces. Previews now flow through the
+    // unified `MonospacePreview` from `@/lib/receipt/preview`.
     expect(src).toMatch(/CustomerDisplayRenderer|showSuccessOnCustomerDisplay/);
+    expect(src).toMatch(/ReceiptPaperWidth/);
+    expect(src).not.toMatch(/from\s+["']\.\/PreviewRenderer["']/);
     expect(src).not.toMatch(/from\s+["']\.\/ThermalPrintRenderer["']/);
     expect(src).not.toMatch(/from\s+["']\.\/PdfRenderer["']/);
     expect(src).not.toMatch(/export\s+\{[^}]*\bprintThermal\b/);
