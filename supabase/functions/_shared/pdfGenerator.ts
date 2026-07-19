@@ -240,6 +240,32 @@ function drawDocumentMeta(
     metas.push({ label: cf.field_label, value: String(cf.field_value) });
   }
 
+  // On narrow (thermal) paper there is no room for a right-aligned meta
+  // column beside a left-aligned recipient — the two blocks collide (the
+  // "Customer:" overlap defect). Stack the meta as full-width label/value
+  // rows and let the recipient block flow beneath it in document order.
+  const isNarrow = state.density === "narrow";
+  if (isNarrow) {
+    const leftX = margin;
+    const rightX = pageWidth - margin;
+    const rowH = 11;
+    for (const m of metas) {
+      builder.ensureSpace(rowH);
+      page.drawText(m.label, {
+        x: leftX, y: builder.y,
+        size: labelSize, font: fontRegular, color: theme.color.medGray,
+      });
+      const vw = fontBold.widthOfTextAtSize(m.value, valueSize);
+      page.drawText(m.value, {
+        x: rightX - vw, y: builder.y,
+        size: valueSize, font: fontBold, color: theme.color.text,
+      });
+      builder.y -= rowH;
+    }
+    builder.y -= 4;
+    return;
+  }
+
   let y = startY;
   for (const m of metas) {
     const labelW = fontRegular.widthOfTextAtSize(m.label, labelSize);
