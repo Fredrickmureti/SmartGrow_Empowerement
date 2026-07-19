@@ -74,6 +74,12 @@ interface ReceiptPreviewDialogProps {
   } | null;
   onPrint?: () => void;
   onEmail?: () => void;
+  /**
+   * Optional — when supplied, a "Clone" button appears next to Print and
+   * fires this callback so the caller can re-open a POS session
+   * pre-filled with the same line items. Enerpize-style flow.
+   */
+  onClone?: () => void;
 }
 
 export function ReceiptPreviewDialog({
