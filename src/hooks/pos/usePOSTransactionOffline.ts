@@ -325,9 +325,7 @@ async function processOnlineTransaction(
   };
 }
 
-// Kept for offline sync consumers that still reference the register lookup helper.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _referencedSupabase = supabase;
+
 
 
 async function processOfflineTransaction(
