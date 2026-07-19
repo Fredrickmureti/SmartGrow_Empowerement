@@ -556,7 +556,7 @@ function StatementDrawer({
                         </TableCell>
                         <TableCell className="text-xs">
                           {t.resolved ? (
-                            <span className="font-mono">{t.account_id?.slice(0, 8)}…</span>
+                            <span title={t.account_id ?? ""}>{fmtAccount(t)}</span>
                           ) : (
                             <Badge variant="destructive" className="gap-1">
                               <AlertTriangle className="h-3 w-3" /> Unmapped
