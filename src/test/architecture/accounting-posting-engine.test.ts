@@ -1,0 +1,83 @@
+/**
+ * B6 architecture guard — Single Accounting Posting Engine.
+ *
+ * Enforces the invariants documented in .lovable/plan.md §6:
+ *   1. No new producer-specific `retry_*_posting` RPC may exist. The
+ *      only valid manual retry verb is `accounting_post_event`.
+ *   2. Producer-specific GL posters (`post_*_gl`) may still exist as
+ *      internal builders, but MUST be reachable only via the engine.
+ *      The outbox dispatcher may reference `accounting_post_event`
+ *      and MUST NOT reference `post_pos_statement_gl` directly.
+ *   3. Non-admin UI surfaces must not read `business_event_outbox`.
+ *      Only allow-listed admin/support pages may do so.
+ */
+import { describe, it, expect } from "vitest";
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+function rgFiles(pattern: string, path: string): string[] {
+  try {
+    return execSync(`rg -l ${JSON.stringify(pattern)} ${path}`, {
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+describe("Accounting Posting Engine — B6 architectural surface", () => {
+  it("no `retry_*_posting` producer RPC survives after B6", () => {
+    // The legacy public.retry_pos_statement_posting is dropped by B6.
+    // Any file that RE-CREATES such a function must be flagged.
+    const migrations = rgFiles(
+      "CREATE OR REPLACE FUNCTION public\\.retry_[a-z_]+_posting",
+      "supabase/migrations",
+    );
+    expect(migrations).toEqual([]);
+  });
+
+  it("dispatcher calls the engine, not the producer-specific poster", () => {
+    const dispatcher = readFileSync(
+      "supabase/functions/outbox-dispatcher/index.ts",
+      "utf8",
+    );
+    expect(dispatcher).toMatch(/accounting_post_event/);
+    expect(dispatcher).not.toMatch(/post_pos_statement_gl/);
+  });
+
+  it("POS statement close trigger emits accounting_event_id in outbox payload", () => {
+    const migrations = rgFiles(
+      "_pos_stmt_enqueue_gl_post",
+      "supabase/migrations",
+    ).sort();
+    const latest = migrations[migrations.length - 1];
+    expect(latest).toBeTruthy();
+    const sql = readFileSync(latest, "utf8");
+    expect(sql).toMatch(/accounting_event_id/);
+    expect(sql).toMatch(/business_idempotency_key/);
+  });
+
+  it("non-admin UI does not read business_event_outbox directly", () => {
+    const allow = new Set<string>([
+      // Accountant-facing operational workspace: reads outbox only to
+      // enrich the admin-collapsible "Delivery diagnostics" panel.
+      "src/pages/finance/AccountingEventsWorkspace.tsx",
+      // Admin-only hardware / ops surface.
+      "src/pages/admin/HardwareOpsPage.tsx",
+      // Infrastructure — not a UI surface.
+      "src/services/events/BusinessSaga.ts",
+      "src/services/events/domainEventBus.ts",
+    ]);
+    const files = rgFiles("business_event_outbox", "src");
+    const offenders = files.filter((f) => {
+      if (f.startsWith("src/test/")) return false;
+      if (f.startsWith("src/__tests__/")) return false;
+      if (f.endsWith(".test.ts") || f.endsWith(".test.tsx")) return false;
+      if (f === "src/integrations/supabase/types.ts") return false;
+      return !allow.has(f);
+    });
+    expect(offenders).toEqual([]);
+  });
+});
