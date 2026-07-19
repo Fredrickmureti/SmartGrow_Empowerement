@@ -96,11 +96,13 @@ describe("pos_payment_session_commit — SQL contract (Wave 3 Phase 4)", () => {
   });
 
   it("(C2) idempotent replay returns the cached envelope without re-executing the underlying commit", () => {
-    // The apply-log lookup must happen BEFORE any call to
-    // process_pos_transaction / finalize_table_order.
-    const applyLogIdx = commitSql.search(/pos_payment_session_apply_log/i);
-    const processIdx  = commitSql.search(/process_pos_transaction\s*\(/i);
-    const finalizeIdx = commitSql.search(/finalize_table_order\s*\(/i);
+    // Positional analysis must ignore `-- line comments`, otherwise the
+    // function-header docblock (which mentions both RPC names) skews
+    // the "first occurrence" indices.
+    const stripped = commitSql.replace(/--[^\n]*/g, "");
+    const applyLogIdx = stripped.search(/pos_payment_session_apply_log/i);
+    const processIdx  = stripped.search(/process_pos_transaction\s*\(/i);
+    const finalizeIdx = stripped.search(/finalize_table_order\s*\(/i);
     expect(applyLogIdx, "must consult the apply log").toBeGreaterThan(-1);
     expect(processIdx, "must call process_pos_transaction at least once").toBeGreaterThan(-1);
     expect(finalizeIdx, "must call finalize_table_order at least once").toBeGreaterThan(-1);
