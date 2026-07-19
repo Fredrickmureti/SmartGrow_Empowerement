@@ -226,6 +226,11 @@ export function ContractsListPage(props: ContractsListPageProps) {
                         <Printer className="mr-1 h-3.5 w-3.5" />
                         Print
                       </Button>
+                      <DocumentHistorySheet
+                        documentType="contract_letter"
+                        documentId={c.id}
+                        title={`Contract ${c.contract_reference ?? c.employee_name ?? ""}`.trim()}
+                      />
                       <Button
                         variant="ghost"
                         size="icon"
