@@ -1,0 +1,244 @@
+/**
+ * POS Payment Session Client — Wave 3 · Phase 2
+ * -----------------------------------------------------------------------------
+ * The five session-lifecycle RPCs are server-owned (SECURITY DEFINER) and
+ * every client that touches them MUST go through this wrapper. The
+ * architecture guard `src/test/architecture/pos-payment-session-lifecycle.test.ts`
+ * fails the build if any other file references the RPCs by name.
+ *
+ * Responsibilities kept in one place:
+ *   1. Typed argument surfaces (no raw `Json` at call sites).
+ *   2. Deterministic idempotency-key generation for every mutating call.
+ *      The server dedupes on `(business_id, idempotency_key)` for sessions
+ *      and `(session_id, idempotency_key)` for tenders — a retried call
+ *      with the SAME key MUST be safe, and this wrapper never mints a
+ *      fresh key inside a retry loop.
+ *   3. Uniform error surface: RPC errors are re-thrown with a stable
+ *      `POSPaymentSessionError` shape so callers can pattern-match without
+ *      parsing Postgres error strings.
+ *   4. Business-event side effects live on the server — this wrapper does
+ *      not fire any client-side analytics on success. Consumers subscribe
+ *      to the `pos.payment.session.*` outbox topics instead.
+ */
+import { supabase } from "@/integrations/supabase/client";
+
+// ---------------------------------------------------------------------------
+// Idempotency
+// ---------------------------------------------------------------------------
+
+/**
+ * Mint an idempotency key. Prefer providing your own stable key (e.g. the
+ * commit key from `useCommitKey`) so retries collapse; use this only when
+ * no upstream stable identifier exists.
+ */
+export function newIdempotencyKey(prefix = "pos.session"): string {
+  const rand =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `${prefix}:${rand}`;
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type PosTenderKind =
+  | "cash"
+  | "card"
+  | "wallet"
+  | "voucher"
+  | "credit_liability"
+  | "bank_transfer"
+  | "other";
+
+export type PosTenderAuthState =
+  | "pending"
+  | "authorized"
+  | "approved"
+  | "captured"
+  | "reversed"
+  | "failed";
+
+export interface PosSessionTenderInput {
+  tender_kind: PosTenderKind;
+  method_key: string;
+  provider_key?: string | null;
+  /** Amount applied to the invoice. Must be > 0. */
+  amount: number;
+  /** What the customer presented; defaults to `amount` server-side. */
+  tendered_amount?: number;
+  /** Cash change due; 0 for non-cash tenders. */
+  change_given?: number;
+  reference?: string | null;
+  auth_state?: PosTenderAuthState;
+  auth_id?: string | null;
+  vendor_txn_id?: string | null;
+  /** Opaque driver payload persisted for audit; never inspected server-side. */
+  driver_payload?: Record<string, unknown>;
+}
+
+export interface OpenSessionArgs {
+  registerId: string;
+  grandTotal: number;
+  currency: string;
+  idempotencyKey: string;
+  tipAmount?: number;
+  cashierId?: string | null;
+}
+
+export interface RecordTenderArgs {
+  sessionId: string;
+  tender: PosSessionTenderInput;
+  idempotencyKey: string;
+}
+
+export interface ReverseTenderArgs {
+  sessionId: string;
+  tenderId: string;
+  reason: string;
+}
+
+export interface CancelSessionArgs {
+  sessionId: string;
+  reason: string;
+}
+
+/**
+ * Transaction envelope forwarded to `process_pos_transaction` inside the
+ * commit RPC. Mirrors the retail-mode payload used by `useCompleteTransaction`
+ * MINUS `payments` (the session's tenders are the payments) and MINUS the
+ * business/register/shift ids that are read from the session row itself.
+ */
+export interface CommitSessionEnvelope {
+  organization_id?: string | null;
+  shift_id: string;
+  items: unknown; // cart items array — passed through opaquely
+  subtotal: number;
+  tax_amount: number;
+  discount_amount?: number;
+  transaction_type?: "sale" | "refund" | "return" | "void";
+  customer_id?: string | null;
+  customer_tin?: string | null;
+  customer_name?: string | null;
+  notes?: string | null;
+  original_transaction_id?: string | null;
+  table_session_id?: string | null;
+}
+
+export interface CommitSessionArgs {
+  sessionId: string;
+  envelope: CommitSessionEnvelope;
+}
+
+// ---------------------------------------------------------------------------
+// Error surface
+// ---------------------------------------------------------------------------
+
+export class POSPaymentSessionError extends Error {
+  readonly rpc: string;
+  readonly code: string | null;
+  readonly hint: string | null;
+  readonly details: string | null;
+
+  constructor(
+    rpc: string,
+    message: string,
+    opts: { code?: string | null; hint?: string | null; details?: string | null } = {},
+  ) {
+    super(message);
+    this.name = "POSPaymentSessionError";
+    this.rpc = rpc;
+    this.code = opts.code ?? null;
+    this.hint = opts.hint ?? null;
+    this.details = opts.details ?? null;
+  }
+}
+
+function throwRpcError(rpc: string, error: unknown): never {
+  const e = error as { message?: string; code?: string; hint?: string; details?: string } | null;
+  throw new POSPaymentSessionError(rpc, e?.message ?? `${rpc} failed`, {
+    code: e?.code ?? null,
+    hint: e?.hint ?? null,
+    details: e?.details ?? null,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// RPCs
+// ---------------------------------------------------------------------------
+
+export async function openSession(args: OpenSessionArgs): Promise<string> {
+  if (!args.idempotencyKey) {
+    throw new POSPaymentSessionError(
+      "pos_payment_session_open",
+      "idempotencyKey is required — retries must collapse to a single session",
+    );
+  }
+  const { data, error } = await supabase.rpc("pos_payment_session_open", {
+    p_register_id: args.registerId,
+    p_grand_total: args.grandTotal,
+    p_currency: args.currency,
+    p_idempotency_key: args.idempotencyKey,
+    p_tip_amount: args.tipAmount ?? 0,
+    p_cashier_id: args.cashierId ?? undefined,
+  });
+  if (error) throwRpcError("pos_payment_session_open", error);
+  return data as string;
+}
+
+export async function recordTender(args: RecordTenderArgs): Promise<string> {
+  if (!args.idempotencyKey) {
+    throw new POSPaymentSessionError(
+      "pos_payment_session_record_tender",
+      "idempotencyKey is required — retries must not double-append the tender",
+    );
+  }
+  const { data, error } = await supabase.rpc("pos_payment_session_record_tender", {
+    p_session_id: args.sessionId,
+    p_tender: args.tender as unknown as never, // typed as Json in generated types
+    p_idempotency_key: args.idempotencyKey,
+  });
+  if (error) throwRpcError("pos_payment_session_record_tender", error);
+  return data as string;
+}
+
+export async function reverseTender(args: ReverseTenderArgs): Promise<void> {
+  const { error } = await supabase.rpc("pos_payment_session_reverse_tender", {
+    p_session_id: args.sessionId,
+    p_tender_id: args.tenderId,
+    p_reason: args.reason,
+  });
+  if (error) throwRpcError("pos_payment_session_reverse_tender", error);
+}
+
+export async function commitSession(args: CommitSessionArgs): Promise<string> {
+  const { data, error } = await supabase.rpc("pos_payment_session_commit", {
+    p_session_id: args.sessionId,
+    p_transaction_envelope: args.envelope as unknown as never,
+  });
+  if (error) throwRpcError("pos_payment_session_commit", error);
+  return data as string;
+}
+
+export async function cancelSession(args: CancelSessionArgs): Promise<void> {
+  const { error } = await supabase.rpc("pos_payment_session_cancel", {
+    p_session_id: args.sessionId,
+    p_reason: args.reason,
+  });
+  if (error) throwRpcError("pos_payment_session_cancel", error);
+}
+
+/**
+ * Grouped export — some call sites prefer namespaced access
+ * (`paymentSessionClient.commit(...)`), others prefer named imports.
+ * Both surfaces resolve to the same functions.
+ */
+export const paymentSessionClient = {
+  newIdempotencyKey,
+  openSession,
+  recordTender,
+  reverseTender,
+  commitSession,
+  cancelSession,
+};
