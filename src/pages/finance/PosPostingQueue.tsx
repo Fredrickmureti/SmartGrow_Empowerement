@@ -527,10 +527,11 @@ function StatementDrawer({
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <SummaryLine label="Net revenue" amount={p.net_revenue} currency={currency}
-                warn={!!p.revenue && !p.revenue.resolved} />
+                account={fmtAccount(p.revenue)} warn={!!p.revenue && !p.revenue.resolved} />
               <SummaryLine label="Tax" amount={p.tax?.amount ?? 0} currency={currency}
-                warn={!!p.tax && !p.tax.resolved} />
-              <SummaryLine label="Tip" amount={p.tip?.amount ?? 0} currency={currency} />
+                account={fmtAccount(p.tax)} warn={!!p.tax && !p.tax.resolved} />
+              <SummaryLine label="Tip" amount={p.tip?.amount ?? 0} currency={currency}
+                account={p.tip ? fmtAccount(p.tip) : undefined} />
               <SummaryLine label="Total sales" amount={p.total_sales} currency={currency} />
             </div>
 
