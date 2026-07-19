@@ -239,14 +239,14 @@ function drawNarrowTotals(
   // ascender line — never inside the glyph body — so the label is not
   // struck through on 80mm / 58mm receipts. lineH=11, bold size=9, so we
   // budget 3pt of clearance between the rule and the TOTAL text top.
-  builder.y -= 4; // gap after last summary row
-  builder.ensureSpace(lineH + 4);
+  builder.y -= 6; // gap after last summary row
+  builder.ensureSpace(lineH + 12);
   page.drawLine({
     start: { x: leftX, y: builder.y },
     end: { x: rightX, y: builder.y },
     thickness: 0.75, color: theme.color.text,
   });
-  builder.y -= 4; // clearance below rule, before TOTAL baseline
+  builder.y -= 11; // ascender + gap so rule sits above TOTAL glyphs, not through them
   drawRow("TOTAL", formatAccountingNumber(config.total, currency), true);
 
   if (config.amountPaid !== undefined) {
