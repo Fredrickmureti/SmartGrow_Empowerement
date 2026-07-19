@@ -24,7 +24,7 @@
  * accounts — they do, because both consume the same resolver.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -50,7 +50,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useCurrency } from "@/hooks/useCurrency";
-import { PageHeader } from "@/components/PageHeader";
+import { PageHeader } from "@/components/layout/page";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -659,5 +659,5 @@ function SummaryLine({
   );
 }
 
-const useSearchParamsMemoTypeGuard: unknown = useCallback; // keep tree-shaker honest
-void useSearchParamsMemoTypeGuard;
+
+

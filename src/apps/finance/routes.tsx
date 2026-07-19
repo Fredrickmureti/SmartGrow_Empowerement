@@ -89,6 +89,8 @@ const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationRepo
 
 const FinanceSettingsPage = lazy(() => import("@/pages/finance/FinanceSettings"));
 const FinanceIntegrity = lazy(() => import("@/pages/finance/FinanceIntegrity"));
+const PosPostingQueue = lazy(() => import("@/pages/finance/PosPostingQueue"));
+
 
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
@@ -844,6 +846,20 @@ export function FinanceApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* POS Posting Queue — operational workspace for POS→GL posting. */}
+        <Route
+          path="pos-posting-queue"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="POS Posting Queue">
+                <PosPostingQueue />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+
 
         {/* Catch all - redirect to accounts */}
         <Route path="*" element={<Navigate to="dashboard" replace />} />
