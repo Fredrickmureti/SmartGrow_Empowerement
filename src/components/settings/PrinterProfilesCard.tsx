@@ -47,10 +47,11 @@ const PAPER_OPTIONS: { value: PaperFormat; label: string }[] = [
   { value: "a4", label: "A4" },
   { value: "letter", label: "US Letter" },
   { value: "a5", label: "A5" },
-  { value: "80mm", label: "Thermal 80 mm" },
-  { value: "58mm", label: "Thermal 58 mm" },
-  { value: "40mm", label: "Thermal 40 mm" },
+  { value: "80mm", label: "Thermal 80 mm — continuous roll" },
+  { value: "58mm", label: "Thermal 58 mm — continuous roll" },
+  { value: "40mm", label: "Thermal 40 mm — continuous roll" },
 ];
+
 
 const THERMAL_PAPERS: PaperFormat[] = ["80mm", "58mm", "40mm"];
 
