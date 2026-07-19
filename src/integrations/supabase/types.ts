@@ -42217,6 +42217,63 @@ export type Database = {
           },
         ]
       }
+      pos_statement_posting_retries: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          id: string
+          idempotency_key: string
+          organization_id: string
+          outbox_event_id: string | null
+          reason: string | null
+          requested_at: string
+          requested_by: string
+          shift_id: string | null
+          statement_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          outbox_event_id?: string | null
+          reason?: string | null
+          requested_at?: string
+          requested_by: string
+          shift_id?: string | null
+          statement_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          outbox_event_id?: string | null
+          reason?: string | null
+          requested_at?: string
+          requested_by?: string
+          shift_id?: string | null
+          statement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_statement_posting_retries_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "pos_statements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_statement_posting_retries_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_gl_posting_drift"
+            referencedColumns: ["statement_id"]
+          },
+        ]
+      }
       pos_statement_tender_lines: {
         Row: {
           branch_id: string
@@ -74335,6 +74392,10 @@ export type Database = {
         Args: { _shift_id: string }
         Returns: Json
       }
+      get_pos_statement_posting_preview: {
+        Args: { p_statement_id: string }
+        Returns: Json
+      }
       get_pos_top_products: {
         Args: {
           p_branch_id?: string
@@ -79177,6 +79238,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      retry_pos_statement_posting: {
+        Args: { p_reason?: string; p_statement_id: string }
+        Returns: Json
       }
       revalue_fx_balances: {
         Args: {
