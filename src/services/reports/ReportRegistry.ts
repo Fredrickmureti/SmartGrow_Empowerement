@@ -284,18 +284,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["bank", "reconciliation", "statement", "matched", "unmatched", "drift"],
   },
   {
-    id: "pos-shift-gl-integrity",
-    name: "POS Shift GL Integrity",
-    description: "Per-shift GL posting status and close-time errors",
-    category: "audit",
-    path: "/finance/reports/pos-shift-gl-integrity",
-    icon: ShieldCheck,
-    requiredFeature: "reports_financial",
-    permission: "viewReports",
-    reportType: "pos-shift-gl-integrity",
-    keywords: ["pos", "shift", "gl", "posting", "integrity", "close errors"],
-  },
-  {
     id: "stock-adjustments-report",
     name: "Stock Adjustments Report",
     description: "Operational adjustments with cost impact",
