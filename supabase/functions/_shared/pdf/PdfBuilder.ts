@@ -152,11 +152,20 @@ export class PdfBuilder {
       : resolvePaperSpec(options.pageSize ?? "letter");
 
     const isLandscape = orientation === "landscape";
-    const heightMm = paper.heightMm === "auto" ? 297 : paper.heightMm;
+    // Continuous-height paper (ADR-0008 T1): render into a tall provisional
+    // page; save() crops the media box down to consumed content.
+    const isContinuous = paper.heightMm === "continsuous" as any
+      || paper.heightMm === "continuous"
+      || paper.heightMm === "auto";
+    const heightMode: "fixed" | "continuous" = isContinuous ? "continuous" : "fixed";
     const baseW = paper.widthMm * MM_TO_PT;
-    const baseH = heightMm * MM_TO_PT;
-    const pageWidth = isLandscape ? baseH : baseW;
-    const pageHeight = isLandscape ? baseW : baseH;
+    const baseH = isContinuous
+      ? CONTINUOUS_PROVISIONAL_PT
+      : (paper.heightMm as number) * MM_TO_PT;
+    // Continuous strips are portrait by definition (a landscape orientation
+    // makes no physical sense on a roll printer); ignore the landscape flag.
+    const pageWidth = (isLandscape && !isContinuous) ? baseH : baseW;
+    const pageHeight = (isLandscape && !isContinuous) ? baseW : baseH;
 
     // Density: explicit override > derived from paper width.
     // Anything ≤ 90 mm of paper goes narrow (covers 58mm and 80mm thermal).
@@ -185,10 +194,12 @@ export class PdfBuilder {
       generatedStamp: `Report generated: ${formatGeneratedStamp(generatedAt)}`,
       density,
       paper,
+      heightMode,
     };
 
     return new PdfBuilder(doc, fontRegular, fontBold, state);
   }
+
 
   /**
    * Start a new page. Increments pageNum, resets cursor to top, and invokes
