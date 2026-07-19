@@ -1736,9 +1736,20 @@ serve(async (req) => {
     // "escpos" (raw bytes for thermal printers). Both are produced by the
     // SAME fetchers / policy resolver — one unified engine. The HTML preview
     // branch was removed in Stage G.
-    if (format && format !== "pdf" && format !== "escpos" && format !== "zpl") {
+    if (format && format !== "pdf" && format !== "escpos" && format !== "zpl" && format !== "csv") {
       return new Response(
-        JSON.stringify({ error: `Unsupported format "${format}". Supported: "pdf", "escpos", "zpl".` }),
+        JSON.stringify({ error: `Unsupported format "${format}". Supported: "pdf", "escpos", "zpl", "csv".` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Milestone C.1 — tabular exports are gated to statement document types.
+    // `format=csv` for anything else 400s here so it never reaches the
+    // sales/receipt/label renderer path by accident.
+    const CSV_EXPORT_ALLOWED = new Set<string>(["customer_statement", "vendor_statement"]);
+    if (format === "csv" && !CSV_EXPORT_ALLOWED.has(String(documentType))) {
+      return new Response(
+        JSON.stringify({ error: `format="csv" is only supported for: ${[...CSV_EXPORT_ALLOWED].join(", ")}.` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
