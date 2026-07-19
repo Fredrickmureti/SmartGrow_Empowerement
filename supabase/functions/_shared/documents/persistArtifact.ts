@@ -57,6 +57,12 @@ const BLOCKING_TYPES = new Set<string>([
 const EXT_FOR_MIME: Record<string, string> = {
   "application/pdf": "pdf",
   "application/octet-stream": "bin",
+  // Milestone C.1 — tabular exports (CSV first; xlsx queued behind a
+  // bundle-size review, see plan risks). `render_mode: "export"` is the
+  // discriminator; the mime type drives the storage extension only.
+  "text/csv": "csv",
+  "text/csv; charset=utf-8": "csv",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
 };
 
 export interface PersistArtifactInput {
