@@ -2249,13 +2249,10 @@ function POSTerminalInner() {
             registerId,
             shiftId: activeShift.id,
             cashierId: activeShift.user_id ?? null,
-            // Restaurant path uses the draft transaction id as the
-            // idempotency key so the session collapses with the
-            // downstream `finalize_table_order` call. Retail uses the
-            // Retail key is bound to the amount because payment sessions
-            // freeze their grand total at open. The checkout commit path
-            // receives this exact same key, so tender and commit target the
-            // same server-side payment session.
+            // Restaurant uses the draft transaction id so the session
+            // collapses with `finalize_table_order`. Retail binds the key
+            // to the amount because payment sessions freeze their grand
+            // total at open; checkout commit receives this exact same key.
             idempotencyKey:
               cart.isRestaurantMode && cart.transactionId
                 ? cart.transactionId
