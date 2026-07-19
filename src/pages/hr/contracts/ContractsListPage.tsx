@@ -77,6 +77,15 @@ export function ContractsListPage(props: ContractsListPageProps) {
   const [search, setSearch] = useState("");
   const [renewTarget, setRenewTarget] = useState<Contract | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
+  const {
+    printPreviewOpen,
+    setPrintPreviewOpen,
+    printPreviewTitle,
+    printDocumentType,
+    printDocumentId,
+    printCommunication,
+    generateDocument,
+  } = usePrintOrPreview();
 
   const { contracts, isLoading } = useContracts({
     status,
