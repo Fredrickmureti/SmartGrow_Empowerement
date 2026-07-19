@@ -1,40 +1,40 @@
-## Root cause (verified)
+## Root cause (verified in Postgres logs)
 
-The 400 from `pos_payment_session_commit` is a Postgres CHECK violation raised by an `AFTER INSERT` trigger on `pos_transactions`, not by the RPC itself. Verified against the live DB:
+Postgres logs from the last commit attempts show the actual failure — repeated:
 
-- Error from the failing request:
-  `new row for relation "business_event_outbox" violates check constraint "business_event_outbox_source_check"`
-- Constraint (queried from `pg_constraint`):
-  `source IN ('pos','finance','manual','system','trigger','procurement','purchasing','hr','crm','sales','inventory','warehouse','payroll')`
-- Offending trigger function `public.trg_pos_transaction_emit_event_fn` inserts `source = 'pos_transactions'` (the table name), which is not in the allowed set.
-- A second trigger `public.trg_pos_payment_emit_event_fn` has the same bug — it inserts `source = 'pos_transaction_payments'`. It has not fired yet only because the RPC aborts earlier, but it will fail the next flow (payment insert path) with the same constraint.
-- The rest of the emit surface is correct: `_pos_payment_session_emit`, `pos_emit_*`, and `emit_business_event` all use valid `source` domains (`'pos'`, `'client_rpc'`, etc.).
+```
+ERROR 23514: new row for relation "business_event_outbox" violates check constraint "business_event_outbox_source_check"
+```
 
-The commit RPC, session model, tender materialisation, balance check, and idempotency machinery are all behaving correctly. The payload the client sends is valid. Nothing in the frontend, hook, or service layer needs to change.
+The check constraint on `business_event_outbox.source` only allows:
+`pos, finance, manual, system, trigger, procurement, purchasing, hr, crm, sales, inventory, warehouse, payroll`.
 
-## Architectural read
+During a Quick Cash commit, `process_pos_transaction` writes a `stock_movements` row with `movement_type='pos_sale'`. That fires trigger `trg_stock_movement_emit_event` → function `public.trg_stock_movement_emit_event_fn()`, which inserts into `business_event_outbox` with:
 
-`business_event_outbox.source` is the **emitting domain** (bounded-context tag consumed by the event router / claim workers), not a source-table label. Every other emitter in the codebase treats it that way. The two POS triggers drifted from that convention — a straightforward domain-modelling bug, not a structural flaw in the payment engine.
+```
+source = 'stock_movements'   -- INVALID, not in the allowed list
+```
 
-Correct value for both triggers: `'pos'`. This matches `_pos_payment_session_emit`, `pos_emit_drawer_event`, `pos_emit_register_period_event`, and the `pos.*` event_type namespace already used in the payloads.
+This function has **no `EXCEPTION WHEN OTHERS` handler**, so the 23514 propagates up and aborts the whole `pos_payment_session_commit` RPC → the frontend sees `400 Bad Request`.
 
-## Change
+A second offender exists on the same path: `public.tg_stock_movement_emit_event()` uses `source = 'db_trigger'` (also invalid). It swallows errors via `EXCEPTION WHEN OTHERS`, so it only pollutes logs today, but it is broken and must be fixed too.
 
-One migration, replacing both trigger functions with identical bodies except `source` is set to `'pos'`:
+Previous "fixes" only patched `trg_pos_transaction_emit_event_fn` and `trg_pos_payment_emit_event_fn`. They never touched the stock-movement emitters, which is why the same 400 keeps returning.
 
-1. `public.trg_pos_transaction_emit_event_fn` — change last VALUES literal from `'pos_transactions'` to `'pos'`.
-2. `public.trg_pos_payment_emit_event_fn` — change last VALUES literal from `'pos_transaction_payments'` to `'pos'`.
+## Fix
 
-No signature change, no trigger re-binding required (`CREATE OR REPLACE FUNCTION` keeps existing trigger attachments). No RLS, no grants, no schema changes.
+Single migration, no application/UI changes:
 
-## Why nothing else needs to change
+1. `CREATE OR REPLACE FUNCTION public.trg_stock_movement_emit_event_fn()` — change the inserted `source` from `'stock_movements'` to `'inventory'` (matches the domain the event describes and is in the allow-list). Keep everything else identical.
+2. `CREATE OR REPLACE FUNCTION public.tg_stock_movement_emit_event()` — change `source` from `'db_trigger'` to `'inventory'`. Keep the `EXCEPTION WHEN OTHERS` guard.
+3. Preventive hardening (same migration): audit every remaining `public` function that inserts into `business_event_outbox` and normalize any `source` value not in the allowed set to a valid domain tag (`inventory`, `warehouse`, `pos`, `procurement`, `finance`, `system`). Specifically re-check the functions flagged earlier: `pos_emit_drawer_event`, `pos_emit_register_period_event`, `pos_emit_return_authorization_event`, `pos_close_card_settlement`, `tg_emit_pos_card_fsm_event`, `emit_qc_event`, `tg_wms_task_emit_event`, `tg_wms_lpn_emit_event`, `tg_stock_adjustment_emit_lifecycle`, `tg_stock_transfer_emit_lifecycle`, `tg_physical_count_emit_lifecycle`, `emit_yard_event`, `emit_crossdock_event`, and the manifest/appointment helpers. Only functions with an invalid `source` literal get rewritten; correct ones are left alone.
 
-- Commit boundary, inventory movement, GL posting, receipt eligibility, and downstream outbox consumers are all keyed off `event_type` (`pos.sale.committed`, `payment.received`) and `source_doc_type` (`pos_transaction`), not `source`. Fixing `source` restores the emit without altering any consumer contract.
-- Idempotency keys (`pos.sale.committed:<uuid>`, `payment.received:<uuid>`) are unchanged, so replays remain safe.
-- No prior partial fix in the app code needs to be reverted — the bug lives entirely in these two DB trigger bodies.
+## Verification
 
-## Verification after apply
+- Re-query `postgres_logs` for `sql_state_code='23514'` on `business_event_outbox_source_check` after the migration — expect zero new occurrences.
+- User retries Quick Cash on the same register; commit should return `200` and the session transitions from `balanced` → `committed`.
+- Confirm the new outbox rows show valid `source` values via `SELECT source, count(*) FROM business_event_outbox WHERE created_at > now() - interval '10 min' GROUP BY 1`.
 
-1. Ring the same Lemonade × KES 70 sale through Quick Cash and confirm `pos_payment_session_commit` returns 200 with a `transaction_id`.
-2. `SELECT event_type, source, status FROM business_event_outbox WHERE source_doc_id = <new txn id>` — expect two rows (`pos.sale.committed`, `payment.received`) both with `source = 'pos'` and `status = 'pending'`.
-3. Confirm the claim workers (`claim_next_business_event`) pick them up on the next poll (already polling in the network log).
+## Out of scope
+
+No changes to `pos_payment_session_commit`, `process_pos_transaction`, the deferred GL trigger, the frontend, or the outbox schema. If we later want to extend the allow-list instead of remapping sources, that is a separate decision.
