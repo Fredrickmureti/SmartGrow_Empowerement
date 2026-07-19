@@ -23,12 +23,26 @@ export interface CoercedPolicy {
 /**
  * Enforce legal `(documentType, paper_format, render_mode)` triples.
  *
- * `explicitFormatRequest` is the value the *caller* explicitly asked for
- * (request body `format`). When omitted, the policy's default
- * `render_mode` drives coercion (auto-print path). When set to `"pdf"`,
- * the caller is explicitly asking for a portable PDF artifact (Save PDF /
- * Email PDF), which must NEVER be coerced into ESC/POS — instead we
- * switch the paper from thermal to A4 so the PDF is actually usable.
+ * Phase 4 (printer-profile authority reconciliation, ADR-0008):
+ *   `paper_format` and `render_mode` are ORTHOGONAL. A "Thermal 80mm + PDF"
+ *   invoice is a legitimate archive/email artifact — the PDF renderer will
+ *   emit a receipt-width PDF via `PdfBuilder` (density: "narrow"). Coercion
+ *   is now reserved for the two genuinely illegal cases only:
+ *     (a) `pos_receipt` on thermal paper + auto-print (no explicit `format`)
+ *         must go to ESC/POS bytes for the physical printer.
+ *     (b) `escpos` render_mode explicitly requested on printable paper
+ *         (A4/Letter/A5) — ESC/POS is only defined for thermal widths.
+ *   All other combinations pass through unchanged.
+ *
+ * `explicitFormatRequest` is the caller's request-body `format`. When set,
+ * the caller has an explicit intent (Save PDF / Email PDF / stream ESC/POS)
+ * and we honour paper+format together instead of falling back.
+ *
+ * NOTE: statutory documents (payslips, tax certificates, regulator returns)
+ * are NOT routed through this resolver — they render in dedicated edge
+ * functions with `assertStatutoryPaper("a4")` pins per ADR-0008. So there
+ * is no allow-list needed here; every document type handled by
+ * `generate-document` is free to render at any paper width.
  */
 export function coercePaperRenderMode(
   documentType: string,
@@ -40,53 +54,23 @@ export function coercePaperRenderMode(
   const isPrintable = PRINTABLE_PAPER.has(paperFormat);
   const mode: "pdf" | "escpos" = renderMode === "escpos" ? "escpos" : "pdf";
   const explicitPdf = explicitFormatRequest === "pdf";
+  const explicitEscpos = explicitFormatRequest === "escpos";
 
-  if (documentType === "pos_receipt") {
-    if (mode === "pdf" && isThermal) {
-      if (explicitPdf) {
-        return {
-          paper_format: "a4",
-          render_mode: "pdf",
-          coerced: true,
-          reason:
-            "Explicit PDF requested for pos_receipt — switching paper from thermal to A4 so the file is a real PDF, not ESC/POS bytes",
-        };
-      }
-      return {
-        paper_format: paperFormat,
-        render_mode: "escpos",
-        coerced: true,
-        reason: "pos_receipt on thermal paper must render as ESC/POS, not PDF",
-      };
-    }
-    if (mode === "escpos" && isPrintable) {
-      return {
-        paper_format: "80mm",
-        render_mode: "escpos",
-        coerced: true,
-        reason: "ESC/POS render mode requires thermal paper; defaulting to 80mm",
-      };
-    }
-    return { paper_format: paperFormat, render_mode: mode, coerced: false };
-  }
-
-  if (isThermal && mode === "pdf") {
-    if (explicitPdf) {
-      return {
-        paper_format: "a4",
-        render_mode: "pdf",
-        coerced: true,
-        reason: `Explicit PDF requested for ${documentType} — switching paper from thermal to A4`,
-      };
-    }
+  // Case (a): POS receipt on thermal, no explicit PDF ask → ESC/POS bytes.
+  // Explicit PDF request produces a narrow-width receipt PDF (preview /
+  // email / archive) — still on thermal paper, not A4.
+  if (documentType === "pos_receipt" && isThermal && mode === "pdf" && !explicitPdf) {
     return {
       paper_format: paperFormat,
       render_mode: "escpos",
       coerced: true,
-      reason: `${documentType} on thermal paper must render as ESC/POS, not a constricted PDF`,
+      reason: "pos_receipt auto-print on thermal paper streams ESC/POS to the printer",
     };
   }
-  if (mode === "escpos" && isPrintable) {
+
+  // Case (b): ESC/POS explicitly requested on printable paper. ESC/POS is
+  // only defined for thermal widths; default to 80mm.
+  if (mode === "escpos" && isPrintable && (explicitEscpos || !explicitPdf)) {
     return {
       paper_format: "80mm",
       render_mode: "escpos",
@@ -94,5 +78,8 @@ export function coercePaperRenderMode(
       reason: "ESC/POS render mode requires thermal paper; defaulting to 80mm",
     };
   }
+
+  // Everything else — including non-POS thermal + PDF — is legal. The PDF
+  // builder renders receipt-width PDFs via density: "narrow".
   return { paper_format: paperFormat, render_mode: mode, coerced: false };
 }
