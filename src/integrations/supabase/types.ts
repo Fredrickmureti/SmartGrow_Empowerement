@@ -113,6 +113,78 @@ export type Database = {
           },
         ]
       }
+      accounting_events: {
+        Row: {
+          amount: number | null
+          branch_id: string | null
+          business_date: string | null
+          business_id: string | null
+          business_idempotency_key: string
+          created_at: string
+          currency_code: string | null
+          event_kind: string
+          id: string
+          journal_entry_id: string | null
+          last_diagnostic: Json | null
+          org_id: string
+          posted_at: string | null
+          producer: string
+          producer_doc_id: string
+          producer_doc_type: string
+          requested_at: string
+          state: string
+          updated_at: string
+          validated_at: string | null
+          version: number
+        }
+        Insert: {
+          amount?: number | null
+          branch_id?: string | null
+          business_date?: string | null
+          business_id?: string | null
+          business_idempotency_key: string
+          created_at?: string
+          currency_code?: string | null
+          event_kind: string
+          id?: string
+          journal_entry_id?: string | null
+          last_diagnostic?: Json | null
+          org_id: string
+          posted_at?: string | null
+          producer: string
+          producer_doc_id: string
+          producer_doc_type: string
+          requested_at?: string
+          state?: string
+          updated_at?: string
+          validated_at?: string | null
+          version?: number
+        }
+        Update: {
+          amount?: number | null
+          branch_id?: string | null
+          business_date?: string | null
+          business_id?: string | null
+          business_idempotency_key?: string
+          created_at?: string
+          currency_code?: string | null
+          event_kind?: string
+          id?: string
+          journal_entry_id?: string | null
+          last_diagnostic?: Json | null
+          org_id?: string
+          posted_at?: string | null
+          producer?: string
+          producer_doc_id?: string
+          producer_doc_type?: string
+          requested_at?: string
+          state?: string
+          updated_at?: string
+          validated_at?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
       accounting_integrity_reports: {
         Row: {
           ap_drift: number
