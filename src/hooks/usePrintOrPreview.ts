@@ -82,7 +82,7 @@ export function usePrintOrPreview() {
           documentId: req.documentId,
           title: req.title,
           businessId,
-          branchId,
+          branchId: req.branchId ?? null,
         });
 
         if (result.success && result.transport !== "ask_user" && result.transport !== "none") {
@@ -104,7 +104,7 @@ export function usePrintOrPreview() {
         req.communication,
       );
     },
-    [currentBusiness?.id, branchId, docPrint],
+    [currentBusiness?.id, docPrint],
   );
 
   return {
