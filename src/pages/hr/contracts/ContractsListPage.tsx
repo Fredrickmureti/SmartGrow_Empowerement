@@ -249,6 +249,15 @@ export function ContractsListPage(props: ContractsListPageProps) {
         open={!!renewTarget}
         onOpenChange={(o) => !o && setRenewTarget(null)}
       />
+
+      <PrintPreviewDialog
+        open={printPreviewOpen}
+        onOpenChange={setPrintPreviewOpen}
+        title={printPreviewTitle}
+        documentType={printDocumentType}
+        documentId={printDocumentId}
+        communication={printCommunication}
+      />
     </>
   );
 }
