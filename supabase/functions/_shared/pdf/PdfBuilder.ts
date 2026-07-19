@@ -37,25 +37,42 @@ export type Density = "wide" | "narrow";
 /** Named paper presets recognised by the builder. */
 export type PaperPreset = "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm";
 
-/** Explicit paper dimensions in millimetres. `heightMm: "auto"` is reserved
- *  for future continuous-receipt support and is currently treated as 297 mm
- *  (A4 height) so existing renderers never break. */
+/** Explicit paper dimensions in millimetres.
+ *
+ *  `heightMm: "continuous"` means "continuous roll" — width is fixed by the
+ *  profile, height is auto-sized by the renderer to the consumed content
+ *  (single page only). This is the correct model for thermal receipts,
+ *  matching Odoo `paperformat` with `page_height=0`, SAP POS DM receipts,
+ *  Xstore ReceiptDoc, and Toast/Square/Shopify POS receipt renderers.
+ *
+ *  `heightMm: "auto"` is retained as a deprecated alias for `"continuous"`
+ *  for one release; new code should use `"continuous"`.
+ */
 export interface PaperSpec {
   widthMm: number;
-  heightMm: number | "auto";
+  heightMm: number | "continuous" | "auto";
 }
 
 const MM_TO_PT = 72 / 25.4;
+
+/** Provisional page height (in points) used while rendering continuous
+ *  media. Large enough to fit any reasonable single receipt (~1 metre of
+ *  paper) but not so large that pdf-lib allocates absurd coordinate space. */
+const CONTINUOUS_PROVISIONAL_PT = 3000;
 
 const PRESETS: Record<PaperPreset, PaperSpec> = {
   a4: { widthMm: 210, heightMm: 297 },
   letter: { widthMm: 215.9, heightMm: 279.4 },
   a5: { widthMm: 148, heightMm: 210 },
-  "80mm": { widthMm: 80, heightMm: 297 },
-  "58mm": { widthMm: 58, heightMm: 297 },
-  // Phase 4 (ADR-0008): 40mm label/handheld strip PDF preview.
-  "40mm": { widthMm: 40, heightMm: 297 },
+  // Thermal presets — continuous roll, height auto-sized to content
+  // (ADR-0008 Phase T1). Previously seeded with `heightMm: 297`, which
+  // caused thermal PDFs to render as tall blank strips with content at
+  // the very top — that is the defect this phase closes.
+  "80mm": { widthMm: 80, heightMm: "continuous" },
+  "58mm": { widthMm: 58, heightMm: "continuous" },
+  "40mm": { widthMm: 40, heightMm: "continuous" },
 };
+
 
 export function resolvePaperSpec(input: PaperPreset | PaperSpec | undefined): PaperSpec {
   if (!input) return PRESETS.a4;
@@ -88,7 +105,11 @@ export interface BuilderState {
   density: Density;
   /** Resolved paper spec for downstream components / debugging. */
   paper: PaperSpec;
+  /** Height mode. `"continuous"` means the final page will be cropped to
+   *  consumed content at save() time (thermal receipts / ADR-0008 T1). */
+  heightMode: "fixed" | "continuous";
 }
+
 
 export class PdfBuilder {
   readonly doc: PDFDocument;
@@ -131,11 +152,20 @@ export class PdfBuilder {
       : resolvePaperSpec(options.pageSize ?? "letter");
 
     const isLandscape = orientation === "landscape";
-    const heightMm = paper.heightMm === "auto" ? 297 : paper.heightMm;
+    // Continuous-height paper (ADR-0008 T1): render into a tall provisional
+    // page; save() crops the media box down to consumed content.
+    const isContinuous = paper.heightMm === "continuous"
+      || paper.heightMm === "auto";
+
+    const heightMode: "fixed" | "continuous" = isContinuous ? "continuous" : "fixed";
     const baseW = paper.widthMm * MM_TO_PT;
-    const baseH = heightMm * MM_TO_PT;
-    const pageWidth = isLandscape ? baseH : baseW;
-    const pageHeight = isLandscape ? baseW : baseH;
+    const baseH = isContinuous
+      ? CONTINUOUS_PROVISIONAL_PT
+      : (paper.heightMm as number) * MM_TO_PT;
+    // Continuous strips are portrait by definition (a landscape orientation
+    // makes no physical sense on a roll printer); ignore the landscape flag.
+    const pageWidth = (isLandscape && !isContinuous) ? baseH : baseW;
+    const pageHeight = (isLandscape && !isContinuous) ? baseW : baseH;
 
     // Density: explicit override > derived from paper width.
     // Anything ≤ 90 mm of paper goes narrow (covers 58mm and 80mm thermal).
@@ -164,10 +194,12 @@ export class PdfBuilder {
       generatedStamp: `Report generated: ${formatGeneratedStamp(generatedAt)}`,
       density,
       paper,
+      heightMode,
     };
 
     return new PdfBuilder(doc, fontRegular, fontBold, state);
   }
+
 
   /**
    * Start a new page. Increments pageNum, resets cursor to top, and invokes
@@ -175,6 +207,17 @@ export class PdfBuilder {
    * Y is stored on this.y.
    */
   newPage(): PDFPage {
+    // Continuous media (thermal roll) is a single continuous strip by
+    // definition — a page break makes no physical sense. If a caller
+    // tries to paginate on continuous paper, fail loudly rather than
+    // silently emit a multi-page PDF that no thermal driver can honour.
+    if (this.state.heightMode === "continuous" && this.state.pageNum >= 1) {
+      throw new Error(
+        "PdfBuilder: newPage() is not allowed on continuous paper " +
+          `(${this.state.paper.widthMm}mm roll). Continuous media is a ` +
+          "single-page strip; ensure narrow-density components fit on one page.",
+      );
+    }
     this.page = this.doc.addPage([this.state.pageWidth, this.state.pageHeight]);
     this.state.pageNum++;
     this.y = this.state.pageHeight - this.state.margin;
@@ -184,15 +227,22 @@ export class PdfBuilder {
     return this.page;
   }
 
+
   /**
    * Reserve `needed` pts of vertical space on the current page; if not
    * available, start a new page (and return the new Y position).
    */
   ensureSpace(needed: number): void {
+    // Continuous media grows downward on a single strip — there is no
+    // page break. Callers that would have triggered `newPage()` on wide
+    // paper just keep drawing on the provisional strip; save() crops the
+    // media box to whatever was consumed.
+    if (this.state.heightMode === "continuous") return;
     if (this.y - needed < this.state.bottomMargin) {
       this.newPage();
     }
   }
+
 
   /** Total page count, for "Page n of m" stamping in finalize(). */
   get pageCount(): number {
@@ -200,6 +250,23 @@ export class PdfBuilder {
   }
 
   async save(): Promise<Uint8Array> {
+    // Continuous media: crop the media box to the top strip that actually
+    // holds content. `this.y` is the current cursor (drops as components
+    // render); the visible area runs from y to pageHeight. We keep a small
+    // bottomMargin below the last drawn baseline.
+    if (this.state.heightMode === "continuous" && this.page) {
+      const contentBottom = Math.max(0, this.y - this.state.bottomMargin);
+      const finalHeight = this.state.pageHeight - contentBottom;
+      // pdf-lib PDFPage.setMediaBox(x, y, width, height): lower-left corner
+      // stays in the provisional coordinate space; only the visible window
+      // changes. Content coordinates are untouched — drawings that fell
+      // below contentBottom (e.g. drawPageNumber's y = margin - 25) are
+      // outside the media box and therefore not rendered.
+      this.page.setMediaBox(0, contentBottom, this.state.pageWidth, finalHeight);
+      // Keep state consistent for anything that reads pageHeight after save.
+      this.state.pageHeight = finalHeight;
+    }
     return await this.doc.save();
   }
+
 }

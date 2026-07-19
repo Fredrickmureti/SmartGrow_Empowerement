@@ -1,93 +1,231 @@
-# Enterprise Document Platform — Printer-Profile Verification
+# Enterprise Document Platform — Thermal Layout Audit & Reconstruction
 
-## TL;DR (root cause)
+**Symptom under audit:** selecting an 80/58/40 mm PDF print policy for a POS receipt (or any document) produces a PDF where the content is laid out at the top and the rest of the sheet is a very tall blank strip — "as if the A4 was compressed to fit the thermal width".
 
-The printer-profile subsystem **is** wired end-to-end — DB → resolver → `generate-document` → renderer — but a **deliberate server-side coercion** rewrites `(thermal paper) + (pdf render_mode)` to `A4 + PDF` for every non-POS document type. The admin UI in `Settings → Printing` still lets operators pick that exact combination. That mismatch is what you're observing: the config is saved, resolved, then overridden one call later. This is **not a rendering bug and not a lost value** — it is an **authority conflict between the admin UI and the coercion policy**.
+The reply below follows the requested six phases. Every current-state claim is grounded in a file:line read done before writing this plan.
 
-## Evidence (traced flow for Sales Invoice = "Thermal 80mm + PDF")
+---
 
-1. **Admin UI writes the row.** `src/components/settings/PrintingSettings.tsx` L42–44 offers `80mm / 58mm / 40mm` for every document type in the registry, and L211–223 lets `render_mode` stay `pdf`. Upserts land in `document_print_policies` (migrations `20260511*`, `20260513*`, `20260617*`, `20260618*`).
-2. **Client asks for the PDF.** `useDocumentPrint` / `PrintPreviewDialog` call `generate-document` with `format: "pdf"` (explicit) and no `paperFormat` override.
-3. **Policy is resolved correctly.** `supabase/functions/_shared/printing/resolvePolicy.ts` returns `{ paper_format: "80mm", render_mode: "pdf", source: "business" }`. ✅ Value survives to the edge function.
-4. **Coercion overrides it.** `supabase/functions/generate-document/index.ts` L2358–2387 → `coercePaperRenderMode` in `_shared/printing/coercePolicy.ts` L82–95:
-   - Non-POS doc + thermal paper + explicit `format=pdf` → **rewritten to `a4 / pdf`** with reason *"Explicit PDF requested for … — switching paper from thermal to A4"*.
-   - The `previewAtThermalWidth` escape hatch (L2377–2387) is gated on `documentType === "pos_receipt" | "pos_receipt_preview"`. Every other document type is excluded by design.
-5. **PDF renderer builds A4.** `_shared/pdfGenerator.ts` → `PdfBuilder` receives `a4`, pageMargin 72pt, produces the observed A4 output. The renderer itself is paper-agnostic and *would* emit a 80mm-wide PDF if asked — it never gets the chance.
-6. **UI reinforces the coercion.** `src/components/common/PrintSettingsPopover.tsx` L28–35 explicitly hides thermal from the per-print paper override, documenting *"rendering an A4 invoice as a tall narrow PDF preview is a category error"*.
+## Phase 1 — Architecture audit (what is actually there)
 
-So the pipeline is real; the paper value flows correctly; **the coercion is the authority that wins**, and the admin UI does not reflect that.
+### 1.1 Layering already in place (ADR-0008)
 
-## Enterprise-pattern comparison (Phase 1 findings)
+The system does implement the three-layer separation the request asks about:
 
-| Platform | Paper vs format | Thermal-width PDF? | Authority |
-| --- | --- | --- | --- |
-| Odoo | `paperformat` (dims) is orthogonal to report type (`ir.actions.report`). | **Yes** — receipt reports have their own paperformat and emit narrow PDFs for email/preview. | Report action + paperformat, per company. |
-| SAP CC / Xstore / Dynamics 365 Commerce | Layout profile per document; format is transport (PDF/ESCPOS/ZPL). | Receipt PDFs are narrow-width by convention. | Store profile > document profile. |
-| Square / Shopify / Toast / Lightspeed | Receipts are ESC/POS on device; email/archive uses narrow-column PDF. | **Yes** for archive/email. | Location settings. |
-| QuickBooks / Xero | Business documents pinned to A4/Letter; thermal not exposed. | N/A | Company defaults. |
+| Layer | Owner | Evidence |
+|---|---|---|
+| Document Model (paper-agnostic) | `supabase/functions/generate-document/index.ts` fetchers → `DocumentData` | `docs/audit/2026-05-11-printing-architecture.md:15-60`, `docs/printing-pipeline.md:40-60` |
+| Paper Format + Render Mode | `document_print_policies` (business, branch, document_type) → resolved in `src/services/printing/PrintClient.ts:82-185`; `paperFormat` + `renderMode` forwarded to server | `supabase/migrations/20260511153525_*.sql`, `src/services/printing/PrintClient.ts:61-249`, `src/hooks/useDocumentPrint.ts:52-190` |
+| Transport | Existing POS hardware stack (Electron / LocalAgent / WebUSB / `agent/` TCP raw bytes) | ADR-0008 §Decision.3, `docs/audit/2026-05-11-printing-architecture.md:20-40` |
 
-**Extracted principles**
-- Paper size and render format are **orthogonal**; both are legal degrees of freedom.
-- ESC/POS is a **transport**, not a substitute renderer, but the layout must match the paper. A narrow PDF is a valid *rendering* of a receipt-shaped document.
-- One document model → many serializers (PDF/ESCPOS/HTML/ZPL/image). Coercion should reject **impossible** combinations, not **inconvenient** ones.
+### 1.2 Renderers
 
-Measured against that: our coercion is too aggressive. It treats "narrow PDF of a receipt-style invoice" as illegal when it is actually the norm for wholesale/thermal-first businesses (the exact scenario ADR-0008 was written to unblock).
+- **`PdfBuilder`** (`supabase/functions/_shared/pdf/PdfBuilder.ts:38-170`) is paper-agnostic. It exposes:
+  - `PaperPreset = "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm"`
+  - `PaperSpec = { widthMm; heightMm: number | "auto" }`
+  - Derives `density: "narrow"` automatically when `widthMm ≤ 90` (line 141-143).
+  - Applies a 6 pt gutter on narrow, `theme.pageMargin` (72 pt) on wide (line 148-149).
+- **PDF components** already branch on `density === "narrow"`:
+  - `BrandedHeader.ts:96`, `LineItemsTable.ts:189-195`, `TotalsBlock.ts:46-49`, `RecipientBlock.ts:39-42`, `NotesBlock.ts:29`, `SignatureBlock.ts:58`, `DataTable.ts:376`.
+- **ESC/POS path** is a separate renderer for `renderMode === "escpos"`; continuous-media by construction (no page).
+- **POS receipt HTML/ESC/POS legacy stack** (`src/services/receipt/*`, `src/lib/receiptConfig.ts`) still coexists — used for the live cashier flow, not for the PDF path under audit.
 
-## Root-cause classification
+### 1.3 Resolution chain for a print request
 
-- **Not** a renderer bug (`PdfBuilder` handles mm paper sizes).
-- **Not** a lost value (resolver + policy row are correct).
-- **Not** an abandoned feature (`resolvePolicy` + coercion + settings UI + tests are all live).
-- **Is** an **architectural policy conflict**: the coercion rule "non-POS + thermal + explicit PDF → A4" collides with the admin UI's promise that the combination is valid, and with ADR-0008's stated goal of unifying wholesale invoices onto thermal hardware.
-- **Is** a **UI/authority mismatch**: `PrintingSettings` exposes combinations that `coercePaperRenderMode` will silently reject. `PrintSettingsPopover` already hides them for per-print overrides — the admin surface is out of step.
+`useDocumentPrint` / `PrintClient` → resolves `document_print_policies` for (business, branch, document_type) → forwards `{ paperFormat, renderMode }` to `generate-document` → `generateDocumentPdf(data, template, { paperFormat })` → `PdfBuilder.create({ paperFormat })`.
 
-## Remediation plan (smallest correct fix, preserves single-renderer architecture)
+**All plumbing exists and works.** The paper choice reaches the builder correctly.
 
-Two changes, both inside the existing pipeline. No new renderer, no new fetcher, no bypass.
+### 1.4 The critical defect
 
-### Step 1 — Make thermal-width PDF a **first-class** output for non-POS documents
+`PdfBuilder.PAPER_PRESETS` (lines 51-58) declares:
 
-Lift the POS-only gate around the `previewAtThermalWidth` branch so it applies to any document whose resolved policy is thermal + explicit PDF. Concretely, in `generate-document/index.ts` L2377–2387:
+```
+"80mm": { widthMm: 80,  heightMm: 297 },
+"58mm": { widthMm: 58,  heightMm: 297 },
+"40mm": { widthMm: 40,  heightMm: 297 },
+```
 
-- Remove `isReceiptType` restriction.
-- When `policy.paper_format ∈ {40mm,58mm,80mm}` **and** the caller's `explicitFormat === "pdf"`, set `effectiveFormat = "pdf"` and `effectivePaperOverride = policy.paper_format` so `PdfBuilder` runs in `density: "narrow"` at the correct mm width.
-- `coercePaperRenderMode` keeps its role for the two *genuinely* illegal cases: (a) `escpos` requested on A4/Letter/A5 → coerce to 80mm, (b) `pos_receipt` on thermal + auto-print → ESC/POS.
-- Update `coercePolicy.ts` so the "switch thermal → A4 on explicit PDF" branch fires **only** when the document type is on a `PDF_MUST_BE_WIDE` allow-list (statutory returns, payslips, tax certificates — already `assertStatutoryPaper`-pinned per ADR-0008). Everything else is allowed to render narrow.
-- Extend `_shared/pdf/themes/accountantMono.ts` narrow-density branch (already 6pt margin) to be exercised by the invoice/statement/bill components, which already read `density` from the builder per `docs/printing-pipeline.md`.
+Then `create()` line 134:
 
-### Step 2 — Make the admin UI reflect the coercion matrix
+```
+const heightMm = paper.heightMm === "auto" ? 297 : paper.heightMm;
+```
 
-`PrintingSettings.tsx` should not offer combinations the platform will reject:
+Consequences:
 
-- Drive the `(paper × render_mode)` matrix from a shared exported constant (`LEGAL_COMBOS_BY_DOC_TYPE`) derived from `coercePolicy.ts`. Both `PrintingSettings` and `PrintSettingsPopover` import it — one source of truth.
-- For statutory/pinned document types, disable thermal paper entirely with an inline "A4 required (regulator)" caption.
-- For every other doc type, expose the full matrix now that Step 1 makes it real.
-- Surface `X-Print-Policy-Coerced` + `X-Print-Policy-Coerce-Reason` (already emitted) in `ResolvedPrintPolicyPanel` for admin diagnostics on the settings page (currently only POS test-print uses it).
+1. A "thermal" PDF is rendered on a **80 × 297 mm** rigid sheet (a portrait strip almost as tall as A4).
+2. Content is drawn top-down from `y = pageHeight - margin` (line 121). A short receipt consumes only a fraction of the 297 mm; the rest is blank.
+3. `heightMm: "auto"` is declared in the type but never honoured — the ternary collapses it back to 297 mm. There is no post-render "resize final page to consumed Y" pass.
+4. `newPage()` (line 178) always adds a new fixed-height page, so multi-page thermal output also gets tall blank tails on every page.
 
-### Step 3 — Guards + tests
+This is precisely the observed symptom.
 
-- Extend `supabase/tests/print_policies_resolve_test.sql` and `src/test/printing/print-policies-resolve.test.ts` with cases: `(sales_invoice, 80mm, pdf, explicit=pdf) → 80mm/pdf`, `(payslip, 80mm, pdf, explicit=pdf) → a4/pdf coerced`, `(pos_receipt, 80mm, pdf, explicit=pdf) → 80mm/pdf (preview)`.
-- Add an architecture test: `PrintingSettings` and `PrintSettingsPopover` must both import `LEGAL_COMBOS_BY_DOC_TYPE`; string literals for paper/render mode outside that constant are disallowed (mirrors the existing rendering-ownership guards).
-- Deno test for `_shared/pdf/PdfBuilder` at `paper=80mm density=narrow` proves the invoice components lay out without overflow.
+---
 
-### Step 4 — Handover
+## Phase 2 — Industry comparison
 
-Update `.lovable/plan.md`:
-- Mark Phase 1–3 + Milestones A/B/C.1/C.2 as previously completed (unchanged).
-- Add **Phase 4 — Printer-profile authority reconciliation** with the three steps above.
-- Note follow-ups: extend narrow-PDF density to statement/bill/estimate templates; audit `send-document-email` to confirm it consumes the same resolved policy (it already imports `resolvePolicy`, verify format propagation); consider ZPL as a third render_mode when the label-printing milestone lands.
+Continuous-roll media is a solved problem in every mature stack; the shared pattern is: **width is fixed by the paper profile, height is derived from consumed content ("auto height" / "receipt paperformat").**
 
-## What we are **not** doing (and why)
+| System | Pattern |
+|---|---|
+| Odoo | `paperformat_id` with `page_height = 0` ⇒ auto height; QWeb template renders once; wkhtmltopdf/WeasyPrint sizes the page to content. POS uses ePOS HTML (ESC/POS via IoT Box) for hardware. |
+| SAP Retail / Xstore / Dynamics 365 Commerce | Distinct "receipt formatter" DSL (SAP: POS DM Receipt; Xstore: `ReceiptDoc.xml`; D365: Receipt Formats) — width-bound, height-free, ESC/POS transport. A4 forms live in a separate SmartForms / SSRS pipeline. |
+| Toast / Square / Shopify POS / Lightspeed | ESC/POS receipt renderer, continuous height; PDF invoices are a different renderer. When a PDF *preview* of a receipt exists, it is width-bound and cropped to the consumed height. |
+| LS Central / NCR | Report Layout Selection resolves (document type × store × device) → chooses (template, paper profile, printer); paper profile can be "continuous". |
 
-- Not adding a second renderer or a "receipt-PDF" edge function — would violate the single-renderer invariant (ADR-0084/0085).
-- Not deleting the coercion — the ESC/POS-vs-printable coercion is still correct.
-- Not hardcoding A4 anywhere new — the whole point is to remove the last hidden A4 fallback for non-statutory docs.
-- Not touching statutory pins (`assertStatutoryPaper`) — regulator-facing PDFs stay A4.
+**Architectural principle common to all of them:** *paper is a property of the profile, not of the template; continuous media is a first-class paper profile — never emulated by a very tall sheet.*
 
-## Deliverables tracker
+The three-layer ADR-0008 architecture in this codebase matches the mature pattern. The missing piece is the "continuous height" implementation of the paper profile.
 
-- [x] Architecture audit (this document).
-- [x] Traced execution flow with file:line evidence.
-- [x] Enterprise-pattern comparison.
-- [x] Root-cause classification: **authority conflict / partial implementation** (UI exposes combinations the coercion rejects).
-- [ ] Implementation of Steps 1–4 (awaiting approval).
+---
+
+## Phase 3 — Business-process framing
+
+Documents in scope traverse this lifecycle:
+
+```text
+Sales:      Quotation → Sales Order → Picking → Delivery Note → Invoice → Payment → Receipt
+Purchase:   RFQ → Purchase Order → GRN → Bill → Payment → Remittance
+POS:        Cart → Tender → Receipt (+ optional Tax Invoice on request)
+```
+
+Each business event has a legitimate presentation on both A4 (accountant/customer copy, filing, email attachment) and thermal (counter hand-off, back-office in-store copy, till drawer). Which one is issued is a **policy** attached to (document_type, branch), not a property of the template — which is why `document_print_policies` is keyed on `(business, branch, document_type)`.
+
+Presentation invariants that must hold on thermal continuous media, independent of document type:
+
+- Width is fixed by the paper profile (58/80/40 mm minus gutter).
+- Height is the sum of what was actually drawn.
+- Long descriptions wrap onto their own line (narrow layout in `LineItemsTable`).
+- Totals are stacked full-width, not two-column (already implemented in `TotalsBlock:46-49`).
+- Header/recipient collapse to single column (already implemented in `BrandedHeader:96`, `RecipientBlock:39-42`).
+- Statutory documents (payslip, tax cert, statutory return, audit cert) are pinned to A4 by `assertStatutoryPaper` (ADR-0008 §Statutory exceptions) — they must remain unaffected.
+
+---
+
+## Phase 4 — Root-cause verdict
+
+**Verdict: partially implemented roadmap. Not an architectural flaw, not a UI/config mismatch, not a symptom to hack around.**
+
+Evidence:
+
+1. Architecture is sound (Phase 1.1): the three-layer split exists, the resolver picks up `paperFormat`, and every layout component has a real `narrow` branch — thermal layouts are **not** bypassed and A4 is **not** being "compressed".
+2. The exact defect is a single unimplemented capability inside the paper profile layer: **continuous height**. `PdfBuilder.create` treats `heightMm: "auto"` as `297 mm` (line 134) and the thermal presets are seeded with a placeholder `297 mm` height (lines 54-57). No page-resize pass exists.
+3. What the user sees ("content at top, huge blank below") is the deterministic output of drawing a correctly-narrowed layout onto a 80 × 297 mm sheet.
+
+**What this is *not*:**
+- Not an A4-being-scaled-to-thermal problem. The narrow layout is being rendered; the sheet is just too tall.
+- Not a template-per-paper duplication problem — the components are already paper-aware.
+- Not a policy resolver problem — the correct `paperFormat` reaches the renderer.
+
+---
+
+## Phase 5 — Target architecture (delta only)
+
+The target architecture is the current one plus a **first-class Continuous Paper Profile** and one convention:
+
+```text
+PaperSpec:
+  widthMm: number
+  heightMm: number | "continuous"      // renamed from "auto" for clarity
+
+Paper profile rules:
+  - "continuous" is legal ONLY for renderMode ∈ { "escpos", "pdf" }
+    (HTML preview also honours it via CSS @page { size: <width>mm auto })
+  - Thermal presets (80mm / 58mm / 40mm) default heightMm = "continuous"
+  - A4 / Letter / A5 keep fixed heights (unchanged)
+  - Statutory pins (assertStatutoryPaper) reject "continuous"
+
+Renderer contract (PdfBuilder):
+  - Reserve final page geometry until save().
+  - For "continuous": render into a virtual sheet, track max consumed Y,
+    then resize the (single) final page to (widthMm, consumedY + bottomMargin).
+  - Multi-page is FORBIDDEN when heightMm = "continuous" — thermal
+    output is one continuous strip. newPage() throws in that mode.
+  - Wide/fixed paper behaviour is byte-identical to today.
+
+Policy layer (document_print_policies):
+  - No schema change. paper_format string already accepts "80mm"/"58mm"/"40mm";
+    the meaning of those presets is what changes.
+
+Presentation layer (components):
+  - No change; the density === "narrow" branches already exist and are correct.
+
+Transport layer:
+  - No change.
+```
+
+Principles this preserves:
+- Single Responsibility — paper geometry stays in `PdfBuilder`; components stay presentation-only.
+- Open/Closed — new profile is additive; existing presets untouched.
+- Separation of Concerns — policy vs paper vs renderer vs transport remain independent.
+- Single Source of Truth — `document_print_policies` remains the only policy store; `PdfBuilder.PAPER_PRESETS` remains the only paper registry.
+
+---
+
+## Phase 6 — Implementation roadmap (phased, reversible)
+
+Every phase is independently shippable, keeps A4 byte-identical, and includes a rollback lever.
+
+### Phase T1 — Continuous paper primitive (renderer only)
+
+- Extend `PaperSpec.heightMm` semantics: accept `"continuous"` (keep `"auto"` as deprecated alias).
+- Change thermal presets to `heightMm: "continuous"`.
+- In `PdfBuilder.create`, when `paper.heightMm === "continuous"`:
+  - Render into a temporary page at a generous provisional height (e.g. 2000 mm cap).
+  - Track `maxConsumedY` as components draw.
+  - On `save()`, clone content into a final page of `(widthMm, pageHeight - min(y) + bottomMargin)` and drop the provisional page. (pdf-lib supports `PDFPage.setSize`.)
+- Make `newPage()` throw `ContinuousMediaMultiPageError` when in continuous mode; components already avoid `newPage()` on narrow density in practice, so this is a guardrail.
+- **Rollback:** feature flag `PDF_CONTINUOUS_HEIGHT` (env). Off ⇒ old ternary path.
+- **Verification:** unit tests that (a) an 80 mm invoice with 3 lines produces a page whose height ≈ consumed content, (b) A4 outputs are byte-identical to a golden fixture, (c) statutory generators still refuse thermal via `assertStatutoryPaper`.
+
+### Phase T2 — Statutory guard hardening
+
+- `assertStatutoryPaper` rejects any `paper.heightMm === "continuous"` in addition to non-A4 widths.
+- Architecture test: every generator carrying `// STATUTORY PAPER PIN` calls `assertStatutoryPaper`.
+- **Rollback:** revert file — no data migration.
+
+### Phase T3 — Policy UI truthfulness
+
+- In the Print Policy admin surface, show a small hint next to thermal presets: "Continuous roll — height auto-sized." (No schema/behavior change.)
+- **Rollback:** copy-only.
+
+### Phase T4 — HTML preview parity (optional, follow-up)
+
+- The in-app preview surface (`src/services/printing/previewSurface.ts`) uses `@page { size: 80mm auto }` when the resolved policy is thermal, so the on-screen preview matches the printed PDF.
+- **Rollback:** revert CSS block.
+
+### Phase T5 — ESC/POS alignment audit (follow-up, not required for the fix)
+
+- Confirm that for policies with `renderMode: "escpos"` the ESC/POS builder consumes the same `DocumentData` — no changes to layouts, only assertion tests to prevent future divergence. (Already the ADR-0008 direction.)
+- **Rollback:** tests only.
+
+### Architecture tests to add (permanent)
+
+- `PdfBuilder` rejects `newPage()` under `heightMm: "continuous"`.
+- Every thermal preset resolves to `heightMm: "continuous"`.
+- `assertStatutoryPaper` rejects continuous.
+- A4 golden-PDF byte-comparison for one representative invoice (regression guard).
+
+### Explicitly out of scope
+
+- No new template forks.
+- No parallel `generate-receipt-from-document` edge function.
+- No changes to component branching (they are already correct).
+- No changes to `document_print_policies` schema.
+- No touching of the POS live cashier HTML/ESC/POS stack in `src/services/receipt/*` — that is a separate lifecycle.
+
+---
+
+## Technical appendix (for the engineer implementing T1)
+
+- `PdfBuilder.PAPER_PRESETS` at `supabase/functions/_shared/pdf/PdfBuilder.ts:51-58` — change `heightMm` for `80mm`/`58mm`/`40mm` from `297` to `"continuous"`.
+- `PdfBuilder.create` at line 134 — replace `heightMm === "auto" ? 297 : heightMm` with a branch that records `mode: "continuous" | "fixed"` on `BuilderState`.
+- Introduce `state.maxConsumedY` (updated in `ensureSpace` and drawing helpers, or after each component).
+- `save()` at line 202 — when `mode === "continuous"`, call `this.page.setSize(width, consumedHeight)` before `doc.save()`.
+- pdf-lib API: `PDFPage.setSize(width, height)` resizes without re-flowing content because the coordinate origin is bottom-left; we must translate content (or draw from a top anchor equal to the final height). Simplest reliable option: render into a large provisional page, then on save recompute a final page and re-issue the draw operators through a second pass — or use `page.setMediaBox(x, y, w, h)` to reveal only the used strip (top-anchored). The chosen approach must be covered by the byte-equality A4 test to prove wide output is untouched.
+- Update the JSDoc on `PaperSpec.heightMm` to describe `"continuous"` as the canonical value; keep `"auto"` as a deprecated alias for one release.
+
+---
+
+**Decision requested:** approve this plan (or push back on any phase) before implementation begins. Nothing under `src/`, `supabase/`, or `agent/` will be modified until then.
