@@ -11,6 +11,8 @@ import {
   type StatementAgingBucket,
 } from "../_shared/templateRenderer.ts";
 import { generateDocumentPdf, generateStatementPdf } from "../_shared/pdfGenerator.ts";
+import { generateHrLetterPdf } from "../_shared/hrLetterGenerator.ts";
+import { fetchHrLetter, getHrLetterTenancy, isHrLetterType } from "./hrLetterFetchers.ts";
 import { mapEtimsToFiscalBlock } from "../_shared/pos/fiscalBlock.ts";
 import { mergeReceiptSettings } from "../_shared/pos/mergeReceiptSettings.ts";
 import { resolveReceiptTitle } from "../_shared/pos/resolveReceiptTitle.ts";
