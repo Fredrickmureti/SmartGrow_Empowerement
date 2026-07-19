@@ -154,9 +154,9 @@ export class PdfBuilder {
     const isLandscape = orientation === "landscape";
     // Continuous-height paper (ADR-0008 T1): render into a tall provisional
     // page; save() crops the media box down to consumed content.
-    const isContinuous = paper.heightMm === "continsuous" as any
-      || paper.heightMm === "continuous"
+    const isContinuous = paper.heightMm === "continuous"
       || paper.heightMm === "auto";
+
     const heightMode: "fixed" | "continuous" = isContinuous ? "continuous" : "fixed";
     const baseW = paper.widthMm * MM_TO_PT;
     const baseH = isContinuous
