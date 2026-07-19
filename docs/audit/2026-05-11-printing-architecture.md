@@ -154,3 +154,30 @@ See `.lovable/plan.md` for the staged implementation P0–P9. Stages P1–P3
 unblock the "wholesale on thermal" use case at the engine level; P4–P8
 make it admin-configurable per business and per document type without
 touching A4 behaviour for anyone who does not opt in.
+
+## 9. Phase T1 — Continuous paper profile (2026-07-19)
+
+Followup audit closed the "thermal PDF renders as a very tall blank
+strip" defect. Root cause was that `PdfBuilder.PAPER_PRESETS` seeded the
+thermal presets (80/58/40mm) with `heightMm: 297`, and `create()` silently
+mapped the reserved `"auto"` value to 297mm. Layout components (`density
+=== "narrow"` branches in `LineItemsTable`, `TotalsBlock`, `RecipientBlock`,
+`BrandedHeader`, etc.) were already correct — the sheet was simply too
+tall.
+
+Fix (see `supabase/functions/_shared/pdf/PdfBuilder.ts`):
+
+- Thermal presets now declare `heightMm: "continuous"`.
+- `create()` allocates a provisional 3000pt page height in continuous mode.
+- `save()` calls `PDFPage.setMediaBox` to crop the visible page to
+  `(paperWidth × consumedContentHeight + bottomMargin)`, matching Odoo's
+  `paperformat` with `page_height=0` and the standard "receipt formatter"
+  pattern in SAP POS DM / Xstore / D365 Commerce.
+- `newPage()` throws on continuous media (a roll printer has no page
+  break), and `ensureSpace()` becomes a no-op there.
+- A4 / Letter / A5 output is unchanged.
+
+Test: `supabase/functions/_shared/pdf/__tests__/paper-format_test.ts`
+now asserts the media box is cropped for thermal presets and that
+`newPage()` throws on continuous.
+
