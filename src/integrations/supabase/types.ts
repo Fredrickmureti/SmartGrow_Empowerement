@@ -66606,6 +66606,7 @@ export type Database = {
         Args: { _actor: string; _txn_id: string }
         Returns: string
       }
+      _pos_set_writer_token: { Args: { _token: string }; Returns: undefined }
       _pos_write_stock_movement: {
         Args: {
           _actor: string
