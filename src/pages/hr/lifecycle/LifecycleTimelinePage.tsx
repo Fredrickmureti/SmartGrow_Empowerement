@@ -168,15 +168,38 @@ export default function LifecycleTimelinePage() {
                         </p>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={() => navigate(`/hr/employees/${e.employee_id}?section=history`)}
-                      title="Open employee"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {(() => {
+                        const lt = letterTypeFor(e.event_type);
+                        if (!lt) return null;
+                        const label = lt === "promotion_letter" ? "Promotion letter" : "Warning letter";
+                        return (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              generateDocument(
+                                lt,
+                                e.id,
+                                `${label} — ${e.employee_name ?? ""}`.trim(),
+                              )
+                            }
+                            title={`Print ${label.toLowerCase()}`}
+                          >
+                            <Printer className="mr-1 h-3.5 w-3.5" />
+                            Print
+                          </Button>
+                        );
+                      })()}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigate(`/hr/employees/${e.employee_id}?section=history`)}
+                        title="Open employee"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
