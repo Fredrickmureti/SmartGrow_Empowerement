@@ -957,7 +957,7 @@ function POSTerminalInner() {
           currency: "KES",
           idempotencyKey: draftId,
           tipAmount: tipAmount || 0,
-          cashierId: user?.id ?? null,
+          cashierId: activeShift.cashier_id ?? null,
         });
 
         for (let i = 0; i < payments.length; i++) {
@@ -1006,6 +1006,7 @@ function POSTerminalInner() {
         result = await completeTransaction.mutateAsync({
           register_id: registerId,
           shift_id: activeShift.id,
+          cashier_id: activeShift.cashier_id ?? null,
           business_id: currentBusiness?.id,
           cart: cart.cartState,
           payments: payments.map(p => {
@@ -2248,7 +2249,7 @@ function POSTerminalInner() {
           sessionContext={{
             registerId,
             shiftId: activeShift.id,
-            cashierId: activeShift.user_id ?? null,
+            cashierId: activeShift.cashier_id ?? null,
             // Restaurant uses the draft transaction id so the session
             // collapses with `finalize_table_order`. Retail binds the key
             // to the amount because payment sessions freeze their grand

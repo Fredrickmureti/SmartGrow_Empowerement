@@ -75162,6 +75162,15 @@ export type Database = {
           tax_rate_name: string
         }[]
       }
+      pos_resolve_cashier_fk: {
+        Args: {
+          _branch_id: string
+          _business_id: string
+          _cashier_or_user_id: string
+          _organization_id?: string
+        }
+        Returns: string
+      }
       pos_resolve_line: {
         Args: {
           p_business_id: string
