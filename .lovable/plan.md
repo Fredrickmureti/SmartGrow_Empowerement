@@ -1,71 +1,72 @@
-# POS Checkout 400 — Root Cause + Fix
+## What's verified so far (evidence, not assumption)
 
-## Incident report
+1. **Live DB — the function is present, single overload, callable**
+   `public.pos_payment_session_commit(p_session_id uuid, p_transaction_envelope jsonb)`, `SECURITY DEFINER`, owner `postgres`, `EXECUTE` to `PUBLIC`. No overloads. No ambiguity.
+2. **PostgREST reachability (proof it is NOT 404 server-side right now)**
+   `POST https://jkszmrroyjfdwokbkzis.supabase.co/rest/v1/rpc/pos_payment_session_commit` from the sandbox with the anon key and the exact payload the client sends returned **HTTP 500** `{"code":"P0002","message":"pos_payment_session_commit: unknown session …"}`. That is the function executing and rejecting a bogus id — PostgREST resolved the RPC, it did not 404.
+3. **Client contract matches server**
+   `src/lib/pos/paymentSessionClient.ts::commitSession` posts `{ p_session_id, p_transaction_envelope }` via `supabase.rpc(...)`; arg names + types match live signature. All callers (`usePaymentSession`, `usePOSTransactionOffline`, `services/offline/TransactionQueue`, `SQLiteSyncManager`) route through this single wrapper. No duplicate RPC, no legacy name.
+4. **No route interceptor**
+   No `src/routes/api/**` handler and no `vercel.json` rewrite intercepts `/rest/v1/rpc/*`.
+5. **Migration timeline is consistent with what's live**
+   `20260718234953` (introduce) → `…000450` (return jsonb) → `…000732` (logic) → `…004259` (retail + `finalize_table_order` dual-mode). All `CREATE OR REPLACE` on the same `(uuid, jsonb)` signature; grants restored in the base migration and now show `PUBLIC EXECUTE`.
 
-**Symptom.** `POST /rest/v1/rpc/pos_payment_session_open` returns HTTP 400. The dialog surfaces the generic toast *"Some of the information you entered is not valid."* No sale can be tendered.
+**Consequence:** the reported `404` is not reproducible against the current live server. Which means the 404 is coming from a client-side layer between the POS UI and Supabase — not from the RPC being missing / renamed / mis-signed. I refuse to name a root cause without proof, so this plan is an investigation plan that produces the fix, not a speculative fix.
 
-**Root cause — duplicate SQL overload of `pos_payment_session_open`.** Two live definitions coexist in the database:
+## Diagnosis plan (in order, stop as soon as one is confirmed)
 
-```
-pos_payment_session_open(uuid, numeric, text, text, numeric, uuid)                              -- legacy (Phase 4.a)
-pos_payment_session_open(uuid, numeric, text, text, numeric, uuid, numeric, text, text)         -- current (Phase 4.d snapshot fields)
-```
+### Step 1 — Capture the actual failing request
+Run the checkout flow in the exact environment the incident was seen (preview vs published) and capture the failing request from DevTools → Network:
+- Full **Request URL** (host, path, query string)
+- **Request headers**: `apikey`, `Authorization`, `Content-Type`, `Prefer`
+- **Request body**
+- **Response headers**: especially any `cf-*`, `x-served-by`, `sw` markers
+- **Response body**
 
-Verified via `pg_proc` (both bodies inspected — the 6-arg version predates the FX / `settlement_currency` / `tip_policy` snapshot columns; the 9-arg version is the one every arch test in `pos-payment-session-commit-contract.test.ts` asserts against). `src/integrations/supabase/types.ts:74991-75016` already reflects both overloads as a union.
+This one artifact discriminates every remaining hypothesis:
 
-PostgREST resolves overloads by matching the JSON body key-set to a function's parameter names. When the client (`src/lib/pos/paymentSessionClient.ts:232`) sends the full 9-key payload with any optional (`p_cashier_id`) omitted, both overloads are viable candidates — the 9-arg because every key maps to a parameter; the 6-arg because its required subset `{p_register_id, p_grand_total, p_currency, p_idempotency_key}` is present and the 6-arg simply doesn't recognize the extra keys as an error. PostgREST returns `PGRST203 — Could not choose the best candidate function`, HTTP 400. This is the exact same failure mode ADR 0009 called out for `finalize_table_order` and fixed by dropping the legacy overload; the same discipline was not applied when Phase 4.d shipped the snapshot fields.
+| What the captured request shows | Root cause | Fix |
+|---|---|---|
+| Host ≠ `jkszmrroyjfdwokbkzis.supabase.co` | Old bundle hardcoded a different `SUPABASE_URL` — deployment drift | Republish current frontend (frontend deploys are gated by "Update") |
+| Host correct, path has a **trailing slash or extra segment** (e.g. `/rpc/pos_payment_session_commit/`, `/rpc/pos_payment_session_commit_v2`) | Stale JS calling an old / renamed RPC (leftover in the service-worker cache) | Bust the PWA cache (bump SW version), then republish |
+| Host + path correct, `Content-Type` missing or body encoded as form data | A rogue wrapper around `supabase.rpc` | Remove the wrapper |
+| Host + path correct, response body is HTML (Cloudflare / Vercel 404) | Response is not reaching Supabase at all — an intermediate proxy (SW, browser extension, corporate proxy) is short-circuiting | Fix the intermediary, then republish |
+| Host + path + body correct AND response is a genuine PostgREST 404 JSON | PostgREST schema cache stale on that Supabase edge PoP | `NOTIFY pgrst, 'reload schema'` from a migration + verify |
 
-**Why the arch tests didn't catch it.** `pos-payment-session-commit-contract.test.ts` matches the *migration text* with a `CREATE OR REPLACE FUNCTION` regex — that guarantees the new definition is created, but a `CREATE OR REPLACE` with a different argument list creates a **new overload**, not a replacement. Nothing in the suite introspects `pg_proc` to verify overload count. Classification: **migration issue** (missing `DROP FUNCTION` for the superseded overload) plus a **guard gap** (no pg_proc-shape assertion).
+### Step 2 — Rule out the PWA/service-worker cache path
+POS ships offline infrastructure (`src/services/offline/*`, `TransactionQueue`, `SQLiteSyncManager`). If a service worker is registered and serving a bundle built before the current commit RPC signature, every checkout will 404 even though the server is healthy. Verify by:
+- Checking DevTools → Application → Service Workers for a registered SW and its script URL.
+- Comparing the loaded `paymentSessionClient` bundle hash to the one produced by the current build.
+- Confirming there is (or is not) an entry in `TransactionQueue` retrying against an outdated RPC name.
 
-**Secondary defect — diagnostic loss.** `ErrorNormalizer.ts:88-93` maps every 400 to the `validation` kind with the generic message and discards PostgREST's `code`/`hint`/`details`. `POSPaymentSessionError` already captures those fields; the toast layer throws them away. This is why the real cause was invisible until pg_proc inspection.
+If confirmed, the fix is a controlled SW cache invalidation (bump the SW/cache version constant) so old clients pick up the current bundle on next load. **Not** a compat wrapper on the server.
 
-## Fix
-
-Scope-locked. No new features, no arch changes, no compatibility shim.
-
-### 1. Migration — drop the legacy overload
-
-Single migration mirroring ADR 0009's `finalize_table_order` cleanup:
-
+### Step 3 — Verify schema-cache freshness (only if Step 1 shows a genuine PostgREST 404 JSON)
+If — and only if — the captured 404 body is a PostgREST JSON error like `PGRST202 "Could not find the function public.pos_payment_session_commit …"`, ship a one-line migration:
 ```sql
-DROP FUNCTION IF EXISTS public.pos_payment_session_open(uuid, numeric, text, text, numeric, uuid);
+NOTIFY pgrst, 'reload schema';
 ```
+plus a `SELECT pg_notify('pgrst', 'reload schema');` in the same migration to force reload on every PostgREST replica. This is legitimate only in that case; otherwise it is theatre.
 
-The 9-arg current overload becomes the sole entry point. No client change needed — `paymentSessionClient.openSession` already passes the full 9-arg shape.
+### Step 4 — Fix, then verify end-to-end
+Once Step 1 pinpoints the layer:
+1. Apply the smallest change that removes the underlying defect (see the table above — no compat wrappers, no silenced errors).
+2. Re-run the checkout from the same environment; capture the same request/response as in Step 1 and confirm HTTP 200 with a `transaction_id`.
+3. Confirm downstream rows: one row in `pos_transactions` (status `completed`), matching rows in `pos_transaction_items` and `pos_transaction_payments`, one row in `pos_payment_sessions` transitioning to `committed`, and the corresponding `pos_payment_session_apply_log` entry (idempotency guard populated).
+4. Re-run the same commit with the SAME idempotency key: the RPC must return `idempotent_replay: true` and NOT create duplicate rows.
+5. Regression sweep on the surrounding flow: `pos_payment_session_open` → `pos_payment_session_record_tender` × N → `pos_payment_session_commit`; and the dine-in path via `existing_transaction_id` → `finalize_table_order`.
 
-### 2. Arch guard — lock overload uniqueness
+## Deliverables (produced during build mode)
 
-New test `src/test/architecture/pos-payment-session-single-overload.test.ts`. Uses the SQL introspection idiom already established elsewhere in the suite: reads the latest `pos_payment_session_*` migration texts and asserts
+- Captured failing request/response from Step 1 (pasted verbatim).
+- Named root cause with the specific evidence line.
+- List of files changed and why.
+- Verification log for Step 4 (before/after DB row counts, network 200, idempotent replay).
+- Why the issue escaped previous verification (e.g. architecture tests scan repo, not the shipped SW cache; migrations verify DB, not the client bundle in the user's browser).
 
-- exactly one `CREATE OR REPLACE FUNCTION public.pos_payment_session_open(` with 9 typed parameters,
-- a matching `DROP FUNCTION IF EXISTS public.pos_payment_session_open(uuid, numeric, text, text, numeric, uuid)` exists,
-- symmetric checks scaffolded for the other session RPCs (`record_tender`, `reverse_tender`, `commit`, `cancel`) so a future overload-drift regression fails the build.
+## What this plan explicitly refuses to do
 
-This closes the guard gap that let Phase 4.d ship with a duplicate.
-
-### 3. Diagnostic surface — no generic mask for structured PostgREST errors
-
-Narrow, minimal edit to `PaymentDialog.tsx` error path (and the `usePaymentSession` toast callback): when a caught error is a `POSPaymentSessionError` **and** it carries a non-null `code`/`hint`/`details`, surface `${message} [${code}]` in the toast body and log the full triple. `ErrorNormalizer` stays untouched — this is a targeted opt-out for the payment-session error class only, so unrelated 400s keep their curated copy. No swallowing, no fallbacks — the failure still throws.
-
-## Verification
-
-1. Re-run the arch suite plus the new guard: `pos-mandatory-idempotency`, `pos-payment-session-lifecycle`, `pos-legacy-commit-rpcs-server-only`, `pos-payment-session-commit-contract`, `pos-card-fsm`, `no-client-payment-math`, `pos-payment-session-single-overload`, `payment-method-resolver`. Expect all green.
-2. Introspect `pg_proc` post-migration: exactly one `pos_payment_session_open` row.
-3. Manually drive the running preview via Playwright headless — retail cash sale, split (cash + M-Pesa), card auth/capture, restaurant table finalize, mid-payment hard refresh (session rehydrate). Screenshot each terminal state; file under `docs/audit/2026-wave3-checkout-postmortem/`.
-4. Offline replay: `TransactionQueue` + `SQLiteSyncManager` flush a queued sale — confirm the same idempotency key collapses cleanly against the newly single overload.
-
-## Explicitly not doing
-
-- No changes to `paymentSessionClient` argument shape.
-- No changes to session snapshot columns or FSM.
-- No broad `ErrorNormalizer` rewrite.
-- No optional-parameter loosening on the RPC.
-- No new wave features.
-
-## Deliverables
-
-- Migration dropping the legacy 6-arg overload.
-- New arch guard `pos-payment-session-single-overload.test.ts`.
-- Targeted diagnostic surface for `POSPaymentSessionError` in the dialog.
-- Playwright evidence bundle for the five checkout scenarios.
-- Postmortem entry appended to `.lovable/plan.md` under Wave 3 close-out, upgrading Wave 4 follow-up #1 (Playwright evidence) to *done* since we file it here.
+- No new `pos_payment_session_commit` overload, alias, or compat wrapper on the DB unless Step 3 proves a schema-cache issue.
+- No `catch { /* ignore */ }` around the commit call.
+- No renaming of the RPC or the client function.
+- No unrelated refactoring of `paymentSessionClient`, `usePaymentSession`, or `TransactionQueue`.
