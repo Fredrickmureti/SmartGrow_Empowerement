@@ -2121,6 +2121,70 @@ serve(async (req) => {
       return entDenied(subResult, corsHeaders);
     }
 
+    // ── Milestone C.1: tabular export (CSV) short-circuit ──────────────
+    // Statement CSVs consume the same `documentData` produced by the
+    // fetchers above so the row-by-row content matches the PDF byte-for-
+    // byte at fetch time. Persisted via the standard immutable-artifact
+    // pipeline with `render_mode: "export"` so version history lists
+    // both the PDF and CSV renders of the same statement.
+    if (format === "csv") {
+      const { buildStatementCsv } = await import("../_shared/exports/statementCsv.ts");
+      const csvBytes = buildStatementCsv(documentData);
+      const csvMime = "text/csv; charset=utf-8";
+      const csvHeaders: Record<string, string> = {
+        "X-Print-Policy-Render-Mode": "export",
+        "Access-Control-Expose-Headers":
+          "X-Print-Policy-Render-Mode, X-Document-Artifact-Id, X-Document-Artifact-Version",
+      };
+      try {
+        const {
+          shouldPersistArtifact,
+          persistArtifact,
+        } = await import("../_shared/documents/persistArtifact.ts");
+        if (shouldPersistArtifact(documentType, { persistOptIn: body.persist !== false })) {
+          const persisted = await persistArtifact({
+            supabase,
+            bytes: csvBytes,
+            organizationId: orgId,
+            businessId: await getBusinessId(supabase, documentType, documentId),
+            branchId: (documentData as any)?.branch_id ?? null,
+            documentType,
+            documentId,
+            documentNumber: (documentData as any)?.document_number ?? null,
+            intent: typeof body.intent === "string" ? body.intent : "export",
+            templateId: null,
+            templateVersion: null,
+            policyId: null,
+            mimeType: csvMime,
+            renderMode: "export",
+            paperFormat: "n/a",
+            copies: 1,
+            renderedBy: userData.user.id,
+            renderedVia: "generate-document",
+            metadata: { export_format: "csv" },
+          });
+          if (persisted) {
+            csvHeaders["X-Document-Artifact-Id"] = persisted.id;
+            csvHeaders["X-Document-Artifact-Version"] = String(persisted.version);
+          }
+        }
+      } catch (err) {
+        console.error("[artifact] csv persistence hook failed (non-fatal):", (err as Error).message);
+      }
+      return new Response(csvBytes as unknown as BodyInit, {
+        headers: {
+          ...corsHeaders,
+          ...csvHeaders,
+          "Content-Type": csvMime,
+          "Content-Disposition": buildContentDisposition(
+            documentType,
+            (documentData as any)?.document_number ?? documentId,
+            "csv",
+          ),
+        },
+      });
+    }
+
     // ── Wave 11 (P0 R6): ZPL label rendering — gated branch ─────────────
     // Was previously at the top of the handler (pre-auth). Now sits AFTER
     // org-membership + entitlement so cross-org `format=zpl` calls 403.
