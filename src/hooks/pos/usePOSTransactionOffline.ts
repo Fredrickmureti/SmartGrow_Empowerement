@@ -63,6 +63,7 @@ export interface CompleteTransactionData {
   register_id: string;
   shift_id: string;
   business_id?: string;
+  cashier_id?: string | null;
   cart: CartState;
   payments: PaymentMethod[];
   transaction_type?: "sale" | "return" | "exchange";
@@ -240,7 +241,7 @@ async function processOnlineTransaction(
     currency: "KES",
     idempotencyKey,
     tipAmount: data.tip_amount ?? 0,
-    cashierId: userId,
+    cashierId: data.cashier_id ?? null,
   });
 
   // 2. Record each tender. Deterministic per-tender key so a mid-flight retry

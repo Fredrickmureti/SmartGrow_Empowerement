@@ -14,6 +14,7 @@ export interface POSShift {
   business_id: string;
   branch_id: string;
   register_id: string;
+  cashier_id: string | null;
   user_id: string;
   shift_number: string;
   opened_at: string;
