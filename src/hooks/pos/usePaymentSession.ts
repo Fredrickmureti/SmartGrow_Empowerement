@@ -94,6 +94,9 @@ export interface PaymentSessionTenderRow {
   change_given: number | null;
   reference: string | null;
   auth_state: string | null;
+  auth_id: string | null;
+  vendor_txn_id: string | null;
+  driver_payload: Record<string, unknown> | null;
   status: string;
   created_at: string;
 }
