@@ -131,6 +131,38 @@ export interface CommitSessionArgs {
   envelope: CommitSessionEnvelope;
 }
 
+/**
+ * Envelope returned by `pos_payment_session_commit`. Mirrors the
+ * `process_pos_transaction` response with the originating `session_id`
+ * appended. On idempotent replay `idempotent_replay` is `true` and the
+ * body is the exact cached envelope of the first successful commit.
+ */
+export interface CommitSessionResult {
+  success: true;
+  session_id: string;
+  transaction_id: string;
+  transaction_number?: string;
+  change?: number;
+  tendered?: number;
+  branch_id?: string;
+  business_id?: string;
+  idempotent_replay?: boolean;
+  server_totals?: {
+    subtotal: number;
+    tax_amount: number;
+    discount_amount: number;
+    total: number;
+  };
+  client_totals?: {
+    subtotal: number;
+    tax_amount: number;
+    discount_amount: number;
+    total: number;
+  };
+  total_matches_server?: boolean;
+}
+
+
 // ---------------------------------------------------------------------------
 // Error surface
 // ---------------------------------------------------------------------------
