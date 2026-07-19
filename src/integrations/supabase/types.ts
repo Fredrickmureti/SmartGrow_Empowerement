@@ -40977,6 +40977,173 @@ export type Database = {
           },
         ]
       }
+      pos_statement_tender_lines: {
+        Row: {
+          branch_id: string
+          business_id: string
+          created_at: string
+          gross_amount: number
+          id: string
+          net_amount: number
+          organization_id: string
+          processor: string | null
+          refund_amount: number
+          statement_id: string
+          tender_method: string
+          tx_count: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          business_id: string
+          created_at?: string
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          organization_id: string
+          processor?: string | null
+          refund_amount?: number
+          statement_id: string
+          tender_method: string
+          tx_count?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          business_id?: string
+          created_at?: string
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          organization_id?: string
+          processor?: string | null
+          refund_amount?: number
+          statement_id?: string
+          tender_method?: string
+          tx_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_statement_tender_lines_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "pos_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_statements: {
+        Row: {
+          branch_id: string
+          business_id: string
+          cash_variance: number | null
+          close_kind: Database["public"]["Enums"]["pos_statement_close_kind"]
+          closed_at: string | null
+          closed_by: string | null
+          counted_cash: number | null
+          created_at: string
+          expected_cash: number | null
+          id: string
+          idempotency_key: string | null
+          journal_entry_id: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          opening_cash: number | null
+          organization_id: string
+          posted_at: string | null
+          posting_status: Database["public"]["Enums"]["pos_statement_posting_status"]
+          register_id: string
+          shift_id: string
+          statement_number: string
+          total_discount: number
+          total_returns: number
+          total_sales: number
+          total_tax: number
+          total_tip: number
+          total_transactions: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          business_id: string
+          cash_variance?: number | null
+          close_kind: Database["public"]["Enums"]["pos_statement_close_kind"]
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          idempotency_key?: string | null
+          journal_entry_id?: string | null
+          notes?: string | null
+          opened_at: string
+          opened_by?: string | null
+          opening_cash?: number | null
+          organization_id: string
+          posted_at?: string | null
+          posting_status?: Database["public"]["Enums"]["pos_statement_posting_status"]
+          register_id: string
+          shift_id: string
+          statement_number: string
+          total_discount?: number
+          total_returns?: number
+          total_sales?: number
+          total_tax?: number
+          total_tip?: number
+          total_transactions?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          business_id?: string
+          cash_variance?: number | null
+          close_kind?: Database["public"]["Enums"]["pos_statement_close_kind"]
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          idempotency_key?: string | null
+          journal_entry_id?: string | null
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          opening_cash?: number | null
+          organization_id?: string
+          posted_at?: string | null
+          posting_status?: Database["public"]["Enums"]["pos_statement_posting_status"]
+          register_id?: string
+          shift_id?: string
+          statement_number?: string
+          total_discount?: number
+          total_returns?: number
+          total_sales?: number
+          total_tax?: number
+          total_tip?: number
+          total_transactions?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_statements_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "pos_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_statements_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_cash_expected"
+            referencedColumns: ["shift_id"]
+          },
+        ]
+      }
       pos_table_bookings: {
         Row: {
           booking_date: string
@@ -66575,6 +66742,10 @@ export type Database = {
         Args: { _payload: Json; _txn_id: string }
         Returns: string
       }
+      _pos_next_stmt_number: {
+        Args: { p_business_id: string; p_when: string }
+        Returns: string
+      }
       _pos_payment_session_emit: {
         Args: {
           p_payload: Json
@@ -69140,6 +69311,14 @@ export type Database = {
           p_manager_override_id?: string
           p_notes?: string
           p_shift_id: string
+        }
+        Returns: Json
+      }
+      close_pos_statement: {
+        Args: {
+          p_counts?: Json
+          p_idempotency_key?: string
+          p_statement_id: string
         }
         Returns: Json
       }
@@ -73004,6 +73183,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      open_pos_statement: {
+        Args: {
+          p_close_kind?: Database["public"]["Enums"]["pos_statement_close_kind"]
+          p_idempotency_key?: string
+          p_shift_id: string
+        }
+        Returns: string
       }
       open_qc_inspection: {
         Args: {
@@ -78797,6 +78984,16 @@ export type Database = {
         | "cancel_pre_payment"
         | "void_post_payment"
         | "return_refund"
+      pos_statement_close_kind:
+        | "shift_close"
+        | "trading_day_close"
+        | "historical_backfill"
+        | "force_close"
+      pos_statement_posting_status:
+        | "pending"
+        | "posted"
+        | "historical"
+        | "reversed"
       pos_table_session_status:
         | "open"
         | "ordered"
@@ -79557,6 +79754,18 @@ export const Constants = {
         "cancel_pre_payment",
         "void_post_payment",
         "return_refund",
+      ],
+      pos_statement_close_kind: [
+        "shift_close",
+        "trading_day_close",
+        "historical_backfill",
+        "force_close",
+      ],
+      pos_statement_posting_status: [
+        "pending",
+        "posted",
+        "historical",
+        "reversed",
       ],
       pos_table_session_status: ["open", "ordered", "served", "paid", "closed"],
       pos_terminal_mode: ["test", "live"],
