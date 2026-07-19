@@ -74387,7 +74387,6 @@ export type Database = {
           transaction_count: number
         }[]
       }
-      get_pos_shift_gl_summary: { Args: { p_shift_id: string }; Returns: Json }
       get_pos_shift_report_summary: {
         Args: { _shift_id: string }
         Returns: Json
