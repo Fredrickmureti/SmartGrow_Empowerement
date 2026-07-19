@@ -29,11 +29,10 @@ The existing S2–S6 sequence stands. Additions justified by re-reading the code
 
 Resume at **S2**. Each step ships as one migration + one code PR + one architecture test; each is independently reversible.
 
-### S2 — Server-authoritative money math (NEXT)
-1. Migration: `process_pos_transaction` retains its parameter shape (compat), but the response JSON gains `server_totals` (subtotal, discount, tax, tip, total) and `total_matches_server` boolean. Server already re-derives via `v_srv_*`; wire those into the return.
-2. Frontend (`src/services/pos/**`, `src/features/pos/**`): commit-response consumer uses `server_totals` for the printed / emailed receipt and for `pos_receipt_snapshots`. Client math stays as UI latency filler only.
-3. Architecture test: `src/test/pos/pos-commit-response-shape.test.ts` asserts response contains `server_totals` and rejects any code path that persists client totals downstream of the RPC.
-4. Verify with Quick Cash + mixed-tender + discounted sales against register `cba22f78-2624-4c1d-841b-9dd760ae4e28`.
+### S2 — Server-authoritative money math ✅ COMPLETE
+1. DB response returns `server_totals` + `total_matches_server`; `pos_transactions` row is stamped from `v_srv_*` aggregates — guarded by `src/test/architecture/no-client-pos-money-math.test.ts`.
+2. Client wrapper (`CommitSessionResult` in `src/lib/pos/paymentSessionClient.ts`) exposes both fields; `usePOSTransactionOffline` surfaces `serverTotals` + `totalMatchesServer` and logs a warning on divergence — guarded by `src/test/architecture/pos-commit-response-shape.test.ts`.
+3. Receipt rendering already server-authoritative via `pos_receipt_snapshots` (written by `_pos_write_receipt_snapshot`); no client-cart totals reach reprint / audit surfaces.
 
 ### S3 — Introduce `pos_statements`
 - New tables `pos_statements`, `pos_statement_tender_lines`, with `GRANT`s + RLS scoped through `assert_pos_caller_branch_access`.
