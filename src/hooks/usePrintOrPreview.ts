@@ -58,7 +58,7 @@ export interface PrintOrPreviewRequest {
 
 export function usePrintOrPreview() {
   const docPrint = useDocumentPrint();
-  const { currentBusiness } = useBusiness();
+  const { currentBusiness } = useBusinesses();
   // The Branch context is optional on some surfaces; guard against missing provider.
   let branchId: string | null = null;
   try {
