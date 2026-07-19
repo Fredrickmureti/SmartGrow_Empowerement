@@ -631,6 +631,18 @@ export default function VendorStatements() {
                               <Download className="mr-2 h-4 w-4" />Download PDF
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
+                              const res = await printClient.downloadExport({
+                                documentType: "vendor_statement",
+                                documentId: statement.id,
+                                format: "csv",
+                                filename: `vendor-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "vendor"}.csv`,
+                              });
+                              if (!res.success) toast.error("Export failed: " + (res.error ?? "Unknown error"));
+                              else toast.success("CSV export archived to version history");
+                            }}>
+                              <Download className="mr-2 h-4 w-4" />Export CSV
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={async () => {
                               try {
                                 setEmailDocument({
                                   documentType: "vendor_statement",
