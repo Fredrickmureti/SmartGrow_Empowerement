@@ -1,6 +1,17 @@
+# Wave 3 · Phase 2 — `paymentSessionClient` wrapper  ✅ COMPLETE
+
+> **Status:** the typed client wrapper is landed and covered by 13 contract tests + the pre-existing architecture guard. The five session RPCs now have a single, guarded entry point from application code — every future client caller (PaymentDialog migration, offline replay, etc.) is forced through it by `src/test/architecture/pos-payment-session-lifecycle.test.ts`. Next up: Phase 3 (migrate `PaymentDialog` + retail commit path onto the session lifecycle; retire the legacy `useState`-array + direct `process_pos_transaction` call).
+>
+> **Landed artefacts (Phase 2)**
+> - `src/lib/pos/paymentSessionClient.ts` — typed wrappers for `openSession` / `recordTender` / `reverseTender` / `commitSession` / `cancelSession`, plus `newIdempotencyKey` and a `POSPaymentSessionError` class carrying `{ rpc, code, hint, details }`. Refuses empty idempotency keys client-side so a mis-wired caller can't collapse the server's dedupe guard.
+> - `src/lib/pos/__tests__/paymentSessionClient.test.ts` — 13 tests pinning the RPC wire format (arg names, defaults, error surface, namespaced-vs-named exports).
+> - Architecture guard (`pos-payment-session-lifecycle.test.ts`) unchanged but now has a real allow-listed file to point to; any future `supabase.rpc("pos_payment_session_*")` outside the wrapper fails the build.
+
+---
+
 # Wave 3 · Phase 1 — `PaymentSession` durable aggregate + session RPCs  ✅ COMPLETE
 
-> **Status (verified against live DB):** Phase 1 landed. Every DoD item below is checked against `information_schema` / `pg_catalog` / `business_event_topics` and against static guards in the repo. Next up: Phase 2 (client migration + `paymentSessionClient` wrapper).
+> **Status (verified against live DB):** Phase 1 landed. Every DoD item below is checked against `information_schema` / `pg_catalog` / `business_event_topics` and against static guards in the repo.
 >
 > **Landed artefacts**
 > - Migration: 3 tables (`pos_payment_sessions`, `pos_payment_session_tenders`, `pos_payment_session_apply_log`), FSM trigger `zzz_assert_tender_fsm`, branch-scope trigger on both writable tables, 5 SECURITY DEFINER RPCs (`open` / `record_tender` / `reverse_tender` / `commit` / `cancel`) + helper `pos_payment_session_allocated`, 5 outbox topics.
