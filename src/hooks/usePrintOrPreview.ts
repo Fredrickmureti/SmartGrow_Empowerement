@@ -107,8 +107,26 @@ export function usePrintOrPreview() {
     [currentBusiness?.id, docPrint],
   );
 
+  /**
+   * Drop-in replacement for `useDocumentPrint().generateDocument(...)` so
+   * pages migrating from the shadow path can swap the hook import without
+   * rewriting every call site. Routes through the policy resolver first
+   * and falls back to the preview dialog for `ask_user` / errors.
+   */
+  const generateDocument = useCallback(
+    (
+      documentType: string,
+      documentId: string,
+      title: string,
+      communication?: PrintOrPreviewRequest["communication"],
+    ) =>
+      printOrPreview({ documentType, documentId, title, communication }),
+    [printOrPreview],
+  );
+
   return {
     printOrPreview,
+    generateDocument,
     // Passthrough for the <PrintPreviewDialog {...dialogProps} /> spread.
     printPreviewOpen: docPrint.printPreviewOpen,
     setPrintPreviewOpen: docPrint.setPrintPreviewOpen,
@@ -120,3 +138,4 @@ export function usePrintOrPreview() {
     downloadPdf: docPrint.downloadPdf,
   };
 }
+
