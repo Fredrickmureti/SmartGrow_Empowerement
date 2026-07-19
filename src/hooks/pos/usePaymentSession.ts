@@ -67,10 +67,19 @@ export interface PaymentSessionParams {
   shiftId: string;
   cashierId?: string | null;
   /**
-   * Stable digest of the cart contents. Two dialogs open against the
-   * same cart MUST resolve to the same digest so the session collapses.
+   * Stable digest of the cart contents. Ignored when `idempotencyKey`
+   * is provided — that path is preferred whenever the caller already
+   * owns a stable key.
    */
-  cartHash: string;
+  cartHash?: string;
+  /**
+   * Explicit idempotency key. Use this when the caller already owns a
+   * stable key (e.g. `useCommitKey.get(register, shift)` for retail,
+   * `cart.transactionId` for restaurant draft finalisation). Takes
+   * precedence over the `cartHash`-derived key so the dialog's session
+   * collapses with the downstream commit path on retry.
+   */
+  idempotencyKey?: string;
   totals: PaymentSessionCartTotals;
   /** When false, the hook does not query for rehydration on mount. */
   autoRehydrate?: boolean;
@@ -85,7 +94,16 @@ export interface PaymentSessionTenderRow {
   change_given: number | null;
   reference: string | null;
   auth_state: string | null;
-  status: string;
+  auth_id: string | null;
+  vendor_txn_id: string | null;
+  driver_payload: Record<string, unknown> | null;
+  /**
+   * `reversed_at IS NULL` means the tender is still applied. There is
+   * no `status` column on `pos_payment_session_tenders` — reversal
+   * timestamp is the source of truth.
+   */
+  reversed_at: string | null;
+  reversal_reason: string | null;
   created_at: string;
 }
 
@@ -95,9 +113,13 @@ export interface UsePaymentSession {
   tenders: PaymentSessionTenderRow[];
   /** Sum of active tender amounts as reported by the server. */
   allocated: number;
+  /** Sum of active tender `tendered_amount` (defaults to `amount`) — server-derived. */
+  totalTendered: number;
+  /** Sum of active tender `change_given` — server-derived. */
+  totalChange: number;
   /** grandTotal - allocated, clamped >= 0. Derived from server values only. */
   remaining: number;
-  /** Change due, only meaningful after a commit. */
+  /** Change due for display: totalChange when >0 else max(totalTendered - grandTotal, 0). */
   change: number;
   error: Error | null;
   /**
@@ -117,14 +139,15 @@ export interface UsePaymentSession {
 // ---------------------------------------------------------------------------
 
 function deriveSessionKey(p: PaymentSessionParams): string {
-  return `pos.session:${p.registerId}:${p.shiftId}:${p.cartHash}`;
+  if (p.idempotencyKey) return p.idempotencyKey;
+  return `pos.session:${p.registerId}:${p.shiftId}:${p.cartHash ?? "no-cart-hash"}`;
 }
 
 async function fetchTenders(sessionId: string): Promise<PaymentSessionTenderRow[]> {
   const { data, error } = await supabase
     .from("pos_payment_session_tenders")
     .select(
-      "id, tender_kind, method_key, amount, tendered_amount, change_given, reference, auth_state, status, created_at",
+      "id, tender_kind, method_key, amount, tendered_amount, change_given, reference, auth_state, auth_id, vendor_txn_id, driver_payload, reversed_at, reversal_reason, created_at",
     )
     .eq("session_id", sessionId)
     .order("created_at", { ascending: true });
@@ -142,7 +165,7 @@ async function rehydrateOpen(
     .select("id, status")
     .eq("register_id", registerId)
     .eq("idempotency_key", idempotencyKey)
-    .in("status", ["open", "recording"])
+    .in("status", ["open", "balanced"])
     .limit(1)
     .maybeSingle();
   if (error) throw error;
@@ -316,23 +339,46 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
     [sessionId],
   );
 
-  // Derived, from server-authoritative rows only.
-  const allocated = useMemo(
-    () => tenders.filter((t) => t.status === "active").reduce((s, t) => s + Number(t.amount || 0), 0),
+  // Derived, from server-authoritative rows only. Consumers must not
+  // re-derive these client-side; `no-client-payment-math` fails the
+  // build if PaymentDialog.tsx introduces `.reduce` over payments/tenders.
+  // Active = not reversed. There is no `status` column on the tenders
+  // table; `reversed_at IS NULL` is the source of truth.
+  const activeTenders = useMemo(
+    () => tenders.filter((t) => t.reversed_at == null),
     [tenders],
+  );
+  const allocated = useMemo(
+    () => activeTenders.reduce((s, t) => s + Number(t.amount || 0), 0),
+    [activeTenders],
+  );
+  const totalTendered = useMemo(
+    () => activeTenders.reduce((s, t) => s + Number(t.tendered_amount ?? t.amount ?? 0), 0),
+    [activeTenders],
+  );
+  const totalChange = useMemo(
+    () => activeTenders.reduce((s, t) => s + Number(t.change_given ?? 0), 0),
+    [activeTenders],
   );
   const remaining = useMemo(
     () => Math.max(0, Number(params.totals.grandTotal || 0) - allocated),
     [params.totals.grandTotal, allocated],
   );
+  const displayChange = useMemo(() => {
+    if (totalChange > 0) return totalChange;
+    return Math.max(0, totalTendered - Number(params.totals.grandTotal || 0));
+  }, [totalChange, totalTendered, params.totals.grandTotal]);
+  const effectiveChange = change > 0 ? change : displayChange;
 
   return {
     sessionId,
     status,
     tenders,
     allocated,
+    totalTendered,
+    totalChange,
     remaining,
-    change,
+    change: effectiveChange,
     error,
     recordTender,
     reverseTender,

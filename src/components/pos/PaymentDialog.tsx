@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,17 +7,17 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link as RouterLink } from "react-router-dom";
-import { 
-  Banknote, 
-  CreditCard, 
-  Smartphone, 
+import {
+  Banknote,
+  CreditCard,
+  Smartphone,
   Building,
   FileText,
   Wallet,
-  Plus, 
+  Plus,
   Trash2,
   CheckCircle,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePOSSettings } from "@/hooks/pos/usePOSSettings";
@@ -29,26 +29,54 @@ import { MpesaC2BLookupModal } from "./MpesaC2BLookupModal";
 import { CardPaymentModal, type CardAuthPayload } from "./CardPaymentModal";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
+import {
+  usePaymentSession,
+  type PaymentSessionTenderRow,
+} from "@/hooks/pos/usePaymentSession";
+import type {
+  PosTenderKind,
+  PosSessionTenderInput,
+} from "@/lib/pos/paymentSessionClient";
 
 
+/**
+ * Shape returned to the parent at commit. Mirrors the historical
+ * external contract of this dialog — the internal source of truth is
+ * `pos_payment_session_tenders` fetched via `usePaymentSession`.
+ */
 export interface PaymentDialogPayment {
   method: string;
-  /** Amount applied to the invoice (<= tendered_amount). */
   amount: number;
-  /** What the customer presented; for non-cash equals `amount`. */
   tendered_amount?: number;
-  /** Cash change due to the customer; 0 for non-cash. */
   change_given?: number;
   reference?: string;
-  // Wave 2 · Phase C-2 — card FSM metadata captured by CardPaymentModal.
-  // Persisted at commit-time by `_pos_record_payment` so the row starts
-  // in a legal FSM state (approved | captured) with vendor auth trail.
   auth_state?: "approved" | "captured";
   auth_id?: string;
   vendor_txn_id?: string;
   authorized_amount?: number;
   card_last_four?: string;
   card_type?: string;
+}
+
+
+/**
+ * Context required to open (or rehydrate) the payment session that
+ * backs this dialog. Retail passes `useCommitKey.get(register, shift)`
+ * as the idempotency key; restaurant passes `cart.transactionId` (the
+ * draft id) so the commit RPC forwards to `finalize_table_order`.
+ */
+export interface PaymentSessionContext {
+  registerId: string;
+  shiftId: string;
+  cashierId?: string | null;
+  /**
+   * Stable idempotency key for the session. The same value MUST be
+   * reused on retries and mid-payment refreshes so the DB session
+   * collapses to a single row.
+   */
+  idempotencyKey: string;
+  /** Currency of the sale — passed through to `pos_payment_session_open`. */
+  currency?: string;
 }
 
 
@@ -61,7 +89,13 @@ interface PaymentDialogProps {
   onTipChange?: (tip: number) => void;
   splitPortionLabel?: string;
   hasCustomer?: boolean;
-  registerPaymentMethods?: string[] | null; // from pos_registers.default_payment_methods
+  registerPaymentMethods?: string[] | null;
+  /**
+   * Required — identifies the payment session. Without this the dialog
+   * cannot record tenders and would silently fall back to client-only
+   * math (Wave 3 · Phase 4.c-follow).
+   */
+  sessionContext: PaymentSessionContext;
   onComplete: (payments: PaymentDialogPayment[]) => void;
 }
 
@@ -74,7 +108,50 @@ const iconMap: Record<string, React.ElementType> = {
   Wallet,
 };
 
-export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tipAmount = 0, onTipChange, splitPortionLabel, hasCustomer = false, registerPaymentMethods, onComplete }: PaymentDialogProps) {
+/**
+ * Map a `pos_payment_session_tenders` row (server-authoritative) back
+ * to the `PaymentDialogPayment` shape the parent expects at commit.
+ * We only propagate metadata the DB actually stores; card `card_last_four`
+ * / `card_type` come from `driver_payload` (jsonb) when present.
+ */
+function tenderRowToDialogPayment(row: PaymentSessionTenderRow): PaymentDialogPayment {
+  const payload = (row.driver_payload ?? {}) as Record<string, unknown>;
+  const authState = row.auth_state as PaymentDialogPayment["auth_state"] | null | undefined;
+  return {
+    method: row.method_key ?? row.tender_kind,
+    amount: Number(row.amount),
+    tendered_amount: Number(row.tendered_amount ?? row.amount),
+    change_given: Number(row.change_given ?? 0),
+    reference: row.reference ?? undefined,
+    auth_state: authState ?? undefined,
+    auth_id: row.auth_id ?? undefined,
+    vendor_txn_id: row.vendor_txn_id ?? undefined,
+    authorized_amount:
+      typeof payload.authorized_amount === "number"
+        ? (payload.authorized_amount as number)
+        : undefined,
+    card_last_four:
+      typeof payload.card_last_four === "string"
+        ? (payload.card_last_four as string)
+        : undefined,
+    card_type:
+      typeof payload.card_type === "string" ? (payload.card_type as string) : undefined,
+  };
+}
+
+export function PaymentDialog({
+  open,
+  onOpenChange,
+  total,
+  posTransactionId,
+  tipAmount = 0,
+  onTipChange,
+  splitPortionLabel,
+  hasCustomer = false,
+  registerPaymentMethods,
+  sessionContext,
+  onComplete,
+}: PaymentDialogProps) {
   const { formatCurrency, getCurrencySymbol } = useCurrency();
   const [localTip, setLocalTip] = useState("");
   const effectiveTotal = total + tipAmount;
@@ -92,31 +169,59 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     hasCustomer,
   });
   const readyMethods = resolved.filter((m) => m.isReady);
-  // Keep the original POSPaymentMethod shape for downstream rendering, but
-  // restricted to ready methods only (cashier picks only what works).
   const enabledPaymentMethods = allEnabledMethods.filter((m) =>
     readyMethods.some((r) => r.method_key === m.method_key),
   );
-  
-  const [payments, setPayments] = useState<PaymentDialogPayment[]>([]);
+
+  // Server-authoritative payment session. This is the ONLY source of
+  // truth for tenders and their totals inside the dialog — no local
+  // truth for tenders and their totals inside the dialog — no local
+  // architecture guard `no-client-payment-math` blocks that pattern.
+  const session = usePaymentSession({
+    registerId: sessionContext.registerId,
+    shiftId: sessionContext.shiftId,
+    cashierId: sessionContext.cashierId ?? null,
+    idempotencyKey: sessionContext.idempotencyKey,
+    totals: {
+      grandTotal: effectiveTotal,
+      currency: sessionContext.currency ?? "KES",
+      tipAmount,
+    },
+    autoRehydrate: open,
+  });
+
+  // Derived, from server rows only.
+  const tenderRows = useMemo(
+    () => session.tenders.filter((t) => t.reversed_at == null),
+    [session.tenders],
+  );
+  const payments = useMemo(
+    () => tenderRows.map(tenderRowToDialogPayment),
+    [tenderRows],
+  );
+  const totalApplied = session.allocated;
+  const totalTendered = session.totalTendered;
+  const totalChange = session.totalChange;
+  const remaining = session.remaining;
+  const change = session.change;
+
   const [selectedMethod, setSelectedMethod] = useState<string>("");
   const [amount, setAmount] = useState("");
   const [reference, setReference] = useState("");
   const [cashTendered, setCashTendered] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
   const [showMpesaModal, setShowMpesaModal] = useState(false);
   const [showSplitMpesaModal, setShowSplitMpesaModal] = useState(false);
   const [splitMpesaAmount, setSplitMpesaAmount] = useState<number>(0);
   const [showC2BLookup, setShowC2BLookup] = useState(false);
-  // Wave 2 · Phase C-2 — card terminal session.
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardModalAmount, setCardModalAmount] = useState<number>(0);
   const [cardModalMode, setCardModalMode] = useState<"full" | "split">("full");
 
-
   // Cash rounding helper
-  const applyCashRounding = (amount: number): number => {
-    if (!cashRoundingSettings.enabled || cashRoundingSettings.precision <= 0) return amount;
-    return Math.round(amount / cashRoundingSettings.precision) * cashRoundingSettings.precision;
+  const applyCashRounding = (amt: number): number => {
+    if (!cashRoundingSettings.enabled || cashRoundingSettings.precision <= 0) return amt;
+    return Math.round(amt / cashRoundingSettings.precision) * cashRoundingSettings.precision;
   };
 
   const roundedEffectiveTotal = applyCashRounding(effectiveTotal);
@@ -124,143 +229,58 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
   const mpesaConfig = getProviderConfig("mpesa");
   const isMpesaEnabled = mpesaConfig?.is_active;
 
-  // Set default selected method when payment methods load
   useEffect(() => {
     if (enabledPaymentMethods.length > 0 && !selectedMethod) {
       setSelectedMethod(enabledPaymentMethods[0].method_key);
     }
   }, [enabledPaymentMethods, selectedMethod]);
 
-  // Allocation totals — `applied` is what counts against the invoice, `tendered`
-  // is what the customer actually presented (cash bills handed over). They
-  // diverge whenever cash is over-tendered; clamping them together is what
-  // historically erased the "20,000 cash for a 19,000 sale" change record.
-  const totalApplied = payments.reduce((sum, p) => sum + p.amount, 0);
-  const totalTendered = payments.reduce((sum, p) => sum + (p.tendered_amount ?? p.amount), 0);
-  const totalChange = payments.reduce((sum, p) => sum + (p.change_given ?? 0), 0);
-  const remaining = Math.max(0, effectiveTotal - totalApplied);
-  const change = totalChange > 0 ? totalChange : Math.max(0, totalTendered - effectiveTotal);
-
   // For quick cash payment
   const cashPaymentChange = parseFloat(cashTendered) - effectiveTotal;
 
-  const selectedMethodConfig = enabledPaymentMethods.find(m => m.method_key === selectedMethod);
-
-  // Phase B (Wave 2): route by catalog capability metadata — no method_key
-  // string comparisons. Adding a new tender is a migration + optional panel,
-  // never a PaymentDialog edit. See docs/architecture/POS_CHECKOUT_ENGINE.md.
-  const cashMethod          = enabledPaymentMethods.find(m => m.tender_kind === "cash");
-  const creditLiabilityMethod = enabledPaymentMethods.find(m => m.tender_kind === "credit_liability");
-  const mpesaWalletMethod   = enabledPaymentMethods.find(
-    m => m.tender_kind === "wallet" && m.provider_key === "mpesa",
+  const selectedMethodConfig = enabledPaymentMethods.find((m) => m.method_key === selectedMethod);
+  const cashMethod = enabledPaymentMethods.find((m) => m.tender_kind === "cash");
+  const creditLiabilityMethod = enabledPaymentMethods.find((m) => m.tender_kind === "credit_liability");
+  const mpesaWalletMethod = enabledPaymentMethods.find(
+    (m) => m.tender_kind === "wallet" && m.provider_key === "mpesa",
   );
-  const cardMethod          = enabledPaymentMethods.find(m => m.tender_kind === "card");
-  const selectedTenderKind  = selectedMethodConfig?.tender_kind;
+  const cardMethod = enabledPaymentMethods.find((m) => m.tender_kind === "card");
+  const selectedTenderKind = selectedMethodConfig?.tender_kind;
   const selectedCaptureMode = selectedMethodConfig?.capture_mode;
   const selectedProviderKey = selectedMethodConfig?.provider_key;
 
-
-  // Split payment is only meaningful when the register actually offers more
-  // than one payment method. Splitting a pure-cash sale across two cash lines
-  // is not a real workflow and has historically masked tender-modeling bugs.
   const canSplitPayment = enabledPaymentMethods.length >= 2;
 
-  const handleAddPayment = () => {
-    if (!amount || parseFloat(amount) <= 0) return;
+  /**
+   * Central helper: record a tender through the session RPC. All
+   * add-tender paths (split add, quick cash, quick card, quick credit,
+   * full/split mpesa, full/split card) MUST funnel through here so the
+   * DB session — not a client array — owns state.
+   */
+  const recordTenderRow = useCallback(
+    async (input: PosSessionTenderInput): Promise<PaymentSessionTenderRow | null> => {
+      try {
+        setIsRecording(true);
+        const row = await session.recordTender(input);
+        return row;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to record payment";
+        toast.error(msg);
+        return null;
+      } finally {
+        setIsRecording(false);
+      }
+    },
+    [session],
+  );
 
-    const paymentAmount = parseFloat(amount);
-
-    // Wallet tenders backed by a real provider go through the gateway
-    // instead of a manual reference — the provider returns the vendor
-    // receipt that satisfies the requires_reference contract server-side.
-    if (selectedTenderKind === "wallet" && selectedProviderKey === "mpesa" && isMpesaEnabled) {
-      setSplitMpesaAmount(paymentAmount);
-      setShowSplitMpesaModal(true);
-      return;
-    }
-
-    // Card tenders: route through the terminal modal so the driver runs a
-    // real authorization before we attach the line. The FSM metadata is
-    // persisted at commit-time by `_pos_record_payment`.
-    if (selectedTenderKind === "card") {
-      setCardModalAmount(paymentAmount);
-      setCardModalMode("split");
-      setShowCardModal(true);
-      return;
-    }
-
-
-    // Credit-liability tenders (Store Credit / customer account) need a
-    // named customer so A/R has a party to bill.
-    if (selectedTenderKind === "credit_liability" && !hasCustomer) {
-      toast.error("Please select a customer before using Store Credit");
-      return;
-    }
-
-    // Reference contract is catalog-driven. Server also enforces it via
-    // pos_validate_payment_line, but we fail fast in the UI.
-    if (selectedMethodConfig?.requires_reference && !reference.trim()) {
-      toast.error(`A reference is required for ${selectedMethodConfig.display_name} so finance can reconcile this payment.`);
-      return;
-    }
-
-    // Non-cash split lines: tender == applied, no change.
-    setPayments([
-      ...payments,
-      {
-        method: selectedMethod,
-        amount: paymentAmount,
-        tendered_amount: paymentAmount,
-        change_given: 0,
-        reference: reference || undefined,
-      },
-    ]);
-    setAmount("");
-    setReference("");
-  };
-
-
-  const handleRemovePayment = (index: number) => {
-    setPayments(payments.filter((_, i) => i !== index));
-  };
-
-  const handleQuickCashPayment = () => {
-    // The applied amount is the rounded sale total (so cash rounding is
-    // honoured). The tendered amount is what the cashier actually entered —
-    // if they leave it blank we assume they collected exact cash. Any
-    // overage becomes change_given. We never clamp `tendered` to the total;
-    // doing so would silently lose the 20,000-bill / 19,000-sale case.
-    if (!cashMethod) return;
-    const applied = cashRoundingSettings.enabled ? roundedEffectiveTotal : effectiveTotal;
-    const parsed = parseFloat(cashTendered);
-    const tendered = Number.isFinite(parsed) && parsed >= applied ? parsed : applied;
-    const changeGiven = Math.max(0, tendered - applied);
-    onComplete([
-      {
-        method: cashMethod.method_key,
-        amount: applied,
-        tendered_amount: tendered,
-        change_given: changeGiven,
-      },
-    ]);
-    resetForm();
-  };
-
-
-  const handleSplitPayment = () => {
-    if (totalApplied < effectiveTotal) return;
-    onComplete(payments);
-    resetForm();
-  };
-
-  const handleTipQuick = (percent: number) => {
-    const tip = Math.round(total * percent) / 100;
-    setLocalTip(tip.toString());
-    onTipChange?.(tip);
-  };
-
-  const resetForm = () => {
-    setPayments([]);
+  /**
+   * Reset transient input state. We do NOT clear session tenders here —
+   * those live in the DB, and are cleared by either successful commit
+   * (POSTerminal calls session.commit → completeTransaction) or the
+   * abandoned-session sweeper.
+   */
+  const resetForm = useCallback(() => {
     setAmount("");
     setReference("");
     setCashTendered("");
@@ -273,14 +293,121 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     if (enabledPaymentMethods.length > 0) {
       setSelectedMethod(enabledPaymentMethods[0].method_key);
     }
+  }, [enabledPaymentMethods]);
+
+  /**
+   * Finalize with the current server-authoritative tender list. The
+   * parent commits through its own `useCommitKey`-scoped
+   * `process_pos_transaction` (retail) or `finalize_table_order`
+   * (restaurant) call. Both use the same idempotency key as the
+   * session, so the RPC collapses duplicates on retry.
+   */
+  const finalizeWith = useCallback(
+    (rows: PaymentSessionTenderRow[]) => {
+      const active = rows.filter((t) => t.reversed_at == null);
+      onComplete(active.map(tenderRowToDialogPayment));
+      resetForm();
+    },
+    [onComplete, resetForm],
+  );
+
+  const handleAddPayment = async () => {
+    if (!amount || parseFloat(amount) <= 0) return;
+    const paymentAmount = parseFloat(amount);
+
+    if (selectedTenderKind === "wallet" && selectedProviderKey === "mpesa" && isMpesaEnabled) {
+      setSplitMpesaAmount(paymentAmount);
+      setShowSplitMpesaModal(true);
+      return;
+    }
+
+    if (selectedTenderKind === "card") {
+      setCardModalAmount(paymentAmount);
+      setCardModalMode("split");
+      setShowCardModal(true);
+      return;
+    }
+
+    if (selectedTenderKind === "credit_liability" && !hasCustomer) {
+      toast.error("Please select a customer before using Store Credit");
+      return;
+    }
+
+    if (selectedMethodConfig?.requires_reference && !reference.trim()) {
+      toast.error(
+        `A reference is required for ${selectedMethodConfig.display_name} so finance can reconcile this payment.`,
+      );
+      return;
+    }
+
+    if (!selectedMethodConfig) return;
+    const row = await recordTenderRow({
+      tender_kind: selectedMethodConfig.tender_kind as PosTenderKind,
+      method_key: selectedMethodConfig.method_key,
+      provider_key: selectedMethodConfig.provider_key ?? null,
+      amount: paymentAmount,
+      tendered_amount: paymentAmount,
+      change_given: 0,
+      reference: reference.trim() || null,
+    });
+    if (row) {
+      setAmount("");
+      setReference("");
+    }
   };
 
-  // Wave 2 · Phase C-2 — card terminal handlers. Full path completes the
-  // sale immediately; split path appends a card line to the running list.
-  const buildCardLine = (auth: CardAuthPayload, amountApplied: number): PaymentDialogPayment => {
+  const handleRemovePayment = async (index: number) => {
+    const row = tenderRows[index];
+    if (!row) return;
+    try {
+      setIsRecording(true);
+      await session.reverseTender(row.id, "cashier removed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove payment");
+    } finally {
+      setIsRecording(false);
+    }
+  };
+
+  const handleQuickCashPayment = async () => {
+    if (!cashMethod) return;
+    const applied = cashRoundingSettings.enabled ? roundedEffectiveTotal : effectiveTotal;
+    const parsed = parseFloat(cashTendered);
+    const tendered = Number.isFinite(parsed) && parsed >= applied ? parsed : applied;
+    const changeGiven = Math.max(0, tendered - applied);
+    const row = await recordTenderRow({
+      tender_kind: "cash",
+      method_key: cashMethod.method_key,
+      amount: applied,
+      tendered_amount: tendered,
+      change_given: changeGiven,
+    });
+    if (!row) return;
+    // Read the freshly-updated tender list off the session.
+    finalizeWith([...tenderRows, row]);
+  };
+
+  const handleSplitPayment = () => {
+    if (totalApplied < effectiveTotal) return;
+    finalizeWith(tenderRows);
+  };
+
+  const handleTipQuick = (percent: number) => {
+    const tip = Math.round(total * percent) / 100;
+    setLocalTip(tip.toString());
+    onTipChange?.(tip);
+  };
+
+  // Wave 2 · Phase C-2 — card handlers now funnel through the session.
+  const cardAuthToTender = (
+    auth: CardAuthPayload,
+    amountApplied: number,
+  ): PosSessionTenderInput => {
     if (!cardMethod) throw new Error("card tender missing from catalog");
     return {
-      method: cardMethod.method_key,
+      tender_kind: "card",
+      method_key: cardMethod.method_key,
+      provider_key: cardMethod.provider_key ?? null,
       amount: amountApplied,
       tendered_amount: amountApplied,
       change_given: 0,
@@ -288,77 +415,69 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
       auth_state: auth.initialAuthState,
       auth_id: auth.authId,
       vendor_txn_id: auth.vendorTxnId,
-      authorized_amount: auth.authorizedAmount,
-      card_last_four: auth.cardLastFour,
-      card_type: auth.cardType,
+      driver_payload: {
+        authorized_amount: auth.authorizedAmount,
+        card_last_four: auth.cardLastFour,
+        card_type: auth.cardType,
+      },
     };
   };
 
-  const handleCardSuccess = (auth: CardAuthPayload) => {
-    const line = buildCardLine(auth, cardModalAmount);
-    if (cardModalMode === "full") {
-      onComplete([line]);
-      resetForm();
-    } else {
-      setPayments((prev) => [...prev, line]);
-      setAmount("");
-    }
+  const handleCardSuccess = async (auth: CardAuthPayload) => {
+    const wasFull = cardModalMode === "full";
+    const row = await recordTenderRow(cardAuthToTender(auth, cardModalAmount));
     setShowCardModal(false);
     setCardModalAmount(0);
+    if (!row) return;
+    if (wasFull) {
+      finalizeWith([...tenderRows, row]);
+    } else {
+      setAmount("");
+    }
   };
 
-
-  // Full M-Pesa payment (pay entire amount). M-Pesa never returns change —
-  // the gateway authorizes the exact requested amount. Method key comes
-  // from the wallet+mpesa catalog row.
-  const handleMpesaSuccess = (receiptNumber: string) => {
+  const handleMpesaSuccess = async (receiptNumber: string) => {
     if (!mpesaWalletMethod) return;
-    onComplete([{
-      method: mpesaWalletMethod.method_key,
+    const row = await recordTenderRow({
+      tender_kind: "wallet",
+      method_key: mpesaWalletMethod.method_key,
+      provider_key: mpesaWalletMethod.provider_key ?? "mpesa",
       amount: effectiveTotal,
       tendered_amount: effectiveTotal,
       change_given: 0,
       reference: receiptNumber,
-    }]);
-    resetForm();
+    });
+    if (!row) return;
+    finalizeWith([...tenderRows, row]);
   };
 
-  // Split M-Pesa payment (pay partial amount)
-  const handleSplitMpesaSuccess = (receiptNumber: string) => {
+  const handleSplitMpesaSuccess = async (receiptNumber: string) => {
     if (!mpesaWalletMethod) return;
-    setPayments([
-      ...payments,
-      {
-        method: mpesaWalletMethod.method_key,
-        amount: splitMpesaAmount,
-        tendered_amount: splitMpesaAmount,
-        change_given: 0,
-        reference: receiptNumber,
-      },
-    ]);
+    const row = await recordTenderRow({
+      tender_kind: "wallet",
+      method_key: mpesaWalletMethod.method_key,
+      provider_key: mpesaWalletMethod.provider_key ?? "mpesa",
+      amount: splitMpesaAmount,
+      tendered_amount: splitMpesaAmount,
+      change_given: 0,
+      reference: receiptNumber,
+    });
     setShowSplitMpesaModal(false);
-    setAmount("");
     setSplitMpesaAmount(0);
+    if (!row) return;
+    setAmount("");
   };
 
-
-  const handleMpesaClick = () => {
-    setShowMpesaModal(true);
-  };
+  const handleMpesaClick = () => setShowMpesaModal(true);
 
   const handleClose = (open: boolean) => {
     if (!open) resetForm();
     onOpenChange(open);
   };
 
-  // Quick cash amounts - dynamically calculated based on effective total
   const getQuickAmounts = () => {
     const amounts: number[] = [];
-    
-    // Add exact amount
     amounts.push(effectiveTotal);
-    
-    // Add common round-ups
     const roundUps = [10, 20, 50, 100];
     for (const round of roundUps) {
       const rounded = Math.ceil(effectiveTotal / round) * round;
@@ -366,16 +485,14 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
         amounts.push(rounded);
       }
     }
-    
     return amounts.slice(0, 4).sort((a, b) => a - b);
   };
 
   const quickAmounts = getQuickAmounts();
 
-  // Catalog-driven capability flags — no method_key string checks.
-  const isCashEnabled   = Boolean(cashMethod);
+  const isCashEnabled = Boolean(cashMethod);
   const isCreditEnabled = Boolean(creditLiabilityMethod);
-  const isCardEnabled   = Boolean(cardMethod);
+  const isCardEnabled = Boolean(cardMethod);
 
   const handleCardQuickPay = () => {
     if (!cardMethod) return;
@@ -386,7 +503,7 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     setShowCardModal(true);
   };
 
-  const handleCreditQuickPay = () => {
+  const handleCreditQuickPay = async () => {
     if (!creditLiabilityMethod) return;
     if (!hasCustomer) {
       toast.error("Please select a customer before using Store Credit");
@@ -394,17 +511,17 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
     }
     const creditAmount = payments.length === 0 ? effectiveTotal : remaining;
     if (creditAmount <= 0) return;
-    const creditLine: PaymentDialogPayment = {
-      method: creditLiabilityMethod.method_key,
+    const wasFull = payments.length === 0;
+    const row = await recordTenderRow({
+      tender_kind: "credit_liability",
+      method_key: creditLiabilityMethod.method_key,
       amount: creditAmount,
       tendered_amount: creditAmount,
       change_given: 0,
-    };
-    if (payments.length === 0) {
-      onComplete([creditLine]);
-      resetForm();
-    } else {
-      setPayments([...payments, creditLine]);
+    });
+    if (!row) return;
+    if (wasFull) {
+      finalizeWith([...tenderRows, row]);
     }
   };
 
@@ -798,25 +915,24 @@ export function PaymentDialog({ open, onOpenChange, total, posTransactionId, tip
           onOpenChange={setShowC2BLookup}
           posTransactionId={posTransactionId ?? null}
           remaining={remaining > 0 ? remaining : effectiveTotal}
-          onAttached={({ transId, amount }) => {
-            // Mirror the payment line locally so the dialog reflects the
-            // attach. The RPC has already inserted the row in the DB.
-            const newPayments: PaymentDialogPayment[] = [
-              ...payments,
-              {
-                method: mpesaWalletMethod?.method_key ?? "mobile_money",
-
-                amount,
-                tendered_amount: amount,
-                change_given: 0,
-                reference: transId,
-              },
-            ];
-            setPayments(newPayments);
-            const newTotal = newPayments.reduce((s, p) => s + p.amount, 0);
-            if (newTotal >= effectiveTotal) {
-              onComplete(newPayments);
-              resetForm();
+          onAttached={async ({ transId, amount: attachedAmount }) => {
+            // Mirror the payment line into the session so the dialog reflects
+            // the attach. The C2B RPC has already inserted the ledger row on
+            // the server; recording here keeps the tender list authoritative.
+            const row = await recordTenderRow({
+              tender_kind: "wallet",
+              method_key: mpesaWalletMethod?.method_key ?? "mobile_money",
+              provider_key: "mpesa",
+              amount: attachedAmount,
+              tendered_amount: attachedAmount,
+              change_given: 0,
+              reference: transId,
+            });
+            if (!row) return;
+            const nextRows = [...tenderRows, row];
+            const nextTotal = nextRows.reduce((s, r) => s + Number(r.amount), 0);
+            if (nextTotal >= effectiveTotal) {
+              finalizeWith(nextRows);
             }
           }}
         />

@@ -49,6 +49,7 @@ import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { usePOSCartAdapter } from "@/hooks/pos/usePOSCartAdapter";
 import { usePOSShifts } from "@/hooks/pos/usePOSShifts";
 import { usePOSTransactionOffline } from "@/hooks/pos/usePOSTransactionOffline";
+import { useCommitKey } from "@/hooks/pos/useCommitKey";
 import { usePOSHeldTransactions } from "@/hooks/pos/usePOSHeldTransactions";
 import { usePOSSettings } from "@/hooks/pos/usePOSSettings";
 import { usePOSLoyalty } from "@/hooks/pos/usePOSLoyalty";
@@ -233,6 +234,7 @@ function POSTerminalInner() {
     tableNumber: tableNumber || undefined,
   });
   const { completeTransaction } = usePOSTransactionOffline();
+  const commitKey = useCommitKey();
   const sound = usePOSSound();
   const { heldCount, holdTransaction } = usePOSHeldTransactions(registerId);
   const { receiptSettings } = usePOSSettings();
@@ -2228,17 +2230,33 @@ function POSTerminalInner() {
       </Dialog>
 
       {/* Dialogs */}
-      <PaymentDialog
-        open={showPayment}
-        onOpenChange={setShowPayment}
-        total={splitPortionToPay ? splitPortionToPay.amount : cart.total}
-        tipAmount={tipAmount}
-        onTipChange={tableSessionId ? setTipAmount : undefined}
-        splitPortionLabel={splitPortionToPay ? `${splitPortionToPay.seat_label || `Portion ${splitPortionToPay.portion_number}`}` : undefined}
-        hasCustomer={!!cart.customer?.id}
-        registerPaymentMethods={registerPaymentMethods}
-        onComplete={handlePaymentComplete}
-      />
+      {registerId && activeShift?.id && (
+        <PaymentDialog
+          open={showPayment}
+          onOpenChange={setShowPayment}
+          total={splitPortionToPay ? splitPortionToPay.amount : cart.total}
+          tipAmount={tipAmount}
+          onTipChange={tableSessionId ? setTipAmount : undefined}
+          splitPortionLabel={splitPortionToPay ? `${splitPortionToPay.seat_label || `Portion ${splitPortionToPay.portion_number}`}` : undefined}
+          hasCustomer={!!cart.customer?.id}
+          registerPaymentMethods={registerPaymentMethods}
+          sessionContext={{
+            registerId,
+            shiftId: activeShift.id,
+            cashierId: activeShift.user_id ?? null,
+            // Restaurant path uses the draft transaction id as the
+            // idempotency key so the session collapses with the
+            // downstream `finalize_table_order` call. Retail uses the
+            // register+shift-scoped commit key from `useCommitKey`,
+            // which is cleared on successful commit.
+            idempotencyKey:
+              cart.isRestaurantMode && cart.transactionId
+                ? cart.transactionId
+                : commitKey.get(registerId, activeShift.id),
+          }}
+          onComplete={handlePaymentComplete}
+        />
+      )}
       
       <CustomerSelectDialog
         open={showCustomer}
