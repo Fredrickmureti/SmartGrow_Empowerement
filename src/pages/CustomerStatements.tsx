@@ -763,6 +763,7 @@ export default function CustomerStatements() {
                               >
                                 <Download className="mr-2 h-4 w-4" />
                                 Export CSV
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={async () => {
                                   try {
