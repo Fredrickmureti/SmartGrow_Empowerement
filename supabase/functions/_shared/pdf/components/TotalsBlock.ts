@@ -235,14 +235,18 @@ function drawNarrowTotals(
     }
   }
 
-  // Single rule above grand total
-  builder.ensureSpace(4);
+  // Single rule above grand total. Draw the rule ABOVE the TOTAL row's
+  // ascender line — never inside the glyph body — so the label is not
+  // struck through on 80mm / 58mm receipts. lineH=11, bold size=9, so we
+  // budget 3pt of clearance between the rule and the TOTAL text top.
+  builder.y -= 4; // gap after last summary row
+  builder.ensureSpace(lineH + 4);
   page.drawLine({
-    start: { x: leftX, y: builder.y + 2 },
-    end: { x: rightX, y: builder.y + 2 },
+    start: { x: leftX, y: builder.y },
+    end: { x: rightX, y: builder.y },
     thickness: 0.75, color: theme.color.text,
   });
-  builder.y -= 2;
+  builder.y -= 4; // clearance below rule, before TOTAL baseline
   drawRow("TOTAL", formatAccountingNumber(config.total, currency), true);
 
   if (config.amountPaid !== undefined) {
