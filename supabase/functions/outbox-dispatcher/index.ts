@@ -165,19 +165,69 @@ async function handleSettlementCardClosed(row: OutboxRow): Promise<void> {
 // authoritative POS finance writer. `post_pos_statement_gl` is idempotent
 // via pos_statement_gl_apply_log (statement_id, idempotency_key) and via
 // post_journal_entry_atomic's source dedupe, so outbox retries are safe.
+//
+// B1 (plan .lovable/plan.md § 4.1) — contract enforcement. The dispatcher
+// may only mark this row `succeeded` when the RPC returns a shape that
+// *proves* the business invariant held: a fresh post (journal_entry_id
+// non-null), an idempotent replay (already_posted=true), a deliberate
+// skip (skipped=true with a reason), or an empty-lines close that still
+// wrote an apply-log row (empty=true; the RPC writes the apply-log itself
+// on this branch, so the outbox row is a legitimate no-op). Any other
+// shape is an architectural failure and must be dead-lettered, never
+// silently succeeded.
+type PosStatementPostResult = {
+  statement_id?: string;
+  journal_entry_id?: string | null;
+  already_posted?: boolean;
+  skipped?: boolean;
+  reason?: string;
+  empty?: boolean;
+  via?: string;
+  entry_number?: string;
+  tender_total?: number;
+};
+
 async function handlePosStatementPostingRequested(row: OutboxRow): Promise<void> {
   const payload = (row.payload ?? {}) as { statement_id?: string };
   const statementId = payload.statement_id ?? row.source_doc_id;
-  if (!statementId) throw new Error("pos.statement.posting.requested: missing statement_id");
-  const { error } = await admin.rpc("post_pos_statement_gl", {
+  if (!statementId) {
+    throw new Error(
+      "posting.contract_violation: pos.statement.posting.requested missing statement_id",
+    );
+  }
+  const { data, error } = await admin.rpc("post_pos_statement_gl", {
     p_statement_id: statementId,
     p_idempotency_key: `outbox:${row.id}`,
   });
   if (error) throw new Error(`statement GL post: ${error.message}`);
+
+  const result = (data ?? null) as PosStatementPostResult | null;
+  if (!result || typeof result !== "object") {
+    throw new Error(
+      `posting.contract_violation: post_pos_statement_gl returned no result for statement ${statementId}`,
+    );
+  }
+  const posted =
+    (typeof result.journal_entry_id === "string" && result.journal_entry_id.length > 0) ||
+    result.already_posted === true ||
+    result.skipped === true ||
+    result.empty === true;
+  if (!posted) {
+    throw new Error(
+      `posting.contract_violation: post_pos_statement_gl returned no posted/skipped proof for statement ${statementId}: ${JSON.stringify(result)}`,
+    );
+  }
 }
 
-// Phase E/F map. Extend with one entry per newly-durable topic. Unknown
-// topics remain deliberate no-op successes so the outbox drains.
+// Phase E/F map. Extend with one entry per newly-durable topic.
+//
+// B1 (plan .lovable/plan.md § 4.1): unknown topics used to be silently
+// marked succeeded ("so the outbox drains"), which is what caused the
+// POS Posting Queue to lie about statement 4344c0db (see
+// docs/audit/pos-posting-silent-noop.md). The registry is now closed:
+// unknown topics are `failed` with a structured `posting.contract_violation`
+// diagnostic, so they retry into the DLQ and become visible instead of
+// disappearing. Adding a new topic must always be paired with a handler.
 const HANDLERS: Record<string, HandlerFn> = {
   "pos.sale.committed":              handlePosSaleCommitted,
   "inventory.movement.recorded":     handleInventoryMovementRecorded,
@@ -189,7 +239,11 @@ const HANDLERS: Record<string, HandlerFn> = {
 
 async function dispatch(row: OutboxRow): Promise<void> {
   const handler = HANDLERS[row.event_type];
-  if (!handler) return; // no-op success
+  if (!handler) {
+    throw new Error(
+      `posting.contract_violation: unknown_event_type ${row.event_type} (row ${row.id})`,
+    );
+  }
   await handler(row);
 }
 
