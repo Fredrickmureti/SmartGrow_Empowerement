@@ -337,6 +337,7 @@ function PosShiftGLIntegrityInner() {
                               shiftId={r.id}
                               journalEntryId={r.journal_entry_id}
                               currency={baseCurrency}
+                              isPosted={!!r.gl_posted_at}
                             />
                           </TableCell>
                         </TableRow>
