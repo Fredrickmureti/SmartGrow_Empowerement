@@ -999,6 +999,7 @@ function POSTerminalInner() {
         };
       } else {
         // Retail mode: create new transaction via RPC
+        const paymentSessionIdempotencyKey = `${commitKey.get(registerId, activeShift.id)}:${Math.round((cart.total + (tipAmount || 0)) * 100)}`;
         result = await completeTransaction.mutateAsync({
           register_id: registerId,
           shift_id: activeShift.id,
@@ -1027,6 +1028,7 @@ function POSTerminalInner() {
 
           table_session_id: tableSessionId || undefined,
           tip_amount: tipAmount || 0,
+          idempotency_key: paymentSessionIdempotencyKey,
         });
       }
       
@@ -2247,12 +2249,14 @@ function POSTerminalInner() {
             // Restaurant path uses the draft transaction id as the
             // idempotency key so the session collapses with the
             // downstream `finalize_table_order` call. Retail uses the
-            // register+shift-scoped commit key from `useCommitKey`,
-            // which is cleared on successful commit.
+            // Retail key is bound to the amount because payment sessions
+            // freeze their grand total at open. The checkout commit path
+            // receives this exact same key, so tender and commit target the
+            // same server-side payment session.
             idempotencyKey:
               cart.isRestaurantMode && cart.transactionId
                 ? cart.transactionId
-                : commitKey.get(registerId, activeShift.id),
+                : `${commitKey.get(registerId, activeShift.id)}:${Math.round((cart.total + (tipAmount || 0)) * 100)}`,
           }}
           onComplete={handlePaymentComplete}
         />
