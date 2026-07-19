@@ -79318,10 +79318,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      retry_pos_statement_posting: {
-        Args: { p_reason?: string; p_statement_id: string }
-        Returns: Json
-      }
       revalue_fx_balances: {
         Args: {
           _base_currency: string

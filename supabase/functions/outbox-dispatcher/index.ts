@@ -184,7 +184,10 @@ type AccountingPostingResult = {
 };
 
 async function handlePosStatementPostingRequested(row: OutboxRow): Promise<void> {
-  const payload = (row.payload ?? {}) as { statement_id?: string };
+  const payload = (row.payload ?? {}) as {
+    statement_id?: string;
+    accounting_event_id?: string | null;
+  };
   const statementId = payload.statement_id ?? row.source_doc_id;
   if (!statementId) {
     throw new Error(
@@ -192,16 +195,19 @@ async function handlePosStatementPostingRequested(row: OutboxRow): Promise<void>
     );
   }
 
-  // Resolve the accounting_event for this statement. The producer
-  // trigger dual-writes it at close time; if it's missing (very old row
-  // or dual-write failed) fall back to creating one via the RPC so we
-  // never lose an event.
-  const { data: eventId, error: resolveError } = await admin.rpc(
-    "accounting_event_for_pos_statement",
-    { p_statement_id: statementId },
-  );
-  if (resolveError) {
-    throw new Error(`accounting_event lookup: ${resolveError.message}`);
+  // B6: prefer the accounting_event_id carried in the payload (written
+  // by the producer trigger). Fallback to the resolver RPC only for
+  // legacy rows enqueued before B6 landed.
+  let eventId: string | null = payload.accounting_event_id ?? null;
+  if (!eventId) {
+    const { data, error: resolveError } = await admin.rpc(
+      "accounting_event_for_pos_statement",
+      { p_statement_id: statementId },
+    );
+    if (resolveError) {
+      throw new Error(`accounting_event lookup: ${resolveError.message}`);
+    }
+    eventId = (data as string | null) ?? null;
   }
   if (!eventId) {
     throw new Error(
