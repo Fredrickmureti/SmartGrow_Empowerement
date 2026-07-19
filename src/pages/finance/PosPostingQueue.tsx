@@ -85,15 +85,20 @@ interface PreviewUnresolved {
   hint: string;
 }
 
-interface PreviewTender {
+interface AccountRef {
+  account_id: string | null;
+  account_code: string | null;
+  account_name: string | null;
+  resolved: boolean;
+}
+
+interface PreviewTender extends AccountRef {
   tender_method: string;
   processor: string | null;
   tender_kind: string | null;
   net_amount: number;
   gross_amount: number;
   refund_amount: number;
-  account_id: string | null;
-  resolved: boolean;
 }
 
 interface PreviewData {
@@ -110,21 +115,20 @@ interface PreviewData {
   total_tip: number;
   net_revenue: number;
   tenders: PreviewTender[];
-  revenue: {
-    amount: number; account_id: string | null; resolved: boolean;
-  } | null;
-  tax: {
-    amount: number; account_id: string | null; resolved: boolean;
-  } | null;
-  tip: {
-    amount: number; account_id: string | null; resolved: boolean;
-    optional?: boolean;
-  } | null;
+  revenue: (AccountRef & { amount: number }) | null;
+  tax: (AccountRef & { amount: number }) | null;
+  tip: (AccountRef & { amount: number; optional?: boolean }) | null;
   unresolved: PreviewUnresolved[];
   total_debit: number;
   total_credit: number;
   balanced: boolean;
   ready_to_post: boolean;
+}
+
+function fmtAccount(a: AccountRef | null | undefined): string {
+  if (!a || !a.account_id) return "—";
+  if (a.account_code && a.account_name) return `${a.account_code} — ${a.account_name}`;
+  return a.account_name || a.account_code || a.account_id.slice(0, 8) + "…";
 }
 
 function fmtMoney(n: number | null | undefined, ccy: string) {
@@ -445,7 +449,12 @@ function StatementDrawer({
         "retry_pos_statement_posting" as never,
         { p_statement_id: statementId, p_reason: reason.trim() || null } as never,
       );
-      if (error) throw error;
+      if (error) {
+        const e = error as { message?: string; details?: string; hint?: string; code?: string };
+        const parts = [e.message, e.details, e.hint].filter(Boolean);
+        const composed = parts.join(" — ") || `Supabase error${e.code ? ` (${e.code})` : ""}`;
+        throw new Error(composed);
+      }
       return data;
     },
     onSuccess: (data: unknown) => {
@@ -460,7 +469,9 @@ function StatementDrawer({
       qc.invalidateQueries({ queryKey: ["pos-statement-posting-preview", statementId] });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error && err.message
+        ? err.message
+        : typeof err === "string" ? err : JSON.stringify(err);
       toast.error(`Retry failed: ${msg}`);
     },
   });
@@ -523,10 +534,11 @@ function StatementDrawer({
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <SummaryLine label="Net revenue" amount={p.net_revenue} currency={currency}
-                warn={!!p.revenue && !p.revenue.resolved} />
+                account={fmtAccount(p.revenue)} warn={!!p.revenue && !p.revenue.resolved} />
               <SummaryLine label="Tax" amount={p.tax?.amount ?? 0} currency={currency}
-                warn={!!p.tax && !p.tax.resolved} />
-              <SummaryLine label="Tip" amount={p.tip?.amount ?? 0} currency={currency} />
+                account={fmtAccount(p.tax)} warn={!!p.tax && !p.tax.resolved} />
+              <SummaryLine label="Tip" amount={p.tip?.amount ?? 0} currency={currency}
+                account={p.tip ? fmtAccount(p.tip) : undefined} />
               <SummaryLine label="Total sales" amount={p.total_sales} currency={currency} />
             </div>
 
@@ -552,7 +564,7 @@ function StatementDrawer({
                         </TableCell>
                         <TableCell className="text-xs">
                           {t.resolved ? (
-                            <span className="font-mono">{t.account_id?.slice(0, 8)}…</span>
+                            <span title={t.account_id ?? ""}>{fmtAccount(t)}</span>
                           ) : (
                             <Badge variant="destructive" className="gap-1">
                               <AlertTriangle className="h-3 w-3" /> Unmapped
@@ -649,12 +661,17 @@ function Kpi({
 }
 
 function SummaryLine({
-  label, amount, currency, warn,
-}: { label: string; amount: number; currency: string; warn?: boolean }) {
+  label, amount, currency, warn, account,
+}: { label: string; amount: number; currency: string; warn?: boolean; account?: string }) {
   return (
-    <div className={`flex justify-between rounded border px-3 py-2 ${warn ? "border-amber-400 bg-amber-50/40 dark:bg-amber-950/10" : ""}`}>
-      <span className="text-muted-foreground">{label}</span>
-      <span className="tabular-nums font-medium">{fmtMoney(amount, currency)}</span>
+    <div className={`flex flex-col gap-0.5 rounded border px-3 py-2 ${warn ? "border-amber-400 bg-amber-50/40 dark:bg-amber-950/10" : ""}`}>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="tabular-nums font-medium">{fmtMoney(amount, currency)}</span>
+      </div>
+      {account && (
+        <div className="text-[11px] text-muted-foreground truncate">{account}</div>
+      )}
     </div>
   );
 }
