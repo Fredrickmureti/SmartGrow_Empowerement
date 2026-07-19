@@ -2651,9 +2651,57 @@ serve(async (req) => {
 
     const effectivePaper = effectivePaperOverride ?? coerced.paper_format;
     const renderOptions = { paperFormat: effectivePaper };
-    const pdfBytes = isStatement
-      ? await generateStatementPdf(documentData, template, renderOptions)
-      : await generateDocumentPdf(documentData, template, renderOptions);
+
+    // ── Thermal PDF path (ADR-0008 follow-up) ─────────────────────────
+    // 40 / 58 / 80 mm PDF requests do NOT go through the A4 invoice
+    // pipeline (`generateDocumentPdf`). They are rendered by the shared
+    // receipt engine — the same `LineMeta[]` that drives the on-screen
+    // monospace preview and the ESC/POS byte stream. This is what keeps
+    // the printed PDF structurally identical to the operator's preview
+    // instead of being a squeezed A4 with coordinate-drawn text.
+    const isThermalWidth =
+      effectivePaper === "40mm"
+      || effectivePaper === "58mm"
+      || effectivePaper === "80mm";
+    const isReceiptLike =
+      documentType === "pos_receipt" || documentType === "receipt";
+
+    let pdfBytes: Uint8Array;
+    if (isThermalWidth && isReceiptLike && !isStatement) {
+      const { buildReceiptLines } = await import(
+        "../_shared/receipt/lines.ts"
+      );
+      const { documentToReceiptInput } = await import(
+        "../_shared/receipt/documentToInput.ts"
+      );
+      const { renderThermalPdf } = await import(
+        "../_shared/receipt/pdf/renderThermalPdf.ts"
+      );
+      // Force the engine's paper width to the resolved policy paper,
+      // regardless of what `pos_receipt_settings.paper_size` says.
+      const rsForPdf = {
+        ...((documentData as unknown as {
+          pos_receipt_settings?: Record<string, unknown>;
+        }).pos_receipt_settings ?? {}),
+        paper_size: effectivePaper,
+      };
+      const engineInput = documentToReceiptInput(documentData, {
+        settings: rsForPdf,
+        title:
+          (documentData as unknown as { document_type_label?: string })
+            .document_type_label,
+      });
+      const rows = buildReceiptLines(engineInput);
+      pdfBytes = await renderThermalPdf(rows);
+      policyHeaders["X-Print-Policy-Renderer"] = "thermal-engine";
+      policyHeaders["X-Print-Policy-Columns"] = String(rows.columns);
+      policyHeaders["Access-Control-Expose-Headers"] +=
+        ", X-Print-Policy-Renderer, X-Print-Policy-Columns";
+    } else {
+      pdfBytes = isStatement
+        ? await generateStatementPdf(documentData, template, renderOptions)
+        : await generateDocumentPdf(documentData, template, renderOptions);
+    }
 
     // ADR-0084 Wave B3.2 — persist an immutable artifact row + storage
     // object so reprints are byte-identical and regenerations preserve
