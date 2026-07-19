@@ -236,7 +236,10 @@ export async function openSession(args: OpenSessionArgs): Promise<string> {
     p_idempotency_key: args.idempotencyKey,
     p_tip_amount: args.tipAmount ?? 0,
     p_cashier_id: args.cashierId ?? undefined,
-  });
+    p_fx_rate: args.fxRate ?? 1,
+    p_settlement_currency: args.settlementCurrency ?? args.currency,
+    p_tip_policy: args.tipPolicy ?? "none",
+  } as never);
   if (error) throwRpcError("pos_payment_session_open", error);
   return data as string;
 }
