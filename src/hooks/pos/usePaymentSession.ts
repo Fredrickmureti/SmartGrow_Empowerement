@@ -141,7 +141,7 @@ async function fetchTenders(sessionId: string): Promise<PaymentSessionTenderRow[
   const { data, error } = await supabase
     .from("pos_payment_session_tenders")
     .select(
-      "id, tender_kind, method_key, amount, tendered_amount, change_given, reference, auth_state, status, created_at",
+      "id, tender_kind, method_key, amount, tendered_amount, change_given, reference, auth_state, auth_id, vendor_txn_id, driver_payload, status, created_at",
     )
     .eq("session_id", sessionId)
     .order("created_at", { ascending: true });
