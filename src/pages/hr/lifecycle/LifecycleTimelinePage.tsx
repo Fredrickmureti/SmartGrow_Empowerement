@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, History, Filter, ExternalLink } from "lucide-react";
+import { Loader2, History, Filter, ExternalLink, Printer } from "lucide-react";
 import { PageHeader, PageBody } from "@/design-system";
 import {
   useLifecycleEvents,
@@ -21,6 +21,18 @@ import {
   lifecycleEventTone,
   type LifecycleEventType,
 } from "@/hooks/hr/useLifecycleEvents";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+
+/**
+ * Map a lifecycle event_type to the HR letter document type served by
+ * generate-document. Events that don't produce a formal letter return null.
+ */
+function letterTypeFor(eventType: string): "promotion_letter" | "warning_letter" | null {
+  if (eventType === "promoted") return "promotion_letter";
+  if (eventType === "warning_issued") return "warning_letter";
+  return null;
+}
 
 const WINDOWS: Array<{ label: string; days: number }> = [
   { label: "Last 7 days", days: 7 },
