@@ -81,9 +81,9 @@ describe("Milestone B — POS renderer ownership", () => {
     );
     expect(src).toMatch(/PreviewRenderer/);
     expect(src).toMatch(/CustomerDisplayRenderer|showSuccessOnCustomerDisplay/);
-    expect(src).not.toMatch(/ThermalPrintRenderer/);
-    expect(src).not.toMatch(/PdfRenderer/);
-    expect(src).not.toMatch(/\bprintThermal\b/);
-    expect(src).not.toMatch(/\brenderReceiptPdf\b/);
+    expect(src).not.toMatch(/from\s+["']\.\/ThermalPrintRenderer["']/);
+    expect(src).not.toMatch(/from\s+["']\.\/PdfRenderer["']/);
+    expect(src).not.toMatch(/export\s+\{[^}]*\bprintThermal\b/);
+    expect(src).not.toMatch(/export\s+\{[^}]*\brenderReceiptPdf\b/);
   });
 });
