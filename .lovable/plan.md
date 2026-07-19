@@ -123,4 +123,5 @@ Touching any of those now creates orphan code paths (the plan's stated reason fo
 - The FSM trigger is generalised (parameter-driven allowed-transitions table) rather than a copy of the card FSM — Phase 3 will reuse it for tender reversals.
 - Every new table gets the branch-scope trigger before any RLS policy is added — matches the locked pattern in `pos_branch_isolation_test.sql`, so the guard test can't be forgotten.
 
-Ready to switch to build mode and start with the migration.
+==========================================================
+Phase 3 landed: retail online commit now flows openSession → recordTender × N → commitSession via the wrapper — the direct process_pos_transaction RPC call is gone from the client. Two migrations tightened the commit RPC (returns full envelope + surfaces business failures + promotes card/M-Pesa metadata from driver_payload); commitSession returns typed CommitSessionResult; 18/18 guard + contract tests green. Restaurant mode and offline replay stay on the legacy path — those are Phase 4.
