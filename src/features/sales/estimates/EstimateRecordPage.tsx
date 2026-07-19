@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Estimate } from "@/hooks/useEstimates";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 type EstimateStatus = Estimate["status"];
 
@@ -325,6 +326,8 @@ export default function EstimateRecordPage() {
           )}
         </Section>
       )}
+
+      <DocumentVersionsSection documentType="estimate" documentId={estimate.id} />
     </RecordShell>
   );
 }

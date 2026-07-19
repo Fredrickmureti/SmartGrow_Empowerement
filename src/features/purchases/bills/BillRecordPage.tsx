@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Bill } from "@/hooks/useBills";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const STATUS_TONE: Record<
   string,
@@ -327,6 +328,8 @@ export default function BillRecordPage() {
           <p className="whitespace-pre-wrap text-sm">{bill.notes}</p>
         </Section>
       )}
+
+      <DocumentVersionsSection documentType="bill" documentId={bill.id} />
     </RecordShell>
   );
 }

@@ -14,6 +14,7 @@ import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { CreditNote, CreditNoteItem } from "@/hooks/useCreditNotes";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 type Row = CreditNote & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
@@ -123,6 +124,7 @@ export default function CreditNoteRecordPage() {
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Credit note ${row.credit_note_number} created` },
         ...(isFullyApplied ? [{ id: "applied", at: fmt(row.updated_at), title: "Fully applied", tone: "success" as const }] : []),
       ] : undefined}
+      extraSections={row ? <DocumentVersionsSection documentType="credit_note" documentId={row.id} /> : undefined}
     />
   );
 }

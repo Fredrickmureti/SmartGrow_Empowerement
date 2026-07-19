@@ -242,6 +242,8 @@ export default function VendorCreditNoteRecordPage() {
           <p className="whitespace-pre-wrap text-sm">{record.notes}</p>
         </Section>
       )}
+
+      <DocumentVersionsSection documentType="vendor_credit_note" documentId={record.id} />
     </RecordShell>
   );
 }

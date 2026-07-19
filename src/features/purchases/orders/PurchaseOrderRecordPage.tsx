@@ -299,6 +299,8 @@ export default function PurchaseOrderRecordPage() {
           <p className="whitespace-pre-wrap text-sm">{po.notes}</p>
         </Section>
       )}
+
+      <DocumentVersionsSection documentType="purchase_order" documentId={po.id} />
     </RecordShell>
   );
 }
