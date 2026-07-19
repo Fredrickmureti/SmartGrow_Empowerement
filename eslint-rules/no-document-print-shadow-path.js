@@ -23,6 +23,9 @@ const ALLOWED_FILES = [
   'src/hooks/useDocumentPrint.ts',
   'src/hooks/useDocumentPrintPolicies.ts',
   'src/hooks/usePrinterProfiles.ts',
+  // Wave B1 Step 3 — shared migration helper; wraps useDocumentPrint as
+  // the ask_user / failure fallback for pages routed through PrintClient.
+  'src/hooks/usePrintOrPreview.ts',
   'src/pages/Bills.tsx',
   'src/pages/CreditNotes.tsx',
   'src/pages/CustomerPayments.tsx',
