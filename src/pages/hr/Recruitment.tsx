@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import {
   useRequisitions, useCandidates, useApplications, useOffers, useInterviewFeedback,
   type JobRequisition, type Candidate, type CandidateApplication,
-  type ApplicationStage, type RequisitionStatus,
+  type ApplicationStage, type RequisitionStatus, type OfferLetter,
 } from "@/hooks/useRecruitment";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { WorkflowSheet, WorkflowSheetSection, WorkflowSheetGrid, WorkflowField } from "@/components/workflow/WorkflowSheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Briefcase, Plus, UserPlus, ArrowRight, Star } from "lucide-react";
+import { Briefcase, Plus, UserPlus, ArrowRight, Star, Printer, FileText } from "lucide-react";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { DocumentHistorySheet } from "@/components/documents/DocumentHistorySheet";
 
 const STAGES: ApplicationStage[] = ["applied", "screen", "interview", "assessment", "offer", "hired", "rejected", "withdrawn"];
 const REQ_STATUS: RequisitionStatus[] = ["draft", "open", "on_hold", "filled", "closed", "cancelled"];
@@ -204,6 +207,9 @@ function RequisitionPipeline({ requisition }: { requisition: JobRequisition }) {
                         )}
                       </>
                     )}
+                    {stage === "offer" && (
+                      <OfferActions application={a} candidateName={c?.full_name ?? "Candidate"} />
+                    )}
                     {stage === "hired" && a.converted_employee_id && (
                       <Badge variant="secondary" className="text-xs">Employee created</Badge>
                     )}
@@ -214,6 +220,9 @@ function RequisitionPipeline({ requisition }: { requisition: JobRequisition }) {
           </CardContent>
         </Card>
       ))}
+
+      
+
 
       <WorkflowSheet
         open={!!hireOpen}
@@ -371,5 +380,85 @@ function CandidatesTab() {
       </WorkflowSheet>
 
     </Card>
+  );
+}
+
+/**
+ * OfferActions — offer-stage row helper.
+ *
+ * Lists offer_letters attached to an application and exposes the enterprise
+ * document platform surface for each one:
+ *   • Print → generate-document(offer_letter, offer.id) via usePrintOrPreview.
+ *   • History → DocumentHistorySheet mounts DocumentVersionsSection scoped
+ *     to (offer_letter, offer.id) so prior artifacts are auditable inline.
+ *
+ * When no offer exists yet, a lightweight "Create offer" button seeds one
+ * via useOffers.createOffer so the user can immediately print.
+ */
+function OfferActions({
+  application,
+  candidateName,
+}: {
+  application: CandidateApplication;
+  candidateName: string;
+}) {
+  const { offers, createOffer } = useOffers(application.id);
+  const {
+    printPreviewOpen,
+    setPrintPreviewOpen,
+    printPreviewTitle,
+    printDocumentType,
+    printDocumentId,
+    printCommunication,
+    generateDocument,
+  } = usePrintOrPreview();
+
+  return (
+    <div className="w-full space-y-1 pt-1 border-t">
+      {offers.length === 0 ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-7 text-xs"
+          onClick={() =>
+            createOffer.mutate({ application_id: application.id, status: "draft" })
+          }
+          disabled={createOffer.isPending}
+        >
+          <FileText className="h-3 w-3 mr-1" /> Create offer
+        </Button>
+      ) : (
+        offers.map((o: OfferLetter) => (
+          <div key={o.id} className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">{o.status}</Badge>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs flex-1"
+              onClick={() =>
+                generateDocument("offer_letter", o.id, `Offer — ${candidateName}`)
+              }
+              title="Print offer letter"
+            >
+              <Printer className="h-3 w-3 mr-1" /> Print
+            </Button>
+            <DocumentHistorySheet
+              documentType="offer_letter"
+              documentId={o.id}
+              triggerLabel=""
+              title={`Offer — ${candidateName}`}
+            />
+          </div>
+        ))
+      )}
+      <PrintPreviewDialog
+        open={printPreviewOpen}
+        onOpenChange={setPrintPreviewOpen}
+        title={printPreviewTitle}
+        documentType={printDocumentType}
+        documentId={printDocumentId}
+        communication={printCommunication}
+      />
+    </div>
   );
 }
