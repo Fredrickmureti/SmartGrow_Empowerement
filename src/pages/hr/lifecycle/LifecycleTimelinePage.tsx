@@ -175,21 +175,28 @@ export default function LifecycleTimelinePage() {
                         if (!lt) return null;
                         const label = lt === "promotion_letter" ? "Promotion letter" : "Warning letter";
                         return (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              generateDocument(
-                                lt,
-                                e.id,
-                                `${label} — ${e.employee_name ?? ""}`.trim(),
-                              )
-                            }
-                            title={`Print ${label.toLowerCase()}`}
-                          >
-                            <Printer className="mr-1 h-3.5 w-3.5" />
-                            Print
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                generateDocument(
+                                  lt,
+                                  e.id,
+                                  `${label} — ${e.employee_name ?? ""}`.trim(),
+                                )
+                              }
+                              title={`Print ${label.toLowerCase()}`}
+                            >
+                              <Printer className="mr-1 h-3.5 w-3.5" />
+                              Print
+                            </Button>
+                            <DocumentHistorySheet
+                              documentType={lt}
+                              documentId={e.id}
+                              title={`${label} — ${e.employee_name ?? ""}`.trim()}
+                            />
+                          </>
                         );
                       })()}
                       <Button
