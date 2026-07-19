@@ -207,6 +207,15 @@ export default function LifecycleTimelinePage() {
           </Card>
         )}
       </PageBody>
+
+      <PrintPreviewDialog
+        open={printPreviewOpen}
+        onOpenChange={setPrintPreviewOpen}
+        title={printPreviewTitle}
+        documentType={printDocumentType}
+        documentId={printDocumentId}
+        communication={printCommunication}
+      />
     </>
   );
 }
