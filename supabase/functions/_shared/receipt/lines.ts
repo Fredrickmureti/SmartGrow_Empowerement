@@ -303,7 +303,7 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
     blank();
     left(`${r.label ?? "Bill To"}:`);
     for (const p of parts) {
-      for (const l of wordWrap(p, cw)) left("  " + l);
+      for (const l of wordWrap(p, cw - 2)) left("  " + l);
     }
   };
   emitRecipient(t.bill_to);
@@ -398,12 +398,12 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   if (t.notes && String(t.notes).trim()) {
     blank();
     left("Notes:");
-    for (const l of wordWrap(String(t.notes).trim(), cw)) left("  " + l);
+    for (const l of wordWrap(String(t.notes).trim(), cw - 2)) left("  " + l);
   }
   if (t.terms && String(t.terms).trim()) {
     blank();
     left("Terms:");
-    for (const l of wordWrap(String(t.terms).trim(), cw)) left("  " + l);
+    for (const l of wordWrap(String(t.terms).trim(), cw - 2)) left("  " + l);
   }
 
   // ── Footer ──────────────────────────────────────────────────────────
