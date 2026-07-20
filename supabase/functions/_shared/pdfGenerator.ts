@@ -293,9 +293,22 @@ export async function generateDocumentPdf(
   template: Partial<TemplateSettings> = {},
   options: DocumentRenderOptions = {},
 ): Promise<Uint8Array> {
+  // Wave 11 architecture guard — the A4 coordinate renderer must NEVER
+  // be reached for thermal widths. Any thermal-width PDF (40/58/80 mm)
+  // is owned by `renderThermalPdf` via the shared receipt engine. A
+  // failure here indicates a router regression at
+  // `generate-document/index.ts` (Wave 10 gate).
+  const gpg_paper = String(options.paperFormat ?? "").toLowerCase();
+  if (gpg_paper === "40mm" || gpg_paper === "58mm" || gpg_paper === "80mm") {
+    throw new Error(
+      `generateDocumentPdf invoked with thermal paper "${gpg_paper}". ` +
+        `Thermal widths must route through renderThermalPdf (Wave 10).`,
+    );
+  }
   const t: TemplateSettings = { ...DEFAULT_TEMPLATE_SETTINGS, ...template };
   const customFields = data.custom_fields || [];
   const currency = data.currency || "USD";
+
 
   // Resolve title (template override > document_type_label > default)
   const docLabel =
@@ -603,8 +616,20 @@ export async function generateStatementPdf(
   template: Partial<TemplateSettings> = {},
   options: DocumentRenderOptions = {},
 ): Promise<Uint8Array> {
+  // Wave 12 architecture guard — statements are structurally A4-only
+  // (multi-column ledger with charges/credits/balance). If a caller
+  // resolves a thermal paper format for a statement request, the
+  // routing/policy layer is wrong, not this renderer.
+  const gsp_paper = String(options.paperFormat ?? "").toLowerCase();
+  if (gsp_paper === "40mm" || gsp_paper === "58mm" || gsp_paper === "80mm") {
+    throw new Error(
+      `generateStatementPdf invoked with thermal paper "${gsp_paper}". ` +
+        `Statements are A4/Letter-only (Wave 12).`,
+    );
+  }
   const t: TemplateSettings = { ...DEFAULT_TEMPLATE_SETTINGS, ...template };
   const currency = data.currency || "USD";
+
   const transactions = data.statement_transactions || [];
   const aging = data.statement_aging || [];
   const openingBalance = data.statement_opening_balance ?? 0;
