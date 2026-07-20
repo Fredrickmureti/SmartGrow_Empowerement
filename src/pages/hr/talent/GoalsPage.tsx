@@ -83,14 +83,14 @@ export default function GoalsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Goals</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold">Goals</h1>
           <p className="text-sm text-muted-foreground">Assign, cascade, and track goals across the organization.</p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline"><Link to="/hr/talent/goals/cascade"><Target className="h-4 w-4 mr-1" /> Cascade view</Link></Button>
-          <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Assign goal</Button>
+        <div className="flex flex-wrap gap-2 sm:flex-nowrap">
+          <Button asChild variant="outline" className="flex-1 sm:flex-none"><Link to="/hr/talent/goals/cascade"><Target className="h-4 w-4 mr-1" /> Cascade view</Link></Button>
+          <Button onClick={() => setOpen(true)} className="flex-1 sm:flex-none"><Plus className="h-4 w-4 mr-1" /> Assign goal</Button>
           <TalentFormShell
             open={open}
             onOpenChange={setOpen}
@@ -176,21 +176,21 @@ export default function GoalsPage() {
       <Card>
 
         <CardHeader className="pb-3">
-          <div className="flex flex-wrap gap-3">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <div className="w-full sm:w-auto">
               <Label className="text-xs">Cycle</Label>
               <Select value={cycleId || "all"} onValueChange={(v) => setCycleId(v === "all" ? "" : v)}>
-                <SelectTrigger className="w-56 h-9"><SelectValue placeholder="All cycles" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-56 h-9"><SelectValue placeholder="All cycles" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All cycles</SelectItem>
                   {cycles.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div className="w-full sm:w-auto">
               <Label className="text-xs">Employee</Label>
               <Select value={employeeFilter || "all"} onValueChange={(v) => setEmployeeFilter(v === "all" ? "" : v)}>
-                <SelectTrigger className="w-56 h-9"><SelectValue placeholder="All employees" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-56 h-9"><SelectValue placeholder="All employees" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All employees</SelectItem>
                   {employees.map((e) => <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>)}
@@ -199,7 +199,7 @@ export default function GoalsPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-2 sm:px-6">
           {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> :
            goals.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
@@ -207,6 +207,7 @@ export default function GoalsPage() {
               No goals match these filters. Assign one to get started.
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -247,6 +248,7 @@ export default function GoalsPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
