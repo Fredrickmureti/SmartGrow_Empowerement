@@ -400,39 +400,68 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   }
   rule();
 
-  // ── Items ───────────────────────────────────────────────────────────
-  const preferredLayoutId = resolveLegacyLayout(
-    rs.item_display_format,
-    !!rs.show_item_sku,
-  );
-  const ctx = {
-    showSku: !!rs.show_item_sku,
-    showQty: rs.show_item_quantity !== false,
-    showUnitPrice: rs.show_unit_price !== false,
-    showDiscount: !!rs.show_item_discount,
-    showTaxBreakdown: !!rs.show_tax_breakdown,
-    showTaxRate: !!rs.show_tax_rate,
-    showModifiers: rs.show_item_modifiers !== false,
-    truncateLongNames: !!rs.truncate_long_names,
-    maxNameLen: typeof rs.max_item_name_length === "number" ? rs.max_item_name_length : 28,
-  };
-  void LAYOUT_REGISTRY;
-  const { layoutId } = pickFittingLayout(preferredLayoutId, ctx, cw);
-  const assembled = assembleItems({
-    items: (t.items ?? []) as unknown as Parameters<typeof assembleItems>[0]["items"],
-    layoutId,
-    ctx,
-    contentWidth: cw,
-    fmt: { fmtMoney, fmtQty, truncate },
-  });
-  for (const row of assembled.rows) {
-    if (row.kind === "heading" || row.kind === "header") {
-      push(row.text, { align: "left", bold: !!row.bold });
-    } else {
-      push(row.text, { align: "left" });
+  // ── Items OR payment allocations (customer-payment receipts) ────────
+  const allocs = t.payment_allocations;
+  if (Array.isArray(allocs) && allocs.length > 0) {
+    // Wave 6b Phase 2 — customer-payment receipts render an allocation
+    // table INSTEAD of a product grid so the receipt tells the customer
+    // which invoices this payment settled and what remains outstanding.
+    push("Applied To Invoices", { align: "left", bold: true });
+    rule();
+    let totalApplied = 0;
+    for (const a of allocs) {
+      const applied = Number(a.amount_applied ?? 0);
+      totalApplied += applied;
+      left(padLR(String(a.invoice_number ?? ""), fmtCur(applied), cw));
+      if (a.invoice_date) left("  date: " + a.invoice_date);
+      if (a.balance_after != null) {
+        left(padLR("  bal:", fmtCur(Number(a.balance_after)), cw));
+      }
     }
+    rule();
+    push(padLR("Total Applied", fmtCur(totalApplied), cw), {
+      align: "left",
+      bold: true,
+    });
+    const unapplied = Number(t.unapplied_amount ?? 0);
+    if (unapplied > 0) {
+      left(padLR("Unapplied advance", fmtCur(unapplied), cw));
+    }
+    rule();
+  } else {
+    const preferredLayoutId = resolveLegacyLayout(
+      rs.item_display_format,
+      !!rs.show_item_sku,
+    );
+    const ctx = {
+      showSku: !!rs.show_item_sku,
+      showQty: rs.show_item_quantity !== false,
+      showUnitPrice: rs.show_unit_price !== false,
+      showDiscount: !!rs.show_item_discount,
+      showTaxBreakdown: !!rs.show_tax_breakdown,
+      showTaxRate: !!rs.show_tax_rate,
+      showModifiers: rs.show_item_modifiers !== false,
+      truncateLongNames: !!rs.truncate_long_names,
+      maxNameLen: typeof rs.max_item_name_length === "number" ? rs.max_item_name_length : 28,
+    };
+    void LAYOUT_REGISTRY;
+    const { layoutId } = pickFittingLayout(preferredLayoutId, ctx, cw);
+    const assembled = assembleItems({
+      items: (t.items ?? []) as unknown as Parameters<typeof assembleItems>[0]["items"],
+      layoutId,
+      ctx,
+      contentWidth: cw,
+      fmt: { fmtMoney, fmtQty, truncate },
+    });
+    for (const row of assembled.rows) {
+      if (row.kind === "heading" || row.kind === "header") {
+        push(row.text, { align: "left", bold: !!row.bold });
+      } else {
+        push(row.text, { align: "left" });
+      }
+    }
+    rule();
   }
-  rule();
 
   // ── Totals ──────────────────────────────────────────────────────────
   if (rs.show_subtotal !== false && t.subtotal != null) {
