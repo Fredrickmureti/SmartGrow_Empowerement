@@ -28,23 +28,9 @@ import {
   type PDFPage,
 } from "https://esm.sh/pdf-lib@1.17.1";
 import type { ReceiptLinesResult } from "../lines.ts";
+import { paperGeometry } from "../engine/PrinterProfile.ts";
 
 const MM_TO_PT = 2.83465;
-
-const PAPER_WIDTH_MM: Record<ReceiptLinesResult["paper"], number> = {
-  "40mm": 40,
-  "58mm": 58,
-  "80mm": 80,
-};
-
-/** Horizontal paper margin (mm) — physical inset outside the character grid.
- * The character grid itself uses `marginCols` from the engine; this is only
- * the extra bleed to keep text off the thermal head edge in the PDF. */
-const PAPER_MARGIN_MM: Record<ReceiptLinesResult["paper"], number> = {
-  "40mm": 1.5,
-  "58mm": 2,
-  "80mm": 3,
-};
 
 export interface RenderThermalPdfOptions {
   /** Base font size in points. 9 fits 48 cols in 80mm; 7 for 58/40mm. */
