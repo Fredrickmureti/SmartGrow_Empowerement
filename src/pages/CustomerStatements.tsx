@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { useCustomerStatements, CustomerStatementData } from "@/hooks/useCustomerStatements";
+import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { useContacts } from "@/hooks/useContacts";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCurrency } from "@/hooks/useCurrency";
