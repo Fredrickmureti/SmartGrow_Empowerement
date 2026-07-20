@@ -276,8 +276,8 @@ export default function HardwareDiagnostics() {
 
   return (
     <div className="space-y-6 p-4 md:p-6" data-testid="hardware-diagnostics-page">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">Hardware diagnostics</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Read-only snapshot of every hardware subsystem. Use this page when a
@@ -285,7 +285,7 @@ export default function HardwareDiagnostics() {
             or when the desktop app behaves like the browser preview.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => void copyDiagnostics()}>
             Copy diagnostics
           </Button>
