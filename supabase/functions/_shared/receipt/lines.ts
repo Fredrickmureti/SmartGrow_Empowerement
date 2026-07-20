@@ -225,16 +225,17 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
 
   const decimals = typeof rs.decimal_places === "number" ? rs.decimal_places : 2;
   const thousands = (rs.thousands_separator ?? ",") as string;
+  const currencyCode = (t.currency_code ?? "").toString().trim();
   const fmtCur = (n: number) => {
     const num = fmtNumber(Number(n ?? 0), decimals, thousands);
-    const sym = typeof rs.currency_symbol_override === "string"
+    const explicitSym = typeof rs.currency_symbol_override === "string"
       ? rs.currency_symbol_override.trim()
       : "";
+    // Priority: explicit symbol > ISO code prefix (invoice/PO fallback) > none
+    const sym = explicitSym || currencyCode;
     if (rs.currency_display === "none") return num;
-    if (rs.currency_display === "symbol" && sym) {
-      return rs.currency_position === "after" ? `${num} ${sym}` : `${sym}${num}`;
-    }
-    return num;
+    if (!sym) return num;
+    return rs.currency_position === "after" ? `${num} ${sym}` : `${sym} ${num}`;
   };
   const fmtMoney = (n: number) => fmtNumber(Number(n ?? 0), decimals, thousands);
 
