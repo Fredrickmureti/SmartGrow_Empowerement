@@ -1,16 +1,28 @@
 /**
- * Stage X1 — POS receipt document model.
+ * POS receipt UI model (client-side, on-screen only).
  *
- * Single typed shape consumed by every renderer (preview, ESC/POS,
- * PDF, customer display). Built either from a frozen
- * `pos_receipt_snapshots.payload` (preferred — reprint-stable) or from
- * the live transaction shape passed to `<ReceiptPreviewDialog>` /
- * `<PostPaymentScreen>`.
+ * Role boundary — read this before adding a caller:
+ *   • `ReceiptDocumentModel` is the **UI/customer-display shape** for the
+ *     POS surfaces (TransactionSummaryView, ReceiptPreviewDialog,
+ *     PostPaymentScreen) and the second-screen `CustomerDisplayRenderer`.
+ *     It is built from either a frozen `pos_receipt_snapshots.payload`
+ *     or the live in-memory transaction.
+ *   • `DocumentData` (server, `supabase/functions/_shared/templateRenderer.ts`)
+ *     is the **canonical print shape**. Every printed / emitted receipt
+ *     — thermal PDF, ESC/POS bytes, kitchen ticket, invoice, statement —
+ *     is produced from `DocumentData` via `documentToReceiptInput` +
+ *     `buildReceiptLines`. The server refetches from the snapshot on
+ *     print by design (tamper resistance, single source of truth).
  *
- * Renderers MUST NOT reach back to live business / branch / settings
- * lookups — everything they need lives on this model. This is what
- * keeps the on-screen preview, the printed PDF, and the thermal bytes
- * structurally aligned.
+ * These two shapes intentionally exist in parallel today. The
+ * consolidation target (`.lovable/plan.md` Phase 3, item 7) is a
+ * one-way collapse: introduce a client mirror of `DocumentData`, add a
+ * `receiptModelToDocumentData()` adapter, migrate the four POS surfaces,
+ * and delete this file. Do NOT reintroduce this shape into the print or
+ * ESC/POS pipeline in the meantime — that path stays canonical.
+ *
+ * The `pos-receipt-model-boundary` architecture test enforces the second
+ * invariant (no print/ESC/POS/PDF code may import `ReceiptDocumentModel`).
  */
 import type { POSReceiptSnapshot } from "@/hooks/pos/useReceiptSnapshot";
 import type { ExtendedReceiptSettings } from "@/types/receipt";
