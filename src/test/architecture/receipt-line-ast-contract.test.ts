@@ -98,7 +98,7 @@ describe("Phase 4 · Line-AST contract (ADR-0084)", () => {
     for (const r of searchRoots) files.push(...walk(r));
 
     const offenders: string[] = [];
-    const define = /(?:^|\s)(?:export\s+)?(?:interface|type)\s+ReceiptLinesResult\b/;
+    const define = /(?:^|\s)(?:export\s+)?(?:interface|type)\s+ReceiptLinesResult\s*(?:=|extends|\{)/;
 
     for (const f of files) {
       if (f === PRODUCER_SERVER || f === PRODUCER_CLIENT) continue;

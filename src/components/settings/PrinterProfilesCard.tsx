@@ -73,6 +73,7 @@ const EMPTY: PrinterProfileInput = {
   cutter: "full",
   qr_native: true,
   code128_native: true,
+  is_calibrated: false,
 };
 
 export function PrinterProfilesCard({ businessId, canWrite }: Props) {
@@ -103,6 +104,7 @@ export function PrinterProfilesCard({ businessId, canWrite }: Props) {
       cutter: p.cutter,
       qr_native: p.qr_native,
       code128_native: p.code128_native,
+      is_calibrated: p.is_calibrated,
     });
     setDialogOpen(true);
   };
@@ -201,7 +203,7 @@ export function PrinterProfilesCard({ businessId, canWrite }: Props) {
                   </div>
                   <div className="flex items-center gap-1 flex-wrap">
                     <Badge variant="secondary" className="text-[10px]">{p.paper_format}</Badge>
-                    {isThermal && p.columns_override != null && (
+                    {isThermal && p.is_calibrated && p.columns_override != null && (
                       <Badge variant="outline" className="text-[10px]" title="Custom column count">
                         {p.columns_override}c
                       </Badge>
@@ -345,6 +347,20 @@ export function PrinterProfilesCard({ businessId, canWrite }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-md border bg-background px-2.5 py-1.5">
+                <div>
+                  <Label className="text-xs">Calibrated profile</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Enable only after a test print confirms the selected font and column count fit.
+                  </p>
+                </div>
+                <Switch
+                  checked={form.is_calibrated ?? false}
+                  onCheckedChange={(v) => setForm({ ...form, is_calibrated: v })}
+                  disabled={!isThermalForm || form.columns_override == null}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2">

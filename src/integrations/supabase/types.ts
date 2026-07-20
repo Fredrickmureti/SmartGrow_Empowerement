@@ -44703,6 +44703,7 @@ export type Database = {
           font: string
           id: string
           is_active: boolean
+          is_calibrated: boolean
           label: string
           margin_cols: number | null
           notes: string | null
@@ -44723,6 +44724,7 @@ export type Database = {
           font?: string
           id?: string
           is_active?: boolean
+          is_calibrated?: boolean
           label: string
           margin_cols?: number | null
           notes?: string | null
@@ -44743,6 +44745,7 @@ export type Database = {
           font?: string
           id?: string
           is_active?: boolean
+          is_calibrated?: boolean
           label?: string
           margin_cols?: number | null
           notes?: string | null
