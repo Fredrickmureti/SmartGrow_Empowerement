@@ -2685,6 +2685,12 @@ serve(async (req) => {
       "80mm";
     const routeThroughThermalEngine =
       isReceiptLike && !isStatement && (isThermalWidth || documentType === "pos_receipt");
+    console.log(
+      `[thermal-route] docType=${documentType} effPaper=${effectivePaper} ` +
+        `isReceiptLike=${isReceiptLike} isStatement=${isStatement} ` +
+        `isThermalWidth=${isThermalWidth} route=${routeThroughThermalEngine} ` +
+        `thermalWidth=${thermalWidthForReceipt}`,
+    );
 
     let pdfBytes: Uint8Array;
     if (routeThroughThermalEngine) {
