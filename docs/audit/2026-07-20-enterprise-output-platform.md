@@ -108,25 +108,46 @@ now a template resolver; `label_templates` remains the single source of
 truth for every label body across the client (`labelDispatch.ts`) and
 server (`generate-document` `format=zpl` branch) paths.
 
-### D2 — No `pdf-lib` guard in edge functions — **High**
+### D2 — No `pdf-lib` guard in edge functions — **CLOSED (2026-07-20)**
 
-**Files.** `eslint-rules/no-raw-pdf-lib-in-app.js` (scoped `src/**` only,
-per its own header). No equivalent rule for `supabase/functions/**`.
+**Files.** `eslint-rules/no-raw-pdf-lib-in-app.js` was `src/**` only.
+No equivalent existed for `supabase/functions/**`, so a new edge
+function could `import { PDFDocument } from "pdf-lib"` and grow a
+parallel A4 layout engine without tripping any guard — the same
+drift pattern that produced the pre-ADR-0084 POS ESC/POS incident.
+Existing edge functions were already clean
+(`_shared/pdfGenerator.ts`, `hrLetterGenerator.ts`,
+`reportPdfGenerator.ts`, `generate-audit-certificate` all compose
+`_shared/pdf/**`); the risk was regression, not current state.
 
-**Why it matters.** A new edge function can `import { PDFDocument } from
-"pdf-lib"` and build a parallel A4 layout engine tomorrow without
-tripping any guard. That is exactly how the POS ESC/POS drift originated
-(a renderer built its own layout). Existing edge functions are clean
-(`_shared/pdfGenerator.ts`, `hrLetterGenerator.ts`, `reportPdfGenerator.ts`
-all compose `_shared/pdf/**`; `generate-audit-certificate` composes
-`PdfBuilder` from the same module) — the risk is regression, not current
-state.
+**Resolution.** New ESLint rule
+`eslint-rules/no-raw-pdf-lib-in-edge-functions.js` scoped to
+`supabase/functions/**`, allowlisting the two canonical low-level
+owners: `_shared/pdf/**` (canonical A4 engine, ADR-0086) and
+`_shared/receipt/pdf/**` (canonical thermal PDF renderer, ADR-0084).
+Test files (`*.test.ts`, `*.spec.ts`, `*_test.ts`) are exempt so byte
+inspection remains possible. Wired into `eslint.config.js` at `error`
+level. Architecture test
+`src/test/architecture/adr-0086-edge-pdf-lib-ownership.test.ts`
+enforces the same invariant at build time (three assertions: rule is
+registered as `error`, edge-function tree contains zero non-allowlisted
+importers, allowlist is respected).
 
-**Remediation stub.** Add ESLint rule `no-raw-pdf-lib-in-edge-functions`
-scoped to `supabase/functions/**` with an allowlist for
-`supabase/functions/_shared/pdf/**`. Wire it into `eslint.config.js`.
-Runtime proof: intentionally add a violating import to a scratch file and
-confirm the rule fires; then remove.
+**Runtime proof.** Scratch violation
+(`supabase/functions/_scratch-d2-verify/index.ts` importing
+`PDFDocument` from `pdf-lib`) tripped the rule with the ADR-0086
+message; scratch removed; baseline `bunx eslint 'supabase/functions/**/*.ts'`
+reports zero `no-raw-pdf-lib-in-edge-functions` violations across the
+current edge tree. Architecture test passes (3/3).
+
+**D5 follow-up.** ADR-0086 audit-note (D5) called out that bespoke A4
+paths like `generate-audit-certificate` compose `PdfBuilder` directly
+without a "declared bespoke" marker. D2 now covers this transitively:
+any future bespoke edge function is forced to compose `_shared/pdf/**`
+(allowlisted) rather than reach for `pdf-lib` itself. D5 is therefore
+absorbed by D2 and needs no separate guardrail.
+
+
 
 ### D3 — Statement print bypasses `useDocumentPrint` — **Medium**
 
@@ -181,7 +202,7 @@ model.
 | ---------- | ------------- | --------------------------------------------------------------------------------------- |
 | Thermal    | ✅            | ADR-0084/0085, six architecture tests                                                   |
 | A4 in app  | ✅            | `no-raw-pdf-lib-in-app`                                                                 |
-| A4 in edge | ❌            | **D2** — add `no-raw-pdf-lib-in-edge-functions`                                         |
+| A4 in edge | ✅            | **D2 CLOSED** — `no-raw-pdf-lib-in-edge-functions` (ADR-0086)                            |
 | Label      | ⚠️            | `no-raw-zpl-outside-printing` covers app code; **D1** covers legacy server emitter      |
 | Tabular    | ✅            | `no-raw-xlsx-in-app` + `csv-export-registered_test`                                     |
 | Client entrypoints | ⚠️    | `no-document-print-shadow-path`, `no-direct-window-print`, `no-direct-pdf-iframe`; **D3** extends |
@@ -194,13 +215,15 @@ items require live-preview verification before they close:
 1. **D1** — capture ZPL bytes from each label entry point (`Products.tsx`
    product-label button; any warehouse UI that hits `generate-document`
    with `documentType="inventory_label"`).
-2. **D2** — introduce a scratch violating import, confirm ESLint fires,
-   remove it.
+2. **D2** — scratch importer of `pdf-lib` under
+   `supabase/functions/_scratch-d2-verify/` tripped
+   `local/no-raw-pdf-lib-in-edge-functions`; baseline edge tree is
+   clean; architecture test locks it. **Closed 2026-07-20.**
 3. **D3** — Playwright the Statements pages, confirm the preview dialog
    opens and the outgoing request matches the hook path.
 
 Each remediation ships as its own build-mode plan, one at a time, in the
-order D1 → D2 → D3 → (D5 guardrail as fallout of D2).
+order D1 → D2 → D3. D5 was absorbed by D2 (see D2 resolution notes).
 
 ## Non-goals of this audit
 
