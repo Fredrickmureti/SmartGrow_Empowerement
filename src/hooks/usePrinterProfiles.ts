@@ -45,11 +45,12 @@ export interface PrinterProfile {
   cutter: PrinterCutter;
   qr_native: boolean;
   code128_native: boolean;
+  is_calibrated: boolean;
 }
 
 export type PrinterProfileInput = Omit<
   PrinterProfile,
-  "id" | "business_id" | "is_active" | "columns_override" | "margin_cols" | "font" | "cutter" | "qr_native" | "code128_native"
+  "id" | "business_id" | "is_active" | "columns_override" | "margin_cols" | "font" | "cutter" | "qr_native" | "code128_native" | "is_calibrated"
 > & {
   is_active?: boolean;
   columns_override?: number | null;
@@ -58,6 +59,7 @@ export type PrinterProfileInput = Omit<
   cutter?: PrinterCutter;
   qr_native?: boolean;
   code128_native?: boolean;
+  is_calibrated?: boolean;
 };
 
 export const PRINTER_TRANSPORTS: { value: PrinterTransport; label: string; addressHint: string }[] = [
@@ -91,7 +93,7 @@ export function usePrinterProfiles(businessId: string | null | undefined) {
       const { data, error } = await supabase
         .from("printer_profiles")
         .select(
-          "id, business_id, label, transport, address, paper_format, escpos_codepage, is_active, notes, columns_override, margin_cols, font, cutter, qr_native, code128_native",
+          "id, business_id, label, transport, address, paper_format, escpos_codepage, is_active, notes, columns_override, margin_cols, font, cutter, qr_native, code128_native, is_calibrated",
         )
         .eq("business_id", businessId)
         .order("label", { ascending: true });
@@ -128,6 +130,7 @@ export function usePrinterProfiles(businessId: string | null | undefined) {
           cutter: input.cutter ?? "full",
           qr_native: input.qr_native ?? true,
           code128_native: input.code128_native ?? true,
+          is_calibrated: input.is_calibrated ?? false,
         });
         if (error) throw error;
         await refresh();
