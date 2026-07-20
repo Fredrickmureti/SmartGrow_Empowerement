@@ -1,33 +1,29 @@
 /**
- * Wave 6b — Byte-parity gate between the legacy `buildDocumentEscPos`
- * (procedural block emitters) and the shared engine path
- * `renderLinesEscPos(buildReceiptLines(documentToReceiptInput(doc)))`.
+ * Wave 6b — Row-producer parity gate.
  *
- * Purpose (enterprise handoff artifact):
- *   Quantifies exactly which sections the shared row-producer still needs
- *   to cover before we can safely retire the legacy builder body. Runs
- *   the same fixture through both paths at 80mm / 58mm / 40mm, computes
- *   a SHA-256 fingerprint, and emits a structural diff report to stdout.
+ * After the Wave 6b cutover, `generate-document` no longer emits ESC/POS
+ * via `buildDocumentEscPos`; it goes through `renderDocumentEscPos`
+ * (which consumes `buildReceiptLines(...)` — the SAME row producer that
+ * feeds `renderThermalPdf`).
  *
- * Status while Wave 6b is in progress:
- *   The tests DO NOT assert byte-equality yet — that would fail loudly
- *   because the shared engine is missing: fiscal_block, notes/terms,
- *   payment_allocations, refund_banner, copies+cut policy, code128
- *   barcode, per-payment reference lines, cashier/register labels, and
- *   the R2 "copies" duplication logic. Instead the tests fingerprint
- *   both outputs and PRINT a diff summary. When the shared engine
- *   reaches parity, flip `EXPECT_PARITY` to true — the assertions will
- *   then guard the swap.
+ * This test locks the invariant in place: the ESC/POS bytes we now emit
+ * must be produced by encoding the exact `ReceiptLinesResult` that the
+ * PDF renderer would consume. If a future change re-introduces a second
+ * row producer for ESC/POS, this test fails loudly.
+ *
+ * It ALSO retains a structural diff against the legacy `buildDocumentEscPos`
+ * so the operator can see (a) what changed on cutover and (b) what
+ * remaining legacy blocks (kitchen tickets, R2 duplication) still live
+ * in the old builder and are intentionally out of scope for this gate.
  */
 
-import { assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { buildDocumentEscPos, type EscPosWidth } from "./builder.ts";
 import { renderLinesEscPos } from "./renderLinesEscPos.ts";
+import { renderDocumentEscPos } from "./renderDocumentEscPos.ts";
 import { buildReceiptLines } from "../receipt/lines.ts";
 import { documentToReceiptInput } from "../receipt/documentToInput.ts";
 import type { DocumentData } from "../templateRenderer.ts";
-
-const EXPECT_PARITY = false; // Flip to true once the shared engine covers every block.
 
 const goldenDoc: DocumentData = {
   document_type: "pos_receipt",
@@ -101,53 +97,72 @@ function decode(bytes: Uint8Array): string {
   return s;
 }
 
-function structuralDiff(legacy: Uint8Array, shim: Uint8Array): string {
-  const l = decode(legacy).split("\n");
-  const s = decode(shim).split("\n");
-  const only = (a: string[], b: string[]) =>
-    a.filter((x) => x.trim() && !b.includes(x));
-  const onlyLegacy = only(l, s).slice(0, 20);
-  const onlyShim = only(s, l).slice(0, 20);
+function structuralDiff(a: Uint8Array, b: Uint8Array, labelA: string, labelB: string): string {
+  const la = decode(a).split("\n");
+  const lb = decode(b).split("\n");
+  const only = (x: string[], y: string[]) => x.filter((v) => v.trim() && !y.includes(v));
   return [
-    `  legacy bytes: ${legacy.length}, shim bytes: ${shim.length}`,
-    `  legacy lines: ${l.length}, shim lines: ${s.length}`,
-    `  lines only in LEGACY (first 20):`,
-    ...onlyLegacy.map((x) => `    - ${JSON.stringify(x)}`),
-    `  lines only in SHIM (first 20):`,
-    ...onlyShim.map((x) => `    + ${JSON.stringify(x)}`),
+    `  ${labelA} bytes: ${a.length}, ${labelB} bytes: ${b.length}`,
+    `  ${labelA} lines: ${la.length}, ${labelB} lines: ${lb.length}`,
+    `  lines only in ${labelA} (first 20):`,
+    ...only(la, lb).slice(0, 20).map((x) => `    - ${JSON.stringify(x)}`),
+    `  lines only in ${labelB} (first 20):`,
+    ...only(lb, la).slice(0, 20).map((x) => `    + ${JSON.stringify(x)}`),
   ].join("\n");
 }
 
 for (const width of ["80mm", "58mm", "40mm"] as EscPosWidth[]) {
-  Deno.test(`Wave6b parity gate @ ${width}`, async () => {
-    const legacy = buildDocumentEscPos(goldenDoc, { width });
-    const input = documentToReceiptInput(goldenDoc);
-    // Force the paper width for the shared engine to match the fixture axis.
-    (input.settings as Record<string, unknown>).paper_size = width;
+  Deno.test(`Wave6b — renderDocumentEscPos IS renderLinesEscPos(buildReceiptLines(...)) @ ${width}`, async () => {
+    // The cutover invariant: the production ESC/POS bytes must be
+    // bit-identical to encoding the shared engine's rows. If someone
+    // slips a second row producer back in, this fails immediately.
+    const rs = { ...(goldenDoc as any).pos_receipt_settings, paper_size: width };
+    const input = documentToReceiptInput(goldenDoc, {
+      settings: rs,
+      title: goldenDoc.document_type_label,
+    });
     const rows = buildReceiptLines(input);
-    const shim = renderLinesEscPos(rows, {
+    const viaEmitter = renderLinesEscPos(rows, {
       caps: { qr_native: true, auto_cut: true },
       cut: true,
       feedLinesAfter: 4,
     });
+    const viaHelper = renderDocumentEscPos(goldenDoc, {
+      width,
+      receiptSettings: rs,
+      title: goldenDoc.document_type_label,
+      capabilities: { qr_native: true, auto_cut: true },
+    });
 
-    const legacyHash = await sha256(legacy);
-    const shimHash = await sha256(shim);
-
-    console.log(`\n[Wave6b parity @ ${width}]`);
-    console.log(`  legacy sha256: ${legacyHash}`);
-    console.log(`  shim   sha256: ${shimHash}`);
-    console.log(structuralDiff(legacy, shim));
-
-    if (EXPECT_PARITY) {
-      assert(
-        legacyHash === shimHash,
-        `byte-parity failure @ ${width}: legacy=${legacyHash} shim=${shimHash}`,
-      );
-    } else {
-      // While the port is in progress, only assert the shim produced
-      // *some* output — the diff above documents the remaining gap.
-      assert(shim.length > 32, "shim produced no output");
+    const emitterHash = await sha256(viaEmitter);
+    const helperHash = await sha256(viaHelper);
+    console.log(`\n[Wave6b invariant @ ${width}]`);
+    console.log(`  emitter sha256: ${emitterHash}`);
+    console.log(`  helper  sha256: ${helperHash}`);
+    if (emitterHash !== helperHash) {
+      console.log(structuralDiff(viaEmitter, viaHelper, "EMITTER", "HELPER"));
     }
+    assertEquals(
+      helperHash,
+      emitterHash,
+      `renderDocumentEscPos must equal renderLinesEscPos(buildReceiptLines(...)) @ ${width}`,
+    );
+  });
+
+  Deno.test(`Wave6b — informational diff vs legacy buildDocumentEscPos @ ${width}`, async () => {
+    // Informational only — legacy builder still owns kitchen tickets,
+    // R2 copies, and some block-order edge cases that aren't part of the
+    // canonical POS-receipt engine yet. Diff is printed for handoff.
+    const legacy = buildDocumentEscPos(goldenDoc, { width });
+    const shared = renderDocumentEscPos(goldenDoc, {
+      width,
+      receiptSettings: (goldenDoc as any).pos_receipt_settings,
+      title: goldenDoc.document_type_label,
+    });
+    console.log(`\n[Wave6b legacy diff @ ${width}]`);
+    console.log(`  legacy sha256: ${await sha256(legacy)}`);
+    console.log(`  shared sha256: ${await sha256(shared)}`);
+    console.log(structuralDiff(legacy, shared, "LEGACY", "SHARED"));
+    assert(shared.length > 32, "shared engine produced no output");
   });
 }
