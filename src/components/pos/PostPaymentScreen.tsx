@@ -326,271 +326,362 @@ export function PostPaymentScreen({
       role="dialog"
       aria-label="Transaction complete"
       data-testid="post-payment-screen"
-      className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-50 flex flex-col bg-background text-foreground"
     >
-      <div className="min-h-full flex items-start sm:items-center justify-center p-3 sm:p-6">
-        <div className="w-full max-w-2xl">
-          {/* SINGLE CONFIRMATION CARD — preview + extra actions live in
-              the side Sheet so we never split the cashier's attention
-              across multiple panels. */}
-          <Card className="p-6 sm:p-8 shadow-lg">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="h-14 w-14 rounded-full bg-green-500/15 text-green-600 flex items-center justify-center shrink-0">
-                <Check className="h-8 w-8" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-xl sm:text-2xl font-semibold">Payment received</h2>
-                <p className="text-xs text-muted-foreground truncate">
-                  {model.meta.title} · {model.meta.transaction_number}
-                </p>
-              </div>
-              <PrintStatusPill state={printState} channelLabel={channelLabel} />
-            </div>
+      {/* ─── Top status bar ─────────────────────────────────────────────
+          A single, dense strip: brand mark, transaction identity, print
+          status, receipt-view toggle. Everything the cashier's eye needs
+          to confirm "the right sale just closed" without moving focus. */}
+      <header className="flex items-center gap-4 border-b border-border/70 bg-card px-6 py-3 shrink-0">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">
+          <Check className="h-6 w-6" aria-hidden strokeWidth={2.5} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-lg font-semibold tracking-tight">Payment received</h2>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {format(new Date(model.meta.created_at), "MMM d, h:mm a")}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground truncate">
+            {model.meta.title} · <span className="tabular-nums">{model.meta.transaction_number}</span>
+            {model.meta.cashier_name ? <> · {model.meta.cashier_name}</> : null}
+          </p>
+        </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <div className="text-xs text-muted-foreground uppercase tracking-wide">
+        <div className="hidden md:inline-flex rounded-md border border-border bg-muted/40 p-0.5 text-xs">
+          <button
+            type="button"
+            onClick={() => setShowPreview("summary")}
+            className={`px-3 py-1.5 rounded-sm font-medium transition-colors ${
+              showPreview === "summary"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Sale summary
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPreview("paper")}
+            className={`px-3 py-1.5 rounded-sm font-medium transition-colors ${
+              showPreview === "paper"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Receipt ({paperWidth})
+          </button>
+        </div>
+
+        <PrintStatusPill state={printState} channelLabel={channelLabel} />
+      </header>
+
+      {/* ─── Main body: two columns on desktop, stacked on tablet ────── */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] lg:gap-8 lg:p-8">
+          {/* LEFT column — money-first hero + sale detail */}
+          <section className="flex flex-col gap-6 min-w-0">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* Total paid — the anchor number */}
+              <div className="rounded-lg border border-border bg-card p-6">
+                <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
                   Total paid
                 </div>
-                <div className="text-3xl sm:text-4xl font-bold tabular-nums mt-1">
+                <div className="mt-2 text-5xl font-semibold tabular-nums leading-none tracking-tight">
                   {formatCurrency(model.totals.total_amount)}
                 </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {model.payments.map((p, i) => (
+                    <Badge key={i} variant="secondary" className="capitalize font-medium">
+                      {p.payment_method.toLowerCase().includes("mpesa")
+                        ? "M-Pesa"
+                        : p.payment_method}
+                      {" · "}
+                      <span className="tabular-nums">{formatCurrency(p.amount)}</span>
+                    </Badge>
+                  ))}
+                  {model.flags.is_offline && (
+                    <Badge variant="outline" className="border-amber-500/40 text-amber-600">
+                      <WifiOff className="mr-1 h-3 w-3" /> Offline
+                    </Badge>
+                  )}
+                </div>
               </div>
+
+              {/* Change due — the second number cashier & customer both look for */}
               {model.totals.change_due > 0 ? (
-                <div className="rounded-lg border-2 border-green-500/40 bg-green-500/5 p-4">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                <div className="rounded-lg border-2 border-emerald-500/50 bg-emerald-500/[0.06] p-6">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-400">
                     Change due
                   </div>
-                  <div className="text-3xl sm:text-4xl font-bold text-green-600 tabular-nums mt-1">
+                  <div className="mt-2 text-5xl font-semibold tabular-nums leading-none tracking-tight text-emerald-700 dark:text-emerald-400">
                     {formatCurrency(model.totals.change_due)}
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    Tendered{" "}
+                    <span className="tabular-nums font-medium text-foreground">
+                      {formatCurrency(model.totals.amount_tendered)}
+                    </span>
                   </div>
                 </div>
               ) : (
-                <div className="rounded-lg border bg-muted/30 p-4">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                <div className="rounded-lg border border-border bg-card p-6">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
                     Tendered
                   </div>
-                  <div className="text-2xl sm:text-3xl font-bold tabular-nums mt-1">
+                  <div className="mt-2 text-4xl font-semibold tabular-nums leading-none tracking-tight">
                     {formatCurrency(model.totals.amount_tendered)}
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    {model.items.length} item{model.items.length === 1 ? "" : "s"}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Payment method chips */}
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              {model.payments.map((p, i) => (
-                <Badge key={i} variant="secondary" className="capitalize">
-                  {p.payment_method.toLowerCase().includes("mpesa")
-                    ? "M-Pesa"
-                    : p.payment_method}{" "}
-                  · {formatCurrency(p.amount)}
-                </Badge>
-              ))}
-              {model.flags.is_offline && (
-                <Badge variant="outline" className="border-amber-500/40 text-amber-600">
-                  <WifiOff className="h-3 w-3 mr-1" /> Offline
-                </Badge>
-              )}
-            </div>
-
-            {/* Printer offline guidance — only when actually relevant */}
+            {/* Printer offline banner */}
             {hasReceiptPrinterRegistered && !thermalAvailable && (
-              <div className="flex flex-wrap items-center gap-2 text-xs rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 p-3 border border-amber-500/20 mb-4">
+              <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
                 <WifiOff className="h-4 w-4 shrink-0" />
                 <span className="flex-1 min-w-0">
                   Receipt printer offline — {printerOfflineReason ?? "not responding"}.
                 </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  onClick={handleReconnectPrinter}
-                >
-                  <RefreshCw className="h-3 w-3 mr-1" /> Reconnect
+                <Button size="sm" variant="outline" onClick={handleReconnectPrinter}>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Reconnect
                 </Button>
               </div>
             )}
 
-            {/* Action row — ONE primary, compact icon-button row, overflow menu */}
-            <div className="flex items-center gap-2">
-              <Button
-                autoFocus
-                size="lg"
-                className="h-14 text-base flex-1"
-                onClick={onNewSale}
+            {/* Mobile toggle — the desktop segmented control moves here on
+                narrow screens so tablet operators can still switch view. */}
+            <div className="md:hidden inline-flex rounded-md border border-border bg-muted/40 p-0.5 text-xs w-fit">
+              <button
+                type="button"
+                onClick={() => setShowPreview("summary")}
+                className={`px-3 py-1.5 rounded-sm font-medium ${
+                  showPreview === "summary" ? "bg-background shadow-sm" : "text-muted-foreground"
+                }`}
               >
-                <X className="h-5 w-5 mr-2" />
-                New sale
-                <kbd className="hidden sm:inline ml-auto px-1.5 py-0.5 text-xs bg-background/20 rounded">
-                  Enter
-                </kbd>
-              </Button>
-
-              {/* Print / retry — single icon button, label switches by state */}
-              <Button
-                size="lg"
-                variant={showRetry ? "destructive" : "outline"}
-                className="h-14 px-4"
-                onClick={handlePrint}
-                disabled={isPrinting}
-                aria-label={showRetry ? "Retry print" : showReprint ? "Reprint" : "Print receipt"}
-                title={`${showRetry ? "Retry print" : showReprint ? "Reprint" : "Print"} (P)`}
+                Sale summary
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPreview("paper")}
+                className={`px-3 py-1.5 rounded-sm font-medium ${
+                  showPreview === "paper" ? "bg-background shadow-sm" : "text-muted-foreground"
+                }`}
               >
-                {isPrinting ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : showRetry || showReprint ? (
-                  <RefreshCw className="h-5 w-5" />
-                ) : (
-                  <Printer className="h-5 w-5" />
-                )}
-              </Button>
-
-              {/* Overflow — Show preview / Email / Save PDF / Save raw bytes */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="h-14 px-4"
-                    aria-label="More actions"
-                    title="More actions"
-                  >
-                    <MoreHorizontal className="h-5 w-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem onClick={() => setShowDetails(true)}>
-                    <Receipt className="h-4 w-4 mr-2" />
-                    Show receipt details
-                    <kbd className="ml-auto text-[10px] px-1 py-0.5 bg-muted rounded">D</kbd>
-                  </DropdownMenuItem>
-                  {onEmail && (
-                    <DropdownMenuItem onClick={onEmail}>
-                      <Mail className="h-4 w-4 mr-2" />
-                      Email receipt
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={handleSavePdf} disabled={isSavingPdf}>
-                    <FileDown className="h-4 w-4 mr-2" />
-                    {isSavingPdf ? "Saving…" : "Save PDF"}
-                  </DropdownMenuItem>
-                  {hasReceiptPrinterRegistered && !thermalAvailable && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={renderAndShowPdf}>
-                        <FileDown className="h-4 w-4 mr-2" />
-                        Print PDF instead
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                Receipt
+              </button>
             </div>
-          </Card>
+
+            {/* On mobile/tablet we swap views; on desktop the summary is
+                always visible on the left AND the paper preview on the
+                right, so we hide the swap here. */}
+            <div className={showPreview === "summary" ? "block" : "hidden lg:block"}>
+              <TransactionSummaryView model={model} />
+            </div>
+
+            <div className={showPreview === "paper" ? "block lg:hidden" : "hidden"}>
+              <PaperPreview
+                liveSettings={liveSettings}
+                paperWidth={paperWidth}
+                branding={branding}
+                currentOrg={currentOrg}
+                transaction={transaction}
+              />
+            </div>
+          </section>
+
+          {/* RIGHT column — thermal receipt WYSIWYG, always visible on desktop */}
+          <aside className="hidden lg:flex flex-col gap-3 min-w-0">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Receipt preview
+              </h3>
+              <span className="text-[11px] tabular-nums text-muted-foreground">
+                {paperWidth} · thermal
+              </span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-border bg-muted/30 p-6">
+              <div className="flex justify-center">
+                <PaperPreview
+                  liveSettings={liveSettings}
+                  paperWidth={paperWidth}
+                  branding={branding}
+                  currentOrg={currentOrg}
+                  transaction={transaction}
+                />
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
 
-      {/* Side sheet — receipt preview opens on demand, never crowds the
-          confirmation card. */}
-      <Sheet open={showDetails} onOpenChange={setShowDetails}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Receipt details</SheetTitle>
-            <SheetDescription>
-              {model.meta.transaction_number} ·{" "}
-              {format(new Date(model.meta.created_at), "MMM d, h:mm a")}
-            </SheetDescription>
-          </SheetHeader>
-          <Tabs defaultValue="summary" className="mt-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="summary">Summary</TabsTrigger>
-              <TabsTrigger value="printer">Printer preview ({paperWidth})</TabsTrigger>
-            </TabsList>
-            <TabsContent value="summary" className="mt-4">
-              <TransactionSummaryView model={model} />
-            </TabsContent>
-            <TabsContent value="printer" className="mt-4">
-              <div className="flex justify-center">
-                {(() => {
-                  // Stage X (Wave 2): the operator-facing thermal preview
-                  // is now the same monospace grid engine (`buildReceiptLines`
-                  // + `MonospacePreview`) that drives the ReceiptPreviewDialog
-                  // reprint surface AND the server ESC/POS / thermal PDF
-                  // pipelines. No divergent HTML renderer.
-                  const rs = { ...liveSettings, paper_size: paperWidth };
-                  const built = buildReceiptLines({
-                    settings: rs,
-                    company: {
-                      name: branding?.name || currentOrg?.name || "Store",
-                      logo_url: branding?.logo_url ?? null,
-                      address: branding?.address ?? null,
-                      city: branding?.city ?? null,
-                      phone: branding?.phone ?? null,
-                      email: branding?.email ?? null,
-                      tax_id: null,
-                    },
-                    transaction: {
-                      id: transaction.id,
-                      transaction_number: transaction.transaction_number,
-                      created_at: transaction.created_at,
-                      subtotal: transaction.subtotal,
-                      tax_amount: transaction.tax_amount,
-                      discount_amount: transaction.discount_amount,
-                      total_amount: transaction.total_amount,
-                      customer_name: transaction.customer_name,
-                      cashier_name: transaction.cashier_name,
-                      register_id: transaction.register_id,
-                      items: transaction.items.map((it) => ({
-                        product_name: it.product_name,
-                        sku: it.sku,
-                        quantity: it.quantity,
-                        unit_price: it.unit_price,
-                        discount_amount: it.discount_amount,
-                        line_total: it.line_total,
-                      })),
-                      payments: transaction.payments,
-                      etims_cu_number: transaction.etims_cu_number,
-                      etims_qr_data: transaction.etims_qr_data,
-                    },
-                  });
-                  return (
-                    <MonospacePreview
-                      lines={built.lines}
-                      meta={built.meta}
-                      columns={built.columns}
-                      marginCols={built.marginCols}
-                      paper={built.paper}
-                    />
-                  );
-                })()}
-              </div>
-            </TabsContent>
-          </Tabs>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrint} disabled={isPrinting}>
-              {isPrinting ? (
-                <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
-              ) : (
-                <Printer className="h-3.5 w-3.5 mr-2" />
-              )}
-              {showReprint ? "Reprint" : "Print"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleSavePdf} disabled={isSavingPdf}>
-              <FileDown className="h-3.5 w-3.5 mr-2" />
-              Save PDF
-            </Button>
-            {onEmail && (
-              <Button variant="outline" size="sm" onClick={onEmail} className="col-span-2">
-                <Mail className="h-3.5 w-3.5 mr-2" />
-                Email receipt
-              </Button>
+      {/* ─── Sticky action bar — the fastest surface on the screen ───── */}
+      <footer className="border-t border-border bg-card px-4 py-3 shrink-0 sm:px-6">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3">
+          {/* Secondary actions on the left — never compete with New sale */}
+          <Button
+            size="lg"
+            variant="outline"
+            className="h-14 min-w-[9rem] text-base"
+            onClick={handlePrint}
+            disabled={isPrinting}
+          >
+            {isPrinting ? (
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            ) : showRetry ? (
+              <RefreshCw className="mr-2 h-5 w-5" />
+            ) : showReprint ? (
+              <RefreshCw className="mr-2 h-5 w-5" />
+            ) : (
+              <Printer className="mr-2 h-5 w-5" />
             )}
+            {showRetry ? "Retry print" : showReprint ? "Reprint" : "Print"}
+            <kbd className="ml-2 hidden rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">
+              P
+            </kbd>
+          </Button>
+
+          <Button
+            size="lg"
+            variant="outline"
+            className="h-14 min-w-[9rem] text-base"
+            onClick={handleSavePdf}
+            disabled={isSavingPdf}
+          >
+            {isSavingPdf ? (
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-5 w-5" />
+            )}
+            Save PDF
+          </Button>
+
+          {onEmail && (
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-14 min-w-[9rem] text-base"
+              onClick={onEmail}
+            >
+              <Mail className="mr-2 h-5 w-5" />
+              Email
+            </Button>
+          )}
+
+          {/* Overflow — rare actions only */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="lg" variant="outline" className="h-14 w-14 p-0" aria-label="More actions">
+                <MoreHorizontal className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              {hasReceiptPrinterRegistered && !thermalAvailable && (
+                <>
+                  <DropdownMenuItem onClick={renderAndShowPdf}>
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Print PDF instead
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem onClick={handleReconnectPrinter}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reconnect printer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Primary — New sale — pushed hard right, oversized, autofocus */}
+          <div className="ml-auto flex items-center gap-3">
+            <Button
+              autoFocus
+              size="lg"
+              className="h-14 min-w-[16rem] text-lg font-semibold"
+              onClick={onNewSale}
+            >
+              <X className="mr-2 h-5 w-5" />
+              New sale
+              <kbd className="ml-3 hidden rounded bg-background/20 px-2 py-0.5 text-xs sm:inline">
+                Enter
+              </kbd>
+            </Button>
           </div>
-        </SheetContent>
-      </Sheet>
+        </div>
+      </footer>
     </div>
   );
+}
+
+/**
+ * PaperPreview — thin wrapper around the shared monospace preview engine
+ * (`buildReceiptLines` + `MonospacePreview`) so the exact same paper view
+ * is used in both the desktop right column and the mobile stacked layout.
+ */
+function PaperPreview({
+  liveSettings,
+  paperWidth,
+  branding,
+  currentOrg,
+  transaction,
+}: {
+  liveSettings: ReturnType<typeof useMergedReceiptSettings>["mergedSettings"];
+  paperWidth: ReceiptPaperWidth;
+  branding: ReturnType<typeof useDocumentBranding>["branding"];
+  currentOrg: ReturnType<typeof useOrganization>["currentOrg"];
+  transaction: LiveTransactionInput;
+}) {
+  const rs = { ...liveSettings, paper_size: paperWidth };
+  const built = buildReceiptLines({
+    settings: rs,
+    company: {
+      name: branding?.name || currentOrg?.name || "Store",
+      logo_url: branding?.logo_url ?? null,
+      address: branding?.address ?? null,
+      city: branding?.city ?? null,
+      phone: branding?.phone ?? null,
+      email: branding?.email ?? null,
+      tax_id: null,
+    },
+    transaction: {
+      id: transaction.id,
+      transaction_number: transaction.transaction_number,
+      created_at: transaction.created_at,
+      subtotal: transaction.subtotal,
+      tax_amount: transaction.tax_amount,
+      discount_amount: transaction.discount_amount,
+      total_amount: transaction.total_amount,
+      customer_name: transaction.customer_name,
+      cashier_name: transaction.cashier_name,
+      register_id: transaction.register_id,
+      items: transaction.items.map((it) => ({
+        product_name: it.product_name,
+        sku: it.sku,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        discount_amount: it.discount_amount,
+        line_total: it.line_total,
+      })),
+      payments: transaction.payments,
+      etims_cu_number: transaction.etims_cu_number,
+      etims_qr_data: transaction.etims_qr_data,
+    },
+  });
+  return (
+    <MonospacePreview
+      lines={built.lines}
+      meta={built.meta}
+      columns={built.columns}
+      marginCols={built.marginCols}
+      paper={built.paper}
+    />
+  );
+}
+
 }
 
 function PrintStatusPill({
