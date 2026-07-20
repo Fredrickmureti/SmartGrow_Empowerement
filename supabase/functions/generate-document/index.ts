@@ -2649,7 +2649,26 @@ serve(async (req) => {
     }
 
 
-    const effectivePaper = effectivePaperOverride ?? coerced.paper_format;
+    // Wave 13 — POS receipts are fundamentally thermal artifacts. Their
+    // true width lives in `pos_receipt_settings.paper_size`, NOT in the
+    // per-tenant `document_print_policies` row (which may be absent or
+    // set to A4 for a business that never configured a policy). Promote
+    // the receipt-editor width to `effectivePaper` before the routing
+    // gate so `isThermalWidth` and response headers reflect reality and
+    // the self-defending guard in `generateDocumentPdf` gets the truth.
+    const _rsForRouting = (documentData as unknown as {
+      pos_receipt_settings?: { paper_size?: string };
+    }).pos_receipt_settings ?? {};
+    const _rsPaper = String(_rsForRouting.paper_size ?? "").toLowerCase();
+    const _rsPaperThermal =
+      _rsPaper === "40mm" || _rsPaper === "58mm" || _rsPaper === "80mm"
+        ? (_rsPaper as "40mm" | "58mm" | "80mm")
+        : null;
+    const effectivePaper =
+      effectivePaperOverride
+      ?? (documentType === "pos_receipt" && _rsPaperThermal
+        ? _rsPaperThermal
+        : coerced.paper_format);
     const renderOptions = { paperFormat: effectivePaper };
 
     // ── Thermal PDF path (ADR-0008 follow-up) ─────────────────────────
