@@ -20,14 +20,6 @@ import { normalizeError } from "@/services/resilience";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -47,7 +39,6 @@ import {
   WifiOff,
   AlertTriangle,
   MoreHorizontal,
-  Receipt,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -70,7 +61,6 @@ import { buildReceiptLines } from "@/lib/receipt/preview/buildReceiptLines";
 import { MonospacePreview } from "@/lib/receipt/preview/MonospacePreview";
 import { printClient } from "@/services/printing/PrintClient";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionSummaryView } from "@/components/pos/TransactionSummaryView";
 
 export type PrintPolicyHint = {
