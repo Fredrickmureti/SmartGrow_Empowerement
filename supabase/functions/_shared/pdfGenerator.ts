@@ -293,9 +293,22 @@ export async function generateDocumentPdf(
   template: Partial<TemplateSettings> = {},
   options: DocumentRenderOptions = {},
 ): Promise<Uint8Array> {
+  // Wave 11 architecture guard — the A4 coordinate renderer must NEVER
+  // be reached for thermal widths. Any thermal-width PDF (40/58/80 mm)
+  // is owned by `renderThermalPdf` via the shared receipt engine. A
+  // failure here indicates a router regression at
+  // `generate-document/index.ts` (Wave 10 gate).
+  const gpg_paper = String(options.paperFormat ?? "").toLowerCase();
+  if (gpg_paper === "40mm" || gpg_paper === "58mm" || gpg_paper === "80mm") {
+    throw new Error(
+      `generateDocumentPdf invoked with thermal paper "${gpg_paper}". ` +
+        `Thermal widths must route through renderThermalPdf (Wave 10).`,
+    );
+  }
   const t: TemplateSettings = { ...DEFAULT_TEMPLATE_SETTINGS, ...template };
   const customFields = data.custom_fields || [];
   const currency = data.currency || "USD";
+
 
   // Resolve title (template override > document_type_label > default)
   const docLabel =
