@@ -682,8 +682,6 @@ function PaperPreview({
   );
 }
 
-}
-
 function PrintStatusPill({
   state,
   channelLabel,
