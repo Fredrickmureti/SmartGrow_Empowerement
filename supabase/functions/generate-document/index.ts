@@ -2450,18 +2450,12 @@ serve(async (req) => {
       const { renderDocumentEscPos } = await import(
         "../_shared/escpos/renderDocumentEscPos.ts"
       );
-      // Phase 1 — width source-of-truth: receipt settings paper_size (the
-      // editor's intent) wins for thermal sizes including 40mm; fall back
-      // to the resolved policy paper format. Print policy still controls
-      // render mode/transport, but the actual character grid follows the
-      // receipt editor / printer profile.
-      const rsForWidth = (documentData as any).pos_receipt_settings ?? null;
-      const rsPaper: string | undefined = rsForWidth?.paper_size;
-      const policyPaper = coerced.paper_format;
-      const width: "40mm" | "58mm" | "80mm" =
-        rsPaper === "40mm" || policyPaper === "40mm" ? "40mm"
-          : rsPaper === "58mm" || policyPaper === "58mm" ? "58mm"
-          : "80mm";
+      const { resolvePaperWidth } = await import(
+        "../_shared/receipt/resolvePaperWidth.ts"
+      );
+      const { RENDERER_ID: _rendererId, sha256Hex: _sha } = await import(
+        "../_shared/escpos/rendererVersion.ts"
+      );
       // POS receipts: title comes from resolveReceiptTitle() (already on
       // documentData.document_type_label) — never let an A4 invoice
       // template's "INVOICE" title override a fully-paid cash sale.
@@ -2507,6 +2501,22 @@ serve(async (req) => {
       // affecting the branch/business policy.
       const registerProfile =
         (documentData as any).pos_register_printer_profile ?? null;
+
+      // Bug 2 fix — resolve paper width AFTER the printer profile is
+      // loaded, with the physical device winning over the receipt
+      // editor's intent. See `_shared/receipt/resolvePaperWidth.ts` and
+      // the Star/Epson/Odoo precedence rationale.
+      const rsForWidth = (documentData as any).pos_receipt_settings ?? null;
+      const resolvedPaper = resolvePaperWidth({
+        requestOverride: typeof body.paperFormat === "string" ? body.paperFormat : undefined,
+        profile: {
+          paper_size:
+            registerProfile?.paper_size ?? physicalProfile?.paper_size ?? null,
+        },
+        receiptSettings: { paper_size: rsForWidth?.paper_size ?? undefined },
+        policyDefault: coerced.paper_format,
+      });
+      const width: "40mm" | "58mm" | "80mm" = resolvedPaper.width;
 
       // Audit fix (Phase 2): paper-scope the physical column/margin overrides.
       // A printer profile records corrections for a SPECIFIC paper size
