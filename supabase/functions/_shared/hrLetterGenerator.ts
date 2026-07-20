@@ -135,7 +135,7 @@ async function resolveBranding(
   const businessId = data.business_id ?? null;
   const orgId = data.organization_id ?? data.organization?.id ?? null;
   if (supabase && (businessId || orgId)) {
-    const central = await getOrganizationBranding(supabase, orgId, businessId);
+    const central = await getOrganizationBranding(supabase, orgId ?? "", businessId);
     if (central) return central;
   }
   return mapJoinedOrgRow(data.organization ?? null);
