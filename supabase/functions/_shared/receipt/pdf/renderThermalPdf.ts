@@ -62,8 +62,9 @@ export async function renderThermalPdf(
     paperPaddingMm = 4,
   } = options;
 
-  const paperWidthPt = PAPER_WIDTH_MM[result.paper] * MM_TO_PT;
-  const paperMarginPt = PAPER_MARGIN_MM[result.paper] * MM_TO_PT;
+  const geom = paperGeometry(result.paper);
+  const paperWidthPt = geom.widthMm * MM_TO_PT;
+  const paperMarginPt = geom.marginMm * MM_TO_PT;
   const usableWidthPt = paperWidthPt - 2 * paperMarginPt;
   const cellWidthPt = usableWidthPt / result.columns;
   const rowHeightPt = fontSize * lineHeight;
