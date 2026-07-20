@@ -91,21 +91,25 @@ async function fetchVars(
 ): Promise<{ orgId: string | null; vars: Record<string, unknown> }> {
   if (documentType === 'inventory_label') {
     try {
+      // Only columns known to exist on `products` today. Barcode lives
+      // in `product_identifiers` and is joined lazily below; retail
+      // pricing lives elsewhere per branch. Layout is defined by the
+      // label_templates row — this branch resolves DATA only.
       const { data } = await supabase
         .from('products')
-        .select('id, sku, name, barcode, retail_price, currency_code, organization_id')
+        .select('id, sku, name, unit_price, organization_id')
         .eq('id', documentId)
         .maybeSingle();
       if (data) {
-        const p = (data as { retail_price?: number | null }).retail_price;
-        const cur = (data as { currency_code?: string | null }).currency_code ?? '';
-        const price = typeof p === 'number' ? `${cur} ${p.toFixed(2)}`.trim() : '';
+        const sku = (data as { sku?: string | null }).sku ?? documentId;
+        const p = (data as { unit_price?: number | null }).unit_price;
+        const price = typeof p === 'number' ? p.toFixed(2) : '';
         return {
           orgId: (data as { organization_id?: string | null }).organization_id ?? null,
           vars: {
-            sku: (data as { sku?: string }).sku ?? documentId,
+            sku,
             name: (data as { name?: string }).name ?? documentId,
-            barcode: (data as { barcode?: string | null }).barcode ?? (data as { sku?: string }).sku ?? documentId,
+            barcode: sku,
             price,
           },
         };
