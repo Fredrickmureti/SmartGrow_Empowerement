@@ -267,7 +267,7 @@ export function HardwareDevicesPage() {
       {/* Compact page header + condensed runtime pill. Full runtime
           self-report moved into the Runtime tab so the primary editor
           surface is visible without scrolling. */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">Hardware devices</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -379,8 +379,9 @@ export function HardwareDevicesPage() {
                         <p className="text-sm text-muted-foreground">
                           No device bound. Add one from the Register tab.
                         </p>
-                      ) : (
-                        <Table>
+                       ) : (
+                         <div className="overflow-x-auto">
+                         <Table>
                           <TableHeader>
                             <TableRow>
                               <TableHead>Transport</TableHead>
@@ -424,8 +425,9 @@ export function HardwareDevicesPage() {
                               </TableRow>
                             ))}
                           </TableBody>
-                        </Table>
-                      )}
+                         </Table>
+                         </div>
+                       )}
                     </CardContent>
                   </Card>
                 );
