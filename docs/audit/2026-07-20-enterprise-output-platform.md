@@ -166,19 +166,28 @@ guard `no-document-print-shadow-path` was built to prevent.
 
 **Resolution (2026-07-20).**
 
-- `src/pages/CustomerStatements.tsx` and `src/pages/VendorStatements.tsx`
-  now route through `useDocumentPrint.downloadPdf("customer_statement" |
-  "vendor_statement", id, filename)`; the direct
-  `supabase.functions.invoke("generate-document", …)` calls, dynamic
-  `supabase` / `downloadPdfBlob` imports, and duplicated %PDF/toast
-  handling were removed. Behaviour-preserving: the hook already sends
-  `format: "pdf"`, validates the `%PDF` magic bytes, and toasts on
-  success/failure.
+- Client entrypoint drift removed from **all four** surfaces that still
+  synthesised the request shape:
+  - `src/pages/CustomerStatements.tsx`
+  - `src/pages/VendorStatements.tsx`
+  - `src/features/purchases/statements/VendorStatementPeekSheet.tsx`
+  - `src/features/purchases/statements/VendorStatementRecordPage.tsx`
+
+  All four now route through
+  `useDocumentPrint.downloadPdf("customer_statement" | "vendor_statement",
+  id, filename)`. The direct `supabase.functions.invoke("generate-document",
+  …)` calls, dynamic `supabase` / `downloadPdfBlob` imports, ad-hoc
+  `downloading` local state, and duplicated %PDF/toast handling were
+  removed. Behaviour-preserving: the hook already sends `format: "pdf"`,
+  validates the `%PDF` magic bytes, and toasts on success/failure.
 - New ESLint rule `local/no-direct-generate-document-in-pages`
   (`eslint-rules/no-direct-generate-document-in-pages.js`) forbids
-  `*.functions.invoke("generate-document", …)` inside `src/pages/` and
-  `src/features/**/pages/`, with a per-line `// RENDERER-EXEMPT:` escape
-  hatch. Wired at `error` in `eslint.config.js` for both globs.
+  `*.functions.invoke("generate-document", …)` inside `src/pages/**` and
+  the entire `src/features/**` tree (not just `pages/` subdirs — the
+  drift lived under `src/features/purchases/statements/` in modules that
+  are pages by role but not by folder), with a per-line
+  `// RENDERER-EXEMPT:` escape hatch. Wired at `error` in
+  `eslint.config.js` for both globs.
 - Architecture test
   `src/test/architecture/adr-0086-generate-document-client-entrypoint.test.ts`
   locks the invariant at build time (3/3 passing) and asserts the
