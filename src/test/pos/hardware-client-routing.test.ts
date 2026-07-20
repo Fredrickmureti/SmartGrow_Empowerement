@@ -40,9 +40,17 @@ describe('hardwareClient — Electron routing (Track 4b)', () => {
     (globalThis as { pos?: unknown }).pos = originalPos;
   });
 
-  it('printReceipt routes through window.pos.hardware.exec', async () => {
+  it('printReceipt refuses structured receiptData so POS cannot bypass server ESC/POS bytes', async () => {
     const { hardwareClient } = await import('@/services/hardware/HardwareClient');
-    await hardwareClient.printReceipt({ receiptData: { lines: [{ text: 'hi' }] } as never });
+    const result = await hardwareClient.printReceipt({ receiptData: { lines: [{ text: 'hi' }] } as never });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/server-rendered ESC\/POS bytes/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('printReceipt still accepts explicit raw bytes for legacy replay envelopes', async () => {
+    const { hardwareClient } = await import('@/services/hardware/HardwareClient');
+    await hardwareClient.printReceipt({ receiptData: { bytes: [0x1b, 0x40] } as never });
     expect(calls).toHaveLength(1);
     expect(calls[0].role).toBe('receipt_printer');
     expect(calls[0].op).toBe('print_receipt');
@@ -51,7 +59,7 @@ describe('hardwareClient — Electron routing (Track 4b)', () => {
 
   it('every exec method stamps an idempotencyKey', async () => {
     const { hardwareClient } = await import('@/services/hardware/HardwareClient');
-    await hardwareClient.printReceipt({ receiptData: { lines: [] } as never });
+    await hardwareClient.printReceipt({ receiptData: { bytes: [0x1b, 0x40] } as never });
     await hardwareClient.printKitchenOrder({ receiptData: { lines: [] } as never });
     await hardwareClient.printRawBytes(new Uint8Array([1, 2, 3]));
     await hardwareClient.openDrawer({ pin: 2 });
@@ -66,7 +74,7 @@ describe('hardwareClient — Electron routing (Track 4b)', () => {
 
   it('role/op mapping is stable across the public surface', async () => {
     const { hardwareClient } = await import('@/services/hardware/HardwareClient');
-    await hardwareClient.printReceipt({ receiptData: {} as never });
+    await hardwareClient.printReceipt({ receiptData: { bytes: [0x1b, 0x40] } as never });
     await hardwareClient.printKitchenOrder({ receiptData: {} as never });
     await hardwareClient.printRawBytes([0x1b, 0x40]);
     await hardwareClient.openDrawer();

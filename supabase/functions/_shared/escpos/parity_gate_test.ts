@@ -147,6 +147,10 @@ for (const width of ["80mm", "58mm", "40mm"] as EscPosWidth[]) {
       emitterHash,
       `renderDocumentEscPos must equal renderLinesEscPos(buildReceiptLines(...)) @ ${width}`,
     );
+
+    const text = decode(viaHelper);
+    assert(text.includes("No:     R-2026-0001") || text.includes("No:"), "shared ESC/POS must emit the PDF-style receipt number row");
+    assert(!/\n\s*#\s*R-2026-0001/.test(text), "shared ESC/POS must never emit legacy centered #receipt-number layout");
   });
 
   Deno.test(`Wave6b — informational diff vs legacy buildDocumentEscPos @ ${width}`, async () => {
