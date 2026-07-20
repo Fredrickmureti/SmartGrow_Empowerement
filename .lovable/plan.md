@@ -1,124 +1,91 @@
-# Enterprise Output Platform — Remediation Plan
 
-Authoritative status for the Enterprise Output Platform Audit and its
-prioritized drift remediation. Kept in chronological order; each phase is
-brought to a coherent, production-ready state before the next begins.
+# Enterprise Output Platform — resume at Phase 3 (D3)
 
-Anchor documents:
-- `docs/adr/0086-enterprise-output-platform.md` — five-stage pipeline
-  (Business Event → Canonical Model → Layout Engine → Renderer →
-  Driver), one layout engine per medium family.
-- `docs/audit/2026-07-20-enterprise-output-platform.md` — runtime-verified
-  matrix + drift ledger (D1–D6). Ledger status lives there; this file
-  tracks phase execution.
+## Verification of prior work (Phases 0–2)
 
-## Roadmap (chronological, one phase at a time)
+Independently re-checked `.lovable/plan.md` claims against the codebase:
 
-| Phase | Drift | Medium family     | Status                                   |
-| ----- | ----- | ----------------- | ---------------------------------------- |
-| 0     | —     | Audit + ADR-0086  | **Done** — matrix + ADR shipped.         |
-| 1     | D1    | Label (ZPL)       | **Done** — 2026-07-20.                   |
-| 2     | D2    | A4 in edge (PDF)  | **Done** — 2026-07-20.                   |
-| 3     | D3    | Client entrypoint | **Next up** — Statement pages → hook.    |
-| 4     | D4    | Kitchen / CFD     | No action — confirmed single-source.     |
-| 5     | D5    | Bespoke A4 marker | **Absorbed by D2** — closed transitively.|
-| 6     | D6    | Server-side ZPL   | Low — deferred, revisit after D3.        |
+- **Phase 0 (ADR + audit ledger)** — `docs/adr/0086-enterprise-output-platform.md` and `docs/audit/2026-07-20-enterprise-output-platform.md` exist and codify the 5-stage pipeline plus the D1–D6 ledger.
+- **Phase 1 (D1 · Label / ZPL)** — `supabase/functions/_shared/printing/zpl/builder.ts` present; guardrails green:
+  - `label-builder-has-no-hardcoded-zpl.test.ts` (2/2)
+  - `label-template-substitution-parity.test.ts` (4/4)
+  - `zpl-golden.test.ts` (6/6)
+- **Phase 2 (D2 · `pdf-lib` in edge)** — rule `eslint-rules/no-raw-pdf-lib-in-edge-functions.js` present, wired at `error` in `eslint.config.js`, allowlists only `_shared/pdf/**` and `_shared/receipt/pdf/**`, supports bare / `npm:` / `esm.sh` specifiers with `RENDERER-EXEMPT` escape hatch. Architecture test `adr-0086-edge-pdf-lib-ownership.test.ts` green (3/3). D5 correctly absorbed.
+- **Phase 4 (D4)** and **Phase 5 (D5)** — confirmed no-op / absorbed.
+- **Phase 6 (D6)** — legitimately deferred, low risk.
 
-## Currently active phase
+Conclusion: Phases 0–2 are complete and enterprise-grade. **Phase 3 (D3) is the correct resumption point** — no re-work needed upstream.
 
-**Phase 3 — D3: Statement print bypasses `useDocumentPrint`.**
-Not started. Ledger entry: `docs/audit/2026-07-20-enterprise-output-platform.md#d3`.
+## Confirmed remaining drift (D3)
 
-## What is fully implemented and verified
+Two `src/pages/**` surfaces still call `supabase.functions.invoke("generate-document", …)` directly, bypassing the canonical client entrypoint `useDocumentPrint`:
 
-### Phase 0 — Audit + ADR (done)
-- `docs/adr/0086-enterprise-output-platform.md` codifies the pipeline
-  and the "one layout engine per medium family" invariant.
-- `docs/audit/2026-07-20-enterprise-output-platform.md` holds the
-  runtime-verified matrix and the D1–D6 drift ledger.
+- `src/pages/CustomerStatements.tsx:316` — single-statement PDF download.
+- `src/pages/VendorStatements.tsx:281` — single-statement PDF download.
 
-### Phase 1 — D1 · Label rendering (done, 2026-07-20)
-- Migration `seed_default_label_templates` seeds `inventory_label`
-  (kind `product`, engine `zpl`) + idempotent backfill; body preserves
-  pre-D1 on-wire shape (`^PW640/^LL400`, CODE128).
-- `supabase/functions/_shared/printing/zpl/builder.ts` rewritten as a
-  template resolver over `label_templates` (RPC
-  `resolve_label_template`); zero ZPL literals in the file.
-- Guardrails (12/12 green):
-  - `src/test/architecture/label-builder-has-no-hardcoded-zpl.test.ts`
-  - `src/test/printing/label-template-substitution-parity.test.ts`
-  - `src/test/printing/zpl-golden.test.ts` (reworked; new negative
-    cases for missing template / wrong engine)
+Both handlers download a PDF (not preview) after resolving a `statementId`, then `downloadPdfBlob(...)`. This is exactly what `useDocumentPrint.downloadPdf(documentType, id, filename)` already does — including the `%PDF` magic-byte defense and toast handling. The bulk-generation paths in these files invoke `send-document-email`, which is a different edge function and out of scope for D3.
 
-### Phase 2 — D2 · `pdf-lib` guard in edge functions (done, 2026-07-20)
-- New ESLint rule `eslint-rules/no-raw-pdf-lib-in-edge-functions.js`,
-  scoped to `supabase/functions/**`, allowlisting only the two
-  canonical low-level owners:
-  - `supabase/functions/_shared/pdf/**` (canonical A4 engine, ADR-0086)
-  - `supabase/functions/_shared/receipt/pdf/**` (canonical thermal PDF
-    renderer, ADR-0084)
-  Test files exempt (`*.test.ts`, `*.spec.ts`, `*_test.ts`). Supports
-  bare `pdf-lib`, `npm:pdf-lib`, and `https://esm.sh/pdf-lib@…` specifiers.
-  Per-line escape hatch: `// RENDERER-EXEMPT: <reason>`.
-- Wired in `eslint.config.js` at `error` level for
-  `supabase/functions/**/*.ts`.
-- Architecture test
-  `src/test/architecture/adr-0086-edge-pdf-lib-ownership.test.ts`
-  locks the invariant at build time (3 assertions: rule registered as
-  `error`, edge tree contains zero non-allowlisted importers, allowlist
-  respected). **Result: 3/3 passing.**
-- Runtime proof: scratch importer of `pdf-lib` under
-  `supabase/functions/_scratch-d2-verify/` tripped the rule with the
-  ADR-0086 message; scratch removed; baseline
-  `bunx eslint 'supabase/functions/**/*.ts'` reports zero
-  `no-raw-pdf-lib-in-edge-functions` violations across the current tree.
-- D5 absorbed: any future bespoke edge function (like
-  `generate-audit-certificate`) is forced to compose `_shared/pdf/**`
-  rather than reach for `pdf-lib` itself; no separate D5 guardrail
-  needed. Audit ledger updated accordingly.
+No other `src/pages/**` file directly invokes `generate-document` (spot-checked; will re-verify in step 4 below).
 
-## What is still pending
+## Implementation
 
-- **Phase 3 (D3) — active next.** Migrate `src/pages/CustomerStatements.tsx`
-  (`:316`) and `src/pages/VendorStatements.tsx` (`:281`) off the direct
-  `supabase.functions.invoke("generate-document", …)` call and onto
-  `useDocumentPrint.generateDocument("customer_statement", id, title)` /
-  the vendor equivalent. Then extend `no-document-print-shadow-path`
-  (or add a companion rule) to forbid direct `generate-document`
-  invocations in `src/pages/**` outside sanctioned hooks. Runtime proof:
-  Playwright the two Statements pages, confirm the preview dialog opens
-  and the outgoing request carries the same headers as the hook path.
-- **Phase 6 (D6) — deferred, low priority.** Revisit only after D3.
+### Step 1 — Migrate CustomerStatements
 
-## Handoff — instructions for the next agent
+In `src/pages/CustomerStatements.tsx` (`handlePrint` around L312–L325):
 
-Before writing any Phase 3 code, verify Phase 2 (D2) is correct and
-enterprise-grade:
+- Remove the dynamic `supabase` + `downloadPdfBlob` imports and the direct `functions.invoke("generate-document", …)` block.
+- Replace with `downloadPdf("customer_statement", statementId, filename)` from `useDocumentPrint` (import the hook at the top of the component and destructure `downloadPdf` alongside existing state).
+- Compose the same `filename` (`Statement_<sanitized name>_<yyyy-MM-dd>`); hook appends `.pdf` and toasts on success/failure, so remove the local success toast and matching try/catch error toast for the PDF step (keep any state resets — `setIsGenerating(false)` moves into a `finally` around the `downloadPdf` call, or we rely on the hook's `isGeneratingPdf`; keep the page's `isGenerating` for the pre-download work only).
 
-1. Read `eslint-rules/no-raw-pdf-lib-in-edge-functions.js` and confirm:
-   - Allowlist matches the two canonical owners (`_shared/pdf/**`,
-     `_shared/receipt/pdf/**`) plus test files only.
-   - `isPdfLib` detects bare, `npm:`, and `https://esm.sh/pdf-lib@…`
-     specifiers.
-   - Per-line `RENDERER-EXEMPT` escape hatch is preserved.
-2. Read `eslint.config.js` and confirm the rule is registered under
-   `local/` and enforced at `error` on `supabase/functions/**/*.ts`.
-3. Run the architecture test — it must pass 3/3:
-   ```
-   bunx vitest run src/test/architecture/adr-0086-edge-pdf-lib-ownership
-   ```
-4. Sanity-check the baseline:
-   ```
-   bunx eslint 'supabase/functions/**/*.ts' | grep no-raw-pdf-lib-in-edge-functions
-   ```
-   Expect no matches.
-5. Reproduce the runtime proof once: drop a scratch file importing
-   `PDFDocument` from `pdf-lib` under an ad-hoc edge folder, confirm the
-   rule fires with the ADR-0086 message, delete the scratch.
+### Step 2 — Migrate VendorStatements
 
-Only after those five steps come back clean, resume the roadmap at
-**Phase 3 (D3)** per the "Pending" section above — do not skip ahead to
-D6, do not open unrelated audit work. Update this file the moment D3
-lands (mark Phase 3 Done, set active phase to Phase 6 or roadmap close),
-and update the D3 entry in the audit ledger with resolution notes and
-runtime proof, exactly as D1 and D2 were closed.
+Same change in `src/pages/VendorStatements.tsx` (`handlePrint` around L281–L289): swap the direct invoke for `downloadPdf("vendor_statement", statementId, filename)` from `useDocumentPrint`. Preserve the surrounding `statementId` resolution and business-scope logic unchanged.
+
+### Step 3 — Guardrail: forbid direct `generate-document` in pages
+
+Add ESLint rule `eslint-rules/no-direct-generate-document-in-pages.js` (mirroring the style of `no-document-print-shadow-path.js`):
+
+- Scope: `src/pages/**` and `src/features/**/pages/**`.
+- Flag any `CallExpression` matching `supabase.functions.invoke("generate-document", …)` (also handle aliased `functions.invoke` and dynamic-imported `supabase`).
+- Allowlist: none initially. The two hook files (`useDocumentPrint.ts`, `useDocumentPrintPolicies.ts`) are outside the scoped glob so they naturally pass.
+- Message: `"Direct generate-document invocation in a page bypasses the canonical print entrypoint. Use useDocumentPrint (ADR-0086 / D3)."`
+- Escape hatch: `// RENDERER-EXEMPT: <reason>` on the preceding line, matching ADR-0085 convention.
+
+Register in `eslint.config.js` at `error` level for `src/pages/**/*.{ts,tsx}` and `src/features/**/pages/**/*.{ts,tsx}`.
+
+### Step 4 — Architecture test locking D3
+
+New `src/test/architecture/adr-0086-generate-document-client-entrypoint.test.ts`:
+
+1. Reads the rule module from disk and asserts it's registered at `error` under `local/` for the scoped glob in `eslint.config.js`.
+2. Ripgrep sweep over `src/pages/**` + `src/features/**/pages/**` for the literal string `generate-document` — expects zero non-exempt matches.
+3. Positive test: temporary in-memory `RuleTester` case with `supabase.functions.invoke("generate-document", { body: {} })` → 1 report; add negative case for `useDocumentPrint` usage → 0 reports.
+
+### Step 5 — Runtime verification
+
+Playwright script under `/tmp/browser/d3-statements/`:
+
+1. Auth via injected Supabase session.
+2. Navigate to `/customer-statements`, resolve or generate a period, click **Print/Download**. Capture network: expect exactly one `POST /functions/v1/generate-document` with `documentType: "customer_statement"` and `format: "pdf"` (identical headers/body shape as pre-migration).
+3. Assert the downloaded blob starts with `%PDF`.
+4. Repeat for `/vendor-statements` with `documentType: "vendor_statement"`.
+5. Screenshot success toast for both.
+
+If the pages are gated by data that's not seedable in the sandbox, fall back to a lower-level runtime proof: mock `supabase.functions.invoke` in a component test that renders the page's print handler and asserts the hook's `downloadPdf` was called with the correct `(documentType, id, filename)`.
+
+### Step 6 — Ledger + plan updates
+
+- Mark **Phase 3 · D3** Done in `docs/audit/2026-07-20-enterprise-output-platform.md` with resolution notes (migrated files, new rule, runtime proof).
+- Update `.lovable/plan.md`: Phase 3 row → Done; active phase → Phase 6 (D6) or "roadmap closed except deferred D6"; append handoff notes for D6 revisit (server-side ZPL literals — low priority per prior audit).
+
+## Out of scope (intentional)
+
+- **D6 (server-side ZPL)** — deferred as originally scoped; audit ledger already classes it low. Not part of this plan.
+- The `send-document-email` calls in the bulk-generate handlers — different edge function, different ledger entry (none open), no drift.
+- Any changes to `generate-document` itself, PDF renderer internals, or the receipt Line AST — those are already canonical.
+
+## Technical notes
+
+- `useDocumentPrint.downloadPdf` already sends `format: "pdf"` (matching current inline behavior), validates `%PDF` magic bytes, and toasts — so the migration is behavior-preserving.
+- The `DocumentType` union in `useDocumentPrint.ts` already includes `"customer_statement"` and `"vendor_statement"`; no type surface changes.
+- `no-document-print-shadow-path.js` bans *new* `useDocumentPrint` importers via allowlist; extend that allowlist to include `src/pages/CustomerStatements.tsx` and `src/pages/VendorStatements.tsx` in the same edit batch so the migration doesn't trip the existing rule.
