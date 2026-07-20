@@ -27,6 +27,7 @@ import noPosCommitWithoutIdempotencyKey from "./eslint-rules/no-pos-commit-witho
 import noRawPdfLibInApp from "./eslint-rules/no-raw-pdf-lib-in-app.js";
 import noDirectBarcodeLib from "./eslint-rules/no-direct-barcode-lib.js";
 import noRawXlsxInApp from "./eslint-rules/no-raw-xlsx-in-app.js";
+import noRawEscposBytes from "./eslint-rules/no-raw-escpos-bytes.js";
 
 
 
@@ -68,6 +69,7 @@ export default tseslint.config(
           "no-raw-pdf-lib-in-app": noRawPdfLibInApp,
           "no-direct-barcode-lib": noDirectBarcodeLib,
           "no-raw-xlsx-in-app": noRawXlsxInApp,
+          "no-raw-escpos-bytes": noRawEscposBytes,
 
         },
       },
@@ -262,6 +264,20 @@ export default tseslint.config(
       // Milestone C.2 — xlsx WRITE APIs are server-only. Read APIs
       // (XLSX.read / sheet_to_json) stay legal for user-uploaded imports.
       "local/no-raw-xlsx-in-app": "error",
+    },
+  },
+  // ADR-0084 / Phase 4 item 10 — ESC/POS command bytes may only be
+  // constructed by the sanctioned emitter package
+  // (supabase/functions/_shared/escpos) and the thermal driver
+  // transport layers. Everywhere else must produce a Line[] AST and
+  // let the emitter turn it into bytes.
+  {
+    files: [
+      "src/**/*.{ts,tsx}",
+      "supabase/functions/**/*.ts",
+    ],
+    rules: {
+      "local/no-raw-escpos-bytes": "error",
     },
   },
 );
