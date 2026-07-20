@@ -1885,7 +1885,13 @@ serve(async (req) => {
         original_transaction_number: null,
         pos_receipt_settings: previewSettings,
       };
-      const { buildDocumentEscPos } = await import("../_shared/escpos/builder.ts");
+      // Wave 6b cutover — route through the shared row producer so the
+      // test-print bytes match the on-screen preview and the thermal PDF
+      // exactly. `renderDocumentEscPos` is the ESC/POS twin of
+      // `renderThermalPdf`; both consume `buildReceiptLines(...)`.
+      const { renderDocumentEscPos } = await import(
+        "../_shared/escpos/renderDocumentEscPos.ts"
+      );
       // Phase A.2 — test print MUST resolve through the same physical
       // printer-profile path as a real receipt, otherwise the operator
       // tests against the engine defaults instead of their actual printer.
@@ -1933,9 +1939,9 @@ serve(async (req) => {
       ) {
         rsForPreview.margin_cols = previewProfile.margin_cols;
       }
-      const previewBytes = buildDocumentEscPos(previewDoc, {
+      const previewBytes = renderDocumentEscPos(previewDoc, {
         width: previewWidth,
-        receiptSettings: rsForPreview as any,
+        receiptSettings: rsForPreview,
         capabilities:
           Object.keys(previewCaps).length > 0
             ? (previewCaps as any)
@@ -2403,7 +2409,13 @@ serve(async (req) => {
     }
 
     if (effectiveFormat === "escpos") {
-      const { buildDocumentEscPos } = await import("../_shared/escpos/builder.ts");
+      // Wave 6b cutover — the ESC/POS wire path now shares the row
+      // producer with the thermal PDF path (see renderDocumentEscPos.ts).
+      // This closes the "PDF looks clean, raw ESC/POS is misaligned"
+      // discrepancy the operator saw with the Espresso emulator.
+      const { renderDocumentEscPos } = await import(
+        "../_shared/escpos/renderDocumentEscPos.ts"
+      );
       // Phase 1 — width source-of-truth: receipt settings paper_size (the
       // editor's intent) wins for thermal sizes including 40mm; fall back
       // to the resolved policy paper format. Print policy still controls
@@ -2539,12 +2551,19 @@ serve(async (req) => {
         (rsForBuild as any).margin_cols = mergedProfile.margin_cols;
       }
 
-      const escposBytes = buildDocumentEscPos(documentData, {
+      // Fold footerNote (from the document template) into receipt settings
+      // when the settings row does not already provide one — the shared
+      // engine renders footer text via `receipt_footer`.
+      const rsWithFooter: Record<string, unknown> = { ...rsForBuild };
+      const templateFooter = (template as any)?.footer_text;
+      if (templateFooter && !rsWithFooter.receipt_footer) {
+        rsWithFooter.receipt_footer = String(templateFooter);
+      }
+      const escposBytes = renderDocumentEscPos(documentData, {
         width,
         title: titleOverride,
-        footerNote: (template as any)?.footer_text ?? undefined,
-        receiptSettings: rsForBuild as any,
-        capabilities,
+        receiptSettings: rsWithFooter,
+        capabilities: capabilities as any,
         font: mergedProfile.font ?? undefined,
       });
       // Phase A.5 — header transparency. Expose the resolved physical
