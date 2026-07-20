@@ -1,5 +1,33 @@
 
-# Enterprise Output Platform — resume at Phase 3 (D3)
+# Enterprise Output Platform — Remediation Plan
+
+Authoritative status for the Enterprise Output Platform Audit and its
+prioritized drift remediation. Kept in chronological order; each phase is
+brought to a coherent, production-ready state before the next begins.
+
+Anchor documents:
+- `docs/adr/0086-enterprise-output-platform.md`
+- `docs/audit/2026-07-20-enterprise-output-platform.md`
+
+## Roadmap
+
+| Phase | Drift | Medium family     | Status                                   |
+| ----- | ----- | ----------------- | ---------------------------------------- |
+| 0     | —     | Audit + ADR-0086  | **Done**                                 |
+| 1     | D1    | Label (ZPL)       | **Done** — 2026-07-20                    |
+| 2     | D2    | A4 in edge (PDF)  | **Done** — 2026-07-20                    |
+| 3     | D3    | Client entrypoint | **Done** — 2026-07-20                    |
+| 4     | D4    | Kitchen / CFD     | No action — single-source confirmed      |
+| 5     | D5    | Bespoke A4 marker | **Absorbed by D2**                       |
+| 6     | D6    | Server-side ZPL   | Low — deferred                            |
+
+## Currently active phase
+
+Roadmap closed except deferred **Phase 6 (D6)**.
+
+---
+
+## Prior verification & Phase 3 (D3) execution record
 
 ## Verification of prior work (Phases 0–2)
 
