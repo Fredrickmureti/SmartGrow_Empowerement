@@ -120,9 +120,13 @@ export function PostPaymentScreen({
 
   const [printState, setPrintState] = useState<PrintState>({ kind: "idle" });
   const [isSavingPdf, setIsSavingPdf] = useState(false);
-  // Reprints land directly in the "details" view so the operator can pick a
-  // copy / channel. Normal sales open in the fast confirmation view.
-  const [showDetails, setShowDetails] = useState(isReprint);
+  // Wave 12 redesign — the receipt preview is a first-class column on this
+  // screen (right side). The old "details" drawer is gone. `showPreview`
+  // now just toggles between the on-screen SALE SUMMARY and the paper
+  // WYSIWYG preview inside that right column.
+  const [showPreview, setShowPreview] = useState<"summary" | "paper">(
+    isReprint ? "paper" : "summary",
+  );
   const autoPrintAttemptedRef = useRef(false);
 
   const paperWidth: ReceiptPaperWidth =
@@ -297,7 +301,7 @@ export function PostPaymentScreen({
         if (printState.kind !== "printing") void handlePrint();
       } else if (e.key === "d" || e.key === "D") {
         e.preventDefault();
-        setShowDetails((v) => !v);
+      setShowPreview((v) => (v === "summary" ? "paper" : "summary"));
       }
     };
     window.addEventListener("keydown", handler);
