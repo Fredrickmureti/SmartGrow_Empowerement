@@ -266,6 +266,15 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   if (rs.show_date_time !== false && t.created_at) {
     left(padLR("Date:", fmtDateTime(t.created_at, rs.date_format, rs.time_format), cw));
   }
+  if (t.due_date) {
+    const dueLabel = /^\d{4}-\d{2}-\d{2}/.test(t.due_date)
+      ? fmtDateTime(t.due_date, rs.date_format, "none")
+      : t.due_date;
+    left(padLR("Due:", dueLabel, cw));
+  }
+  if (t.status && rs.show_status !== false) {
+    left(padLR("Status:", String(t.status).toUpperCase(), cw));
+  }
   if (rs.show_cashier_name && t.cashier_name) {
     const label = rs.cashier_label_format === "served_by" ? "Served by:" : "Cashier:";
     left(padLR(label, t.cashier_name, cw));
@@ -275,6 +284,31 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   }
   if (rs.show_customer_name && t.customer_name) {
     left(padLR("Customer:", t.customer_name, cw));
+  }
+
+  // ── Recipient block (Bill To / Ship To) ─────────────────────────────
+  const emitRecipient = (r: ReceiptRecipientLike | null | undefined) => {
+    if (!r) return;
+    const parts: string[] = [];
+    const primary = r.name || r.company;
+    if (primary) parts.push(primary);
+    if (r.name && r.company && r.company !== r.name) parts.push(r.company!);
+    for (const l of r.address_lines ?? []) {
+      if (l && String(l).trim()) parts.push(String(l).trim());
+    }
+    if (r.phone) parts.push(`Tel: ${r.phone}`);
+    if (r.email) parts.push(r.email);
+    if (r.tax_id) parts.push(`Tax ID: ${r.tax_id}`);
+    if (parts.length === 0) return;
+    blank();
+    left(`${r.label ?? "Bill To"}:`);
+    for (const p of parts) {
+      for (const l of wordWrap(p, cw)) left("  " + l);
+    }
+  };
+  emitRecipient(t.bill_to);
+  if (t.ship_to && (t.ship_to.address_lines?.some((l) => l && String(l).trim()) || t.ship_to.name)) {
+    emitRecipient(t.ship_to);
   }
   rule();
 
