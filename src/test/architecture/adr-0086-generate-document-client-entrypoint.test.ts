@@ -20,7 +20,7 @@ const ROOT = process.cwd();
 function tracked(): string[] {
   try {
     const out = execSync(
-      `git ls-files -- 'src/pages/**/*.ts' 'src/pages/**/*.tsx' 'src/features/**/pages/**/*.ts' 'src/features/**/pages/**/*.tsx'`,
+      `git ls-files -- 'src/pages/**/*.ts' 'src/pages/**/*.tsx' 'src/features/**/*.ts' 'src/features/**/*.tsx'`,
       { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] },
     ).toString();
     return out.split('\n').filter(Boolean);

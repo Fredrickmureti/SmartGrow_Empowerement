@@ -42,6 +42,10 @@ const ALLOWED_FILES = [
   'src/pages/pos/POSReports.tsx',
   'src/pages/pos/POSSettings.tsx',
   'src/pages/pos/POSTerminal.tsx',
+  // ADR-0086 D3 — Vendor Statement peek/record migrated off the
+  // direct `generate-document` invoke onto `useDocumentPrint.downloadPdf`.
+  'src/features/purchases/statements/VendorStatementPeekSheet.tsx',
+  'src/features/purchases/statements/VendorStatementRecordPage.tsx',
 ];
 
 /** @type {import('eslint').Rule.RuleModule} */
