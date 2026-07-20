@@ -57,7 +57,21 @@ export default {
       return str.includes('\x1B') || str.includes('\x1D');
     };
 
+    const sourceCode = context.getSourceCode();
+    const isExempt = (node) => {
+      // Per-line opt-out: `// RENDERER-EXEMPT: <reason>` on the same line
+      // or the immediately preceding line. Mirrors the ADR-0085 test
+      // convention.
+      const startLine = node.loc && node.loc.start && node.loc.start.line;
+      if (!startLine) return false;
+      const lines = sourceCode.lines;
+      const cur = lines[startLine - 1] || "";
+      const prev = startLine > 1 ? lines[startLine - 2] || "" : "";
+      return /RENDERER-EXEMPT/.test(cur) || /RENDERER-EXEMPT/.test(prev);
+    };
+
     const report = (node, value) => {
+      if (isExempt(node)) return;
       const printable = value
         .replace(/\x1B/g, '\\x1B')
         .replace(/\x1D/g, '\\x1D');
