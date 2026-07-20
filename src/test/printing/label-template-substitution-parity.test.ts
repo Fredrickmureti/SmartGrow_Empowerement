@@ -27,9 +27,8 @@ const EDGE_SRC = readFileSync(
   'utf8',
 );
 
-// The substitution regex both sides must share. Whitespace-tolerant
-// `{{ key }}` with `[\w.]+` keys.
-const SHARED_REGEX = String.raw`\{\\s*\(\[\\w\.\]\+\)\\s*\}`;
+// The substitution regex literal both files must share, byte-for-byte.
+const SHARED_REGEX_LITERAL = '\\{\\{\\s*([\\w.]+)\\s*\\}\\}';
 
 describe('parity: client vs edge renderTemplateBody', () => {
   it('edge builder uses the same substitution regex as labelDispatch', () => {
@@ -37,11 +36,8 @@ describe('parity: client vs edge renderTemplateBody', () => {
       resolve(process.cwd(), 'src/services/printing/labelDispatch.ts'),
       'utf8',
     );
-    // Normalise both to a comparable snippet — extract the regex literal.
-    const shape = /\/\\\{\\\{\\s\*\(\[\\w\\.\]\+\)\\s\*\\\}\\\}\//;
-    expect(clientSrc).toMatch(shape);
-    expect(EDGE_SRC).toMatch(shape);
-    expect(SHARED_REGEX.length).toBeGreaterThan(0); // sanity: constant is referenced
+    expect(clientSrc).toContain(SHARED_REGEX_LITERAL);
+    expect(EDGE_SRC).toContain(SHARED_REGEX_LITERAL);
   });
 
   const CASES: Array<{ label: string; body: string; vars: Record<string, string> }> = [
