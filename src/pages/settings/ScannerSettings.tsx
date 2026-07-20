@@ -103,7 +103,7 @@ export default function ScannerSettings() {
 
   return (
     <PlatformAppLayout>
-      <div className="container mx-auto py-8 space-y-6 max-w-3xl">
+      <div className="space-y-6 py-2">
         <div className="flex items-center gap-3">
           <ScanLine className="h-6 w-6 text-primary" />
           <div>
