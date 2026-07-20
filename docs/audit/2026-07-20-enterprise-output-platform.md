@@ -226,6 +226,30 @@ duplication rather than layout drift, and D1 subsumes it — after D1,
 the server emitter becomes a template resolver, matching the driver
 model.
 
+**Resolved 2026-07-20.** After D1 the server-side emitter became a pure
+resolver over `label_templates`; the driver-side layout emitter was the
+remaining second source of truth. Closure actions:
+
+- Deleted `LabelSpec`, `renderSpec`, and the `print_label { spec }` code
+  paths from `electron/hardware/drivers/ZplLabelDriver.ts` and
+  `electron/hardware/drivers/EplLabelDriver.ts`. Both drivers are now
+  pure transports: they accept only pre-rendered `{ bytes | zpl | epl }`
+  payloads produced upstream by `labelDispatch.ts` or the server-side
+  `builder.ts` (both of which read from `label_templates` via
+  `resolve_label_template`). `^MD`/`^PR` transport commands moved into a
+  post-header injection that mutates the wire framing but never the
+  layout body.
+- Confirmed no production caller ever emitted `{ spec }` — the only
+  `print_label` emitter is `labelDispatch.ts`, which already sends
+  `{ zpl }` / `{ bytes }` / `{ pdfUrl }` derived from templates.
+- New architecture test `adr-0086-driver-side-label-layout-ownership.test.ts`
+  locks that no `electron/hardware/drivers/**` file contains ZPL layout
+  literals (`^FO`, `^FD`, `^FS`, `^BC`, `^BQ`, `^CF`) or the EPL text
+  (`A<x>,<y>`) / barcode (`B<x>,<y>`) opcodes, and that neither
+  `LabelSpec` nor `renderSpec` is re-introduced. Envelope tokens
+  (`^XA`/`^XZ`) and transport commands (`^MD`/`^PR`/`^PW`/`^LL`) remain
+  allowed because they frame the wire, not the layout.
+
 ## Guardrail gap summary
 
 | Family     | Guard exists? | Notes                                                                                   |
@@ -233,7 +257,7 @@ model.
 | Thermal    | ✅            | ADR-0084/0085, six architecture tests                                                   |
 | A4 in app  | ✅            | `no-raw-pdf-lib-in-app`                                                                 |
 | A4 in edge | ✅            | **D2 CLOSED** — `no-raw-pdf-lib-in-edge-functions` (ADR-0086)                            |
-| Label      | ⚠️            | `no-raw-zpl-outside-printing` covers app code; **D1** covers legacy server emitter      |
+| Label      | ✅            | `no-raw-zpl-outside-printing` (app) + **D1** (server emitter) + **D6** (driver layout)  |
 | Tabular    | ✅            | `no-raw-xlsx-in-app` + `csv-export-registered_test`                                     |
 | Client entrypoints | ⚠️    | `no-document-print-shadow-path`, `no-direct-window-print`, `no-direct-pdf-iframe`; **D3** extends |
 
