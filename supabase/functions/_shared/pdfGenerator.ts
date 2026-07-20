@@ -293,16 +293,32 @@ export async function generateDocumentPdf(
   template: Partial<TemplateSettings> = {},
   options: DocumentRenderOptions = {},
 ): Promise<Uint8Array> {
-  // Wave 11 architecture guard — the A4 coordinate renderer must NEVER
-  // be reached for thermal widths. Any thermal-width PDF (40/58/80 mm)
-  // is owned by `renderThermalPdf` via the shared receipt engine. A
-  // failure here indicates a router regression at
-  // `generate-document/index.ts` (Wave 10 gate).
+  // Wave 13 architecture guard (self-defending renderer). The A4
+  // coordinate renderer must NEVER be reached for a thermal document.
+  // Historically the guard only inspected `options.paperFormat`, which
+  // is populated from `document_print_policies` — a tenant with no
+  // policy row resolves to "a4" and the guard would stay silent even
+  // for a POS receipt (whose real width lives in
+  // `pos_receipt_settings.paper_size`). We now interrogate the document
+  // itself so the invariant is enforced regardless of caller discipline.
   const gpg_paper = String(options.paperFormat ?? "").toLowerCase();
-  if (gpg_paper === "40mm" || gpg_paper === "58mm" || gpg_paper === "80mm") {
+  const gpg_docType = String((data as any)?.document_type ?? "").toLowerCase();
+  const gpg_rsPaper = String(
+    (data as any)?.pos_receipt_settings?.paper_size ?? "",
+  ).toLowerCase();
+  const thermalTokens = new Set(["40mm", "58mm", "80mm"]);
+  const gpg_isThermal =
+    thermalTokens.has(gpg_paper)
+    || thermalTokens.has(gpg_rsPaper)
+    || gpg_docType === "pos_receipt"
+    || gpg_docType === "receipt";
+  if (gpg_isThermal) {
     throw new Error(
-      `generateDocumentPdf invoked with thermal paper "${gpg_paper}". ` +
-        `Thermal widths must route through renderThermalPdf (Wave 10).`,
+      `generateDocumentPdf refused: document is thermal ` +
+        `(paperFormat="${gpg_paper}", docType="${gpg_docType}", ` +
+        `rs.paper_size="${gpg_rsPaper}"). ` +
+        `Route through renderThermalPdf via generate-document's thermal ` +
+        `gate (Wave 10/13). Direct callers must not bypass it.`,
     );
   }
   const t: TemplateSettings = { ...DEFAULT_TEMPLATE_SETTINGS, ...template };
