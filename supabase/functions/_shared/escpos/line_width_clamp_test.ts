@@ -9,7 +9,7 @@
  * asserts every printable line stays within the resolved width.
  */
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildDocumentEscPos } from "./builder.ts";
+import { renderDocumentEscPos } from "./renderDocumentEscPos.ts";
 import { resolvePrinterProfile } from "../receipt/engine/PrinterProfile.ts";
 
 const ESC = 0x1b;
@@ -95,7 +95,7 @@ for (const paper of ["40mm", "58mm", "80mm"] as const) {
   for (const font of ["A", "B"] as const) {
     Deno.test(`line-width clamp — ${paper} font ${font}`, () => {
       const profile = resolvePrinterProfile({ paper, font });
-      const bytes = buildDocumentEscPos(makeDoc(), {
+      const bytes = renderDocumentEscPos(makeDoc(), {
         width: paper,
         font,
         receiptSettings: { paper_size: paper, font_size: font === "B" ? "small" : "medium" } as any,
@@ -116,7 +116,7 @@ for (const paper of ["40mm", "58mm", "80mm"] as const) {
 }
 
 Deno.test("line-width clamp — printer columns_override (42 cols on 80mm)", () => {
-  const bytes = buildDocumentEscPos(makeDoc(), {
+  const bytes = renderDocumentEscPos(makeDoc(), {
     width: "80mm",
     font: "A",
     receiptSettings: { paper_size: "80mm" } as any,
@@ -134,7 +134,7 @@ Deno.test("line-width clamp — printer columns_override (42 cols on 80mm)", () 
 Deno.test("line-width clamp — narrow 40mm with margin_cols=2", () => {
   const profile = resolvePrinterProfile({ paper: "40mm", font: "A", marginCols: 2 });
   assertEquals(profile.columns, 24);
-  const bytes = buildDocumentEscPos(makeDoc(), {
+  const bytes = renderDocumentEscPos(makeDoc(), {
     width: "40mm",
     receiptSettings: { paper_size: "40mm", margin_cols: 2 } as any,
   });

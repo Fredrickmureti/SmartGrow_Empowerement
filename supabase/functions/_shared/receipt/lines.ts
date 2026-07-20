@@ -10,9 +10,8 @@
  *     archive at 40/58/80 mm.
  *   - The on-screen `MonospacePreview` (client) — via its client twin.
  *
- * NOT covered here: ESC/POS byte emission — `builder.ts` still owns that
- * (byte-golden tests). A follow-up will merge them so this file becomes
- * the sole DocumentData → row translator for every target.
+ * ESC/POS byte emission is a media adapter only: `renderLinesEscPos.ts`
+ * consumes this exact result and may not rebuild document structure.
  */
 
 import {

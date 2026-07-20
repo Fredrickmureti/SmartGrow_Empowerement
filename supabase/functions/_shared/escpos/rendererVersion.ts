@@ -10,8 +10,9 @@
  */
 
 export const RENDERER_NAME = "shared-engine";
-export const RENDERER_VERSION = "6b.4";
+export const RENDERER_VERSION = "6b.5";
 export const RENDERER_ID = `${RENDERER_NAME}@${RENDERER_VERSION}`;
+export const LAYOUT_CONTRACT_VERSION = "receipt-lines-v1";
 
 /** Hex SHA-256 of the given bytes (used for wire-path fingerprinting). */
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
