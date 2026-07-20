@@ -1,14 +1,13 @@
-/**
- * ESLint rule (ADR-0086 / D3): forbid direct `generate-document` edge
- * function invocations from `src/pages/**` and `src/features/**/pages/**`.
- *
- * The canonical client entrypoint is `useDocumentPrint` (which owns %PDF
- * magic-byte validation, toasts, and the render-mode contract). Pages that
- * call `supabase.functions.invoke("generate-document", ...)` directly
- * reopen a shadow path — the same drift class that motivated ADR-0086.
- *
- * Escape hatch: `// RENDERER-EXEMPT: <reason>` on the preceding line.
- */
+// ESLint rule (ADR-0086 / D3): forbid direct `generate-document` edge
+// function invocations from `src/pages/` and `src/features/**/pages/`.
+//
+// The canonical client entrypoint is `useDocumentPrint` (which owns
+// %PDF magic-byte validation, toasts, and the render-mode contract).
+// Pages that call `supabase.functions.invoke("generate-document", ...)`
+// directly reopen a shadow path — the same drift class that motivated
+// ADR-0086.
+//
+// Escape hatch: `// RENDERER-EXEMPT: <reason>` on the preceding line.
 
 /** @type {import('eslint').Rule.RuleModule} */
 export default {
