@@ -217,16 +217,22 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): BuildReceiptLi
 
   // ── Items (engine-driven, byte-identical to builder.ts via assembleItems) ──
   const preferredLayoutId = resolveLegacyLayout(rs.item_display_format, !!rs.show_item_sku);
+  // Boolean-default parity with supabase/functions/_shared/receipt/lines.ts:
+  // quantity, unit price, and modifiers are default-ON (opt-out via explicit
+  // `false`), matching how the server renders the PDF and ESC/POS output.
+  // Previously these were `!!rs.*` here (default-OFF), producing a preview
+  // that legitimately disagreed with the printed receipt for the same
+  // settings object. See ADR-0085 / receipt engine consolidation.
   const ctx = {
     showSku: !!rs.show_item_sku,
-    showQty: !!rs.show_item_quantity,
-    showUnitPrice: !!rs.show_unit_price,
+    showQty: rs.show_item_quantity !== false,
+    showUnitPrice: rs.show_unit_price !== false,
     showDiscount: !!rs.show_item_discount,
     showTaxBreakdown: !!rs.show_tax_breakdown,
     showTaxRate: !!rs.show_tax_rate,
-    showModifiers: !!rs.show_item_modifiers,
+    showModifiers: rs.show_item_modifiers !== false,
     truncateLongNames: !!rs.truncate_long_names,
-    maxNameLen: rs.max_item_name_length ?? 28,
+    maxNameLen: typeof rs.max_item_name_length === "number" ? rs.max_item_name_length : 28,
   };
   const { layoutId } = pickFittingLayout(preferredLayoutId, ctx, cw);
   const assembled = assembleItems({
