@@ -1789,12 +1789,10 @@ serve(async (req) => {
       }
       const previewSettings = (body.receiptSettings ?? {}) as Record<string, unknown>;
       const previewBranding = (body.branding ?? {}) as Record<string, unknown>;
-      const previewWidth: "40mm" | "58mm" | "80mm" =
-        (previewSettings.paper_size === "40mm" || body.paperFormat === "40mm")
-          ? "40mm"
-          : (previewSettings.paper_size === "58mm" || body.paperFormat === "58mm")
-            ? "58mm"
-            : "80mm";
+      // Bug 2 fix — width resolution deferred until printer profile is
+      // loaded below. Placeholder assigned after `resolvePaperWidth(...)`.
+      let previewWidth: "40mm" | "58mm" | "80mm" = "80mm";
+      let previewWidthSource: string = "engine-default";
       const currency = (previewBranding.base_currency as string) || "USD";
       const fixtureItems = [
         {
