@@ -39,6 +39,35 @@ export interface LineMeta {
   rule?: boolean;
   /** Native-QR placeholder row (renderers substitute their own QR). */
   qr?: boolean;
+  /**
+   * Wave 6b Phase 2 — barcode placeholder row. Emitters substitute the
+   * hardware sequence (GS k for ESC/POS Code128; barcode-lib glyph for
+   * PDF). The row's text content is used as textual fallback when the
+   * emitter can't render natively (`caps.code128_native === false`).
+   */
+  barcode?: {
+    /** Data to encode. Callers guarantee it's within the symbology's
+     * charset — we do not silently transliterate barcode payloads. */
+    data: string;
+    /** Symbology. Only "code128" is supported today; extend as needed. */
+    type?: "code128";
+  };
+}
+
+/**
+ * Document-level render directives that belong to the emitter, not to
+ * individual rows. `renderThermalPdf` may ignore these; `renderLinesEscPos`
+ * honors them for copies + cut + trailing feed.
+ */
+export interface ReceiptRenderDirectives {
+  /** 1..3 — repeat the body this many times, one per operator/customer copy. */
+  copies?: number;
+  /** Per-copy label rendered as a bold centred banner before each copy. */
+  copyLabels?: string[];
+  /** Paper cut policy. "none" leaves it to the operator (hand-tear feed). */
+  cutMode?: "full" | "partial" | "none";
+  /** 0..10 — trailing LFs after each copy for a clean hand-tear. */
+  feedLinesAfter?: number;
 }
 
 export interface ReceiptLinesResult {
@@ -52,6 +81,12 @@ export interface ReceiptLinesResult {
   font: Font;
   /** Optional QR payload the renderer should draw when a `qr:true` row is emitted. */
   qrPayload?: string;
+  /**
+   * Wave 6b Phase 2 — emitter-level render directives (copies, cut, feed).
+   * Row producer only extracts them from settings; emitters execute them.
+   * Kept optional so callers that assemble a result by hand still work.
+   */
+  directives?: ReceiptRenderDirectives;
 }
 
 // deno-lint-ignore no-explicit-any
