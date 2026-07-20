@@ -1909,6 +1909,7 @@ serve(async (req) => {
             qr_native: boolean | null;
             code128_native: boolean | null;
             paper_size: "40mm" | "58mm" | "80mm" | null;
+            is_calibrated: boolean | null;
           }
         | null = null;
       if (previewProfileId) {
@@ -1916,7 +1917,7 @@ serve(async (req) => {
           const { data: pp } = await supabase
             .from("printer_profiles")
             .select(
-              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_size",
+              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_size, is_calibrated",
             )
             .eq("id", previewProfileId)
             .maybeSingle();
@@ -1938,7 +1939,7 @@ serve(async (req) => {
         previewWidthSource = resolved.source;
       }
       const previewCaps: Record<string, unknown> = {};
-      if (previewProfile?.columns_override != null)
+      if (previewProfile?.is_calibrated && previewProfile.columns_override != null)
         previewCaps.columns_override = previewProfile.columns_override;
       if (previewProfile?.qr_native != null)
         previewCaps.qr_native = previewProfile.qr_native;
@@ -2465,6 +2466,7 @@ serve(async (req) => {
             qr_native: boolean | null;
             code128_native: boolean | null;
             paper_size: "40mm" | "58mm" | "80mm" | null;
+            is_calibrated: boolean | null;
           }
         | null = null;
       if (policy.printer_profile_id) {
@@ -2472,7 +2474,7 @@ serve(async (req) => {
           const { data: profileRow } = await supabase
             .from("printer_profiles")
             .select(
-              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_size",
+              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_size, is_calibrated",
             )
             .eq("id", policy.printer_profile_id)
             .maybeSingle();
@@ -2524,7 +2526,10 @@ serve(async (req) => {
       const profilePaperMatches = profilePaper === null || profilePaper === width;
 
       const mergedProfile = {
-        columns_override: profilePaperMatches
+        is_calibrated:
+          registerProfile?.is_calibrated ?? physicalProfile?.is_calibrated ?? false,
+        columns_override: profilePaperMatches &&
+            (registerProfile?.is_calibrated ?? physicalProfile?.is_calibrated ?? false)
           ? (registerProfile?.columns_override ??
             physicalProfile?.columns_override ??
             null)
@@ -2615,7 +2620,7 @@ serve(async (req) => {
       policyHeaders["X-Print-Policy-Font"] = escposRows.font;
       policyHeaders["X-Print-Policy-Margin-Columns"] = String(escposRows.marginCols);
       policyHeaders["X-Print-Policy-Profile-Override"] =
-        mergedProfile.columns_override !== null ? "measured" : "safe-default";
+        mergedProfile.columns_override !== null ? "calibrated" : "safe-default";
       if (policy.printer_profile_id) {
         policyHeaders["X-Print-Policy-Profile-Id"] = String(
           policy.printer_profile_id,
@@ -2640,7 +2645,7 @@ serve(async (req) => {
           columns: escposRows.columns,
           marginColumns: escposRows.marginCols,
           font: escposRows.font,
-          profileOverride: mergedProfile.columns_override !== null ? "measured" : "safe-default",
+          profileOverride: mergedProfile.columns_override !== null ? "calibrated" : "safe-default",
           profileId: policy.printer_profile_id ?? null,
           bytes: (escposBytes as Uint8Array).length,
           sha256: _byteHash,
@@ -2688,7 +2693,7 @@ serve(async (req) => {
               margin_columns: escposRows.marginCols,
               font: escposRows.font,
               profile_override:
-                mergedProfile.columns_override !== null ? "measured" : "safe-default",
+                mergedProfile.columns_override !== null ? "calibrated" : "safe-default",
             },
           }).then((res) => {
             if (res) {
