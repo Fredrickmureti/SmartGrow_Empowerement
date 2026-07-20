@@ -394,8 +394,21 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
     rule();
   }
 
+  // ── Notes / Terms (non-POS docs) ────────────────────────────────────
+  if (t.notes && String(t.notes).trim()) {
+    blank();
+    left("Notes:");
+    for (const l of wordWrap(String(t.notes).trim(), cw)) left("  " + l);
+  }
+  if (t.terms && String(t.terms).trim()) {
+    blank();
+    left("Terms:");
+    for (const l of wordWrap(String(t.terms).trim(), cw)) left("  " + l);
+  }
+
   // ── Footer ──────────────────────────────────────────────────────────
   if (typeof rs.receipt_footer === "string" && rs.receipt_footer) {
+    blank();
     for (const l of wordWrap(rs.receipt_footer, cw)) center(l);
   }
   if (rs.show_return_policy && rs.return_policy_text) {
