@@ -77,36 +77,36 @@ test. ⚠️ single path but no guardrail. ❌ divergent / parallel path found.
 Prioritised by (a) customer-visible divergence risk, (b) statutory /
 fiscal exposure, (c) number of parallel paths.
 
-### D1 — Label rendering: two parallel ZPL implementations — **High**
+### D1 — Label rendering: two parallel ZPL implementations — **CLOSED (2026-07-20)**
 
-**Files.** `supabase/functions/_shared/printing/zpl/builder.ts` (hardcoded
-`inventory_label` + `shipping_label` bodies, invoked from
-`generate-document/index.ts:2216`); `label_templates` table +
-`src/services/printing/labelDispatch.ts:101` (`printLabelByTemplate`)
-used by every other label path.
+**Resolution.** `supabase/functions/_shared/printing/zpl/builder.ts` is
+now a thin adapter over `label_templates`: it fetches vars for the
+document (products lookup for `inventory_label`; document-id passthrough
+for `shipping_label`), resolves the template via
+`resolve_label_template` RPC, and substitutes tokens with the same
+regex shape used by `printLabelByTemplate`. No ZPL body literal
+survives in the file.
 
-**Why it matters.** GS1, pallet, carton, price-change, and shelf-edge
-labels all flow through templates. `inventory_label` and `shipping_label`
-alone still flow through a hardcoded emitter whose own docstring calls it
-a stub. A branch that overrides a product-label body in `label_templates`
-will NOT see that override honoured for the `inventory_label` code path.
-This is the exact class of drift ADR-0084 corrected for receipts.
+**Migration.** `seed_default_label_templates` now seeds an
+`inventory_label` row alongside the existing four; a backfill statement
+inserts the same row for every organization that was seeded before D1.
+Body preserves the pre-D1 on-wire shape (`^PW640`/`^LL400` envelope,
+CODE128 barcode) so live printers see no byte drift.
 
-**Runtime proof required.** Trigger a label print via each entry point
-(`Products.tsx` action and any caller of `generate-document` with
-`documentType="inventory_label"`), capture the ZPL bytes at the driver
-boundary, and confirm which path is actually reached from each screen. If
-neither the sales nor warehouse UI reaches `buildLabelZpl` today, the
-dead code alone justifies deletion.
+**Guardrails added.**
+- `src/test/architecture/label-builder-has-no-hardcoded-zpl.test.ts` —
+  fails the build if any `^XA`/`^XZ` literal re-enters the adapter.
+- `src/test/printing/label-template-substitution-parity.test.ts` —
+  locks the client and edge `renderTemplateBody` helpers to the same
+  regex literal + identical output for the seeded template bodies.
+- `src/test/printing/zpl-golden.test.ts` — updated to assert bytes are
+  produced from the seeded template body, not a hardcoded emitter.
 
-**Remediation stub.** Migrate the two hardcoded bodies to `label_templates`
-seed rows. Rewrite `buildLabelZpl` as a thin adapter that resolves the
-template row + `vars` and delegates to the same substitution used by
-`printLabelByTemplate`, or delete it once callers are migrated. Add
-ESLint rule `label-templates-only` disallowing new imports of
-`buildLabelZpl` outside the migration shim. Close with a byte-golden test
-asserting the template-rendered ZPL matches the pre-migration bytes for a
-known SKU.
+**Files.** Pre-D1 emitter at
+`supabase/functions/_shared/printing/zpl/builder.ts` (hardcoded bodies)
+now a template resolver; `label_templates` remains the single source of
+truth for every label body across the client (`labelDispatch.ts`) and
+server (`generate-document` `format=zpl` branch) paths.
 
 ### D2 — No `pdf-lib` guard in edge functions — **High**
 
