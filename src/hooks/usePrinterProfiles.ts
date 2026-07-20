@@ -131,7 +131,7 @@ export function usePrinterProfiles(businessId: string | null | undefined) {
           qr_native: input.qr_native ?? true,
           code128_native: input.code128_native ?? true,
           is_calibrated: input.is_calibrated ?? false,
-        });
+        } as any);
         if (error) throw error;
         await refresh();
         toast({ title: "Printer added" });
