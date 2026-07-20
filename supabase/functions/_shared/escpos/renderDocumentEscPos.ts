@@ -12,9 +12,8 @@
  * final swap-out that eliminates the "PDF looks right, raw ESC/POS looks
  * wrong" discrepancy by routing both through one code path.
  *
- * Callers in `generate-document/index.ts` use this instead of
- * `buildDocumentEscPos` (which remains alive for kitchen tickets and
- * legacy byte-golden tests only).
+ * Callers in `generate-document/index.ts` use this instead of the legacy
+ * procedural builder, which is retained only for historical byte fixtures.
  */
 
 import type { DocumentData } from "../templateRenderer.ts";

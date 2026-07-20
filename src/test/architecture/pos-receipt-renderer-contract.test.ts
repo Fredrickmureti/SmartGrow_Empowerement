@@ -134,14 +134,32 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(src).toMatch(/from\("pos_settings"\)[\s\S]{0,200}receipt_settings/);
     // Merger from the shared module must be invoked.
     expect(src).toMatch(/mergeReceiptSettings/);
-    // The emitter call site must forward the merged object. Per ADR-0084 the
-    // canonical Line[]-AST emitter is `renderDocumentEscPos`; the legacy
-    // `buildDocumentEscPos` remains alive only for kitchen tickets and
-    // byte-golden tests. Accept either name here so the guardrail keeps
-    // enforcing "settings must be forwarded" without pinning to the legacy.
+    // The emitter call site must forward the merged object through the
+    // canonical Line[]-AST renderer. The legacy builder is forbidden here.
     expect(src).toMatch(
-      /(?:renderDocumentEscPos|buildDocumentEscPos)\([\s\S]*?receiptSettings:/,
+      /renderDocumentEscPosWithResult\([\s\S]*?receiptSettings:/,
     );
+    expect(src).not.toMatch(/\bbuildDocumentEscPos\s*\(/);
+  });
+
+  it("ADR-0084 — production modules cannot import the legacy receipt builder", () => {
+    const offenders: string[] = [];
+    const roots = [
+      join(root, "supabase", "functions"),
+      join(root, "src"),
+    ];
+    for (const dir of roots) {
+      for (const file of walk(dir)) {
+        const rel = relative(root, file).replace(/\\/g, "/");
+        if (/(?:_test|\.test)\.(?:ts|tsx)$/.test(file)) continue;
+        if (rel.endsWith("supabase/functions/_shared/escpos/builder.ts")) continue;
+        const src = readFileSync(file, "utf8");
+        if (/import[\s\S]{0,180}\bbuildDocumentEscPos\b[\s\S]{0,180}from\s+["'][^"']*escpos\/builder/.test(src)) {
+          offenders.push(rel);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 
   it("Stage X7 — buildDocumentEscPos consumes ExtendedReceiptSettings sections", () => {

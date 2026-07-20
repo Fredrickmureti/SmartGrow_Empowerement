@@ -18,7 +18,7 @@
  */
 
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildDocumentEscPos, type EscPosWidth } from "./builder.ts";
+import type { EscPosWidth } from "./builder.ts";
 import { renderLinesEscPos } from "./renderLinesEscPos.ts";
 import { renderDocumentEscPos } from "./renderDocumentEscPos.ts";
 import { buildReceiptLines } from "../receipt/lines.ts";
@@ -153,20 +153,42 @@ for (const width of ["80mm", "58mm", "40mm"] as EscPosWidth[]) {
     assert(!/\n\s*#\s*R-2026-0001/.test(text), "shared ESC/POS must never emit legacy centered #receipt-number layout");
   });
 
-  Deno.test(`Wave6b — informational diff vs legacy buildDocumentEscPos @ ${width}`, async () => {
-    // Informational only — legacy builder still owns kitchen tickets,
-    // R2 copies, and some block-order edge cases that aren't part of the
-    // canonical POS-receipt engine yet. Diff is printed for handoff.
-    const legacy = buildDocumentEscPos(goldenDoc, { width });
-    const shared = renderDocumentEscPos(goldenDoc, {
-      width,
-      receiptSettings: (goldenDoc as any).pos_receipt_settings,
-      title: goldenDoc.document_type_label,
-    });
-    console.log(`\n[Wave6b legacy diff @ ${width}]`);
-    console.log(`  legacy sha256: ${await sha256(legacy)}`);
-    console.log(`  shared sha256: ${await sha256(shared)}`);
-    console.log(structuralDiff(legacy, shared, "LEGACY", "SHARED"));
-    assert(shared.length > 32, "shared engine produced no output");
-  });
 }
+
+Deno.test("POS receipt canonical meta omits routine status", () => {
+  const bytes = renderDocumentEscPos(goldenDoc, {
+    width: "58mm",
+    receiptSettings: (goldenDoc as any).pos_receipt_settings,
+    title: goldenDoc.document_type_label,
+  });
+  const text = decode(bytes);
+  assert(text.includes("No:"), "receipt number must use the canonical No: row");
+  assert(!text.includes("Status:"), "completed POS receipts must omit the routine status row");
+});
+
+Deno.test("58mm uncalibrated Font B request downgrades to Font A / 32 columns", () => {
+  const input = documentToReceiptInput(goldenDoc, {
+    settings: { ...(goldenDoc as any).pos_receipt_settings, paper_size: "58mm", font_size: "medium" },
+    title: goldenDoc.document_type_label,
+  });
+  const expectedRows = buildReceiptLines(input);
+  const bytes = renderDocumentEscPos(goldenDoc, {
+    width: "58mm",
+    receiptSettings: { ...(goldenDoc as any).pos_receipt_settings, paper_size: "58mm" },
+    font: "B",
+  });
+  assertEquals(expectedRows.columns, 32);
+  assertEquals(expectedRows.font, "A");
+  assertEquals(Array.from(bytes.slice(0, 7)), [0x1b, 0x40, 0x1b, 0x74, 0x13, 0x1b, 0x21]);
+  assertEquals(bytes[7], 0x00, "ESC ! must select Font A");
+});
+
+Deno.test("58mm calibrated Font B / 42 columns remains available", () => {
+  const bytes = renderDocumentEscPos(goldenDoc, {
+    width: "58mm",
+    receiptSettings: { ...(goldenDoc as any).pos_receipt_settings, paper_size: "58mm" },
+    font: "B",
+    capabilities: { columns_override: 42 },
+  });
+  assertEquals(bytes[7], 0x01, "ESC ! must select Font B for a measured profile");
+});
