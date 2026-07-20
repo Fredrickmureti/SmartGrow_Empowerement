@@ -1,7 +1,72 @@
 
 # POS Receipt Rendering — Verification & Continuation Plan
 
-## Position
+## Verification results (2026-07-20, incoming agent)
+
+Phase A executed. Phases 1–4 verified in place; one guardrail refresh
+applied. Phase 5.1 re-scoped after investigation.
+
+### Phase A results
+
+| Item | Result | Evidence |
+| :--- | :----- | :------- |
+| A1 tests | PASS 8/8 | `bunx vitest run src/test/architecture/{receipt-line-ast-contract,pos-receipt-model-boundary,pos-receipt-cross-model-consistency,pos-receipt-renderer-contract,adr-0085-rendering-ownership,receipt-engine-mirror-parity,pos-renderer-ownership,receipt-totals-contract}.test.ts` (30/30 → 40/40 after fix) |
+| A2 single producer | PASS | `renderDocumentEscPos.ts:21` imports `buildReceiptLines`; `renderThermalPdf.ts:31` imports `paperGeometry`; no local assembly in either emitter. |
+| A3 ESLint ownership | PASS | `eslint.config.js` wires `no-raw-escpos-bytes`, `no-raw-pdf-lib-in-app`, `no-direct-barcode-lib`, `no-raw-zpl-outside-printing`. No `src/**` violations for raw ESC/POS bytes. |
+| A4 ADRs | PASS | `docs/adr/0084`, `0085`, `0086` present. |
+| A5 paper geometry | PASS | `renderThermalPdf.ts` sources geometry via `paperGeometry()`; no local `PAPER_WIDTH_MM` / `PAPER_MARGIN_MM`; mirror parity green. |
+| A6 byte parity | PASS | `receipt-engine-mirror-parity.test.ts` + `parity_gate_test.ts` green. |
+| A7 profile coverage | PASS | 40/58/80 mm populated in `FONT_COLUMNS`, `DEFAULT_MARGIN`, `PAPER_GEOMETRY`. |
+
+### Phase B remediation applied
+
+- `src/test/architecture/pos-receipt-renderer-contract.test.ts:138` —
+  regex still pinned to legacy `buildDocumentEscPos`. Code correctly
+  migrated to canonical `renderDocumentEscPos` per ADR-0084. Regex now
+  accepts either name so "settings must be forwarded" stays enforced
+  without pinning to the legacy emitter. Test suite re-green (10/10).
+
+### Field-symptom triage — 80 mm ESC/POS overflow via EscPosCoffee
+
+Not an architectural defect. Every row is width-clamped
+(`line_width_clamp_test.ts`) and the ESC/POS emitter consumes the same
+`Line[]` as the PDF. The remaining failure mode is operational: a
+`printer_profile` / `pos_registers.receipt_settings.columns_override`
+that doesn't match the physical column count of the deployed printer
+(many "80 mm" devices run ~42 cols at Font B). Fix in data by setting
+the correct `columns_override` for the affected register; do NOT
+widen `FONT_COLUMNS['80mm']` — that speculatively overflows every
+other 80 mm printer. A printer-probe wizard belongs in Phase 7 if
+this recurs.
+
+### Phase 5.1 redirect — shelf-edge labels
+
+The original plan proposed `shelf_label` as a new `DocumentType` and a
+new ZPL emitter on the receipt `Line[]` AST. Investigation shows the
+platform already has a first-class label pipeline aligned with
+ADR-0085 (ZPL owner = `src/services/printing/**`):
+
+- `src/services/printing/labelDispatch.ts` — template resolver +
+  workflow-scoped printer resolution + engine dispatch (`zpl` / `epl`
+  / `escpos` / `pdf`).
+- `label_templates` DB table (org/branch scoping, versioning,
+  `{{token}}` substitution).
+- `PrinterWorkflow` enum includes `shelf_edge` as a first-class value.
+- Track 3 lot-aware tokens already flow through.
+
+Building shelf labels on the receipt AST would duplicate this
+pipeline and violate ADR-0085's ownership table (labels are
+template-substitution on a fixed die; receipts are roll-fed monospace
+columns). Corrected Phase 5.1 action: shelf-label work is *content*
+(seed shelf-edge ZPL template bodies + a POS surface that calls
+`printLabelByTemplate({ workflow: 'shelf_edge', ... })`), not
+architecture. Reopening "shelf labels on Line[]" requires
+superseding ADR-0085.
+
+---
+
+## Position (from prior turn)
+
 
 The previous agent claims Phases 1–4 of `.lovable/plan.md` are complete:
 one canonical `Line[]` AST (ADR-0084), single row producer in
