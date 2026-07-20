@@ -1789,12 +1789,10 @@ serve(async (req) => {
       }
       const previewSettings = (body.receiptSettings ?? {}) as Record<string, unknown>;
       const previewBranding = (body.branding ?? {}) as Record<string, unknown>;
-      const previewWidth: "40mm" | "58mm" | "80mm" =
-        (previewSettings.paper_size === "40mm" || body.paperFormat === "40mm")
-          ? "40mm"
-          : (previewSettings.paper_size === "58mm" || body.paperFormat === "58mm")
-            ? "58mm"
-            : "80mm";
+      // Bug 2 fix — width resolution deferred until printer profile is
+      // loaded below. Placeholder assigned after `resolvePaperWidth(...)`.
+      let previewWidth: "40mm" | "58mm" | "80mm" = "80mm";
+      let previewWidthSource: string = "engine-default";
       const currency = (previewBranding.base_currency as string) || "USD";
       const fixtureItems = [
         {
@@ -1892,6 +1890,11 @@ serve(async (req) => {
       const { renderDocumentEscPos } = await import(
         "../_shared/escpos/renderDocumentEscPos.ts"
       );
+      const { resolvePaperWidth: _resolvePreviewWidth } = await import(
+        "../_shared/receipt/resolvePaperWidth.ts"
+      );
+      const { RENDERER_ID: _previewRendererId, sha256Hex: _previewSha } =
+        await import("../_shared/escpos/rendererVersion.ts");
       // Phase A.2 — test print MUST resolve through the same physical
       // printer-profile path as a real receipt, otherwise the operator
       // tests against the engine defaults instead of their actual printer.
@@ -1905,6 +1908,7 @@ serve(async (req) => {
             cutter: "none" | "partial" | "full" | null;
             qr_native: boolean | null;
             code128_native: boolean | null;
+            paper_size: "40mm" | "58mm" | "80mm" | null;
           }
         | null = null;
       if (previewProfileId) {
@@ -1912,7 +1916,7 @@ serve(async (req) => {
           const { data: pp } = await supabase
             .from("printer_profiles")
             .select(
-              "columns_override, margin_cols, font, cutter, qr_native, code128_native",
+              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_size",
             )
             .eq("id", previewProfileId)
             .maybeSingle();
@@ -1920,6 +1924,18 @@ serve(async (req) => {
         } catch (_err) {
           // best-effort
         }
+      }
+      // Bug 2 fix — resolve the paper width AFTER the profile is loaded.
+      // Physical printer paper wins over receipt-editor intent (Star /
+      // Epson / Odoo pattern). See `resolvePaperWidth.ts`.
+      {
+        const resolved = _resolvePreviewWidth({
+          requestOverride: body.paperFormat as string | undefined,
+          profile: previewProfile ? { paper_size: previewProfile.paper_size } : null,
+          receiptSettings: { paper_size: previewSettings.paper_size as string | undefined },
+        });
+        previewWidth = resolved.width;
+        previewWidthSource = resolved.source;
       }
       const previewCaps: Record<string, unknown> = {};
       if (previewProfile?.columns_override != null)
@@ -1948,6 +1964,21 @@ serve(async (req) => {
             : undefined,
         font: previewProfile?.font ?? undefined,
       });
+      const _previewByteHash = await _previewSha(previewBytes as Uint8Array);
+      console.log(
+        JSON.stringify({
+          tag: "receipt-render",
+          documentType: "pos_receipt_preview",
+          documentId: "test-print",
+          format: "escpos",
+          renderer: _previewRendererId,
+          paper: previewWidth,
+          paperSource: previewWidthSource,
+          bytes: (previewBytes as Uint8Array).length,
+          sha256: _previewByteHash,
+          profileId: previewProfileId ?? null,
+        }),
+      );
       const { resolvePrinterProfile } = await import(
         "../_shared/receipt/engine/PrinterProfile.ts"
       );
@@ -1976,6 +2007,7 @@ serve(async (req) => {
           ),
           "X-Print-Policy-Source": "test-print",
           "X-Print-Policy-Paper": previewWidth,
+          "X-Print-Policy-Paper-Source": previewWidthSource,
           "X-Print-Policy-Columns": String(_previewResolved.columns),
           "X-Print-Policy-Font": _previewResolved.font,
           ...(previewProfileId
@@ -1983,8 +2015,10 @@ serve(async (req) => {
             : {}),
           "X-Print-Policy-Render-Mode": "escpos",
           "X-Print-Policy-Coerced": "0",
+          "X-Renderer": _previewRendererId,
+          "X-Renderer-Byte-Sha256": _previewByteHash,
           "Access-Control-Expose-Headers":
-            "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id",
+            "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Paper-Source, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id, X-Renderer, X-Renderer-Byte-Sha256",
         },
       });
     }
@@ -2416,18 +2450,12 @@ serve(async (req) => {
       const { renderDocumentEscPos } = await import(
         "../_shared/escpos/renderDocumentEscPos.ts"
       );
-      // Phase 1 — width source-of-truth: receipt settings paper_size (the
-      // editor's intent) wins for thermal sizes including 40mm; fall back
-      // to the resolved policy paper format. Print policy still controls
-      // render mode/transport, but the actual character grid follows the
-      // receipt editor / printer profile.
-      const rsForWidth = (documentData as any).pos_receipt_settings ?? null;
-      const rsPaper: string | undefined = rsForWidth?.paper_size;
-      const policyPaper = coerced.paper_format;
-      const width: "40mm" | "58mm" | "80mm" =
-        rsPaper === "40mm" || policyPaper === "40mm" ? "40mm"
-          : rsPaper === "58mm" || policyPaper === "58mm" ? "58mm"
-          : "80mm";
+      const { resolvePaperWidth } = await import(
+        "../_shared/receipt/resolvePaperWidth.ts"
+      );
+      const { RENDERER_ID: _rendererId, sha256Hex: _sha } = await import(
+        "../_shared/escpos/rendererVersion.ts"
+      );
       // POS receipts: title comes from resolveReceiptTitle() (already on
       // documentData.document_type_label) — never let an A4 invoice
       // template's "INVOICE" title override a fully-paid cash sale.
@@ -2473,6 +2501,22 @@ serve(async (req) => {
       // affecting the branch/business policy.
       const registerProfile =
         (documentData as any).pos_register_printer_profile ?? null;
+
+      // Bug 2 fix — resolve paper width AFTER the printer profile is
+      // loaded, with the physical device winning over the receipt
+      // editor's intent. See `_shared/receipt/resolvePaperWidth.ts` and
+      // the Star/Epson/Odoo precedence rationale.
+      const rsForWidth = (documentData as any).pos_receipt_settings ?? null;
+      const resolvedPaper = resolvePaperWidth({
+        requestOverride: typeof body.paperFormat === "string" ? body.paperFormat : undefined,
+        profile: {
+          paper_size:
+            registerProfile?.paper_size ?? physicalProfile?.paper_size ?? null,
+        },
+        receiptSettings: { paper_size: rsForWidth?.paper_size ?? undefined },
+        policyDefault: coerced.paper_format,
+      });
+      const width: "40mm" | "58mm" | "80mm" = resolvedPaper.width;
 
       // Audit fix (Phase 2): paper-scope the physical column/margin overrides.
       // A printer profile records corrections for a SPECIFIC paper size
@@ -2593,8 +2637,31 @@ serve(async (req) => {
           policy.printer_profile_id,
         );
       }
+      // Observability — expose the actual bytes' fingerprint + renderer
+      // version and paper-source so operators can prove which code path
+      // produced the ESC/POS stream in the emulator/on the wire.
+      const _byteHash = await _sha(escposBytes as Uint8Array);
+      policyHeaders["X-Renderer"] = _rendererId;
+      policyHeaders["X-Renderer-Byte-Sha256"] = _byteHash;
+      policyHeaders["X-Print-Policy-Paper-Source"] = resolvedPaper.source;
+      console.log(
+        JSON.stringify({
+          tag: "receipt-render",
+          documentType,
+          documentId,
+          format: "escpos",
+          renderer: _rendererId,
+          paper: width,
+          paperSource: resolvedPaper.source,
+          columns: _resolvedProfileForHeaders.columns,
+          font: _resolvedProfileForHeaders.font,
+          profileId: policy.printer_profile_id ?? null,
+          bytes: (escposBytes as Uint8Array).length,
+          sha256: _byteHash,
+        }),
+      );
       policyHeaders["Access-Control-Expose-Headers"] =
-        "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Coerce-Reason, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id, X-Receipt-Settings-Source";
+        "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Paper-Source, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Coerce-Reason, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id, X-Receipt-Settings-Source, X-Renderer, X-Renderer-Byte-Sha256";
 
       // ADR-0084 Wave B3.2 — persist ESC/POS bytes for byte-identical
       // reprint + fiscal audit. Blocking for pos_receipt (auditors need
