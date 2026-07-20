@@ -1890,6 +1890,11 @@ serve(async (req) => {
       const { renderDocumentEscPos } = await import(
         "../_shared/escpos/renderDocumentEscPos.ts"
       );
+      const { resolvePaperWidth: _resolvePreviewWidth } = await import(
+        "../_shared/receipt/resolvePaperWidth.ts"
+      );
+      const { RENDERER_ID: _previewRendererId, sha256Hex: _previewSha } =
+        await import("../_shared/escpos/rendererVersion.ts");
       // Phase A.2 — test print MUST resolve through the same physical
       // printer-profile path as a real receipt, otherwise the operator
       // tests against the engine defaults instead of their actual printer.
@@ -1903,6 +1908,7 @@ serve(async (req) => {
             cutter: "none" | "partial" | "full" | null;
             qr_native: boolean | null;
             code128_native: boolean | null;
+            paper_size: "40mm" | "58mm" | "80mm" | null;
           }
         | null = null;
       if (previewProfileId) {
@@ -1910,7 +1916,7 @@ serve(async (req) => {
           const { data: pp } = await supabase
             .from("printer_profiles")
             .select(
-              "columns_override, margin_cols, font, cutter, qr_native, code128_native",
+              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_size",
             )
             .eq("id", previewProfileId)
             .maybeSingle();
@@ -1918,6 +1924,18 @@ serve(async (req) => {
         } catch (_err) {
           // best-effort
         }
+      }
+      // Bug 2 fix — resolve the paper width AFTER the profile is loaded.
+      // Physical printer paper wins over receipt-editor intent (Star /
+      // Epson / Odoo pattern). See `resolvePaperWidth.ts`.
+      {
+        const resolved = _resolvePreviewWidth({
+          requestOverride: body.paperFormat as string | undefined,
+          profile: previewProfile ? { paper_size: previewProfile.paper_size } : null,
+          receiptSettings: { paper_size: previewSettings.paper_size as string | undefined },
+        });
+        previewWidth = resolved.width;
+        previewWidthSource = resolved.source;
       }
       const previewCaps: Record<string, unknown> = {};
       if (previewProfile?.columns_override != null)
@@ -1946,6 +1964,21 @@ serve(async (req) => {
             : undefined,
         font: previewProfile?.font ?? undefined,
       });
+      const _previewByteHash = await _previewSha(previewBytes as Uint8Array);
+      console.log(
+        JSON.stringify({
+          tag: "receipt-render",
+          documentType: "pos_receipt_preview",
+          documentId: "test-print",
+          format: "escpos",
+          renderer: _previewRendererId,
+          paper: previewWidth,
+          paperSource: previewWidthSource,
+          bytes: (previewBytes as Uint8Array).length,
+          sha256: _previewByteHash,
+          profileId: previewProfileId ?? null,
+        }),
+      );
       const { resolvePrinterProfile } = await import(
         "../_shared/receipt/engine/PrinterProfile.ts"
       );
