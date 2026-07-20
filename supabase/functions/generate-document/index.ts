@@ -2610,6 +2610,16 @@ serve(async (req) => {
         capabilities: capabilities as any,
         font: mergedProfile.font ?? undefined,
       });
+      const escposAscii = new TextDecoder("latin1").decode(escposBytes as Uint8Array);
+      if (
+        documentType === "pos_receipt" &&
+        /\n\s*#\s*POS/i.test(escposAscii) &&
+        !/\n\s*No:\s*POS/i.test(escposAscii)
+      ) {
+        throw new Error(
+          "ESC/POS renderer invariant failed: legacy #POS receipt-number layout reached production path",
+        );
+      }
       // Phase A.5 — header transparency. Expose the resolved physical
       // context so the emulator/test-print decoder shows what the server
       // actually used (paper, columns, font, profile id).

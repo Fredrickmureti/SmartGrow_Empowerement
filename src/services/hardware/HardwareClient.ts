@@ -190,6 +190,15 @@ export interface PrintReceiptInput {
   receiptData: DriverCommand["payload"];
 }
 
+function payloadHasRawBytes(payload: unknown): boolean {
+  if (payload instanceof Uint8Array) return true;
+  if (Array.isArray(payload)) return payload.every((b) => typeof b === 'number');
+  if (!payload || typeof payload !== 'object') return false;
+  const p = payload as Record<string, unknown>;
+  const bytes = p.bytes ?? p.data;
+  return bytes instanceof Uint8Array || (Array.isArray(bytes) && bytes.every((b) => typeof b === 'number'));
+}
+
 export interface OpenDrawerInput {
   pin?: 2 | 5;
 }
@@ -591,6 +600,12 @@ const agent = {
 export const hardwareClient = {
   // === Receipt / kitchen printing ===
   printReceipt(input: PrintReceiptInput): Promise<DriverResult> {
+    if (!payloadHasRawBytes(input.receiptData)) {
+      return Promise.resolve({
+        success: false,
+        error: 'Receipt printing requires server-rendered ESC/POS bytes. Structured receiptData is refused to prevent renderer divergence.',
+      });
+    }
     return execAny("receipt_printer", "print_receipt", input.receiptData);
   },
   printKitchenOrder(input: PrintReceiptInput): Promise<DriverResult> {
