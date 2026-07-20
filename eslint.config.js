@@ -28,6 +28,7 @@ import noRawPdfLibInApp from "./eslint-rules/no-raw-pdf-lib-in-app.js";
 import noDirectBarcodeLib from "./eslint-rules/no-direct-barcode-lib.js";
 import noRawXlsxInApp from "./eslint-rules/no-raw-xlsx-in-app.js";
 import noRawEscposBytes from "./eslint-rules/no-raw-escpos-bytes.js";
+import noRawPdfLibInEdgeFunctions from "./eslint-rules/no-raw-pdf-lib-in-edge-functions.js";
 
 
 
@@ -70,6 +71,7 @@ export default tseslint.config(
           "no-direct-barcode-lib": noDirectBarcodeLib,
           "no-raw-xlsx-in-app": noRawXlsxInApp,
           "no-raw-escpos-bytes": noRawEscposBytes,
+          "no-raw-pdf-lib-in-edge-functions": noRawPdfLibInEdgeFunctions,
 
         },
       },
