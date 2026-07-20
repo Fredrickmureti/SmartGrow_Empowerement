@@ -1887,7 +1887,7 @@ serve(async (req) => {
       // test-print bytes match the on-screen preview and the thermal PDF
       // exactly. `renderDocumentEscPos` is the ESC/POS twin of
       // `renderThermalPdf`; both consume `buildReceiptLines(...)`.
-      const { renderDocumentEscPos } = await import(
+      const { renderDocumentEscPosWithResult } = await import(
         "../_shared/escpos/renderDocumentEscPos.ts"
       );
       const { resolvePaperWidth: _resolvePreviewWidth } = await import(
@@ -1955,7 +1955,7 @@ serve(async (req) => {
       ) {
         rsForPreview.margin_cols = previewProfile.margin_cols;
       }
-      const previewBytes = renderDocumentEscPos(previewDoc, {
+      const { bytes: previewBytes, rows: previewRows } = renderDocumentEscPosWithResult(previewDoc, {
         width: previewWidth,
         receiptSettings: rsForPreview,
         capabilities:
@@ -1979,23 +1979,6 @@ serve(async (req) => {
           profileId: previewProfileId ?? null,
         }),
       );
-      const { resolvePrinterProfile } = await import(
-        "../_shared/receipt/engine/PrinterProfile.ts"
-      );
-      const _previewResolved = resolvePrinterProfile({
-        paper: previewWidth,
-        font:
-          (rsForPreview as any).font_size === "small"
-            ? "B"
-            : (rsForPreview as any).font_size === "large"
-              ? "A"
-              : (previewProfile?.font ?? "A"),
-        marginCols:
-          (rsForPreview as any).margin_cols ??
-          previewProfile?.margin_cols ??
-          undefined,
-        columnsOverride: previewProfile?.columns_override ?? undefined,
-      });
       return new Response(previewBytes as unknown as BodyInit, {
         headers: {
           ...corsHeaders,
@@ -2008,8 +1991,8 @@ serve(async (req) => {
           "X-Print-Policy-Source": "test-print",
           "X-Print-Policy-Paper": previewWidth,
           "X-Print-Policy-Paper-Source": previewWidthSource,
-          "X-Print-Policy-Columns": String(_previewResolved.columns),
-          "X-Print-Policy-Font": _previewResolved.font,
+          "X-Print-Policy-Columns": String(previewRows.columns),
+          "X-Print-Policy-Font": previewRows.font,
           ...(previewProfileId
             ? { "X-Print-Policy-Profile-Id": previewProfileId }
             : {}),
@@ -2447,13 +2430,17 @@ serve(async (req) => {
       // producer with the thermal PDF path (see renderDocumentEscPos.ts).
       // This closes the "PDF looks clean, raw ESC/POS is misaligned"
       // discrepancy the operator saw with the Espresso emulator.
-      const { renderDocumentEscPos } = await import(
+      const { renderDocumentEscPosWithResult } = await import(
         "../_shared/escpos/renderDocumentEscPos.ts"
       );
       const { resolvePaperWidth } = await import(
         "../_shared/receipt/resolvePaperWidth.ts"
       );
-      const { RENDERER_ID: _rendererId, sha256Hex: _sha } = await import(
+      const {
+        RENDERER_ID: _rendererId,
+        LAYOUT_CONTRACT_VERSION: _layoutContractVersion,
+        sha256Hex: _sha,
+      } = await import(
         "../_shared/escpos/rendererVersion.ts"
       );
       // POS receipts: title comes from resolveReceiptTitle() (already on
@@ -2603,7 +2590,7 @@ serve(async (req) => {
       if (templateFooter && !rsWithFooter.receipt_footer) {
         rsWithFooter.receipt_footer = String(templateFooter);
       }
-      const escposBytes = renderDocumentEscPos(documentData, {
+      const { bytes: escposBytes, rows: escposRows } = renderDocumentEscPosWithResult(documentData, {
         width,
         title: titleOverride,
         receiptSettings: rsWithFooter,
@@ -2623,25 +2610,12 @@ serve(async (req) => {
       // Phase A.5 — header transparency. Expose the resolved physical
       // context so the emulator/test-print decoder shows what the server
       // actually used (paper, columns, font, profile id).
-      const { resolvePrinterProfile } = await import(
-        "../_shared/receipt/engine/PrinterProfile.ts"
-      );
-      const _resolvedProfileForHeaders = resolvePrinterProfile({
-        paper: width,
-        font:
-          rsForBuild.font_size === "small"
-            ? "B"
-            : rsForBuild.font_size === "large"
-              ? "A"
-              : (mergedProfile.font ?? "A"),
-        marginCols: rsForBuild.margin_cols ?? mergedProfile.margin_cols ?? undefined,
-        columnsOverride: mergedProfile.columns_override ?? undefined,
-      });
       policyHeaders["X-Print-Policy-Paper"] = width;
-      policyHeaders["X-Print-Policy-Columns"] = String(
-        _resolvedProfileForHeaders.columns,
-      );
-      policyHeaders["X-Print-Policy-Font"] = _resolvedProfileForHeaders.font;
+      policyHeaders["X-Print-Policy-Columns"] = String(escposRows.columns);
+      policyHeaders["X-Print-Policy-Font"] = escposRows.font;
+      policyHeaders["X-Print-Policy-Margin-Columns"] = String(escposRows.marginCols);
+      policyHeaders["X-Print-Policy-Profile-Override"] =
+        mergedProfile.columns_override !== null ? "measured" : "safe-default";
       if (policy.printer_profile_id) {
         policyHeaders["X-Print-Policy-Profile-Id"] = String(
           policy.printer_profile_id,
@@ -2663,15 +2637,17 @@ serve(async (req) => {
           renderer: _rendererId,
           paper: width,
           paperSource: resolvedPaper.source,
-          columns: _resolvedProfileForHeaders.columns,
-          font: _resolvedProfileForHeaders.font,
+          columns: escposRows.columns,
+          marginColumns: escposRows.marginCols,
+          font: escposRows.font,
+          profileOverride: mergedProfile.columns_override !== null ? "measured" : "safe-default",
           profileId: policy.printer_profile_id ?? null,
           bytes: (escposBytes as Uint8Array).length,
           sha256: _byteHash,
         }),
       );
       policyHeaders["Access-Control-Expose-Headers"] =
-        "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Paper-Source, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Coerce-Reason, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id, X-Receipt-Settings-Source, X-Renderer, X-Renderer-Byte-Sha256";
+        "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Paper-Source, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Coerce-Reason, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Margin-Columns, X-Print-Policy-Profile-Override, X-Print-Policy-Profile-Id, X-Receipt-Settings-Source, X-Renderer, X-Renderer-Byte-Sha256";
 
       // ADR-0084 Wave B3.2 — persist ESC/POS bytes for byte-identical
       // reprint + fiscal audit. Blocking for pos_receipt (auditors need
@@ -2705,8 +2681,14 @@ serve(async (req) => {
             renderedBy: userData.user.id,
             renderedVia: "generate-document",
             metadata: {
-              columns: policyHeaders["X-Print-Policy-Columns"] ?? null,
-              font: policyHeaders["X-Print-Policy-Font"] ?? null,
+              renderer_id: _rendererId,
+              layout_contract_version: _layoutContractVersion,
+              paper: escposRows.paper,
+              columns: escposRows.columns,
+              margin_columns: escposRows.marginCols,
+              font: escposRows.font,
+              profile_override:
+                mergedProfile.columns_override !== null ? "measured" : "safe-default",
             },
           }).then((res) => {
             if (res) {
