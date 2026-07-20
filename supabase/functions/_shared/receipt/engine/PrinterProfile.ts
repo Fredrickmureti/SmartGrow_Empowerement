@@ -1,6 +1,9 @@
 /**
  * PrinterProfile — single source of truth for paper width × font metrics.
- * Server mirror of src/lib/receipt/engine/PrinterProfile.ts. Keep in lockstep.
+ *
+ * Replaces the previous hardcoded `COLS = { '58mm': 32, '80mm': 48 }` table
+ * with a font-aware lookup. ESC/POS Font A (12-dot) and Font B (9-dot) yield
+ * different column counts on the same paper. Margins are mandatory.
  */
 
 export type PaperWidth = "40mm" | "58mm" | "80mm";
@@ -8,9 +11,13 @@ export type Font = "A" | "B";
 
 export interface PrinterProfile {
   paper: PaperWidth;
+  /** Default font when not overridden by a section. */
   font: Font;
+  /** Total printable columns at the active font (NOT including margins). */
   columns: number;
+  /** Spaces reserved on each side. Total content width = columns - 2*marginCols. */
   marginCols: number;
+  /** Capability flags coerced upstream. */
   caps: {
     auto_cut: boolean;
     partial_cut: boolean;
@@ -19,10 +26,11 @@ export interface PrinterProfile {
   };
 }
 
-// Conservative physical defaults. A real printer profile may still widen the
-// grid via columns_override, but the server must never assume an 80mm printer
-// can safely render 64 columns just because the settings ask for a smaller
-// font — that speculation is what causes emulator overflow on common devices.
+// Defaults — use conservative physical fallback widths unless an explicit
+// printer profile provides measured columnsOverride. In practice many 80mm
+// devices marketed as supporting a "small" font still behave like ~48-column
+// printers in emulators / common ESC-POS firmwares, so we must not widen the
+// grid speculatively and overflow the paper.
 const FONT_COLUMNS: Record<PaperWidth, Record<Font, number>> = {
   "40mm": { A: 24, B: 32 },
   "58mm": { A: 32, B: 42 },
@@ -64,6 +72,7 @@ export function resolvePrinterProfile(input: ResolveProfileInput): PrinterProfil
   };
 }
 
+/** Effective content width (after margins). */
 export function contentWidth(p: PrinterProfile): number {
   return Math.max(8, p.columns - 2 * p.marginCols);
 }
