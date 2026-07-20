@@ -120,18 +120,46 @@ function pushNativeQr(out: number[], payload: string, moduleSize = 6): void {
   out.push(GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30);
 }
 
+/**
+ * ESC/POS Code128 barcode — GS k m n d1..dn (m=73 length-prefixed form).
+ * HRI text below, height 80 dots, module width 2 — sensible thermal defaults.
+ * Only Code128 subset B is emitted (covers the ASCII payloads Wave 6b
+ * produces for document numbers). Non-ASCII bytes fall back to '?'.
+ */
+function pushCode128(out: number[], data: string): void {
+  out.push(GS, 0x48, 0x02);          // HRI position: below
+  out.push(GS, 0x68, 0x50);          // Barcode height (dots)
+  out.push(GS, 0x77, 0x02);          // Module width
+  const payload: number[] = [0x7b, 0x42]; // {B start subset
+  for (const ch of data) {
+    const c = ch.charCodeAt(0);
+    payload.push(c <= 0x7f ? c : 0x3f);
+  }
+  out.push(GS, 0x6b, 0x49, payload.length, ...payload);
+  out.push(LF);
+}
+
 export interface RenderLinesEscPosOptions {
-  /** Number of LFs after the last row (0..10). Default 4. */
+  /** Number of LFs after the last row (0..10). Result's `directives.feedLinesAfter` wins if set. */
   feedLinesAfter?: number;
-  /** Emit a full paper cut at the end. Default true. */
+  /** Emit a paper cut at the end. Result's `directives.cutMode` wins if set. */
   cut?: boolean;
   /** Printer capability hints. */
   caps?: {
     qr_native?: boolean;
     auto_cut?: boolean;
+    partial_cut?: boolean;
+    code128_native?: boolean;
   };
   /** Native QR module size 1..16. Default 6. */
   qrModuleSize?: number;
+  /**
+   * Wave 6b Phase 3 — honor `result.directives.copies` and repeat the body
+   * this many times with optional per-copy labels. Defaults to 1.
+   * When false, only a single body is emitted regardless of directives
+   * (used by parity tests that want a byte-comparable single-copy stream).
+   */
+  applyCopies?: boolean;
 }
 
 /**
@@ -144,6 +172,11 @@ export interface RenderLinesEscPosOptions {
  *  - `qr:true` rows emit a native QR when `caps.qr_native` is on AND
  *    `qrPayload` is set. Otherwise the row is dropped silently — the
  *    caller decides whether to also emit a textual QR line.
+ *  - `barcode` rows emit a native Code128 when `caps.code128_native` is
+ *    on (or unset — permissive default). Otherwise the row's text falls
+ *    through as a plain textual reference.
+ *  - `result.directives` (copies × body, cut policy, trailing feed) are
+ *    honored — see `RenderLinesEscPosOptions.applyCopies`.
  *  - No CP858 byte ever exceeds `columns` because `buildReceiptLines`
  *    already clamps to profile width (JS string length ≈ CP858 byte
  *    width for the transliteration set above).
@@ -152,54 +185,104 @@ export function renderLinesEscPos(
   result: ReceiptLinesResult,
   opts: RenderLinesEscPosOptions = {},
 ): Uint8Array {
-  const out: number[] = [];
-  const push = (bytes: number[]) => out.push(...bytes);
+  const directives = result.directives ?? {};
+  const applyCopies = opts.applyCopies !== false;
+  const copies = applyCopies
+    ? Math.max(1, Math.min(3, directives.copies ?? 1))
+    : 1;
+  const copyLabels = directives.copyLabels ?? [];
 
-  push(CMD.INIT);
-  push(CMD.CODEPAGE_CP858);
-  // Font A (0x00) / Font B (0x01). Large/bold are per-row via meta.
-  push(CMD.PRINT_MODE(result.font === "B" ? 0x01 : 0x00));
+  // Cut policy: directive > opts.cut > default full. Capability downgrades:
+  // no auto_cut → "none"; "partial" without partial_cut → "full".
+  let cutMode: "full" | "partial" | "none" = directives.cutMode
+    ?? (opts.cut === false ? "none" : "full");
+  if (opts.caps?.auto_cut === false) cutMode = "none";
+  else if (cutMode === "partial" && opts.caps?.partial_cut === false) cutMode = "full";
+  const feedLines = directives.feedLinesAfter ?? opts.feedLinesAfter ?? 4;
 
-  let alignState: "left" | "center" | "right" = "left";
-  const setAlign = (a: "left" | "center" | "right") => {
-    if (a === alignState) return;
-    push(a === "left" ? CMD.ALIGN_LEFT : a === "center" ? CMD.ALIGN_CENTER : CMD.ALIGN_RIGHT);
-    alignState = a;
-  };
-
+  const code128Native = opts.caps?.code128_native !== false;
   const qrNative = !!opts.caps?.qr_native;
 
-  for (let i = 0; i < result.lines.length; i++) {
-    const m: LineMeta = result.meta[i] ?? { align: "left" };
-    const raw = result.lines[i] ?? "";
+  const emitBody = (out: number[]) => {
+    for (let i = 0; i < result.lines.length; i++) {
+      const m: LineMeta = result.meta[i] ?? { align: "left" };
+      const raw = result.lines[i] ?? "";
 
-    if (m.qr) {
-      if (qrNative && result.qrPayload) {
-        setAlign("center");
-        pushNativeQr(out, result.qrPayload, opts.qrModuleSize ?? 6);
-        setAlign("left");
+      if (m.qr) {
+        if (qrNative && result.qrPayload) {
+          setAlign(out, "center");
+          pushNativeQr(out, result.qrPayload, opts.qrModuleSize ?? 6);
+          setAlign(out, "left");
+        }
+        continue;
       }
-      // Non-native: skip the placeholder line; textual fallback is the
-      // caller's decision (usually a following center() row with the URL).
-      continue;
+
+      if (m.barcode) {
+        if (code128Native) {
+          setAlign(out, "center");
+          pushCode128(out, m.barcode.data);
+          setAlign(out, "left");
+        } else {
+          // Textual fallback — printers without Code128 still get the
+          // scannable-in-a-pinch text row.
+          setAlign(out, m.align);
+          encodeText(raw, out);
+          out.push(LF);
+          setAlign(out, "left");
+        }
+        continue;
+      }
+
+      setAlign(out, m.align);
+      if (m.bold) out.push(...CMD.BOLD_ON);
+      if (m.large) out.push(...CMD.DOUBLE_ON);
+
+      encodeText(raw, out);
+      out.push(LF);
+
+      if (m.large) out.push(...CMD.DOUBLE_OFF);
+      if (m.bold) out.push(...CMD.BOLD_OFF);
     }
+    setAlign(out, "left");
+  };
 
-    setAlign(m.align);
-    if (m.bold) push(CMD.BOLD_ON);
-    if (m.large) push(CMD.DOUBLE_ON);
+  const emitFeedCut = (out: number[]) => {
+    if (feedLines > 0) out.push(...CMD.FEED(feedLines));
+    if (cutMode === "full") out.push(...CMD.CUT);
+    else if (cutMode === "partial") out.push(GS, 0x56, 0x01);
+  };
 
-    encodeText(raw, out);
-    out.push(LF);
+  const emitInit = (out: number[]) => {
+    out.push(...CMD.INIT);
+    out.push(...CMD.CODEPAGE_CP858);
+    out.push(...CMD.PRINT_MODE(result.font === "B" ? 0x01 : 0x00));
+    alignState.get(out) === "left" || alignState.set(out, "left");
+  };
 
-    if (m.large) push(CMD.DOUBLE_OFF);
-    if (m.bold) push(CMD.BOLD_OFF);
-  }
-
-  setAlign("left");
-  push(CMD.FEED(opts.feedLinesAfter ?? 4));
-  if (opts.cut !== false && opts.caps?.auto_cut !== false) {
-    push(CMD.CUT);
+  const out: number[] = [];
+  for (let i = 0; i < copies; i++) {
+    emitInit(out);
+    const label = copyLabels[i]?.trim();
+    if (label) {
+      setAlign(out, "center");
+      out.push(...CMD.BOLD_ON, ...CMD.DOUBLE_ON);
+      encodeText(label, out);
+      out.push(LF);
+      out.push(...CMD.DOUBLE_OFF, ...CMD.BOLD_OFF);
+      setAlign(out, "left");
+    }
+    emitBody(out);
+    emitFeedCut(out);
   }
 
   return Uint8Array.from(out);
+}
+
+// Per-buffer alignment cache. Kept out of the emitter closure so we can
+// pass raw `number[]` arrays around (fresh state per Uint8Array).
+const alignState = new WeakMap<number[], "left" | "center" | "right">();
+function setAlign(out: number[], a: "left" | "center" | "right"): void {
+  if (alignState.get(out) === a) return;
+  out.push(...(a === "left" ? CMD.ALIGN_LEFT : a === "center" ? CMD.ALIGN_CENTER : CMD.ALIGN_RIGHT));
+  alignState.set(out, a);
 }
