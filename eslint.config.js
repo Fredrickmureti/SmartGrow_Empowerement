@@ -29,6 +29,7 @@ import noDirectBarcodeLib from "./eslint-rules/no-direct-barcode-lib.js";
 import noRawXlsxInApp from "./eslint-rules/no-raw-xlsx-in-app.js";
 import noRawEscposBytes from "./eslint-rules/no-raw-escpos-bytes.js";
 import noRawPdfLibInEdgeFunctions from "./eslint-rules/no-raw-pdf-lib-in-edge-functions.js";
+import noDirectGenerateDocumentInPages from "./eslint-rules/no-direct-generate-document-in-pages.js";
 
 
 
@@ -72,6 +73,7 @@ export default tseslint.config(
           "no-raw-xlsx-in-app": noRawXlsxInApp,
           "no-raw-escpos-bytes": noRawEscposBytes,
           "no-raw-pdf-lib-in-edge-functions": noRawPdfLibInEdgeFunctions,
+          "no-direct-generate-document-in-pages": noDirectGenerateDocumentInPages,
 
         },
       },
@@ -294,6 +296,18 @@ export default tseslint.config(
     files: ["supabase/functions/**/*.ts"],
     rules: {
       "local/no-raw-pdf-lib-in-edge-functions": "error",
+    },
+  },
+  // ADR-0086 / D3 — the canonical client entrypoint for server-rendered
+  // documents is `useDocumentPrint`. Pages must not call
+  // `supabase.functions.invoke("generate-document", …)` directly.
+  {
+    files: [
+      "src/pages/**/*.{ts,tsx}",
+      "src/features/**/pages/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "local/no-direct-generate-document-in-pages": "error",
     },
   },
 );
