@@ -59,45 +59,49 @@ export default function HardwareTopology() {
   }, [rows]);
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ marginBottom: 8 }}>Hardware Topology</h1>
-      <p style={{ color: '#666', marginBottom: 24 }}>
+    <div className="space-y-8 p-4 md:p-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Hardware Topology</h1>
+        <p className="text-sm text-muted-foreground">
         Live binding map for every device registered to this organization. Connection state
         is refreshed by the device ping loop — open Diagnostics to drive a recheck.
       </p>
+      </div>
       {Array.from(byBusiness.entries()).map(([bizKey, group]) => (
-        <section key={bizKey} style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 18, marginBottom: 8 }}>
+        <section key={bizKey} className="space-y-3">
+          <h2 className="text-lg font-semibold">
             {bizKey === '__tenant__' ? 'Tenant defaults' : `Business ${bizKey}`}
           </h2>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-                <th style={{ padding: 8 }}>Scope</th>
-                <th style={{ padding: 8 }}>Role</th>
-                <th style={{ padding: 8 }}>Driver</th>
-                <th style={{ padding: 8 }}>Transport</th>
-                <th style={{ padding: 8 }}>Name</th>
-                <th style={{ padding: 8 }}>Enabled</th>
-                <th style={{ padding: 8 }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {group.map((r, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: 8 }}>{r.scopeKind}{r.scopeId ? `:${r.scopeId.slice(0, 8)}` : ''}</td>
-                  <td style={{ padding: 8 }}>{r.role}</td>
-                  <td style={{ padding: 8 }}>{r.driver}</td>
-                  <td style={{ padding: 8 }}>{r.transport}</td>
-                  <td style={{ padding: 8 }}>{r.displayName ?? '—'}</td>
-                  <td style={{ padding: 8 }}>{r.enabled ? 'yes' : 'no'}</td>
-                  <td style={{ padding: 8, color: r.connected ? '#0a7' : '#a30' }}>
-                    {r.connected ? 'online' : 'offline'}
-                  </td>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-muted-foreground">
+                  <th className="p-2 font-medium">Scope</th>
+                  <th className="p-2 font-medium">Role</th>
+                  <th className="p-2 font-medium">Driver</th>
+                  <th className="p-2 font-medium">Transport</th>
+                  <th className="p-2 font-medium">Name</th>
+                  <th className="p-2 font-medium">Enabled</th>
+                  <th className="p-2 font-medium">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {group.map((r, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="p-2">{r.scopeKind}{r.scopeId ? `:${r.scopeId.slice(0, 8)}` : ''}</td>
+                    <td className="p-2">{r.role}</td>
+                    <td className="p-2">{r.driver}</td>
+                    <td className="p-2">{r.transport}</td>
+                    <td className="p-2">{r.displayName ?? '—'}</td>
+                    <td className="p-2">{r.enabled ? 'yes' : 'no'}</td>
+                    <td className={"p-2 " + (r.connected ? "text-success" : "text-destructive")}>
+                      {r.connected ? 'online' : 'offline'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ))}
     </div>
