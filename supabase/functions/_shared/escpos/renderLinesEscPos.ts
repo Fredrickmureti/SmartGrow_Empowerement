@@ -7,11 +7,9 @@
  * that preview / PDF / physical printer all render from a single row
  * producer (`buildReceiptLines`).
  *
- * Scope on this wave:
- *  - Self-contained (no import from `builder.ts`) so introducing it
- *    can't destabilise the current byte-golden builder. A follow-up
- *    swap-out will route `buildDocumentEscPos` through this emitter and
- *    delete the duplicated procedural section emitters in `builder.ts`.
+ * Scope:
+ *  - Self-contained (no import from the legacy `builder.ts`). Production
+ *    receipt callers must use this emitter through `renderDocumentEscPos`.
  *  - Same CP858 encoding + ASCII transliteration policy as `builder.ts`
  *    so a byte-parity assertion is meaningful when the swap happens.
  *  - Native QR emission (GS ( k) when caps.qr_native and a `qr:true`

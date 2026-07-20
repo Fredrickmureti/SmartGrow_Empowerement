@@ -18,8 +18,8 @@
  */
 
 import type { DocumentData } from "../templateRenderer.ts";
-import { buildReceiptLines } from "../receipt/lines.ts";
-import { documentToReceiptInput } from "../receipt/documentToInput.ts";
+import type { ReceiptLinesResult } from "../receipt/lines.ts";
+import { documentToReceiptLines } from "../receipt/documentToLines.ts";
 import { renderLinesEscPos } from "./renderLinesEscPos.ts";
 
 export type ThermalWidth = "40mm" | "58mm" | "80mm";
@@ -43,39 +43,25 @@ export interface RenderDocumentEscPosOptions {
   font?: "A" | "B";
 }
 
-export function renderDocumentEscPos(
+export interface RenderedDocumentEscPos {
+  bytes: Uint8Array;
+  /** Exact canonical rows encoded into `bytes`. */
+  rows: ReceiptLinesResult;
+}
+
+export function renderDocumentEscPosWithResult(
   doc: DocumentData,
   opts: RenderDocumentEscPosOptions = {},
-): Uint8Array {
-  const rs: Record<string, unknown> = {
-    ...(opts.receiptSettings ?? {}),
-  };
-
-  // Pin the engine's paper width to the caller's resolved thermal width so
-  // the row producer, PDF and ESC/POS stream all share one column grid.
-  if (opts.width) rs.paper_size = opts.width;
-
-  // Honor a per-printer font baseline when receipt_settings did not set one.
-  if (opts.font && !rs.font_size) {
-    rs.font_size = opts.font === "B" ? "small" : "medium";
-  }
-
-  // Honor caller-supplied column override (from printer_profiles).
-  if (opts.capabilities?.columns_override != null && rs.columns_override == null) {
-    rs.columns_override = opts.capabilities.columns_override;
-  }
-
-  const input = documentToReceiptInput(doc, {
-    settings: rs,
+): RenderedDocumentEscPos {
+  const rows = documentToReceiptLines(doc, {
+    width: opts.width,
     title: opts.title,
+    receiptSettings: opts.receiptSettings,
+    font: opts.font,
+    columnsOverride: opts.capabilities?.columns_override,
   });
 
-  const rows = buildReceiptLines(input);
-
-  // Wave 6b Phase 3 — copies, cut and feed are now DIRECTIVES on the
-  // result (produced by the row producer from settings). The emitter
-  // reads them directly. This helper only forwards printer capabilities.
-  return renderLinesEscPos(rows, {
+  const bytes = renderLinesEscPos(rows, {
     caps: {
       qr_native: opts.capabilities?.qr_native ?? true,
       auto_cut: opts.capabilities?.auto_cut ?? true,
@@ -83,4 +69,12 @@ export function renderDocumentEscPos(
       code128_native: opts.capabilities?.code128_native ?? true,
     },
   });
+  return { bytes, rows };
+}
+
+export function renderDocumentEscPos(
+  doc: DocumentData,
+  opts: RenderDocumentEscPosOptions = {},
+): Uint8Array {
+  return renderDocumentEscPosWithResult(doc, opts).bytes;
 }

@@ -5,7 +5,7 @@
  * `../lines.ts#buildReceiptLines`. Every row is emitted at a fixed
  * cell width using an embedded monospace font (Courier), so the printed
  * PDF is a pixel-faithful facsimile of both the on-screen monospace
- * preview and the ESC/POS byte stream emitted by `builder.ts`.
+ * preview and the ESC/POS byte stream emitted by `renderLinesEscPos.ts`.
  *
  * Rules (deterministic — no coordinate math in the caller):
  *   • Page WIDTH  = paper millimetres × 2.83465 pt/mm.
