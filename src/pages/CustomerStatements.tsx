@@ -311,20 +311,11 @@ export default function CustomerStatements() {
         throw new Error("Could not determine statement ID for PDF generation");
       }
 
-      // Use unified document engine
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { downloadPdfBlob } = await import("@/services/printing/pdfUtils");
-
-      const { data, error } = await supabase.functions.invoke("generate-document", {
-        body: { documentType: "customer_statement", documentId: statementId, format: "pdf" },
-      });
-
-      if (error) throw error;
-
-      const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
-      const filename = `Statement_${dataToUse.contact.name.replace(/[^a-zA-Z0-9]/g, "_")}_${format(new Date(), "yyyy-MM-dd")}.pdf`;
-      downloadPdfBlob(blob, filename);
-      toast.success("Statement PDF downloaded");
+      // Canonical client entrypoint (ADR-0086 / D3). Routes through
+      // `generate-document` via `useDocumentPrint.downloadPdf`, which owns
+      // %PDF magic-byte validation and success/failure toasts.
+      const filename = `Statement_${dataToUse.contact.name.replace(/[^a-zA-Z0-9]/g, "_")}_${format(new Date(), "yyyy-MM-dd")}`;
+      await downloadPdf("customer_statement", statementId, filename);
     } catch (error: any) {
       console.error("Statement print error:", error);
       toast.error("Failed to generate statement PDF: " + (normalizeError(error).message || "Unknown error"));
