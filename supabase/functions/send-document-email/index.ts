@@ -1,14 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-import { generateDocumentPdf } from "../_shared/pdfGenerator.ts";
 import { resolvePrintPolicy } from "../_shared/printing/resolvePolicy.ts";
-import {
-  type TemplateSettings,
-  type DocumentData,
-  type CustomField,
-  DEFAULT_TEMPLATE_SETTINGS,
-} from "../_shared/templateRenderer.ts";
 import { formatAccountingNumber as formatCurrency } from "../_shared/format/index.ts";
 
 const corsHeaders = {
@@ -664,10 +657,6 @@ const handler = async (req: Request): Promise<Response> => {
       recipientEmail = resolved as string;
     }
 
-    let items: any[] = [];
-    let template: Partial<TemplateSettings> = {};
-    let customFields: CustomField[] = [];
-
     // Get platform settings for email provider; identity is resolved by the
     // shared resolver so the document path uses the same tier as every
     // other tenant-facing surface (ADR 0023).
@@ -738,204 +727,10 @@ const handler = async (req: Request): Promise<Response> => {
     if (autoGeneratePdf) {
       console.log("Auto-generating PDF for", documentType, docNumber);
       try {
-        if (tableConfig.itemsTable) {
-          // Standard document types with items tables
-          let foreignKey: string;
-          if (documentType === "proforma") foreignKey = "proforma_invoice_id";
-          else if (documentType === "purchase_order") foreignKey = "purchase_order_id";
-          else if (documentType === "bill") foreignKey = "bill_id";
-          else foreignKey = `${documentType}_id`;
-          
-          const { data: itemsData } = await supabaseClient
-            .from(tableConfig.itemsTable)
-            .select("*")
-            .eq(foreignKey, resolvedDocumentId)
-            .order("sort_order", { ascending: true });
-          items = itemsData || [];
-          
-          // Fetch template settings
-          try {
-            const templateType = documentType === "proforma" ? "proforma" : documentType;
-            let templateQuery = supabaseClient
-              .from("document_templates")
-              .select("*")
-              .eq("organization_id", document.organization_id)
-              .eq("template_type", templateType)
-              .eq("is_active", true)
-              .eq("is_default", true);
-            
-            if (document.business_id) {
-              templateQuery = templateQuery.eq("business_id", document.business_id);
-            } else {
-              templateQuery = templateQuery.is("business_id", null);
-            }
-            
-            const { data: templateData } = await templateQuery.maybeSingle();
-            
-            if (templateData) {
-              template = templateData;
-            } else {
-              const { data: orgTemplate } = await supabaseClient
-                .from("document_templates")
-                .select("*")
-                .eq("organization_id", document.organization_id)
-                .eq("template_type", templateType)
-                .eq("is_active", true)
-                .eq("is_default", true)
-                .is("business_id", null)
-                .maybeSingle();
-              
-              if (orgTemplate) template = orgTemplate;
-            }
-          } catch (templateError) {
-            console.error("Template fetch error (using default):", templateError);
-          }
-          
-          // Fetch custom fields
-          try {
-            const { data: fieldConfigs } = await supabaseClient
-              .from("entity_field_configs")
-              .select("id, field_key, field_label, field_type, display_order, document_section")
-              .eq("organization_id", document.organization_id)
-              .eq("entity_type", documentType)
-              .eq("is_visible", true)
-              .order("display_order");
-            
-            if (fieldConfigs && fieldConfigs.length > 0) {
-              const { data: fieldValues } = await supabaseClient
-                .from("entity_field_values")
-                .select("field_key, field_value")
-                .eq("organization_id", document.organization_id)
-                .eq("entity_type", documentType)
-                .eq("entity_id", resolvedDocumentId);
-              
-              const valuesMap = new Map((fieldValues || []).map(v => [v.field_key, v.field_value]));
-              customFields = fieldConfigs
-                .filter(fc => valuesMap.has(fc.field_key) && valuesMap.get(fc.field_key))
-                .map(fc => ({
-                  field_label: fc.field_label,
-                  field_value: valuesMap.get(fc.field_key) || null,
-                  field_type: fc.field_type,
-                  document_section: (fc as any).document_section || 'additional',
-                }));
-            }
-          } catch (customFieldsError) {
-            console.error("Custom fields fetch error:", customFieldsError);
-          }
-
-          // Construct DocumentData for the shared PDF generator
-          const docData: DocumentData = {
-            document_number: docNumber,
-            document_type: documentType as DocumentData["document_type"],
-            status: document.status || "draft",
-            issue_date: document.issue_date,
-            due_date: document.due_date,
-            subtotal: document.subtotal || 0,
-            tax_amount: document.tax_amount || 0,
-            discount_amount: document.discount_amount || 0,
-            total: document.total || 0,
-            amount_paid: document.amount_paid || 0,
-            currency: document.currency || "USD",
-            notes: document.notes,
-            terms: document.terms,
-            contact: document.contact,
-            organization: document.organization,
-            items: items.map(i => ({
-              description: i.description,
-              quantity: i.quantity || 1,
-              unit_price: i.unit_price || 0,
-              tax_rate: i.tax_rate || 0,
-              line_total: i.line_total || 0,
-            })),
-            custom_fields: customFields.map(cf => ({
-              field_label: cf.field_label,
-              field_value: cf.field_value,
-              field_type: cf.field_type,
-              document_section: cf.document_section,
-            })),
-          };
-
-          const pdfBytes = await generateDocumentPdf(docData, template);
-          const pdfBase64Content = btoa(String.fromCharCode(...pdfBytes));
-          
-          const autoFilename = `${docLabel.toLowerCase().replace(" ", "-")}-${docNumber}.pdf`;
-          attachments.push({ filename: autoFilename, content: pdfBase64Content });
-          pdfFileSize = pdfBytes.length;
-
-          // Store PDF in Supabase Storage
-          const storagePath = `${document.organization_id}/${documentType}/${resolvedDocumentId}/${Date.now()}.pdf`;
-          const { error: uploadError } = await supabaseClient.storage
-            .from("document-pdfs")
-            .upload(storagePath, pdfBytes, { contentType: "application/pdf", upsert: true });
-          
-          if (uploadError) console.error("Failed to store PDF:", uploadError);
-          else { pdfStoragePath = storagePath; console.log("PDF stored at:", storagePath); }
-        } else if (documentType === "customer_statement" || documentType === "receipt" || documentType === "pos_receipt") {
-          // These types use the unified generate-document engine via internal fetch
-          console.log(`Generating ${documentType} PDF via unified engine for`, resolvedDocumentId);
-          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-
-          // Stage W5 (ADR-0008): consult the per-tenant print policy so the
-          // emailed attachment matches what the operator would see if they
-          // printed in-app. ESC/POS resolutions are coerced to PDF here —
-          // raw thermal bytes are not a useful email attachment. We stamp
-          // a one-line note in the email body in that case (below).
-          const emailPolicy = await resolvePrintPolicy(supabaseClient, {
-            businessId: document.business_id ?? null,
-            branchId: null,
-            documentType,
-          });
-          const emailPaperFormat = emailPolicy.render_mode === "escpos"
-            ? emailPolicy.paper_format // keep the configured size, just force PDF render
-            : emailPolicy.paper_format;
-          const wasThermal = emailPolicy.render_mode === "escpos";
-
-          const pdfResponse = await fetch(`${supabaseUrl}/functions/v1/generate-document`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${userJwt}`,
-            },
-            body: JSON.stringify({
-              documentType,
-              documentId: resolvedDocumentId,
-              format: "pdf",
-              paperFormat: emailPaperFormat,
-              renderMode: "pdf",
-            }),
-          });
-          if (wasThermal) {
-            console.log(
-              `[send-document-email] policy for ${documentType} resolved to ESC/POS — coerced to PDF for email attachment`,
-            );
-          }
-
-          if (!pdfResponse.ok) {
-            const errText = await pdfResponse.text();
-            throw new Error(`${docLabel} PDF generation failed: ${errText}`);
-          }
-
-          const pdfArrayBuffer = await pdfResponse.arrayBuffer();
-          const pdfBytes = new Uint8Array(pdfArrayBuffer);
-          const pdfBase64Content = btoa(String.fromCharCode(...pdfBytes));
-          
-          const safeDocNumber = String(docNumber || resolvedDocumentId).replace(/[^a-zA-Z0-9_-]/g, "_");
-          const autoFilename = `${docLabel.toLowerCase().replace(/\s+/g, "-")}-${safeDocNumber}.pdf`;
-          attachments.push({ filename: autoFilename, content: pdfBase64Content });
-          pdfFileSize = pdfBytes.length;
-
-          const storagePath = `${document.organization_id}/${documentType}/${resolvedDocumentId}/${Date.now()}.pdf`;
-          const { error: uploadError } = await supabaseClient.storage
-            .from("document-pdfs")
-            .upload(storagePath, pdfBytes, { contentType: "application/pdf", upsert: true });
-          
-          if (uploadError) console.error("Failed to store PDF:", uploadError);
-          else { pdfStoragePath = storagePath; console.log("PDF stored at:", storagePath); }
-        } else if (documentType === "payslip") {
+        if (documentType === "payslip") {
           // Payslips use the dedicated branded engine.
           console.log("Generating payslip PDF for", resolvedDocumentId);
           const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-
           const pdfResponse = await fetch(`${supabaseUrl}/functions/v1/generate-payslip-pdf`, {
             method: "POST",
             headers: {
@@ -966,6 +761,66 @@ const handler = async (req: Request): Promise<Response> => {
 
           if (uploadError) console.error("Failed to store payslip PDF:", uploadError);
           else { pdfStoragePath = storagePath; console.log("Payslip PDF stored at:", storagePath); }
+        } else {
+          // Enterprise invariant: `generate-document` is the canonical PDF
+          // owner for ERP documents. Email must not construct DocumentData or
+          // call the A4 coordinate renderer directly; otherwise thermal
+          // printer-profile documents (40/58/80mm) bypass the receipt engine.
+          console.log(`Generating ${documentType} PDF via unified engine for`, resolvedDocumentId);
+          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
+          // Stage W5 (ADR-0008): consult the per-tenant print policy so the
+          // emailed attachment matches what the operator would see if they
+          // printed in-app. ESC/POS resolutions are coerced to PDF here — raw
+          // thermal bytes are not a useful email attachment.
+          const emailPolicy = await resolvePrintPolicy(supabaseClient, {
+            businessId: document.business_id ?? null,
+            branchId: document.branch_id ?? null,
+            documentType,
+          });
+          const wasThermal = emailPolicy.render_mode === "escpos";
+
+          const pdfResponse = await fetch(`${supabaseUrl}/functions/v1/generate-document`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${userJwt}`,
+            },
+            body: JSON.stringify({
+              documentType,
+              documentId: resolvedDocumentId,
+              format: "pdf",
+              paperFormat: emailPolicy.paper_format,
+              renderMode: "pdf",
+            }),
+          });
+          if (wasThermal) {
+            console.log(
+              `[send-document-email] policy for ${documentType} resolved to ESC/POS — coerced to PDF for email attachment`,
+            );
+          }
+
+          if (!pdfResponse.ok) {
+            const errText = await pdfResponse.text();
+            throw new Error(`${docLabel} PDF generation failed: ${errText}`);
+          }
+
+          const pdfArrayBuffer = await pdfResponse.arrayBuffer();
+          const pdfBytes = new Uint8Array(pdfArrayBuffer);
+          const pdfBase64Content = btoa(String.fromCharCode(...pdfBytes));
+
+          const safeDocNumber = String(docNumber || resolvedDocumentId).replace(/[^a-zA-Z0-9_-]/g, "_");
+          const autoFilename = `payslip-${safeDocNumber}.pdf`;
+          attachments.push({ filename: autoFilename, content: pdfBase64Content });
+          pdfFileSize = pdfBytes.length;
+
+          const storagePath = `${document.organization_id}/${documentType}/${resolvedDocumentId}/${Date.now()}.pdf`;
+          const { error: uploadError } = await supabaseClient.storage
+            .from("document-pdfs")
+            .upload(storagePath, pdfBytes, { contentType: "application/pdf", upsert: true });
+
+          if (uploadError) console.error("Failed to store PDF:", uploadError);
+          else { pdfStoragePath = storagePath; console.log("PDF stored at:", storagePath); }
         }
       } catch (pdfError) {
         console.error("PDF generation failed:", pdfError);
