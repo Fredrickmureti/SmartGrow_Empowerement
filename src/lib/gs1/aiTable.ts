@@ -57,4 +57,5 @@ export const GS1_AI_TABLE: AiSpec[] = [
 export const GS1_SYMBOLOGY_PREFIXES = ["]C1", "]e0", "]d2", "]Q3"];
 
 /** FNC1 group separator (ASCII 0x1D / GS). */
+// RENDERER-EXEMPT: GS1 FNC1 separator (barcode data payload), not an ESC/POS command byte.
 export const FNC1 = "\x1d";
