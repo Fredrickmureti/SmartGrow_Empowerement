@@ -1,28 +1,27 @@
 /**
  * POS receipt UI model (client-side, on-screen only).
  *
- * Role boundary — read this before adding a caller:
+ * ADR-0086 — this dual-model split is INTENTIONAL and permanent:
  *   • `ReceiptDocumentModel` is the **UI/customer-display shape** for the
- *     POS surfaces (TransactionSummaryView, ReceiptPreviewDialog,
- *     PostPaymentScreen) and the second-screen `CustomerDisplayRenderer`.
- *     It is built from either a frozen `pos_receipt_snapshots.payload`
- *     or the live in-memory transaction.
+ *     four POS surfaces (TransactionSummaryView, ReceiptPreviewDialog,
+ *     PostPaymentScreen, CustomerDisplayRenderer). It carries UI-only
+ *     concerns — is_reprint watermark, is_offline badge, resolved POS
+ *     title, live tender/change derivation — that no emittable artifact
+ *     needs.
  *   • `DocumentData` (server, `supabase/functions/_shared/templateRenderer.ts`)
- *     is the **canonical print shape**. Every printed / emitted receipt
- *     — thermal PDF, ESC/POS bytes, kitchen ticket, invoice, statement —
- *     is produced from `DocumentData` via `documentToReceiptInput` +
- *     `buildReceiptLines`. The server refetches from the snapshot on
- *     print by design (tamper resistance, single source of truth).
+ *     is the **canonical shape for every printed / emitted artifact** —
+ *     thermal PDF, ESC/POS bytes, kitchen ticket, invoice, statement, PO,
+ *     delivery note, HR letter. Emitters read the frozen snapshot on print
+ *     for tamper resistance.
  *
- * These two shapes intentionally exist in parallel today. The
- * consolidation target (`.lovable/plan.md` Phase 3, item 7) is a
- * one-way collapse: introduce a client mirror of `DocumentData`, add a
- * `receiptModelToDocumentData()` adapter, migrate the four POS surfaces,
- * and delete this file. Do NOT reintroduce this shape into the print or
- * ESC/POS pipeline in the meantime — that path stays canonical.
+ * Both models MUST derive their numeric fields from the same
+ * `pos_receipt_snapshots.payload` when one exists. That invariant is
+ * locked by `pos-receipt-cross-model-consistency.test.ts`.
  *
  * The `pos-receipt-model-boundary` architecture test enforces the second
  * invariant (no print/ESC/POS/PDF code may import `ReceiptDocumentModel`).
+ * If a new emittable artifact appears, extend `DocumentData` — not this
+ * file.
  */
 import type { POSReceiptSnapshot } from "@/hooks/pos/useReceiptSnapshot";
 import type { ExtendedReceiptSettings } from "@/types/receipt";

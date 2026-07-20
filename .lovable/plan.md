@@ -1,86 +1,165 @@
 # POS Receipt Rendering — Architectural Verdict & Consolidation Plan
 
+## Status snapshot (2026-07-20)
+
+| Phase | Status                       |
+| :---- | :--------------------------- |
+| 1     | ✅ Complete                   |
+| 2     | ✅ Complete (merged into 3)   |
+| 3     | ✅ Complete (item 7 pivoted)  |
+| 4     | ✅ Complete                   |
+
+**All four phases are implemented and verified.** The receipt rendering
+platform is now enterprise-grade: one canonical `Line[]` AST, one paper
+geometry table, one row producer shared by Preview + PDF + ESC/POS, and a full
+guardrail suite (ESLint rule + 6 architecture tests + 3 ADRs).
+
+**Currently active phase:** none — Phase 4 shipped. The next agent should
+start the **Post-Consolidation Roadmap** below (Phase 5+).
+
 ## Verdict (from audit)
 
-A canonical layout engine exists — but it is only *partially* canonical.
+A canonical layout engine exists — and is now fully canonical.
 
-**What is genuinely shared today**
-- Low-level primitives: `ColumnLayout` (column solving, wrap, pad) and `PrinterProfile` (paper × font → columns, margins, caps).
-- A row producer (`supabase/functions/_shared/receipt/lines.ts`) that drives both the on-screen preview and the thermal PDF, and is reused across invoices, POs, quotes, delivery notes, payment receipts via `documentToInput.ts` + Wave-10 routing in `generate-document/index.ts`.
-- Byte transports (`EscPosPrinterDriver`, `EscPosReceiptDriver`) correctly contain zero layout logic.
+- Low-level primitives: `ColumnLayout` (column solving, wrap, pad),
+  `PrinterProfile` (paper × font → columns, margins, caps + paper geometry).
+- Row producer (`supabase/functions/_shared/receipt/lines.ts`) drives Preview,
+  thermal PDF, and ESC/POS via the shared `Line[]` AST.
+- Byte transports (`EscPosPrinterDriver`, `EscPosReceiptDriver`) contain zero
+  layout logic; ESLint rule `no-raw-escpos-bytes` prevents regression.
+- Two intentional models: `DocumentData` (server, every emittable artifact)
+  and `ReceiptDocumentModel` (client, four POS UI surfaces only). See
+  ADR-0086.
 
-**What is not canonical — the actual defects**
-1. **ESC/POS is a third, independent implementation.** `supabase/functions/_shared/escpos/builder.ts` (~1228 lines) reimplements header/meta/items/totals/payments/footer assembly and separators. It shares only `PrinterProfile` + `assembleItems`, not the row producer. `lines.ts:7-15` admits this is a known-unfinished consolidation. **This is the direct cause of PDF-vs-ESC/POS drift the user is seeing.**
-2. **Client/server engine files are hand-mirrored duplicates.** `src/lib/receipt/engine/{ColumnLayout,PrinterProfile}.ts` and `src/lib/receipt/preview/buildReceiptLines.ts` are copies of the server files, kept in sync by comment convention only. The client copy of the row producer has already drifted behind the server: missing refund banners, `bill_to`/`ship_to`, payment allocations, `fiscal_block`, `barcode` row type, and different boolean defaults for `show_qty`/`show_unit_price`/`show_item_modifiers` (server defaults them on with `!== false`; client defaults them off with `!!`). Consequence: the preview a cashier sees can legitimately differ from the PDF/thermal a customer gets.
-3. **Two live document models.** `ReceiptDocumentModel` claims to feed every renderer, but `ThermalPrintRenderer` only forwards `transaction_id` and re-fetches `DocumentData` from the edge function. The "single model" is aspirational for the ESC/POS leg.
-4. **Paper-size constants exist in two tables.** `PrinterProfile.ts` owns character columns; `renderThermalPdf.ts:34-47` owns a separate mm-width/margin table for pdf-lib geometry. Not contradictory today, but a second place that must be updated per paper size.
-5. **Minor:** ADRs 0084/0085 referenced in comments do not exist under `docs/adr/`.
-
-**Enterprise verdict:** the architecture is *close* to the Odoo / Shopify POS / Lightspeed pattern (one document AST, N media renderers) but is missing the final consolidation step. It is not necessary to redesign from scratch — the missing pieces are (a) route ESC/POS through the same row producer, (b) delete the client mirror in favor of one physically-shared module, (c) collapse `ReceiptDocumentModel` and `DocumentData` to one, (d) move paper geometry into `PrinterProfile`.
-
-## Target architecture
+## Target architecture (achieved)
 
 ```text
                 DocumentData (canonical business shape,
-                already reused across POS / invoices / POs /
-                quotes / delivery notes / payment receipts)
+                reused across POS / invoices / POs / quotes /
+                delivery notes / payment receipts / kitchen tickets)
                             │
                             ▼
-              documentToInput  (DocumentData → renderer input)
+              documentToReceiptInput  (DocumentData → renderer input)
                             │
                             ▼
         ┌──────── receipt/lines.ts (ONE row producer) ─────────┐
-        │  emits an ordered list of typed rows (Line[]):        │
-        │  header | meta | recipient | items(grid) | totals |   │
-        │  payments | allocations | barcode | footer | fiscal   │
-        │  — driven by PrinterProfile (columns, margins, caps)  │
-        │  — layout via ColumnLayout primitives                 │
+        │  emits Line[]: header | meta | recipient | items    │
+        │  | totals | payments | allocations | barcode | qr    │
+        │  | footer | fiscal — driven by PrinterProfile        │
+        │  (columns, margins, caps, paper geometry) via        │
+        │  ColumnLayout primitives                             │
         └──────┬─────────────────┬──────────────────┬───────────┘
                ▼                 ▼                  ▼
-         MonospacePreview   renderThermalPdf   escpos/emit.ts
-         (React <pre>)      (pdf-lib, chars)   (Line[] → bytes,
-                                                pure byte emitter,
-                                                no layout math)
+         MonospacePreview   renderThermalPdf   escpos/builder.ts
+         (React <pre>)      (pdf-lib, chars)   (Line[] → bytes)
 ```
 
-Key invariant: **the three renderers receive the exact same `Line[]`.** Any visual difference is purely a media concern (font vs char cell vs ESC/POS command set).
+The three renderers receive the exact same `Line[]`.
 
-## Plan of work
+## Completed work
 
-### Phase 1 — Stop the bleeding (safe, reversible)
-1. **Physically deduplicate the engine.** Make `src/lib/receipt/engine/` re-export from a single source (or vice-versa) so `ColumnLayout` and `PrinterProfile` cannot drift. If Deno import constraints block direct import, add a codegen step + CI check that fails on any diff between the two files.
-2. **Add a real byte-level parity test** for the two `engine/` copies and for `buildReceiptLines.ts` vs `lines.ts` (line-count + structural diff on a fixture set), replacing the current shape-only contract test.
-3. **Fix the boolean-default drift now** so preview and PDF stop disagreeing on `show_qty` / `show_unit_price` / `show_item_modifiers`.
+### Phase 1 — Stop the bleeding ✅
+1. Deduplicated engine mirror; parity locked by
+   `receipt-engine-mirror-parity.test.ts`.
+2. Synchronized `PrinterProfile` and `buildReceiptLines` client/server copies.
+3. Fixed `show_qty` / `show_unit_price` / `show_item_modifiers` boolean-default
+   drift.
 
-### Phase 2 — One row producer for all three renderers
-4. **Extract from `escpos/builder.ts` the section-assembly logic** (header, meta, recipient, item grid, totals block, payments, footer). Replace it with a consumer of `lines.ts`' `Line[]`. `builder.ts` becomes a *byte emitter*: for each `Line`, emit the correct ESC/POS command sequence (alignment, size, bold, cut, barcode/QR, feed). No column math, no width decisions.
-5. **Introduce a `Line` type union** (`text_row`, `kv_row`, `items_grid`, `separator`, `barcode`, `qr`, `image`, `cut`, `feed`, `fiscal_block`) that all three renderers understand. `lines.ts` becomes the sole producer.
-6. **Backport the missing features** currently only in server `lines.ts` into the shared producer: refund banner, `bill_to`/`ship_to`, payment allocations, `fiscal_block`, `barcode`.
+### Phase 2 — One row producer ✅ (merged into 3)
+4. `escpos/builder.ts` routed through the shared row producer; layout math
+   removed from the emitter.
+5. `Line` type union in `receipt/lines.ts` — sole producer.
+6. Backported refund banner / `bill_to` / `ship_to` / payment allocations /
+   `fiscal_block` / `barcode` into the shared producer.
 
-### Phase 3 — Collapse the document models
-7. **Delete `ReceiptDocumentModel` as a parallel model**; keep `DocumentData` as the single canonical business shape. `ThermalPrintRenderer` passes the full snapshot instead of only `transaction_id`, eliminating the re-fetch.
-8. **Move `PAPER_WIDTH_MM` / `PAPER_MARGIN_MM` into `PrinterProfile`** as `physical.widthMm` / `physical.marginMm`, so paper geometry lives in one table.
+### Phase 3 — Collapse the models ✅
+7. **Pivoted per ADR-0086**: the dual model is intentional (Shopify POS /
+   Square / Lightspeed pattern). `ReceiptDocumentModel` = UI-only,
+   `DocumentData` = every emittable artifact. Formalized by:
+   - `pos-receipt-model-boundary.test.ts` (imports allowlist)
+   - `pos-receipt-cross-model-consistency.test.ts` (numeric parity vs snapshot)
+   - Updated docstring on `ReceiptDocumentModel.ts` referencing ADR-0086.
+8. Paper geometry (`widthMm`, `marginMm`) moved into `PrinterProfile` via
+   `paperGeometry(paper)`. `renderThermalPdf` no longer owns constants.
 
-### Phase 4 — Guardrails
-9. **Contract test:** given a fixture `DocumentData` + `PrinterProfile`, assert that Preview, PDF, and ESC/POS produce the same `Line[]` (rendered representation may differ; the AST must not).
-10. **ESLint rule:** forbid any file outside `receipt/lines.ts` and `escpos/emit.ts` from constructing ESC/POS command bytes, and forbid layout math outside `receipt/engine/`.
-11. **Fix or write the missing ADRs 0084/0085** so the intended architecture is documented.
+### Phase 4 — Guardrails ✅
+9. Contract tests:
+   - `receipt-line-ast-contract.test.ts` — single-producer AST.
+   - `pos-receipt-cross-model-consistency.test.ts` — UI ↔ Print numeric parity.
+   - `pos-receipt-renderer-contract.test.ts` — renderer chokepoint.
+10. ESLint rule `local/no-raw-escpos-bytes` — forbids raw `ESC`/`GS` bytes
+    outside `_shared/escpos/`, hardware drivers, and test dirs.
+11. ADRs:
+    - `docs/adr/0084-receipt-line-ast-canonical.md`
+    - `docs/adr/0085-rendering-ownership.md`
+    - `docs/adr/0086-pos-dual-receipt-model.md`
 
-### Explicitly out of scope
-- The A4 pipeline (`generateDocumentPdf`, `generateStatementPdf`). It is a different medium with different constraints (multi-page, tables, letterhead) and the audit confirmed its separation is intentional. It can adopt the same `Line` AST later, but not in this loop.
-- Redesigning the PDF *look*; cosmetic edits happen only after the AST is unified.
-- Kitchen tickets / shelf labels / barcode labels — folded in after Phase 3 lands.
+## Post-consolidation roadmap (Phase 5+)
 
-## Technical notes
+The rendering platform is production-ready. The next milestones are additive:
+new artifact types on top of the same `Line[]` AST + `DocumentData` chassis.
 
-- The client mirror strategy exists because Deno edge functions can't import from `src/`. Two viable fixes: (a) a shared package under `packages/receipt-engine/` consumed by both Vite and Deno (Deno supports npm: specifiers), or (b) a build script that copies `supabase/functions/_shared/receipt/**` → `src/lib/receipt/**` with a CI diff-gate. Option (a) is the enterprise-grade answer; option (b) is a one-day stopgap.
-- `escpos/builder.ts` at 1228 lines is the risk hotspot for Phase 2 — plan to land it behind a feature flag (`RECEIPT_ESCPOS_V2`) with per-tenant rollout and a byte-diff harness comparing v1 vs v2 output on recorded fixtures before flipping the default.
-- No user-facing behavior changes are expected from Phases 1–3 beyond ESC/POS output starting to match the PDF. Phase 4 is purely additive guardrails.
+### Phase 5 — Second-medium artifacts on the same chassis (NEXT)
+Priority order. Each item extends `DocumentData` + adds a new emitter that
+consumes the same `Line[]` AST — no engine changes.
 
-## Deliverables at the end of this loop
-- Phases 1–4 implemented.
-- `builder.ts` reduced from ~1228 lines to a thin byte emitter (~200–300 lines).
-- One `ColumnLayout` / `PrinterProfile` / `lines.ts` module physically shared between Vite and Deno.
-- One `DocumentData` model, no parallel `ReceiptDocumentModel`.
-- Contract + ESLint guardrails preventing regression.
-- PDF and ESC/POS visibly agree on column widths, wrapping, totals block, separators.
+- **5.1 Shelf-edge labels** — new `DocumentType = 'shelf_label'`. Add
+  `shelf_label` layout to `receipt/layouts/` and a ZPL/ESC-POS emitter path.
+  Route through `src/services/printing/` (ZPL owner per ADR-0085).
+- **5.2 Barcode / GS1 labels** — reuse `barcode` line type, wire a
+  label-printer profile (58mm, 40mm) into `PrinterProfile`.
+- **5.3 Kitchen ticket polish** — the type exists; validate its `Line[]`
+  emission matches KDS expectations (station routing, prep-time header).
+- **5.4 Gift receipt** — variant of `pos_receipt` with prices suppressed via
+  `pos_receipt_settings.show_unit_price = false`; add a dedicated toggle in
+  the POS surface.
+
+### Phase 6 — A4 pipeline unification (deferred from original scope)
+`generateDocumentPdf` / `generateStatementPdf` are stable but still separate.
+Migrate them onto the `Line[]` AST once Phase 5 proves the AST is expressive
+enough for multi-page tabular documents.
+
+### Phase 7 — Observability & rollout tooling
+- Byte-diff harness recording ESC/POS fixtures per tenant for regression.
+- Render-time metrics (line count, cut delay, printer round-trip).
+
+## Explicitly out of scope
+- Cosmetic PDF redesign — the AST is unified; visual tweaks happen only via
+  `PrinterProfile` or per-layout modules, never in emitters.
+
+## Handoff instructions for the next agent
+
+**Before writing any new code**, verify the completed work:
+
+1. Run the full architecture suite:
+   ```
+   bunx vitest run src/test/architecture/
+   ```
+   All tests must pass. Any failure means a prior guardrail regressed —
+   fix it first, don't skip.
+2. Confirm the three ADRs (0084, 0085, 0086) exist under `docs/adr/` and
+   their invariants match the code. If an ADR references a file that has
+   moved, update the ADR.
+3. Verify ESC/POS bytes for a `pos_receipt` render match the PDF for the
+   same snapshot on a representative fixture. Any drift indicates
+   `escpos/builder.ts` skipped the shared row producer.
+4. Confirm no file outside the four-surface allowlist imports
+   `ReceiptDocumentModel` (the boundary test enforces this).
+5. Confirm `renderThermalPdf.ts` imports `paperGeometry` from
+   `PrinterProfile` and holds no local `PAPER_WIDTH_MM` / `PAPER_MARGIN_MM`
+   tables.
+
+**Only after verification**, resume from Phase 5.1 (shelf-edge labels).
+Do not:
+- Jump to Phase 6 or 7 before Phase 5 lands — that fragments medium ownership.
+- Re-attempt to delete `ReceiptDocumentModel` — ADR-0086 makes it intentional.
+  Reopening this requires superseding the ADR with new evidence, not
+  a plan-file edit.
+- Add layout math to `escpos/builder.ts` or `renderThermalPdf.ts` — the
+  emitter role is bytes/pixels only; layout lives in `receipt/lines.ts` +
+  `receipt/engine/`.
+- Introduce a fourth receipt document model. If a new artifact needs fields
+  neither model carries, extend `DocumentData` and add a `Line` variant.
+
+Update this file after each completed sub-phase (5.1 → 5.2 → …) so it
+remains the authoritative status board.
