@@ -2,7 +2,7 @@
  * ADR-0008 Phase T5 — ESC/POS ↔ PDF parity guardrail.
  *
  * Both thermal renderers (server PDF via `PdfBuilder` and byte-stream ESC/POS
- * via `buildDocumentEscPos`) must consume the SAME `DocumentData` shape.
+ * via `renderDocumentEscPos`) must consume the SAME `DocumentData` shape.
  * This test locks the contract: one shared fixture, both renderers succeed,
  * and both surface the document identifiers a receipt reader expects
  * (document number, total). If a future refactor forks the shape, one of
@@ -11,7 +11,7 @@
  */
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { PdfBuilder } from "../PdfBuilder.ts";
-import { buildDocumentEscPos } from "../../escpos/builder.ts";
+import { renderDocumentEscPos } from "../../escpos/renderDocumentEscPos.ts";
 
 const MM_TO_PT = 72 / 25.4;
 
@@ -46,10 +46,12 @@ function asciiDecode(bytes: Uint8Array): string {
 }
 
 Deno.test("T5 parity: ESC/POS renderer accepts the shared DocumentData", () => {
-  const bytes = buildDocumentEscPos(doc);
+  const bytes = renderDocumentEscPos(doc, { width: "80mm" });
   assert(bytes.length > 0, "ESC/POS output must be non-empty");
   const text = asciiDecode(bytes);
   assert(text.includes("R-4242"), "ESC/POS output must include document number");
+  assert(text.includes("No:"), "ESC/POS output must use the shared PDF-style receipt number row");
+  assert(!/\n\s*#\s*R-4242/.test(text), "ESC/POS output must not use the legacy centered #receipt-number row");
 });
 
 Deno.test("T5 parity: PdfBuilder renders the shared DocumentData on 80mm continuous", async () => {
