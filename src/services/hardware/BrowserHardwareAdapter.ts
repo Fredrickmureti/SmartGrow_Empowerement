@@ -167,7 +167,36 @@ class BrowserHardwareAdapterService {
           ? 'label_printer'
           : 'receipt_printer';
         const type = cmd.op === 'print_receipt' ? 'print_receipt' : 'print_raw';
-        return this.executeForRole(target, { type, payload: cmd.payload });
+        // Normalize label payload → raw byte array. labelDispatch emits
+        // `{ zpl }` / `{ bytes }` / `{ pdfUrl }` shaped for the main-process
+        // label drivers; the renderer fallback speaks raw bytes only, so
+        // extract/encode here before handing to the ESC/POS transport.
+        // Without this, `{ zpl: "..." }` would be forwarded as the HTTP
+        // `data` field and the local agent would reject with
+        // "Missing required fields: ipAddress, port, data".
+        const raw = cmd.payload as
+          | number[]
+          | Uint8Array
+          | { bytes?: number[] | Uint8Array; zpl?: string; epl?: string; text?: string }
+          | undefined;
+        let bytes: number[] | Uint8Array | undefined;
+        if (Array.isArray(raw) || raw instanceof Uint8Array) {
+          bytes = raw;
+        } else if (raw && typeof raw === 'object') {
+          if (Array.isArray(raw.bytes) || raw.bytes instanceof Uint8Array) {
+            bytes = raw.bytes;
+          } else if (typeof raw.zpl === 'string') {
+            bytes = Array.from(new TextEncoder().encode(raw.zpl));
+          } else if (typeof raw.epl === 'string') {
+            bytes = Array.from(new TextEncoder().encode(raw.epl));
+          } else if (typeof raw.text === 'string') {
+            bytes = Array.from(new TextEncoder().encode(raw.text));
+          }
+        }
+        if (!bytes || (Array.isArray(bytes) && bytes.length === 0)) {
+          return { success: false, error: `label_printer:${cmd.op} payload missing bytes/zpl/epl/text` };
+        }
+        return this.executeForRole(target, { type, payload: bytes });
       }
       case 'cash_drawer:open': {
         const p = cmd.payload as { pin?: 2 | 5 } | undefined;
