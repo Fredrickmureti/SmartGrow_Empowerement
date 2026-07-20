@@ -121,7 +121,7 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(src).not.toMatch(/generateDocumentEscPosBytes/);
   });
 
-  it("Stage X7 — generate-document forwards merged ExtendedReceiptSettings into buildDocumentEscPos", () => {
+  it("Stage X7 — generate-document forwards merged ExtendedReceiptSettings into the canonical ESC/POS emitter", () => {
     const src = readFileSync(
       join(root, "supabase", "functions", "generate-document", "index.ts"),
       "utf8",
@@ -134,8 +134,14 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(src).toMatch(/from\("pos_settings"\)[\s\S]{0,200}receipt_settings/);
     // Merger from the shared module must be invoked.
     expect(src).toMatch(/mergeReceiptSettings/);
-    // The builder call site must forward the merged object.
-    expect(src).toMatch(/buildDocumentEscPos\([\s\S]*receiptSettings:/);
+    // The emitter call site must forward the merged object. Per ADR-0084 the
+    // canonical Line[]-AST emitter is `renderDocumentEscPos`; the legacy
+    // `buildDocumentEscPos` remains alive only for kitchen tickets and
+    // byte-golden tests. Accept either name here so the guardrail keeps
+    // enforcing "settings must be forwarded" without pinning to the legacy.
+    expect(src).toMatch(
+      /(?:renderDocumentEscPos|buildDocumentEscPos)\([\s\S]*?receiptSettings:/,
+    );
   });
 
   it("Stage X7 — buildDocumentEscPos consumes ExtendedReceiptSettings sections", () => {
