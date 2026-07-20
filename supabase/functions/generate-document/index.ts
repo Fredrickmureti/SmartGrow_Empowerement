@@ -2683,8 +2683,14 @@ serve(async (req) => {
       rsPaperSize === "58mm" || effectivePaper === "58mm" ? "58mm" :
       rsPaperSize === "80mm" || effectivePaper === "80mm" ? "80mm" :
       "80mm";
+    // Wave 10 — paper-aware routing. ANY thermal-width document (invoice,
+    // PO, quote, delivery note, sales order…) must flow through the
+    // engine, not the A4 coordinate renderer. Statements stay on
+    // `generateStatementPdf` (structurally A4-only). POS receipts always
+    // route through the engine even when the org's policy paper is
+    // A4/Letter, because a receipt is fundamentally a thermal artifact.
     const routeThroughThermalEngine =
-      isReceiptLike && !isStatement && (isThermalWidth || documentType === "pos_receipt");
+      !isStatement && (isThermalWidth || documentType === "pos_receipt");
     console.log(
       `[thermal-route] docType=${documentType} effPaper=${effectivePaper} ` +
         `isReceiptLike=${isReceiptLike} isStatement=${isStatement} ` +

@@ -89,6 +89,16 @@ export interface ReceiptPaymentLike {
   reference?: string | null;
 }
 
+export interface ReceiptRecipientLike {
+  label?: string;               // "Bill To" | "Customer" | "Ship To"
+  name?: string | null;
+  company?: string | null;
+  address_lines?: Array<string | null | undefined>;
+  phone?: string | null;
+  email?: string | null;
+  tax_id?: string | null;
+}
+
 export interface ReceiptTransactionLike {
   id?: string;
   transaction_number?: string;
@@ -108,6 +118,21 @@ export interface ReceiptTransactionLike {
   etims_qr_data?: string | null;
   /** Optional resolved title, e.g. "SALES RECEIPT" / "TAX INVOICE" / "REFUND". */
   title?: string;
+  // ── Non-POS document extras (invoice / quote / PO / delivery note) ──
+  /** Structured recipient block. Rendered as a labelled address block. */
+  bill_to?: ReceiptRecipientLike | null;
+  ship_to?: ReceiptRecipientLike | null;
+  /** Due date, already formatted or ISO — engine reformats when ISO. */
+  due_date?: string | null;
+  /** Human status label (e.g. "COMPLETED", "OVERDUE"). */
+  status?: string | null;
+  /** Free-form notes block. */
+  notes?: string | null;
+  /** Terms & conditions block. */
+  terms?: string | null;
+  /** Currency ISO code (KES, USD…). Adapter passes this so engine can fall
+   * back to a code prefix when no symbol override is configured. */
+  currency_code?: string | null;
 }
 
 export interface BuildReceiptLinesInput {
@@ -200,16 +225,17 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
 
   const decimals = typeof rs.decimal_places === "number" ? rs.decimal_places : 2;
   const thousands = (rs.thousands_separator ?? ",") as string;
+  const currencyCode = (t.currency_code ?? "").toString().trim();
   const fmtCur = (n: number) => {
     const num = fmtNumber(Number(n ?? 0), decimals, thousands);
-    const sym = typeof rs.currency_symbol_override === "string"
+    const explicitSym = typeof rs.currency_symbol_override === "string"
       ? rs.currency_symbol_override.trim()
       : "";
+    // Priority: explicit symbol > ISO code prefix (invoice/PO fallback) > none
+    const sym = explicitSym || currencyCode;
     if (rs.currency_display === "none") return num;
-    if (rs.currency_display === "symbol" && sym) {
-      return rs.currency_position === "after" ? `${num} ${sym}` : `${sym}${num}`;
-    }
-    return num;
+    if (!sym) return num;
+    return rs.currency_position === "after" ? `${num} ${sym}` : `${sym} ${num}`;
   };
   const fmtMoney = (n: number) => fmtNumber(Number(n ?? 0), decimals, thousands);
 
@@ -240,6 +266,15 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   if (rs.show_date_time !== false && t.created_at) {
     left(padLR("Date:", fmtDateTime(t.created_at, rs.date_format, rs.time_format), cw));
   }
+  if (t.due_date) {
+    const dueLabel = /^\d{4}-\d{2}-\d{2}/.test(t.due_date)
+      ? fmtDateTime(t.due_date, rs.date_format, "none")
+      : t.due_date;
+    left(padLR("Due:", dueLabel, cw));
+  }
+  if (t.status && rs.show_status !== false) {
+    left(padLR("Status:", String(t.status).toUpperCase(), cw));
+  }
   if (rs.show_cashier_name && t.cashier_name) {
     const label = rs.cashier_label_format === "served_by" ? "Served by:" : "Cashier:";
     left(padLR(label, t.cashier_name, cw));
@@ -249,6 +284,31 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   }
   if (rs.show_customer_name && t.customer_name) {
     left(padLR("Customer:", t.customer_name, cw));
+  }
+
+  // ── Recipient block (Bill To / Ship To) ─────────────────────────────
+  const emitRecipient = (r: ReceiptRecipientLike | null | undefined) => {
+    if (!r) return;
+    const parts: string[] = [];
+    const primary = r.name || r.company;
+    if (primary) parts.push(primary);
+    if (r.name && r.company && r.company !== r.name) parts.push(r.company!);
+    for (const l of r.address_lines ?? []) {
+      if (l && String(l).trim()) parts.push(String(l).trim());
+    }
+    if (r.phone) parts.push(`Tel: ${r.phone}`);
+    if (r.email) parts.push(r.email);
+    if (r.tax_id) parts.push(`Tax ID: ${r.tax_id}`);
+    if (parts.length === 0) return;
+    blank();
+    left(`${r.label ?? "Bill To"}:`);
+    for (const p of parts) {
+      for (const l of wordWrap(p, cw - 2)) left("  " + l);
+    }
+  };
+  emitRecipient(t.bill_to);
+  if (t.ship_to && (t.ship_to.address_lines?.some((l) => l && String(l).trim()) || t.ship_to.name)) {
+    emitRecipient(t.ship_to);
   }
   rule();
 
@@ -334,8 +394,21 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
     rule();
   }
 
+  // ── Notes / Terms (non-POS docs) ────────────────────────────────────
+  if (t.notes && String(t.notes).trim()) {
+    blank();
+    left("Notes:");
+    for (const l of wordWrap(String(t.notes).trim(), cw - 2)) left("  " + l);
+  }
+  if (t.terms && String(t.terms).trim()) {
+    blank();
+    left("Terms:");
+    for (const l of wordWrap(String(t.terms).trim(), cw - 2)) left("  " + l);
+  }
+
   // ── Footer ──────────────────────────────────────────────────────────
   if (typeof rs.receipt_footer === "string" && rs.receipt_footer) {
+    blank();
     for (const l of wordWrap(rs.receipt_footer, cw)) center(l);
   }
   if (rs.show_return_policy && rs.return_policy_text) {

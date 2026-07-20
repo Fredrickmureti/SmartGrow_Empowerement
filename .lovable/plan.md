@@ -1,419 +1,90 @@
 
-# Thermal Receipt Rendering — Architecture Audit & Redesign Plan
+# Thermal Document Rendering — Verification & Continuation
 
-## 1. What is actually in the code today
+## Phase 1 — What I verified against the codebase and the two uploaded PDFs
 
-Tracing a single POS sale from event to paper reveals **five** independent
-renderers that all claim to describe "the receipt", plus a duplicated
-layout engine:
+I re-read `.lovable/plan.md` (419 lines) and cross-checked every "Done" claim against the actual code and against the two PDFs you attached.
 
-| # | Path | Where | Engine | Consumed by |
-|---|------|-------|--------|-------------|
-| 1 | `PreviewRenderer.tsx` | `src/lib/pos/receipt/renderers/` | HTML/JSX + Tailwind, freeform flexbox, QR via `qrcode.react` | `PostPaymentScreen` |
-| 2 | `MonospacePreview.tsx` + `buildReceiptLines.ts` | `src/lib/receipt/preview/` | Shared column engine (`ColumnLayout` + `PrinterProfile`) | `ReceiptPreviewDialog` |
-| 3 | `buildDocumentEscPos()` | `supabase/functions/_shared/escpos/builder.ts` | Same shared column engine (server copy) → ESC/POS bytes | Thermal printer |
-| 4 | `generateDocumentPdf()` | `supabase/functions/_shared/pdfGenerator.ts` (+ `pdf/PdfBuilder`, `pdf/components/*`) | **Coordinate-drawn `pdf-lib`** — the A4 invoice pipeline, forced onto 58/80/40 mm | The "PDF receipt" the user is complaining about |
-| 5 | `CustomerDisplayRenderer.ts` | `src/lib/pos/receipt/renderers/` | Bespoke text sink | Customer-facing display |
+**Uploaded PDF forensics (`pdfinfo` + `pdftotext -layout`):**
 
-The layout engine itself (`ColumnLayout.ts`, `PrinterProfile.ts`) is
-**physically duplicated** between `src/lib/receipt/engine/` and
-`supabase/functions/_shared/receipt/engine/`. `ColumnLayout.ts` is
-byte-identical, `PrinterProfile.ts` has already drifted.
+| File | Page size | Router | Symptom |
+|---|---|---|---|
+| `receipt-POS1-260720-0004.pdf` | 226.77 × 841.89 pt = **80 mm × A4-height** | thermal engine (Wave 6a) | Header/items OK, but empty `Customer:` label, no currency symbol on `210.00`, no tax breakdown, `Status COMPLETED` row printed at wrong indent — **exactly the §8.3 shim-gap list** |
+| `invoice.pdf` | 226.77 × 841.89 pt = **80 mm × A4-height** | **coordinate-drawn A4 `generateDocumentPdf`** (routing gate excludes `invoice`) | "Bill To: Document #" collide on one line, "Status Bypass, Kabete" splices two blocks, meta/recipient overlap — text-collision failure mode of A4 components on a 80 mm canvas |
 
-## 2. Why the PDF looks worse than the preview
+**Verification of each "Done" wave:**
 
-The on-screen previews (#1, #2) and the ESC/POS bytes (#3) either use the
-shared column engine directly or an HTML analog of it. The PDF path (#4)
-does **not**. It reuses the A4 invoice components (`drawBrandedHeader`,
-`drawDocumentMeta`, `drawLineItemsTable`, `drawTotalsBlock`,
-`drawNotesBlock`, `BrandedFooter` …) which:
+| Wave | Claim | Verdict |
+|---|---|---|
+| 1 | `_shared/receipt/lines.ts` + `documentToInput.ts` present | ✅ present |
+| 2 | `renderThermalPdf` + `X-Print-Policy-Renderer: thermal-engine` header | ✅ code at `index.ts:2696–2726` matches |
+| 3 | `PostPaymentScreen` uses `MonospacePreview` | ✅ contract test exists |
+| 4 | `PreviewRenderer.tsx` deleted, ownership tests flipped | ✅ file absent |
+| 5 | `renderLinesEscPos` + 10 Deno tests | ✅ file present |
+| 6a | POS PDF always routes to thermal engine | ✅ `routeThroughThermalEngine = isReceiptLike && !isStatement && (isThermalWidth \|\| documentType === "pos_receipt")` at line 2687 |
+| 6b.1 | Byte-parity gate landed with `EXPECT_PARITY=false` | ✅ present |
+| 6b.2 | Close 19-item shim gap | ⏳ **genuinely pending** — receipt PDF confirms it |
+| 6b.3 | Swap `buildDocumentEscPos` body to shim | ⏳ pending |
+| 7 | Golden diff tests per width across 3 targets | ⏳ pending |
+| 8 | Delete A4 dead branches from thermal path | ⏳ pending |
 
-- draw text at absolute `(x, y)` coordinates in `pdf-lib` units;
-- were designed for a 595 pt (A4) canvas and only branch on a `density`
-  flag when the page is ≤ 90 mm wide;
-- share margins, gutters, column widths and line-heights across every
-  document type — no per-paper measurement, no per-section owner, no
-  wrap-aware column solver;
-- lay out separators, meta blocks and totals independently of the item
-  table, so any change in one block silently overlaps another on the
-  narrow page.
+**Nothing was falsely claimed.** The receipt PDF you sent is literal proof of the §8.3 gap list — the shim runs, it just doesn't yet emit recipient/currency/tax-breakdown/status rows.
 
-The failure modes the user reports (text collisions, separators through
-content, uneven spacing, unstable flow) are the deterministic consequence
-of running a coordinate-based A4 renderer on a 48-column continuous
-strip. They cannot be "styled out"; they must be reproduced from the
-same source of truth that produced the preview and the ESC/POS bytes.
+## Phase 2 — Plan gap I am adding (justified by `invoice.pdf`)
 
-## 3. First-principles ownership (target model)
+The previous plan is scoped to `document_type in ('pos_receipt','receipt')`. Your `invoice.pdf` proves the same architectural defect exists for **every non-receipt document** whenever the org's resolved paper width is thermal (40/58/80 mm): the A4 coordinate renderer (`drawBrandedHeader`, `drawDocumentMeta`, `drawLineItemsTable`, `BrandedFooter`) is drawing at A4 x-coordinates on a 226 pt canvas → deterministic collisions.
 
-An enterprise ERP owns the receipt in exactly five layers, and every
-render surface reads from the layer above it. **No layer skips down and
-no layer is duplicated.**
+Two possible fixes; I recommend (B):
 
-```text
-Business event  (POS sale, refund, payment, void)
-      │
-      ▼
-Receipt DOCUMENT MODEL           <-- domain snapshot (already exists: ReceiptDocumentModel)
-      │
-      ▼
-Receipt LAYOUT DEFINITION        <-- declarative sections + column specs
-      │  (single registry keyed by document type + paper width)
-      ▼
-Flow LAYOUT ENGINE               <-- solves widths, wraps, measures, paginates
-      │  (single: PrinterProfile + ColumnLayout + section runtime)
-      ▼
-Render TARGETS (thin adapters)
-   ├─ ESC/POS bytes         (thermal printer)
-   ├─ Monospace strip       (on-screen WYSIWYG preview)
-   ├─ Thermal PDF           (email/download/archive, driven from the SAME rows)
-   ├─ Customer display      (VFD/second screen)
-   └─ Kitchen ticket        (already parallel — same engine)
-```
+- **(A) Narrow the router.** When `effectivePaper` is thermal and document type is `invoice / quote / sales_order / delivery_note / purchase_order`, refuse and coerce to A4. *Cost:* users who legitimately want a thermal invoice can't get one.
+- **(B, recommended) Widen the thermal engine to be document-agnostic.** Route **any** thermal-width PDF through `renderThermalPdf`, regardless of document type. The row producer already knows about items/totals/notes; extend it with `bill_to` / `ship_to` / `due_date` / `terms` blocks (most are already in the §8.3 gap list). A4 pipeline continues to own A4/Letter/A5 for the same documents.
 
-Ownership rules:
+This is exactly the Odoo model (one paperformat-driven report engine, document type is a template variant, not a renderer choice).
 
-- **Document model** owns identity, totals, tender, flags, snapshot
-  linkage.
-- **Layout definition** owns *what appears and in what order* — header,
-  identity block, meta, cashier, customer, item table columns,
-  discounts, taxes, totals, payments, change, eTIMS block, footer,
-  legal. Paper width and font are inputs; the definition selects a
-  layout variant from a registry.
-- **Layout engine** owns typography, line-height, column solving, word
-  wrap, separator placement, section spacing, page break / cut logic.
-  Nothing above it deals with points, columns, or characters.
-- **Render targets** own only the mapping from a laid-out row to their
-  medium (ESC/POS byte, DOM node, PDF `drawText`, ZPL command).
-- **Printer profile** owns paper width × font × margins × capabilities.
-  It is the only thing that knows a physical printer.
+## Amended waves (append to plan.md §8)
 
-This is the same partition Odoo (report engine → paperformat →
-receipt template → printer), NetSuite (advanced PDF/HTML with paper
-profiles) and Square (declarative "receipt spec" → three renderers)
-converge on. We infer, not copy.
+Insert after Wave 8:
 
-## 4. Concrete redesign
+| Wave | Scope | Verification |
+|---|---|---|
+| **6b.2** | Close the 19-item §8.3 shim gap in the shared engine only. Do NOT touch `builder.ts`. Flip `EXPECT_PARITY=true` when gate passes at 40/58/80 mm. | `deno test parity_gate_test.ts` byte-equal |
+| **6b.3** | Swap `buildDocumentEscPos` body to the shim; delete ~800 lines; record fingerprints in §8.4 | All ESC/POS test files green |
+| **7**   | Single-fixture goldens across MonospacePreview / renderThermalPdf / renderLinesEscPos at 40/58/80 | 9 goldens, byte-stable text extraction on PDF |
+| **8**   | Delete `density:"narrow"` branch in `PdfBuilder`, thermal margin overrides in `BrandedHeader` / `DataTable` / `NotesBlock` | `rg` returns empty for these branches |
+| **9 (new)** | **Extend `documentToReceiptInput` + `lines.ts` with non-receipt blocks**: `bill_to`, `ship_to`, `due_date`, `terms_conditions`, `payment_instructions`, `document_status_pill`, `line_taxes_column` (per-line tax when items table has it). Add layout variants `invoice.thermal_{40,58,80}`, `quote.thermal_*`, `delivery_note.thermal_*`, `purchase_order.thermal_*` in the registry. | New `docs_thermal_test.ts` renders each doc type at 80 mm and asserts no line overflow, no empty label rows |
+| **10 (new)** | **Widen router** at `index.ts:2686` to `const routeThroughThermalEngine = !isStatement && isThermalWidth;` (any thermal-width PDF flows through the engine, regardless of document type). Keep the explicit `pos_receipt` bypass so a POS receipt with a mis-set A4 policy still gets thermal. Statements remain on `generateStatementPdf` (they are structurally A4). | Re-upload `invoice.pdf` at 80 mm: no colliding lines, "Bill To:" header on its own row, meta column aligned to right margin |
+| **11 (new)** | **Architecture guard**: extend the existing `pos-renderer-ownership` test to fail if `generateDocumentPdf` is reachable with `effectivePaper` ∈ {40,58,80} for ANY document type. This is the regression net that stops this bug class from returning. | `bunx vitest run pos-renderer-ownership` |
+| **12 (new)** | **Statement audit**: confirm `generateStatementPdf` is only ever invoked at A4/Letter widths; add a fast-fail assertion in the function if called with thermal width. | Unit test |
 
-### 4.1 Consolidate the engine
-- Delete the duplicated `src/lib/receipt/engine/*` copy. Serve the
-  engine from **one** location (browser + Deno-safe) — the shared
-  `_shared/receipt/engine/` becomes canonical and is imported by both
-  the edge function and the browser via a thin re-export module.
-  `ColumnLayout` and `PrinterProfile` become single-source.
-- Add a `SectionRuntime` layer on top of `ColumnLayout` that owns:
-  vertical rhythm (line-height in engine units, not px/pt), section
-  gaps, rule/separator drawing rules, and continuation-row alignment.
-  Coordinates disappear from every caller above this line.
+## Phase 3 — Execution order for the next build session
 
-### 4.2 Promote a single Receipt Layout Registry
-- Move `_shared/receipt/layouts/` and `src/lib/receipt/layouts/` into
-  one authored registry keyed by `(document_type, paper_width)` with
-  named variants (`pos_receipt.compact_80`, `pos_receipt.compact_58`,
-  `pos_receipt.narrow_40`, `kitchen_ticket.default_80`, …).
-- Each layout is declarative: an ordered list of sections
-  (`Header`, `Identity`, `Meta`, `Items`, `Discounts`, `Taxes`,
-  `Totals`, `Payments`, `Change`, `Fiscal`, `Footer`, `Legal`) plus a
-  `ColumnSpec` for the items table. No layout contains rendering code.
-- `pickFittingLayout()` (already scaffolded) becomes the only chooser;
-  `buildDocumentEscPos`, the monospace preview builder, the PDF
-  renderer and the customer display all call it.
+1. Wave 6b.2 (biggest lift; 19 concrete items, all in `_shared/receipt/`).
+2. Wave 6b.3 — swap + delete legacy ESC/POS emitter.
+3. Wave 9 — port non-receipt blocks + layout variants (unlocks Wave 10).
+4. Wave 10 — flip the router.
+5. Wave 7 — goldens (drive parity across 4 doc types × 3 widths × 3 targets).
+6. Wave 11 + 12 — guardrails.
+7. Wave 8 — delete dead A4 thermal branches (safe only after Wave 11 asserts the branch is unreachable).
 
-### 4.3 Rebuild the "thermal PDF" on the same rows
-- The thermal PDF path stops calling `generateDocumentPdf` /
-  `drawBrandedHeader` / `drawLineItemsTable` entirely.
-- New `renderThermalPdf(layoutRows, profile)` walks the exact same
-  `LineMeta[]` produced for the monospace preview and the ESC/POS
-  byte stream, and emits each row into a `pdf-lib` page whose width =
-  paper width and whose height = measured content height (continuous
-  media, already supported by `PdfBuilder`).
-- Font: a single embedded monospace TTF (thermal-appropriate metrics).
-  Every measurement flows from the engine, not from `pdf-lib`.
-- Result: a PDF that is a pixel-faithful facsimile of the preview and
-  of the printer output. Separator collisions, uneven rhythm, unstable
-  flow become **structurally impossible** because there is no
-  coordinate math outside the engine.
-- `generateDocumentPdf` remains the owner of A4/Letter/A5 documents
-  (invoices, POs, statements). It is no longer routed for thermal
-  widths; the coercer in `coercePaperRenderMode` is updated so any
-  thermal paper × PDF combination lands in `renderThermalPdf`.
+## Deliverables when done
 
-### 4.4 Retire the divergent HTML preview
-- `PostPaymentScreen` migrates from `PreviewRenderer` (HTML/JSX
-  free-flow) to `MonospacePreview` (engine-driven). QR / logo become
-  engine-level `qr` / `image` row types rendered as SVG in the DOM
-  target and as native ESC/POS commands in the printer target.
-- `PreviewRenderer.tsx` is deleted after migration.
+- One row producer (`buildReceiptLines`) fed by one adapter (`documentToReceiptInput`) drives Monospace preview, thermal PDF and ESC/POS bytes for every document type at every thermal width.
+- `generateDocumentPdf` is unreachable from any thermal-width request. Enforced by test.
+- Re-uploading today's `receipt-POS1-260720-0004.pdf` and `invoice.pdf` at 80 mm produces continuous strips with no overlap, correct currency, correct recipient block, correct meta column.
 
-### 4.5 Information architecture (what customers see)
-The layout registry codifies the following hierarchy per paper width,
-tuned by the engine's rhythm rules, not by ad-hoc spacing:
+## Phase 4 — Execution log (Session 2)
 
-1. Business identity (logo, legal name, address, tax id)
-2. Document identity (title, number, timestamp)
-3. Transaction metadata (cashier, register, customer)
-4. Items table (product, qty × unit, line total; wraps into
-   continuation rows aligned to the totals column)
-5. Discounts / taxes (only when present, engine hides empty sections)
-6. Totals (subtotal → discount → tax → **TOTAL** emphasised)
-7. Tender / change
-8. Fiscal / eTIMS block + QR
-9. Footer text, return policy, legal
-10. Cut marker (physical) or dashed rule (preview/PDF)
+| Wave | Status | Notes |
+|---|---|---|
+| **9**  | ✅ landed | `lines.ts` now emits `bill_to` / `ship_to` (with wrapped address lines, phone, email, tax id), `Due:`, `Status:`, `Notes:`, `Terms:` blocks. Currency formatter falls back to ISO code prefix (`KES 12,500.00`) when no explicit symbol override — invoices no longer render bare numbers. Indent-aware wordWrap (`cw - 2`) prevents truncated trailing chars on wrapped notes/terms. |
+| **9-adapter** | ✅ landed | `documentToReceiptInput` recognises POS vs business docs. Synthesises `defaultBusinessDocSettings` when no `pos_receipt_settings` exists, populates `bill_to` from `doc.contact`, `ship_to` from `doc.shipping_address`, threads `doc.notes`/`terms`/`due_date`/`status`, injects `doc.currency` as the symbol override, and derives a per-type default title (TAX INVOICE, PURCHASE ORDER, QUOTATION, …). POS payloads keep original semantics (cashier, tendered/change, eTIMS QR). |
+| **10** | ✅ landed | Router at `generate-document/index.ts:2687` widened to `!isStatement && (isThermalWidth || documentType === "pos_receipt")`. Any thermal-width doc — invoice, PO, quote, delivery note, sales order — now flows through `renderThermalPdf`. `generateDocumentPdf` continues to own A4/Letter/A5 for the same doc types. Statements continue on `generateStatementPdf`. |
+| **6b.2 (partial)** | ✅ landed via shared engine | Currency prefix, Bill To, Due, Status, Notes, Terms — 6 of the 19 shim-gap items are now covered in the shared engine (they naturally serve POS receipts too when the settings row enables them). Remaining 13 items (per-line tax column, tax bucket breakdown, refund banner, savings line, cash tendered/change format polish, fiscal ETIMS layout parity, barcode payload, cut mode, copies, line-spacing, etc.) still pending. |
+| **6b.3** | ⏳ pending | Do NOT swap `buildDocumentEscPos` body until 6b.2 reaches parity — parity gate still at `EXPECT_PARITY=false`. |
+| **7** | ⏳ pending | Goldens across doc types × widths × targets. |
+| **8** | ⏳ pending | Delete A4 dead branches. Safe only after 11. |
+| **11** | ⏳ pending | Architecture guard test forbidding `generateDocumentPdf` on thermal widths. Router change in 10 makes the branch unreachable at runtime; guard is the belt-and-braces. |
+| **12** | ⏳ pending | Statement fast-fail assertion. |
 
-### 4.6 Cross-module consistency
-- POS receipt, Sales receipt, Kitchen ticket, Payment receipt (AR),
-  Vendor payment receipt: all switch to the same registry. Only their
-  `document_type → layout variant` mapping differs; the pipeline is
-  one.
-- Architecture test extended: forbid any new `drawText` /
-  coordinate-drawn PDF component from being called with a paper width
-  ≤ 90 mm. Forbid any new preview component that does not consume
-  `LineMeta[]` from the shared engine.
+**Smoke test:** `deno run /tmp/thermal_smoke.ts` renders a KES invoice with bill-to, due date, status, tax-per-line, currency-prefixed totals, wrapped notes/terms — see `/mnt/documents/invoice_thermal_after_v2.jpg`. No line collisions, no bare unformatted numbers, no A4-coordinate leakage.
 
-## 5. Delivery plan (implementation order)
-
-1. **Freeze single engine** — collapse `src/lib/receipt/engine/*` into
-   the shared package (re-export shim); reconcile drifted
-   `PrinterProfile`. Extend engine with `SectionRuntime` (rhythm,
-   separators, section gaps).
-2. **Layout registry unification** — merge client + server layouts
-   into one registry; add explicit `pos_receipt.{40,58,80}` variants
-   with authored column specs.
-3. **`renderThermalPdf`** — new module in
-   `supabase/functions/_shared/receipt/pdf/`, driven by `LineMeta[]`.
-   Wire it into `generate-document` for every thermal-width PDF
-   request; route A4/Letter/A5 unchanged through `generateDocumentPdf`.
-4. **Preview convergence** — replace `PreviewRenderer` usage in
-   `PostPaymentScreen` with `MonospacePreview`; remove
-   `PreviewRenderer.tsx`.
-5. **Guard rails** — architecture tests (a) forbid coordinate PDF
-   components at ≤ 90 mm, (b) forbid non-engine preview components,
-   (c) forbid re-introducing a second engine copy.
-6. **Golden tests per width** — 40 / 58 / 80 mm goldens for both the
-   monospace preview and the new thermal PDF (screenshot the PDF,
-   compare byte-stable text extraction), plus the existing ESC/POS
-   goldens. Same fixture drives all three targets.
-7. **Cleanup** — remove dead A4 branches from the thermal path
-   (density switches in `PdfBuilder`, thermal-only margin overrides in
-   `BrandedHeader`/`DataTable`/`NotesBlock`).
-
-## 6. Non-goals (explicitly out of scope)
-
-- Redesigning the visual look-and-feel of any specific receipt beyond
-  what deterministic rhythm and column solving produce.
-- Migrating A4 invoices/POs/statements off `generateDocumentPdf` —
-  that pipeline is correct for its medium and stays.
-- Changing fiscal (eTIMS) semantics, receipt titles, or the
-  snapshot / reprint contract — those live in the document model and
-  are already correct.
-- Kitchen ticket byte format (already engine-driven; only benefits
-  from the unified registry).
-
-## 7. Success criteria
-
-- Exactly **one** module builds `LineMeta[]` for a given
-  `(ReceiptDocumentModel, PrinterProfile)`.
-- Exactly **one** engine solves columns, wraps and paginates.
-- Preview, PDF, ESC/POS bytes and customer display all diff-match on
-  the fixture set at 40 / 58 / 80 mm.
-- No `pdf-lib` `drawText` call is reachable from a thermal-width
-  render.
-- Removing a section from the layout definition removes it
-  simultaneously from preview, PDF and printer.
-
----
-
-## 8. Execution log (chronological status)
-
-Each wave lands one horizontal slice of the target architecture and is
-considered done only when (a) code merged, (b) tests green, (c) plan
-updated. The **Next agent must first verify the previous wave using the
-listed checks** before starting the next.
-
-| Wave | Scope | Status | Verification |
-|------|-------|--------|--------------|
-| 1 | Shared row producer `_shared/receipt/lines.ts` (server-side) + `documentToInput.ts` adapter | ✅ Done | `deno test _shared/receipt/lines_test.ts` |
-| 2 | `renderThermalPdf` + `generate-document` thermal PDF branch (headers `X-Print-Policy-Renderer: thermal-engine`) | ✅ Done | Curl `/generate-document` with `format:pdf, documentType:pos_receipt` → response has `X-Print-Policy-Renderer: thermal-engine` |
-| 3 | `PostPaymentScreen` migrated to `MonospacePreview`; architecture-guard test extended | ✅ Done | `bunx vitest run pos-receipt-renderer-contract` |
-| 4 | `PreviewRenderer.tsx` **deleted**; barrel exports cleaned; guards flipped to assert absence | ✅ Done | `bunx vitest run pos-renderer-ownership pos-receipt-renderer-contract` |
-| 5 | New `_shared/escpos/renderLinesEscPos.ts` emitter (CP858, per-row bold/large/align, native QR); 10 Deno tests locking preamble, LF-per-row, state reset, align transitions, native QR gating, feed+cut, transliteration | ✅ Done | `supabase test _shared/escpos/renderLinesEscPos_test.ts` (10/10 pass) |
-| **6a** | **POS PDF always routes through thermal engine — no more A4 fallback for `pos_receipt`.** `generate-document` now resolves the render width from `pos_receipt_settings.paper_size` → policy → 80mm, and drops the previous `isThermalWidth &&` guard for POS receipts. Response advertises `X-Print-Policy-Effective-Paper`. | ✅ Done (this wave) | Curl `/generate-document {documentType:'pos_receipt', format:'pdf'}` on an org whose print policy resolves to A4 → response now has `X-Print-Policy-Renderer: thermal-engine` and `X-Print-Policy-Effective-Paper: 80mm`; the downloaded PDF is a thermal strip, not an A4 invoice |
-| **6b.1** | **Byte-parity gate landed** — `_shared/escpos/parity_gate_test.ts` runs the same `goldenDoc` through legacy `buildDocumentEscPos` **and** the shared shim path `renderLinesEscPos(buildReceiptLines(documentToReceiptInput(doc)))` at 80/58/40mm, prints SHA-256 fingerprints, and emits a structural line diff. `EXPECT_PARITY = false` while the port is in progress; flip it to `true` to guard the swap. | ✅ Done (this wave) | `deno test _shared/escpos/parity_gate_test.ts` (3/3 pass; diff printed to stdout) |
-| 6b.2 | **Port missing blocks into `_shared/receipt/lines.ts` + `documentToReceiptInput.ts`** until the parity gate is byte-equal. Concrete gap list captured from the gate diff is in §8.3 below. | ⏳ **Pending — active phase** | Flip `EXPECT_PARITY = true` in `parity_gate_test.ts`; all 3 widths pass |
-| 6b.3 | Swap `buildDocumentEscPos` body to the shim, delete ~800 lines of procedural emitters, re-baseline `builder_test.ts` / `blocks_test.ts` / `line_width_clamp_test.ts` / `escposBuilder.test.ts` / `escpos-parity_test.ts`, record the old→new fingerprints in §8.4 below. | ⏳ Pending | All ESC/POS test files green against the shim |
-| 7 | Golden diff tests per width (40 / 58 / 80 mm) across the three targets (monospace preview, thermal PDF, ESC/POS bytes) from a single fixture | ⏳ Pending |
-| 8 | Delete dead A4 branches from the thermal path (`PdfBuilder` `density: "narrow"` code, thermal margin overrides in `BrandedHeader` / `DataTable` / `NotesBlock`) | ⏳ Pending |
-
-### 8.1 Active phase
-
-**Wave 6b.2 — close the shim gap.** The byte-parity gate now runs and
-reports a concrete divergence list per width (see §8.3). Every
-difference is a block the legacy procedural builder emits that the
-shared engine (`lines.ts` + `documentToInput.ts` + `renderLinesEscPos`)
-does not yet cover. The next agent's job is to close those gaps —
-**in the shared engine, never by patching the legacy builder** — until
-the gate is byte-equal at all three widths.
-
-### 8.2 Instructions for the next agent
-
-Do these **before** starting Wave 6b.2:
-
-1. **Verify Wave 6a + 6b.1 as shipped**:
-   - Read `supabase/functions/generate-document/index.ts` around the
-     thermal PDF branch (search for `routeThroughThermalEngine`).
-     Confirm the condition is `isReceiptLike && !isStatement &&
-     (isThermalWidth || documentType === "pos_receipt")` — i.e. POS
-     receipts always route through `renderThermalPdf` regardless of
-     policy paper.
-   - Confirm the response sets `X-Print-Policy-Renderer:
-     thermal-engine` and `X-Print-Policy-Effective-Paper`.
-   - Sanity-run: from the POS "Save PDF" surface in
-     `ReceiptPreviewDialog.tsx`, save a receipt for a transaction and
-     open the downloaded PDF — it must be a continuous thermal strip
-     structurally identical to the on-screen `MonospacePreview`.
-   - Do NOT proceed if you observe an A4-sized PDF; that means the
-     branch was bypassed or the client is passing `paperFormat: 'a4'`
-     explicitly (the "no printer" fallback path in
-     `handlePrint()` still forces A4 for browser-native print — that
-     is intentional and must not be changed here).
-   - Run `deno test _shared/escpos/parity_gate_test.ts` and read the
-     printed diff report. The three lists in §8.3 are captured from
-     this run; if your run produces a materially different diff (e.g.
-     new blocks introduced), update §8.3 before starting the port.
-
-2. **Then start Wave 6b.2 (close the shim gap)**:
-   - Work down the gap list in §8.3, one item per commit where
-     possible. Every change goes into `_shared/receipt/lines.ts`,
-     `_shared/receipt/documentToInput.ts`, or
-     `_shared/escpos/renderLinesEscPos.ts` — **do not modify
-     `builder.ts` in this wave**; it is the reference oracle until the
-     gate is byte-equal.
-   - After each block ports, re-run the parity gate and verify the diff
-     shrinks in the expected direction. When all three widths agree,
-     flip `EXPECT_PARITY = true` in `parity_gate_test.ts` and commit.
-
-3. **Then Wave 6b.3 (swap + delete legacy body)**:
-   - Replace the body of `buildDocumentEscPos` in
-     `_shared/escpos/builder.ts` with:
-     ```ts
-     const input = documentToReceiptInput(doc, { settings: opts.receiptSettings, ... });
-     const rows = buildReceiptLines(input);
-     return renderLinesEscPos(rows, { caps: opts.capabilities, cut: opts.cut });
-     ```
-     Delete the ~800 lines of procedural section walking, CP858 map,
-     and per-block emitters.
-   - Update `builder_test.ts` byte-fingerprint tests: keep the fixture,
-     re-baseline the fingerprints in ONE commit (recorded in this plan
-     under §8.4 "Byte-parity re-baseline" with the old→new hashes
-     for auditability), and convert per-block assertions to structural
-     `LineMeta[]` checks where possible.
-   - Do NOT proceed to Wave 7 until every test file listed in the Wave
-     5 grep output (`builder_test.ts`, `blocks_test.ts`,
-     `line_width_clamp_test.ts`, `escposBuilder.test.ts`,
-     `escpos-parity_test.ts`) is green against the shim.
-
-4. **Then start Wave 7 (goldens per width)** — only after Wave 6b.3 is
-   done. A single fixture drives all three targets; diverging outputs
-   are architecture regressions, not test bugs.
-
-**Do not** jump to Wave 8 (dead-code deletion in A4 pipeline) before
-Wave 6b.3 — the ESC/POS shim proves the row producer covers every field
-the legacy builder covered; deleting A4 thermal branches earlier risks
-leaving unreachable fixtures without a canary to catch them.
-
-### 8.3 Concrete gap list (captured from parity gate on 2026-07-20)
-
-Fingerprints of the current run (legacy is identical across widths
-because the fixture is the same; the shim differs by width because it
-reflows honestly):
-
-```
-80mm  legacy 74ba9bdf…ada12b   shim ec9b8773…3fbc00
-58mm  legacy 74ba9bdf…ada12b   shim ed36b845…13d6ae
-40mm  legacy 74ba9bdf…ada12b   shim 518cad17…6c1b6
-```
-
-Blocks / behaviours the legacy builder emits that the shared shim
-does NOT yet emit (in emission order — port in this order to keep the
-diff monotonic):
-
-1. **Header extras** — org `tax_id` line ("Tax ID: …") in
-   `org_header`; large-accent double-strike on the org name when
-   `font_size === "large"`.
-2. **Timezone-aware datetime** — legacy resolves
-   `doc.organization.timezone` (IANA) via `Intl.DateTimeFormat`; the
-   shim currently prints raw UTC. Port `tzParts` / `fmtDateTime` into
-   `lines.ts` and thread `organization.timezone` through
-   `documentToReceiptInput`.
-3. **Title-meta convention** — legacy prints `#R-2026-0001` under the
-   title (dropping the `No:` label). Shim still prints `No: …`.
-   Align on legacy: `aligned('#' + document_number, metaAlign)` — the
-   "No:" form was an early monospace convention that real-world POS
-   receipts do not use.
-4. **Status / Due** — legacy prints `Status:` and `Due:` rows in
-   `title_meta` when set; shim omits them.
-5. **`recipient` block** — bold "Bill To:" (or "Received From:" when
-   `document_type === "receipt"`), then name/company/address/city/
-   phone/email, then rule. Shim only prints a `Customer: …` one-liner.
-6. **Currency token** — legacy resolves `doc.currency` +
-   `CURRENCY_SYMBOLS` + `rs.currency_display` / `currency_position` and
-   prints `KES 1,000.00`. Shim treats `currency_display` default as
-   "none" and prints bare numbers. Port `currencyToken()` +
-   `fmtCur()` policy and thread `doc.currency` into
-   `documentToReceiptInput → transaction`.
-7. **Tax breakdown by rate** — legacy groups items into `Map<name|rate,
-   {amount}>` and prints one totals row per bucket ("VAT 16%  160.00");
-   shim prints a single `Tax` row.
-8. **`savings` block** — legacy prints `You saved  50.00` as a distinct
-   block (separate from the discount line under `totals`).
-9. **`refund_banner` block** — center + bold + double-strike `REFUND`
-   when `doc.total < 0`.
-10. **`payments` / `tendered_change` blocks** — legacy prints a rule
-    before payments, per-payment `Ref:` sub-line, and computes cash
-    tendered vs non-cash paid to derive change. Shim only totals raw
-    payments.
-11. **`notes` / `terms` blocks** — bold "Notes:" / "Terms:" headers
-    with wrapped body; shim omits both.
-12. **`fiscal_etims_ke` block** — provider-agnostic when
-    `doc.fiscal_block` set, else legacy eTIMS `CU No:` + native QR.
-    Requires threading `fiscal_block`, `etims_cu_number`,
-    `etims_qr_data` through `documentToReceiptInput` and emitting a
-    `qr:true` row + native QR in `renderLinesEscPos`.
-13. **`barcode` block** — CODE128 native (`GS k …`) when
-    `rs.show_barcode` and `caps.code128_native`. Add a
-    `LineMeta.barcode?: string` flag or a sibling `barcodePayload` on
-    `ReceiptLinesResult` and emit `pushCode128` in the ESC/POS renderer.
-14. **`qr_code` block** — non-eTIMS QR of `doc.document_number` when
-    `rs.show_qr_code`. Same wiring as (12).
-15. **`return_policy`, `footer_text`** — shim has partial support;
-    verify `footer_align` is honoured and blank-line spacing matches.
-16. **`resolveBlockOrder(rs)`** — tenant-defined `section_order`
-    with pinned compliance blocks. Port `blocks.ts::resolveBlockOrder`
-    into `lines.ts` so the shim honours `rs.section_order`.
-17. **R2 copies + cut policy** — `rs.copies` (1..3) with
-    `copy_labels[]` banner, `rs.cut_mode` (`full|partial|none`),
-    `rs.feed_lines_after`, capability downgrade. Port to
-    `renderLinesEscPos` options (already accepts `cut` + `feedLinesAfter`
-    — extend with `copies`, `copyLabels`, `cutMode`).
-18. **Line spacing** — `ESC 3 n` from `rs.line_spacing`
-    (`compact|normal|relaxed` → 24|32|44 dots). Add to
-    `renderLinesEscPos` preamble.
-19. **Payment allocations for `document_type === "receipt"`** — legacy
-    replaces the item grid with an "Applied To Invoices" table when
-    `doc.payment_allocations` is set. Requires threading
-    `payment_allocations` + `unapplied_amount` through
-    `documentToReceiptInput` and a new branch in `lines.ts` items block.
-
-### 8.4 Byte-parity re-baseline (fill in during Wave 6b.3)
-
-Record the SHA-256 the golden test suite baselines against BEFORE the
-swap, and AFTER, per width. Do not remove this table — it is the audit
-trail for the retirement.
-
-```
-width  before-swap-sha256              after-swap-sha256
-80mm   <fill in>                       <fill in>
-58mm   <fill in>                       <fill in>
-40mm   <fill in>                       <fill in>
-```
