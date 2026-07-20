@@ -282,5 +282,19 @@ export default tseslint.config(
       "local/no-raw-escpos-bytes": "error",
     },
   },
+  // ADR-0086 (Enterprise Output Platform) — companion to ADR-0085's
+  // `no-raw-pdf-lib-in-app` (src-only). On the server, exactly one
+  // module owns pdf-lib: `supabase/functions/_shared/pdf/**` (canonical
+  // A4 engine) plus `_shared/receipt/pdf/**` (canonical thermal PDF
+  // renderer under ADR-0084). Any other edge function importing
+  // pdf-lib would grow a parallel A4 layout engine — the exact drift
+  // pattern ADR-0086 exists to prevent. Allowlist lives inside the
+  // rule itself; tests are exempt.
+  {
+    files: ["supabase/functions/**/*.ts"],
+    rules: {
+      "local/no-raw-pdf-lib-in-edge-functions": "error",
+    },
+  },
 );
 
