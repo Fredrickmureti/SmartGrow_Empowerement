@@ -2007,6 +2007,7 @@ serve(async (req) => {
           ),
           "X-Print-Policy-Source": "test-print",
           "X-Print-Policy-Paper": previewWidth,
+          "X-Print-Policy-Paper-Source": previewWidthSource,
           "X-Print-Policy-Columns": String(_previewResolved.columns),
           "X-Print-Policy-Font": _previewResolved.font,
           ...(previewProfileId
@@ -2014,8 +2015,10 @@ serve(async (req) => {
             : {}),
           "X-Print-Policy-Render-Mode": "escpos",
           "X-Print-Policy-Coerced": "0",
+          "X-Renderer": _previewRendererId,
+          "X-Renderer-Byte-Sha256": _previewByteHash,
           "Access-Control-Expose-Headers":
-            "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id",
+            "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Paper-Source, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id, X-Renderer, X-Renderer-Byte-Sha256",
         },
       });
     }
