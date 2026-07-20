@@ -44,7 +44,8 @@ export interface RenderThermalPdfOptions {
 function pickFontSize(paper: ReceiptLinesResult["paper"], columns: number): number {
   // Solve: cellWidthPt = (paperWidthMm - 2*marginMm) * MM_TO_PT / columns
   // Courier's character width ≈ 0.6 * fontSize, so fontSize ≈ cellWidthPt / 0.6
-  const usableMm = PAPER_WIDTH_MM[paper] - 2 * PAPER_MARGIN_MM[paper];
+  const g = paperGeometry(paper);
+  const usableMm = g.widthMm - 2 * g.marginMm;
   const cellPt = (usableMm * MM_TO_PT) / columns;
   const size = cellPt / 0.6;
   // Clamp to sane thermal range.
