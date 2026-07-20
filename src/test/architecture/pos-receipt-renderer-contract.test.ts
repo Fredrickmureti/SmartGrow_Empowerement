@@ -142,6 +142,17 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(src).not.toMatch(/\bbuildDocumentEscPos\s*\(/);
   });
 
+  it("58mm production routing reads printer_profiles.paper_format and fails closed on an unsafe grid", () => {
+    const src = readFileSync(
+      join(root, "supabase", "functions", "generate-document", "index.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(/code128_native, paper_format, is_calibrated/);
+    expect(src).not.toMatch(/code128_native, paper_size, is_calibrated/);
+    expect(src).toMatch(/width === "58mm"[\s\S]{0,300}escposRows\.columns !== 32[\s\S]{0,200}escposRows\.font !== "A"/);
+    expect(src).toMatch(/legacy POS status row reached production path/);
+  });
+
   it("ADR-0084 — production modules cannot import the legacy receipt builder", () => {
     const offenders: string[] = [];
     const roots = [

@@ -10,7 +10,7 @@
  */
 
 export const RENDERER_NAME = "shared-engine";
-export const RENDERER_VERSION = "6b.5";
+export const RENDERER_VERSION = "6b.6";
 export const RENDERER_ID = `${RENDERER_NAME}@${RENDERER_VERSION}`;
 export const LAYOUT_CONTRACT_VERSION = "receipt-lines-v1";
 
