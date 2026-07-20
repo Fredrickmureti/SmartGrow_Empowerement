@@ -1908,7 +1908,7 @@ serve(async (req) => {
             cutter: "none" | "partial" | "full" | null;
             qr_native: boolean | null;
             code128_native: boolean | null;
-            paper_size: "40mm" | "58mm" | "80mm" | null;
+            paper_format: "40mm" | "58mm" | "80mm" | null;
             is_calibrated: boolean | null;
           }
         | null = null;
@@ -1917,7 +1917,7 @@ serve(async (req) => {
           const { data: pp } = await supabase
             .from("printer_profiles")
             .select(
-              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_size, is_calibrated",
+              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_format, is_calibrated",
             )
             .eq("id", previewProfileId)
             .maybeSingle();
@@ -1932,7 +1932,7 @@ serve(async (req) => {
       {
         const resolved = _resolvePreviewWidth({
           requestOverride: body.paperFormat as string | undefined,
-          profile: previewProfile ? { paper_size: previewProfile.paper_size } : null,
+          profile: previewProfile ? { paper_size: previewProfile.paper_format } : null,
           receiptSettings: { paper_size: previewSettings.paper_size as string | undefined },
         });
         previewWidth = resolved.width;
@@ -2465,7 +2465,7 @@ serve(async (req) => {
             cutter: "none" | "partial" | "full" | null;
             qr_native: boolean | null;
             code128_native: boolean | null;
-            paper_size: "40mm" | "58mm" | "80mm" | null;
+            paper_format: "40mm" | "58mm" | "80mm" | null;
             is_calibrated: boolean | null;
           }
         | null = null;
@@ -2474,7 +2474,7 @@ serve(async (req) => {
           const { data: profileRow } = await supabase
             .from("printer_profiles")
             .select(
-              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_size, is_calibrated",
+              "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_format, is_calibrated",
             )
             .eq("id", policy.printer_profile_id)
             .maybeSingle();
@@ -2500,7 +2500,7 @@ serve(async (req) => {
         requestOverride: typeof body.paperFormat === "string" ? body.paperFormat : undefined,
         profile: {
           paper_size:
-            registerProfile?.paper_size ?? physicalProfile?.paper_size ?? null,
+            registerProfile?.paper_size ?? physicalProfile?.paper_format ?? null,
         },
         receiptSettings: { paper_size: rsForWidth?.paper_size ?? undefined },
         policyDefault: coerced.paper_format,
@@ -2517,7 +2517,7 @@ serve(async (req) => {
       // defaults are safe per-paper.
       const profilePaperRaw =
         registerProfile?.paper_size ??
-        (physicalProfile as any)?.paper_size ??
+        physicalProfile?.paper_format ??
         null;
       const profilePaper: "40mm" | "58mm" | "80mm" | null =
         profilePaperRaw === "40mm" || profilePaperRaw === "58mm" || profilePaperRaw === "80mm"
@@ -2604,12 +2604,26 @@ serve(async (req) => {
       });
       const escposAscii = new TextDecoder("latin1").decode(escposBytes as Uint8Array);
       if (
+        width === "58mm" &&
+        mergedProfile.columns_override === null &&
+        (escposRows.columns !== 32 || escposRows.font !== "A")
+      ) {
+        throw new Error(
+          `ESC/POS 58mm safety invariant failed: uncalibrated output resolved to ${escposRows.columns} columns / Font ${escposRows.font}`,
+        );
+      }
+      if (
         documentType === "pos_receipt" &&
         /\n\s*#\s*POS/i.test(escposAscii) &&
         !/\n\s*No:\s*POS/i.test(escposAscii)
       ) {
         throw new Error(
           "ESC/POS renderer invariant failed: legacy #POS receipt-number layout reached production path",
+        );
+      }
+      if (documentType === "pos_receipt" && /\n\s*Status\s*:/i.test(escposAscii)) {
+        throw new Error(
+          "ESC/POS renderer invariant failed: legacy POS status row reached production path",
         );
       }
       // Phase A.5 — header transparency. Expose the resolved physical
