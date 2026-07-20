@@ -134,6 +134,23 @@ export interface ReceiptRecipientLike {
   tax_id?: string | null;
 }
 
+/** Wave 6b Phase 2 — provider-agnostic fiscal block (eTIMS-style CU/QR). */
+export interface ReceiptFiscalBlockLike {
+  provider?: string;                                    // "eTIMS", "TRA", …
+  heading?: string;                                     // Rendered banner
+  fields?: Array<{ label: string; value: string }>;     // Rendered as label/value rows
+  qr?: string | null;                                   // QR payload (native GS (k)
+  signature?: string | null;                            // Optional cryptographic sig
+}
+
+/** Wave 6b Phase 2 — customer-payment allocation (invoice this payment settled). */
+export interface ReceiptPaymentAllocationLike {
+  invoice_number: string;
+  invoice_date?: string | null;
+  amount_applied: number;
+  balance_after?: number | null;
+}
+
 export interface ReceiptTransactionLike {
   id?: string;
   transaction_number?: string;
@@ -168,6 +185,29 @@ export interface ReceiptTransactionLike {
   /** Currency ISO code (KES, USD…). Adapter passes this so engine can fall
    * back to a code prefix when no symbol override is configured. */
   currency_code?: string | null;
+  /**
+   * Wave 6b Phase 2 — payment-receipts allocation table. When set, the
+   * engine renders "Applied To Invoices" block (invoice number / amount
+   * applied / balance) INSTEAD of the product-grid items section. Total
+   * applied and any unapplied advance are also shown.
+   */
+  payment_allocations?: ReceiptPaymentAllocationLike[] | null;
+  /** Optional advance/overpayment not applied to any invoice. */
+  unapplied_amount?: number | null;
+  /**
+   * Wave 6b Phase 2 — generic fiscal/regulator block. When set, replaces
+   * the eTIMS-specific `etims_cu_number` / `etims_qr_data` rendering with
+   * a provider-agnostic heading + label/value rows + QR + optional
+   * signature. Falls back to eTIMS-only when this is null.
+   */
+  fiscal_block?: ReceiptFiscalBlockLike | null;
+  /**
+   * Wave 6b Phase 2 — optional Code128 barcode row appended to the document
+   * (usually the document number for scanner-driven reprint). The engine
+   * emits a `LineMeta.barcode` marker row; the ESC/POS emitter substitutes
+   * GS k bytes and the PDF emitter draws a barcode glyph.
+   */
+  barcode?: { data: string; type?: "code128" } | null;
 }
 
 export interface BuildReceiptLinesInput {
