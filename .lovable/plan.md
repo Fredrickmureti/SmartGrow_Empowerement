@@ -19,11 +19,36 @@ Anchor documents:
 | 3     | D3    | Client entrypoint | **Done** — 2026-07-20                    |
 | 4     | D4    | Kitchen / CFD     | No action — single-source confirmed      |
 | 5     | D5    | Bespoke A4 marker | **Absorbed by D2**                       |
-| 6     | D6    | Server-side ZPL   | Low — deferred                            |
+| 6     | D6    | Driver-side label layout | **Done** — 2026-07-20              |
 
 ## Currently active phase
 
-Roadmap closed except deferred **Phase 6 (D6)**.
+Roadmap fully closed. All six drift items D1–D6 resolved or absorbed.
+
+## Phase 6 (D6) closure — driver-side label layout
+
+Post-D1 the server-side emitter (`_shared/printing/zpl/builder.ts`) became a
+pure resolver over `label_templates`. The remaining second source of truth
+lived in the Electron label drivers: `ZplLabelDriver.renderSpec` and
+`EplLabelDriver.renderSpec` hardcoded `^FO/^FD/^BC` and `A<x>,<y>/B<x>,<y>`
+layout for a bespoke `LabelSpec` payload — a `print_label { spec }` op that
+no production caller ever emitted (`labelDispatch.ts` already sends
+`{ zpl }` / `{ bytes }` / `{ pdfUrl }` derived from templates).
+
+Actions:
+
+- Deleted `LabelSpec`, `renderSpec`, and the spec branch from
+  `electron/hardware/drivers/ZplLabelDriver.ts` and
+  `electron/hardware/drivers/EplLabelDriver.ts`. Drivers are now pure
+  transports: envelope validation (`^XA…^XZ`), ESC/POS rejection, and
+  post-header injection of transport commands (`^MD`, `^PR`) — no layout.
+- New guardrail `src/test/architecture/adr-0086-driver-side-label-layout-ownership.test.ts`
+  scans every `electron/hardware/drivers/*Label*Driver.ts` for ZPL layout
+  opcodes (`^FO/^FD/^FS/^BC/^BQ/^CF`), EPL text/barcode opcodes
+  (`A<x>,<y>` / `B<x>,<y>`), and any re-introduction of `LabelSpec` /
+  `renderSpec`. Envelope/transport tokens remain allowed.
+- Audit ledger updated: D6 marked **Resolved 2026-07-20**; Label row in
+  the guardrail matrix upgraded to ✅.
 
 ---
 
