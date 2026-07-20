@@ -4,6 +4,7 @@ import { usePeekParam } from "@/design-system";
 import { VendorStatementPeekSheet } from "@/features/purchases/statements/VendorStatementPeekSheet";
 
 import { useVendorStatements, VendorStatementData } from "@/hooks/useVendorStatements";
+import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { useContacts } from "@/hooks/useContacts";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -99,6 +100,7 @@ export default function VendorStatements() {
     format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd")
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  const { downloadPdf } = useDocumentPrint();
   const [consolidate, setConsolidate] = useState(false);
   const [loadingStatementId, setLoadingStatementId] = useState<string | null>(null);
   const [selectedStatementIds, setSelectedStatementIds] = useState<Set<string>>(new Set());
@@ -277,15 +279,9 @@ export default function VendorStatements() {
       }
       if (!statementId) throw new Error("Could not determine statement ID for PDF generation");
 
-      const { downloadPdfBlob } = await import("@/services/printing/pdfUtils");
-      const { data, error } = await supabase.functions.invoke("generate-document", {
-        body: { documentType: "vendor_statement", documentId: statementId, format: "pdf" },
-      });
-      if (error) throw error;
-      const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
-      const filename = `Vendor_Statement_${dataToUse.contact.name.replace(/[^a-zA-Z0-9]/g, "_")}_${format(new Date(), "yyyy-MM-dd")}.pdf`;
-      downloadPdfBlob(blob, filename);
-      toast.success("Vendor statement PDF downloaded");
+      // Canonical client entrypoint (ADR-0086 / D3).
+      const filename = `Vendor_Statement_${dataToUse.contact.name.replace(/[^a-zA-Z0-9]/g, "_")}_${format(new Date(), "yyyy-MM-dd")}`;
+      await downloadPdf("vendor_statement", statementId, filename);
     } catch (error: any) {
       console.error("Statement print error:", error);
       toast.error("Failed to generate statement PDF: " + (normalizeError(error).message || "Unknown error"));
