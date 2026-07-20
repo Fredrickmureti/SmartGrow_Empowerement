@@ -72,69 +72,15 @@ export function renderDocumentEscPos(
 
   const rows = buildReceiptLines(input);
 
-  // Emitter-level policy: copies × body, cut mode, feed lines. These are
-  // document-level directives (not row properties) so they belong in the
-  // emitter, not the row producer.
-  const copies = clampInt(rs.copies as number | undefined, 1, 1, 3);
-  const cutMode = (rs.cut_mode as string | undefined) ?? "full";
-  const feed = clampInt(rs.feed_lines_after as number | undefined, 4, 0, 10);
-  const copyLabels = Array.isArray(rs.copy_labels)
-    ? (rs.copy_labels as unknown[]).map((s) => String(s ?? ""))
-    : [];
-
-  const caps = {
-    qr_native: opts.capabilities?.qr_native ?? true,
-    auto_cut:
-      cutMode === "none"
-        ? false
-        : (opts.capabilities?.auto_cut ?? true),
-  };
-
-  const chunks: Uint8Array[] = [];
-  for (let i = 0; i < copies; i++) {
-    // If a copy label is provided, splice it into the header of this copy.
-    const label = copyLabels[i]?.trim();
-    let copyRows = rows;
-    if (label) {
-      copyRows = {
-        ...rows,
-        lines: [label, ...rows.lines],
-        meta: [{ align: "center", bold: true }, ...rows.meta],
-      };
-    }
-    const isLast = i === copies - 1;
-    chunks.push(
-      renderLinesEscPos(copyRows, {
-        caps,
-        // Only cut after the final copy — otherwise multi-copy prints
-        // tear off between duplicates.
-        cut: isLast && cutMode !== "none",
-        feedLinesAfter: feed,
-      }),
-    );
-  }
-
-  return concat(chunks);
-}
-
-function clampInt(
-  v: number | undefined,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const n = typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : fallback;
-  return Math.max(min, Math.min(max, n));
-}
-
-function concat(parts: Uint8Array[]): Uint8Array {
-  let total = 0;
-  for (const p of parts) total += p.length;
-  const out = new Uint8Array(total);
-  let off = 0;
-  for (const p of parts) {
-    out.set(p, off);
-    off += p.length;
-  }
-  return out;
+  // Wave 6b Phase 3 — copies, cut and feed are now DIRECTIVES on the
+  // result (produced by the row producer from settings). The emitter
+  // reads them directly. This helper only forwards printer capabilities.
+  return renderLinesEscPos(rows, {
+    caps: {
+      qr_native: opts.capabilities?.qr_native ?? true,
+      auto_cut: opts.capabilities?.auto_cut ?? true,
+      partial_cut: opts.capabilities?.partial_cut ?? true,
+      code128_native: opts.capabilities?.code128_native ?? true,
+    },
+  });
 }
