@@ -109,7 +109,24 @@ export class EscPosPrinterDriver implements IDriver {
     }
 
     if (command.type === 'print_raw') {
-      const result = await this._transport.send(command.payload as number[] | Uint8Array);
+      const p = command.payload as
+        | number[]
+        | Uint8Array
+        | { bytes?: number[] | Uint8Array; zpl?: string; epl?: string; text?: string }
+        | undefined;
+      let data: number[] | Uint8Array | undefined;
+      if (Array.isArray(p) || p instanceof Uint8Array) {
+        data = p;
+      } else if (p && typeof p === 'object') {
+        if (Array.isArray(p.bytes) || p.bytes instanceof Uint8Array) data = p.bytes;
+        else if (typeof p.zpl === 'string') data = Array.from(new TextEncoder().encode(p.zpl));
+        else if (typeof p.epl === 'string') data = Array.from(new TextEncoder().encode(p.epl));
+        else if (typeof p.text === 'string') data = Array.from(new TextEncoder().encode(p.text));
+      }
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        return { success: false, error: 'print_raw payload missing bytes' };
+      }
+      const result = await this._transport.send(data);
       return { success: result.success, error: result.error };
     }
 
