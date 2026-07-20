@@ -367,8 +367,30 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
     left(padLR(rs.show_savings ? "You saved" : "Discount", `-${fmtCur(t.discount_amount ?? 0)}`, cw));
   }
   if (rs.show_tax_breakdown !== false && Number(t.tax_amount ?? 0) > 0) {
-    left(padLR("Tax", fmtCur(t.tax_amount ?? 0), cw));
+    // Per-rate tax buckets (Wave 6b.2) — when items expose `tax_rate` +
+    // `tax_amount`, roll them into buckets so the customer sees each
+    // rate individually (e.g. "VAT 16%    120.00"). Fall back to the
+    // aggregate "Tax" row when buckets can't be resolved.
+    const buckets = new Map<string, { label: string; amount: number }>();
+    for (const it of t.items ?? []) {
+      const rate = Number(it.tax_rate ?? 0);
+      const amt = Number(it.tax_amount ?? 0);
+      if (!rate || !Number.isFinite(amt) || amt === 0) continue;
+      const label = it.tax_rate_name?.trim()
+        || `Tax ${Number.isInteger(rate) ? rate : rate.toFixed(2)}%`;
+      const cur = buckets.get(label) ?? { label, amount: 0 };
+      cur.amount += amt;
+      buckets.set(label, cur);
+    }
+    if (buckets.size > 0) {
+      for (const b of buckets.values()) {
+        left(padLR(b.label, fmtCur(b.amount), cw));
+      }
+    } else {
+      left(padLR("Tax", fmtCur(t.tax_amount ?? 0), cw));
+    }
   }
+
   push(padLR("TOTAL", fmtCur(t.total_amount), cw), {
     align: "left",
     bold: true,
