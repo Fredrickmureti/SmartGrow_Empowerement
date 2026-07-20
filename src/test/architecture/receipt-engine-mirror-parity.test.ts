@@ -1,7 +1,7 @@
 /**
  * Receipt engine mirror parity — Phase 1 diff-gate.
  *
- * The receipt layout engine primitives (`ColumnLayout`, `PrinterProfile`)
+ * The low-level receipt layout primitives (`ColumnLayout`, `PrinterProfile`)
  * exist in two physical locations today:
  *
  *   - src/lib/receipt/engine/*          → consumed by the Vite/React bundle
@@ -12,11 +12,8 @@
  *                                         (generate-document → thermal PDF,
  *                                          ESC/POS builder).
  *
- * They must be byte-identical. Comment convention alone ("Keep in lockstep")
- * has already allowed the row-producer copies (`buildReceiptLines.ts` vs
- * `lines.ts`) to drift, producing preview-vs-print divergence. The eventual
- * fix (Phase 2 of the consolidation plan) is a physically shared package;
- * until then, this test is the diff-gate.
+ * They must be byte-identical. Receipt composition itself is no longer
+ * mirrored: the browser adapter imports the canonical `lines.ts` producer.
  *
  * If this test fails, either:
  *   a) copy the intended canonical file over the mirror to re-sync, or
@@ -43,6 +40,17 @@ const MIRRORS: Array<{ client: string; server: string; label: string }> = [
 ];
 
 describe("Receipt engine mirror parity", () => {
+  it("browser preview delegates to the canonical receipt row producer", () => {
+    const clientSrc = readFileSync(
+      join(root, "src/lib/receipt/preview/buildReceiptLines.ts"),
+      "utf8",
+    );
+    expect(clientSrc).toContain("supabase/functions/_shared/receipt/lines");
+    expect(clientSrc).toContain("buildCanonicalReceiptLines");
+    expect(clientSrc).not.toContain("function fmtDateTime");
+    expect(clientSrc).not.toContain("assembleItems");
+  });
+
   for (const { client, server, label } of MIRRORS) {
     it(`${label}: client and server copies are byte-identical`, () => {
       const clientSrc = readFileSync(join(root, client), "utf8");

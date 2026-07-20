@@ -263,7 +263,20 @@ function fmtDateTime(iso: string, dateFormat = "iso", timeFormat = "24h"): strin
 }
 
 export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesResult {
-  const { settings: rs, company, transaction: t } = input;
+  const { company, transaction: t } = input;
+  const rs: Rs = { ...input.settings };
+
+  // 58mm Font B is a calibrated capability, not a generic paper default.
+  // Emulators and printer firmware disagree on its effective width. Keep the
+  // canonical row producer at the interoperable Font A / 32-column baseline
+  // unless the active physical profile supplies a measured column override.
+  if (
+    rs.paper_size === "58mm" &&
+    rs.font_size === "small" &&
+    !(typeof rs.columns_override === "number" && rs.columns_override > 0)
+  ) {
+    rs.font_size = "medium";
+  }
 
   const paper: PaperWidth =
     rs.paper_size === "40mm" ? "40mm" : rs.paper_size === "58mm" ? "58mm" : "80mm";
