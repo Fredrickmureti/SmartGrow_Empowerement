@@ -1,165 +1,129 @@
-# POS Receipt Rendering — Architectural Verdict & Consolidation Plan
 
-## Status snapshot (2026-07-20)
+# POS Receipt Rendering — Verification & Continuation Plan
 
-| Phase | Status                       |
-| :---- | :--------------------------- |
-| 1     | ✅ Complete                   |
-| 2     | ✅ Complete (merged into 3)   |
-| 3     | ✅ Complete (item 7 pivoted)  |
-| 4     | ✅ Complete                   |
+## Position
 
-**All four phases are implemented and verified.** The receipt rendering
-platform is now enterprise-grade: one canonical `Line[]` AST, one paper
-geometry table, one row producer shared by Preview + PDF + ESC/POS, and a full
-guardrail suite (ESLint rule + 6 architecture tests + 3 ADRs).
+The previous agent claims Phases 1–4 of `.lovable/plan.md` are complete:
+one canonical `Line[]` AST (ADR-0084), single row producer in
+`supabase/functions/_shared/receipt/lines.ts` driving Preview + thermal
+PDF + ESC/POS, paper geometry centralised on `PrinterProfile`, dual
+`ReceiptDocumentModel` / `DocumentData` intentional per ADR-0086, and a
+guardrail suite (ESLint `no-raw-escpos-bytes`, six architecture tests,
+ADRs 0084/0085/0086).
 
-**Currently active phase:** none — Phase 4 shipped. The next agent should
-start the **Post-Consolidation Roadmap** below (Phase 5+).
+Files confirmed to exist during exploration:
+`supabase/functions/_shared/receipt/{lines.ts, documentToInput.ts,
+engine/PrinterProfile.ts, engine/ColumnLayout.ts, pdf/renderThermalPdf.ts}`,
+`supabase/functions/_shared/escpos/{builder.ts, renderLinesEscPos.ts,
+renderDocumentEscPos.ts, parity_gate_test.ts}`,
+`src/lib/receipt/engine/PrinterProfile.ts`, ADRs 0084 and 0085.
+Everything else — behaviour, parity, guardrail coverage — is unverified.
 
-## Verdict (from audit)
+Nothing new is implemented until Phase A passes.
 
-A canonical layout engine exists — and is now fully canonical.
+## Phase A — Independent verification (read-only, no code changes)
 
-- Low-level primitives: `ColumnLayout` (column solving, wrap, pad),
-  `PrinterProfile` (paper × font → columns, margins, caps + paper geometry).
-- Row producer (`supabase/functions/_shared/receipt/lines.ts`) drives Preview,
-  thermal PDF, and ESC/POS via the shared `Line[]` AST.
-- Byte transports (`EscPosPrinterDriver`, `EscPosReceiptDriver`) contain zero
-  layout logic; ESLint rule `no-raw-escpos-bytes` prevents regression.
-- Two intentional models: `DocumentData` (server, every emittable artifact)
-  and `ReceiptDocumentModel` (client, four POS UI surfaces only). See
-  ADR-0086.
+A1. **Test suite**: run `bunx vitest run src/test/architecture/` and
+`bunx vitest run supabase/functions/_shared/receipt supabase/functions/_shared/escpos supabase/functions/_shared/pdf`.
+Every test must pass. Record failures; a failing guardrail is Phase A
+work, not Phase 5 work.
 
-## Target architecture (achieved)
+A2. **Single-producer invariant (ADR-0084)**: grep for other row
+producers. `escpos/builder.ts`, `renderThermalPdf.ts`, and
+`MonospacePreview` must each consume the `Line[]` from
+`receipt/lines.ts` and contain no header/meta/items/totals/payments
+assembly of their own. Any local assembly = regression.
 
-```text
-                DocumentData (canonical business shape,
-                reused across POS / invoices / POs / quotes /
-                delivery notes / payment receipts / kitchen tickets)
-                            │
-                            ▼
-              documentToReceiptInput  (DocumentData → renderer input)
-                            │
-                            ▼
-        ┌──────── receipt/lines.ts (ONE row producer) ─────────┐
-        │  emits Line[]: header | meta | recipient | items    │
-        │  | totals | payments | allocations | barcode | qr    │
-        │  | footer | fiscal — driven by PrinterProfile        │
-        │  (columns, margins, caps, paper geometry) via        │
-        │  ColumnLayout primitives                             │
-        └──────┬─────────────────┬──────────────────┬───────────┘
-               ▼                 ▼                  ▼
-         MonospacePreview   renderThermalPdf   escpos/builder.ts
-         (React <pre>)      (pdf-lib, chars)   (Line[] → bytes)
-```
+A3. **Rendering ownership (ADR-0085)**: confirm ESLint rules
+`no-raw-escpos-bytes`, `no-raw-pdf-lib-in-app`, `no-direct-barcode-lib`,
+`no-raw-zpl-outside-printing` exist and are wired in `eslint.config.js`.
+Grep `src/**` for `pdf-lib`, `bwip-js`, raw `qrcode` (non-`qrcode.react`),
+raw `\x1B`/`\x1D` bytes, and any `// RENDERER-EXEMPT:` opt-outs — each
+opt-out must cite a documented reason.
 
-The three renderers receive the exact same `Line[]`.
+A4. **Model boundary (ADR-0086)**: ensure ADR-0086 exists (only 0084 and
+0085 were located during exploration; 0086 is claimed but not sighted).
+If missing, that's a Phase A defect. Run
+`pos-receipt-model-boundary.test.ts` and
+`pos-receipt-cross-model-consistency.test.ts`.
 
-## Completed work
+A5. **Paper geometry centralisation**: confirm `renderThermalPdf.ts`
+imports `paperGeometry` from `PrinterProfile` and has no local
+`PAPER_WIDTH_MM` / `PAPER_MARGIN_MM` tables. Confirm the client mirror
+`src/lib/receipt/engine/PrinterProfile.ts` matches its server twin
+byte-for-byte (guarded by `receipt-engine-mirror-parity.test.ts`).
 
-### Phase 1 — Stop the bleeding ✅
-1. Deduplicated engine mirror; parity locked by
-   `receipt-engine-mirror-parity.test.ts`.
-2. Synchronized `PrinterProfile` and `buildReceiptLines` client/server copies.
-3. Fixed `show_qty` / `show_unit_price` / `show_item_modifiers` boolean-default
-   drift.
+A6. **Byte-parity spot check**: pick one representative POS receipt
+fixture, render it through the PDF path and through the ESC/POS emitter,
+and diff the resulting `Line[]` (not the bytes). They must be identical.
+Any divergence means `escpos/builder.ts` still skips the shared producer
+and is a Phase A defect.
 
-### Phase 2 — One row producer ✅ (merged into 3)
-4. `escpos/builder.ts` routed through the shared row producer; layout math
-   removed from the emitter.
-5. `Line` type union in `receipt/lines.ts` — sole producer.
-6. Backported refund banner / `bill_to` / `ship_to` / payment allocations /
-   `fiscal_block` / `barcode` into the shared producer.
+A7. **Printer profile coverage**: verify 40 mm, 58 mm, 80 mm are all
+present in `FONT_COLUMNS`, `DEFAULT_MARGIN`, and `PAPER_GEOMETRY`. If
+the 80 mm ESC/POS output still overflows in the emulator (the symptom
+that triggered this audit), inspect the operative profile — likely a
+mismatch between the printer's actual character density and the
+`FONT_COLUMNS['80mm']` table, or a `columnsOverride` that isn't being
+sourced from the assigned printer profile. Document the root cause
+before proposing a fix.
 
-### Phase 3 — Collapse the models ✅
-7. **Pivoted per ADR-0086**: the dual model is intentional (Shopify POS /
-   Square / Lightspeed pattern). `ReceiptDocumentModel` = UI-only,
-   `DocumentData` = every emittable artifact. Formalized by:
-   - `pos-receipt-model-boundary.test.ts` (imports allowlist)
-   - `pos-receipt-cross-model-consistency.test.ts` (numeric parity vs snapshot)
-   - Updated docstring on `ReceiptDocumentModel.ts` referencing ADR-0086.
-8. Paper geometry (`widthMm`, `marginMm`) moved into `PrinterProfile` via
-   `paperGeometry(paper)`. `renderThermalPdf` no longer owns constants.
+Deliverable: a short verification report listing, per item, PASS /
+FAIL / MISSING with file:line evidence. Any FAIL/MISSING is appended to
+this plan as remedial work and executed before Phase 5.
 
-### Phase 4 — Guardrails ✅
-9. Contract tests:
-   - `receipt-line-ast-contract.test.ts` — single-producer AST.
-   - `pos-receipt-cross-model-consistency.test.ts` — UI ↔ Print numeric parity.
-   - `pos-receipt-renderer-contract.test.ts` — renderer chokepoint.
-10. ESLint rule `local/no-raw-escpos-bytes` — forbids raw `ESC`/`GS` bytes
-    outside `_shared/escpos/`, hardware drivers, and test dirs.
-11. ADRs:
-    - `docs/adr/0084-receipt-line-ast-canonical.md`
-    - `docs/adr/0085-rendering-ownership.md`
-    - `docs/adr/0086-pos-dual-receipt-model.md`
+## Phase B — Remediation (only if A surfaces defects)
 
-## Post-consolidation roadmap (Phase 5+)
+For each Phase A defect: fix in place, add a regression test, keep the
+architecture direction (Line[] AST, ownership table, dual-model per
+0086). Do not rebuild.
 
-The rendering platform is production-ready. The next milestones are additive:
-new artifact types on top of the same `Line[]` AST + `DocumentData` chassis.
+Likely candidates given the reported ESC/POS overflow:
 
-### Phase 5 — Second-medium artifacts on the same chassis (NEXT)
-Priority order. Each item extends `DocumentData` + adds a new emitter that
-consumes the same `Line[]` AST — no engine changes.
+- The active printer profile isn't being consumed by the ESC/POS
+  emitter — the emitter is picking a default width instead of the one
+  the operator selected. Fix at the profile resolution site, not by
+  editing `FONT_COLUMNS`.
+- Font-B (9-dot) is being assumed while the driver actually emits
+  Font-A bytes (or vice versa). Reconcile via `PrinterProfile.font`
+  and the emitter's font-select command.
+- `marginCols` is 0 for 80 mm on the operative profile, printing to
+  the head edge. Ensure `DEFAULT_MARGIN['80mm'] = 2` is actually used.
 
-- **5.1 Shelf-edge labels** — new `DocumentType = 'shelf_label'`. Add
-  `shelf_label` layout to `receipt/layouts/` and a ZPL/ESC-POS emitter path.
-  Route through `src/services/printing/` (ZPL owner per ADR-0085).
-- **5.2 Barcode / GS1 labels** — reuse `barcode` line type, wire a
-  label-printer profile (58mm, 40mm) into `PrinterProfile`.
-- **5.3 Kitchen ticket polish** — the type exists; validate its `Line[]`
-  emission matches KDS expectations (station routing, prep-time header).
-- **5.4 Gift receipt** — variant of `pos_receipt` with prices suppressed via
-  `pos_receipt_settings.show_unit_price = false`; add a dedicated toggle in
-  the POS surface.
+## Phase C — Resume Phase 5.1: shelf-edge labels
 
-### Phase 6 — A4 pipeline unification (deferred from original scope)
-`generateDocumentPdf` / `generateStatementPdf` are stable but still separate.
-Migrate them onto the `Line[]` AST once Phase 5 proves the AST is expressive
-enough for multi-page tabular documents.
+Only after Phase A (and any Phase B) is green.
 
-### Phase 7 — Observability & rollout tooling
-- Byte-diff harness recording ESC/POS fixtures per tenant for regression.
-- Render-time metrics (line count, cut delay, printer round-trip).
+Scope, per the existing plan:
 
-## Explicitly out of scope
-- Cosmetic PDF redesign — the AST is unified; visual tweaks happen only via
-  `PrinterProfile` or per-layout modules, never in emitters.
+- Add `DocumentType = 'shelf_label'` to `DocumentData`.
+- Add `layouts/shelfLabel.ts` under
+  `supabase/functions/_shared/receipt/layouts/` that emits the shared
+  `Line[]` AST (name, price, unit price, barcode, SKU footer).
+- Wire a label-printer profile (58 mm and 40 mm columns, ZPL caps) into
+  `PrinterProfile`.
+- Add the ZPL emitter path in `src/services/printing/` (ZPL owner per
+  ADR-0085). Do NOT add ZPL assembly to `escpos/`.
+- Add a golden-`Line[]` test and a ZPL byte-golden test.
 
-## Handoff instructions for the next agent
+Phase 5.2–5.4, Phase 6, Phase 7 remain queued and untouched by this
+turn.
 
-**Before writing any new code**, verify the completed work:
+## Guardrails carried through every phase
 
-1. Run the full architecture suite:
-   ```
-   bunx vitest run src/test/architecture/
-   ```
-   All tests must pass. Any failure means a prior guardrail regressed —
-   fix it first, don't skip.
-2. Confirm the three ADRs (0084, 0085, 0086) exist under `docs/adr/` and
-   their invariants match the code. If an ADR references a file that has
-   moved, update the ADR.
-3. Verify ESC/POS bytes for a `pos_receipt` render match the PDF for the
-   same snapshot on a representative fixture. Any drift indicates
-   `escpos/builder.ts` skipped the shared row producer.
-4. Confirm no file outside the four-surface allowlist imports
-   `ReceiptDocumentModel` (the boundary test enforces this).
-5. Confirm `renderThermalPdf.ts` imports `paperGeometry` from
-   `PrinterProfile` and holds no local `PAPER_WIDTH_MM` / `PAPER_MARGIN_MM`
-   tables.
+- No new row producer. Extending the receipt means adding a `Line`
+  variant to `receipt/lines.ts` plus one media-specific render per
+  emitter.
+- No `pdf-lib`, `bwip-js`, raw `qrcode`, or raw ESC/POS/ZPL bytes under
+  `src/**` outside sanctioned driver directories.
+- Client mirror of `PrinterProfile` / row producer stays byte-identical
+  to the server copy; parity test must stay green.
+- Update `.lovable/plan.md` after each completed sub-phase; do not
+  mark work complete without a passing test.
 
-**Only after verification**, resume from Phase 5.1 (shelf-edge labels).
-Do not:
-- Jump to Phase 6 or 7 before Phase 5 lands — that fragments medium ownership.
-- Re-attempt to delete `ReceiptDocumentModel` — ADR-0086 makes it intentional.
-  Reopening this requires superseding the ADR with new evidence, not
-  a plan-file edit.
-- Add layout math to `escpos/builder.ts` or `renderThermalPdf.ts` — the
-  emitter role is bytes/pixels only; layout lives in `receipt/lines.ts` +
-  `receipt/engine/`.
-- Introduce a fourth receipt document model. If a new artifact needs fields
-  neither model carries, extend `DocumentData` and add a `Line` variant.
+## Explicit non-goals for this turn
 
-Update this file after each completed sub-phase (5.1 → 5.2 → …) so it
-remains the authoritative status board.
+- Redesigning the AST or replacing the dual-model split (ADR-0086 stands
+  until superseded).
+- Cosmetic PDF changes; the AST governs layout.
+- Migrating A4 documents to `Line[]` (Phase 6, deferred).
