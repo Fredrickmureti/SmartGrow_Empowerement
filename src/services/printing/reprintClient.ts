@@ -17,6 +17,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import { printLabelByTemplate, type LabelDispatchInput } from '@/services/printing/labelDispatch';
+import { generateDocumentEscPosBytes } from '@/services/printing/pdfUtils';
 
 export interface RequestReprintInput {
   orgId: string;
@@ -69,6 +70,21 @@ export async function dispatchReceiptReprint(
   reprintRequestId: string,
   input: { receiptData: unknown; sourceDocType: string; sourceDocId: string },
 ) {
+  if (input.sourceDocType === 'pos_receipt') {
+    const bytes = await generateDocumentEscPosBytes('pos_receipt', input.sourceDocId, {
+      forceRefreshSettings: false,
+    });
+    return hardwareClient.exec({
+      role: 'receipt_printer',
+      op: 'print_raw',
+      payload: Array.from(bytes),
+      idempotencyKey: `reprint:${reprintRequestId}`,
+      sourceDocType: input.sourceDocType,
+      sourceDocId: input.sourceDocId,
+      isReprint: true,
+    });
+  }
+
   return hardwareClient.exec({
     role: 'receipt_printer',
     op: 'print_receipt',

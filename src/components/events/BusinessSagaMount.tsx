@@ -246,13 +246,15 @@ export function BusinessSagaMount({ orgId }: Props) {
               p_source_doc_id: txId,
             });
           }
+          const { generateDocumentEscPosBytes } = await import('@/services/printing/pdfUtils');
+          const receiptBytes = await generateDocumentEscPosBytes('pos_receipt', txId);
           await supabase.rpc('enqueue_hardware_command', {
             p_org_id: e.orgId,
             p_branch_id: e.branchId ?? null,
             p_device_assignment_id: null,
             p_role: 'receipt_printer',
-            p_op: 'print_receipt',
-            p_payload: { transaction_id: txId, transaction_number: payload.transaction_number },
+            p_op: 'print_raw',
+            p_payload: Array.from(receiptBytes),
             p_idempotency_key: `pos-receipt:${txId}`,
             p_business_event_id: e.id ?? null,
             p_source_doc_type: 'pos_transaction',
