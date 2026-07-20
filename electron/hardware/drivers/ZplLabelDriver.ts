@@ -1,20 +1,22 @@
 /**
  * ZplLabelDriver — Zebra ZPL-II label driver.
  *
- * Audit Wave 9d.8 (P0 #2). Real ZPL driver: callers pass pre-rendered
- * ZPL bytes (produced by `supabase/functions/_shared/printing/zpl/builder.ts`
- * server-side) or a structured `LabelSpec` and we assemble a valid
- * `^XA … ^XZ` envelope on the wire.
+ * Audit Wave 9d.8 (P0 #2) + ADR-0086 / D6. Pure transport for pre-rendered
+ * ZPL. Callers MUST push bytes/text produced upstream by the canonical
+ * label pipeline (`label_templates` → `resolve_label_template` →
+ * `renderTemplateBody` in either
+ * `supabase/functions/_shared/printing/zpl/builder.ts` server-side or
+ * `src/services/printing/labelDispatch.ts` client-side). This driver
+ * validates the envelope (`^XA` head, `^XZ` tail), rejects ESC/POS
+ * payloads (start with 0x1B 0x40 = ESC @), applies transport-level
+ * commands (`^MD`, `^PR`) from the assignment config, then writes to the
+ * wire. It does NOT know label layout, does NOT know CODE128 vs QR, and
+ * does NOT own a `LabelSpec` — those concerns live in `label_templates`.
  *
- * Two op shapes are supported:
- *   - `print_raw`   { bytes: number[] | Uint8Array }
- *                   Bytes pass through verbatim. The driver validates the
- *                   envelope (`^XA` head, `^XZ` tail) and rejects payloads
- *                   that look like ESC/POS (start with 0x1B 0x40 = ESC @).
- *   - `print_label` { spec: LabelSpec }
- *                   Structured rendering for callers that don't want to
- *                   know ZPL — header fields (SKU, name, price) + CODE128
- *                   barcode, at the configured DPI and dimensions.
+ * Two op names are accepted for backwards compatibility; both go through
+ * the same passthrough:
+ *   - `print_raw`   { bytes | zpl }
+ *   - `print_label` { bytes | zpl }
  *
  * Configuration on `assignment.config`:
  *   - dpi:        203 | 300                 (default 203)
@@ -36,15 +38,6 @@ import type { ExecCommand, ExecResult, DeviceRole } from '../types';
 const ESC = 0x1B;
 const AT = 0x40;
 
-export interface LabelSpec {
-  sku?: string;
-  name?: string;
-  price?: string;
-  barcode?: string;          // CODE128
-  qrcode?: string;           // square QR (model 2)
-  secondary?: string;        // e.g. lot / expiry
-}
-
 interface ZplConfig {
   dpi: 203 | 300;
   widthMm: number;
@@ -52,15 +45,6 @@ interface ZplConfig {
   encoding: 'latin1' | 'utf8';
   darkness?: number;
   speed?: number;
-}
-
-function mmToDots(mm: number, dpi: number): number {
-  return Math.round(mm * (dpi / 25.4));
-}
-
-function asciiSafe(s: string | null | undefined, max = 64): string {
-  if (!s) return '';
-  return s.normalize('NFKD').replace(/[^\x20-\x7E]/g, '').slice(0, max);
 }
 
 export class ZplLabelDriver extends TransportDriver {
@@ -85,37 +69,43 @@ export class ZplLabelDriver extends TransportDriver {
       return { ok: false, error: `unsupported op '${cmd.op}' on label_printer (zpl)` };
     }
     const cfg = this.readConfig();
-    const payload = (cmd.payload ?? {}) as { bytes?: number[] | Uint8Array; spec?: LabelSpec; zpl?: string };
-    let zpl: string | null = null;
+    const payload = (cmd.payload ?? {}) as { bytes?: number[] | Uint8Array; zpl?: string };
     let bytes: Buffer | null = null;
-
-    if (cmd.op === 'print_raw') {
-      if (Array.isArray(payload.bytes) || payload.bytes instanceof Uint8Array) {
-        bytes = Buffer.from(payload.bytes as ArrayLike<number>);
-      } else if (typeof payload.zpl === 'string' && payload.zpl.length > 0) {
-        zpl = payload.zpl;
-      }
-      if (bytes && bytes.length >= 2 && bytes[0] === ESC && bytes[1] === AT) {
-        return { ok: false, error: 'payload looks like ESC/POS (starts with ESC @). Use receipt_printer role or bind an EscPosLabelDriver.' };
-      }
-      if (bytes && !this.looksLikeZpl(bytes)) {
-        return { ok: false, error: 'payload does not look like ZPL — expected ^XA…^XZ envelope.' };
-      }
-    } else {
-      // print_label — render from spec
-      if (!payload.spec || typeof payload.spec !== 'object') {
-        return { ok: false, error: 'print_label payload requires { spec }' };
-      }
-      zpl = this.renderSpec(payload.spec, cfg);
-    }
-
-    if (zpl) {
-      bytes = Buffer.from(zpl, cfg.encoding);
+    if (Array.isArray(payload.bytes) || payload.bytes instanceof Uint8Array) {
+      bytes = Buffer.from(payload.bytes as ArrayLike<number>);
+    } else if (typeof payload.zpl === 'string' && payload.zpl.length > 0) {
+      bytes = Buffer.from(this.applyTransportCommands(payload.zpl, cfg), cfg.encoding);
     }
     if (!bytes || bytes.length === 0) {
-      return { ok: false, error: `${cmd.op} payload missing bytes/zpl/spec` };
+      return {
+        ok: false,
+        error: `${cmd.op} payload missing bytes/zpl — labels must be pre-rendered from label_templates (ADR-0086/D6). Driver does not render from a spec.`,
+      };
+    }
+    if (bytes.length >= 2 && bytes[0] === ESC && bytes[1] === AT) {
+      return { ok: false, error: 'payload looks like ESC/POS (starts with ESC @). Use receipt_printer role or bind an EscPosLabelDriver.' };
+    }
+    if (!this.looksLikeZpl(bytes)) {
+      return { ok: false, error: 'payload does not look like ZPL — expected ^XA…^XZ envelope.' };
     }
     return this.send(bytes);
+  }
+
+  /**
+   * Inject transport-only commands (`^MD` darkness, `^PR` speed) right
+   * after the `^XA` header. These are NOT layout — they configure the
+   * printer itself and must not be encoded into the template body.
+   */
+  private applyTransportCommands(zpl: string, cfg: ZplConfig): string {
+    const parts: string[] = [];
+    if (typeof cfg.darkness === 'number') parts.push(`^MD${Math.max(0, Math.min(30, cfg.darkness))}`);
+    if (typeof cfg.speed === 'number') parts.push(`^PR${Math.max(1, Math.min(14, cfg.speed))}`);
+    if (parts.length === 0) return zpl;
+    const head = zpl.indexOf('^XA');
+    if (head < 0) return zpl;
+    const before = zpl.slice(0, head + 3);
+    const after = zpl.slice(head + 3);
+    return `${before}\n${parts.join('')}${after.startsWith('\n') ? '' : '\n'}${after}`;
   }
 
   private looksLikeZpl(buf: Buffer): boolean {
@@ -123,42 +113,5 @@ export class ZplLabelDriver extends TransportDriver {
     const head = buf.subarray(0, Math.min(64, buf.length)).toString('latin1');
     const tail = buf.subarray(Math.max(0, buf.length - 64)).toString('latin1');
     return head.includes('^XA') && tail.includes('^XZ');
-  }
-
-  private renderSpec(spec: LabelSpec, cfg: ZplConfig): string {
-    const dots = (mm: number) => mmToDots(mm, cfg.dpi);
-    const pw = dots(cfg.widthMm);
-    const ll = dots(cfg.heightMm);
-    const lines: string[] = ['^XA'];
-    if (typeof cfg.darkness === 'number') lines.push(`^MD${Math.max(0, Math.min(30, cfg.darkness))}`);
-    if (typeof cfg.speed === 'number') lines.push(`^PR${Math.max(1, Math.min(14, cfg.speed))}`);
-    lines.push(`^PW${pw}`);
-    lines.push(`^LL${ll}`);
-    lines.push('^LH0,0');
-    lines.push('^CF0,30');
-
-    const name = asciiSafe(spec.name, 36);
-    const sku = asciiSafe(spec.sku, 24);
-    const sec = asciiSafe(spec.secondary, 32);
-    const price = asciiSafe(spec.price, 14);
-    const barcode = asciiSafe(spec.barcode || spec.sku, 24);
-    const qr = asciiSafe(spec.qrcode, 256);
-
-    let y = 20;
-    if (name) { lines.push(`^FO20,${y}^FD${name}^FS`); y += 40; }
-    if (sku) { lines.push(`^CF0,24^FO20,${y}^FDSKU: ${sku}^FS`); y += 30; }
-    if (sec) { lines.push(`^FO20,${y}^FD${sec}^FS`); y += 30; }
-    if (price) { lines.push(`^CF0,40^FO20,${y}^FD${price}^FS`); y += 50; }
-    if (barcode) {
-      lines.push('^BY2,2,80');
-      lines.push(`^FO20,${y}^BCN,80,Y,N,N^FD${barcode}^FS`);
-      y += 110;
-    }
-    if (qr) {
-      // QR placed top-right when there's room
-      lines.push(`^FO${Math.max(0, pw - 160)},20^BQN,2,6^FDLA,${qr}^FS`);
-    }
-    lines.push('^XZ');
-    return lines.join('\n');
   }
 }
