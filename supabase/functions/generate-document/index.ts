@@ -2637,8 +2637,31 @@ serve(async (req) => {
           policy.printer_profile_id,
         );
       }
+      // Observability — expose the actual bytes' fingerprint + renderer
+      // version and paper-source so operators can prove which code path
+      // produced the ESC/POS stream in the emulator/on the wire.
+      const _byteHash = await _sha(escposBytes as Uint8Array);
+      policyHeaders["X-Renderer"] = _rendererId;
+      policyHeaders["X-Renderer-Byte-Sha256"] = _byteHash;
+      policyHeaders["X-Print-Policy-Paper-Source"] = resolvedPaper.source;
+      console.log(
+        JSON.stringify({
+          tag: "receipt-render",
+          documentType,
+          documentId,
+          format: "escpos",
+          renderer: _rendererId,
+          paper: width,
+          paperSource: resolvedPaper.source,
+          columns: _resolvedProfileForHeaders.columns,
+          font: _resolvedProfileForHeaders.font,
+          profileId: policy.printer_profile_id ?? null,
+          bytes: (escposBytes as Uint8Array).length,
+          sha256: _byteHash,
+        }),
+      );
       policyHeaders["Access-Control-Expose-Headers"] =
-        "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Coerce-Reason, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id, X-Receipt-Settings-Source";
+        "X-Print-Policy-Source, X-Print-Policy-Paper, X-Print-Policy-Paper-Source, X-Print-Policy-Render-Mode, X-Print-Policy-Coerced, X-Print-Policy-Coerce-Reason, X-Print-Policy-Columns, X-Print-Policy-Font, X-Print-Policy-Profile-Id, X-Receipt-Settings-Source, X-Renderer, X-Renderer-Byte-Sha256";
 
       // ADR-0084 Wave B3.2 — persist ESC/POS bytes for byte-identical
       // reprint + fiscal audit. Blocking for pos_receipt (auditors need
