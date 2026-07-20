@@ -259,7 +259,20 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   rule();
 
   // ── Title + meta ────────────────────────────────────────────────────
-  center(t.title ?? "RECEIPT", { bold: true });
+  const resolvedTitle = t.title ?? "RECEIPT";
+  center(resolvedTitle, { bold: true });
+  // Refund banner (Wave 6b.2) — a negative total OR an explicit refund
+  // title (REFUND / RETURN / CREDIT NOTE) surfaces a bold banner so the
+  // customer and cashier immediately see this is not a normal sale.
+  const isRefundDoc =
+    /REFUND|RETURN|CREDIT\s*NOTE/i.test(resolvedTitle) ||
+    Number(t.total_amount ?? 0) < 0;
+  if (isRefundDoc) {
+    blank();
+    center("*** REFUND ***", { bold: true });
+    blank();
+  }
+
   if (rs.show_receipt_number !== false && t.transaction_number) {
     left(padLR("No:", t.transaction_number, cw));
   }
