@@ -75,14 +75,14 @@ export default function TalentAnalyticsPage() {
   }, [rows]);
 
   return (
-    <div className="container max-w-7xl py-6 space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Talent Analytics</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Talent Analytics</h1>
         <p className="text-sm text-muted-foreground">Executive view of performance, succession, and learning across the organization.</p>
       </div>
 
       {/* Org totals */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <Metric icon={<Users className="h-4 w-4" />} label="Active employees" value={totals.hc} />
         <Metric icon={<ClipboardCheck className="h-4 w-4" />} label="Review completion" value={totals.rt ? `${Math.round((totals.rd / totals.rt) * 100)}%` : "—"} subtitle={`${totals.rd} of ${totals.rt}`} />
         <Metric icon={<Star className="h-4 w-4" />} label="Average rating" value={totals.avg != null ? totals.avg.toFixed(2) : "—"} />
