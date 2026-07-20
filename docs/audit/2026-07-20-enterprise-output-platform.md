@@ -215,13 +215,15 @@ items require live-preview verification before they close:
 1. **D1** — capture ZPL bytes from each label entry point (`Products.tsx`
    product-label button; any warehouse UI that hits `generate-document`
    with `documentType="inventory_label"`).
-2. **D2** — introduce a scratch violating import, confirm ESLint fires,
-   remove it.
+2. **D2** — scratch importer of `pdf-lib` under
+   `supabase/functions/_scratch-d2-verify/` tripped
+   `local/no-raw-pdf-lib-in-edge-functions`; baseline edge tree is
+   clean; architecture test locks it. **Closed 2026-07-20.**
 3. **D3** — Playwright the Statements pages, confirm the preview dialog
    opens and the outgoing request matches the hook path.
 
 Each remediation ships as its own build-mode plan, one at a time, in the
-order D1 → D2 → D3 → (D5 guardrail as fallout of D2).
+order D1 → D2 → D3. D5 was absorbed by D2 (see D2 resolution notes).
 
 ## Non-goals of this audit
 
