@@ -616,8 +616,20 @@ export async function generateStatementPdf(
   template: Partial<TemplateSettings> = {},
   options: DocumentRenderOptions = {},
 ): Promise<Uint8Array> {
+  // Wave 12 architecture guard — statements are structurally A4-only
+  // (multi-column ledger with charges/credits/balance). If a caller
+  // resolves a thermal paper format for a statement request, the
+  // routing/policy layer is wrong, not this renderer.
+  const gsp_paper = String(options.paperFormat ?? "").toLowerCase();
+  if (gsp_paper === "40mm" || gsp_paper === "58mm" || gsp_paper === "80mm") {
+    throw new Error(
+      `generateStatementPdf invoked with thermal paper "${gsp_paper}". ` +
+        `Statements are A4/Letter-only (Wave 12).`,
+    );
+  }
   const t: TemplateSettings = { ...DEFAULT_TEMPLATE_SETTINGS, ...template };
   const currency = data.currency || "USD";
+
   const transactions = data.statement_transactions || [];
   const aging = data.statement_aging || [];
   const openingBalance = data.statement_opening_balance ?? 0;
