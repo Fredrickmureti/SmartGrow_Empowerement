@@ -304,7 +304,7 @@ export default tseslint.config(
   {
     files: [
       "src/pages/**/*.{ts,tsx}",
-      "src/features/**/pages/**/*.{ts,tsx}",
+      "src/features/**/*.{ts,tsx}",
     ],
     rules: {
       "local/no-direct-generate-document-in-pages": "error",
