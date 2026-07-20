@@ -89,6 +89,16 @@ export interface ReceiptPaymentLike {
   reference?: string | null;
 }
 
+export interface ReceiptRecipientLike {
+  label?: string;               // "Bill To" | "Customer" | "Ship To"
+  name?: string | null;
+  company?: string | null;
+  address_lines?: Array<string | null | undefined>;
+  phone?: string | null;
+  email?: string | null;
+  tax_id?: string | null;
+}
+
 export interface ReceiptTransactionLike {
   id?: string;
   transaction_number?: string;
@@ -108,6 +118,21 @@ export interface ReceiptTransactionLike {
   etims_qr_data?: string | null;
   /** Optional resolved title, e.g. "SALES RECEIPT" / "TAX INVOICE" / "REFUND". */
   title?: string;
+  // ── Non-POS document extras (invoice / quote / PO / delivery note) ──
+  /** Structured recipient block. Rendered as a labelled address block. */
+  bill_to?: ReceiptRecipientLike | null;
+  ship_to?: ReceiptRecipientLike | null;
+  /** Due date, already formatted or ISO — engine reformats when ISO. */
+  due_date?: string | null;
+  /** Human status label (e.g. "COMPLETED", "OVERDUE"). */
+  status?: string | null;
+  /** Free-form notes block. */
+  notes?: string | null;
+  /** Terms & conditions block. */
+  terms?: string | null;
+  /** Currency ISO code (KES, USD…). Adapter passes this so engine can fall
+   * back to a code prefix when no symbol override is configured. */
+  currency_code?: string | null;
 }
 
 export interface BuildReceiptLinesInput {
