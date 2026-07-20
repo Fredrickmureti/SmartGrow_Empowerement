@@ -1,165 +1,95 @@
-# POS Receipt Rendering — Architectural Verdict & Consolidation Plan
 
-## Status snapshot (2026-07-20)
+# Enterprise Output Platform Audit
 
-| Phase | Status                       |
-| :---- | :--------------------------- |
-| 1     | ✅ Complete                   |
-| 2     | ✅ Complete (merged into 3)   |
-| 3     | ✅ Complete (item 7 pivoted)  |
-| 4     | ✅ Complete                   |
+## Objective
 
-**All four phases are implemented and verified.** The receipt rendering
-platform is now enterprise-grade: one canonical `Line[]` AST, one paper
-geometry table, one row producer shared by Preview + PDF + ESC/POS, and a full
-guardrail suite (ESLint rule + 6 architecture tests + 3 ADRs).
+Determine whether any business document besides the POS ESC/POS receipt (already remediated under ADR-0084 / ADR-0085) suffers from the same architectural drift: layout logic living inside a renderer instead of a canonical layout engine, or multiple runtime paths producing "the same" document differently. Deliver an audit + ADR + prioritized remediation plan, executed one medium at a time.
 
-**Currently active phase:** none — Phase 4 shipped. The next agent should
-start the **Post-Consolidation Roadmap** below (Phase 5+).
+## First principles (target architecture)
 
-## Verdict (from audit)
-
-A canonical layout engine exists — and is now fully canonical.
-
-- Low-level primitives: `ColumnLayout` (column solving, wrap, pad),
-  `PrinterProfile` (paper × font → columns, margins, caps + paper geometry).
-- Row producer (`supabase/functions/_shared/receipt/lines.ts`) drives Preview,
-  thermal PDF, and ESC/POS via the shared `Line[]` AST.
-- Byte transports (`EscPosPrinterDriver`, `EscPosReceiptDriver`) contain zero
-  layout logic; ESLint rule `no-raw-escpos-bytes` prevents regression.
-- Two intentional models: `DocumentData` (server, every emittable artifact)
-  and `ReceiptDocumentModel` (client, four POS UI surfaces only). See
-  ADR-0086.
-
-## Target architecture (achieved)
+Every printable output must flow through five clearly-owned stages, mirroring SAP Smart Forms / Oracle BI Publisher / Odoo QWeb+report / Dynamics FR:
 
 ```text
-                DocumentData (canonical business shape,
-                reused across POS / invoices / POs / quotes /
-                delivery notes / payment receipts / kitchen tickets)
-                            │
-                            ▼
-              documentToReceiptInput  (DocumentData → renderer input)
-                            │
-                            ▼
-        ┌──────── receipt/lines.ts (ONE row producer) ─────────┐
-        │  emits Line[]: header | meta | recipient | items    │
-        │  | totals | payments | allocations | barcode | qr    │
-        │  | footer | fiscal — driven by PrinterProfile        │
-        │  (columns, margins, caps, paper geometry) via        │
-        │  ColumnLayout primitives                             │
-        └──────┬─────────────────┬──────────────────┬───────────┘
-               ▼                 ▼                  ▼
-         MonospacePreview   renderThermalPdf   escpos/builder.ts
-         (React <pre>)      (pdf-lib, chars)   (Line[] → bytes)
+Business Event
+   → Canonical Document Model   (server, one per domain)
+   → Canonical Layout Engine    (medium-family: thermal | paged | label | report)
+   → Output Renderer            (PDF | ESC/POS | ZPL | CSV/XLSX | HTML preview)
+   → Hardware Driver            (transport only)
+   → Physical Output
 ```
 
-The three renderers receive the exact same `Line[]`.
+Rules the audit will enforce:
+- One canonical model per business domain (receipt, ERP document, statement, payroll doc, label, tabular report).
+- One layout engine per medium family; renderers translate, they do not compute.
+- Preview, PDF, and device-native bytes for the same event must derive from the same layout output.
+- Printer profiles configure media capabilities only; they never fork layout code.
+- Drivers are transports (bytes in → wire out); no business rules, no layout.
 
-## Completed work
+## Scope — every printable business event
 
-### Phase 1 — Stop the bleeding ✅
-1. Deduplicated engine mirror; parity locked by
-   `receipt-engine-mirror-parity.test.ts`.
-2. Synchronized `PrinterProfile` and `buildReceiptLines` client/server copies.
-3. Fixed `show_qty` / `show_unit_price` / `show_item_modifiers` boolean-default
-   drift.
+Grouped by the medium family they should belong to. The audit produces an entry per row.
 
-### Phase 2 — One row producer ✅ (merged into 3)
-4. `escpos/builder.ts` routed through the shared row producer; layout math
-   removed from the emitter.
-5. `Line` type union in `receipt/lines.ts` — sole producer.
-6. Backported refund banner / `bill_to` / `ship_to` / payment allocations /
-   `fiscal_block` / `barcode` into the shared producer.
+**Thermal / receipt-class** (canonical: `receipt/lines.ts` → `Line[]`)
+- POS sale receipt, POS refund/reprint, POS payment slip, kitchen ticket, customer display draft.
 
-### Phase 3 — Collapse the models ✅
-7. **Pivoted per ADR-0086**: the dual model is intentional (Shopify POS /
-   Square / Lightspeed pattern). `ReceiptDocumentModel` = UI-only,
-   `DocumentData` = every emittable artifact. Formalized by:
-   - `pos-receipt-model-boundary.test.ts` (imports allowlist)
-   - `pos-receipt-cross-model-consistency.test.ts` (numeric parity vs snapshot)
-   - Updated docstring on `ReceiptDocumentModel.ts` referencing ADR-0086.
-8. Paper geometry (`widthMm`, `marginMm`) moved into `PrinterProfile` via
-   `paperGeometry(paper)`. `renderThermalPdf` no longer owns constants.
+**Paged / A4-class** (canonical: `_shared/pdf` + `templateRenderer` `DocumentData`)
+- Sales invoice, quotation, estimate, credit note, debit note, proforma.
+- Purchase order, purchase receipt / GRN, vendor bill, RFQ.
+- Delivery note, picking list, packing slip, transfer document, GDN, stock adjustment sheet, inventory count sheet.
+- Payment receipt (A4), remittance advice, customer statement, vendor statement, aging report.
+- Payslip, employment/HR letters, tax certificate (P9/P10/etc.), statutory returns, audit certificate.
 
-### Phase 4 — Guardrails ✅
-9. Contract tests:
-   - `receipt-line-ast-contract.test.ts` — single-producer AST.
-   - `pos-receipt-cross-model-consistency.test.ts` — UI ↔ Print numeric parity.
-   - `pos-receipt-renderer-contract.test.ts` — renderer chokepoint.
-10. ESLint rule `local/no-raw-escpos-bytes` — forbids raw `ESC`/`GS` bytes
-    outside `_shared/escpos/`, hardware drivers, and test dirs.
-11. ADRs:
-    - `docs/adr/0084-receipt-line-ast-canonical.md`
-    - `docs/adr/0085-rendering-ownership.md`
-    - `docs/adr/0086-pos-dual-receipt-model.md`
+**Label-class** (canonical: `label_templates` + `printing/zpl/builder` / EPL driver)
+- Product / shelf / price labels, barcode labels, GS1 labels, pallet / carton labels, warehouse location labels, shipping labels.
 
-## Post-consolidation roadmap (Phase 5+)
+**Tabular / report-class** (canonical: `_shared/reports` + `_shared/exports`)
+- CSV / XLSX exports, scheduled reports, `render-report` outputs, statement CSV.
 
-The rendering platform is production-ready. The next milestones are additive:
-new artifact types on top of the same `Line[]` AST + `DocumentData` chassis.
+## Method (per row)
 
-### Phase 5 — Second-medium artifacts on the same chassis (NEXT)
-Priority order. Each item extends `DocumentData` + adds a new emitter that
-consumes the same `Line[]` AST — no engine changes.
+For each business event, complete a table row with runtime-verified evidence — no path is trusted just because it exists.
 
-- **5.1 Shelf-edge labels** — new `DocumentType = 'shelf_label'`. Add
-  `shelf_label` layout to `receipt/layouts/` and a ZPL/ESC-POS emitter path.
-  Route through `src/services/printing/` (ZPL owner per ADR-0085).
-- **5.2 Barcode / GS1 labels** — reuse `barcode` line type, wire a
-  label-printer profile (58mm, 40mm) into `PrinterProfile`.
-- **5.3 Kitchen ticket polish** — the type exists; validate its `Line[]`
-  emission matches KDS expectations (station routing, prep-time header).
-- **5.4 Gift receipt** — variant of `pos_receipt` with prices suppressed via
-  `pos_receipt_settings.show_unit_price = false`; add a dedicated toggle in
-  the POS surface.
+1. **Trigger** — UI/API/cron site (file:line).
+2. **Server entrypoint** — edge function or server fn actually invoked (`generate-document`, `generate-payslip-pdf`, `render-report`, `printClient.print`, `printLabelByTemplate`, …).
+3. **Canonical model** — the typed input the server builds (`DocumentData`, `ReceiptLinesInput`, `PayrollDocumentData`, `LabelVars`, report row set).
+4. **Layout engine** — module that turns the model into a medium-neutral layout (or "MISSING" if the renderer computes layout inline).
+5. **Renderer(s)** — every module that emits final bytes for that model (PDF, ESC/POS, ZPL, XLSX, HTML preview). List all, not just the "intended" one.
+6. **Driver / transport** — how bytes reach the device (`printClient`, agent, CUPS, Win spooler, browser download).
+7. **Runtime proof** — one of: added `X-Renderer` header + curl trace, `console.log` from a live invocation, or a Playwright run against the preview that captures the request. Not "the code looks like it does X".
+8. **Drift flags** — duplicate model, duplicate layout, preview≠PDF, PDF≠device bytes, driver contains layout, business rules inside renderer, missing printer-profile awareness, missing artifact capture in `document_artifacts`.
 
-### Phase 6 — A4 pipeline unification (deferred from original scope)
-`generateDocumentPdf` / `generateStatementPdf` are stable but still separate.
-Migrate them onto the `Line[]` AST once Phase 5 proves the AST is expressive
-enough for multi-page tabular documents.
+Mechanical helpers used during the audit (read-only in this pass):
+- ripgrep sweeps for every `supabase.functions.invoke("generate-*"|"render-report")`, every `printClient.print(`, every `printLabelByTemplate(`, every `new PDFDocument`, every `XLSX.write*`, every `^XA`, every ad-hoc `\x1B` / `\x1D` byte string.
+- Cross-reference against existing guardrails (`no-raw-pdf-lib-in-app`, `no-raw-escpos-bytes`, `no-raw-zpl-outside-printing`, `no-direct-barcode-lib`, `no-raw-xlsx-in-app`, `no-printservice-shim`, `no-direct-window-print`, `no-document-print-shadow-path`) to find domains lacking equivalent guards.
+- Runtime tracing via `stack_modern--invoke-server-function` + `stack_modern--server-function-logs` and Playwright against the preview to prove which path is actually reached.
 
-### Phase 7 — Observability & rollout tooling
-- Byte-diff harness recording ESC/POS fixtures per tenant for regression.
-- Render-time metrics (line count, cut delay, printer round-trip).
+## Deliverables
 
-## Explicitly out of scope
-- Cosmetic PDF redesign — the AST is unified; visual tweaks happen only via
-  `PrinterProfile` or per-layout modules, never in emitters.
+1. **`docs/audit/2026-07-20-enterprise-output-platform.md`** — the full runtime-verified matrix (one row per business event) with drift flags and evidence links.
+2. **`docs/adr/0086-enterprise-output-platform.md`** — codifies the five-stage pipeline, names the canonical model + layout engine per medium family, and states the invariant "preview, PDF, and device bytes are the same layout".
+3. **Drift ledger** appended to the audit doc, prioritized High / Medium / Low by: (a) customer-visible divergence risk, (b) statutory/fiscal exposure, (c) number of duplicate paths.
+4. **Per-drift remediation stubs** — one short follow-up plan section per High/Medium item, each scoped to a single medium family, each with: canonical owner, files to delete/merge, guard rule to add, runtime proof required to close.
 
-## Handoff instructions for the next agent
+Explicitly out of scope of this plan: writing any of the remediation code. Each High/Medium drift becomes its own build-mode plan, executed one at a time, mirroring the POS ESC/POS consolidation pattern (identify canonical owner → migrate callers → add ESLint + runtime guard → prove old path is dead → delete).
 
-**Before writing any new code**, verify the completed work:
+## Runtime-verification rule (non-negotiable)
 
-1. Run the full architecture suite:
-   ```
-   bunx vitest run src/test/architecture/
-   ```
-   All tests must pass. Any failure means a prior guardrail regressed —
-   fix it first, don't skip.
-2. Confirm the three ADRs (0084, 0085, 0086) exist under `docs/adr/` and
-   their invariants match the code. If an ADR references a file that has
-   moved, update the ADR.
-3. Verify ESC/POS bytes for a `pos_receipt` render match the PDF for the
-   same snapshot on a representative fixture. Any drift indicates
-   `escpos/builder.ts` skipped the shared row producer.
-4. Confirm no file outside the four-surface allowlist imports
-   `ReceiptDocumentModel` (the boundary test enforces this).
-5. Confirm `renderThermalPdf.ts` imports `paperGeometry` from
-   `PrinterProfile` and holds no local `PAPER_WIDTH_MM` / `PAPER_MARGIN_MM`
-   tables.
+For every remediation that follows this audit: before claiming a path is fixed, trigger the business event against the running preview and confirm the change is observable (response header, log line, byte diff, or Playwright screenshot). If the observed output does not change, stop and locate the active path before editing further — the POS ESC/POS incident is the template for this rule.
 
-**Only after verification**, resume from Phase 5.1 (shelf-edge labels).
-Do not:
-- Jump to Phase 6 or 7 before Phase 5 lands — that fragments medium ownership.
-- Re-attempt to delete `ReceiptDocumentModel` — ADR-0086 makes it intentional.
-  Reopening this requires superseding the ADR with new evidence, not
-  a plan-file edit.
-- Add layout math to `escpos/builder.ts` or `renderThermalPdf.ts` — the
-  emitter role is bytes/pixels only; layout lives in `receipt/lines.ts` +
-  `receipt/engine/`.
-- Introduce a fourth receipt document model. If a new artifact needs fields
-  neither model carries, extend `DocumentData` and add a `Line` variant.
+## Technical section (for engineers)
 
-Update this file after each completed sub-phase (5.1 → 5.2 → …) so it
-remains the authoritative status board.
+Already-canonical paths confirmed by inspection (audit will re-verify at runtime):
+- Thermal receipt: `receipt/lines.ts` → `renderThermalPdf` and `renderDocumentEscPos`, gated in `generate-document/index.ts` by `routeThroughThermalEngine`, guarded by `receipt-line-ast-contract`, `receipt-engine-mirror-parity`, `pos-receipt-model-boundary`, `parity_gate_test`, `escpos-parity_test`.
+- A4 documents: `generate-document` → `_shared/pdfGenerator.generateDocumentPdf` / `generateStatementPdf`; A4 canonical model = `DocumentData` from `_shared/templateRenderer.ts`. Self-defends against `pos_receipt` (asserted by `thermal-routing-architecture_test`). Audit must verify there is exactly ONE layout engine for A4 across invoices/POs/GRNs/delivery notes/statements.
+- Labels: `label_templates` table + `printing/zpl/builder` (server) + `ZplLabelDriver` / `EplLabelDriver` (transport). Audit must confirm no page/screen renders label PDFs or barcode rasters client-side and that `printLabelByTemplate` is the only entry.
+- Reports: `render-report` + `_shared/exports/reportXlsx` / `reportCsv`. Audit must confirm no client-side XLSX generation and CSV parity with PDF.
+- Payroll / HR letters / tax certificates: `generate-payslip-pdf`, `generate-payroll-document`, `generate-tax-certificate`, `_shared/hrLetterGenerator`. Audit must confirm they share the A4 layout engine rather than each embedding page geometry.
+
+Candidate drift hotspots to prove or disprove first (highest suspicion, based on file inventory):
+- Multiple payroll/HR/tax PDF entrypoints (`generate-payslip-pdf`, `generate-payroll-document`, `generate-tax-certificate`, `generate-audit-certificate`, `hrLetterGenerator`, `reportPdfGenerator`) — verify they all delegate to `_shared/pdf` primitives or flag layout duplication.
+- Statement rendering (`generateStatementPdf` vs `statementCsv` vs `CustomerStatements.tsx` / `VendorStatements.tsx` inline invokes) — verify PDF ↔ CSV parity from a single row model.
+- Client-side print helpers (`hooks/useDocumentPrint.ts`, `usePrintOrPreview.ts`, `PrintPreviewDialog`, `PrintSettingsPopover`) — verify none synthesize `DocumentData` in the browser; all must round-trip through `generate-document`.
+- Label ecosystem — confirm every label class (shelf, GS1, pallet, carton, shipping) has a `label_templates` row and a driver renderer; flag any label produced by an ad-hoc code path.
+- `_shared/pdfGenerator.ts` (single file) vs `_shared/pdf/**` (module) — confirm the monolith is a shim over the modular engine, not a parallel implementation.
+- Cross-check every existing ESLint rule under `eslint-rules/` for medium families with NO guard; the audit ledger proposes the missing guard as part of remediation.
+
