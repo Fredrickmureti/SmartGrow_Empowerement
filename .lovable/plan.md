@@ -72,4 +72,19 @@ Insert after Wave 8:
 - `generateDocumentPdf` is unreachable from any thermal-width request. Enforced by test.
 - Re-uploading today's `receipt-POS1-260720-0004.pdf` and `invoice.pdf` at 80 mm produces continuous strips with no overlap, correct currency, correct recipient block, correct meta column.
 
-Ready to switch to build mode and start with Wave 6b.2. Say the word.
+## Phase 4 — Execution log (Session 2)
+
+| Wave | Status | Notes |
+|---|---|---|
+| **9**  | ✅ landed | `lines.ts` now emits `bill_to` / `ship_to` (with wrapped address lines, phone, email, tax id), `Due:`, `Status:`, `Notes:`, `Terms:` blocks. Currency formatter falls back to ISO code prefix (`KES 12,500.00`) when no explicit symbol override — invoices no longer render bare numbers. Indent-aware wordWrap (`cw - 2`) prevents truncated trailing chars on wrapped notes/terms. |
+| **9-adapter** | ✅ landed | `documentToReceiptInput` recognises POS vs business docs. Synthesises `defaultBusinessDocSettings` when no `pos_receipt_settings` exists, populates `bill_to` from `doc.contact`, `ship_to` from `doc.shipping_address`, threads `doc.notes`/`terms`/`due_date`/`status`, injects `doc.currency` as the symbol override, and derives a per-type default title (TAX INVOICE, PURCHASE ORDER, QUOTATION, …). POS payloads keep original semantics (cashier, tendered/change, eTIMS QR). |
+| **10** | ✅ landed | Router at `generate-document/index.ts:2687` widened to `!isStatement && (isThermalWidth || documentType === "pos_receipt")`. Any thermal-width doc — invoice, PO, quote, delivery note, sales order — now flows through `renderThermalPdf`. `generateDocumentPdf` continues to own A4/Letter/A5 for the same doc types. Statements continue on `generateStatementPdf`. |
+| **6b.2 (partial)** | ✅ landed via shared engine | Currency prefix, Bill To, Due, Status, Notes, Terms — 6 of the 19 shim-gap items are now covered in the shared engine (they naturally serve POS receipts too when the settings row enables them). Remaining 13 items (per-line tax column, tax bucket breakdown, refund banner, savings line, cash tendered/change format polish, fiscal ETIMS layout parity, barcode payload, cut mode, copies, line-spacing, etc.) still pending. |
+| **6b.3** | ⏳ pending | Do NOT swap `buildDocumentEscPos` body until 6b.2 reaches parity — parity gate still at `EXPECT_PARITY=false`. |
+| **7** | ⏳ pending | Goldens across doc types × widths × targets. |
+| **8** | ⏳ pending | Delete A4 dead branches. Safe only after 11. |
+| **11** | ⏳ pending | Architecture guard test forbidding `generateDocumentPdf` on thermal widths. Router change in 10 makes the branch unreachable at runtime; guard is the belt-and-braces. |
+| **12** | ⏳ pending | Statement fast-fail assertion. |
+
+**Smoke test:** `deno run /tmp/thermal_smoke.ts` renders a KES invoice with bill-to, due date, status, tax-per-line, currency-prefixed totals, wrapped notes/terms — see `/mnt/documents/invoice_thermal_after_v2.jpg`. No line collisions, no bare unformatted numbers, no A4-coordinate leakage.
+
