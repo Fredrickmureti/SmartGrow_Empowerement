@@ -11,7 +11,7 @@
 
 import type {
   IDriver, DriverType, DeviceRole, ConnectionBackend,
-  DeviceStatus, DriverCommand, DriverResult, PrintCommand, DeviceInfo,
+  DeviceStatus, DriverCommand, DriverResult, DeviceInfo,
 } from './DriverInterface';
 import { KNOWN_PRINTER_VENDORS } from '../escpos-commands';
 import { resolveTransport, type ITransport, type ResolveTransportOptions } from '../transport';
@@ -94,7 +94,16 @@ export class EscPosPrinterDriver implements IDriver {
     }
 
     if (command.type === 'print_receipt') {
-      const data = this._buildReceiptBytes(command as PrintCommand);
+      const payload = command.payload as { bytes?: number[] | Uint8Array } | number[] | Uint8Array;
+      const data = Array.isArray(payload) || payload instanceof Uint8Array
+        ? payload
+        : payload?.bytes;
+      if (!data || !(Array.isArray(data) || data instanceof Uint8Array)) {
+        return {
+          success: false,
+          error: 'print_receipt requires server-rendered ESC/POS bytes; local receipt encoding is disabled.',
+        };
+      }
       const result = await this._transport.send(data);
       return { success: result.success, error: result.error };
     }
@@ -138,59 +147,5 @@ export class EscPosPrinterDriver implements IDriver {
     );
     // Keep last-known connected flag — UI does not flap.
     return this._status.connected;
-  }
-
-  // ═══════════════════════════════════════════
-  //  ESC/POS byte builder
-  // ═══════════════════════════════════════════
-
-  private _buildReceiptBytes(printCmd: PrintCommand): number[] {
-    const encoder = new TextEncoder();
-    const data: number[] = [0x1b, 0x40]; // ESC @ (init)
-
-    // Header
-    if (printCmd.payload.header) {
-      data.push(0x1b, 0x61, 0x01); // center
-      data.push(0x1b, 0x45, 0x01); // bold on
-      for (const h of printCmd.payload.header) {
-        data.push(...encoder.encode(h.text), 0x0a);
-      }
-      data.push(0x1b, 0x45, 0x00); // bold off
-      data.push(0x0a);
-    }
-
-    // Lines
-    for (const line of printCmd.payload.lines) {
-      const align = line.align === 'center' ? 0x01 : line.align === 'right' ? 0x02 : 0x00;
-      data.push(0x1b, 0x61, align);
-      if (line.bold) data.push(0x1b, 0x45, 0x01);
-      if (line.doubleWidth) data.push(0x1d, 0x21, 0x10);
-      if (line.doubleHeight) data.push(0x1d, 0x21, 0x01);
-      data.push(...encoder.encode(line.text), 0x0a);
-      if (line.bold) data.push(0x1b, 0x45, 0x00);
-      if (line.doubleWidth || line.doubleHeight) data.push(0x1d, 0x21, 0x00);
-    }
-
-    // Footer
-    if (printCmd.payload.footer) {
-      data.push(0x0a);
-      data.push(0x1b, 0x61, 0x01); // center
-      for (const f of printCmd.payload.footer) {
-        data.push(...encoder.encode(f.text), 0x0a);
-      }
-    }
-
-    // Feed + cut
-    if (printCmd.payload.cut !== false) {
-      data.push(0x1b, 0x64, 0x04); // feed 4 lines
-      data.push(0x1d, 0x56, 0x41, 0x03); // partial cut
-    }
-
-    // Open drawer
-    if (printCmd.payload.openDrawer) {
-      data.push(0x1b, 0x70, 0x00, 0x19, 0x78); // pin 2
-    }
-
-    return data;
   }
 }
