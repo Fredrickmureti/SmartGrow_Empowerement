@@ -523,13 +523,45 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   }
   rule();
 
-  // ── eTIMS QR ─────────────────────────────────────────────────────────
+  // ── Fiscal block (generic) OR legacy eTIMS-only path ────────────────
+  // Wave 6b Phase 2 — provider-agnostic. When `t.fiscal_block` is set
+  // the engine renders the generic shape (heading + label/value rows +
+  // QR + optional signature). Otherwise it falls back to the eTIMS-only
+  // path so existing KE receipts keep rendering byte-identical.
   let qrPayload: string | undefined;
-  if (rs.show_etims_qr && t.etims_qr_data) {
+  const fb = t.fiscal_block;
+  if (fb && (fb.fields?.length || fb.qr)) {
+    const heading = (fb.heading ?? fb.provider ?? "FISCAL").toString().trim() || "FISCAL";
+    if (rs.show_etims_info !== false && Array.isArray(fb.fields) && fb.fields.length > 0) {
+      blank();
+      center(heading, { bold: true });
+      for (const f of fb.fields) {
+        const label = String(f?.label ?? "").trim();
+        const value = String(f?.value ?? "").trim();
+        if (!label && !value) continue;
+        left(padLR(label ? `${label}:` : "", value, cw));
+      }
+      if (fb.signature && String(fb.signature).trim()) {
+        left(padLR("Sig:", String(fb.signature).trim(), cw));
+      }
+    }
+    if (rs.show_etims_qr !== false && fb.qr) {
+      push("", { align: "center", qr: true });
+      qrPayload = String(fb.qr);
+    }
+    rule();
+  } else if (rs.show_etims_qr && t.etims_qr_data) {
     center("KRA eTIMS Verification", { bold: true });
     push("", { align: "center", qr: true });
     qrPayload = String(t.etims_qr_data);
     if (rs.show_etims_info && t.etims_cu_number) center(`CU: ${t.etims_cu_number}`);
+    rule();
+  } else if (rs.show_etims_info && t.etims_cu_number) {
+    // Wave 6b Phase 2 — CU number alone (no QR) still surfaces so
+    // fiscalized cash sales without a QR payload keep the CU visible.
+    blank();
+    center("eTIMS", { bold: true });
+    left(padLR("CU No:", String(t.etims_cu_number), cw));
     rule();
   }
 
@@ -555,5 +587,36 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
     for (const l of wordWrap(String(rs.return_policy_text), cw)) center(l);
   }
 
-  return { lines, meta, columns: cols, marginCols, paper, font, qrPayload };
+  // ── Barcode row (Wave 6b Phase 2) ───────────────────────────────────
+  // Rendered LAST so scanners always find it below the totals block.
+  // Emitters interpret `LineMeta.barcode` — ESC/POS emits GS k Code128,
+  // PDF renders the barcode glyph. Textual line content is the fallback.
+  if (t.barcode && t.barcode.data) {
+    blank();
+    // Row text is the textual fallback (used when the emitter cannot
+    // render natively). Keep it centred; the barcode marker overrides.
+    push(t.barcode.data, {
+      align: "center",
+      barcode: { data: t.barcode.data, type: t.barcode.type ?? "code128" },
+    });
+  }
+
+  // ── Emitter-level directives (copies × body, cut, feed) ─────────────
+  // These live on the RESULT so every emitter (PDF, ESC/POS, preview)
+  // reads them from the same place. `renderThermalPdf` currently ignores
+  // them; `renderLinesEscPos` executes them.
+  const clampInt = (v: unknown, min: number, max: number, fb2: number): number => {
+    const n = typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : fb2;
+    return Math.max(min, Math.min(max, n));
+  };
+  const directives: ReceiptRenderDirectives = {
+    copies: clampInt(rs.copies, 1, 3, 1),
+    copyLabels: Array.isArray(rs.copy_labels)
+      ? (rs.copy_labels as unknown[]).map((x) => String(x ?? ""))
+      : [],
+    cutMode: rs.cut_mode === "partial" || rs.cut_mode === "none" ? rs.cut_mode : "full",
+    feedLinesAfter: clampInt(rs.feed_lines_after, 0, 10, 4),
+  };
+
+  return { lines, meta, columns: cols, marginCols, paper, font, qrPayload, directives };
 }
