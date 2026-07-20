@@ -25,13 +25,11 @@ import {
   DocumentActivityPanel,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { normalizeError } from "@/services/resilience";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { VendorStatementPreview } from "@/components/purchases/VendorStatementPreview";
 import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
+import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 import { useVendorStatementRecord } from "./useVendorStatementRecord";
 
 function fmtDate(v: string | null | undefined) {
@@ -49,43 +47,18 @@ export default function VendorStatementRecordPage() {
   const { formatCurrency } = useCurrency();
   const { currentBusiness } = useBusinesses();
   const { record, loading, error } = useVendorStatementRecord(id);
-  const [downloading, setDownloading] = useState(false);
+  const { downloadPdf, isGeneratingPdf } = useDocumentPrint();
   const [emailOpen, setEmailOpen] = useState(false);
 
   const back = () => navigate("/purchases/statements");
 
   const handleDownload = async () => {
     if (!record) return;
-    setDownloading(true);
-    try {
-      const { downloadPdfBlob } = await import("@/services/printing/pdfUtils");
-      const { data, error: fnErr } = await supabase.functions.invoke(
-        "generate-document",
-        {
-          body: {
-            documentType: "vendor_statement",
-            documentId: record.header.id,
-            format: "pdf",
-          },
-        },
-      );
-      if (fnErr) throw fnErr;
-      const blob =
-        data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
-      const filename = `Vendor_Statement_${record.data.contact.name.replace(
-        /[^a-zA-Z0-9]/g,
-        "_",
-      )}_${format(new Date(), "yyyy-MM-dd")}.pdf`;
-      downloadPdfBlob(blob, filename);
-      toast.success("Vendor statement PDF downloaded");
-    } catch (err: any) {
-      toast.error(
-        "Failed to generate statement PDF: " +
-          (normalizeError(err).message || "Unknown error"),
-      );
-    } finally {
-      setDownloading(false);
-    }
+    const filename = `Vendor_Statement_${record.data.contact.name.replace(
+      /[^a-zA-Z0-9]/g,
+      "_",
+    )}_${format(new Date(), "yyyy-MM-dd")}`;
+    await downloadPdf("vendor_statement", record.header.id, filename);
   };
 
   if (loading) {
@@ -168,9 +141,9 @@ export default function VendorStatementRecordPage() {
                   variant="outline"
                   size="sm"
                   onClick={handleDownload}
-                  disabled={downloading}
+                  disabled={isGeneratingPdf}
                 >
-                  {downloading ? (
+                  {isGeneratingPdf ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Download className="mr-2 h-4 w-4" />
