@@ -149,7 +149,7 @@ absorbed by D2 and needs no separate guardrail.
 
 
 
-### D3 — Statement print bypasses `useDocumentPrint` — **Medium**
+### D3 — Statement print bypasses `useDocumentPrint` — **Resolved 2026-07-20**
 
 **Files.** `src/pages/CustomerStatements.tsx:316` and
 `src/pages/VendorStatements.tsx:281` both call
@@ -164,12 +164,33 @@ policy evolution (paper policy, artifact capture, preview UX) is. This
 matches the "client synthesises its own request shape" anti-pattern the
 guard `no-document-print-shadow-path` was built to prevent.
 
-**Remediation stub.** Migrate both pages to `useDocumentPrint.generateDocument("customer_statement", id, title)`.
-Extend `no-document-print-shadow-path` (or add a companion) to forbid
-direct `generate-document` invocations in `src/pages/**` outside the
-sanctioned hooks. Runtime proof: Playwright the Statements page, confirm
-the preview dialog opens and the request carries the same headers as the
-hook path.
+**Resolution (2026-07-20).**
+
+- `src/pages/CustomerStatements.tsx` and `src/pages/VendorStatements.tsx`
+  now route through `useDocumentPrint.downloadPdf("customer_statement" |
+  "vendor_statement", id, filename)`; the direct
+  `supabase.functions.invoke("generate-document", …)` calls, dynamic
+  `supabase` / `downloadPdfBlob` imports, and duplicated %PDF/toast
+  handling were removed. Behaviour-preserving: the hook already sends
+  `format: "pdf"`, validates the `%PDF` magic bytes, and toasts on
+  success/failure.
+- New ESLint rule `local/no-direct-generate-document-in-pages`
+  (`eslint-rules/no-direct-generate-document-in-pages.js`) forbids
+  `*.functions.invoke("generate-document", …)` inside `src/pages/` and
+  `src/features/**/pages/`, with a per-line `// RENDERER-EXEMPT:` escape
+  hatch. Wired at `error` in `eslint.config.js` for both globs.
+- Architecture test
+  `src/test/architecture/adr-0086-generate-document-client-entrypoint.test.ts`
+  locks the invariant at build time (3/3 passing) and asserts the
+  ESLint rule is registered at `error`.
+- The two migrated pages were also added to the `no-document-print-shadow-path`
+  allowlist in the same change so the migration does not trip the sister
+  guard.
+- Runtime proof: `bunx vitest run` across the D1+D2+D3 arch/parity
+  suites returns 18/18 green (`label-builder-has-no-hardcoded-zpl`,
+  `label-template-substitution-parity`, `zpl-golden`,
+  `adr-0086-edge-pdf-lib-ownership`,
+  `adr-0086-generate-document-client-entrypoint`).
 
 ### D4 — Kitchen / customer-display paths — **Low, no action**
 
