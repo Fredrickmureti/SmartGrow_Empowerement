@@ -43,6 +43,31 @@ const DEFAULT_MARGIN: Record<PaperWidth, number> = {
   "80mm": 2,
 };
 
+/**
+ * Physical paper geometry — the single source of truth for millimetre
+ * width and horizontal bleed margins used by media renderers (PDF, image
+ * label, thermal preview). Character-grid math lives in `columns` /
+ * `marginCols`; this table only governs how the character grid maps to
+ * physical paper. Do NOT re-declare paper widths elsewhere.
+ */
+export interface PaperGeometry {
+  /** Physical paper width in millimetres. */
+  widthMm: number;
+  /** Horizontal bleed inset (mm) outside the character grid to keep text
+   *  off the thermal-head edge. Distinct from `marginCols` (grid-level). */
+  marginMm: number;
+}
+
+const PAPER_GEOMETRY: Record<PaperWidth, PaperGeometry> = {
+  "40mm": { widthMm: 40, marginMm: 1.5 },
+  "58mm": { widthMm: 58, marginMm: 2 },
+  "80mm": { widthMm: 80, marginMm: 3 },
+};
+
+export function paperGeometry(paper: PaperWidth): PaperGeometry {
+  return PAPER_GEOMETRY[paper];
+}
+
 export interface ResolveProfileInput {
   paper: PaperWidth;
   font?: Font;
