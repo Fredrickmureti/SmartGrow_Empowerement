@@ -201,6 +201,14 @@ export function documentToReceiptInput(
     ?? TITLE_BY_TYPE[doc.document_type]
     ?? doc.document_type.toUpperCase();
 
+  // Wave 6b Phase 2 — pass-through of fetcher-produced blocks that the
+  // shared engine now models natively:
+  //  * `fiscal_block` — provider-agnostic KRA/TRA/URA fiscal receipt
+  //  * `payment_allocations` — customer-payment receipts (invoice ledger)
+  //  * `barcode` — optional trailing Code128 for scan-driven reprints
+  // deno-lint-ignore no-explicit-any
+  const anyDoc = doc as any;
+
   const transaction: ReceiptTransactionLike = {
     id: doc.document_number,
     transaction_number: doc.document_number,
@@ -228,6 +236,22 @@ export function documentToReceiptInput(
     notes: !isPos ? (doc.notes ?? null) : null,
     terms: !isPos ? (doc.terms ?? null) : null,
     currency_code: typeof doc.currency === "string" ? doc.currency : null,
+    fiscal_block: anyDoc.fiscal_block ?? null,
+    payment_allocations: doc.document_type === "receipt"
+      ? (anyDoc.payment_allocations ?? null)
+      : null,
+    unapplied_amount: doc.document_type === "receipt"
+      ? Number(anyDoc.unapplied_amount ?? 0) || null
+      : null,
+    // Auto-attach a Code128 barcode for the document number when receipt
+    // settings ask for one. Explicit `doc.barcode` still wins.
+    barcode: anyDoc.barcode
+      ?? ((doc.document_number && (
+          (overrides.settings as Record<string, unknown> | undefined)?.show_barcode
+          || (anyDoc.pos_receipt_settings as Record<string, unknown> | undefined)?.show_barcode
+        ))
+        ? { data: doc.document_number, type: "code128" as const }
+        : null),
   };
 
   return {
