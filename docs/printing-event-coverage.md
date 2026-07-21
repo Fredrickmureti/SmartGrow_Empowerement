@@ -97,18 +97,23 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 
 ## Follow-up tickets (GAPs)
 
-- Promote the drawer-slip receipt from an on-demand action to an
-  automatic print policy on open/close events. Owner: POS cash-drawer
-  saga. Requires a `drawer_event_printed` idempotency key so retries
-  don't double-print, plus a per-terminal opt-out toggle (some tenants
-  pair receipt+drawer on the same physical printer and re-fire prints
-  via ESC/POS `ESC p`). Product decision needed on where in the domain
-  event bus `drawer:opened`/`drawer:closed` are emitted before wiring.
+- ~~Promote the drawer-slip receipt from on-demand to auto-print on
+  cash movements~~ — **WIRED (this turn)**. `usePOSCashDrawer.onSuccess`
+  now dispatches `printClient.print({ intent: 'receipt', documentType:
+  'drawer_slip' })` for every `pos_cash_movements` row. The
+  `generate-document` edge function renders via `_shared/escpos/drawer.ts`
+  (SOX/PCI audit slip: cashier, timestamp, movement type, amount,
+  reason, manager override id, signature line). Fire-and-forget so a
+  disconnected printer never aborts a cash movement; auditors can
+  reconcile the paper trail against `pos_cash_movements` by movement id.
+  Still deferred: automatic slip on `pos_drawer_events` no-sale opens
+  (the RPC that writes those rows doesn't exist yet); design once the
+  domain event bus emits `drawer:opened` on manual-open contexts.
 - ~~Promote `grn` from "data path exists" to a bound A4 event~~ —
-  **WIRED (this turn)**. `GoodsReceiptWizardPage.tsx` now dispatches
+  **WIRED (prior turn)**. `GoodsReceiptWizardPage.tsx` dispatches
   `printOrPreview({ documentType: 'goods_receipt', intent: 'a4_document' })`
-  after a successful post. The receiving policy engine (ADR-0088)
-  resolves auto/manual/off per branch via `print_policies_resolve`.
+  after a successful post; policy resolved by ADR-0088.
+
 
 When any of these ship, flip the row's status to `WIRED` in the same PR
 that adds the ESLint / architecture test proving it.
