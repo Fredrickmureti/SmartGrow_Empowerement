@@ -667,5 +667,3 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   );
 }
 
-// Silence unused-import warnings for helpers only used indirectly in AuditDetails.
-void humanizeKey; void formatValue;
