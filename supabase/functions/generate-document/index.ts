@@ -440,7 +440,62 @@ async function fetchGoodsReceivedNote(supabase: any, documentId: string): Promis
   };
 }
 
+// Phase B1 — Cash-drawer audit-slip fetcher. Returns the raw payload;
+// the short-circuit renderer (see `drawer_slip` block in the main
+// handler) formats it via `_shared/escpos/drawer.ts`. Joined shift +
+// register + cashier are best-effort; the slip must still render if
+// (for example) the cashier profile was deleted after the fact.
+async function fetchDrawerSlip(supabase: any, documentId: string): Promise<DocumentData> {
+  const { data: mv, error } = await supabase
+    .from("pos_cash_movements")
+    .select(`
+      id, organization_id, business_id, branch_id, shift_id, register_id,
+      movement_type, amount, reason, reason_code, notes, performed_by,
+      performed_at, manager_override_id,
+      shift:pos_shifts(shift_number),
+      register:pos_registers(name),
+      cashier:profiles!performed_by(full_name, first_name, last_name),
+      business:businesses(name, base_currency)
+    `)
+    .eq("id", documentId)
+    .single();
+  if (error || !mv) throw new Error(`Cash movement not found: ${error?.message}`);
+  return {
+    document_number: mv.id,
+    document_type: "drawer_slip",
+    status: "issued",
+    issue_date: mv.performed_at,
+    due_date: null,
+    subtotal: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: Number(mv.amount ?? 0),
+    currency: mv.business?.base_currency ?? "USD",
+    items: [],
+    // Passthrough — the short-circuit reads these directly.
+    drawer_slip: {
+      movement_id: mv.id,
+      movement_type: mv.movement_type,
+      amount: Number(mv.amount ?? 0),
+      reason: mv.reason,
+      reason_code: mv.reason_code,
+      notes: mv.notes,
+      performed_at: mv.performed_at,
+      manager_override_id: mv.manager_override_id,
+      register_name: mv.register?.name ?? null,
+      shift_number: mv.shift?.shift_number ?? null,
+      cashier_name: mv.cashier?.full_name
+        ?? [mv.cashier?.first_name, mv.cashier?.last_name].filter(Boolean).join(" ")
+        ?? null,
+      business_name: mv.business?.name ?? null,
+      currency: mv.business?.base_currency ?? null,
+    },
+  } as unknown as DocumentData;
+}
+
 // ── Template type mapping ──────────────────────────────────────────────────
+
+
 
 async function fetchReceipt(supabase: any, documentId: string): Promise<DocumentData> {
   // documentId can be the payment UUID, an invoice UUID, or a receipt_number string.
