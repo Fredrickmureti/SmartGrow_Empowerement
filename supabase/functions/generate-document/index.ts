@@ -440,7 +440,62 @@ async function fetchGoodsReceivedNote(supabase: any, documentId: string): Promis
   };
 }
 
+// Phase B1 — Cash-drawer audit-slip fetcher. Returns the raw payload;
+// the short-circuit renderer (see `drawer_slip` block in the main
+// handler) formats it via `_shared/escpos/drawer.ts`. Joined shift +
+// register + cashier are best-effort; the slip must still render if
+// (for example) the cashier profile was deleted after the fact.
+async function fetchDrawerSlip(supabase: any, documentId: string): Promise<DocumentData> {
+  const { data: mv, error } = await supabase
+    .from("pos_cash_movements")
+    .select(`
+      id, organization_id, business_id, branch_id, shift_id, register_id,
+      movement_type, amount, reason, reason_code, notes, performed_by,
+      performed_at, manager_override_id,
+      shift:pos_shifts(shift_number),
+      register:pos_registers(name),
+      cashier:profiles!performed_by(full_name, first_name, last_name),
+      business:businesses(name, base_currency)
+    `)
+    .eq("id", documentId)
+    .single();
+  if (error || !mv) throw new Error(`Cash movement not found: ${error?.message}`);
+  return {
+    document_number: mv.id,
+    document_type: "drawer_slip",
+    status: "issued",
+    issue_date: mv.performed_at,
+    due_date: null,
+    subtotal: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: Number(mv.amount ?? 0),
+    currency: mv.business?.base_currency ?? "USD",
+    items: [],
+    // Passthrough — the short-circuit reads these directly.
+    drawer_slip: {
+      movement_id: mv.id,
+      movement_type: mv.movement_type,
+      amount: Number(mv.amount ?? 0),
+      reason: mv.reason,
+      reason_code: mv.reason_code,
+      notes: mv.notes,
+      performed_at: mv.performed_at,
+      manager_override_id: mv.manager_override_id,
+      register_name: mv.register?.name ?? null,
+      shift_number: mv.shift?.shift_number ?? null,
+      cashier_name: mv.cashier?.full_name
+        ?? [mv.cashier?.first_name, mv.cashier?.last_name].filter(Boolean).join(" ")
+        ?? null,
+      business_name: mv.business?.name ?? null,
+      currency: mv.business?.base_currency ?? null,
+    },
+  } as unknown as DocumentData;
+}
+
 // ── Template type mapping ──────────────────────────────────────────────────
+
+
 
 async function fetchReceipt(supabase: any, documentId: string): Promise<DocumentData> {
   // documentId can be the payment UUID, an invoice UUID, or a receipt_number string.
@@ -1902,6 +1957,11 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   // client naming conventions work.
   vendor_return: fetchPurchaseReturn,
   purchase_return: fetchPurchaseReturn,
+  // Phase B1 — cash-drawer audit slip (SOX / PCI evidence for every
+  // out-of-band drawer open). Backed by `pos_cash_movements`; the
+  // short-circuit renderer bypasses the invoice/receipt pipeline
+  // entirely (no templates, no branding config, no fiscal blocks).
+  drawer_slip: fetchDrawerSlip,
 };
 
 // ── Main Handler ───────────────────────────────────────────────────────────
@@ -2533,6 +2593,59 @@ serve(async (req) => {
         },
       });
     }
+
+    // ─── Phase B1: drawer_slip short-circuit ───────────────────────────
+    //
+    // Drawer slips are compliance evidence, not commercial documents.
+    // They bypass templates, branding, fiscal blocks, and payment
+    // methods entirely and always emit ESC/POS bytes at the caller's
+    // paper width. Never call `fetchTemplate` for this type — there is
+    // no template to look up.
+    if (documentType === "drawer_slip") {
+      const { buildDrawerSlipEscPos } = await import("../_shared/escpos/drawer.ts");
+      const slip = (documentData as any).drawer_slip ?? {};
+      const widthHint: "40mm" | "58mm" | "80mm" =
+        body.paperFormat === "40mm" || body.paperFormat === "58mm" ? body.paperFormat : "80mm";
+      const labelMap: Record<string, string> = {
+        opening_float: "OPENING FLOAT",
+        cash_in: "CASH IN",
+        cash_out: "CASH OUT",
+        float: "OPENING FLOAT",
+        pickup: "PICKUP",
+        drop: "SAFE DROP",
+        safe_drop: "SAFE DROP",
+        bank_deposit: "BANK DEPOSIT",
+        petty_cash_out: "PETTY CASH",
+        correction: "CORRECTION",
+      };
+      const bytes = buildDrawerSlipEscPos({
+        movement_label: labelMap[String(slip.movement_type ?? "")] ?? "DRAWER OPEN",
+        amount: slip.amount ?? null,
+        currency: slip.currency ?? null,
+        performed_at: slip.performed_at ?? new Date().toISOString(),
+        reason: slip.reason ?? null,
+        reason_code: slip.reason_code ?? null,
+        notes: slip.notes ?? null,
+        business_name: slip.business_name ?? null,
+        register_name: slip.register_name ?? null,
+        cashier_name: slip.cashier_name ?? null,
+        shift_number: slip.shift_number ?? null,
+        manager_override_id: slip.manager_override_id ?? null,
+        movement_id: slip.movement_id ?? null,
+      }, { width: widthHint });
+      return new Response(bytes as unknown as BodyInit, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/octet-stream",
+          "Content-Disposition": buildContentDisposition("drawer_slip", slip.movement_id ?? documentId, "bin"),
+          "X-Print-Policy-Render-Mode": "escpos",
+          "X-Print-Policy-Paper": widthHint,
+          "Access-Control-Expose-Headers": "X-Print-Policy-Render-Mode, X-Print-Policy-Paper",
+        },
+      });
+    }
+
+
 
 
 

@@ -19,14 +19,24 @@ after a successful post. Routing is delegated to
 auto-print and unconfigured branches fall back to the preview dialog.
 Matrix updated; failure is non-blocking so navigation still fires.
 
-**Phase B1 (drawer-slip auto policy) — DEFERRED, needs product input.**
-The POS cash-drawer *kick* policy is fully implemented
-(`useDrawerPolicy`, stage-L tests). The remaining GAP is a separate
-*audit-slip* receipt on `drawer:opened`/`drawer:closed`. There is no
-domain-event emission for those transitions yet — designing that is a
-product decision (per-terminal opt-out, idempotency key on the saga,
-where in the SaleSaga the event fires). Called out as its own ticket so
-the guardrail work in Phase C isn't blocked on it.
+**Phase B1 (drawer-slip auto policy) — DONE this turn.** Every insert
+into `pos_cash_movements` (via `usePOSCashDrawer.addMovement`) now
+fire-and-forget dispatches a `drawer_slip` document through
+`printClient.print({ intent: 'receipt' })`. Rendering: new
+`supabase/functions/_shared/escpos/drawer.ts` builder + a `drawer_slip`
+fetcher and short-circuit in `generate-document` (bypasses templates
+/ branding / fiscal blocks — the slip is compliance evidence, not a
+commercial doc). Enterprise field set matches Oracle Xstore / NCR:
+banner, register, shift, cashier, time, amount, reason code, reason
+text, notes, manager-override id, movement id (paper→row reconciliation),
+signature line. Fire-and-forget so an offline printer never rolls back
+a cash movement. Guardrail: `src/test/printing/drawer-slip-wiring.test.ts`
+locks both ends of the seam. Matrix row flipped to WIRED.
+
+**Phase C (guardrails) — STARTED.** `drawer-slip-wiring.test.ts` added.
+Follow-up: extend the coverage test to fail the build when a new matrix
+row is added without a corresponding dispatch test.
+
 
 **Phase C (guardrails) — NOT STARTED.** Will land after B1 has an
 owner; adding a "no unWIRED rows in the matrix" test today would

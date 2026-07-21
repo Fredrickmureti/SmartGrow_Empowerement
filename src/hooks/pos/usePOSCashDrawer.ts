@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
+import { printClient } from "@/services/printing/PrintClient";
+
 
 export type CashMovementType =
   | "opening_float"
@@ -96,16 +98,38 @@ export function usePOSCashDrawer(shiftId?: string) {
       if (error) throw error;
       return result as any;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result: any, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pos-cash-movements"] });
       queryClient.invalidateQueries({ queryKey: ["pos-shifts"] });
       queryClient.invalidateQueries({ queryKey: ["pos-current-shift"] });
       queryClient.invalidateQueries({ queryKey: ["pos-cash-expected"] });
       toast.success(`Cash movement recorded (${variables.movement_type.replace(/_/g, " ")})`);
+
+      // Phase B1 — cash-drawer audit slip (SOX / PCI compliance).
+      // Every out-of-band drawer open must print a paper slip carrying
+      // cashier, timestamp, movement type, amount, reason, and (when
+      // present) manager override id. Fire-and-forget: a printer being
+      // offline must never abort the cash movement. When no receipt
+      // printer is bound the resolver returns `ask_user`/`none` and we
+      // silently drop — auditors reconcile from `pos_cash_movements`.
+      const movementId = result?.movement_id as string | undefined;
+      if (movementId && businessId) {
+        void printClient.print({
+          intent: "receipt",
+          documentType: "drawer_slip",
+          documentId: movementId,
+          title: `Drawer slip ${variables.movement_type}`,
+          businessId,
+          branchId: null,
+        }).catch((err) => {
+          console.warn("[drawer_slip] print dispatch failed (non-blocking)", err);
+        });
+      }
     },
     onError: (error: Error) => {
       toast.error(`Failed: ${normalizeError(error).message}`);
     },
+
   });
 
   const cashInTypes: CashMovementType[] = ["cash_in", "float", "opening_float", "correction"];
