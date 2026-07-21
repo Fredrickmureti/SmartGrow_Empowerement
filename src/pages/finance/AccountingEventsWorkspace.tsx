@@ -516,8 +516,13 @@ function Kpi({
 }
 
 function EventDrawer({
-  event, onClose, currency,
-}: { event: AccountingEventRow | null; onClose: () => void; currency: string }) {
+  event, summary, onClose, currency,
+}: {
+  event: AccountingEventRow | null;
+  summary?: PosStatementSummary;
+  onClose: () => void;
+  currency: string;
+}) {
   const qc = useQueryClient();
 
   const postNow = useMutation({
@@ -547,38 +552,94 @@ function EventDrawer({
 
   if (!event) return null;
 
+  const headline = summary?.statement_number
+    || `${humanizeEventKind(event.event_kind)} #${event.producer_doc_id.slice(0, 8)}`;
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {producerLabel(event.producer, event.producer_doc_type)}
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>{producerLabel(event.producer, event.producer_doc_type)}</span>
+            <span className="text-muted-foreground">·</span>
+            <span>{headline}</span>
             {stateBadge(event.state)}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Event ID" value={event.id} mono />
-            <Field label="Producer document" value={event.producer_doc_id} mono />
-            <Field label="Event kind" value={event.event_kind} />
+        <div className="space-y-4 text-sm">
+          {/* Business summary — what actually happened, in accountant terms. */}
+          {summary && (
+            <div className="rounded-md border bg-muted/30 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+                Shift close summary
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <Field label="Statement" value={summary.statement_number || "—"} />
+                <Field label="Close kind" value={summary.close_kind ? humanizeEventKind(summary.close_kind) : "—"} />
+                <Field label="Register" value={summary.register_name || "—"} />
+                <Field label="Shift" value={summary.shift_number || "—"} />
+                <Field label="Closed by" value={summary.cashier_name || "—"} />
+                <Field
+                  label="Closed at"
+                  value={summary.closed_at ? format(new Date(summary.closed_at), "yyyy-MM-dd HH:mm") : "—"}
+                />
+                <Field
+                  label="Sales"
+                  value={`${fmtMoney(summary.total_sales, event.currency_code ?? currency)} · ${summary.total_transactions ?? 0} txns`}
+                />
+                <Field
+                  label="Cash variance"
+                  value={fmtMoney(summary.cash_variance, event.currency_code ?? currency)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Posting lifecycle */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            <Field label="Event kind" value={humanizeEventKind(event.event_kind)} />
             <Field label="Version" value={`v${event.version}`} />
             <Field label="Requested" value={format(new Date(event.requested_at), "yyyy-MM-dd HH:mm")} />
             <Field label="Posted" value={event.posted_at ? format(new Date(event.posted_at), "yyyy-MM-dd HH:mm") : "—"} />
             <Field label="Amount" value={fmtMoney(event.amount, event.currency_code ?? currency)} />
-            <Field label="Journal entry" value={event.journal_entry_id ? event.journal_entry_id.slice(0, 8) + "…" : "—"} mono />
+            <Field
+              label="Journal entry"
+              value={event.journal_entry_id ? "Posted to ledger" : "Not yet posted"}
+            />
           </div>
 
-          {event.last_diagnostic && (
+          {event.last_diagnostic && Object.keys(event.last_diagnostic).length > 0 && (
             <Alert>
               <AlertTitle className="text-xs">Last diagnostic</AlertTitle>
-              <AlertDescription>
-                <pre className="text-[10px] whitespace-pre-wrap font-mono max-h-40 overflow-auto">
-                  {JSON.stringify(event.last_diagnostic, null, 2)}
-                </pre>
+              <AlertDescription className="mt-2 space-y-2">
+                <AuditDetails details={event.last_diagnostic} max={12} />
+                <Collapsible>
+                  <CollapsibleTrigger className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                    Show raw payload
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <pre className="mt-2 text-[10px] whitespace-pre-wrap font-mono max-h-40 overflow-auto rounded border bg-background/50 p-2">
+                      {JSON.stringify(event.last_diagnostic, null, 2)}
+                    </pre>
+                  </CollapsibleContent>
+                </Collapsible>
               </AlertDescription>
             </Alert>
           )}
+
+          <Collapsible>
+            <CollapsibleTrigger className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground">
+              Technical identifiers
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+              <Field label="Event ID" value={event.id} mono />
+              <Field label="Producer document ID" value={event.producer_doc_id} mono />
+              {event.journal_entry_id && (
+                <Field label="Journal entry ID" value={event.journal_entry_id} mono />
+              )}
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
         <DialogFooter className="gap-2">
@@ -601,7 +662,10 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`text-xs ${mono ? "font-mono" : ""}`}>{value}</div>
+      <div className={`text-xs ${mono ? "font-mono break-all" : ""}`}>{value}</div>
     </div>
   );
 }
+
+// Silence unused-import warnings for helpers only used indirectly in AuditDetails.
+void humanizeKey; void formatValue;
