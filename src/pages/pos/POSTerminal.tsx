@@ -2419,9 +2419,7 @@ function POSTerminalInner() {
         transaction={completedTransaction}
         onEmail={() => setShowEmailReceipt(true)}
       />
-      {/* closeSheet is destructured for future call sites; reference to
-          silence unused-var noise until Step 6 wires more sheet triggers. */}
-      {void closeSheet}
+
 
       {/* Phase 3c — Receipt workspace (replaces the ad-hoc
           <PostPaymentScreen> mount). Route-owned surface for
