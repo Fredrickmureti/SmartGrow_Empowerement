@@ -2343,15 +2343,14 @@ function POSTerminalInner() {
 
       {registerId && (
         <>
-          <HeldTransactionsDialog
-            open={showHeld}
-            onOpenChange={setShowHeld}
-            registerId={registerId}
-            onResume={(restoredCart) => {
-              cart.restoreCart(restoredCart);
-              setShowHeld(false);
-            }}
-          />
+          {showHeld && (
+            <HeldWorkspace
+              registerId={registerId}
+              onResume={(restoredCart) => {
+                cart.restoreCart(restoredCart);
+              }}
+            />
+          )}
 
           {activeShift && (
             <>
