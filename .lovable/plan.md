@@ -1,118 +1,101 @@
+# Phase 18 — Visual Label Designer
 
-# Enterprise Printing — Continuation & Coverage Plan
+You are 100% right. `@a!GOODS RECEIVED / {{grn_id}} / VB` is EPL2 with mustache variables — an operator should never see that. The system must present a WYSIWYG canvas, capture intent as structured data, and compile to ZPL / EPL / ESC-POS in the background.
 
-## Where things actually stand (verified, not just claimed)
+## Enterprise pattern being adopted
 
-I read `.lovable/plan.md` end-to-end and spot-checked the codebase to confirm the previous engineer's status claims before deciding what still needs doing.
+Same shape SAP Smart Forms, Oracle BI Publisher, NiceLabel, and BarTender use:
 
-**Verified present in the codebase:**
-- Ownership matrix (ADR-0085) + guardrails (`no-raw-pdf-lib-in-app`, `no-direct-barcode-lib`, `no-raw-zpl-outside-printing`, `no-raw-escpos-bytes`, `no-printservice-shim`, `no-product-id-as-barcode`).
-- Single mm→dot math owner: `src/services/printing/mediaGeometry.ts` + guardrail test `media-geometry-single-owner.test.ts`.
-- Drivers own the paper envelope: `electron/hardware/drivers/ZplLabelDriver.ts`, `EplLabelDriver.ts`, `EscPosLabelDriver.ts`.
-- `label_templates`, `media_profiles`, `printer_profiles` (hardware-shaped), `printer_workflow_bindings` + `resolve_workflow_printer` RPC (`supabase/migrations/20260617133303_*.sql`).
-- Seven canonical templates seeded `geometry_mode='mm'`, `media_profile_id=NULL` (`20260721021030_*.sql`).
-- Barcode identity resolver `src/services/printing/labelBarcode.ts` + refusal-toast + enrollment CTA in `src/pages/Products.tsx`.
-- Shared caller seam `src/hooks/inventory/useLabelPrint.ts`.
-- Admin surface `src/components/hardware/WorkflowBindingsCard.tsx` mounted as the `data-testid="tab-bindings"` tab in `src/apps/platform/hardware/HardwareDevices.tsx`, plus the label-printer test-print button.
-- ADR-0088 (media-relative geometry), ADR-0089 (barcode identity) published.
-- 17 printing test files under `src/test/printing/` cover envelope parity, media requirement, mm-scaling at 152/203/300 dpi, product-id-as-barcode policy, ZPL/kitchen goldens.
+- **Model** — a template is an ordered list of typed *elements* on a millimetre-based canvas. No engine-specific tokens ever appear in the model.
+- **Compile** — a pure function turns `elements[]` + resolved `media_profile` + engine into the printer's native bytes at dispatch time.
+- **Author** — the UI is a drag-and-drop canvas + a property inspector + a variable picker. The user picks "Barcode" from a toolbar, drops it, chooses `{{barcode}}` from a dropdown, and drags a corner to resize — never types syntax.
 
-**Verified genuinely pending** (only `src/pages/Products.tsx` currently calls `printLabelByTemplate` — no other pages or apps do):
-- ✅ Phase 17 · step 13 — Inventory callers wired (`Products.tsx` shelf label, `inventory/LotDetail.tsx` lot label).
-- ✅ Phase 17 · step 14 — Warehouse callers wired (`PutawayQueue.tsx` bin label, `warehouse-mobile/MobileReceive.tsx` receiving label, `PackStation.tsx` pallet + shipping labels).
-- ✅ Phase 17 · step 18 — coverage guardrail test at `src/test/printing/label-coverage.test.ts`.
-- ✅ Shared caller component `src/components/labels/PrintLabelButton.tsx` — every new caller now goes through one seam.
-- ✅ Phase 17 · step 15 — POS callers wired (`components/pos/ProductQuickView.tsx` product tag + shelf label, `components/pos/CartItemEditor.tsx` change-price shelf label). Coverage test extended.
-- Still pending: Phase 15 · step 6 (editor Units toggle + multi-DPI preview + suspicious-integer warning).
+## Architectural change
 
-**Known-unrelated (out of scope):** `src/test/hardware/electron-assignment-hydrator.test.ts` flake — owned by the hardware-runtime stream, not printing.
+```text
+DB (label_templates)          Runtime
+────────────────────          ───────
++ body_json  JSONB   ────►   compileLabelBody(elements, media, engine) ──► ZPL/EPL/ESC-POS
+  body       TEXT   (kept)   ▲
+                             │  same mm→dot math via mediaGeometry.ts
+                             │  (no new geometry owner)
+                             │
+Editor writes body_json.     Legacy raw `body` templates keep working —
+Dispatcher prefers body_json  the dispatcher falls back to raw body when
+when present.                 body_json is null (backwards compatible).
+```
 
-## Plan (in execution order)
+## Element model (v1)
 
-### 1. Independent verification pass (no code changes)
+```ts
+type LabelElement =
+  | { type: 'text';    id; x_mm; y_mm; w_mm?; text: string;
+      font_size_pt: number; bold?: boolean; align?: 'left'|'center'|'right'; rotate?: 0|90|180|270 }
+  | { type: 'variable'; id; x_mm; y_mm; w_mm?; token: string;   // {{barcode}}, {{name}}, {{price}}, ...
+      font_size_pt: number; bold?: boolean; align?; rotate? }
+  | { type: 'barcode';  id; x_mm; y_mm; w_mm; h_mm;
+      symbology: 'code128'|'ean13'|'upca'|'qr'; token: string; show_hri?: boolean; rotate? }
+  | { type: 'line';     id; x_mm; y_mm; w_mm; thickness_mm?: number }
+  | { type: 'box';      id; x_mm; y_mm; w_mm; h_mm; thickness_mm?: number };
+```
 
-Before wiring any callers, re-read the four foundation files end-to-end and run the printing test suite to confirm the reported green state:
-- `src/services/printing/labelDispatch.ts` — confirm `printLabelByTemplate` signature, workflow taxonomy, error taxonomy.
-- `src/hooks/inventory/useLabelPrint.ts` — confirm the `{ templateKey, workflow, product, extraVars, idempotencyKey }` shape and that it internally calls `resolveLabelBarcode` (refusal path) and surfaces the missing-device CTA.
-- `src/components/hardware/WorkflowBindingsCard.tsx` — confirm workflow enum list matches DB `printer_workflow` and priority semantics (lower wins) match `resolve_workflow_printer`.
-- Run `bunx vitest run src/test/printing/ src/test/hardware/` and record the exact set of failures. Any new failure beyond the hydrator flake blocks the wiring phase until fixed.
+The `token` field is picked from a **variable dropdown** populated per template `kind` (product/lot/shipping/etc.), so users pick "Product barcode" from a menu — they never type `{{barcode}}`.
 
-### 2. Phase 17 · step 13 — Inventory callers
+## Plan (execution order)
 
-Route each Inventory "Print label" surface through `useLabelPrint`. No inline ZPL, no `product.id` fallbacks, no direct `hardwareClient` reach-around.
+### 1. Data model
+- Migration `add_label_templates_body_json.sql`: `ALTER TABLE public.label_templates ADD COLUMN body_json JSONB NULL;`. Preserve existing GRANTs; no RLS change (same table).
+- Backfill is NOT attempted — existing rows stay `body`-only and continue to print correctly.
 
-| Surface | File | Template key | Workflow | Idempotency key |
-|---|---|---|---|---|
-| Product detail — batch Print label | `src/pages/inventory/…/ProductDetail*.tsx` (locate via `rg`) | `product_label` | `product_tag` | `product:{id}:v{version}` |
-| Batches / Lots — Print lot label | Lots page | `lot_label` | `product_tag` | `lot:{lotId}` |
-| Cycle count — bin re-label | Cycle-count screen | `bin_label` | `shelf_edge` | `bin:{binId}:{countSessionId}` |
+### 2. Compiler
+- New module `src/services/printing/labelCompiler.ts`:
+  - `compileZpl(elements, media, dpi) → string`
+  - `compileEpl(elements, media, dpi) → string`
+  - `compileEscPos(elements, media, dpi) → Uint8Array` (skeleton — receipt-adjacent; not the priority)
+- All mm→dot conversions go through `mediaGeometry.ts` — no new geometry math.
+- Compiler emits CONTENT ONLY (no `^PW`/`^LL`/`q`/`Q`); envelope stays with the driver per ADR-0087.
 
-Each caller: missing-device CTA linking to `/platform/hardware/devices`, refusal toast when `resolveLabelBarcode` returns null, structured `{ success, error }` result surfaced to the user.
+### 3. Dispatcher integration
+- `printLabelByTemplate` / `renderTemplateBody`: if `body_json` is present, compile from it; otherwise use raw `body`. Substitution still runs on the compiler output the same way.
+- Golden tests: compiling the seven canonical templates from a hand-authored `elements[]` must produce output that passes the existing envelope-guardrail and mm-scaling tests.
 
-### 3. Phase 17 · step 14 — Warehouse callers
+### 4. Visual designer UI (`HardwareLabelTemplates.tsx`)
+- **Toolbar**: Add Text · Add Variable · Add Barcode · Add QR · Add Line · Add Box.
+- **Canvas**: absolute-positioned SVG/HTML mm grid at the selected media size, drag to move, corner handle to resize. Snap to 0.5 mm.
+- **Property inspector** (right panel): shows selected element's fields — X/Y/W/H in mm, font size in pt, bold, alignment, rotation, symbology, and a **variable picker dropdown** for `{{token}}`.
+- **Variable picker**: sourced from a per-kind catalogue (`product` → Name, SKU, Barcode, Price, Unit; `lot` → adds Lot#, Expiry, Manufacture; `shipping` → Carrier, Tracking, Weight; `bin`/`pallet` → Location, LPN). No free-text mustache.
+- **Live preview**: same `LabelPreview` component, but rendered from `elements[]` — no fragile ZPL regex parsing.
+- **Advanced (collapsed by default)**: read-only view of the compiled ZPL/EPL for engineers who want to audit — hidden behind a `<details>` labelled "Show compiled output".
 
-| Surface | Template | Workflow |
-|---|---|---|
-| Receiving — print received-line label | `receiving_label` | `goods_receipt` |
-| Putaway — pallet label on move | `pallet_label` | `putaway` |
-| Shipping — carton / shipping label | `shipping_label` | `ship` |
-| Shelf-edge / price change | `shelf_label` | `shelf_edge` |
+### 5. Migration path for existing templates
+- Existing rows keep working via the raw-body fallback.
+- Editor detects `body_json == null && body != ''` and shows a banner: *"This template was authored in the legacy code editor. Open the visual designer to modernize it."* Clicking starts a blank canvas seeded from the template `kind` — no auto-parse of raw ZPL (out of scope; parsing arbitrary ZPL is a rabbit hole).
+- Once saved through the visual designer, `body_json` is populated and the raw code becomes derived output.
 
-Same seam, same refusal + CTA rules, idempotency keys derived from the source doc + line number so re-print doesn't duplicate physical labels.
+### 6. Guardrails / tests
+- `label-compiler-mm-scaling.test.ts` — same `elements[]` produces proportionally-correct ZPL at 152 / 203 / 300 dpi.
+- `label-compiler-no-envelope.test.ts` — compiler output never contains `^PW`, `^LL`, `q\d+`, `Q\d+,\d+`.
+- `label-compiler-variable-picker.test.ts` — variable catalogue for each `kind` matches the tokens the runtime substitutes (`useLabelPrint` vars).
+- ESLint: `no-raw-zpl-outside-printing` already prevents leakage; extend to forbid `body_json` writes with unknown element types.
 
-### 4. Phase 17 · step 15 — POS callers
+### 7. Explicitly out of scope this phase
+- Bidirectional legacy conversion (parsing existing ZPL bodies into elements).
+- PDF engine compilation (label pipeline is thermal-first; ADR-0084/0085 govern PDF separately).
+- Image / logo elements — deferred to Phase 19 once bucket + upload flow is designed.
 
-| Surface | Template | Workflow |
-|---|---|---|
-| Item-search modal — reprint product tag | `product_label` | `product_tag` |
-| Change-price dialog — new shelf-edge label | `shelf_label` | `shelf_edge` |
+## Invariants that MUST hold
 
-POS must not import a new driver or open a new hardware pathway — everything routes through `useLabelPrint` so POS shares the exact same rendering + resolution pipeline as Inventory and Warehouse.
+- **One geometry owner**: `mediaGeometry.ts`. The compiler calls it; it doesn't reinvent mm→dot math.
+- **Envelope stays with the driver** (ADR-0087) — the compiler emits body content only.
+- **Barcode identity** (ADR-0089) — variable tokens for barcodes resolve through `resolveLabelBarcode`; the visual picker offers `Product barcode` and never raw `product.id`.
+- **Templates remain data**, not code — `body_json` is a structured document, not JavaScript.
 
-### 5. Phase 17 · step 18 — coverage guardrail
+## Deliverable at end of Phase 18
 
-Add `src/test/printing/label-coverage.test.ts` (source-inspection style — the pattern used by `products-label-print.test.ts`):
+An operator opens `/platform/hardware/labels`, clicks *New template*, sees a paper-shaped canvas, drags a barcode onto it, picks *Product barcode* from a dropdown, types "GOODS RECEIVED" into a text block, saves — and the system prints correctly on every bound Zebra / EPL / ESC-POS device without the operator ever seeing `^FO`, `@a!`, or `{{grn_id}}`.
 
-For each of the 7 canonical template keys (`product_label`, `shelf_label`, `lot_label`, `bin_label`, `receiving_label`, `pallet_label`, `shipping_label`) assert:
-1. A seed row exists in `20260721021030_*.sql`.
-2. At least one file under `src/pages/**` or `src/apps/**` invokes `printLabelByTemplate` or `useLabelPrint` with that key.
+## Next agent handoff
 
-This is the guard that prevents future refactors from silently dropping a caller.
-
-### 6. Phase 15 · step 6 — Editor UX for mm geometry
-
-`src/apps/platform/hardware/HardwareLabelTemplates.tsx`:
-- **Units toggle** — segmented control `mm | dots (legacy)` bound to `label_templates.geometry_mode`. Warn when switching a saved template.
-- **Suspicious-integer banner** — in mm mode, if the body contains bare integer coordinates ≥ 50 outside `{{mm:n}}` / `{{cf:n mm}}` / `{{bh:n mm}}` / `{{by:n mm}}` tokens, show an inline warning: "Looks like raw dots — this template is in mm mode."
-- **Multi-DPI preview strip** — side-by-side render at 152 / 203 / 300 dpi against the currently selected media, so authors see mm-relative correctness at a glance.
-
-No new DPI math anywhere — every conversion goes through `mediaGeometry.ts`.
-
-### 7. Close-out
-
-- Update `.lovable/plan.md` to move Phase 15 · step 6 and Phase 17 · steps 13–15 + 18 to `✅ Fully implemented and verified`.
-- Run `bunx vitest run src/test/printing/ src/test/hardware/` — expect green minus the known hydrator flake.
-- Verify all four guardrail ESLint rules still pass on the new caller files (no raw ZPL, no `product.id` barcode, no print-service shim, no raw ESC/POS).
-
-## Architectural invariants that MUST hold across every change
-
-- All label prints originate at `useLabelPrint` → `printLabelByTemplate` → `resolve_workflow_printer` → driver. No page constructs bytes.
-- Barcode identity comes only from `resolveLabelBarcode`; a missing barcode produces a refusal + enrollment CTA, never a UUID.
-- Template bodies remain engine-native (ZPL/EPL/ESC-POS) but coordinates are mm tokens; paper envelope is owned by the driver, never by the template.
-- mm→dot math lives in `mediaGeometry.ts` only.
-- Workflow bindings are DB-driven (`printer_workflow_bindings`); UI is a thin CRUD surface, resolution is server-side.
-
-## Explicitly out of scope
-
-- Rewriting the receipt / PDF pipelines (ADR-0084/0085 already govern these and the audits closed clean).
-- The Electron assignment-hydrator flake (owned by hardware-runtime stream).
-- Adding new workflows to the `printer_workflow` enum — coordinate first if operators demand a dedicated one for lots or cartons.
-- Any new hardware transports or driver types.
-
-## Technical details
-
-- `useLabelPrint` result shape must stay `{ success: boolean; error?: string; missingDeviceCta?: { href: string; label: string } }` so callers render consistent toasts.
-- Idempotency keys are passed through to the print job so a re-open of the same document does not double-print.
-- New callers must import `useLabelPrint` from `@/hooks/inventory/useLabelPrint` — not from a POS hook, not from `hardwareClient`. The path name is legacy; the hook is cross-module.
-- Coverage test uses `readFileSync` + regex (same pattern as `products-label-print.test.ts`) — no React render, no Supabase.
-- Editor multi-DPI preview must call the same `mediaDots(...)` helper the drivers use so preview drift is impossible.
+1. Verify Phase 17 (Inventory / Warehouse / POS caller wiring) is still green by running `bunx vitest run src/test/printing/`.
+2. Confirm no drift in `mediaGeometry.ts` single-owner status.
+3. Start with **step 1 (migration)** and **step 2 (compiler + golden tests)** before touching the UI — the compiler is the contract everything else depends on.
