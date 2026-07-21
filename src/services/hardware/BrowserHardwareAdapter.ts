@@ -25,6 +25,7 @@ import type { DeviceRole, DriverCommand, DriverResult, IDriver } from './drivers
 import { createDriver } from './drivers/DriverRegistry';
 import type { DriverType } from './drivers/DriverInterface';
 import { hardwareEventBus } from './HardwareEventBus';
+import { mediaDots } from '@/services/printing/mediaGeometry';
 
 /**
  * ADR-0087 — mirror of the main-process ZPL envelope logic. Strip any
@@ -39,16 +40,13 @@ function injectZplEnvelope(
   const w = Number(p.mediaWidthMm);
   const h = Number(p.mediaHeightMm);
   if (!Number.isFinite(w) || !Number.isFinite(h)) return zpl;
-  const dpi = Number(p.dpi) || 203;
-  const dpmm = dpi / 25.4;
-  const widthDots = Math.max(1, Math.round(w * dpmm));
-  const heightDots = Math.max(1, Math.round(h * dpmm));
+  const { widthDots, heightDots } = mediaDots({ widthMm: w, heightMm: h, dpi: Number(p.dpi) || 203 });
   const stripped = zpl.replace(/\^PW\d+/g, '').replace(/\^LL\d+/g, '');
   const head = stripped.indexOf('^XA');
-  if (head < 0) return `^XA\n^PW${widthDots}\n^LL${heightDots}\n${stripped}\n^XZ`;
+  if (head < 0) return `^XA\n^PW${widthDots}\n^LL${heightDots ?? widthDots}\n${stripped}\n^XZ`;
   const before = stripped.slice(0, head + 3);
   const after = stripped.slice(head + 3);
-  return `${before}\n^PW${widthDots}\n^LL${heightDots}${after.startsWith('\n') ? '' : '\n'}${after}`;
+  return `${before}\n^PW${widthDots}\n^LL${heightDots ?? widthDots}${after.startsWith('\n') ? '' : '\n'}${after}`;
 }
 
 function injectEplEnvelope(
@@ -58,14 +56,11 @@ function injectEplEnvelope(
   const w = Number(p.mediaWidthMm);
   const h = Number(p.mediaHeightMm);
   if (!Number.isFinite(w) || !Number.isFinite(h)) return epl;
-  const dpi = Number(p.dpi) || 203;
-  const dpmm = dpi / 25.4;
-  const widthDots = Math.max(1, Math.round(w * dpmm));
-  const heightDots = Math.max(1, Math.round(h * dpmm));
+  const { widthDots, heightDots } = mediaDots({ widthMm: w, heightMm: h, dpi: Number(p.dpi) || 203 });
   const stripped = epl
     .replace(/^\s*q\d+\s*\r?\n/gm, '')
     .replace(/^\s*Q\d+,\d+(?:\+\d+)?\s*\r?\n/gm, '');
-  return `q${widthDots}\r\nQ${heightDots},24\r\n${stripped}`;
+  return `q${widthDots}\r\nQ${heightDots ?? widthDots},24\r\n${stripped}`;
 }
 
 export interface DeviceAssignment {

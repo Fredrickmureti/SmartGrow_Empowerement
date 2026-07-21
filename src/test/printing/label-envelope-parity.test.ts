@@ -26,6 +26,10 @@ const BROWSER_SRC = readFileSync(
   resolve(__dirname, '../../services/hardware/BrowserHardwareAdapter.ts'),
   'utf-8',
 );
+const GEOMETRY_SRC = readFileSync(
+  resolve(__dirname, '../../services/printing/mediaGeometry.ts'),
+  'utf-8',
+);
 
 function dpmm(dpi: number) { return dpi / 25.4; }
 
@@ -57,21 +61,23 @@ describe('ADR-0087 · envelope parity across drivers + browser adapter', () => {
     expect(heightDots).toBe(Math.max(1, Math.round(h * (dpi / 25.4))));
   });
 
-  it('ZPL, EPL, and BrowserHardwareAdapter all use the same dpmm formula', () => {
-    // If any of these regexes miss, the driver has diverged from the
-    // canonical formula and the parity test is meaningless. Fail loud.
-    expect(ZPL_SRC).toMatch(/dpi\s*\/\s*25\.4/);
-    expect(EPL_SRC).toMatch(/dpi\s*\/\s*25\.4/);
-    expect(BROWSER_SRC).toMatch(/dpi\s*\/\s*25\.4/);
+  it('the canonical dpmm/rounding formula lives in mediaGeometry.ts', () => {
+    // Phase 14 hoisted the math into a single owner. `dpi / 25.4` and
+    // `Math.round(mm * dotsPerMm(dpi))` MUST appear here — this is the
+    // module that all three transports import.
+    expect(GEOMETRY_SRC).toMatch(/dpi\s*\/\s*25\.4/);
+    expect(GEOMETRY_SRC).toMatch(/Math\.round\(mm \* dotsPerMm\(dpi\)\)/);
   });
 
-  it('ZPL, EPL, and BrowserHardwareAdapter all round with Math.round', () => {
-    expect(ZPL_SRC).toMatch(/Math\.round\([^)]*widthMm/);
-    expect(ZPL_SRC).toMatch(/Math\.round\([^)]*heightMm/);
-    expect(EPL_SRC).toMatch(/Math\.round\(Number\(p\.mediaWidthMm\)/);
-    expect(EPL_SRC).toMatch(/Math\.round\(Number\(p\.mediaHeightMm\)/);
-    expect(BROWSER_SRC).toMatch(/Math\.round\(w \* dpmm\)/);
-    expect(BROWSER_SRC).toMatch(/Math\.round\(h \* dpmm\)/);
+  it('ZPL, EPL, and BrowserHardwareAdapter all delegate to mediaGeometry.mediaDots', () => {
+    // The transports MUST NOT re-declare `dpi / 25.4`. They import
+    // `mediaDots` and destructure `widthDots` / `heightDots` from it.
+    for (const src of [ZPL_SRC, EPL_SRC, BROWSER_SRC]) {
+      expect(src).toMatch(/from ['"].*mediaGeometry['"]/);
+      expect(src).toMatch(/mediaDots\(/);
+      // Regression: no transport still owns the inline formula.
+      expect(src).not.toMatch(/dpi\s*\/\s*25\.4/);
+    }
   });
 
   it('ZPL and Browser adapter emit ^PW then ^LL after ^XA', () => {
@@ -90,7 +96,7 @@ describe('ADR-0087 · envelope parity across drivers + browser adapter', () => {
   it('EPL and Browser adapter emit q<widthDots>\\r\\nQ<heightDots>,24 in that order', () => {
     for (const src of [EPL_SRC, BROWSER_SRC]) {
       const qIdx = src.indexOf('q${widthDots}');
-      const QIdx = src.indexOf('Q${heightDots},24');
+      const QIdx = src.indexOf('Q${heightDots');
       expect(qIdx).toBeGreaterThan(-1);
       expect(QIdx).toBeGreaterThan(-1);
       expect(qIdx).toBeLessThan(QIdx);
