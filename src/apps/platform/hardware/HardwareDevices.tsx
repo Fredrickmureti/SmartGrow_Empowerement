@@ -493,6 +493,12 @@ export function HardwareDevicesPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="bindings" className="space-y-4">
+          <WorkflowBindingsCard />
+        </TabsContent>
+
+
+
         <TabsContent value="discover" className="space-y-4">
           <Card data-testid="hardware-scan-card">
             <CardHeader className="flex flex-row items-start justify-between gap-3">
