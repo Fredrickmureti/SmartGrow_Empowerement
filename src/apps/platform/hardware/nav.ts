@@ -3,7 +3,7 @@
  * and topology inside PlatformShell so the page is no longer a buried
  * standalone surface without rails or sidebar.
  */
-import { Cpu, Activity, Network, PlusCircle, Ruler, Gauge } from "lucide-react";
+import { Cpu, Activity, Network, PlusCircle, Ruler, Gauge, Tag } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
 export const HARDWARE_NAV: WorkspaceNav = {
@@ -24,6 +24,9 @@ export const HARDWARE_NAV: WorkspaceNav = {
         // ADR-0087: printer capability (command language, DPI, margins,
         // supported media) is what drivers read at dispatch time.
         { to: "/platform/hardware/capability", label: "Printer capability", icon: Gauge },
+        // ADR-0087 · Phase 14: content-only templates. Envelope is
+        // injected from the media profile at dispatch time.
+        { to: "/platform/hardware/labels", label: "Label templates", icon: Tag },
       ],
     },
     {
