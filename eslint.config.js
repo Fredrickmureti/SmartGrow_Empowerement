@@ -30,6 +30,7 @@ import noRawXlsxInApp from "./eslint-rules/no-raw-xlsx-in-app.js";
 import noRawEscposBytes from "./eslint-rules/no-raw-escpos-bytes.js";
 import noRawPdfLibInEdgeFunctions from "./eslint-rules/no-raw-pdf-lib-in-edge-functions.js";
 import noDirectGenerateDocumentInPages from "./eslint-rules/no-direct-generate-document-in-pages.js";
+import noProductIdAsBarcode from "./eslint-rules/no-product-id-as-barcode.js";
 
 
 
