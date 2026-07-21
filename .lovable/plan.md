@@ -124,3 +124,15 @@ printer_workflow_bindings  (unchanged — still resolves the physical printer pe
 3. Same template body renders correctly on 50×30, 80×50, and 102×152 mm on both 203 and 300 dpi printers.
 4. `label_templates.body` contains content tokens only — never `^PW`/`^LL`/`q`/`Q`.
 5. Every guardrail from Phases 7–12 green.
+==========================================================
+
+PROGRESS
+========================================
+Migration succeeded. The 2175 linter warnings are pre-existing, unrelated to this change.
+
+Summary of what landed this turn (Phase 10 completion):
+
+labelDispatch.ts: Now resolves the printer's media profile (printer_profiles.supported_media_ids[0] or explicit mediaProfileId override), calls the media-aware resolve_label_template RPC, and carries mediaWidthMm/mediaHeightMm/dpi through the payload. EPL bodies are also now shipped correctly as { epl } instead of pre-encoded bytes.
+BrowserHardwareAdapter.ts: The browser/agent fallback path now injects the ZPL ^PW/^LL and EPL q/Q envelope from the payload media hints — same behavior as the Electron main-process ZPL/EPL drivers, so labels scale correctly whether printing via Electron, LAN agent, or WebUSB.
+Migration: Rewrote seed_default_label_templates to (a) link every default template to its media_profile_id, (b) emit envelope-free bodies so the driver is the single owner of paper geometry. Backfilled existing seeded rows to strip ^PW/^LL.
+Verified: 22/22 arch + parity tests green, clean typecheck. Labels now scale to the media resolved from the printer profile end-to-end.
