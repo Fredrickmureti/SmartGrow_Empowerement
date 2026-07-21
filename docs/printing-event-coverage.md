@@ -33,7 +33,7 @@ a wired template is a follow-up ticket, not a silent absence.
 | Shelf reprice | shelf | `shelf_label` | LabelDoc compiler | WIRED |
 | Lot / batch create | lot | `lot_label` | LabelDoc compiler | WIRED |
 | Bin / location create | bin | `bin_label` | LabelDoc compiler | WIRED |
-| Receiving / GRN posted | receiving | `receiving_label` | LabelDoc compiler | WIRED |
+| Receiving / GRN posted | receiving | `receiving_label` | LabelDoc compiler | WIRED (thermal label on receipt; A4 `goods_receipt` bound in `GoodsReceiptWizardPage`) |
 | Pallet built (WMS) | pallet | `pallet_label` | LabelDoc compiler | WIRED |
 | Shipment dispatched | shipping | `shipping_label` | LabelDoc compiler | WIRED |
 | Asset tag issued | asset | `asset_label` | LabelDoc compiler | WIRED (Fixed-Assets → row action, Wave 21) |
@@ -100,11 +100,15 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 - Promote the drawer-slip receipt from an on-demand action to an
   automatic print policy on open/close events. Owner: POS cash-drawer
   saga. Requires a `drawer_event_printed` idempotency key so retries
-  don't double-print. Tracked as a follow-up because it also needs a
-  per-terminal opt-out toggle (some tenants pair receipt+drawer on the
-  same physical printer and re-fire prints via ESC/POS `ESC p`).
-- Promote `grn` from "data path exists" to a bound A4 event when the
-  receiving policy engine (ADR-0088) ships.
+  don't double-print, plus a per-terminal opt-out toggle (some tenants
+  pair receipt+drawer on the same physical printer and re-fire prints
+  via ESC/POS `ESC p`). Product decision needed on where in the domain
+  event bus `drawer:opened`/`drawer:closed` are emitted before wiring.
+- ~~Promote `grn` from "data path exists" to a bound A4 event~~ —
+  **WIRED (this turn)**. `GoodsReceiptWizardPage.tsx` now dispatches
+  `printOrPreview({ documentType: 'goods_receipt', intent: 'a4_document' })`
+  after a successful post. The receiving policy engine (ADR-0088)
+  resolves auto/manual/off per branch via `print_policies_resolve`.
 
 When any of these ship, flip the row's status to `WIRED` in the same PR
 that adds the ESLint / architecture test proving it.
