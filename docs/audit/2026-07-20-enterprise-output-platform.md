@@ -261,7 +261,7 @@ remaining second source of truth. Closure actions:
 | Tabular    | ✅            | `no-raw-xlsx-in-app` + `csv-export-registered_test`                                     |
 | Client entrypoints | ⚠️    | `no-document-print-shadow-path`, `no-direct-window-print`, `no-direct-pdf-iframe`; **D3** extends |
 
-## Drift ledger — D7–D11 (media & printer capability, closed 2026-07-21)
+## Drift ledger — D7–D12 (media & printer capability, closed 2026-07-21)
 
 | Item | Symptom                                                                | Resolution                                                                                                                                                     | Status |
 | ---- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
