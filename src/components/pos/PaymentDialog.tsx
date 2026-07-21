@@ -556,8 +556,20 @@ export function PaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-        <DialogHeader>
+      {/*
+       * POS workstation Step 2 — Tender is a full-surface workspace, not a
+       * modal card. We keep the Dialog primitive (for focus trap + escape
+       * handling) but stretch the content to occupy the whole viewport,
+       * remove the max-width, and drop the rounded/border chrome. The
+       * result reads as a routed workspace even though the extraction of
+       * the payment tree out of `POSTerminal.tsx` is still in flight.
+       *
+       * When Step 5 finishes decomposing the monolith, this component
+       * gets swapped for a route element under `/pos/terminal/:id/tender`
+       * and this className collapses to `h-full w-full`.
+       */}
+      <DialogContent className="!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !w-screen !h-screen !max-w-none !max-h-none !rounded-none !border-0 flex flex-col overflow-y-auto p-4 sm:p-6">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="text-lg sm:text-xl">Payment</DialogTitle>
         </DialogHeader>
         
