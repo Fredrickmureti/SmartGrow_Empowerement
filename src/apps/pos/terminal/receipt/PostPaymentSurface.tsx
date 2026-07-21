@@ -323,10 +323,9 @@ export function PostPaymentScreen({
 
   return (
     <div
-      role="dialog"
       aria-label="Transaction complete"
       data-testid="post-payment-screen"
-      className="fixed inset-0 z-50 flex flex-col bg-background text-foreground"
+      className="absolute inset-0 z-40 flex flex-col bg-background text-foreground"
     >
       {/* ─── Top status bar ─────────────────────────────────────────────
           A single, dense strip: brand mark, transaction identity, print
