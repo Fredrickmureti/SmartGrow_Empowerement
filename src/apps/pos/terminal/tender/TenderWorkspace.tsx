@@ -1123,6 +1123,15 @@ export function TenderWorkspace({
           setPendingCardAmount(0);
         }}
       />
+      <StockBlockerDialog
+        open={showStockBlocker}
+        onClose={() => setShowStockBlocker(false)}
+        lines={stockBlockLines}
+        onRemoveLine={removeOffendingLine}
+        onAdjustLine={adjustOffendingLine}
+        onRetry={recheckStock}
+        isBusy={isCheckingStock}
+      />
     </section>
   );
 }
