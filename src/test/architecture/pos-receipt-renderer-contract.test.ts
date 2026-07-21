@@ -35,8 +35,6 @@ const PDF_UTILS_PATH = join(root, "src", "services", "printing", "pdfUtils.ts");
 // directly (legacy + reprint-from-history). All NEW POS code MUST go
 // through the renderer modules instead.
 const ALLOWED_DIRECT_CALLERS = new Set([
-  // legacy reprint-from-history dialog — migrated incrementally
-  "src/components/pos/ReceiptPreviewDialog.tsx",
   // unified printing utility module IS the helper itself
   "src/services/printing/pdfUtils.ts",
   // documents/sales modules use generate-document for invoices/quotes —
