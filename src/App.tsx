@@ -127,6 +127,7 @@ import {
   AdminPayments,
   AdminAuditLog,
   HardwareOpsPage,
+  PrintQueuePage,
   AdminMfaSetup,
   AdminTeam,
   AdminGroups,
