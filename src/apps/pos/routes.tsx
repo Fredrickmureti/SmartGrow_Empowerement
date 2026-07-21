@@ -8,6 +8,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy, type ComponentType } from "react";
 import { POSShellLayout } from "./POSShellLayout";
 import { TerminalShell } from "./terminal";
+import { ReceiptRoute } from "./terminal/receipt/ReceiptRoute";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { RequireActiveBusinessRoute } from "@/components/common/RequireActiveBusinessRoute";
 import { POSErrorBoundary } from "@/components/pos/POSErrorBoundary";
