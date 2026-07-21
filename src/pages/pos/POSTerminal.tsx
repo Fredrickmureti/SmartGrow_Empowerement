@@ -1988,7 +1988,7 @@ function POSTerminalInner() {
                         })),
                         payments: [],
                       });
-                      setShowReceipt(true);
+                      openSheet("sale.receiptPreview");
                     }}
                   >
                     <Receipt className="h-4 w-4 xl:h-5 xl:w-5 mb-0.5 xl:mb-1" />
