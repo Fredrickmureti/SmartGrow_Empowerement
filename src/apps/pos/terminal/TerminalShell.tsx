@@ -24,6 +24,12 @@
 import { Outlet, useParams } from "react-router-dom";
 import { usePOSShifts } from "@/hooks/pos/usePOSShifts";
 import { TerminalStateProvider } from "./TerminalStateContext";
+import { useTerminalUrlSync } from "./useTerminalUrlSync";
+
+function TerminalUrlSyncMount() {
+  useTerminalUrlSync();
+  return null;
+}
 
 export default function TerminalShell() {
   const { registerId } = useParams<{ registerId: string }>();
@@ -42,7 +48,9 @@ export default function TerminalShell() {
       cartHasItems={false}
       hasUnreadCompletion={false}
     >
+      <TerminalUrlSyncMount />
       <Outlet />
     </TerminalStateProvider>
   );
 }
+
