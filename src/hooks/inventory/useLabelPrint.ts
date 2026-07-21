@@ -27,6 +27,7 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBranches } from "@/hooks/useBranches";
 import { useInventoryLabelPrinter } from "@/hooks/inventory/useInventoryLabelPrinter";
 import {
   printLabelByTemplate,
@@ -66,7 +67,8 @@ export interface PrintLabelResult extends LabelDispatchResult {
 }
 
 export function useLabelPrint(opts: UseLabelPrintOptions = {}) {
-  const { currentOrg, currentBranch } = useOrganization();
+  const { currentOrg } = useOrganization();
+  const { currentBranch } = useBranches();
   const labelPrinter = useInventoryLabelPrinter();
 
   const branchId = opts.branchId ?? currentBranch?.id ?? null;
