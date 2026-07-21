@@ -2430,22 +2430,18 @@ function POSTerminalInner() {
         }}
       />
 
-      {/* Stage X3 — Post-payment success screen (replaces popup-only
-          success path). Shown after `completeTransaction` succeeds; owns
-          auto-print, reprint, save PDF, email, and "new sale" hotkeys. */}
-      <PostPaymentScreen
-        open={showPostPayment}
+      {/* Phase 3c — Receipt workspace (replaces the ad-hoc
+          <PostPaymentScreen> mount). Route-owned surface for
+          `terminalState.phase === "receipt"`; `newSale` dispatch is
+          handled inside the workspace itself, so the reducer — not a
+          sibling useState — decides when the terminal returns to
+          `ready`. */}
+      <ReceiptWorkspace
         transaction={completedTransaction}
         policy={postPaymentPolicy}
         onEmail={() => setShowEmailReceipt(true)}
         onNewSale={() => {
-          setShowPostPayment(false);
           setCompletedTransaction(null);
-          // Reducer-side counterpart to `recordCompletion`: `newSale`
-          // clears `completedTransaction` inside the reducer and
-          // returns the workstation to `ready`. Keeps phase + local
-          // receipt payload in lock-step.
-          terminalDispatch({ kind: "op", op: "newSale" });
         }}
       />
 
