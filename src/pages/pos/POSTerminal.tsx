@@ -553,41 +553,9 @@ function POSTerminalInner() {
   const [customerLoyalty, setCustomerLoyalty] = useState<{ points_balance: number; current_tier: string } | null>(null);
   const [splitPortionToPay, setSplitPortionToPay] = useState<SplitBillPortion | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [completedTransaction, setCompletedTransaction] = useState<{
-    id: string;
-    transaction_number: string;
-    total_amount: number;
-    subtotal: number;
-    tax_amount: number;
-    discount_amount: number;
-    created_at: string;
-    customer_name?: string;
-    cashier_name?: string;
-    register_id?: string;
-    invoice_id?: string | null;
-    invoice_number?: string | null;
-    etims_cu_number?: string | null;
-    etims_qr_data?: string | null;
-    payment_method?: string;
-    is_voided?: boolean;
-    is_refund?: boolean;
-    original_transaction_number?: string | null;
-    items: Array<{
-      product_name: string;
-      sku?: string;
-      quantity: number;
-      unit_price: number;
-      discount_amount?: number;
-      line_total: number;
-    }>;
-    payments: Array<{
-      payment_method: string;
-      amount: number;
-      tendered_amount?: number;
-      change_given?: number;
-      reference?: string;
-    }>;
-  } | null>(null);
+  // `completedTransaction` + `setCompletedTransaction` now come from
+  // <ReceiptDataProvider> (see hook usage near the top of this
+  // component). The old useState block was removed in Slice C.1.
   
   const searchInputRef = useRef<HTMLInputElement>(null);
 
