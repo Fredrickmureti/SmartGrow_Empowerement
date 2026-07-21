@@ -47,7 +47,7 @@ import {
 import { PostPaymentScreen } from "@/components/pos/PostPaymentScreen";
 import { VoidTransactionDialog } from "@/components/pos/VoidTransactionDialog";
 import { CardPaymentActions } from "@/components/pos/transaction-detail/CardPaymentActions";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { printClient } from "@/services/printing/PrintClient";
 import { useResolvedPrintPolicyWithDevice } from "@/hooks/useDocumentPrintPolicies";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import {
