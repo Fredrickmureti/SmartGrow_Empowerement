@@ -932,10 +932,28 @@ export function TenderWorkspace({
           )}
         </div>
 
-        {/* RIGHT RAIL — desktop only. Mobile uses the bottom-sheet trigger in the header. */}
-        <aside className="hidden w-80 flex-col border-l bg-card md:flex xl:w-96">
+        {/* RIGHT RAIL — shown from sm+; narrows at sm–md and widens at xl.
+            Below sm the header's Receipt icon opens the same rail as a sheet. */}
+        <aside className="hidden w-64 flex-col border-l bg-card sm:flex md:w-80 xl:w-96">
           {rail}
         </aside>
+      </div>
+
+      {/* Mobile-only sticky Confirm bar — the rail lives in a sheet on <sm,
+          so surface Confirm directly so the cashier never has to open it. */}
+      <div className="border-t bg-background p-3 sm:hidden">
+        <Button
+          className="h-12 w-full bg-green-600 text-base text-white hover:bg-green-700"
+          onClick={handleConfirm}
+          disabled={!canConfirm || isRecording}
+          aria-label="Confirm payment"
+        >
+          <CheckCircle className="mr-2 h-5 w-5" />
+          Confirm Payment
+        </Button>
+        {confirmHelper && (
+          <p className="mt-1 text-center text-[11px] text-muted-foreground">{confirmHelper}</p>
+        )}
       </div>
 
 
