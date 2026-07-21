@@ -248,6 +248,42 @@ export function HardwareDevicesPage() {
     const key = `hw-test:${role}:${newId()}`;
     setTesting(key);
     try {
+      // Label printers exercise the whole workflow-binding + media
+      // resolution pipeline via printLabelByTemplate, so a "Test print"
+      // here matches what the app actually dispatches at runtime.
+      if ((role as string) === "label_printer") {
+        if (!currentOrg?.id) {
+          toast.error("Select an organization before test-printing a label.");
+          return;
+        }
+        const res = await printLabelByTemplate({
+          orgId: currentOrg.id,
+          branchId: currentBranch?.id ?? null,
+          templateKey: "product_label",
+          workflow: "product_tag",
+          vars: {
+            name: "TEST LABEL",
+            sku: "TEST-000",
+            sku_display: "TEST-000",
+            barcode: "000000000000",
+            hri_flag: "N",
+          },
+          idempotencyKey: key,
+          sourceDocType: "hardware_test",
+          sourceDocId: key,
+        });
+        if (res.success) {
+          const media = res.mediaResolved;
+          toast.success(spec.successCopy, {
+            description: media
+              ? `Media ${media.widthMm}×${media.heightMm ?? "cont."} mm @ ${media.dpi} dpi (template v${res.templateResolved?.version}).`
+              : undefined,
+          });
+        } else {
+          toast.error(`Test failed: ${res.error ?? "unknown error"}`);
+        }
+        return;
+      }
       const res = await hardwareClient.exec({
         role,
         op: spec.op,
@@ -264,7 +300,7 @@ export function HardwareDevicesPage() {
     } finally {
       setTesting(null);
     }
-  }, [electronAvailable]);
+  }, [electronAvailable, currentOrg?.id, currentBranch?.id]);
 
   const handleRemove = useCallback(async (id: string) => {
     setRemoving(id);
