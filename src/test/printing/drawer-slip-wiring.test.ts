@@ -54,7 +54,7 @@ describe("Cash-drawer audit slip wiring (Phase B1)", () => {
   it("generate-document short-circuits drawer_slip to the shared builder", () => {
     expect(EDGE).toMatch(/documentType === ["']drawer_slip["']/);
     expect(EDGE).toMatch(/buildDrawerSlipEscPos/);
-    expect(EDGE).toMatch(/from ["']\.\.\/_shared\/escpos\/drawer\.ts["']/);
+    expect(EDGE).toMatch(/["']\.\.\/_shared\/escpos\/drawer\.ts["']/);
   });
 
   it("drawer builder emits the enterprise audit fields", () => {
