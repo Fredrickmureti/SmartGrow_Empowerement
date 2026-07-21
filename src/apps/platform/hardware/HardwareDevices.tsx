@@ -44,6 +44,8 @@ import { useDeviceAssignments, type DeviceAssignment } from "@/hooks/useDeviceAs
 import { DeviceRegistryCard } from "@/components/hardware/DeviceRegistryCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Cpu, Radar, ListChecks, PlugZap } from "lucide-react";
+import { useOrganization } from "@/hooks/useOrganization";
+import { printLabelByTemplate } from "@/services/printing/labelDispatch";
 
 const ROLE_LABELS: Record<string, { label: string; description: string }> = {
   receipt_printer: { label: "Receipt printer", description: "Customer receipt slips at sale commit." },
@@ -57,11 +59,16 @@ const ROLE_LABELS: Record<string, { label: string; description: string }> = {
   },
   barcode_scanner: { label: "Barcode scanner", description: "USB HID / Bluetooth keyboard-wedge devices." },
   scanner: { label: "Barcode scanner", description: "USB HID / Bluetooth keyboard-wedge devices." },
+  label_printer: {
+    label: "Label printer",
+    description: "Thermal ZPL/EPL printers for product tags, shelf edges, receiving, pallets, and shipping.",
+  },
 };
 
 const ROLE_ORDER: DeviceRole[] = [
   "receipt_printer",
   "kitchen_printer",
+  "label_printer" as DeviceRole,
   "cash_drawer",
   "scale",
   "customer_display",
@@ -113,6 +120,15 @@ const TEST_OPS: Partial<Record<DeviceRole, TestSpec>> = {
     payload: { amount: 1, currency: "USD", reference: "hw-test" },
     successCopy: "Payment probe initiated — cancel from PED.",
   },
+  // Label printer test dispatch is routed through printLabelByTemplate
+  // (see handleTest) so it exercises the full workflow-binding + media
+  // resolution pipeline, not just raw byte transport. This sentinel
+  // entry only enables the Test button in the UI.
+  label_printer: {
+    op: "print_label",
+    payload: { __templateDriven: true },
+    successCopy: "Test label dispatched via product_label template.",
+  },
 };
 
 function newId(): string {
@@ -160,6 +176,7 @@ function hasDiscover(): boolean {
 
 export function HardwareDevicesPage() {
   const { assignments, isLoading, error, refetch, remove } = useDeviceAssignments();
+  const { currentOrg, currentBranch } = useOrganization();
 
   const [testing, setTesting] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -231,6 +248,42 @@ export function HardwareDevicesPage() {
     const key = `hw-test:${role}:${newId()}`;
     setTesting(key);
     try {
+      // Label printers exercise the whole workflow-binding + media
+      // resolution pipeline via printLabelByTemplate, so a "Test print"
+      // here matches what the app actually dispatches at runtime.
+      if ((role as string) === "label_printer") {
+        if (!currentOrg?.id) {
+          toast.error("Select an organization before test-printing a label.");
+          return;
+        }
+        const res = await printLabelByTemplate({
+          orgId: currentOrg.id,
+          branchId: currentBranch?.id ?? null,
+          templateKey: "product_label",
+          workflow: "product_tag",
+          vars: {
+            name: "TEST LABEL",
+            sku: "TEST-000",
+            sku_display: "TEST-000",
+            barcode: "000000000000",
+            hri_flag: "N",
+          },
+          idempotencyKey: key,
+          sourceDocType: "hardware_test",
+          sourceDocId: key,
+        });
+        if (res.success) {
+          const media = res.mediaResolved;
+          toast.success(spec.successCopy, {
+            description: media
+              ? `Media ${media.widthMm}×${media.heightMm ?? "cont."} mm @ ${media.dpi} dpi (template v${res.templateResolved?.version}).`
+              : undefined,
+          });
+        } else {
+          toast.error(`Test failed: ${res.error ?? "unknown error"}`);
+        }
+        return;
+      }
       const res = await hardwareClient.exec({
         role,
         op: spec.op,
@@ -247,7 +300,7 @@ export function HardwareDevicesPage() {
     } finally {
       setTesting(null);
     }
-  }, [electronAvailable]);
+  }, [electronAvailable, currentOrg?.id, currentBranch?.id]);
 
   const handleRemove = useCallback(async (id: string) => {
     setRemoving(id);

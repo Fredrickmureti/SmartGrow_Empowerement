@@ -30,6 +30,7 @@ import noRawXlsxInApp from "./eslint-rules/no-raw-xlsx-in-app.js";
 import noRawEscposBytes from "./eslint-rules/no-raw-escpos-bytes.js";
 import noRawPdfLibInEdgeFunctions from "./eslint-rules/no-raw-pdf-lib-in-edge-functions.js";
 import noDirectGenerateDocumentInPages from "./eslint-rules/no-direct-generate-document-in-pages.js";
+import noProductIdAsBarcode from "./eslint-rules/no-product-id-as-barcode.js";
 
 
 
@@ -74,6 +75,7 @@ export default tseslint.config(
           "no-raw-escpos-bytes": noRawEscposBytes,
           "no-raw-pdf-lib-in-edge-functions": noRawPdfLibInEdgeFunctions,
           "no-direct-generate-document-in-pages": noDirectGenerateDocumentInPages,
+          "no-product-id-as-barcode": noProductIdAsBarcode,
 
         },
       },
@@ -265,6 +267,8 @@ export default tseslint.config(
     rules: {
       "local/no-raw-pdf-lib-in-app": "error",
       "local/no-direct-barcode-lib": "error",
+      // ADR-0089 — never encode an internal DB identifier as a scannable barcode.
+      "local/no-product-id-as-barcode": "error",
       // Milestone C.2 — xlsx WRITE APIs are server-only. Read APIs
       // (XLSX.read / sheet_to_json) stay legal for user-uploaded imports.
       "local/no-raw-xlsx-in-app": "error",

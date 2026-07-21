@@ -97,12 +97,15 @@ describe('seed_default_label_templates · media-agnostic default insert', () => 
 
   it('inserts media_profile_id = NULL for new organizations', () => {
     // The INSERT statement must terminate the VALUES tuple with NULL for
-    // media_profile_id (the last column in the column list). We look for
-    // the explicit ADR-0087 comment marker to lock the intent.
-    expect(seedSql!).toMatch(/media-agnostic default/i);
+    // media_profile_id (the last column in the column list before
+    // geometry_mode). We look for an explicit ADR-0087 comment marker
+    // and the "media-agnostic" intent (Phase 17 expanded the seed to
+    // include six sibling templates, so the marker moved onto the
+    // function-level COMMENT).
+    expect(seedSql!).toMatch(/media-agnostic/i);
     expect(seedSql!).toMatch(/ADR-0087/);
     // The column list must include media_profile_id.
-    expect(seedSql!).toMatch(/media_profile_id\s*\)/);
+    expect(seedSql!).toMatch(/media_profile_id\b/);
   });
 
   it('does NOT reference a specific media_profiles row (no v_media_* lookups)', () => {
