@@ -39,6 +39,38 @@ interface TerminalStateProviderProps {
   hasUnreadCompletion?: boolean;
 }
 
+/**
+ * Bridge component — call this once, near the top of `POSTerminal`, to
+ * push live shift/cart booleans into the reducer. The provider itself
+ * takes only INITIAL values (so it can pick a starting phase); the
+ * bridge keeps them in sync as they change.
+ *
+ * Kept as a component (not a hook) so it can be dropped into JSX
+ * without threading dispatch through props.
+ */
+export function TerminalStateBridge({
+  hasActiveShift,
+  cartHasItems,
+}: {
+  hasActiveShift: boolean;
+  cartHasItems: boolean;
+}) {
+  const { dispatch } = useTerminalContext();
+  useEffect(() => {
+    dispatch({ kind: "op", op: hasActiveShift ? "shiftOpened" : "shiftClosed" });
+  }, [hasActiveShift, dispatch]);
+  useEffect(() => {
+    dispatch({ kind: "op", op: "syncCart", cartHasItems });
+  }, [cartHasItems, dispatch]);
+  return null;
+}
+
+  children: ReactNode;
+  hasActiveShift: boolean;
+  cartHasItems: boolean;
+  hasUnreadCompletion?: boolean;
+}
+
 export function TerminalStateProvider({
   children,
   hasActiveShift,
