@@ -59,6 +59,9 @@ import {
   type PosTenderKind,
   type PosSessionTenderInput,
 } from "@/lib/pos/paymentSessionClient";
+import { useCart } from "@/apps/pos/terminal/sale/CartContext";
+import { TransactionSummaryRail } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
+
 
 function paymentSessionErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof POSPaymentSessionError) {
