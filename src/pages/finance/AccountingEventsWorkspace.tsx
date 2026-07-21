@@ -331,6 +331,7 @@ export default function AccountingEventsWorkspace() {
 
   const { data: rows = [], isLoading, error, refetch, isFetching } = useAccountingEvents(filter);
   const { data: dispatcherHealth } = useDispatcherHealthForPos(rows);
+  const { data: posSummaries } = usePosStatementSummaries(rows);
   const [selected, setSelected] = useState<AccountingEventRow | null>(null);
 
   const kpis = useMemo(() => {
