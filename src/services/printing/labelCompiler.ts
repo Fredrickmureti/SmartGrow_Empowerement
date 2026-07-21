@@ -190,17 +190,114 @@ function compileEpl(doc: LabelDoc, dpi: number): string {
   return out.join("\n");
 }
 
-function compileEscPos(doc: LabelDoc): string {
-  const parts: string[] = [];
-  for (const el of doc.elements) {
-    if (el.type === "text") parts.push(el.text);
-    else if (el.type === "variable") parts.push(tokenSpan(el));
-    else if (el.type === "barcode") {
-      const data = el.token.startsWith("=") ? el.token.slice(1) : `{{${el.token}}}`;
-      parts.push(data);
+/**
+ * ESC/POS label rendering — Phase B2 (2026-07-21).
+ *
+ * Prior version concatenated element text with newlines and discarded
+ * `xMm`/`yMm`, so any label authored in the visual designer printed as
+ * a top-anchored, left-flush block on ESC/POS thermal label printers
+ * (common on 80×50 rolls sold as "receipt printers"). This implementation
+ * uses positioning primitives so the same `LabelDoc` prints at the correct
+ * physical position on ZPL, EPL and ESC/POS hardware.
+ *
+ * Commands used (all standard ESC/POS, supported by Epson TM-series and
+ * every clone printer we ship against):
+ *   ESC $ nL nH        — absolute horizontal position (dots)
+ *   ESC J n            — feed n dots (advance Y)
+ *   GS ! n             — character size (width high nibble, height low nibble)
+ *   ESC E n            — bold on/off
+ *   GS h n / GS w n    — barcode height / module width
+ *   GS H n             — HRI position (0 = none)
+ *   GS k m d1..dk NUL  — Code128 barcode data
+ *
+ * The compiler emits UTF-8 text with inline control codes; the dispatcher
+ * still handles the paper envelope (initial `ESC @` reset, final cut) so
+ * ADR-0087 (envelope ownership) continues to hold.
+ */
+function compileEscPos(doc: LabelDoc, dpi: number): string {
+  // ESC/POS positions are in dots. Reuse the same mediaGeometry math so a
+  // single LabelDoc renders at identical physical size on every engine.
+  const sorted = [...doc.elements].sort((a, b) => a.yMm - b.yMm || a.xMm - b.xMm);
+  let cursorY = 0; // dots
+  const out: string[] = [];
+  const ESC = "\x1B";
+  const GS = "\x1D";
+  const setX = (xDots: number): string => {
+    const nL = xDots & 0xff;
+    const nH = (xDots >> 8) & 0xff;
+    return `${ESC}$${String.fromCharCode(nL)}${String.fromCharCode(nH)}`;
+  };
+  const feed = (dots: number): string => {
+    if (dots <= 0) return "";
+    // ESC J n — n is 0..255. Split into multiple commands if needed.
+    const chunks: string[] = [];
+    let remaining = Math.round(dots);
+    while (remaining > 0) {
+      const step = Math.min(255, remaining);
+      chunks.push(`${ESC}J${String.fromCharCode(step)}`);
+      remaining -= step;
+    }
+    return chunks.join("");
+  };
+  const setSize = (fontSize = 4, bold = false): string => {
+    // Map designer fontSize (1..10) → GS ! width/height (0..7 each nibble).
+    const scale = Math.max(0, Math.min(7, Math.round(fontSize / 2) - 1));
+    const n = (scale << 4) | scale;
+    return `${GS}!${String.fromCharCode(n)}${ESC}E${String.fromCharCode(bold ? 1 : 0)}`;
+  };
+
+  for (const el of sorted) {
+    const xDots = mmToDots(el.xMm, dpi);
+    const yDots = mmToDots(el.yMm, dpi);
+    const advance = yDots - cursorY;
+    if (advance > 0) {
+      out.push(feed(advance));
+      cursorY = yDots;
+    }
+    out.push(setX(xDots));
+    switch (el.type) {
+      case "text":
+        out.push(setSize(el.fontSize, el.bold));
+        out.push(el.text);
+        out.push("\n");
+        cursorY += Math.max(24, mmToDots(3, dpi)); // approximate line height
+        break;
+      case "variable":
+        out.push(setSize(el.fontSize, el.bold));
+        out.push(tokenSpan(el));
+        out.push("\n");
+        cursorY += Math.max(24, mmToDots(3, dpi));
+        break;
+      case "barcode": {
+        const h = mmToDots(el.heightMm ?? 12, dpi);
+        const mw = Math.max(2, Math.min(6, Math.round((el.moduleMm ?? 0.33) * (dpi / 25.4))));
+        const data = el.token.startsWith("=") ? el.token.slice(1) : `{{${el.token}}}`;
+        out.push(`${GS}h${String.fromCharCode(Math.min(255, h))}`);
+        out.push(`${GS}w${String.fromCharCode(mw)}`);
+        out.push(`${GS}H${String.fromCharCode(el.hri ? 2 : 0)}`);
+        // GS k 73 (Code128, format 2 with length prefix)
+        const bytes = data.length;
+        out.push(`${GS}k\x49${String.fromCharCode(bytes)}${data}`);
+        out.push("\n");
+        cursorY += h + (el.hri ? mmToDots(3, dpi) : 0);
+        break;
+      }
+      case "line":
+      case "box": {
+        // ESC/POS has no geometric primitives — draw with hyphens/underscores
+        // as a reasonable degradation (documented behaviour on receipt-style
+        // label printers). Full raster ownership belongs to a future ZPL/EPL
+        // upgrade path.
+        const w = mmToDots(el.wMm, dpi);
+        const glyphWidth = Math.max(1, Math.round(dpi / 25.4)); // ~1mm per char
+        const cols = Math.max(1, Math.round(w / glyphWidth));
+        out.push("-".repeat(cols) + "\n");
+        cursorY += Math.max(12, mmToDots(1.5, dpi));
+        break;
+      }
     }
   }
-  return parts.join("\n") + "\n";
+  return out.join("");
 }
 
 export function compileLabelDoc(doc: LabelDoc, engine: LabelEngine, dpi: number): string {
@@ -210,7 +307,7 @@ export function compileLabelDoc(doc: LabelDoc, engine: LabelEngine, dpi: number)
     case "epl":
       return compileEpl(doc, dpi);
     case "escpos":
-      return compileEscPos(doc);
+      return compileEscPos(doc, dpi);
     case "pdf":
       return "";
   }
