@@ -3,7 +3,7 @@
  * and topology inside PlatformShell so the page is no longer a buried
  * standalone surface without rails or sidebar.
  */
-import { Cpu, Activity, Network, PlusCircle, Ruler, Gauge } from "lucide-react";
+import { Cpu, Activity, Network, PlusCircle, Ruler, Gauge, Tag } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
 export const HARDWARE_NAV: WorkspaceNav = {
