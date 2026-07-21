@@ -1,128 +1,107 @@
+# POS Tender Page Redesign
 
-# Tender Workspace — Audit & Redesign Plan
+Fix the overflow, cluttered layout, and always-visible fields on the payment page. Cover the tender workspace, keypad component, and the Card / M-Pesa sub-modals.
 
-## 1. Audit verdict against POS best practice
+## Problems today
 
-Reference model: Square, Toast, Lightspeed, Erply, Enerpize all converge on the same tender contract:
+- Left column stacks method chips → amount display → quick chips → reference → tip → rounding note → keypad → Add Tender button in a fixed vertical order. On typical laptop heights (~700–800px CSS) the keypad's 4 rows of 80–96px keys plus the Clear bar push content off-screen.
+- All optional fields (tip, quick chips, reference) render regardless of whether they apply to the selected method.
+- Custom-built `NumericKeypad` uses `h-20 sm:h-24` fixed heights; it does not shrink to fit its container, which is what causes the overflow.
+- Card and M-Pesa sub-modals use their own layouts and don't share the same keypad, so the experience feels inconsistent.
 
-- One **active tender draft** at a time (method + amount).
-- One **input surface** (keypad) that mutates only that draft.
-- A **passive summary rail** that reflects the authoritative payment session (Net Payable, Paid, Remaining, Change, Confirm).
-- Terminal state advances on **explicit business events**: `tender.draft.amountChanged`, `tender.recorded`, `tender.reversed`, `payment.confirmed`.
+## Redesign
 
-Current `src/apps/pos/terminal/tender/TenderWorkspace.tsx` breaks every one of those rules:
+### 1. Layout reorganization (left surface)
 
-| # | Symptom you observed | Root cause in code | Verdict |
-|---|---|---|---|
-| 1 | Amount typed on keypad shows **below** the keypad, not in the right "Paid" area | `NumericKeypad` at line 709 is bound to local `cashTendered` state, which is a **cash-quick-pay draft only**. The right rail reads `session.allocated` (recorded tenders). They are two different variables. | Fails "single source of truth". |
-| 2 | Left column scrolls | Whole left pane wrapped in `<ScrollArea>` (line 532) and stacks: MPesa row, Credit, Card, Tip, "Quick Cash Payment" (quick amounts + input + Pay-Cash button + keypad + change banner), separator, split-tender chip bar, amount input, method chips. Vertical bloat forces scroll. | Fails "no-scroll cashier surface". Big systems fit tender in one viewport. |
-| 3 | Confirm does nothing | `handleSplitPayment` (line 366) requires `payments.length > 0 && totalApplied >= effectiveTotal` (`canConfirm`, line 504). Typing on the keypad never calls `recordTender`, so `payments` stays `[]` and Confirm is disabled forever unless the cashier hits the separate green "Pay Cash" button first. | Fails "Confirm = terminal event". Right now Confirm is a *finalize-already-recorded-tenders* button, misnamed. |
-| 4 | Two competing "pay" affordances (keypad + green "Pay Cash" button, and later Confirm) | Cash-quick-pay flow (`handleQuickCashPayment`) and split flow (`handleAddPayment` + `handleSplitPayment`) are two separate state machines rendered simultaneously. | Fails "one active tender draft". |
-| 5 | Aesthetic mismatch with Enerpize reference | Right rail is present but decorative — it doesn't participate in the input loop. | Fails "rail = authoritative projection". |
-
-Overall verdict: **the surface is not event-driven, it is form-driven with two competing forms**. The keypad, the "Pay Cash" button, and the split-tender chip bar are three UIs racing over the same business event (`record a tender`). That is why it "looks like a joke": the cashier's inputs don't produce the state changes the layout implies they should.
-
-## 2. Target contract (Enerpize-style, event-driven)
-
-Business events, unchanged from `usePaymentSession`:
+Switch the left surface from a fixed vertical stack to a **two-region flex layout** that always fits the viewport:
 
 ```text
-selectMethod(method)         → sets active tender draft.method
-amendDraftAmount(n)          → sets active tender draft.amount (keypad, quick chips, %-tip all funnel here)
-commitDraft()                → session.recordTender(draft) → tender row persisted
-reverseTender(id)            → session.reverseTender
-confirmPayment()             → require remaining<=0 → onComplete(payments)
-back()                       → onBack()
+┌───────────────────────────────────────────┐
+│ Header (Back • Payment • Amount Due)      │
+├───────────────┬───────────────────────────┤
+│ Methods (chip │ Right rail                │
+│  row, wraps)  │  • Customer               │
+│               │  • Cart totals            │
+│ Amount card   │  • Paid / Draft /         │
+│  (large, live │    Remaining / Change     │
+│   change hint)│  • Recorded tenders       │
+│               │  • Confirm (sticky)       │
+│ Context block │                           │
+│  (reference / │                           │
+│   tip / chips │                           │
+│   — only when │                           │
+│   applicable) │                           │
+│               │                           │
+│ Keypad        │                           │
+│  (fills       │                           │
+│   remaining   │                           │
+│   space, keys │                           │
+│   scale via   │                           │
+│   aspect-1)   │                           │
+│               │                           │
+│ Add Tender    │                           │
+└───────────────┴───────────────────────────┘
 ```
 
-The workspace becomes a projection of `{ draft, session }`. Nothing else.
+Key rules:
+- Left surface uses `flex flex-col min-h-0`; the keypad region uses `flex-1 min-h-0` so it always occupies leftover height instead of pushing content off-screen.
+- Keypad keys use `aspect-square` inside a `grid-cols-3 gap-2` container, so keys shrink together as the viewport shrinks — no more fixed 96px rows.
+- On `<md` (tablet / phone), the right rail collapses into a bottom sheet triggered by a "Details" chip in the header, and Confirm becomes a full-width sticky bar at the bottom.
+- Header collapses to one line on mobile (Amount Due moves under the title).
 
-Layout (fits one 1280×800 viewport, no scrolling on left pane):
+### 2. Swap `NumericKeypad` for `react-simple-keyboard`
 
-```text
-┌───────── Header: Back · "Payment" · Amount Due ─────────┐
-│                                                          │
-│  LEFT (flex-1, no scroll)          RIGHT RAIL (w-96)     │
-│  ┌────────────────────────────┐   ┌────────────────────┐│
-│  │ Method tiles               │   │ POS Client         ││
-│  │ (Cash · Card · M-Pesa ·    │   │ Walk-in customer   ││
-│  │  Store credit · Bank …)    │   ├────────────────────┤│
-│  ├────────────────────────────┤   │ Subtotal           ││
-│  │ Active-draft amount        │   │ Discount           ││
-│  │  KES 0.00  ← reflects draft│   │ Tax                ││
-│  ├────────────────────────────┤   │ Net Payable  BOLD  ││
-│  │ Quick chips: exact/+50/+100│   ├────────────────────┤│
-│  ├────────────────────────────┤   │ Paid               ││
-│  │ Keypad (1-9, 0, ., ⌫, C)   │   │ Remaining / Change ││
-│  │ writes to draft.amount     │   ├────────────────────┤│
-│  ├────────────────────────────┤   │ Recorded tenders … ││
-│  │ [Add tender]  (commits     │   ├────────────────────┤│
-│  │  draft, resets amount to   │   │ [ Confirm Payment ]││
-│  │  next remaining)           │   │  disabled until    ││
-│  └────────────────────────────┘   │  remaining<=0      ││
-│                                    └────────────────────┘│
-└──────────────────────────────────────────────────────────┘
-```
+- Install `react-simple-keyboard` and use its numeric layout.
+- Wrap it in a new `POSKeypad` component that owns the theming and exposes the same `{ value, onChange, onClear, onBackspace }` API as today, so callers don't change.
+- Theme via a scoped CSS file (`pos-keypad.css`) that maps `.hg-button` to our design tokens (`--primary`, `--muted`, `--border`, radii, shadows). Buttons scale with container width, not fixed px.
+- Add "00" / "." / "⌫" / "Clear" keys as custom buttons in the layout string.
+- Reuse `POSKeypad` inside the Card and M-Pesa sub-modals so the amount-entry surface is identical everywhere.
 
-Only three interactive things on the left: **method row**, **keypad+chips (both mutate `draft.amount`)**, **Add-tender**. Right rail is read-only except for Confirm.
+### 3. Context-aware field visibility
 
-## 3. Implementation steps
+Only render each optional block when it's relevant:
 
-Scope: `src/apps/pos/terminal/tender/TenderWorkspace.tsx` only, plus a small extraction for the keypad wiring. No changes to `usePaymentSession`, RPCs, or reducer contract — those already model the events correctly; the UI just wasn't using them.
+| block                | shown when |
+| -------------------- | ---------- |
+| Reference input      | `selectedMethodConfig.requires_reference` (already correct — keep) |
+| Tip row              | `onTipChange` is wired AND register has tips enabled |
+| Cash rounding note   | cash method selected AND `cashRoundingDiff !== 0` (already correct — keep) |
+| Quick-amount chips   | selected tender is cash (chips exist to round up cash tenders — hide for card/wallet where exact amount is used) |
+| "Look up M-Pesa"     | M-Pesa method is selected (move out of the always-visible header row) |
+| Change hint          | cash AND tendered > remaining (already correct — keep) |
 
-1. **Introduce a single draft state**
-   ```ts
-   const [draft, setDraft] = useState<{ methodKey: string; amount: string }>({
-     methodKey: "",
-     amount: "",
-   });
-   ```
-   Retire `cashTendered`, `amount`, `selectedMethod`, `reference` as separate ambient states — keep `reference` inside `draft` when the selected method requires it.
+The "Context block" region between the amount card and the keypad renders whichever of the above blocks apply, or nothing at all when none apply — freeing that vertical space for the keypad.
 
-2. **Method row = single component**
-   Replace the three stacked colored MPesa/Credit/Card "quick-pay" blocks *and* the split chip bar with one horizontal method row (icons + names). Selecting a method sets `draft.methodKey` and pre-fills `draft.amount = remaining`. Quick-pay behaviour is preserved as "one-click": if remaining pre-fills the draft, cashier just presses Add-tender.
+### 4. Card and M-Pesa sub-modals
 
-3. **Keypad + quick chips both write to `draft.amount`**
-   `<NumericKeypad value={draft.amount} onChange={(v) => setDraft(d => ({...d, amount: v}))} … />`
-   Quick chips (exact, next 10/50/100) call the same setter. Because the right rail reads `draft.amount` for a "would-pay preview" and `session.allocated` for actual Paid, the number the cashier types is visible on the right *immediately* (as "Draft") — killing symptom #1.
+- Replace their custom amount inputs with the same `POSKeypad` component.
+- Apply the same responsive shell: `flex flex-col`, keypad in `flex-1 min-h-0`, sticky primary action at the bottom.
+- Keep all existing driver logic and callbacks unchanged — this is a presentation change only.
 
-4. **`Add tender` button = single commit event**
-   - Validates method-specific rules (reference required, customer required for store credit, min tendered ≥ amount for cash).
-   - For device-mediated methods (M-Pesa STK, card terminal), opens the existing sub-modal with `draft.amount`. On success, `recordTender` runs.
-   - For non-mediated methods (cash, credit_liability, bank transfer), calls `recordTender` directly.
-   - On success: clear `draft.amount`, keep `draft.methodKey`, refocus keypad.
+### 5. Mobile / tablet breakpoints
 
-5. **Confirm button becomes the terminal event**
-   - Enabled when `session.remaining <= 0`.
-   - If cash-only single tender with `tendered_amount >= amount`, allow Confirm to *both* record and finalize in one press (single-tender fast path — this is what "Pay Cash" was trying to be). Implement by having Confirm auto-commit any pending draft first, then `onComplete`.
-   - Fixes symptom #3 and #4 together: Confirm is now the only thing that closes the sale, whether via fast path or split.
+- `<sm` (≤640px): single column, right rail becomes a bottom sheet, Confirm is a sticky footer button, keypad keys shrink via `aspect-square`.
+- `sm–md` (641–1023px): two columns but rail narrows to 18rem; method chips wrap to two rows if needed.
+- `md+` (≥1024px): current two-column layout with `w-80` / `xl:w-96` rail.
 
-6. **Remove `<ScrollArea>` from the left pane**
-   Left pane becomes `flex flex-col min-h-0` and each row is fixed-height. Method row `h-14`, draft display `h-16`, quick chips `h-10`, keypad grid `flex-1` (natural 4x4), Add-tender `h-14`. Total fits in ~640px vertical — no scroll on any register-class screen.
-   Keep MPesa/Card sub-modals as-is (they wrap driver conversations, correctly modal).
+## Technical details
 
-7. **Right rail: authoritative projection only**
-   Preserve current `TransactionSummaryRail`, but add one row above "Paid":
-   `Draft (Cash) — KES 500.00` in muted foreground when `draft.amount > 0`, so the number the cashier is typing has an explicit home on the right — which is what your Enerpize reference shows.
-   Confirm button label and enable-rule updated per step 5.
+Files touched:
+- `src/apps/pos/terminal/tender/TenderWorkspace.tsx` — layout restructure and context-aware conditionals.
+- `src/components/pos/POSKeypad.tsx` (new) — wraps `react-simple-keyboard`, owns theming, exports the same props NumericKeypad exposed.
+- `src/components/pos/pos-keypad.css` (new) — scoped theme overrides mapping `.hg-*` classes to design tokens.
+- `src/components/pos/NumericKeypad.tsx` — becomes a thin re-export of `POSKeypad` so any other caller keeps working; deprecation comment added.
+- `src/components/pos/CardPaymentModal.tsx` — swap amount entry to `POSKeypad`, apply responsive shell.
+- `src/components/pos/MpesaPaymentModal.tsx` — same.
 
-8. **Delete dead branches**
-   Remove the `payments.length === 0` "Quick Cash Payment" section (lines 671–733) — its role is absorbed by the unified draft+keypad+Add-tender path. Remove `canSplitPayment` gating on the method chip bar; multiple methods are always shown when configured, single-method registers just render one chip.
+Dependencies:
+- Add `react-simple-keyboard` (~40KB gzipped). No peer conflicts with React 19 (library is React-compatible via `preact-compat`-free build).
 
-9. **Escape / back / esc-key** untouched. All persistence still through `usePaymentSession` — no new RPCs, no schema changes.
+Not changed:
+- Payment session model, RPCs, `resolvePaymentMethods`, tender persistence — the four-axis payment row (ADR 0009) and event model stay intact.
+- `TransactionSummaryRail`, the confirm/commit flow, and all driver callbacks.
 
-## 4. Event-driven checklist (post-change)
-
-- [ ] `draft.amount` is the *only* thing keypad and quick chips mutate.
-- [ ] Right rail's "Paid / Remaining / Change" reads *only* `session.allocated / remaining / change`.
-- [ ] `session.recordTender` is called from exactly one place (Add-tender handler, including the fast path inside Confirm).
-- [ ] `onComplete` is called from exactly one place (Confirm handler).
-- [ ] No local state duplicates a value present on `session`.
-- [ ] Left pane has no vertical scroll at ≥720px height.
-
-## 5. Out of scope for this change
-
-- Payment session RPCs, idempotency contract, saga wiring — already correct.
-- Card / M-Pesa driver modals — correct to remain modal.
-- Receipt phase, held-sale phase — separate workspaces, not touched.
-- Visual theming beyond adopting the two-pane layout; tokens stay on existing shadcn/tailwind semantics.
+Verification:
+- Build passes typecheck.
+- Manual check via Playwright at 1280×720 (typical laptop), 1024×768 (small laptop), 768×1024 (tablet), 390×844 (mobile) — no overflow, keypad always visible, Confirm always reachable.
+- Existing `src/__tests__/architecture.pos-workspace-dialogs.test.ts` still passes.
