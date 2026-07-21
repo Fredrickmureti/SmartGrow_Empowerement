@@ -706,6 +706,12 @@ export function TenderWorkspace({
                         <span className="hidden xs:inline">Pay</span> Cash
                       </Button>
                     </div>
+                    <NumericKeypad
+                      value={cashTendered}
+                      onChange={(v) => setCashTendered(v)}
+                      onClear={() => setCashTendered("")}
+                      onBackspace={() => setCashTendered((v) => v.slice(0, -1))}
+                    />
                     {cashTendered && parseFloat(cashTendered) >= effectiveTotal && (
                       <div className="bg-green-500/10 text-green-600 rounded-lg p-2 sm:p-3 flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
