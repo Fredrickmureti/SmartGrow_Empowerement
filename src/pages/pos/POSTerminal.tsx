@@ -1272,7 +1272,7 @@ function POSTerminalInner() {
       // reducer to `receipt` deterministically. Previously the reducer
       // waited on `pos.payment_completed` from the domain-event bus,
       // which meant a slow or dropped event could leave `phase` stuck
-      // on `tender` while `PostPaymentScreen` was on screen.
+      // on `tender` while `PostPaymentSurface` was on screen.
       terminalDispatch({
         kind: "op",
         op: "recordCompletion",
