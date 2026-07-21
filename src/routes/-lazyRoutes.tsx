@@ -28,6 +28,7 @@ export const AdminAppCatalogEditPage = lazy(() => import("@/pages/admin/app-cata
 export const AdminPayments = lazy(() => import("@/pages/admin/AdminPayments"));
 export const AdminAuditLog = lazy(() => import("@/pages/admin/AdminAuditLog"));
 export const HardwareOpsPage = lazy(() => import("@/pages/admin/HardwareOpsPage"));
+export const PrintQueuePage = lazy(() => import("@/pages/admin/PrintQueuePage"));
 export const AdminMfaSetup = lazy(() => import("@/pages/admin/AdminMfaSetup"));
 export const AdminTeam = lazy(() => import("@/pages/admin/AdminTeam"));
 export const AdminGroups = lazy(() => import("@/pages/admin/AdminGroups"));
