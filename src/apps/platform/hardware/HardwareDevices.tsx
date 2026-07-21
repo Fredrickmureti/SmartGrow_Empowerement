@@ -120,6 +120,15 @@ const TEST_OPS: Partial<Record<DeviceRole, TestSpec>> = {
     payload: { amount: 1, currency: "USD", reference: "hw-test" },
     successCopy: "Payment probe initiated — cancel from PED.",
   },
+  // Label printer test dispatch is routed through printLabelByTemplate
+  // (see handleTest) so it exercises the full workflow-binding + media
+  // resolution pipeline, not just raw byte transport. This sentinel
+  // entry only enables the Test button in the UI.
+  label_printer: {
+    op: "print_label",
+    payload: { __templateDriven: true },
+    successCopy: "Test label dispatched via product_label template.",
+  },
 };
 
 function newId(): string {
