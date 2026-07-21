@@ -120,16 +120,17 @@ function POSApp() {
         }
       >
         <Route index element={<POSTerminal />} />
-        {/* Phase 3 — sibling routes for phase-driven workspaces. All
-            currently render POSTerminal (which internally derives its
-            surface from `terminalState.phase`); the URL sync inside
-            TerminalShell keeps the address bar and the reducer in
-            lock-step so deep links and browser back/forward behave
-            like real workspace navigation. Dedicated workspace chrome
-            (route-owned components) lands in Phase 3b. */}
+        {/* Slice C.2 — the `receipt` sibling now mounts a dedicated
+            route-owned surface (`ReceiptRoute`). It reads the completed
+            transaction + print policy directly from `ReceiptDataContext`
+            (provided by TerminalShell) and owns the email
+            `SendDocumentDialog` locally, so it stays self-sufficient
+            without POSTerminal being mounted. The other four siblings
+            (tender/return/held/history) still resolve to POSTerminal
+            pending Steps C/D of the workspace-reshape plan. */}
         <Route path="sale" element={<POSTerminal />} />
         <Route path="tender" element={<POSTerminal />} />
-        <Route path="receipt" element={<POSTerminal />} />
+        <Route path="receipt" element={<ReceiptRoute />} />
         <Route path="return" element={<POSTerminal />} />
         <Route path="held" element={<POSTerminal />} />
         <Route path="history" element={<POSTerminal />} />
