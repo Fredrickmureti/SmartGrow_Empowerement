@@ -276,6 +276,53 @@ describe('usePOSCart', () => {
 
       expect(result.current.total).toBe(1160); // 1000 + 160 tax
     });
+
+    it('calculates net payable as subtotal minus discounts plus tax', () => {
+      const { result } = renderHook(() => usePOSCart());
+
+      act(() => {
+        result.current.addItem(createMockProduct({ id: 'p1', price: 100, tax_rate: 16 }), 1);
+        result.current.addItem(createMockProduct({ id: 'p2', price: 100, tax_rate: 0 }), 1);
+        result.current.setCartDiscount({ type: 'fixed', value: 50 });
+      });
+
+      expect(result.current.subtotal).toBe(200);
+      expect(result.current.discount_amount).toBe(50);
+      expect(result.current.tax_amount).toBe(12);
+      expect(result.current.total).toBe(162);
+    });
+
+    it('clamps cart-level discounts so net payable cannot go negative', () => {
+      const { result } = renderHook(() => usePOSCart());
+
+      act(() => {
+        result.current.addItem(createMockProduct({ id: 'p1', price: 100, tax_rate: 16 }), 1);
+        result.current.setCartDiscount({ type: 'fixed', value: 200 });
+      });
+
+      expect(result.current.subtotal).toBe(100);
+      expect(result.current.discount_amount).toBe(100);
+      expect(result.current.tax_amount).toBe(0);
+      expect(result.current.total).toBe(0);
+    });
+
+    it('clamps line discounts before calculating tax', () => {
+      const { result } = renderHook(() => usePOSCart());
+
+      act(() => {
+        result.current.addItem(createMockProduct({ id: 'p1', price: 100, tax_rate: 16 }), 1);
+      });
+
+      const itemId = result.current.items[0].id;
+
+      act(() => {
+        result.current.applyItemDiscount(itemId, 'fixed', 150);
+      });
+
+      expect(result.current.subtotal).toBe(0);
+      expect(result.current.tax_amount).toBe(0);
+      expect(result.current.total).toBe(0);
+    });
   });
 
   describe('Customer Management', () => {

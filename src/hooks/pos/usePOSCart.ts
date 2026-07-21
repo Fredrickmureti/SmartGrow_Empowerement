@@ -1,6 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
 import type { SelectedModifier } from "./useModifiers";
 
+const clampMoney = (value: number, min = 0, max = Number.POSITIVE_INFINITY) =>
+  Math.min(Math.max(Number.isFinite(value) ? value : 0, min), max);
+
 export interface CartItemModifier {
   modifier_id: string;
   modifier_name: string;
@@ -76,6 +79,7 @@ const calculateItemTotals = (
   } else if (discount_type === "fixed") {
     discountAmount = discount_value;
   }
+  discountAmount = clampMoney(discountAmount, 0, gross);
   
   const afterDiscount = gross - discountAmount;
   const taxAmount = afterDiscount * (tax_rate / 100);
@@ -295,6 +299,7 @@ export function usePOSCart() {
         discountAmount = cartDiscount.value;
       }
     }
+    discountAmount = clampMoney(discountAmount, 0, subtotal);
 
     // Step 3: Recalculate tax on post-discount amounts
     // Proportionally distribute cart discount across items, then compute tax

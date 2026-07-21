@@ -60,7 +60,7 @@ import {
   type PosSessionTenderInput,
 } from "@/lib/pos/paymentSessionClient";
 import { useCart } from "@/apps/pos/terminal/sale/CartContext";
-import { TransactionSummaryRail } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
+import { TransactionSummaryRail, type AppliedPromotionLine } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
 
 
 function paymentSessionErrorMessage(e: unknown, fallback: string): string {
@@ -111,6 +111,7 @@ interface TenderWorkspaceProps {
   splitPortionLabel?: string;
   hasCustomer?: boolean;
   registerPaymentMethods?: string[] | null;
+  appliedPromotions?: AppliedPromotionLine[];
   sessionContext: TenderSessionContext;
   onComplete: (payments: TenderWorkspacePayment[]) => void;
   onBack: () => void;
@@ -158,6 +159,7 @@ export function TenderWorkspace({
   splitPortionLabel,
   hasCustomer = false,
   registerPaymentMethods,
+  appliedPromotions = [],
   sessionContext,
   onComplete,
   onBack,
@@ -488,6 +490,15 @@ export function TenderWorkspace({
   // sight of the sale they're closing. `useCart()` is safe here because
   // `TerminalShell` mounts `CartProvider` above every tender render.
   const railCart = useCart();
+  const tenderSummaryCart = useMemo(
+    () => ({
+      subtotal: railCart.subtotal,
+      discount_amount: railCart.discount_amount,
+      tax_amount: railCart.tax_amount,
+      total: effectiveTotal,
+    }),
+    [railCart.subtotal, railCart.discount_amount, railCart.tax_amount, effectiveTotal],
+  );
   const paidAmount = totalApplied;
   const canConfirm = payments.length > 0 && totalApplied >= effectiveTotal;
 
@@ -860,10 +871,12 @@ export function TenderWorkspace({
         </div>
         <ScrollArea className="flex-1 min-h-0 px-4 py-3">
           <TransactionSummaryRail
-            cart={railCart}
-            appliedPromotions={[]}
+            cart={tenderSummaryCart}
+            appliedPromotions={appliedPromotions}
             formatCurrency={formatCurrency}
             size="md"
+            totalLabel="Net Payable"
+            totalOverride={effectiveTotal}
           />
           <div className="mt-4 space-y-1.5 text-sm">
             {tipAmount > 0 && (
@@ -872,10 +885,6 @@ export function TenderWorkspace({
                 <span>{formatCurrency(tipAmount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-bold">
-              <span>Net Payable</span>
-              <span>{formatCurrency(effectiveTotal)}</span>
-            </div>
             <Separator className="my-2" />
             <div className="flex justify-between">
               <span className="text-muted-foreground">Paid</span>

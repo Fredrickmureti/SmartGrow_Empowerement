@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useProductsPaginated } from "@/hooks/useProductsPaginated";
@@ -104,7 +104,7 @@ import { normalizeError } from "@/services/resilience";
 
 
 export default function Products() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Group C #3 — every routed scan in the Products workspace is audited
   // to `scan_events` via the `workspace_id` lane. Includes the
   // scan-to-onboard target below and the ProductIdentifiersEditor
@@ -452,6 +452,19 @@ export default function Products() {
       }
     }
   }, [searchParams, products, showDetailDialog]);
+
+  const handleDetailOpenChange = useCallback(
+    (open: boolean) => {
+      setShowDetailDialog(open);
+      if (open) return;
+      setViewingProduct(null);
+      if (!searchParams.has("selected")) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete("selected");
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
 
   // Scan-to-onboard: page-level scan target at priority 5 so any focused
   // <BarcodeInputField> (priority 10) still wins. Resolves the code via
@@ -955,7 +968,7 @@ export default function Products() {
           productId={viewingProduct?.id ?? null}
           initialProduct={viewingProduct ? { id: viewingProduct.id, name: viewingProduct.name, sku: viewingProduct.sku } : null}
           open={showDetailDialog}
-          onOpenChange={setShowDetailDialog}
+          onOpenChange={handleDetailOpenChange}
           onEdit={(id) => {
             const p = products.find((x) => x.id === id);
             if (p) openEdit(p);

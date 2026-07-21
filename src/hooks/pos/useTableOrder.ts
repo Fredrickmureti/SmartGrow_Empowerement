@@ -80,6 +80,7 @@ const calculateItemTotals = (
   } else if (discount_type === "fixed") {
     discountAmount = discount_value;
   }
+  discountAmount = Math.min(Math.max(Number.isFinite(discountAmount) ? discountAmount : 0, 0), gross);
   const afterDiscount = gross - discountAmount;
   const taxAmount = afterDiscount * (tax_rate / 100);
   const lineTotal = afterDiscount + taxAmount;
@@ -251,6 +252,7 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
         ? subtotal * (cartDiscount.value / 100)
         : cartDiscount.value;
     }
+    discountAmount = Math.min(Math.max(Number.isFinite(discountAmount) ? discountAmount : 0, 0), subtotal);
 
     let taxAmount = 0;
     if (subtotal > 0 && discountAmount > 0) {
