@@ -69,7 +69,7 @@ export type PrintPolicyHint = {
   paper_format: "58mm" | "80mm" | "40mm" | "a4" | "a5" | "letter" | "custom";
 };
 
-interface PostPaymentScreenProps {
+interface PostPaymentSurfaceProps {
   transaction: LiveTransactionInput | null;
   open: boolean;
   onNewSale: () => void;
@@ -86,14 +86,14 @@ type PrintState =
   | { kind: "printed"; channel: "thermal" | "pdf" }
   | { kind: "failed"; message: string };
 
-export function PostPaymentScreen({
+export function PostPaymentSurface({
   transaction,
   open,
   onNewSale,
   onEmail,
   policy,
   isReprint = false,
-}: PostPaymentScreenProps) {
+}: PostPaymentSurfaceProps) {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
