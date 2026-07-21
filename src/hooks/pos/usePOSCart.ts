@@ -287,6 +287,7 @@ export function usePOSCart() {
       } else if (item.discount_type === "fixed") {
         itemDiscount = item.discount_value;
       }
+      itemDiscount = clampMoney(itemDiscount, 0, itemGross);
       return sum + (itemGross - itemDiscount);
     }, 0);
 
@@ -313,6 +314,7 @@ export function usePOSCart() {
         } else if (item.discount_type === "fixed") {
           itemDiscount = item.discount_value;
         }
+        itemDiscount = clampMoney(itemDiscount, 0, itemGross);
         const itemNet = itemGross - itemDiscount;
         // Proportional share of cart discount for this item
         const itemCartDiscount = (itemNet / subtotal) * discountAmount;
