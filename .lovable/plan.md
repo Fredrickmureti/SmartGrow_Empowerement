@@ -52,13 +52,12 @@ Every workspace shares a fixed left rail (register + shift + cashier + customer 
 - **Pending (2b):** replace the `<Dialog>` chrome with a full-screen route-owned `TenderWorkspace` under `terminal/tender/`. Move the numeric keypad to a permanent right-hand panel, split-tender rows to the left, change-due + terminal status permanent. Delete the dialog wiring once the route is authoritative.
 
 ### Phase 3 — Extract Receipt / Return / Held / History — **State cutover DONE (3a); chrome swap PENDING (3b)**
-- **Done (3a):** `showHeld`, `showReturn`, `showHistory` are derived reads of `terminalState.phase`; opening dispatches `openHeld/openReturn/openHistory`; closing dispatches `closeSide` (which restores `previousPhase`). The reducer's per-phase legality checks make "only one side workspace at a time" a structural invariant. Verified with 23 passing reducer tests + clean typecheck.
-- **Pending (3b):**
-  - `terminal/receipt/ReceiptWorkspace.tsx` replaces `ReceiptPreviewDialog` + `PostPaymentScreen`. Owns auto-print status, reprint, email, F2 → new sale.
-  - `terminal/return/ReturnWorkspace.tsx` replaces `ReturnDialog`.
-  - `terminal/held/HeldWorkspace.tsx` replaces `HeldTransactionsDialog`; `HeldOrdersBar` becomes a rail chip that navigates via `openHeld`.
-  - `terminal/history/HistoryWorkspace.tsx` replaces `TransactionHistoryDialog`.
-  - Each workspace consumes `useTerminalContext()`, receives no `open/onOpenChange` props, and mounts on its sibling route (Phase 1 routes are already in place).
+- **Done (3a):** `showHeld`, `showReturn`, `showHistory` are derived reads of `terminalState.phase`; opening dispatches `openHeld/openReturn/openHistory`; closing dispatches `closeSide` (which restores `previousPhase`). The reducer's per-phase legality checks make "only one side workspace at a time" a structural invariant.
+- **Done (3b.1 — Held):** `src/apps/pos/terminal/held/HeldWorkspace.tsx` replaces `HeldTransactionsDialog`. Full-panel workspace body (no `<Dialog>` chrome) mounted from `POSTerminal` when `phase === "held"`. Close button dispatches `closeSide`. Cart-restore is delegated up via `onResume` prop (will move to cart context in Phase 5). `HeldTransactionsDialog.tsx` is now dead code, deletion deferred to Phase 6 sweep.
+- **Pending (3b.2 — History):** `terminal/history/HistoryWorkspace.tsx` replaces `TransactionHistoryDialog`.
+- **Pending (3b.3 — Return):** `terminal/return/ReturnWorkspace.tsx` replaces `ReturnDialog`.
+- **Pending (3b.4 — Receipt):** `terminal/receipt/ReceiptWorkspace.tsx` replaces `ReceiptPreviewDialog` + `PostPaymentScreen`. Owns auto-print status, reprint, email, F2 → new sale.
+- After each workspace ships: swap the sibling route to render the workspace directly (currently all render `POSTerminal`) once cart/hardware context is available (Phase 5 dependency for Receipt/Return).
 
 ### Phase 4 — Slide-in sheets — **PENDING**
 Convert line- and sale-scoped micro-interactions to a standardised `SheetShell`:
