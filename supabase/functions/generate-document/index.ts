@@ -3191,8 +3191,8 @@ const TABLE_MAP: Record<string, string> = {
   stock_transfer: "stock_transfers",
   vendor_return: "purchase_returns",
   purchase_return: "purchase_returns",
-  goods_received_note: "goods_received_notes",
-  goods_receipt: "goods_received_notes",
+  goods_received_note: "goods_receipts",
+  goods_receipt: "goods_receipts",
 };
 
 async function getOrganizationId(supabase: any, docType: string, docId: string): Promise<string> {
