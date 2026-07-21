@@ -59,6 +59,7 @@ import { usePOSSessionsOffline } from "@/hooks/pos/usePOSSessionsOffline";
 import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
 import { useCustomerDisplay } from "@/hooks/pos/useCustomerDisplay";
 import { domainEventBus } from "@/services/events/domainEventBus";
+import { TerminalStateBridge } from "@/apps/pos/terminal";
 import { usePOSPromotions } from "@/hooks/pos/usePOSPromotions";
 import { useHappyHour } from "@/hooks/pos/useHappyHour";
 import { useKitchenDisplay } from "@/hooks/pos/useKitchenDisplay";
@@ -1341,6 +1342,15 @@ function POSTerminalInner() {
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden relative max-w-[1920px] mx-auto w-full">
+      {/* Phase 1 (POS workstation): sync live shift + cart state into
+          the terminal reducer so extracted workspaces (Phases 2-5) can
+          react to phase changes via `useTerminalContext()`. Rendering
+          the bridge here — inside the shell's provider — keeps the
+          reducer authoritative without a top-down prop drill. */}
+      <TerminalStateBridge
+        hasActiveShift={!!activeShift}
+        cartHasItems={cart.items.length > 0}
+      />
       <ScanGhostTicker />
       {/* Processing Payment Overlay */}
       {isProcessingPayment && (

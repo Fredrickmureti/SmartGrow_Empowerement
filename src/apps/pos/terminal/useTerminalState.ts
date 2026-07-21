@@ -105,7 +105,8 @@ export type TerminalIntent =
   | { kind: "op"; op: "openSheet"; sheet: SheetId }
   | { kind: "op"; op: "closeSheet" }
   | { kind: "op"; op: "setTip"; tipAmount: number }
-  | { kind: "op"; op: "recordCompletion"; transaction: CompletedTransactionSnapshot };
+  | { kind: "op"; op: "recordCompletion"; transaction: CompletedTransactionSnapshot }
+  | { kind: "op"; op: "syncCart"; cartHasItems: boolean };
 
 /**
  * Sheets allowed per phase. `SheetShell` (rendered inside each workspace)
@@ -287,6 +288,17 @@ export function terminalReducer(state: TerminalState, intent: TerminalIntent): T
         return state.phase === "sale"
           ? { ...state, phase: "ready", previousPhase: "sale", activeSheet: null }
           : state;
+      case "syncCart":
+        // Cart-driven transitions only touch the ready↔sale seam. Side
+        // branches (return/held/history), tender, receipt, locked, idle
+        // are owned by explicit ops or business events.
+        if (intent.cartHasItems && state.phase === "ready") {
+          return { ...state, phase: "sale", previousPhase: "ready", activeSheet: null };
+        }
+        if (!intent.cartHasItems && state.phase === "sale") {
+          return { ...state, phase: "ready", previousPhase: "sale", activeSheet: null };
+        }
+        return state;
     }
   }
 

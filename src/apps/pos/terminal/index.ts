@@ -11,7 +11,8 @@
  * phased plan in `docs/audit/2026-07-21-pos-terminal-architecture.md`).
  */
 
-export { TerminalStateProvider, useTerminalContext } from "./TerminalStateContext";
+export { TerminalStateProvider, TerminalStateBridge, useTerminalContext } from "./TerminalStateContext";
+export { default as TerminalShell } from "./TerminalShell";
 export { SheetShell } from "./SheetShell";
 export {
   derivePhase,

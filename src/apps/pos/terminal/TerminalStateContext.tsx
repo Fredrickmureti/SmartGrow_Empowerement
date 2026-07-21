@@ -39,6 +39,33 @@ interface TerminalStateProviderProps {
   hasUnreadCompletion?: boolean;
 }
 
+/**
+ * Bridge component — call this once, near the top of `POSTerminal`, to
+ * push live shift/cart booleans into the reducer. The provider itself
+ * takes only INITIAL values (so it can pick a starting phase); the
+ * bridge keeps them in sync as they change.
+ *
+ * Kept as a component (not a hook) so it can be dropped into JSX
+ * without threading dispatch through props.
+ */
+export function TerminalStateBridge({
+  hasActiveShift,
+  cartHasItems,
+}: {
+  hasActiveShift: boolean;
+  cartHasItems: boolean;
+}) {
+  const { dispatch } = useTerminalContext();
+  useEffect(() => {
+    dispatch({ kind: "op", op: hasActiveShift ? "shiftOpened" : "shiftClosed" });
+  }, [hasActiveShift, dispatch]);
+  useEffect(() => {
+    dispatch({ kind: "op", op: "syncCart", cartHasItems });
+  }, [cartHasItems, dispatch]);
+  return null;
+}
+
+
 export function TerminalStateProvider({
   children,
   hasActiveShift,
@@ -51,7 +78,9 @@ export function TerminalStateProvider({
   }));
 
   // Subscribe to committed business events. The reducer decides which
-  // ones drive phase transitions (see PHASE_DRIVING_EVENTS).
+  // ones drive phase transitions (see PHASE_DRIVING_EVENTS). Shift and
+  // cart deltas flow in via <TerminalStateBridge>, not here — the
+  // provider only picks the INITIAL phase.
   useEffect(() => {
     const unsub = domainEventBus.on("*", (event: DomainEvent) => {
       dispatch({ kind: "event", event });
@@ -59,11 +88,6 @@ export function TerminalStateProvider({
     return () => unsub();
   }, []);
 
-  // Reflect shift lifecycle into the reducer so the shell can render
-  // idle/ready without callers having to remember to dispatch.
-  useEffect(() => {
-    dispatch({ kind: "op", op: hasActiveShift ? "shiftOpened" : "shiftClosed" });
-  }, [hasActiveShift]);
 
   const openSheet = useCallback((sheet: SheetId) => dispatch({ kind: "op", op: "openSheet", sheet }), []);
   const closeSheet = useCallback(() => dispatch({ kind: "op", op: "closeSheet" }), []);
