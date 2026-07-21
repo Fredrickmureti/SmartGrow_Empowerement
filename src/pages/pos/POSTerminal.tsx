@@ -539,20 +539,10 @@ function POSTerminalInner() {
     },
     [terminalDispatch, terminalState.phase],
   );
-  // Stage X3 — full post-payment success screen (separate from the
-  // pro-forma `showReceipt` flow, which keeps using ReceiptPreviewDialog).
-  // Phase-scoped: derived from the terminal reducer so the surface can
-  // never drift out of sync with the state machine (composite-state bug
-  // called out in the workstation audit). Dismiss dispatches `newSale`.
-  const showPostPayment = terminalState.phase === "receipt";
-  const setShowPostPayment = useCallback(
-    (next: boolean) => {
-      if (!next && terminalState.phase === "receipt") {
-        terminalDispatch({ kind: "op", op: "newSale" });
-      }
-    },
-    [terminalDispatch, terminalState.phase],
-  );
+  // Stage X3 / Phase 3c — full post-payment surface is now the routed
+  // `ReceiptWorkspace`; its visibility is derived from
+  // `terminalState.phase === "receipt"` inside the workspace itself,
+  // so `POSTerminal` no longer maintains a sibling boolean.
   const [showLoyalty, setShowLoyalty] = useState(false);
   const [showAgeVerification, setShowAgeVerification] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false);
