@@ -1,6 +1,6 @@
 # POS Terminal — Enterprise Audit & Reconstruction Plan
 
-> **Status snapshot (2026-07-21):** Phases 0–3a complete. URL ↔ phase sync live, sibling routes mounted, dialog visibility fully driven by the terminal state machine. Next active phase: **Phase 3b** (extract Held / Return / History / Receipt dialogs into route-owned workspace components).
+> **Status snapshot (2026-07-21):** Phases 0–3a complete + Phase 3b in progress (Held workspace shipped). Next: **History workspace** (Phase 3b.2).
 
 ## 1. Audit verdict (what the terminal is today vs. what it must be)
 
@@ -52,13 +52,12 @@ Every workspace shares a fixed left rail (register + shift + cashier + customer 
 - **Pending (2b):** replace the `<Dialog>` chrome with a full-screen route-owned `TenderWorkspace` under `terminal/tender/`. Move the numeric keypad to a permanent right-hand panel, split-tender rows to the left, change-due + terminal status permanent. Delete the dialog wiring once the route is authoritative.
 
 ### Phase 3 — Extract Receipt / Return / Held / History — **State cutover DONE (3a); chrome swap PENDING (3b)**
-- **Done (3a):** `showHeld`, `showReturn`, `showHistory` are derived reads of `terminalState.phase`; opening dispatches `openHeld/openReturn/openHistory`; closing dispatches `closeSide` (which restores `previousPhase`). The reducer's per-phase legality checks make "only one side workspace at a time" a structural invariant. Verified with 23 passing reducer tests + clean typecheck.
-- **Pending (3b):**
-  - `terminal/receipt/ReceiptWorkspace.tsx` replaces `ReceiptPreviewDialog` + `PostPaymentScreen`. Owns auto-print status, reprint, email, F2 → new sale.
-  - `terminal/return/ReturnWorkspace.tsx` replaces `ReturnDialog`.
-  - `terminal/held/HeldWorkspace.tsx` replaces `HeldTransactionsDialog`; `HeldOrdersBar` becomes a rail chip that navigates via `openHeld`.
-  - `terminal/history/HistoryWorkspace.tsx` replaces `TransactionHistoryDialog`.
-  - Each workspace consumes `useTerminalContext()`, receives no `open/onOpenChange` props, and mounts on its sibling route (Phase 1 routes are already in place).
+- **Done (3a):** `showHeld`, `showReturn`, `showHistory` are derived reads of `terminalState.phase`; opening dispatches `openHeld/openReturn/openHistory`; closing dispatches `closeSide` (which restores `previousPhase`). The reducer's per-phase legality checks make "only one side workspace at a time" a structural invariant.
+- **Done (3b.1 — Held):** `src/apps/pos/terminal/held/HeldWorkspace.tsx` replaces `HeldTransactionsDialog`. Full-panel workspace body (no `<Dialog>` chrome) mounted from `POSTerminal` when `phase === "held"`. Close button dispatches `closeSide`. Cart-restore is delegated up via `onResume` prop (will move to cart context in Phase 5). `HeldTransactionsDialog.tsx` is now dead code, deletion deferred to Phase 6 sweep.
+- **Pending (3b.2 — History):** `terminal/history/HistoryWorkspace.tsx` replaces `TransactionHistoryDialog`.
+- **Pending (3b.3 — Return):** `terminal/return/ReturnWorkspace.tsx` replaces `ReturnDialog`.
+- **Pending (3b.4 — Receipt):** `terminal/receipt/ReceiptWorkspace.tsx` replaces `ReceiptPreviewDialog` + `PostPaymentScreen`. Owns auto-print status, reprint, email, F2 → new sale.
+- After each workspace ships: swap the sibling route to render the workspace directly (currently all render `POSTerminal`) once cart/hardware context is available (Phase 5 dependency for Receipt/Return).
 
 ### Phase 4 — Slide-in sheets — **PENDING**
 Convert line- and sale-scoped micro-interactions to a standardised `SheetShell`:
@@ -107,20 +106,26 @@ Split ex-`POSTerminal.tsx` into `terminal/sale/`:
 
 ## 7. Handoff — instructions for the next agent
 
-**Before writing any new code, verify the current milestone (Phases 0 → 3a) is enterprise-grade correct.** Do this in order:
+**Before writing any new code, verify the current milestone (Phases 0 → 3a + Phase 3b.1 Held) is enterprise-grade correct.** Do this in order:
 
 1. **Read the guardrails.** `docs/audit/2026-07-21-pos-terminal-architecture.md`, `docs/architecture/POS_WORKSTATION_STATES.md`, and this plan. Do not skip.
-2. **Confirm the state machine still owns lifecycle:** grep `src/pages/pos/POSTerminal.tsx` for `useState.*show(Payment|Held|Return|History)`. There must be **none** — these must all be derived reads of `terminalState.phase` with dispatch-based setters. If any regressed to local state, fix before proceeding.
-3. **Run the reducer suite:** `bunx vitest run src/apps/pos/terminal` → 23 tests must pass. `bunx tsgo --noEmit` must be clean.
-4. **Smoke the URL sync** in the preview: navigate to `/pos/terminal/:id`, add a cart item (URL must become `/sale`), open Held (`/held`), close (back to `/sale`), refresh on `/held` (must reopen Held). Browser back/forward must round-trip.
-5. **Verify no orphan wiring:** every dispatch site (`openTender`, `openHeld`, `openReturn`, `openHistory`, `closeSide`, `backToSale`) must have exactly one corresponding UI trigger; there must be no dead legacy `setShow*` callers left in the tree.
+2. **Confirm the state machine still owns lifecycle:** grep `src/pages/pos/POSTerminal.tsx` for `useState.*show(Payment|Held|Return|History)`. There must be **none** — these must all be derived reads of `terminalState.phase` with dispatch-based setters.
+3. **Confirm Held is dialog-free:** `HeldTransactionsDialog` must not be imported by `POSTerminal.tsx`. `HeldWorkspace` must be mounted when `phase === "held"`.
+4. **Run the reducer suite:** `bunx vitest run src/apps/pos/terminal` → 23 tests must pass. `bunx tsgo --noEmit` must be clean.
+5. **Smoke the URL sync + Held workspace** in the preview: navigate to `/pos/terminal/:id`, add a cart item (URL → `/sale`), open Held (URL → `/held`, HeldWorkspace fills the region — no dialog overlay), close (URL → `/sale`), refresh on `/held` (must reopen Held), resume a held tx (URL → `/sale`, cart restored). Browser back/forward must round-trip.
+6. **Verify no orphan wiring:** every dispatch site (`openTender`, `openHeld`, `openReturn`, `openHistory`, `closeSide`, `backToSale`) must have exactly one corresponding UI trigger; no dead legacy callers.
 
-**Only after verification passes**, resume at **Phase 3b — Route-owned workspaces for Held / Return / History / Receipt**:
+**Only after verification passes**, resume at **Phase 3b.2 — HistoryWorkspace**:
 
-- Create `src/apps/pos/terminal/{held,return,history,receipt}/` with a `*Workspace.tsx` per phase.
-- Each workspace: reads `useTerminalContext()`, consumes `usePOSShifts` for `activeShift`, and renders the phase surface **without** `<Dialog>` chrome (use the workspace region provided by `TerminalShell`; the shell will grow a fixed rail + bottom bar as part of Phase 5, but the workspace bodies can land first).
-- Swap the sibling routes in `src/apps/pos/routes.tsx` from `<POSTerminal />` to the new workspace components one at a time, in this order: **Held → History → Return → Receipt** (safest → most coupled).
-- Once a workspace is live on its route, remove its dialog mount from `POSTerminal.tsx` and delete the corresponding `show*` derived variable + shim setter. Do NOT delete the underlying dialog component file yet — the Phase 6 sweep owns deletions.
-- After each workspace ships: run typecheck + reducer tests, smoke the URL sync, then update this plan's status block before starting the next workspace.
+- Create `src/apps/pos/terminal/history/HistoryWorkspace.tsx` mirroring the `HeldWorkspace` pattern (full-panel body, no `<Dialog>` chrome, `useTerminalContext()` for `closeSide`, `usePOSShifts` for `activeShift.id`).
+- Import it in `POSTerminal.tsx`, replace the `<TransactionHistoryDialog ... />` mount with `{showHistory && <HistoryWorkspace ... />}`.
+- Run typecheck + reducer tests, smoke `/history` deep-link + close, then update this plan's status block before moving on.
 
-Do not begin Phase 4 (sheets) until Phase 3b is complete. Do not begin Phase 5 (Sale decomposition) until Phase 4 is complete. Chronological progression is mandatory — no jumping.
+Then proceed in this order (do not skip or reorder):
+- **Phase 3b.3 — ReturnWorkspace** (replaces `ReturnDialog`; needs `registerId` + `shiftId`).
+- **Phase 3b.4 — ReceiptWorkspace** (replaces `ReceiptPreviewDialog` + `PostPaymentScreen`; owns auto-print, reprint, email, F2 → new sale — the most coupled of the four, ship last).
+
+Once Phase 3b is fully green (all four workspaces live, all four dialogs unmounted from `POSTerminal.tsx`), proceed to Phase 4 (sheets), then Phase 5 (Sale decomposition, cart context extraction), then Phase 6 (chrome cleanup + dead-file sweep), then Phase 7 (guards + Playwright).
+
+Chronological progression is mandatory. Do not begin Phase 4 until every Phase 3b workspace is live and verified. Do not begin Phase 5 until Phase 4 is complete. No jumping.
+
