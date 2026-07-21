@@ -418,7 +418,7 @@ export default function FixedAssets() {
                                   extraVars={{
                                     asset_number: asset.asset_number,
                                     category: asset.category?.name ?? "",
-                                    acquisition_date: asset.acquisition_date ?? "",
+                                    acquisition_date: asset.purchase_date ?? "",
                                   }}
                                 />
                               </DropdownMenuItem>
