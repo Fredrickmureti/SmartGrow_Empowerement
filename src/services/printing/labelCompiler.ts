@@ -307,7 +307,7 @@ export function compileLabelDoc(doc: LabelDoc, engine: LabelEngine, dpi: number)
     case "epl":
       return compileEpl(doc, dpi);
     case "escpos":
-      return compileEscPos(doc);
+      return compileEscPos(doc, dpi);
     case "pdf":
       return "";
   }
