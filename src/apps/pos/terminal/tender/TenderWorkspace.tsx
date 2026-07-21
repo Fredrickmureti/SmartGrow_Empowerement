@@ -524,39 +524,201 @@ export function TenderWorkspace({
     return null;
   })();
 
+  // Right-rail summary content, reused by the desktop aside and the
+  // mobile bottom sheet. Keeps parity between viewports so nothing on
+  // small screens is hidden information — just a different container.
+  const rail = (
+    <>
+      <div className="border-b px-4 py-3">
+        <p className="text-xs text-muted-foreground">POS Client</p>
+        <p className="truncate text-sm font-semibold">
+          {railCart.customer?.name ?? "Walk-in customer"}
+        </p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <TransactionSummaryRail
+          cart={tenderSummaryCart}
+          appliedPromotions={appliedPromotions}
+          formatCurrency={formatCurrency}
+          size="md"
+          totalLabel="Net Payable"
+          totalOverride={effectiveTotal}
+        />
+        <div className="mt-4 space-y-1.5 text-sm">
+          {tipAmount > 0 && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Tip</span>
+              <span>{formatCurrency(tipAmount)}</span>
+            </div>
+          )}
+          <Separator className="my-2" />
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Paid</span>
+            <span className="font-medium tabular-nums">{formatCurrency(totalApplied)}</span>
+          </div>
+          {draftAmountNum > 0 && (
+            <div className="flex justify-between text-primary">
+              <span>
+                Draft{selectedMethodConfig ? ` · ${selectedMethodConfig.display_name}` : ""}
+              </span>
+              <span className="font-medium tabular-nums">{formatCurrency(draftAmountNum)}</span>
+            </div>
+          )}
+          {remaining > 0 ? (
+            <div className="flex justify-between text-amber-600">
+              <span>Remaining</span>
+              <span className="font-medium tabular-nums">{formatCurrency(remaining)}</span>
+            </div>
+          ) : (
+            <div className="flex justify-between text-green-600">
+              <span>Change</span>
+              <span className="font-medium tabular-nums">{formatCurrency(change)}</span>
+            </div>
+          )}
+        </div>
+
+        {payments.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Recorded</p>
+            {payments.map((payment, index) => {
+              const method = enabledPaymentMethods.find((m) => m.method_key === payment.method);
+              const IconComponent = method?.icon ? iconMap[method.icon] : CreditCard;
+              return (
+                <div
+                  key={index}
+                  className="flex items-center justify-between gap-2 rounded-lg border p-2"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    {IconComponent && <IconComponent className="h-4 w-4 flex-shrink-0" />}
+                    <span className="truncate text-sm">{method?.display_name ?? payment.method}</span>
+                    {payment.reference && (
+                      <Badge variant="outline" className="hidden text-[10px] sm:inline-flex">
+                        {payment.reference}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-1">
+                    <span className="text-sm font-medium tabular-nums">
+                      {formatCurrency(payment.amount)}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => handleRemovePayment(index)}
+                      disabled={isRecording}
+                      aria-label="Remove tender"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t p-4">
+        <Button
+          className="h-14 w-full bg-green-600 text-base text-white hover:bg-green-700"
+          onClick={handleConfirm}
+          disabled={!canConfirm || isRecording}
+          aria-label="Confirm payment"
+        >
+          <CheckCircle className="mr-2 h-5 w-5" />
+          Confirm Payment
+        </Button>
+        {confirmHelper && (
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">{confirmHelper}</p>
+        )}
+      </div>
+    </>
+  );
+
+  // Context-aware panel: only render blocks that apply to the active
+  // draft. When nothing applies, the whole panel collapses so the keypad
+  // gets the freed vertical space. This is the "context-aware design"
+  // half of the redesign.
+  const showQuickChips = draftIsCash && quickChipAmounts.length > 0;
+  const showReference = Boolean(selectedMethodConfig?.requires_reference);
+  const showTip = typeof onTipChange === "function";
+  const showCashRoundingNote =
+    cashRoundingSettings.enabled && cashRoundingDiff !== 0 && draftIsCash;
+  const showMpesaLookup =
+    isMpesaEnabled &&
+    selectedMethodConfig?.tender_kind === "wallet" &&
+    selectedProviderKey === "mpesa";
+  const hasContext =
+    showQuickChips || showReference || showTip || showCashRoundingNote || showMpesaLookup;
+
   return (
     <section
       aria-labelledby="tender-workspace-title"
       className="absolute inset-0 z-40 flex flex-col bg-background"
     >
       <header className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 sm:py-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back to sale">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onBack}
+            aria-label="Back to sale"
+            className="shrink-0"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 id="tender-workspace-title" className="text-lg font-semibold sm:text-xl">
+          <h1
+            id="tender-workspace-title"
+            className="truncate text-base font-semibold sm:text-xl"
+          >
             Payment
             {splitPortionLabel && (
               <span className="ml-2 text-sm font-normal text-primary">{splitPortionLabel}</span>
             )}
           </h1>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Amount Due</p>
-          <p className="text-xl font-bold sm:text-2xl">{formatCurrency(effectiveTotal)}</p>
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-xs">
+              Amount Due
+            </p>
+            <p className="text-lg font-bold tabular-nums sm:text-2xl">
+              {formatCurrency(effectiveTotal)}
+            </p>
+          </div>
+          {/* Mobile summary trigger — the right rail becomes a bottom sheet on <md. */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0 md:hidden"
+                aria-label="Show payment summary"
+              >
+                <Receipt className="h-4 w-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="flex h-[85vh] flex-col p-0">
+              <SheetHeader className="px-4 pt-4">
+                <SheetTitle>Payment summary</SheetTitle>
+              </SheetHeader>
+              <div className="flex min-h-0 flex-1 flex-col">{rail}</div>
+            </SheetContent>
+          </Sheet>
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0">
-        {/* LEFT — event input surface. No ScrollArea: laid out to fit in
-            one viewport at register-class heights. */}
-        <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex min-h-0 flex-1">
+        {/* LEFT — event input surface. flex column with keypad claiming
+            remaining vertical space so nothing overflows. */}
+        <div className="flex min-w-0 flex-1 flex-col">
           {isLoading ? (
             <div className="flex flex-1 items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="flex flex-1 min-h-0 flex-col gap-3 px-4 py-4 sm:px-6">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-4 sm:px-6">
               {/* Method row */}
               <div className="space-y-2">
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -576,7 +738,7 @@ export function TenderWorkspace({
                           size="sm"
                           className={cn(
                             "h-11 gap-2 px-3 text-sm",
-                            !isReady && "opacity-50 cursor-not-allowed",
+                            !isReady && "cursor-not-allowed opacity-50",
                           )}
                           disabled={!isReady}
                           aria-disabled={!isReady}
@@ -602,7 +764,10 @@ export function TenderWorkspace({
                           <TooltipContent className="max-w-[240px] text-xs">
                             <div>{r.blockedMessage}</div>
                             {settingsHref !== "#" && (
-                              <RouterLink to={settingsHref} className="mt-1 inline-block underline text-primary">
+                              <RouterLink
+                                to={settingsHref}
+                                className="mt-1 inline-block text-primary underline"
+                              >
                                 Configure
                               </RouterLink>
                             )}
@@ -611,20 +776,6 @@ export function TenderWorkspace({
                       );
                     })}
                   </TooltipProvider>
-                  {isMpesaEnabled && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-11 gap-2 px-3 text-sm text-[#4caf50]"
-                      onClick={() => setShowC2BLookup(true)}
-                      disabled={!posTransactionId}
-                      title={!posTransactionId ? "Save the sale first to enable lookup" : undefined}
-                    >
-                      <Search className="h-4 w-4" />
-                      Look up M-Pesa
-                    </Button>
-                  )}
                 </div>
               </div>
 
@@ -655,94 +806,112 @@ export function TenderWorkspace({
                   </span>
                   {draftIsCash && draftAmountNum > effectiveTotal - totalApplied && (
                     <span className="text-xs text-green-600">
-                      Change {formatCurrency(draftAmountNum - Math.max(0, effectiveTotal - totalApplied))}
+                      Change{" "}
+                      {formatCurrency(
+                        draftAmountNum - Math.max(0, effectiveTotal - totalApplied),
+                      )}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Quick chips */}
-              {quickChipAmounts.length > 0 && (
-                <div className="grid grid-cols-4 gap-2">
-                  {quickChipAmounts.map((amt) => (
+              {/* Context-aware block — collapses entirely when nothing applies. */}
+              {hasContext && (
+                <div className="space-y-2">
+                  {showQuickChips && (
+                    <div className="grid grid-cols-4 gap-2">
+                      {quickChipAmounts.map((amt) => (
+                        <Button
+                          key={amt}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "h-10 text-sm tabular-nums",
+                            draft.amount === amt.toFixed(2) && "border-primary",
+                          )}
+                          onClick={() => setDraftAmount(amt.toFixed(2))}
+                        >
+                          {formatCurrency(amt)}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+
+                  {showReference && (
+                    <Input
+                      value={draft.reference}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, reference: e.target.value }))
+                      }
+                      placeholder={`Reference for ${selectedMethodConfig?.display_name ?? ""}`}
+                      className="h-11 text-sm"
+                    />
+                  )}
+
+                  {showMpesaLookup && (
                     <Button
-                      key={amt}
                       type="button"
                       variant="outline"
                       size="sm"
-                      className={cn(
-                        "h-10 text-sm tabular-nums",
-                        draft.amount === amt.toFixed(2) && "border-primary",
-                      )}
-                      onClick={() => setDraftAmount(amt.toFixed(2))}
+                      className="h-10 w-full gap-2 text-sm text-[#4caf50]"
+                      onClick={() => setShowC2BLookup(true)}
+                      disabled={!posTransactionId}
+                      title={!posTransactionId ? "Save the sale first to enable lookup" : undefined}
                     >
-                      {formatCurrency(amt)}
+                      <Search className="h-4 w-4" />
+                      Look up M-Pesa transaction
                     </Button>
-                  ))}
+                  )}
+
+                  {showTip && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Tip
+                      </Label>
+                      {[10, 15, 20].map((pct) => (
+                        <Button
+                          key={pct}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 flex-1 text-xs"
+                          onClick={() => handleTipQuick(pct)}
+                        >
+                          {pct}%
+                        </Button>
+                      ))}
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={localTip}
+                        onChange={(e) => {
+                          setLocalTip(e.target.value);
+                          onTipChange?.(parseFloat(e.target.value) || 0);
+                        }}
+                        placeholder="Custom"
+                        className="h-8 w-24 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  {showCashRoundingNote && (
+                    <p className="text-xs text-muted-foreground">
+                      Cash rounding: {cashRoundingDiff > 0 ? "+" : ""}
+                      {formatCurrency(cashRoundingDiff)} → {formatCurrency(roundedEffectiveTotal)}
+                    </p>
+                  )}
                 </div>
               )}
 
-              {/* Reference input for methods that need it */}
-              {selectedMethodConfig?.requires_reference && (
-                <Input
-                  value={draft.reference}
-                  onChange={(e) => setDraft((d) => ({ ...d, reference: e.target.value }))}
-                  placeholder={`Reference for ${selectedMethodConfig.display_name}`}
-                  className="h-11 text-sm"
+              {/* Keypad — fills remaining vertical space; keys scale to
+                  container so laptops never overflow. */}
+              <div className="flex min-h-[220px] flex-1 flex-col">
+                <POSKeypad
+                  value={draft.amount}
+                  onChange={setDraftAmount}
+                  onClear={() => setDraftAmount("")}
+                  onBackspace={() => setDraftAmount(draft.amount.slice(0, -1))}
                 />
-              )}
-
-              {/* Tip (optional, compact) */}
-              {onTipChange && (
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Tip
-                  </Label>
-                  {[10, 15, 20].map((pct) => (
-                    <Button
-                      key={pct}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 flex-1 text-xs"
-                      onClick={() => handleTipQuick(pct)}
-                    >
-                      {pct}%
-                    </Button>
-                  ))}
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={localTip}
-                    onChange={(e) => {
-                      setLocalTip(e.target.value);
-                      onTipChange(parseFloat(e.target.value) || 0);
-                    }}
-                    placeholder="Custom"
-                    className="h-8 w-24 text-xs"
-                  />
-                </div>
-              )}
-
-              {/* Cash rounding note */}
-              {cashRoundingSettings.enabled && cashRoundingDiff !== 0 && draftIsCash && (
-                <p className="text-xs text-muted-foreground">
-                  Cash rounding: {cashRoundingDiff > 0 ? "+" : ""}
-                  {formatCurrency(cashRoundingDiff)} → {formatCurrency(roundedEffectiveTotal)}
-                </p>
-              )}
-
-              {/* Keypad — the single amount input surface */}
-              <div className="flex-1 min-h-0 flex items-end">
-                <div className="w-full">
-                  <NumericKeypad
-                    value={draft.amount}
-                    onChange={setDraftAmount}
-                    onClear={() => setDraftAmount("")}
-                    onBackspace={() =>
-                      setDraftAmount(draft.amount.slice(0, -1))
-                    }
-                  />
-                </div>
               </div>
 
               {/* Add tender — commits the draft as one tender row */}
@@ -763,133 +932,12 @@ export function TenderWorkspace({
           )}
         </div>
 
-        {/* RIGHT RAIL — authoritative projection of the payment session. */}
-        <aside className="hidden md:flex w-80 xl:w-96 flex-col border-l bg-card">
-          <div className="border-b px-4 py-3">
-            <p className="text-xs text-muted-foreground">POS Client</p>
-            <p className="text-sm font-semibold truncate">
-              {railCart.customer?.name ?? "Walk-in customer"}
-            </p>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
-            <TransactionSummaryRail
-              cart={tenderSummaryCart}
-              appliedPromotions={appliedPromotions}
-              formatCurrency={formatCurrency}
-              size="md"
-              totalLabel="Net Payable"
-              totalOverride={effectiveTotal}
-            />
-            <div className="mt-4 space-y-1.5 text-sm">
-              {tipAmount > 0 && (
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Tip</span>
-                  <span>{formatCurrency(tipAmount)}</span>
-                </div>
-              )}
-              <Separator className="my-2" />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Paid</span>
-                <span className="font-medium tabular-nums">
-                  {formatCurrency(totalApplied)}
-                </span>
-              </div>
-              {draftAmountNum > 0 && (
-                <div className="flex justify-between text-primary">
-                  <span>
-                    Draft{selectedMethodConfig ? ` · ${selectedMethodConfig.display_name}` : ""}
-                  </span>
-                  <span className="font-medium tabular-nums">
-                    {formatCurrency(draftAmountNum)}
-                  </span>
-                </div>
-              )}
-              {remaining > 0 ? (
-                <div className="flex justify-between text-amber-600">
-                  <span>Remaining</span>
-                  <span className="font-medium tabular-nums">
-                    {formatCurrency(remaining)}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex justify-between text-green-600">
-                  <span>Change</span>
-                  <span className="font-medium tabular-nums">
-                    {formatCurrency(change)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Recorded tenders */}
-            {payments.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Recorded
-                </p>
-                {payments.map((payment, index) => {
-                  const method = enabledPaymentMethods.find(
-                    (m) => m.method_key === payment.method,
-                  );
-                  const IconComponent = method?.icon ? iconMap[method.icon] : CreditCard;
-                  return (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between gap-2 rounded-lg border p-2"
-                    >
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
-                        {IconComponent && (
-                          <IconComponent className="h-4 w-4 flex-shrink-0" />
-                        )}
-                        <span className="truncate text-sm">
-                          {method?.display_name ?? payment.method}
-                        </span>
-                        {payment.reference && (
-                          <Badge variant="outline" className="hidden text-[10px] sm:inline-flex">
-                            {payment.reference}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex flex-shrink-0 items-center gap-1">
-                        <span className="text-sm font-medium tabular-nums">
-                          {formatCurrency(payment.amount)}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive"
-                          onClick={() => handleRemovePayment(index)}
-                          disabled={isRecording}
-                          aria-label="Remove tender"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="border-t p-4">
-            <Button
-              className="w-full h-14 text-base bg-green-600 hover:bg-green-700 text-white"
-              onClick={handleConfirm}
-              disabled={!canConfirm || isRecording}
-              aria-label="Confirm payment"
-            >
-              <CheckCircle className="h-5 w-5 mr-2" />
-              Confirm Payment
-            </Button>
-            {confirmHelper && (
-              <p className="text-[11px] text-muted-foreground mt-2 text-center">
-                {confirmHelper}
-              </p>
-            )}
-          </div>
+        {/* RIGHT RAIL — desktop only. Mobile uses the bottom-sheet trigger in the header. */}
+        <aside className="hidden w-80 flex-col border-l bg-card md:flex xl:w-96">
+          {rail}
         </aside>
       </div>
+
 
       {/* Payment provider sub-modals — remain modal (wrap device-driver
           conversations, not workstation phases). */}
