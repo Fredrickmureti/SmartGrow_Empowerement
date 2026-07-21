@@ -1646,6 +1646,14 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   customer_statement: "invoice",
   vendor_statement: "invoice",
   bill: "invoice",
+  // Wave 21 — inventory / warehouse A4 vouchers.
+  // These reuse the invoice template shape (numbered header, tabular
+  // body, totals block optional). Media geometry + branding still
+  // come from `businesses` via `mapBusinessToOrg`.
+  stock_adjustment: "invoice",
+  stock_transfer: "invoice",
+  vendor_return: "credit_note",
+  purchase_return: "credit_note",
 };
 
 const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<DocumentData>> = {
@@ -1671,6 +1679,14 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   // Wave 12 C2 — alias both naming conventions; UI uses `goods_received_note`.
   goods_received_note: fetchGoodsReceivedNote,
   goods_receipt: fetchGoodsReceivedNote,
+  // Wave 21 — inventory / warehouse A4 vouchers.
+  stock_adjustment: fetchStockAdjustment,
+  stock_transfer: fetchStockTransfer,
+  // `vendor_return` is the canonical name in the coverage matrix; the
+  // legacy alias `purchase_return` resolves to the same fetcher so both
+  // client naming conventions work.
+  vendor_return: fetchPurchaseReturn,
+  purchase_return: fetchPurchaseReturn,
 };
 
 // ── Main Handler ───────────────────────────────────────────────────────────
