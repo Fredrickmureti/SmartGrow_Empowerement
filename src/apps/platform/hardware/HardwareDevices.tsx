@@ -42,8 +42,9 @@ import { runtimeCapability, type RuntimeCapability } from "@/services/hardware/H
 import type { DeviceRole } from "@/services/hardware/drivers/DriverInterface";
 import { useDeviceAssignments, type DeviceAssignment } from "@/hooks/useDeviceAssignments";
 import { DeviceRegistryCard } from "@/components/hardware/DeviceRegistryCard";
+import { WorkflowBindingsCard } from "@/components/hardware/WorkflowBindingsCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Cpu, Radar, ListChecks, PlugZap } from "lucide-react";
+import { Cpu, Radar, ListChecks, PlugZap, Route } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { printLabelByTemplate } from "@/services/printing/labelDispatch";
 
@@ -360,13 +361,16 @@ export function HardwareDevicesPage() {
       )}
 
       <Tabs defaultValue="register" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid md:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid md:grid-cols-5">
           <TabsTrigger value="register" data-testid="tab-register">
             <PlugZap className="mr-2 h-4 w-4" /> Register
           </TabsTrigger>
           <TabsTrigger value="assignments" data-testid="tab-assignments">
             <ListChecks className="mr-2 h-4 w-4" /> Assignments
             <Badge variant="secondary" className="ml-2">{assignments.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="bindings" data-testid="tab-bindings">
+            <Route className="mr-2 h-4 w-4" /> Bindings
           </TabsTrigger>
           <TabsTrigger value="discover" data-testid="tab-discover">
             <Radar className="mr-2 h-4 w-4" /> Discover
@@ -488,6 +492,12 @@ export function HardwareDevicesPage() {
             </div>
           )}
         </TabsContent>
+
+        <TabsContent value="bindings" className="space-y-4">
+          <WorkflowBindingsCard />
+        </TabsContent>
+
+
 
         <TabsContent value="discover" className="space-y-4">
           <Card data-testid="hardware-scan-card">
