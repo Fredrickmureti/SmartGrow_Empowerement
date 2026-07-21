@@ -121,11 +121,24 @@ export function ProductPeekDialog({
       setLoading(true);
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, sku, barcode, description, price, image_url, track_inventory")
-        .or(`name.ilike.%${q}%,sku.ilike.%${q}%,barcode.ilike.%${q}%`)
+        .select("id, name, sku, description, unit_price, image_url, track_inventory")
+        .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
         .limit(15);
       setLoading(false);
-      if (!error && data) setResults(data as unknown as PeekProduct[]);
+      if (!error && data) {
+        setResults(
+          (data as Array<Record<string, unknown>>).map((row) => ({
+            id: row.id as string,
+            name: row.name as string,
+            sku: (row.sku as string) ?? null,
+            barcode: null,
+            description: (row.description as string) ?? null,
+            price: (row.unit_price as number) ?? null,
+            image_url: (row.image_url as string) ?? null,
+            track_inventory: (row.track_inventory as boolean) ?? null,
+          })),
+        );
+      }
     }, 220);
     return () => clearTimeout(t);
   }, [query, open]);
