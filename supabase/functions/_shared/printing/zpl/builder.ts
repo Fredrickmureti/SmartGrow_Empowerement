@@ -41,6 +41,13 @@ const SUPPORTED_DOCUMENT_TYPES = new Set(['inventory_label', 'shipping_label']);
 function asciiSafe(v: unknown, max = 64): string {
   if (v === null || v === undefined) return '';
   return String(v)
+    // Fold Unicode spaces (NBSP U+00A0 from Intl.NumberFormat currency
+    // output, narrow NBSP U+202F, en/em/thin/hair spaces, ideographic
+    // space) to ASCII space; drop zero-width joiners; then strip any
+    // remaining non-ASCII. Without this, `Kes\u00A070.00` prints as
+    // `Kesá70.00` on a CP437 thermal head.
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .normalize('NFKD')
     .replace(/[^\x20-\x7E]/g, '')
     .slice(0, max);
