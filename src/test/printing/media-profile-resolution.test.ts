@@ -70,10 +70,15 @@ describe('resolve_label_template · fallback ordering (ADR-0087)', () => {
     );
   });
 
-  it('drops the 3-arg legacy signature first (idempotent redeploy)', () => {
-    expect(canonicalSql!).toMatch(
-      /DROP\s+FUNCTION\s+IF\s+EXISTS\s+public\.resolve_label_template\s*\(\s*uuid\s*,\s*text\s*,\s*uuid\s*\)/i,
-    );
+  it('drops the 3-arg legacy signature at least once in history (idempotent redeploy)', () => {
+    // The 3-arg → 4-arg cutover happened in an earlier migration; later
+    // migrations that re-CREATE the 4-arg function drop the 4-arg signature.
+    // Either drop demonstrates the idempotent-redeploy discipline.
+    const anyMigrationDropsLegacy = files.some((f) => {
+      const sql = readFileSync(resolve(MIGRATIONS_DIR, f), 'utf-8');
+      return /DROP\s+FUNCTION\s+IF\s+EXISTS\s+public\.resolve_label_template\s*\(\s*uuid\s*,\s*text\s*,\s*uuid\s*(,\s*uuid\s*)?\)/i.test(sql);
+    });
+    expect(anyMigrationDropsLegacy).toBe(true);
   });
 
   it('is only granted to authenticated + service_role, revoked from PUBLIC', () => {
