@@ -1,6 +1,6 @@
 # POS Terminal — Enterprise Audit & Reconstruction Plan
 
-> **Status snapshot (2026-07-21):** Phases 0–3a complete. URL ↔ phase sync live, sibling routes mounted, dialog visibility fully driven by the terminal state machine. Next active phase: **Phase 3b** (extract Held / Return / History / Receipt dialogs into route-owned workspace components).
+> **Status snapshot (2026-07-21):** Phases 0–3a complete + Phase 3b in progress (Held workspace shipped). Next: **History workspace** (Phase 3b.2).
 
 ## 1. Audit verdict (what the terminal is today vs. what it must be)
 
