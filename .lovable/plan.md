@@ -1,5 +1,28 @@
-
 # Enterprise Printing Architecture — Verification & Continuation Plan
+
+## Execution Status (2026-07-21)
+
+### Phase A — Verification of Phase 18 · COMPLETE
+
+| Claim                              | Verdict  | Evidence                                                                                          |
+|------------------------------------|----------|---------------------------------------------------------------------------------------------------|
+| `body_json` column + resolver RPC  | PASS     | `supabase/migrations/20260721032756_*.sql` adds the column and updates `resolve_label_template`.  |
+| Dispatcher prefers `body_json`     | PASS     | `labelDispatch.ts` L320 — `isLabelDoc(...) ? compileLabelDoc(...) : tpl.body`.                    |
+| Editor writes body + body_json     | PASS     | `HardwareLabelTemplates.tsx` L414–423 compiles snapshot into `body` and stores `body_json`.       |
+| Compiler emits content only        | PASS     | `label-compiler.test.ts` asserts no `^PW`/`^LL` / `q`/`Q`.                                        |
+| Guardrail tests present            | PASS     | `label-coverage.test.ts`, `media-geometry-single-owner.test.ts`, `label-barcode-policy.test.ts`.  |
+| ADR-0090 documented                | **FIXED**| Was missing — added `docs/adr/0090-visual-label-designer-and-compiler.md`.                        |
+| ESC/POS geometry (B2 preview)      | **FIXED**| Old `compileEscPos` discarded xMm/yMm. Rewritten to use `ESC $ / ESC J / GS !`; test added.       |
+
+Phase 18 is genuinely shipped for ZPL and EPL. ESC/POS was a superficial pass — hardened this turn.
+
+### Phase B — Remaining gaps · QUEUED
+
+B1 (receipt compiler), B3 (document compiler), B4 (media/printer admin audit), B5 (scanner platform), B6 (event coverage matrix) — not started this turn. Execution order unchanged from the plan below.
+
+---
+
+## Original Plan
 
 The previous engineer marked Phase 18 (Visual Label Designer) as SHIPPED. Before adding scope, I will verify each claim against the actual codebase, then close the architectural gaps that Phase 18 did not address (receipts, PDFs, cross-module scanning). No file has been modified yet — this plan is the deliverable.
 
