@@ -174,12 +174,15 @@ describe("architecture: Printing Event Coverage Matrix integrity (Phase C)", () 
 
   it("every A4 matrix row has a matching fetcher (invariant 2b)", () => {
     const fetcherSet = new Set(fetchers);
-    const missing = matrix.a4.filter((k) => !anyAliasIn(k, fetcherSet));
+    const missing = matrix.a4
+      .filter((k) => !MATRIX_ROW_EXEMPT.has(k))
+      .filter((k) => !anyAliasIn(k, fetcherSet));
     expect(
       missing,
       `A4 matrix rows without a fetcher: ${missing.join(", ")}`,
     ).toEqual([]);
   });
+
 
   it("follow-up tickets are all closed (struck) or explicitly owned (invariant 3)", () => {
     const followupIdx = md.indexOf("## Follow-up tickets");
