@@ -17,6 +17,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import type { DriverResult } from '@/services/hardware/drivers/DriverInterface';
+import { compileLabelDoc, isLabelDoc, type LabelDoc } from './labelCompiler';
 
 export type LabelEngine = 'zpl' | 'epl' | 'escpos' | 'pdf';
 export type PrinterWorkflow =
