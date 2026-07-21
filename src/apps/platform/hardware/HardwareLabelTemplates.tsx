@@ -398,8 +398,7 @@ export default function HardwareLabelTemplates() {
           <DialogHeader>
             <DialogTitle>{editing?.id ? "Edit label template" : "New label template"}</DialogTitle>
             <DialogDescription>
-              Content only — no `^PW`, `^LL`, `q<dots>` or `Q<dots>,<gap>`. The
-              dispatcher injects the envelope from the resolved media profile.
+              {"Content only — no ^PW, ^LL, q<dots> or Q<dots>,<gap>. The dispatcher injects the envelope from the resolved media profile."}
             </DialogDescription>
           </DialogHeader>
           {editing && (
