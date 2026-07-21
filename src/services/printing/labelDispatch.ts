@@ -62,9 +62,41 @@ export interface LabelDispatchResult extends DriverResult {
   mediaResolved?: { profileId: string; widthMm: number; heightMm: number | null; dpi: number };
 }
 
-/** Substitute `{{token}}` (whitespace tolerated) with `vars[token]`. */
-export function renderTemplateBody(body: string, vars: Record<string, unknown>): string {
-  return body.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => {
+/**
+ * Substitute `{{token}}` (whitespace tolerated) with `vars[token]`.
+ *
+ * Phase 15 (ADR-0088) — media-relative geometry tokens. When `dpi` is
+ * provided, an mm-prefixed token pack resolves to device dots BEFORE the
+ * body reaches the driver, so label bodies express geometry in physical
+ * millimetres and print at the same physical size on 152/203/300/600 dpi
+ * hardware. Supported prefixes:
+ *
+ *   {{mm:<n>}}     → round(n * dpi / 25.4)               // coordinate / length
+ *   {{cf:<n>mm}}   → same                                 // ^CF font height
+ *   {{bh:<n>mm}}   → same                                 // barcode height
+ *   {{by:<n>mm}}   → clamped ^BY module width in dots (min 1, max 10)
+ *   {{hri_flag}}   → resolves from `vars.hri_flag` (default 'N')
+ *
+ * mm-tokens are resolved first so `vars` may still supply plain string
+ * substitutions (name, sku, barcode, sku_display, …) unchanged. Legacy
+ * dot-based bodies contain no mm-tokens and pass through untouched.
+ */
+export function renderTemplateBody(
+  body: string,
+  vars: Record<string, unknown>,
+  opts: { dpi?: number } = {},
+): string {
+  const dpi = Number.isFinite(opts.dpi) && (opts.dpi as number) > 0 ? (opts.dpi as number) : 203;
+  const dpmm = dpi / 25.4;
+  const toDots = (mm: number) => Math.max(1, Math.round(mm * dpmm));
+  const geomResolved = body
+    .replace(/\{\{\s*mm\s*:\s*(-?\d+(?:\.\d+)?)\s*\}\}/g, (_m, n) => String(toDots(Number(n))))
+    .replace(/\{\{\s*cf\s*:\s*(-?\d+(?:\.\d+)?)\s*mm\s*\}\}/gi, (_m, n) => String(toDots(Number(n))))
+    .replace(/\{\{\s*bh\s*:\s*(-?\d+(?:\.\d+)?)\s*mm\s*\}\}/gi, (_m, n) => String(toDots(Number(n))))
+    .replace(/\{\{\s*by\s*:\s*(-?\d+(?:\.\d+)?)\s*mm\s*\}\}/gi, (_m, n) =>
+      String(Math.max(1, Math.min(10, Math.round(Number(n) * dpmm)))),
+    );
+  return geomResolved.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => {
     const v = vars[key];
     if (v === undefined || v === null) return '';
     return String(v);
@@ -275,9 +307,10 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
     lot_number: input.lotNumber ?? null,
     expiry_date: input.expiryDate ?? null,
     manufacture_date: input.manufactureDate ?? null,
+    hri_flag: 'N',
     ...input.vars,
   };
-  const rendered = renderTemplateBody(tpl.body, mergedVars);
+  const rendered = renderTemplateBody(tpl.body, mergedVars, { dpi: media?.dpi ?? 203 });
 
   // Map engine → driver payload shape.
   // All label drivers accept `print_raw` with either `{ zpl }` (ZPL), `{ bytes }` (EPL/ESC-POS), or `{ pdfUrl }` (PDF, A4 driver).

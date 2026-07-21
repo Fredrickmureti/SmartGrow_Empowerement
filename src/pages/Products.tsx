@@ -76,6 +76,7 @@ import {
 } from "lucide-react";
 import { useInventoryLabelPrinter } from "@/hooks/inventory/useInventoryLabelPrinter";
 import { printLabelByTemplate } from "@/services/printing/labelDispatch";
+import { resolveLabelBarcode, LABEL_BARCODE_REFUSAL } from "@/services/printing/labelBarcode";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -219,7 +220,17 @@ export default function Products() {
       });
       return;
     }
-    const code = (product as any).barcode || product.sku || product.id;
+    // ADR-0089 — never fall back to product.id (UUID). Refuse and route
+    // the operator to enrollment when there's nothing scannable to print.
+    const identity = resolveLabelBarcode(product as any);
+    if (!identity) {
+      toast({
+        title: LABEL_BARCODE_REFUSAL.title,
+        description: LABEL_BARCODE_REFUSAL.description,
+        variant: "destructive",
+      });
+      return;
+    }
     const result = await printLabelByTemplate({
       orgId: currentOrg.id,
       branchId: currentBranch?.id ?? null,
@@ -227,8 +238,10 @@ export default function Products() {
       workflow: "product_tag",
       vars: {
         name: (product.name || "").slice(0, 80),
-        sku: product.sku ?? "",
-        barcode: code,
+        sku: identity.skuDisplay,
+        sku_display: identity.skuDisplay,
+        barcode: identity.code,
+        hri_flag: identity.hri,
       },
       sourceDocType: "product",
       sourceDocId: product.id,
