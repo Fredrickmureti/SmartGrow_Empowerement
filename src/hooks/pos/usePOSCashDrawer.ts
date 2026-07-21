@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
+import { printClient } from "@/services/printing/PrintClient";
+
 
 export type CashMovementType =
   | "opening_float"
