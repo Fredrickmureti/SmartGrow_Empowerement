@@ -77,6 +77,7 @@ export default tseslint.config(
           "no-raw-pdf-lib-in-edge-functions": noRawPdfLibInEdgeFunctions,
           "no-direct-generate-document-in-pages": noDirectGenerateDocumentInPages,
           "no-product-id-as-barcode": noProductIdAsBarcode,
+          "no-dialog-for-pos-workspace": noDialogForPosWorkspace,
 
         },
       },
