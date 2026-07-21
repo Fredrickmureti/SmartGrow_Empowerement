@@ -47,7 +47,11 @@ const RECEIPT_ONLY_TYPES = new Set<string>([
   "kitchen_ticket",
   "pos_fiscal_report",
   "drawer_slip",
+  // `receipt` is the fetcher name for the customer payment receipt
+  // (matrix row: `customer_payment_receipt`). Aliases resolve.
+  "receipt",
 ]);
+
 
 // Types registered in FETCHER_MAP that are not enumerated in the matrix
 // on purpose (aliases are handled via ALIASES below).
