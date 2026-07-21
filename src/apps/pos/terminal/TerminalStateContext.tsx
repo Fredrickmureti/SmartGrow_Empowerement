@@ -65,11 +65,6 @@ export function TerminalStateBridge({
   return null;
 }
 
-  children: ReactNode;
-  hasActiveShift: boolean;
-  cartHasItems: boolean;
-  hasUnreadCompletion?: boolean;
-}
 
 export function TerminalStateProvider({
   children,
@@ -83,7 +78,9 @@ export function TerminalStateProvider({
   }));
 
   // Subscribe to committed business events. The reducer decides which
-  // ones drive phase transitions (see PHASE_DRIVING_EVENTS).
+  // ones drive phase transitions (see PHASE_DRIVING_EVENTS). Shift and
+  // cart deltas flow in via <TerminalStateBridge>, not here — the
+  // provider only picks the INITIAL phase.
   useEffect(() => {
     const unsub = domainEventBus.on("*", (event: DomainEvent) => {
       dispatch({ kind: "event", event });
@@ -91,11 +88,6 @@ export function TerminalStateProvider({
     return () => unsub();
   }, []);
 
-  // Reflect shift lifecycle into the reducer so the shell can render
-  // idle/ready without callers having to remember to dispatch.
-  useEffect(() => {
-    dispatch({ kind: "op", op: hasActiveShift ? "shiftOpened" : "shiftClosed" });
-  }, [hasActiveShift]);
 
   const openSheet = useCallback((sheet: SheetId) => dispatch({ kind: "op", op: "openSheet", sheet }), []);
   const closeSheet = useCallback(() => dispatch({ kind: "op", op: "closeSheet" }), []);
