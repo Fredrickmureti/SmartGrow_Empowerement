@@ -22843,6 +22843,7 @@ export type Database = {
         Row: {
           active: boolean
           body: string
+          body_json: Json | null
           branch_id: string | null
           created_at: string
           created_by: string | null
@@ -22863,6 +22864,7 @@ export type Database = {
         Insert: {
           active?: boolean
           body: string
+          body_json?: Json | null
           branch_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -22883,6 +22885,7 @@ export type Database = {
         Update: {
           active?: boolean
           body?: string
+          body_json?: Json | null
           branch_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -79303,6 +79306,7 @@ export type Database = {
         }
         Returns: {
           body: string
+          body_json: Json
           engine: Database["public"]["Enums"]["label_engine"]
           id: string
           kind: string

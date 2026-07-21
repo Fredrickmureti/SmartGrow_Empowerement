@@ -17,6 +17,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import type { DriverResult } from '@/services/hardware/drivers/DriverInterface';
+import { compileLabelDoc, isLabelDoc, type LabelDoc } from './labelCompiler';
 
 export type LabelEngine = 'zpl' | 'epl' | 'escpos' | 'pdf';
 export type PrinterWorkflow =
@@ -107,6 +108,7 @@ interface ResolvedTemplate {
   id: string;
   engine: LabelEngine;
   body: string;
+  body_json?: unknown;
   version: number;
   kind: string;
   scope: string;
@@ -310,7 +312,15 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
     hri_flag: 'N',
     ...input.vars,
   };
-  const rendered = renderTemplateBody(tpl.body, mergedVars, { dpi: media?.dpi ?? 203 });
+  // ADR-0090 — prefer the structured body_json authored in the visual
+  // designer. Falls back to the legacy raw `body` string when the
+  // template has not been migrated. The compiler emits {{token}}
+  // placeholders so renderTemplateBody's mustache pass still runs.
+  const dpi = media?.dpi ?? 203;
+  const compiledSource = isLabelDoc(tpl.body_json)
+    ? compileLabelDoc(tpl.body_json as LabelDoc, tpl.engine, dpi)
+    : tpl.body;
+  const rendered = renderTemplateBody(compiledSource, mergedVars, { dpi });
 
   // Map engine → driver payload shape.
   // All label drivers accept `print_raw` with either `{ zpl }` (ZPL), `{ bytes }` (EPL/ESC-POS), or `{ pdfUrl }` (PDF, A4 driver).
