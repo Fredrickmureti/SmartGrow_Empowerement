@@ -46,6 +46,7 @@ import { WorkflowBindingsCard } from "@/components/hardware/WorkflowBindingsCard
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Cpu, Radar, ListChecks, PlugZap, Route } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBranches } from "@/hooks/useBranches";
 import { printLabelByTemplate } from "@/services/printing/labelDispatch";
 
 const ROLE_LABELS: Record<string, { label: string; description: string }> = {
@@ -177,7 +178,8 @@ function hasDiscover(): boolean {
 
 export function HardwareDevicesPage() {
   const { assignments, isLoading, error, refetch, remove } = useDeviceAssignments();
-  const { currentOrg, currentBranch } = useOrganization();
+  const { currentOrg } = useOrganization();
+  const { currentBranch } = useBranches();
 
   const [testing, setTesting] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);

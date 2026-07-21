@@ -43,6 +43,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/usePermissions";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 
 interface LotHeader {
   id: string;
@@ -259,6 +260,25 @@ export default function LotDetail() {
               Recall this lot
             </Button>
           )}
+          <PrintLabelButton
+            label="Print lot label"
+            templateKey="lot_label"
+            workflow="product_tag"
+            product={{
+              id: lot.product?.id ?? null,
+              name: lot.product?.name ?? null,
+              sku: lot.product?.sku ?? null,
+              barcode: null,
+            }}
+            lotNumber={lot.lot_number}
+            expiryDate={lot.expiry_date ?? null}
+            manufactureDate={lot.manufacture_date ?? null}
+            sourceDocType="stock_lot"
+            sourceDocId={lot.id}
+            idempotencyKey={`lot_label:${lot.id}`}
+            extraVars={{ lot_number: lot.lot_number }}
+            className="shrink-0"
+          />
         </div>
       </div>
 
