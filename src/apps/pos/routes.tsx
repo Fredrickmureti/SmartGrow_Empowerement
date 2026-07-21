@@ -7,6 +7,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy, type ComponentType } from "react";
 import { POSShellLayout } from "./POSShellLayout";
+import { TerminalShell } from "./terminal";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { RequireActiveBusinessRoute } from "@/components/common/RequireActiveBusinessRoute";
 import { POSErrorBoundary } from "@/components/pos/POSErrorBoundary";
@@ -96,18 +97,30 @@ function POSApp() {
     <Routes>
       {/* Standalone full-screen routes. Each gets its own Suspense so
           their lazy chunks don't unmount the workspace shell. */}
+      {/* Standalone full-screen routes. Each gets its own Suspense so
+          their lazy chunks don't unmount the workspace shell.
+
+          The terminal is now a LAYOUT route (`TerminalShell`) that
+          mounts the workstation state machine once and renders phase
+          workspaces through `<Outlet />`. Phase 1 keeps the legacy
+          `POSTerminal` as the sole child so extraction can proceed one
+          workspace at a time; Phases 2-5 add sibling routes here for
+          tender/receipt/return/held/history. See
+          `docs/architecture/POS_WORKSTATION_STATES.md`. */}
       <Route
         path="terminal/:registerId"
         element={
           <RequireActiveBusinessRoute>
             <POSErrorBoundary>
               <Suspense fallback={<RouteLoadingFallback module="POS" />}>
-                <POSTerminal />
+                <TerminalShell />
               </Suspense>
             </POSErrorBoundary>
           </RequireActiveBusinessRoute>
         }
-      />
+      >
+        <Route index element={<POSTerminal />} />
+      </Route>
       <Route
         path="customer-display"
         element={
