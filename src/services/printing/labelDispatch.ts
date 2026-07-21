@@ -265,7 +265,7 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
   if ((tpl.engine === 'zpl' || tpl.engine === 'epl') && !media) {
     return {
       success: false,
-      error: `NO_MEDIA_RESOLVED: label template '${input.templateKey}' (engine=${tpl.engine}) requires a media profile, but none resolved from the printer or override. Assign a media profile to the printer (Platform → Hardware → Media) or pass mediaProfileId explicitly.`,
+      error: `NO_MEDIA_RESOLVED: label template '${input.templateKey}' (engine=${tpl.engine}) requires a media profile, but this organization has no active media_profiles rows. Create one in Platform → Hardware → Media (or mark an existing profile as default), or pass mediaProfileId explicitly.`,
     };
   }
 
