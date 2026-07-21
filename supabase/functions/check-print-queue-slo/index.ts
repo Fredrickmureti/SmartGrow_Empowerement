@@ -87,11 +87,11 @@ serve(async (req) => {
     }
     for (const [businessId, count] of Object.entries(stalledSentByBiz)) {
       alertRows.push({
-        business_id: businessId,
+        organization_id: businessId,
         severity: "high",
         alert_type: "print_queue_stalled_sent",
-        message: `${count} thermal print(s) never confirmed by hardware in the last ${SENT_STALL_MIN}m — check printer connectivity.`,
-        metadata: { count, threshold_minutes: SENT_STALL_MIN },
+        title: `${count} thermal print(s) never confirmed by hardware`,
+        details: { count, threshold_minutes: SENT_STALL_MIN, kind: "print_queue_stalled_sent" },
       });
     }
 
@@ -102,11 +102,11 @@ serve(async (req) => {
     }
     for (const [businessId, count] of Object.entries(stalledQueuedByBiz)) {
       alertRows.push({
-        business_id: businessId,
+        organization_id: businessId,
         severity: "medium",
         alert_type: "print_queue_worker_idle",
-        message: `${count} print job(s) waiting > ${QUEUED_STALL_MIN}m — the hardware queue worker may be down.`,
-        metadata: { count, threshold_minutes: QUEUED_STALL_MIN },
+        title: `${count} print job(s) waiting > ${QUEUED_STALL_MIN}m — worker may be down`,
+        details: { count, threshold_minutes: QUEUED_STALL_MIN, kind: "print_queue_worker_idle" },
       });
     }
 
@@ -116,17 +116,17 @@ serve(async (req) => {
       const rate = failed / total;
       if (rate >= FAILURE_RATE_THRESHOLD) {
         alertRows.push({
-          business_id: businessId,
+          organization_id: businessId,
           severity: "high",
           alert_type: "print_queue_high_failure_rate",
-          message: `Print failure rate ${(rate * 100).toFixed(1)}% over 24h (${failed}/${total}) exceeds ${FAILURE_RATE_THRESHOLD * 100}%.`,
-          metadata: { total, failed, rate, window_hours: 24 },
+          title: `Print failure rate ${(rate * 100).toFixed(1)}% over 24h (${failed}/${total})`,
+          details: { total, failed, rate, window_hours: 24, kind: "print_queue_high_failure_rate" },
         });
       }
     }
 
     if (alertRows.length > 0) {
-      const { error } = await supabase.from("security_alerts").insert(alertRows);
+      const { error } = await supabase.from("platform_admin_alerts").insert(alertRows);
       if (error) console.error("[check-print-queue-slo] insert alerts failed:", error.message);
     }
 
