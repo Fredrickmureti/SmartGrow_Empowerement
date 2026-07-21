@@ -107,6 +107,7 @@ interface ResolvedTemplate {
   id: string;
   engine: LabelEngine;
   body: string;
+  body_json?: unknown;
   version: number;
   kind: string;
   scope: string;
