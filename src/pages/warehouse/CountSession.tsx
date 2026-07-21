@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 
 interface CountLine {
   id: string;
@@ -121,6 +122,29 @@ export default function CountSession() {
             <Button variant="outline" asChild>
               <Link to="/warehouse-app/counts"><ArrowLeft className="h-4 w-4 mr-2" /> Sessions</Link>
             </Button>
+            {/* Wave 21 — cycle-count sheet header sticker (Business Event
+              * → Template row `count_label`). Routes through the
+              * canonical label dispatcher (ADR-0086 / ADR-0090). */}
+            <PrintLabelButton
+              variant="outline"
+              size="default"
+              label="Print count label"
+              templateKey="count_label"
+              workflow="generic"
+              product={{
+                id: session.id,
+                name: `Count ${session.code}`,
+                sku: session.code,
+                barcode: session.code,
+              }}
+              sourceDocType="wms_count_session"
+              sourceDocId={session.id}
+              extraVars={{
+                session_code: session.code,
+                strategy: session.strategy ?? "",
+                state: session.state ?? "",
+              }}
+            />
             <Button onClick={() => nav(`/warehouse-app/counts/${sessionId}/review`)}>
               <ClipboardCheck className="h-4 w-4 mr-2" /> Review + post
             </Button>
