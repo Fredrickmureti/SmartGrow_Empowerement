@@ -80,6 +80,7 @@ const calculateItemTotals = (
   } else if (discount_type === "fixed") {
     discountAmount = discount_value;
   }
+  discountAmount = Math.min(Math.max(Number.isFinite(discountAmount) ? discountAmount : 0, 0), gross);
   const afterDiscount = gross - discountAmount;
   const taxAmount = afterDiscount * (tax_rate / 100);
   const lineTotal = afterDiscount + taxAmount;
@@ -242,6 +243,7 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
       } else if (item.discount_type === "fixed") {
         itemDiscount = item.discount_value;
       }
+      itemDiscount = Math.min(Math.max(Number.isFinite(itemDiscount) ? itemDiscount : 0, 0), itemGross);
       return sum + (itemGross - itemDiscount);
     }, 0);
 
@@ -251,6 +253,7 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
         ? subtotal * (cartDiscount.value / 100)
         : cartDiscount.value;
     }
+    discountAmount = Math.min(Math.max(Number.isFinite(discountAmount) ? discountAmount : 0, 0), subtotal);
 
     let taxAmount = 0;
     if (subtotal > 0 && discountAmount > 0) {
@@ -259,6 +262,7 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
         let itemDisc = 0;
         if (item.discount_type === "percent") itemDisc = itemGross * (item.discount_value / 100);
         else if (item.discount_type === "fixed") itemDisc = item.discount_value;
+        itemDisc = Math.min(Math.max(Number.isFinite(itemDisc) ? itemDisc : 0, 0), itemGross);
         const itemNet = itemGross - itemDisc;
         const itemCartDiscount = (itemNet / subtotal) * discountAmount;
         return sum + (itemNet - itemCartDiscount) * (item.tax_rate / 100);

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useProductsPaginated } from "@/hooks/useProductsPaginated";
@@ -104,7 +104,7 @@ import { normalizeError } from "@/services/resilience";
 
 
 export default function Products() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Group C #3 — every routed scan in the Products workspace is audited
   // to `scan_events` via the `workspace_id` lane. Includes the
   // scan-to-onboard target below and the ProductIdentifiersEditor
@@ -417,6 +417,7 @@ export default function Products() {
   };
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const dismissedSelectedProductRef = useRef<string | null>(null);
   // Re-entry guard for page-level scan-to-onboard. The ref is the actual
   // guard (synchronous, race-proof); the state drives the router-active
   // gate + a "Looking up barcode…" toast so the operator gets immediate
@@ -431,10 +432,15 @@ export default function Products() {
     const action = searchParams.get("action");
     const createWithCode = searchParams.get("createWithCode");
     if (action === "create" || createWithCode) {
+      const cleanReturnParams = new URLSearchParams(searchParams);
+      cleanReturnParams.delete("action");
+      cleanReturnParams.delete("createWithCode");
+      const cleanReturnSearch = cleanReturnParams.toString();
+      const returnTo = `/inventory-app/products${cleanReturnSearch ? `?${cleanReturnSearch}` : ""}`;
       navigate(
         createWithCode
-          ? `/inventory-app/products/new?createWithCode=${encodeURIComponent(createWithCode)}`
-          : "/inventory-app/products/new",
+          ? `/inventory-app/products/new?createWithCode=${encodeURIComponent(createWithCode)}&returnTo=${encodeURIComponent(returnTo)}`
+          : `/inventory-app/products/new?returnTo=${encodeURIComponent(returnTo)}`,
         { replace: true },
       );
     }
@@ -444,14 +450,34 @@ export default function Products() {
   // Handle ?selected=productId to auto-open product detail
   useEffect(() => {
     const selectedId = searchParams.get("selected");
+    if (!selectedId) {
+      dismissedSelectedProductRef.current = null;
+      return;
+    }
+    if (dismissedSelectedProductRef.current === selectedId) return;
     if (selectedId && products.length > 0 && !showDetailDialog) {
       const found = products.find(p => p.id === selectedId);
       if (found) {
+        dismissedSelectedProductRef.current = null;
         setViewingProduct(found);
         setShowDetailDialog(true);
       }
     }
   }, [searchParams, products, showDetailDialog]);
+
+  const handleDetailOpenChange = useCallback(
+    (open: boolean) => {
+      setShowDetailDialog(open);
+      if (open) return;
+      dismissedSelectedProductRef.current = searchParams.get("selected");
+      setViewingProduct(null);
+      if (!searchParams.has("selected")) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete("selected");
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
 
   // Scan-to-onboard: page-level scan target at priority 5 so any focused
   // <BarcodeInputField> (priority 10) still wins. Resolves the code via
@@ -955,7 +981,7 @@ export default function Products() {
           productId={viewingProduct?.id ?? null}
           initialProduct={viewingProduct ? { id: viewingProduct.id, name: viewingProduct.name, sku: viewingProduct.sku } : null}
           open={showDetailDialog}
-          onOpenChange={setShowDetailDialog}
+          onOpenChange={handleDetailOpenChange}
           onEdit={(id) => {
             const p = products.find((x) => x.id === id);
             if (p) openEdit(p);

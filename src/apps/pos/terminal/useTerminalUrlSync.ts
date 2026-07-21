@@ -53,6 +53,10 @@ export function useTerminalUrlSync(): void {
   // location effect fires; we must not then re-dispatch the intent that
   // produced it. The ref records the segment the state-writer just set.
   const lastWrittenSegment = useRef<string | null>(null);
+  // When an operator closes a side workspace, React runs both effects once
+  // with the old URL still visible. Without this guard, URL → State replays
+  // the stale `/history` segment and immediately reopens the panel.
+  const staleClosedSideSegment = useRef<string | null>(null);
 
   // State → URL
   useEffect(() => {
@@ -63,8 +67,11 @@ export function useTerminalUrlSync(): void {
     const base = `/pos/terminal/${registerId}`;
     const target = wanted ? `${base}/${wanted}` : base;
     lastWrittenSegment.current = wanted;
+    const currentPhase = SEGMENT_TO_PHASE[current];
+    staleClosedSideSegment.current =
+      currentPhase && state.previousPhase === currentPhase ? current : null;
     navigate(target + location.search + location.hash, { replace: true });
-  }, [state.phase, registerId, location.pathname, location.search, location.hash, navigate]);
+  }, [state.phase, state.previousPhase, registerId, location.pathname, location.search, location.hash, navigate]);
 
   // URL → State (deep links, back/forward, F5)
   useEffect(() => {
@@ -72,6 +79,10 @@ export function useTerminalUrlSync(): void {
     const segment = segmentFor(location.pathname, registerId);
     if (segment === lastWrittenSegment.current) {
       lastWrittenSegment.current = null;
+      staleClosedSideSegment.current = null;
+      return;
+    }
+    if (segment === staleClosedSideSegment.current) {
       return;
     }
     const targetPhase = SEGMENT_TO_PHASE[segment];

@@ -1885,6 +1885,7 @@ function POSTerminalInner() {
           splitPortionLabel={splitPortionToPay ? `${splitPortionToPay.seat_label || `Portion ${splitPortionToPay.portion_number}`}` : undefined}
           hasCustomer={!!cart.customer?.id}
           registerPaymentMethods={registerPaymentMethods}
+          appliedPromotions={appliedPromotions}
           sessionContext={{
             registerId,
             shiftId: activeShift.id,
