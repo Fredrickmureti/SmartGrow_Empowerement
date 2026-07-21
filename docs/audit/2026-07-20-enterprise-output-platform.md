@@ -281,8 +281,10 @@ Guardrail tests (Phase V + Phase 12):
 - `src/test/printing/media-profile-required-on-label-render.test.ts` — media geometry + dpi flow through the dispatcher to the driver payload.
 - `src/test/printing/label-dispatch-requires-media.test.ts` — dispatch returns a structured `NO_MEDIA_RESOLVED` error rather than a silent unscaled print when ZPL/EPL media does not resolve.
 - `src/test/printing/label-envelope-parity.test.ts` — Electron ZPL/EPL drivers and `BrowserHardwareAdapter` share the same envelope math and ordering.
+- `src/test/printing/resolve-label-template-media-agnostic-default.test.ts` — D12 guard: default org-scope rows are `media_profile_id = NULL`, the resolver's `rnk=5` last-resort arm is present and documented, and the seed function never re-pins a media profile.
+- `src/test/printing/label-dispatch-error-taxonomy.test.ts` — D12 guard: the dispatcher distinguishes "zero rows exist" (plain message) from "rows exist but ranking dropped them" (sharpened, scope-naming message with a Platform → Hardware CTA).
 
-Follow-up (tracked separately, not blocking D7–D11 closure):
+Follow-up (tracked separately, not blocking D7–D12 closure):
 - Migrate remaining readers of legacy `printer_profiles.paper_format`
   (`PrinterProfilesCard.tsx`, `PrintingSettings.tsx`, `PostPaymentScreen.tsx`,
   `useDocumentPrintPolicies.ts`, `usePrinterProfiles.ts`) onto
