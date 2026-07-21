@@ -69,7 +69,7 @@ import { useBillSplitting, type SplitBillPortion } from "@/hooks/pos/useBillSpli
 import { usePOSSecuritySettings } from "@/hooks/pos/usePOSSecuritySettings";
 import { usePOSSecurityAudit } from "@/hooks/pos/usePOSSecurityAudit";
 import { CloseShiftDialog } from "@/components/pos/CloseShiftDialog";
-import { PaymentDialog } from "@/components/pos/PaymentDialog";
+import { TenderWorkspace } from "@/apps/pos/terminal/tender/TenderWorkspace";
 import { usePOSRegisters } from "@/hooks/pos/usePOSRegisters";
 import { CustomerSelectDialog } from "@/components/pos/CustomerSelectDialog";
 import { HeldWorkspace } from "@/apps/pos/terminal/held/HeldWorkspace";
@@ -2327,10 +2327,8 @@ function POSTerminalInner() {
       </Dialog>
 
       {/* Dialogs */}
-      {registerId && activeShift?.id && (
-        <PaymentDialog
-          open={showPayment}
-          onOpenChange={setShowPayment}
+      {registerId && activeShift?.id && showPayment && (
+        <TenderWorkspace
           total={splitPortionToPay ? splitPortionToPay.amount : cart.total}
           tipAmount={tipAmount}
           onTipChange={tableSessionId ? setTipAmount : undefined}
@@ -2341,16 +2339,13 @@ function POSTerminalInner() {
             registerId,
             shiftId: activeShift.id,
             cashierId: activeShift.cashier_id ?? null,
-            // Restaurant uses the draft transaction id so the session
-            // collapses with `finalize_table_order`. Retail binds the key
-            // to the amount because payment sessions freeze their grand
-            // total at open; checkout commit receives this exact same key.
             idempotencyKey:
               cart.isRestaurantMode && cart.transactionId
                 ? cart.transactionId
                 : paymentSessionIdempotencyKey,
           }}
           onComplete={handlePaymentComplete}
+          onBack={() => setShowPayment(false)}
         />
       )}
       
