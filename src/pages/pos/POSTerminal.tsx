@@ -484,7 +484,7 @@ function POSTerminalInner() {
   // `openTender` (which freezes the idempotency key at the exact moment
   // the operator entered tender, preserving the retail-vs-restaurant
   // contract from the pre-refactor implementation).
-  const { state: terminalState, dispatch: terminalDispatch, openSheet, closeSheet } = useTerminalContext();
+  const { state: terminalState, dispatch: terminalDispatch, openSheet } = useTerminalContext();
   const showPayment = terminalState.phase === "tender";
   const openTender = useCallback(() => {
     terminalDispatch({
