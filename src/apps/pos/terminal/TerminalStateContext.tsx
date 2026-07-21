@@ -37,6 +37,16 @@ interface TerminalStateProviderProps {
   hasActiveShift: boolean;
   cartHasItems: boolean;
   hasUnreadCompletion?: boolean;
+  /**
+   * Register the workstation is mounted for. Used to scope
+   * `domainEventBus` subscriptions so events emitted by a sibling
+   * terminal (multi-tab dev sessions, background sync from another
+   * register on the same device) cannot cross-contaminate this
+   * reducer's phase. When absent every event is honoured — that
+   * preserves the previous behaviour for callers that haven't been
+   * updated yet.
+   */
+  registerId?: string;
 }
 
 /**
@@ -65,12 +75,29 @@ export function TerminalStateBridge({
   return null;
 }
 
+/**
+ * True when `event` was emitted by (or scoped to) `registerId`. Applied
+ * only to events in `PHASE_DRIVING_EVENTS`; other events flow through
+ * the reducer untouched because the reducer already ignores them. If
+ * an event carries no register hint at all we honour it — losing a
+ * legitimate `sale.committed` because the producer didn't include a
+ * register_id would be a worse failure mode than the cross-terminal
+ * bleed we're guarding against.
+ */
+function eventBelongsToRegister(event: DomainEvent, registerId: string | undefined): boolean {
+  if (!registerId) return true;
+  const payload = event.payload as { register_id?: string; registerId?: string } | null | undefined;
+  const eventRegister = payload?.register_id ?? payload?.registerId;
+  if (!eventRegister) return true;
+  return eventRegister === registerId;
+}
 
 export function TerminalStateProvider({
   children,
   hasActiveShift,
   cartHasItems,
   hasUnreadCompletion = false,
+  registerId,
 }: TerminalStateProviderProps) {
   const [state, dispatch] = useReducer(terminalReducer, undefined, () => ({
     ...INITIAL_TERMINAL_STATE,
@@ -83,10 +110,11 @@ export function TerminalStateProvider({
   // provider only picks the INITIAL phase.
   useEffect(() => {
     const unsub = domainEventBus.on("*", (event: DomainEvent) => {
+      if (!eventBelongsToRegister(event, registerId)) return;
       dispatch({ kind: "event", event });
     });
     return () => unsub();
-  }, []);
+  }, [registerId]);
 
 
   const openSheet = useCallback((sheet: SheetId) => dispatch({ kind: "op", op: "openSheet", sheet }), []);

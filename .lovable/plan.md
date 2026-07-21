@@ -1,131 +1,84 @@
-# POS Terminal — Enterprise Audit & Reconstruction Plan
+# POS Terminal — Verification Report & Continuation Plan
 
-> **Status snapshot (2026-07-21):** Phases 0–3a complete + Phase 3b in progress (Held workspace shipped). Next: **History workspace** (Phase 3b.2).
+## Phase A — Verification of the previous engineer's work
 
-## 1. Audit verdict (what the terminal is today vs. what it must be)
+Reference docs used: `docs/audit/2026-07-21-pos-terminal-architecture.md` (the roadmap) and `docs/architecture/POS_WORKSTATION_STATES.md` (the state contract). No `plan.md` at repo root; the roadmap lives in that audit doc.
 
-An enterprise POS is an **operational workstation** that transitions between a small set of business states — Terminal Idle → Sale → Tender → Receipt → Ready — with each state as a full workspace, permanent transaction summary, and touch-first controls. Overrides, discounts, returns, held sales, and payments are workspace transitions or slide-in sheets bound to a business event, not modal popups stacked on a page.
+| Claimed phase | Claim | Verdict | Evidence |
+|---|---|---|---|
+| Phase 0 — docs + state chart | Done | **Confirmed** | Audit doc + WORKSTATION_STATES doc present and internally consistent. |
+| Phase 1 — `terminal/` module: `TerminalShell`, reducer, provider, URL sync, bridge | Done | **Partially done** | `src/apps/pos/terminal/{TerminalShell,TerminalStateContext,SheetShell,useTerminalState,useTerminalUrlSync}.tsx/ts` exist and are wired in `src/apps/pos/routes.tsx`. Reducer is pure, guarded, and matches the state chart. Sibling routes (`sale`, `tender`, `receipt`, `return`, `held`, `history`) are declared **but all resolve to the legacy `POSTerminal` monolith**, so the URL is honest while the surface is not. Acceptable as a Phase-1 shim, but must not be mistaken for completion. |
+| Phase 2 — `TenderWorkspace` replaces `PaymentDialog` at page scope | Not started | **Confirmed not done** | `POSTerminal.tsx:72` still imports `PaymentDialog` and mounts it at `:2302` gated on `terminalState.phase === "tender"`. Numeric keypad is not permanent. Transaction summary still lives inside the dialog. |
+| Phase 3 — `ReceiptWorkspace`, `ReturnWorkspace`, `HeldWorkspace`, `HistoryWorkspace` | Partial | **Only `HeldWorkspace` extracted** (`src/apps/pos/terminal/held/HeldWorkspace.tsx`, mounted at `:2346`). `ReturnDialog`, `TransactionHistoryDialog`, `ReceiptPreviewDialog` are still `<Dialog>` overlays inside `POSTerminal`. |
+| Phase 4 — sheet standardisation | Not started | **Confirmed not done** | `SheetShell` exists but no sheet consumers use it; every sale-scoped popup still lives as a bespoke `<Dialog>` in `POSTerminal` with its own `useState` toggle. |
+| Phase 5 — Sale workspace decomposition | Not started | `POSTerminal.tsx` is **2,529 LOC** with 28 `useState` calls — worse than the number audited (2,468 LOC), so drift has occurred, not decomposition. |
+| Phase 6 — IA cleanup, cashier landing, dialog sweep-delete | Not started | `/pos` still renders the admin dashboard; no files from the deletion list have been removed. |
+| Phase 7 — guards + tests | Not started | Only `__tests__/useTerminalState.test.ts` exists for the reducer. No `pos-no-page-dialogs.test.ts`, no `no-dialog-for-pos-workspace.js` ESLint rule, no Playwright happy-path. |
 
-The current implementation is the opposite of that:
+### Architectural regressions / risks discovered during verification
+1. **Route siblings are cosmetic.** `/tender`, `/receipt`, `/return`, `/held`, `/history` all mount `POSTerminal`, so deep links land on a monolith that then computes the phase and pops the matching dialog. This satisfies the URL contract but not the workspace contract.
+2. **`showReceipt` is still ad-hoc `useState`** (`POSTerminal.tsx:510`), bypassing the reducer's `recordCompletion` path. Phase can be `receipt` while `showReceipt` is false and vice versa — the exact composite-state bug the audit called out.
+3. **Sheets have no runtime enforcement in production code.** `SheetShell` is unused, so the "auto-dismiss on phase change" invariant only holds in the reducer, not in the DOM.
+4. **`domainEventBus.on("*")` wildcard subscription** in the provider is fine, but the reducer treats `sale.committed` and `pos.payment_completed` as terminal events without checking they belong to the current register — a stray event from a sibling terminal in the same tab (dev mode) would incorrectly graduate this terminal to receipt. Needs a register-id guard.
+5. `/pos` landing is admin-shaped; a cashier opening the app lands on a dashboard rather than a register picker → workstation.
 
-- **One monolithic file.** `src/pages/pos/POSTerminal.tsx` is 2,500 lines and owns product discovery, cart, payments, returns, held orders, receipts, restaurant modifiers, bill split, table transfer, mobile scanner, loyalty, age verification, unit selection, cash drawer, and post-payment — as local `useState` toggles.
-- **Popup-driven, not workspace-driven.** 15+ dialogs (`PaymentDialog`, `CashDrawerDialog`, `DiscountDialog`, `ReturnDialog`, `HeldTransactionsDialog`, `CustomerSelectDialog`, `LoyaltyRedemptionDialog`, `AgeVerificationDialog`, `ModifierSelectionDialog`, `POSUnitSelectDialog`, `BillSplitDialog`, `TableTransferDialog`, `ReceiptPreviewDialog`, `MobileScannerDialog`, `TerminalLockScreen`, …) rendered from the same page.
-- **Wrong landing surface.** `/pos` renders `POS.tsx` ("POS Dashboard"); the actual workstation lives at `/pos/terminal/:registerId`. Cashiers should land on either the terminal or a register-picker, never an ERP dashboard.
-- **IA mismatch.** No permanent transaction summary / tender totals / change-due panel — they only exist inside the payment dialog.
-- **Business-event layer is under-used by the UI.** `BusinessSaga`, `SaleSaga`, `pos_outbox`, `domainEventBus`, main-process `DeviceManager`, `hardwareClient` are correct. The UI transitions on button clicks, not on committed events.
-- **Touch ergonomics.** Numeric keypad exists but only inside dialogs; many targets are `h-8` / `h-10`.
+## Phase B — Revised plan (supersedes the phase list in the audit doc)
 
-What is already right and must be preserved: hardware layer, offline persistence, scanner architecture, domain event bus + outbox, standalone terminal route.
+Order chosen so each step ships a working terminal and lets us delete a legacy dialog file at the end of the step. No flag-day rewrite.
 
-## 2. Target workstation model
+### Step 1 — Harden Phase-1 substrate (blockers for everything after)
+- Add register-id scoping to `PHASE_DRIVING_EVENTS` handling: reducer only reacts to events whose payload matches the mounted `registerId`. Bridge passes `registerId` into the provider.
+- Move `showReceipt` and `completedTransaction` fully into the reducer via `recordCompletion` + `newSale`; delete the sibling `useState` in `POSTerminal`.
+- Add architecture test `src/__tests__/pos-no-page-dialogs.test.ts` — scans `src/apps/pos/terminal/**` and `src/pages/pos/POSTerminal.tsx` and fails on `import … Dialog from …` for the phase-change dialog list. Fails today; each subsequent step removes one entry until it passes.
+- Add `eslint-rules/no-dialog-for-pos-workspace.js` mirroring the same list.
 
-Business states become routes under the standalone terminal shell, not dialog toggles:
+### Step 2 — TenderWorkspace (replaces PaymentDialog)
+- New `src/apps/pos/terminal/tender/TenderWorkspace.tsx` — full-region surface, permanent numeric keypad (reuse `NumericKeypad`), split-tender rows, change-due panel, permanent transaction summary rail.
+- New `src/apps/pos/terminal/tender/hooks.ts` — thin adapter over existing `usePOSTransactionOffline`, `useHardwareProxy`, `useSplitTender` (no new business logic).
+- Route `/pos/terminal/:id/tender` → `TenderWorkspace` (not `POSTerminal`).
+- Remove `PaymentDialog` mount and imports from `POSTerminal`; delete `src/components/pos/PaymentDialog.tsx` and its now-unreferenced helpers.
+- Playwright happy-path: sale → tender → cash + card split → receipt.
 
-```text
-/pos/terminal/:registerId
-├── (idle)     → Shift closed / cashier locked → OpenShift / Unlock workspace
-├── /sale      → Sale workspace (product discovery + basket + line ops)
-├── /tender    → Dedicated payment workspace
-├── /receipt   → Post-payment workspace
-├── /return    → Return/exchange workspace
-├── /held      → Held & parked sales workspace
-└── /history   → Shift transaction history workspace
-```
+### Step 3 — ReceiptWorkspace (replaces ReceiptPreviewDialog + PostPaymentScreen)
+- New `src/apps/pos/terminal/receipt/ReceiptWorkspace.tsx` — receipt preview, print, email/SMS via `SendDocumentSheet`, "New Sale" action dispatches `newSale`.
+- Route `/pos/terminal/:id/receipt` → `ReceiptWorkspace`.
+- Delete `ReceiptPreviewDialog`, `PostPaymentScreen`.
 
-Every workspace shares a fixed left rail (register + shift + cashier + customer + permanent transaction summary + hardware status) and a fixed bottom action bar whose contents change per state. Admin surfaces (Reports, Settlements, Kitchen, Bookings, Payment Terminals, Settings) leave the cashier chrome entirely.
+### Step 4 — ReturnWorkspace and HistoryWorkspace (parallels HeldWorkspace)
+- Lift the two remaining side-transition dialogs into full workspaces at `/return` and `/history` using the same structure as `HeldWorkspace`.
+- Route bindings updated; delete `ReturnDialog`, `TransactionHistoryDialog`.
 
-## 3. Phased roadmap & status
+### Step 5 — Sheet standardisation
+- Convert every sale/line-scoped popup to a `SheetShell`-hosted component with a `SheetId` from the reducer:
+  `LineDiscountSheet`, `LineUnitSheet`, `LineModifierSheet`, `LineOverrideSheet`, `CustomerAssignSheet`, `LoyaltyRedeemSheet`, `AgeVerifySheet`, `HoldSaleSheet`, `BillSplitSheet`, `TableTransferSheet`, `ManagerOverrideSheet`, `SendDocumentSheet`, `UnlockSheet`.
+- Delete matching `*Dialog` components once no consumer remains.
+- Sheet toggles migrate from `useState` to `openSheet(sheetId)` / `closeSheet()` on the reducer — per-phase allow-list becomes runtime-enforced by `SheetShell`.
 
-### Phase 0 — Audit artifact — **DONE**
-- `docs/audit/2026-07-21-pos-terminal-architecture.md` (verdict, dialog inventory, migration order).
-- `docs/architecture/POS_WORKSTATION_STATES.md` (state chart, sheets-vs-workspaces rule).
+### Step 6 — SaleWorkspace decomposition
+- Split the Sale portion of `POSTerminal` into: `SaleWorkspace` (route-owned), `ProductDiscoveryPanel`, `BasketPanel`, `SaleActionBar`, `TransactionSummaryRail` (also mounted by Tender/Receipt for permanent visibility).
+- `POSTerminal.tsx` becomes a thin compatibility redirect that renders `<Navigate to="sale" replace />` when the phase is `sale`; then deleted once route siblings all point at their own workspaces.
 
-### Phase 1 — Workstation shell & state machine — **DONE**
-- `src/apps/pos/terminal/` module with `useTerminalState.ts` (pure reducer, 9 phases, 15 sheets), `TerminalStateContext.tsx` (+ `TerminalStateBridge`), `TerminalShell.tsx` (layout route mounting the provider), `SheetShell.tsx` (auto-dismiss on phase change).
-- 23 unit tests in `__tests__/useTerminalState.test.ts`.
-- `TerminalShell` mounted as layout route for `/pos/terminal/:registerId`; `POSTerminal` runs inside it.
-- **URL ↔ phase sync** (`useTerminalUrlSync`): state changes `replace` the URL to the phase segment; deep links / back-forward / F5 dispatch the matching operator intent. Illegal deep links are ignored and the URL self-corrects.
-- Sibling routes registered: `sale`, `tender`, `receipt`, `return`, `held`, `history` (all currently render `POSTerminal`, which is now phase-driven internally).
+### Step 7 — Cashier landing + IA cleanup
+- `/pos` for cashier role → register picker that routes into the workstation; admin surface (Reports, Settlements, Kitchen, Bookings, Payment-Terminals, Settings) gated behind a manager role check in `POSShellLayout`.
+- Remove sidebar admin items from the workstation shell (`TerminalShell` already isolated; verify no admin nav leaks in).
 
-### Phase 2 — Extract Tender as a workspace — **State cutover DONE; chrome swap PENDING**
-- **Done:** `PaymentDialog` visibility is derived from `terminalState.phase === "tender"`. `openTender` freezes the idempotency key (retail-vs-restaurant rule preserved) via reducer op; `backToSale` closes.
-- **Pending (2b):** replace the `<Dialog>` chrome with a full-screen route-owned `TenderWorkspace` under `terminal/tender/`. Move the numeric keypad to a permanent right-hand panel, split-tender rows to the left, change-due + terminal status permanent. Delete the dialog wiring once the route is authoritative.
+### Step 8 — Guards, tests, closeout
+- Turn on the architecture test and ESLint rule (both were red since Step 1); confirm green.
+- Playwright: happy-path, return-path, held-resume, deep-link `/receipt` after refresh, browser back/forward across phases.
+- Update `docs/audit/2026-07-21-pos-terminal-architecture.md` §6 with actual completion dates and prune the "future phases" list.
+- Update `mem://features/pos-workstation.md` with the enforcement rules for future contributors.
 
-### Phase 3 — Extract Receipt / Return / Held / History — **State cutover DONE (3a); chrome swap PENDING (3b)**
-- **Done (3a):** `showHeld`, `showReturn`, `showHistory` are derived reads of `terminalState.phase`; opening dispatches `openHeld/openReturn/openHistory`; closing dispatches `closeSide` (which restores `previousPhase`). The reducer's per-phase legality checks make "only one side workspace at a time" a structural invariant.
-- **Done (3b.1 — Held):** `src/apps/pos/terminal/held/HeldWorkspace.tsx` replaces `HeldTransactionsDialog`. Full-panel workspace body (no `<Dialog>` chrome) mounted from `POSTerminal` when `phase === "held"`. Close button dispatches `closeSide`. Cart-restore is delegated up via `onResume` prop (will move to cart context in Phase 5). `HeldTransactionsDialog.tsx` is now dead code, deletion deferred to Phase 6 sweep.
-- **Pending (3b.2 — History):** `terminal/history/HistoryWorkspace.tsx` replaces `TransactionHistoryDialog`.
-- **Pending (3b.3 — Return):** `terminal/return/ReturnWorkspace.tsx` replaces `ReturnDialog`.
-- **Pending (3b.4 — Receipt):** `terminal/receipt/ReceiptWorkspace.tsx` replaces `ReceiptPreviewDialog` + `PostPaymentScreen`. Owns auto-print status, reprint, email, F2 → new sale.
-- After each workspace ships: swap the sibling route to render the workspace directly (currently all render `POSTerminal`) once cart/hardware context is available (Phase 5 dependency for Receipt/Return).
+## Non-goals (unchanged from the parent audit)
+- No hardware-layer changes.
+- No schema, RPC, edge-function, or `pos_outbox` contract changes.
+- No new business logic; existing hooks are consumed as-is.
+- No admin-surface visual redesign.
 
-### Phase 4 — Slide-in sheets — **PENDING**
-Convert line- and sale-scoped micro-interactions to a standardised `SheetShell`:
-- Line: `LineDiscountSheet`, `LineUnitSheet`, `LineModifierSheet`, `LineOverrideSheet`.
-- Sale: `CustomerAssignSheet`, `LoyaltyRedeemSheet`, `AgeVerifySheet`, `HoldSaleSheet`, `BillSplitSheet`, `TableTransferSheet`, `ManagerOverrideSheet`.
-- All consume the reducer and emit intents; none own transactional state.
+## Technical notes
+- Reducer stays pure; every new workspace subscribes to `useTerminalContext()` for phase + sheet, and to existing hooks for cart/shift/hardware.
+- `SheetShell` becomes the ONLY way to open a sheet under `/pos/terminal/*`; the ESLint rule forbids raw `<Dialog>` in workspace files.
+- Register-id scoping added to the domain-event handler so multi-terminal dev sessions don't cross-contaminate reducers.
+- Deletions happen at the end of each step, not batched at the end, so `git blame` shows the replacement landing with the removal.
 
-### Phase 5 — Sale workspace decomposition — **PENDING**
-Split ex-`POSTerminal.tsx` into `terminal/sale/`:
-- `ProductDiscoveryPanel`, `BasketPanel`, `SaleActionBar` (each ≤ ~300 lines, single-responsibility). No new business logic.
-
-### Phase 6 — Cashier chrome & IA cleanup — **PENDING**
-- Signed-in cashier `/pos` auto-navigates to assigned register (or picker); admin dashboard stays behind RBAC.
-- Remove Reports / Settlements / Kitchen / Bookings / Payment Terminals / Settings from cashier terminal chrome; expose via Manager mode.
-- Sweep-delete replaced dialog files.
-
-### Phase 7 — Guards & tests — **PENDING**
-- ESLint rule: no `Dialog`/`Sheet` imports inside `terminal/**/*Workspace.tsx`.
-- Route-level test: mounting any workspace must not render a top-level `[role="dialog"]` from the workspace's own tree.
-- Playwright happy-path and return-path against the new URLs.
-
-## 4. Non-goals (explicit)
-
-- No changes to the hardware layer, `DeviceManager`, drivers, saga, outbox, or `hardwareClient`.
-- No visual redesign of admin surfaces.
-- No new business logic (cart, pricing, tax, loyalty, promotions, ETIMS, offline commit consumed as-is).
-- No framework/library additions.
-
-## 5. Technical details
-
-- Routing: React Router. `TerminalShell` layout route + phase-named sibling routes under `/pos/terminal/:registerId`. `useTerminalUrlSync` mounts inside the shell.
-- State: one reducer per terminal instance via `TerminalStateContext`. Existing hooks stay; they become inputs.
-- Business events: reducer subscribes to `domainEventBus` for `sale.committed`, `pos.payment_completed`, `pos.session_idle`.
-- Sheets vs Workspaces: workspaces are routes and change phase; sheets are `role="dialog"` slide-ins bound to the current phase, auto-dismissed on phase change by `SheetShell`.
-- Touch targets: min 48×48 for cashier chrome, 56×56 for tender numeric keys. Fixed rail 320px, bottom bar 96px.
-- Deletion list (Phase 6): `PaymentDialog.tsx`, `ReturnDialog.tsx`, `HeldTransactionsDialog.tsx`, `TransactionHistoryDialog.tsx`, `ReceiptPreviewDialog.tsx`, `PostPaymentScreen.tsx`, plus any dialog whose replacement sheet is live.
-- Backwards compatibility: no schema, RPC, edge-function, or `pos_outbox` contract changes. Idempotency-key generation for tender preserves the current retail-vs-restaurant rule verbatim.
-
-## 6. Definition of done
-
-- Cashier lands directly in a workspace tied to a business state; every state transition is a route change driven by a committed event, not a click.
-- Zero top-level dialogs on Sale / Tender / Receipt / Return / Held / History workspaces (guard test enforces).
-- Fixed transaction summary and hardware status visible in every phase.
-- `POSTerminal.tsx` no longer exists as a monolith; `terminal/**` files each < ~300 lines and single-responsibility.
-- Existing hardware, offline, saga, and scanner tests still pass; new state-machine and no-page-dialog tests pass; Playwright happy-path and return-path pass.
-
-## 7. Handoff — instructions for the next agent
-
-**Before writing any new code, verify the current milestone (Phases 0 → 3a + Phase 3b.1 Held) is enterprise-grade correct.** Do this in order:
-
-1. **Read the guardrails.** `docs/audit/2026-07-21-pos-terminal-architecture.md`, `docs/architecture/POS_WORKSTATION_STATES.md`, and this plan. Do not skip.
-2. **Confirm the state machine still owns lifecycle:** grep `src/pages/pos/POSTerminal.tsx` for `useState.*show(Payment|Held|Return|History)`. There must be **none** — these must all be derived reads of `terminalState.phase` with dispatch-based setters.
-3. **Confirm Held is dialog-free:** `HeldTransactionsDialog` must not be imported by `POSTerminal.tsx`. `HeldWorkspace` must be mounted when `phase === "held"`.
-4. **Run the reducer suite:** `bunx vitest run src/apps/pos/terminal` → 23 tests must pass. `bunx tsgo --noEmit` must be clean.
-5. **Smoke the URL sync + Held workspace** in the preview: navigate to `/pos/terminal/:id`, add a cart item (URL → `/sale`), open Held (URL → `/held`, HeldWorkspace fills the region — no dialog overlay), close (URL → `/sale`), refresh on `/held` (must reopen Held), resume a held tx (URL → `/sale`, cart restored). Browser back/forward must round-trip.
-6. **Verify no orphan wiring:** every dispatch site (`openTender`, `openHeld`, `openReturn`, `openHistory`, `closeSide`, `backToSale`) must have exactly one corresponding UI trigger; no dead legacy callers.
-
-**Only after verification passes**, resume at **Phase 3b.2 — HistoryWorkspace**:
-
-- Create `src/apps/pos/terminal/history/HistoryWorkspace.tsx` mirroring the `HeldWorkspace` pattern (full-panel body, no `<Dialog>` chrome, `useTerminalContext()` for `closeSide`, `usePOSShifts` for `activeShift.id`).
-- Import it in `POSTerminal.tsx`, replace the `<TransactionHistoryDialog ... />` mount with `{showHistory && <HistoryWorkspace ... />}`.
-- Run typecheck + reducer tests, smoke `/history` deep-link + close, then update this plan's status block before moving on.
-
-Then proceed in this order (do not skip or reorder):
-- **Phase 3b.3 — ReturnWorkspace** (replaces `ReturnDialog`; needs `registerId` + `shiftId`).
-- **Phase 3b.4 — ReceiptWorkspace** (replaces `ReceiptPreviewDialog` + `PostPaymentScreen`; owns auto-print, reprint, email, F2 → new sale — the most coupled of the four, ship last).
-
-Once Phase 3b is fully green (all four workspaces live, all four dialogs unmounted from `POSTerminal.tsx`), proceed to Phase 4 (sheets), then Phase 5 (Sale decomposition, cart context extraction), then Phase 6 (chrome cleanup + dead-file sweep), then Phase 7 (guards + Playwright).
-
-Chronological progression is mandatory. Do not begin Phase 4 until every Phase 3b workspace is live and verified. Do not begin Phase 5 until Phase 4 is complete. No jumping.
-
+## Resume point
+Start at **Step 1** — the previous engineer's Phase-1 substrate is real but has two latent bugs (`showReceipt` sibling state, missing register-id scoping) that will contaminate every subsequent workspace if left in place.
