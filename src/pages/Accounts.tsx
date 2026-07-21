@@ -200,39 +200,6 @@ export default function Accounts() {
 
   // Use formatCurrency from hook - removed local function
 
-  const getTypeIcon = (type: Account["account_type"]) => {
-    switch (type) {
-      case "asset":
-        return <Wallet className="h-4 w-4" />;
-      case "liability":
-        return <CreditCard className="h-4 w-4" />;
-      case "equity":
-        return <PiggyBank className="h-4 w-4" />;
-      case "income":
-        return <TrendingUp className="h-4 w-4" />;
-      case "expense":
-        return <TrendingDown className="h-4 w-4" />;
-    }
-  };
-
-  const getTypeBadge = (type: Account["account_type"]) => {
-    const styles: Record<string, string> = {
-      asset: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      liability: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-      equity: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-      income: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-      expense: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
-    };
-    return <Badge className={styles[type]}>{type}</Badge>;
-  };
-
-  const accountTypes: { type: Account["account_type"]; label: string; description: string }[] = [
-    { type: "asset", label: "Assets", description: "What you own (cash, inventory, equipment)" },
-    { type: "liability", label: "Liabilities", description: "What you owe (loans, accounts payable)" },
-    { type: "equity", label: "Equity", description: "Owner's stake in the business" },
-    { type: "income", label: "Income", description: "Revenue and earnings" },
-    { type: "expense", label: "Expenses", description: "Costs of running the business" },
-  ];
 
   // Effective balance derived from RPC (posted JE lines) + opening_balance
   // This matches how financial reports compute balances — single source of truth
