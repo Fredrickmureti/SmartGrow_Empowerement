@@ -69,3 +69,12 @@ Prereq: Phase 13 fully closed and green.
 Once verified, resume at **Phase 13 pending item #1** (regression test for media-agnostic default resolution). Do not skip to Phase 14 until every Phase-13 pending item is closed and the audit row D12 is written.
 
 Maintain chronological execution. Do not open unrelated work while any Phase-13 item is open.
+============================================================================================
+
+
+All 73 printing tests green across 11 files. Chronological wrap-up:
+
+Phase V.1 — media-profile-resolution.test.ts locks the 4-tier fallback ordering in resolve_label_template.
+Phase V.4 — labelDispatch.ts now returns a structured NO_MEDIA_RESOLVED error for ZPL/EPL when no media resolves; label-dispatch-requires-media.test.ts guards it.
+Phase 11 — new /platform/hardware/capability admin surface for printer_profiles (command language, DPI, margins, supported media multiselect), wired into nav + routes.
+Audit — D7–D11 rows updated with the new surface + all six guardrail tests; the label template body editor stays flagged as deferred follow-up.
