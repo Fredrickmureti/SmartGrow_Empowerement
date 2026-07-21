@@ -1378,6 +1378,64 @@ function POSTerminalInner() {
     );
   }
 
+  const saleActionBarCallbacks: SaleActionBarCallbacks = useMemo(() => ({
+    onClearCart: () => {
+      sound.play("cart_clear");
+      cart.clearCart();
+    },
+    onSplitBill: () => setShowBillSplit(true),
+    onTransferTable: () => setShowTableTransfer(true),
+    onPrintBill: () => {
+      setCompletedTransaction({
+        id: "pro-forma",
+        transaction_number: cart.draftTransactionNumber || "BILL",
+        total_amount: cart.total,
+        subtotal: cart.subtotal,
+        tax_amount: cart.tax_amount,
+        discount_amount: cart.discount_amount,
+        created_at: new Date().toISOString(),
+        customer_name: cart.customer?.name,
+        items: cart.items.map(i => ({
+          product_name: i.name,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          line_total: i.line_total,
+          display_quantity: i.display_quantity ?? null,
+          packaging_label: i.packaging_label ?? null,
+        })),
+        payments: [],
+      });
+      openSheet("sale.receiptPreview");
+    },
+    onHold: () => {
+      if (activeShift && registerId && currentOrg) {
+        holdTransaction.mutate({
+          register_id: registerId,
+          shift_id: activeShift.id,
+          organization_id: currentOrg.id,
+          cart: cart.cartState,
+        });
+        cart.clearCart();
+        sound.play("hold");
+      }
+    },
+    onRecallHeld: () => setShowHeld(true),
+    onDiscount: () => setShowDiscount(true),
+    onOpenPayment: () => setShowPayment(true),
+  }), [
+    sound,
+    cart,
+    activeShift,
+    registerId,
+    currentOrg,
+    holdTransaction,
+    setCompletedTransaction,
+    openSheet,
+    setShowHeld,
+    setShowDiscount,
+    setShowPayment,
+  ]);
+
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden relative max-w-[1920px] mx-auto w-full">
       {/* Phase 1 (POS workstation): sync live shift + cart state into
