@@ -44,10 +44,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { PageHeader } from "@/components/layout/page";
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useCurrency } from "@/hooks/useCurrency";
+import { AuditDetails, humanizeKey, formatValue } from "@/components/audit/auditFormat";
 
 // ---------------------------------------------------------------------------
 // Types
