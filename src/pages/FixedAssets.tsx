@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useToast } from "@/hooks/use-toast";
@@ -391,6 +392,35 @@ export default function FixedAssets() {
                               >
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
+                              </DropdownMenuItem>
+                              {/* Wave 21 — canonical asset-tag print seam.
+                                * Routes through `useLabelPrint` →
+                                * `printLabelByTemplate` → dispatcher
+                                * (ADR-0086 / ADR-0090). Uses the
+                                * `asset_label` template seeded by
+                                * `seed_default_label_templates`. */}
+                              <DropdownMenuItem asChild>
+                                <PrintLabelButton
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full justify-start font-normal px-2 h-8"
+                                  label="Print Asset Tag"
+                                  templateKey="asset_label"
+                                  workflow="asset_tag"
+                                  product={{
+                                    id: asset.id,
+                                    name: asset.name,
+                                    sku: asset.asset_number,
+                                    barcode: asset.asset_number,
+                                  }}
+                                  sourceDocType="fixed_asset"
+                                  sourceDocId={asset.id}
+                                  extraVars={{
+                                    asset_number: asset.asset_number,
+                                    category: asset.category?.name ?? "",
+                                    acquisition_date: asset.acquisition_date ?? "",
+                                  }}
+                                />
                               </DropdownMenuItem>
                               {canManageAssets && asset.status === "active" && (
                                 <DropdownMenuItem

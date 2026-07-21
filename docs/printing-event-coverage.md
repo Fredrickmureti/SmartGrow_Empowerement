@@ -36,9 +36,9 @@ a wired template is a follow-up ticket, not a silent absence.
 | Receiving / GRN posted | receiving | `receiving_label` | LabelDoc compiler | WIRED |
 | Pallet built (WMS) | pallet | `pallet_label` | LabelDoc compiler | WIRED |
 | Shipment dispatched | shipping | `shipping_label` | LabelDoc compiler | WIRED |
-| Asset tag issued | asset | `asset_label` | LabelDoc compiler | WIRED (template seeded; page dispatch pending) |
-| Cycle-count sheet header | count | `count_label` | LabelDoc compiler | WIRED (template seeded; page dispatch pending) |
-| Return / RMA tag | return | `return_label` | LabelDoc compiler | WIRED (template seeded; page dispatch pending) |
+| Asset tag issued | asset | `asset_label` | LabelDoc compiler | WIRED (Fixed-Assets → row action, Wave 21) |
+| Cycle-count sheet header | count | `count_label` | LabelDoc compiler | WIRED (Warehouse count session header, Wave 21) |
+| Return / RMA tag | return | `return_label` | LabelDoc compiler | WIRED (Sales Returns → row action, Wave 21) |
 
 ## Receipts (thermal roll — 58 / 80 mm)
 
@@ -75,9 +75,9 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Statutory return (PAYE/NSSF/NHIF/SHIF/HL) | `statutory_return` | PdfBuilder (statutory-pinned) | WIRED |
 | Audit / investigation certificate | `audit_certificate` | PdfBuilder (statutory-pinned) | WIRED |
 | GRN / receiving voucher (A4 copy) | `grn` | PdfBuilder | PARTIAL — data path exists, no default policy |
-| Stock adjustment voucher | `stock_adjustment` | PdfBuilder | GAP |
-| Stock transfer note | `stock_transfer` | PdfBuilder | GAP |
-| Vendor return note (A4) | `vendor_return` | PdfBuilder | GAP |
+| Stock adjustment voucher | `stock_adjustment` | PdfBuilder | WIRED (Wave 21 — `fetchStockAdjustment`) |
+| Stock transfer note | `stock_transfer` | PdfBuilder | WIRED (Wave 21 — `fetchStockTransfer`) |
+| Vendor return note (A4) | `vendor_return` | PdfBuilder | WIRED (Wave 21 — `fetchPurchaseReturn`; alias `purchase_return`) |
 
 ## Cross-cutting invariants
 
@@ -97,16 +97,14 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 
 ## Follow-up tickets (GAPs)
 
-- `asset_label` / `count_label` / `return_label` are now seeded (migration
-  2026-07-21). Remaining work: add `PrintClient.print(...)` call sites in
-  Fixed-Assets, Warehouse cycle-count, and Sales-return pages plus an
-  architecture test asserting each page imports `printClient`.
-- Add `document_templates` rows and `generate-document` fetchers for
-  `stock_adjustment`, `stock_transfer`, and `vendor_return` so
-  Inventory / Warehouse A4 vouchers stop rendering through page-local
-  HTML printing.
 - Promote the drawer-slip receipt from an on-demand action to an
-  automatic print policy on open/close events.
+  automatic print policy on open/close events. Owner: POS cash-drawer
+  saga. Requires a `drawer_event_printed` idempotency key so retries
+  don't double-print. Tracked as a follow-up because it also needs a
+  per-terminal opt-out toggle (some tenants pair receipt+drawer on the
+  same physical printer and re-fire prints via ESC/POS `ESC p`).
+- Promote `grn` from "data path exists" to a bound A4 event when the
+  receiving policy engine (ADR-0088) ships.
 
 When any of these ship, flip the row's status to `WIRED` in the same PR
 that adds the ESLint / architecture test proving it.
