@@ -561,28 +561,39 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
               discount_amount: transactionDetails.discount_amount,
               created_at: transactionDetails.created_at,
               customer_name: transactionDetails.customer_name ?? null,
-              cashier_name: (transactionDetails as any).cashier_name ?? null,
-              register_id: (transactionDetails as any).register_id ?? registerId ?? null,
+              // Extended columns not on POSTransactionRecord but present
+              // at runtime; cast through `unknown` (never `any`) so
+              // strict-lint stays green while the SQL row still flows
+              // through unchanged. See ReceiptDocumentModel.LiveTransactionInput.
+              cashier_name:
+                (transactionDetails as unknown as { cashier_name?: string | null }).cashier_name ?? null,
+              register_id:
+                (transactionDetails as unknown as { register_id?: string | null }).register_id
+                ?? registerId ?? null,
               invoice_id: transactionDetails.invoice_id ?? null,
-              invoice_number: (transactionDetails as any).invoice_number ?? null,
-              etims_cu_number: (transactionDetails as any).etims_cu_number ?? null,
-              etims_qr_data: (transactionDetails as any).etims_qr_data ?? null,
+              invoice_number:
+                (transactionDetails as unknown as { invoice_number?: string | null }).invoice_number ?? null,
+              etims_cu_number:
+                (transactionDetails as unknown as { etims_cu_number?: string | null }).etims_cu_number ?? null,
+              etims_qr_data:
+                (transactionDetails as unknown as { etims_qr_data?: string | null }).etims_qr_data ?? null,
               is_voided: transactionDetails.status === "voided",
               is_refund: transactionDetails.transaction_type === "return",
-              items: (transactionDetails.items || []).map((item: any) => ({
+              items: (transactionDetails.items || []).map((item) => ({
                 product_name: item.product_name || item.description || "Item",
                 sku: item.sku ?? undefined,
                 quantity: item.quantity,
                 unit_price: item.unit_price,
                 discount_amount: item.discount_amount ?? 0,
-                tax_rate_name: item.tax_rate_name ?? null,
+                tax_rate_name:
+                  (item as unknown as { tax_rate_name?: string | null }).tax_rate_name ?? null,
                 line_total: item.line_total,
-              })) as any,
-              payments: (transactionDetails.payments || []).map((p: any) => ({
+              })) as unknown as ReceiptItem[],
+              payments: (transactionDetails.payments || []).map((p) => ({
                 payment_method: p.payment_method,
                 amount: p.amount,
                 reference: p.reference ?? null,
-              })) as any,
+              })) as unknown as ReceiptPayment[],
             }}
           />
         </section>
