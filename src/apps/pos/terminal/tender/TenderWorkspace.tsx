@@ -59,6 +59,9 @@ import {
   type PosTenderKind,
   type PosSessionTenderInput,
 } from "@/lib/pos/paymentSessionClient";
+import { useCart } from "@/apps/pos/terminal/sale/CartContext";
+import { TransactionSummaryRail } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
+
 
 function paymentSessionErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof POSPaymentSessionError) {
@@ -480,6 +483,15 @@ export function TenderWorkspace({
     if (wasFull) finalizeWith([...tenderRows, row]);
   };
 
+  // Persistent transaction context — the Enerpize-style rail on the right
+  // keeps cart totals visible during payment so the cashier never loses
+  // sight of the sale they're closing. `useCart()` is safe here because
+  // `TerminalShell` mounts `CartProvider` above every tender render.
+  const railCart = useCart();
+  const paidAmount = totalApplied;
+  const canConfirm = payments.length > 0 && totalApplied >= effectiveTotal;
+
+
   return (
     <section
       aria-labelledby="tender-workspace-title"
@@ -498,12 +510,15 @@ export function TenderWorkspace({
           </h1>
         </div>
         <div className="text-right">
+
           <p className="text-xs text-muted-foreground">Amount Due</p>
           <p className="text-xl font-bold sm:text-2xl">{formatCurrency(effectiveTotal)}</p>
         </div>
       </header>
 
-      <ScrollArea className="flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-w-0">
+
         <div className="mx-auto w-full max-w-3xl px-4 py-4 sm:px-6 sm:py-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-8 sm:py-12">
@@ -596,21 +611,18 @@ export function TenderWorkspace({
                 </Button>
               )}
 
-              <div className="text-center py-3 sm:py-4 bg-muted/50 rounded-lg">
-                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Amount Due</p>
-                <p className="text-2xl sm:text-4xl font-bold">{formatCurrency(effectiveTotal)}</p>
-                {tipAmount > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Subtotal: {formatCurrency(total)} + Tip: {formatCurrency(tipAmount)}
-                  </p>
-                )}
-                {cashRoundingSettings.enabled && cashRoundingDiff !== 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
+              {/* Amount Due block removed — the persistent TransactionSummaryRail
+                  on the right already surfaces this and Enerpize-style layout
+                  keeps the left column focused on payment method entry. */}
+              {cashRoundingSettings.enabled && cashRoundingDiff !== 0 && (
+                <div className="text-center py-2 bg-muted/40 rounded-md">
+                  <p className="text-xs text-muted-foreground">
                     Cash rounding: {cashRoundingDiff > 0 ? "+" : ""}
                     {formatCurrency(cashRoundingDiff)} → {formatCurrency(roundedEffectiveTotal)}
                   </p>
-                )}
-              </div>
+                </div>
+              )}
+
 
               {onTipChange && (
                 <div className="space-y-2">
@@ -829,16 +841,80 @@ export function TenderWorkspace({
                 )}
               </div>
 
-              {payments.length > 0 && totalApplied >= effectiveTotal && (
-                <Button className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={handleSplitPayment}>
-                  <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                  Complete Payment
-                </Button>
-              )}
+              {/* Confirm button lives in the persistent right rail below. */}
             </div>
           )}
         </div>
       </ScrollArea>
+
+      {/* Persistent transaction summary rail — Enerpize-style.
+          Keeps subtotal / discounts / tax / net-payable and paid / change
+          visible for the entire tender phase. The Confirm CTA finalizes
+          the split-payment flow when the tender is fully covered. */}
+      <aside className="hidden md:flex w-80 xl:w-96 flex-col border-l bg-card">
+        <div className="border-b px-4 py-3">
+          <p className="text-xs text-muted-foreground">POS Client</p>
+          <p className="text-sm font-semibold truncate">
+            {railCart.customer?.name ?? "Walk-in customer"}
+          </p>
+        </div>
+        <ScrollArea className="flex-1 min-h-0 px-4 py-3">
+          <TransactionSummaryRail
+            cart={railCart}
+            appliedPromotions={[]}
+            formatCurrency={formatCurrency}
+            size="md"
+          />
+          <div className="mt-4 space-y-1.5 text-sm">
+            {tipAmount > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Tip</span>
+                <span>{formatCurrency(tipAmount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-base font-bold">
+              <span>Net Payable</span>
+              <span>{formatCurrency(effectiveTotal)}</span>
+            </div>
+            <Separator className="my-2" />
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Paid</span>
+              <span className="font-medium">{formatCurrency(paidAmount)}</span>
+            </div>
+            {remaining > 0 ? (
+              <div className="flex justify-between text-amber-600">
+                <span>Remaining</span>
+                <span className="font-medium">{formatCurrency(remaining)}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between text-green-600">
+                <span>Change</span>
+                <span className="font-medium">{formatCurrency(change)}</span>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+        <div className="border-t p-4">
+          <Button
+            className="w-full h-14 text-base bg-green-600 hover:bg-green-700 text-white"
+            onClick={handleSplitPayment}
+            disabled={!canConfirm || isRecording}
+            aria-label="Confirm payment"
+          >
+            <CheckCircle className="h-5 w-5 mr-2" />
+            Confirm
+          </Button>
+          {!canConfirm && (
+            <p className="text-[11px] text-muted-foreground mt-2 text-center">
+              {payments.length === 0
+                ? "Add a payment to enable Confirm"
+                : `Collect ${formatCurrency(remaining)} more to confirm`}
+            </p>
+          )}
+        </div>
+      </aside>
+      </div>
+
 
       {/* Payment provider sub-modals — these remain modal because they wrap
           a device-driver conversation (STK push wait, card terminal auth).
