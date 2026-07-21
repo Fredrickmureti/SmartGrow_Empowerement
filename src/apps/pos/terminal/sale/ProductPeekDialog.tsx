@@ -38,6 +38,9 @@ interface ProductPeekDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   registerId: string;
+  /** Product IDs currently in the cart — shown by default when the search
+   *  field is empty so the cashier can peek their active basket. */
+  cartProductIds?: string[];
   onAddToCart?: (productId: string) => void;
 }
 
