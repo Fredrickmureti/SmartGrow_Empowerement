@@ -1,8 +1,38 @@
 # Printing Architecture — Verification & Continuation Plan
 
-Ownership hand-off from the previous engineer. Nothing below is taken on faith;
-each step lists what to verify and the file/test that proves it. No files
-have been modified yet.
+Ownership hand-off from the previous engineer.
+
+## Execution Status (2026-07-21, session 2)
+
+**Phase A (reconciliation) — DONE.** Spot-checked every `WIRED` row in
+`docs/printing-event-coverage.md` against the codebase (dispatch call
+sites for labels, `usePrintOrPreview` / `generate-document` fetchers for
+A4, `documentToReceiptLines` for POS receipts). The stale "six GAPs"
+claim in the previous session was wrong — only two GAPs were ever open,
+and they are the two rows called out in the matrix's follow-up section.
+
+**Phase B2 (GRN → A4 binding) — DONE this turn.**
+`GoodsReceiptWizardPage.tsx` now dispatches
+`printOrPreview({ documentType: 'goods_receipt', intent: 'a4_document', branchId })`
+after a successful post. Routing is delegated to
+`print_policies_resolve` (ADR-0088) so branches with a configured policy
+auto-print and unconfigured branches fall back to the preview dialog.
+Matrix updated; failure is non-blocking so navigation still fires.
+
+**Phase B1 (drawer-slip auto policy) — DEFERRED, needs product input.**
+The POS cash-drawer *kick* policy is fully implemented
+(`useDrawerPolicy`, stage-L tests). The remaining GAP is a separate
+*audit-slip* receipt on `drawer:opened`/`drawer:closed`. There is no
+domain-event emission for those transitions yet — designing that is a
+product decision (per-terminal opt-out, idempotency key on the saga,
+where in the SaleSaga the event fires). Called out as its own ticket so
+the guardrail work in Phase C isn't blocked on it.
+
+**Phase C (guardrails) — NOT STARTED.** Will land after B1 has an
+owner; adding a "no unWIRED rows in the matrix" test today would
+false-fail on the drawer-slip row.
+
+
 
 ## What we already have (confirmed by direct reads)
 
