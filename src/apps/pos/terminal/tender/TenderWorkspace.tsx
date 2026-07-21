@@ -617,7 +617,7 @@ export function TenderWorkspace({
     return [...amounts].sort((a, b) => a - b).slice(0, 4);
   }, [targetForDraft]);
 
-  const railCart = useCart();
+  const railCart = railCartEarly;
   const tenderSummaryCart = useMemo(
     () => ({
       subtotal: railCart.subtotal,
@@ -629,7 +629,8 @@ export function TenderWorkspace({
   );
 
   const canConfirm =
-    (remaining <= 0 && tenderRows.length > 0) || draftCoversRemaining;
+    !hasStockBlock &&
+    ((remaining <= 0 && tenderRows.length > 0) || draftCoversRemaining);
 
   const confirmHelper = (() => {
     if (canConfirm) return null;
