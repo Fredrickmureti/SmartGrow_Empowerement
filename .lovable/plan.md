@@ -43,10 +43,10 @@ Everything else in the prior plan (Steps 5.1, 5.2, 6, 7, 8, non-goals, technical
 Inline a local `<Dialog><ReceiptPreviewBody/></Dialog>` shell in `POSReports` (legit page dialog, not inside the workstation), then **delete** `src/components/pos/ReceiptPreviewDialog.tsx`.
 
 ### Step 3 closeout — dissolve monolith receipt path (folded into Step 6 entry)
-- `ReceiptWorkspace` becomes the sole owner of the post-payment surface — inline the current `PostPaymentScreen` body into it, keeping `PrintPolicyHint` and the change-due/tender panels as sub-components under `apps/pos/terminal/receipt/`.
-- Point `HistoryWorkspace` reprint overlay at the shared receipt surface (extract the shared summary into `ReceiptSummary`).
-- Wire route `/pos/terminal/:id/receipt` in `routes.tsx` to `ReceiptWorkspace` (stop routing to `POSTerminal`).
-- Delete `src/components/pos/PostPaymentScreen.tsx` once no imports remain.
+- **Slice A (done)** — Relocated `src/components/pos/PostPaymentScreen.tsx` → `src/apps/pos/terminal/receipt/PostPaymentSurface.tsx` (workstation-scoped module). Consumers updated: `ReceiptWorkspace.tsx` and `HistoryWorkspace.tsx` now import from `./PostPaymentSurface` / `../receipt/PostPaymentSurface`. Guardrail whitelists updated in `pos-receipt-model-boundary.test.ts` (adds `PostPaymentSurface`, `ReceiptWorkspace`, `ReceiptPreviewSheet`, `HistoryWorkspace`) and `pos-receipt-renderer-contract.test.ts` (path-refs + `ReceiptPreviewBody` allowed for `generateDocumentEscPosBytes` since Step 5.0). Typecheck clean; targeted architecture + stage-b tests pass. Pre-existing stage-5 void-schema failures are unrelated (separate ticket).
+- **Slice B (next)** — `ReceiptWorkspace` inlines `PostPaymentSurface` body directly (drops the shim wrapper), extracts the reprint summary into `ReceiptSummary` shared with `HistoryWorkspace`, and `HistoryWorkspace`'s reprint overlay switches from `<PostPaymentScreen>` to that shared surface.
+- **Slice C** — Wire route `/pos/terminal/:id/receipt` in `routes.tsx` to a route-owned `ReceiptRoute` that mounts `ReceiptWorkspace` directly (no `POSTerminal`).
+- **Slice D** — Delete `PostPaymentSurface.tsx` once no `<PostPaymentScreen>` consumers remain (inlined by then).
 
 ### Step 6 — SaleWorkspace decomposition
 Split `POSTerminal.tsx` (2,545 LOC) into:
@@ -73,6 +73,12 @@ No hardware-layer changes; no schema/RPC/edge-function/`pos_outbox` changes; no 
 - Reducer stays pure; every new workspace reads phase + sheet via `useTerminalContext()` and cart/shift/hardware via existing hooks.
 - Each step lands the replacement **and** deletes the legacy file in the same commit.
 - After Step 6, sibling routes stop being cosmetic — each phase URL renders its own workspace, deep-link refresh works without the monolith.
+- Pre-existing failing suites unrelated to this roadmap: `src/test/pos/stage-5-void.test.ts` (void RPC/schema — separate ticket). Do not fix opportunistically.
 
 ## Resume point
-Steps 1, 2, 4, 5.0, 5.1, 5.2 complete. Resume at **Step 3 closeout / Step 6 entry** — dissolving the shared `PostPaymentScreen` shim by extracting its body into `apps/pos/terminal/receipt/PostPaymentSurface.tsx` (so `ReceiptWorkspace` and `HistoryWorkspace` both consume the workstation-scoped module), then pointing the `/receipt` route sibling at `ReceiptWorkspace` directly and beginning the `POSTerminal` decomposition.
+Steps 1, 2, 4, 5.0, 5.1, 5.2 complete. Step 3 closeout **Slice A complete** (PostPaymentScreen relocated to `apps/pos/terminal/receipt/PostPaymentSurface.tsx`; both live consumers + guardrail whitelists updated; typecheck + targeted guardrails green).
+
+**Next agent — start here:**
+1. Verify Slice A: `rg -n "components/pos/PostPaymentScreen" src` returns nothing; `bunx tsgo --noEmit` is clean; `bunx vitest run src/test/architecture/pos-receipt-model-boundary.test.ts src/test/architecture/pos-receipt-renderer-contract.test.ts` passes.
+2. Proceed to **Slice B**: inline the `PostPaymentSurface` body into `ReceiptWorkspace` (remove the shim wrapper), extract the shared reprint summary into `ReceiptSummary` under `apps/pos/terminal/receipt/`, and repoint `HistoryWorkspace`'s reprint overlay at it. Preserve hardware paths (printClient, cash drawer, PDF, email) exactly — no behaviour change.
+3. Then Slice C (route-owned `/receipt`) and Slice D (delete `PostPaymentSurface.tsx`) before entering Step 6.
