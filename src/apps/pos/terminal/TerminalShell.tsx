@@ -47,6 +47,7 @@ export default function TerminalShell() {
       hasActiveShift={hasActiveShift}
       cartHasItems={false}
       hasUnreadCompletion={false}
+      registerId={registerId}
     >
       <TerminalUrlSyncMount />
       <Outlet />
