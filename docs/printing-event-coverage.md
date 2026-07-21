@@ -66,6 +66,7 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Credit note | `credit_note` | PdfBuilder | WIRED |
 | Proforma invoice | `proforma_invoice` | PdfBuilder | WIRED |
 | Customer statement | `customer_statement` | PdfBuilder | WIRED |
+| Vendor statement | `vendor_statement` | PdfBuilder | WIRED |
 | Purchase order | `purchase_order` | PdfBuilder | WIRED |
 | Bill (vendor invoice) | `bill` | PdfBuilder | WIRED |
 | Purchase return | `purchase_return` | PdfBuilder | WIRED |
