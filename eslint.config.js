@@ -31,6 +31,7 @@ import noRawEscposBytes from "./eslint-rules/no-raw-escpos-bytes.js";
 import noRawPdfLibInEdgeFunctions from "./eslint-rules/no-raw-pdf-lib-in-edge-functions.js";
 import noDirectGenerateDocumentInPages from "./eslint-rules/no-direct-generate-document-in-pages.js";
 import noProductIdAsBarcode from "./eslint-rules/no-product-id-as-barcode.js";
+import noDialogForPosWorkspace from "./eslint-rules/no-dialog-for-pos-workspace.js";
 
 
 
@@ -76,6 +77,7 @@ export default tseslint.config(
           "no-raw-pdf-lib-in-edge-functions": noRawPdfLibInEdgeFunctions,
           "no-direct-generate-document-in-pages": noDirectGenerateDocumentInPages,
           "no-product-id-as-barcode": noProductIdAsBarcode,
+          "no-dialog-for-pos-workspace": noDialogForPosWorkspace,
 
         },
       },
@@ -142,6 +144,12 @@ export default tseslint.config(
       // pass a deterministic p_idempotency_key. Fallbacks to
       // crypto.randomUUID() silently defeat retry-collapse.
       "local/no-pos-commit-without-idempotency-key": "error",
+
+      // POS workstation state chart — phase-change surfaces must be routed
+      // workspaces, not `<Dialog>` overlays. Guards src/apps/pos/terminal/**.
+      "local/no-dialog-for-pos-workspace": "error",
+
+
 
 
 
