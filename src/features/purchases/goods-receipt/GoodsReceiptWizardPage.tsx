@@ -702,6 +702,22 @@ export default function GoodsReceiptWizardPage() {
           result.po_status === "received" ? "PO fully received" : "Partial receipt recorded"
         }.`,
       });
+
+      // ADR-0026 / ADR-0086 — dispatch the GRN through the canonical print
+      // policy resolver. Auto-prints when a policy is configured; otherwise
+      // opens the preview dialog. Never blocks navigation.
+      try {
+        await printOrPreview({
+          documentType: "goods_receipt",
+          documentId: receipt.id,
+          title: `Goods Receipt ${grnNumber}`,
+          intent: "a4_document",
+          branchId: currentBranch?.id ?? null,
+        });
+      } catch (printErr) {
+        console.warn("[GRN] print dispatch failed (non-blocking)", printErr);
+      }
+
       navigate(`/purchases/orders/${po.id}`);
     } catch (error: any) {
       console.error("Error creating goods receipt:", error);
