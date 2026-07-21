@@ -1,22 +1,17 @@
 /**
- * HardwareLabelTemplates — Phase 14 admin surface for `label_templates`.
+ * HardwareLabelTemplates — ADR-0090 · Visual Label Designer.
  *
- * ADR-0087 · Template body owns CONTENT ONLY. Envelope (`^PW`/`^LL`,
- * `q`/`Q`, page dimensions) is injected at dispatch time from the
- * resolved media_profile so a single template body prints correctly on
- * 50×30, 80×50 or 102×152 mm at any DPI.
+ * The editor never asks operators to type ZPL / EPL. Templates are
+ * authored as a structured document (list of positioned elements in
+ * millimeters) and saved to `label_templates.body_json`. At print time
+ * `labelDispatch` compiles that document into engine-native bytes
+ * (ZPL / EPL / ESC-POS) using media geometry from `mediaGeometry.ts`.
  *
- * The preview canvas uses `mmToCssPx` from `mediaGeometry.ts` — the SAME
- * module the driver + browser adapter use for their dot math — so what
- * the operator sees on-screen is proportionally identical to what a
- * hardware printer will emit. Prior to Phase 14, changing the "label
- * size" widget resized only the preview paper while the content stayed
- * pixel-fixed; the shared geometry service is what makes the two agree.
- *
- * Guardrail: `src/test/printing/label-templates-have-no-envelope.test.ts`
- * asserts that any body saved from this editor contains neither `^PW`
- * nor `q\d+` — the resolver would double-inject and produce a wrong
- * envelope on the second pass.
+ * The legacy `body` column is kept in sync with a compiled snapshot so
+ * older readers (audit exports, drivers that inspect it) still see a
+ * meaningful string — but the dispatcher prefers `body_json` whenever
+ * present. ADR-0087 still holds: the compiler emits CONTENT ONLY; the
+ * dispatcher owns the paper envelope.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -26,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -37,13 +31,17 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Type, Hash, Barcode, Minus, Square, MoveUp, MoveDown,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
-import { mmToCssPx, mediaDots, DEFAULT_LABEL_DPI } from "@/services/printing/mediaGeometry";
-
-type LabelEngine = "zpl" | "epl" | "escpos" | "pdf";
+import { DEFAULT_LABEL_DPI } from "@/services/printing/mediaGeometry";
+import {
+  compileLabelDoc, isLabelDoc, EMPTY_DOC,
+  type LabelDoc, type LabelElement, type LabelEngine,
+} from "@/services/printing/labelCompiler";
 
 interface MediaProfile {
   id: string;
@@ -62,6 +60,7 @@ interface LabelTemplate {
   kind: string;
   engine: LabelEngine;
   body: string;
+  body_json: unknown;
   version: number;
   is_default: boolean;
   active: boolean;
@@ -76,7 +75,7 @@ interface DraftForm {
   name: string;
   kind: string;
   engine: LabelEngine;
-  body: string;
+  doc: LabelDoc;
   is_default: boolean;
   active: boolean;
   media_profile_id: string | null;
@@ -87,91 +86,209 @@ const EMPTY_FORM: DraftForm = {
   name: "",
   kind: "product",
   engine: "zpl",
-  body: "",
+  doc: EMPTY_DOC,
   is_default: false,
   active: true,
   media_profile_id: null,
 };
 
-/** Regexes that catch envelope tokens baked into a template body. Must
- *  mirror the guardrail test so the editor rejects the same content the
- *  test would fail on. */
-const ENVELOPE_PATTERNS: Array<{ engine: LabelEngine; regex: RegExp; label: string }> = [
-  { engine: "zpl", regex: /\^PW\d+/i, label: "^PW (ZPL page width)" },
-  { engine: "zpl", regex: /\^LL\d+/i, label: "^LL (ZPL label length)" },
-  { engine: "epl", regex: /(^|\n)\s*q\d+/i, label: "q<dots> (EPL width)" },
-  { engine: "epl", regex: /(^|\n)\s*Q\d+,\d+/i, label: "Q<dots>,<gap> (EPL length)" },
+/** Common variable tokens exposed in the picker. Callers already pass
+ *  these into vars; the operator picks from a list instead of typing
+ *  `{{token}}` by hand. */
+const VARIABLE_CATALOG: Array<{ token: string; label: string; group: string }> = [
+  { token: "name", label: "Product name", group: "Product" },
+  { token: "sku", label: "SKU", group: "Product" },
+  { token: "sku_display", label: "SKU (display)", group: "Product" },
+  { token: "barcode", label: "Barcode / EAN", group: "Product" },
+  { token: "price_display", label: "Price", group: "Product" },
+  { token: "lot_number", label: "Lot number", group: "Traceability" },
+  { token: "expiry_date", label: "Expiry date", group: "Traceability" },
+  { token: "manufacture_date", label: "Manufacture date", group: "Traceability" },
+  { token: "grn_id", label: "GRN number", group: "Warehouse" },
+  { token: "supplier_name", label: "Supplier", group: "Warehouse" },
+  { token: "bin_code", label: "Bin location", group: "Warehouse" },
+  { token: "lpn", label: "License plate (LPN)", group: "Warehouse" },
+  { token: "carton_id", label: "Carton ID", group: "Warehouse" },
+  { token: "order_number", label: "Order number", group: "Shipping" },
+  { token: "customer_name", label: "Customer", group: "Shipping" },
+  { token: "ship_to_address", label: "Ship-to address", group: "Shipping" },
 ];
 
-function detectEnvelope(engine: LabelEngine, body: string): string | null {
-  for (const p of ENVELOPE_PATTERNS) {
-    if (p.engine !== engine) continue;
-    if (p.regex.test(body)) return p.label;
-  }
-  return null;
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+/** Coerce whatever came back from the DB into a LabelDoc, so both
+ *  legacy raw-body rows and modernized rows land in the same editor. */
+function toDoc(row: LabelTemplate): LabelDoc {
+  if (isLabelDoc(row.body_json)) return row.body_json as LabelDoc;
+  return EMPTY_DOC;
 }
 
-/** Preview render — draws the media rectangle to scale and paints a
- *  best-effort text pass of the template body for a proportional
- *  sanity-check. Not a full ZPL interpreter; goal is to confirm that
- *  changing the media size changes the paper AND the content ratio
- *  together (the exact defect the user reported). */
-function LabelPreview({
-  widthMm,
-  heightMm,
-  body,
-  dpi,
-}: {
+// ------------------------------------------------------------------
+// Canvas — SVG rendering of the LabelDoc + drag handling
+// ------------------------------------------------------------------
+
+interface CanvasProps {
+  doc: LabelDoc;
   widthMm: number;
-  heightMm: number | null;
-  body: string;
-  dpi: number;
-}) {
-  const h = heightMm ?? Math.max(20, widthMm * 0.6);
-  // Cap preview to a sensible on-screen size — scale down uniformly so
-  // huge shipping labels (102 × 152 mm) still fit in the dialog.
-  const rawW = mmToCssPx(widthMm);
-  const rawH = mmToCssPx(h);
-  const maxW = 360;
-  const maxH = 260;
-  const scale = Math.min(1, maxW / rawW, maxH / rawH);
-  const cssW = rawW * scale;
-  const cssH = rawH * scale;
-  const dots = mediaDots({ widthMm, heightMm: h, dpi });
+  heightMm: number;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onChange: (doc: LabelDoc) => void;
+}
+
+function LabelCanvas({ doc, widthMm, heightMm, selectedId, onSelect, onChange }: CanvasProps) {
+  const PX_PER_MM = 4; // preview scale (screen only; does not affect print)
+  const cssW = widthMm * PX_PER_MM;
+  const cssH = heightMm * PX_PER_MM;
+
+  const [drag, setDrag] = useState<{ id: string; offsetXmm: number; offsetYmm: number } | null>(null);
+
+  const pointerToMm = (e: React.PointerEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    return {
+      xMm: ((e.clientX - rect.left) / rect.width) * widthMm,
+      yMm: ((e.clientY - rect.top) / rect.height) * heightMm,
+    };
+  };
+
+  const startDrag = (e: React.PointerEvent, el: LabelElement) => {
+    e.stopPropagation();
+    onSelect(el.id);
+    const { xMm, yMm } = pointerToMm(e as unknown as React.PointerEvent<SVGSVGElement>);
+    setDrag({ id: el.id, offsetXmm: xMm - el.xMm, offsetYmm: yMm - el.yMm });
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+
+  const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!drag) return;
+    const { xMm, yMm } = pointerToMm(e);
+    onChange({
+      ...doc,
+      elements: doc.elements.map((el) =>
+        el.id === drag.id
+          ? {
+              ...el,
+              xMm: Math.max(0, Math.min(widthMm - 2, +(xMm - drag.offsetXmm).toFixed(2))),
+              yMm: Math.max(0, Math.min(heightMm - 2, +(yMm - drag.offsetYmm).toFixed(2))),
+            }
+          : el,
+      ),
+    });
+  };
+
+  const endDrag = () => setDrag(null);
 
   return (
-    <div className="space-y-2">
-      <div className="text-xs text-muted-foreground">
-        Preview · {widthMm} × {heightMm ?? "cont."} mm at {dpi} dpi
-        {" · "}
-        {dots.widthDots} × {dots.heightDots ?? "—"} dots
-      </div>
-      <div
-        className="relative border-2 border-dashed border-border bg-background shadow-sm"
-        style={{ width: cssW, height: cssH }}
-        aria-label="Label preview canvas"
+    <div className="inline-block rounded-md border-2 border-dashed border-border bg-background shadow-sm">
+      <svg
+        width={cssW}
+        height={cssH}
+        viewBox={`0 0 ${widthMm} ${heightMm}`}
+        onPointerMove={onMove}
+        onPointerUp={endDrag}
+        onPointerLeave={endDrag}
+        onClick={() => onSelect(null)}
+        style={{ touchAction: "none" }}
+        aria-label="Label design canvas"
       >
-        <div
-          className="absolute inset-0 overflow-hidden p-1 font-mono leading-tight"
-          style={{ fontSize: 8 * scale, transform: `scale(${scale})`, transformOrigin: "top left", width: rawW, height: rawH }}
-        >
-          {body
-            .replace(/\^XA|\^XZ|\^FS/g, "")
-            .split(/\^FO\d+,\d+/)
-            .map((chunk, i) => {
-              const text = chunk.match(/\^FD([^^]+)/)?.[1] ?? chunk.match(/\^BCN[^^]*\^FD([^^]+)/)?.[1];
-              if (!text) return null;
+        {/* Millimeter guide grid */}
+        <defs>
+          <pattern id="mm-grid" width="5" height="5" patternUnits="userSpaceOnUse">
+            <path d="M 5 0 L 0 0 0 5" fill="none" stroke="hsl(var(--muted-foreground) / 0.15)" strokeWidth="0.1" />
+          </pattern>
+        </defs>
+        <rect width={widthMm} height={heightMm} fill="url(#mm-grid)" />
+
+        {doc.elements.map((el) => {
+          const sel = el.id === selectedId;
+          const stroke = sel ? "hsl(var(--primary))" : "hsl(var(--foreground) / 0.4)";
+          const common = {
+            onPointerDown: (e: React.PointerEvent) => startDrag(e, el),
+            style: { cursor: "move" as const },
+          };
+          switch (el.type) {
+            case "text":
+            case "variable": {
+              const label = el.type === "text" ? el.text : `{{${el.token}}}`;
+              const size = (el.fontSize ?? 4) * 0.9;
               return (
-                <div key={i} className="truncate">
-                  {text.trim()}
-                </div>
+                <g key={el.id} {...common}>
+                  <text
+                    x={el.xMm}
+                    y={el.yMm + size * 0.9}
+                    fontSize={size}
+                    fontWeight={el.bold ? 700 : 400}
+                    fill="hsl(var(--foreground))"
+                    fontFamily="ui-sans-serif, system-ui"
+                  >
+                    {label}
+                  </text>
+                  {sel && (
+                    <rect
+                      x={el.xMm - 0.4}
+                      y={el.yMm - 0.4}
+                      width={Math.max(10, label.length * size * 0.55) + 0.8}
+                      height={size * 1.3}
+                      fill="none"
+                      stroke={stroke}
+                      strokeWidth={0.2}
+                      strokeDasharray="0.6 0.4"
+                    />
+                  )}
+                </g>
               );
-            })}
-        </div>
-      </div>
+            }
+            case "barcode": {
+              const h = el.heightMm ?? 12;
+              const w = el.symbology === "qr" ? h : Math.max(20, h * 2);
+              return (
+                <g key={el.id} {...common}>
+                  <rect x={el.xMm} y={el.yMm} width={w} height={h} fill="hsl(var(--foreground) / 0.08)" stroke={stroke} strokeWidth={0.2} />
+                  {/* Fake bar stripes for the preview */}
+                  {el.symbology !== "qr" && Array.from({ length: 24 }).map((_, i) => (
+                    <rect
+                      key={i}
+                      x={el.xMm + 0.5 + i * (w - 1) / 24}
+                      y={el.yMm + 0.5}
+                      width={(w - 1) / 48}
+                      height={h - 1}
+                      fill="hsl(var(--foreground))"
+                    />
+                  ))}
+                  <text x={el.xMm + w / 2} y={el.yMm + h + 2.2} fontSize={1.8} textAnchor="middle" fill="hsl(var(--muted-foreground))">
+                    {el.symbology.toUpperCase()} · {el.token}
+                  </text>
+                </g>
+              );
+            }
+            case "line":
+            case "box": {
+              const t = el.type === "box" ? (el.thicknessMm ?? 0.4) : Math.min(el.wMm, el.hMm);
+              return (
+                <g key={el.id} {...common}>
+                  <rect
+                    x={el.xMm}
+                    y={el.yMm}
+                    width={el.wMm}
+                    height={el.hMm}
+                    fill={el.type === "line" ? "hsl(var(--foreground))" : "none"}
+                    stroke={sel ? stroke : "hsl(var(--foreground))"}
+                    strokeWidth={t}
+                  />
+                </g>
+              );
+            }
+          }
+        })}
+      </svg>
     </div>
   );
 }
+
+// ------------------------------------------------------------------
+// Page
+// ------------------------------------------------------------------
 
 export default function HardwareLabelTemplates() {
   const { currentOrg } = useOrganization();
@@ -180,6 +297,7 @@ export default function HardwareLabelTemplates() {
   const [media, setMedia] = useState<MediaProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DraftForm | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -188,7 +306,7 @@ export default function HardwareLabelTemplates() {
     const [tpls, mps] = await Promise.all([
       supabase
         .from("label_templates")
-        .select("id, org_id, template_key, name, kind, engine, body, version, is_default, active, branch_id, media_profile_id, updated_at")
+        .select("id, org_id, template_key, name, kind, engine, body, body_json, version, is_default, active, branch_id, media_profile_id, updated_at")
         .eq("org_id", orgId)
         .order("template_key", { ascending: true })
         .order("version", { ascending: false }),
@@ -221,15 +339,15 @@ export default function HardwareLabelTemplates() {
 
   const previewMedia = useMemo(() => {
     if (!editing) return null;
-    if (editing.media_profile_id) {
-      return media.find((m) => m.id === editing.media_profile_id) ?? null;
-    }
+    if (editing.media_profile_id) return media.find((m) => m.id === editing.media_profile_id) ?? null;
     return media.find((m) => m.kind === "label") ?? media[0] ?? null;
   }, [editing, media]);
 
-  const envelopeWarning = editing ? detectEnvelope(editing.engine, editing.body) : null;
+  function startCreate() {
+    setEditing({ ...EMPTY_FORM, doc: { version: 1, elements: [] } });
+    setSelectedId(null);
+  }
 
-  function startCreate() { setEditing({ ...EMPTY_FORM }); }
   function startEdit(row: LabelTemplate) {
     setEditing({
       id: row.id,
@@ -237,12 +355,47 @@ export default function HardwareLabelTemplates() {
       name: row.name,
       kind: row.kind,
       engine: row.engine,
-      body: row.body,
+      doc: toDoc(row),
       is_default: row.is_default,
       active: row.active,
       media_profile_id: row.media_profile_id,
     });
+    setSelectedId(null);
   }
+
+  const updateDoc = (mut: (d: LabelDoc) => LabelDoc) => {
+    setEditing((prev) => (prev ? { ...prev, doc: mut(prev.doc) } : prev));
+  };
+
+  const addElement = (el: LabelElement) => {
+    updateDoc((d) => ({ ...d, elements: [...d.elements, el] }));
+    setSelectedId(el.id);
+  };
+
+  const patchElement = (id: string, patch: Partial<LabelElement>) => {
+    updateDoc((d) => ({
+      ...d,
+      elements: d.elements.map((e) => (e.id === id ? { ...e, ...patch } as LabelElement : e)),
+    }));
+  };
+
+  const removeElement = (id: string) => {
+    updateDoc((d) => ({ ...d, elements: d.elements.filter((e) => e.id !== id) }));
+    setSelectedId(null);
+  };
+
+  const moveElement = (id: string, dir: -1 | 1) => {
+    updateDoc((d) => {
+      const idx = d.elements.findIndex((e) => e.id === id);
+      if (idx < 0) return d;
+      const to = Math.max(0, Math.min(d.elements.length - 1, idx + dir));
+      if (to === idx) return d;
+      const next = d.elements.slice();
+      const [item] = next.splice(idx, 1);
+      next.splice(to, 0, item);
+      return { ...d, elements: next };
+    });
+  };
 
   async function save() {
     if (!editing || !orgId) return;
@@ -250,30 +403,27 @@ export default function HardwareLabelTemplates() {
       toast.error("Template key and name are required.");
       return;
     }
-    if (!editing.body.trim()) {
-      toast.error("Template body cannot be empty.");
-      return;
-    }
-    const envelope = detectEnvelope(editing.engine, editing.body);
-    if (envelope) {
-      toast.error(
-        `Envelope token detected: ${envelope}. Templates own content only — remove it and the resolver injects it from the media profile.`,
-      );
+    if (editing.doc.elements.length === 0) {
+      toast.error("Add at least one element to the label.");
       return;
     }
 
     setSaving(true);
+    // Compile a legacy body snapshot so downstream readers that still
+    // read `body` (audit exports, older drivers) get a coherent value.
+    // The dispatcher prefers body_json when present (ADR-0090).
+    const compiledBody = compileLabelDoc(editing.doc, editing.engine, DEFAULT_LABEL_DPI);
     const payload = {
       org_id: orgId,
       template_key: editing.template_key.trim(),
       name: editing.name.trim(),
       kind: editing.kind,
       engine: editing.engine,
-      body: editing.body,
+      body: compiledBody,
+      body_json: editing.doc as unknown as never,
       is_default: editing.is_default,
       active: editing.active,
       media_profile_id: editing.media_profile_id,
-      // width/height on label_templates are legacy; media_profile owns geometry.
       width_mm: null,
       height_mm: null,
     };
@@ -292,7 +442,7 @@ export default function HardwareLabelTemplates() {
   }
 
   async function remove(row: LabelTemplate) {
-    if (!confirm(`Delete template "${row.name}"? Devices resolving this template will fall back to the next-lower rank.`)) return;
+    if (!confirm(`Delete template "${row.name}"?`)) return;
     const { error } = await supabase.from("label_templates").delete().eq("id", row.id);
     if (error) return void toast.error(`Delete failed: ${error.message}`);
     toast.success("Template deleted.");
@@ -300,6 +450,7 @@ export default function HardwareLabelTemplates() {
   }
 
   const templateKeys = Array.from(grouped.keys()).sort();
+  const selected = editing?.doc.elements.find((e) => e.id === selectedId) ?? null;
 
   return (
     <div className="space-y-4">
@@ -307,9 +458,8 @@ export default function HardwareLabelTemplates() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Label templates</h1>
           <p className="text-sm text-muted-foreground">
-            Template body owns content only. The dispatcher injects paper envelope
-            (`^PW`/`^LL`, `q`/`Q`) from the resolved media profile at print time.
-            See ADR-0087.
+            Design labels visually — no printer code to type. The system compiles the layout
+            to ZPL, EPL, or ESC-POS for the chosen printer at print time.
           </p>
         </div>
         <Button onClick={startCreate}>
@@ -321,16 +471,12 @@ export default function HardwareLabelTemplates() {
         <div className="space-y-2">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
         </div>
       ) : templateKeys.length === 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>No templates yet</CardTitle>
-            <CardDescription>
-              Create your first label template. Leave the media pin blank to have it
-              resolve for every media size in your organization.
-            </CardDescription>
+            <CardDescription>Create your first label — click <em>New template</em>.</CardDescription>
           </CardHeader>
         </Card>
       ) : (
@@ -341,7 +487,7 @@ export default function HardwareLabelTemplates() {
               <CardHeader>
                 <CardTitle className="font-mono text-sm">{key}</CardTitle>
                 <CardDescription>
-                  {list.length} version{list.length === 1 ? "" : "s"} · resolver picks highest active version per rank.
+                  {list.length} version{list.length === 1 ? "" : "s"} · resolver picks the best match per print job.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -350,8 +496,8 @@ export default function HardwareLabelTemplates() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Engine</TableHead>
-                      <TableHead>Media pin</TableHead>
-                      <TableHead>Version</TableHead>
+                      <TableHead>Media</TableHead>
+                      <TableHead>Editor</TableHead>
                       <TableHead>Flags</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -359,20 +505,24 @@ export default function HardwareLabelTemplates() {
                   <TableBody>
                     {list.map((r) => {
                       const mp = r.media_profile_id ? media.find((m) => m.id === r.media_profile_id) : null;
+                      const isModern = isLabelDoc(r.body_json);
                       return (
                         <TableRow key={r.id}>
                           <TableCell className="font-medium">{r.name}</TableCell>
                           <TableCell className="uppercase text-xs">{r.engine}</TableCell>
                           <TableCell className="text-xs">
                             {mp ? `${mp.code} · ${mp.width_mm}×${mp.height_mm ?? "cont."} mm` : (
-                              <span className="text-muted-foreground">Any (media-agnostic)</span>
+                              <span className="text-muted-foreground">Any</span>
                             )}
                           </TableCell>
-                          <TableCell>v{r.version}</TableCell>
+                          <TableCell>
+                            {isModern
+                              ? <Badge variant="secondary">Visual</Badge>
+                              : <Badge variant="outline">Legacy</Badge>}
+                          </TableCell>
                           <TableCell className="space-x-1">
                             {r.is_default && <Badge variant="secondary">default</Badge>}
                             {!r.active && <Badge variant="outline">inactive</Badge>}
-                            {r.branch_id && <Badge variant="outline">branch</Badge>}
                           </TableCell>
                           <TableCell className="text-right space-x-2">
                             <Button variant="ghost" size="sm" onClick={() => startEdit(r)}>
@@ -394,36 +544,19 @@ export default function HardwareLabelTemplates() {
       )}
 
       <Dialog open={editing != null} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-6xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing?.id ? "Edit label template" : "New label template"}</DialogTitle>
             <DialogDescription>
-              {"Content only — no ^PW, ^LL, q<dots> or Q<dots>,<gap>. The dispatcher injects the envelope from the resolved media profile."}
+              Drag elements on the canvas. Insert variables from the picker — the system fills them
+              in from the print context (product, GRN, lot, order, …).
             </DialogDescription>
           </DialogHeader>
+
           {editing && (
-            <div className="grid gap-4 py-2 md:grid-cols-[1fr,auto]">
+            <div className="grid gap-4 md:grid-cols-[220px,1fr,260px]">
+              {/* Left: toolbox + metadata */}
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="tpl-key">Template key</Label>
-                    <Input
-                      id="tpl-key"
-                      value={editing.template_key}
-                      onChange={(e) => setEditing({ ...editing, template_key: e.target.value })}
-                      placeholder="product_label"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="tpl-kind">Kind</Label>
-                    <Input
-                      id="tpl-kind"
-                      value={editing.kind}
-                      onChange={(e) => setEditing({ ...editing, kind: e.target.value })}
-                      placeholder="product"
-                    />
-                  </div>
-                </div>
                 <div>
                   <Label htmlFor="tpl-name">Name</Label>
                   <Input
@@ -433,100 +566,286 @@ export default function HardwareLabelTemplates() {
                     placeholder="Default product label"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="tpl-engine">Engine</Label>
-                    <Select
-                      value={editing.engine}
-                      onValueChange={(v) => setEditing({ ...editing, engine: v as LabelEngine })}
-                    >
-                      <SelectTrigger id="tpl-engine"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="zpl">ZPL (Zebra)</SelectItem>
-                        <SelectItem value="epl">EPL2 (Zebra legacy)</SelectItem>
-                        <SelectItem value="escpos">ESC/POS</SelectItem>
-                        <SelectItem value="pdf">PDF</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="tpl-media">Media pin</Label>
-                    <Select
-                      value={editing.media_profile_id ?? "__any__"}
-                      onValueChange={(v) => setEditing({ ...editing, media_profile_id: v === "__any__" ? null : v })}
-                    >
-                      <SelectTrigger id="tpl-media"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__any__">Any (media-agnostic)</SelectItem>
-                        {media.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.code} · {m.width_mm}×{m.height_mm ?? "cont."} mm
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div>
+                  <Label htmlFor="tpl-key">Template key</Label>
+                  <Input
+                    id="tpl-key"
+                    value={editing.template_key}
+                    onChange={(e) => setEditing({ ...editing, template_key: e.target.value })}
+                    placeholder="product_label"
+                  />
                 </div>
                 <div>
-                  <Label htmlFor="tpl-body">Body</Label>
-                  <Textarea
-                    id="tpl-body"
-                    value={editing.body}
-                    onChange={(e) => setEditing({ ...editing, body: e.target.value })}
-                    className="font-mono text-xs h-56"
-                    placeholder={"^XA\n^CF0,28^FO20,20^FD{{name}}^FS\n^BY2,2,80^FO20,100^BCN,80,Y,N,N^FD{{barcode}}^FS\n^XZ"}
-                  />
-                  {envelopeWarning && (
-                    <div className="mt-2 flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
-                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                      <div>
-                        Envelope token detected: <strong>{envelopeWarning}</strong>.
-                        Remove it — the dispatcher injects the envelope from the resolved
-                        media profile at print time. Leaving it here causes double-injection.
-                      </div>
-                    </div>
-                  )}
+                  <Label>Printer engine</Label>
+                  <Select
+                    value={editing.engine}
+                    onValueChange={(v) => setEditing({ ...editing, engine: v as LabelEngine })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="zpl">Zebra ZPL</SelectItem>
+                      <SelectItem value="epl">Zebra EPL2</SelectItem>
+                      <SelectItem value="escpos">ESC/POS</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex items-center gap-4">
+                <div>
+                  <Label>Paper size</Label>
+                  <Select
+                    value={editing.media_profile_id ?? "__any__"}
+                    onValueChange={(v) => setEditing({ ...editing, media_profile_id: v === "__any__" ? null : v })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__any__">Any media</SelectItem>
+                      {media.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.code} · {m.width_mm}×{m.height_mm ?? "cont."} mm
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="pt-2 border-t">
+                  <div className="text-xs font-medium text-muted-foreground mb-2">Add element</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button variant="outline" size="sm" onClick={() => addElement({ id: uid(), type: "text", xMm: 4, yMm: 4, text: "Text", fontSize: 4 })}>
+                      <Type className="h-3.5 w-3.5 mr-1" /> Text
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => addElement({ id: uid(), type: "variable", xMm: 4, yMm: 10, token: "name", fontSize: 4 })}>
+                      <Hash className="h-3.5 w-3.5 mr-1" /> Variable
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => addElement({ id: uid(), type: "barcode", xMm: 4, yMm: 18, token: "barcode", symbology: "code128", heightMm: 10 })}>
+                      <Barcode className="h-3.5 w-3.5 mr-1" /> Barcode
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => addElement({ id: uid(), type: "line", xMm: 4, yMm: 32, wMm: 30, hMm: 0.4 })}>
+                      <Minus className="h-3.5 w-3.5 mr-1" /> Line
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => addElement({ id: uid(), type: "box", xMm: 4, yMm: 34, wMm: 20, hMm: 10, thicknessMm: 0.4 })}>
+                      <Square className="h-3.5 w-3.5 mr-1" /> Box
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 pt-2 border-t">
                   <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={editing.is_default}
-                      onChange={(e) => setEditing({ ...editing, is_default: e.target.checked })}
-                    />
-                    Default for this key
+                    <input type="checkbox" checked={editing.is_default} onChange={(e) => setEditing({ ...editing, is_default: e.target.checked })} />
+                    Default
                   </label>
                   <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={editing.active}
-                      onChange={(e) => setEditing({ ...editing, active: e.target.checked })}
-                    />
+                    <input type="checkbox" checked={editing.active} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} />
                     Active
                   </label>
                 </div>
               </div>
-              <div>
+
+              {/* Center: canvas */}
+              <div className="flex flex-col items-center gap-2">
                 {previewMedia ? (
-                  <LabelPreview
-                    widthMm={previewMedia.width_mm}
-                    heightMm={previewMedia.height_mm}
-                    body={editing.body}
-                    dpi={DEFAULT_LABEL_DPI}
-                  />
+                  <>
+                    <div className="text-xs text-muted-foreground">
+                      {previewMedia.width_mm} × {previewMedia.height_mm ?? 40} mm · drag elements to reposition
+                    </div>
+                    <LabelCanvas
+                      doc={editing.doc}
+                      widthMm={previewMedia.width_mm}
+                      heightMm={previewMedia.height_mm ?? 40}
+                      selectedId={selectedId}
+                      onSelect={setSelectedId}
+                      onChange={(d) => setEditing({ ...editing, doc: d })}
+                    />
+                  </>
                 ) : (
                   <div className="text-xs text-muted-foreground">
-                    No media profiles found — add one in <em>Media profiles</em> to see the preview.
+                    No media profiles found — add one in <em>Media profiles</em> to see the canvas.
                   </div>
+                )}
+              </div>
+
+              {/* Right: property inspector */}
+              <div className="space-y-3">
+                {!selected && (
+                  <div className="text-xs text-muted-foreground">
+                    Select an element on the canvas to edit its properties.
+                  </div>
+                )}
+                {selected && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium capitalize">{selected.type}</div>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => moveElement(selected.id, -1)} aria-label="Move up">
+                          <MoveUp className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => moveElement(selected.id, 1)} aria-label="Move down">
+                          <MoveDown className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => removeElement(selected.id)} aria-label="Delete">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">X (mm)</Label>
+                        <Input
+                          type="number" step={0.5}
+                          value={selected.xMm}
+                          onChange={(e) => patchElement(selected.id, { xMm: Number(e.target.value) } as Partial<LabelElement>)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Y (mm)</Label>
+                        <Input
+                          type="number" step={0.5}
+                          value={selected.yMm}
+                          onChange={(e) => patchElement(selected.id, { yMm: Number(e.target.value) } as Partial<LabelElement>)}
+                        />
+                      </div>
+                    </div>
+
+                    {selected.type === "text" && (
+                      <div>
+                        <Label className="text-xs">Text</Label>
+                        <Input
+                          value={selected.text}
+                          onChange={(e) => patchElement(selected.id, { text: e.target.value } as Partial<LabelElement>)}
+                        />
+                      </div>
+                    )}
+
+                    {selected.type === "variable" && (
+                      <div>
+                        <Label className="text-xs">Variable</Label>
+                        <Select
+                          value={selected.token}
+                          onValueChange={(v) => patchElement(selected.id, { token: v } as Partial<LabelElement>)}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {VARIABLE_CATALOG.map((v) => (
+                              <SelectItem key={v.token} value={v.token}>
+                                {v.label} <span className="text-muted-foreground">· {v.group}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {(selected.type === "text" || selected.type === "variable") && (
+                      <>
+                        <div>
+                          <Label className="text-xs">Font size (1–10)</Label>
+                          <Input
+                            type="number" min={1} max={10}
+                            value={selected.fontSize ?? 4}
+                            onChange={(e) => patchElement(selected.id, { fontSize: Math.max(1, Math.min(10, Number(e.target.value))) } as Partial<LabelElement>)}
+                          />
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={!!selected.bold}
+                            onChange={(e) => patchElement(selected.id, { bold: e.target.checked } as Partial<LabelElement>)}
+                          />
+                          Bold
+                        </label>
+                      </>
+                    )}
+
+                    {selected.type === "barcode" && (
+                      <>
+                        <div>
+                          <Label className="text-xs">Symbology</Label>
+                          <Select
+                            value={selected.symbology}
+                            onValueChange={(v) => patchElement(selected.id, { symbology: v as "code128" | "ean13" | "qr" } as Partial<LabelElement>)}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="code128">Code 128</SelectItem>
+                              <SelectItem value="ean13">EAN-13</SelectItem>
+                              <SelectItem value="qr">QR Code</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Data source</Label>
+                          <Select
+                            value={selected.token}
+                            onValueChange={(v) => patchElement(selected.id, { token: v } as Partial<LabelElement>)}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {VARIABLE_CATALOG.map((v) => (
+                                <SelectItem key={v.token} value={v.token}>{v.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Height (mm)</Label>
+                          <Input
+                            type="number" step={0.5}
+                            value={selected.heightMm ?? 12}
+                            onChange={(e) => patchElement(selected.id, { heightMm: Number(e.target.value) } as Partial<LabelElement>)}
+                          />
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={!!selected.hri}
+                            onChange={(e) => patchElement(selected.id, { hri: e.target.checked } as Partial<LabelElement>)}
+                          />
+                          Show human-readable digits
+                        </label>
+                      </>
+                    )}
+
+                    {(selected.type === "line" || selected.type === "box") && (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs">Width (mm)</Label>
+                            <Input
+                              type="number" step={0.5}
+                              value={selected.wMm}
+                              onChange={(e) => patchElement(selected.id, { wMm: Number(e.target.value) } as Partial<LabelElement>)}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Height (mm)</Label>
+                            <Input
+                              type="number" step={0.5}
+                              value={selected.hMm}
+                              onChange={(e) => patchElement(selected.id, { hMm: Number(e.target.value) } as Partial<LabelElement>)}
+                            />
+                          </div>
+                        </div>
+                        {selected.type === "box" && (
+                          <div>
+                            <Label className="text-xs">Border thickness (mm)</Label>
+                            <Input
+                              type="number" step={0.1}
+                              value={selected.thicknessMm ?? 0.4}
+                              onChange={(e) => patchElement(selected.id, { thicknessMm: Number(e.target.value) } as Partial<LabelElement>)}
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             </div>
           )}
+
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditing(null)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button onClick={save} disabled={saving || !!envelopeWarning}>
+            <Button variant="ghost" onClick={() => setEditing(null)} disabled={saving}>Cancel</Button>
+            <Button onClick={save} disabled={saving}>
               {saving ? "Saving…" : editing?.id ? "Save changes" : "Create template"}
             </Button>
           </DialogFooter>
