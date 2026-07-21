@@ -611,21 +611,18 @@ export function TenderWorkspace({
                 </Button>
               )}
 
-              <div className="text-center py-3 sm:py-4 bg-muted/50 rounded-lg">
-                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Amount Due</p>
-                <p className="text-2xl sm:text-4xl font-bold">{formatCurrency(effectiveTotal)}</p>
-                {tipAmount > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Subtotal: {formatCurrency(total)} + Tip: {formatCurrency(tipAmount)}
-                  </p>
-                )}
-                {cashRoundingSettings.enabled && cashRoundingDiff !== 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
+              {/* Amount Due block removed — the persistent TransactionSummaryRail
+                  on the right already surfaces this and Enerpize-style layout
+                  keeps the left column focused on payment method entry. */}
+              {cashRoundingSettings.enabled && cashRoundingDiff !== 0 && (
+                <div className="text-center py-2 bg-muted/40 rounded-md">
+                  <p className="text-xs text-muted-foreground">
                     Cash rounding: {cashRoundingDiff > 0 ? "+" : ""}
                     {formatCurrency(cashRoundingDiff)} → {formatCurrency(roundedEffectiveTotal)}
                   </p>
-                )}
-              </div>
+                </div>
+              )}
+
 
               {onTipChange && (
                 <div className="space-y-2">
