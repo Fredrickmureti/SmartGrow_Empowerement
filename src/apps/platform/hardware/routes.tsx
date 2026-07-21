@@ -18,6 +18,7 @@ import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 const HardwareDevices = lazy(() => import("@/apps/platform/hardware/HardwareDevices"));
 const HardwareDiagnostics = lazy(() => import("@/apps/platform/hardware/HardwareDiagnostics"));
 const HardwareTopology = lazy(() => import("@/apps/platform/hardware/HardwareTopology"));
+const HardwareMedia = lazy(() => import("@/apps/platform/hardware/HardwareMedia"));
 const DeviceWizard = lazy(() => import("@/apps/platform/hardware/DeviceWizard"));
 
 import HardwareAppLayout from "@/apps/platform/hardware/HardwareAppLayout";
@@ -30,6 +31,7 @@ function PlatformHardwareApp() {
           <Route index element={<Navigate to="devices" replace />} />
           <Route path="devices" element={<HardwareDevices />} />
           <Route path="devices/new" element={<DeviceWizard />} />
+          <Route path="media" element={<HardwareMedia />} />
           <Route path="diagnostics" element={<HardwareDiagnostics />} />
           <Route path="topology" element={<HardwareTopology />} />
           <Route path="*" element={<Navigate to="devices" replace />} />
