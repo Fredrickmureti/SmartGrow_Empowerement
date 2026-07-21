@@ -39,4 +39,21 @@ describe("labelCompiler", () => {
     expect(zpl203).not.toBe(zpl300);
     expect(zpl300).toContain("^FO35,35");
   });
+
+  it("ESC/POS output positions elements (Phase B2 — no more flat concatenation)", () => {
+    const bytes = compileLabelDoc(DOC, "escpos", 203);
+    // ESC $ nL nH — absolute horizontal position must appear at least once.
+    expect(bytes).toMatch(/\x1B\$/);
+    // Feed / newline must be present so elements don't stack on the same line.
+    expect(bytes.includes("\n") || bytes.includes("\x1BJ")).toBe(true);
+    // Content still round-trips through the mustache pass.
+    expect(bytes).toContain("{{grn_id}}");
+    expect(bytes).toContain("GOODS RECEIVED");
+  });
+
+  it("ESC/POS output scales with DPI (Phase B2)", () => {
+    const b203 = compileLabelDoc(DOC, "escpos", 203);
+    const b300 = compileLabelDoc(DOC, "escpos", 300);
+    expect(b203).not.toBe(b300);
+  });
 });
