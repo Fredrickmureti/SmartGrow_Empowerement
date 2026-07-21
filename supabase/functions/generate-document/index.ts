@@ -3186,6 +3186,13 @@ const TABLE_MAP: Record<string, string> = {
   customer_statement: "customer_statements",
   vendor_statement: "vendor_statements",
   bill: "bills",
+  // Wave 21 — inventory / warehouse A4 vouchers.
+  stock_adjustment: "stock_adjustments",
+  stock_transfer: "stock_transfers",
+  vendor_return: "purchase_returns",
+  purchase_return: "purchase_returns",
+  goods_received_note: "goods_received_notes",
+  goods_receipt: "goods_received_notes",
 };
 
 async function getOrganizationId(supabase: any, docType: string, docId: string): Promise<string> {
