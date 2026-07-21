@@ -588,7 +588,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
                 tax_rate_name:
                   (item as unknown as { tax_rate_name?: string | null }).tax_rate_name ?? null,
                 line_total: item.line_total,
-              })) as unknown as ReceiptItem[],
+              })) as unknown as ReceiptDocumentItem[],
               payments: (transactionDetails.payments || []).map((p) => ({
                 payment_method: p.payment_method,
                 amount: p.amount,
