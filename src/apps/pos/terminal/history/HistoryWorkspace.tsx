@@ -445,12 +445,13 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
                       <div className="space-y-2 pt-2 border-t">
                         <p className="text-muted-foreground text-xs">Card Actions</p>
                         {transactionDetails.payments
-                          ?.filter((p: any) =>
-                            p.tender_kind === "card" || p.payment_method === "card" || p.auth_state,
-                          )
-                          .map((payment: any) => (
+                          ?.filter((p) => {
+                            const row = p as CardTenderRow;
+                            return row.tender_kind === "card" || row.payment_method === "card" || !!row.auth_state;
+                          })
+                          .map((payment) => (
                             <CardPaymentActions
-                              key={payment.id}
+                              key={(payment as CardTenderRow).id ?? payment.payment_method}
                               payment={payment}
                               registerId={registerId}
                               onChanged={async () => {
