@@ -185,6 +185,82 @@ function useDispatcherHealthForPos(events: AccountingEventRow[]) {
 }
 
 // ---------------------------------------------------------------------------
+// POS statement enrichment — replace bare uuids with human labels.
+
+interface PosStatementSummary {
+  statement_number: string;
+  close_kind: string | null;
+  closed_at: string | null;
+  opened_at: string | null;
+  register_name: string | null;
+  shift_number: string | null;
+  cashier_name: string | null;
+  total_sales: number | null;
+  total_transactions: number | null;
+  counted_cash: number | null;
+  expected_cash: number | null;
+  cash_variance: number | null;
+}
+
+function usePosStatementSummaries(events: AccountingEventRow[]) {
+  const posDocIds = useMemo(
+    () => Array.from(new Set(
+      events.filter((e) => e.producer === "pos" && e.producer_doc_type === "pos_statement")
+        .map((e) => e.producer_doc_id),
+    )),
+    [events],
+  );
+  return useQuery({
+    queryKey: ["accounting-events-pos-summaries", posDocIds.sort().join(",")],
+    enabled: posDocIds.length > 0,
+    queryFn: async (): Promise<Map<string, PosStatementSummary>> => {
+      const { data, error } = await supabase
+        .from("pos_statements")
+        .select(`
+          id, statement_number, close_kind, opened_at, closed_at,
+          total_sales, total_transactions, counted_cash, expected_cash, cash_variance,
+          closed_by,
+          register:pos_registers!pos_statements_register_id_fkey ( register_name ),
+          shift:pos_shifts!pos_statements_shift_id_fkey ( shift_number )
+        `)
+        .in("id", posDocIds);
+      if (error) throw error;
+      const closedByIds = Array.from(new Set(
+        (data ?? []).map((r) => (r as Record<string, unknown>).closed_by as string | null).filter(Boolean) as string[],
+      ));
+      const nameMap = new Map<string, string>();
+      if (closedByIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", closedByIds);
+        for (const p of (profs ?? []) as Array<Record<string, unknown>>) {
+          nameMap.set(p.id as string, (p.full_name as string) || (p.email as string) || "");
+        }
+      }
+      const out = new Map<string, PosStatementSummary>();
+      for (const r of (data ?? []) as Array<Record<string, unknown>>) {
+        out.set(r.id as string, {
+          statement_number: (r.statement_number as string) ?? "",
+          close_kind: (r.close_kind as string) ?? null,
+          opened_at: (r.opened_at as string) ?? null,
+          closed_at: (r.closed_at as string) ?? null,
+          register_name: ((r.register as { register_name?: string } | null)?.register_name) ?? null,
+          shift_number: ((r.shift as { shift_number?: string } | null)?.shift_number) ?? null,
+          cashier_name: nameMap.get(r.closed_by as string) ?? null,
+          total_sales: (r.total_sales as number) ?? null,
+          total_transactions: (r.total_transactions as number) ?? null,
+          counted_cash: (r.counted_cash as number) ?? null,
+          expected_cash: (r.expected_cash as number) ?? null,
+          cash_variance: (r.cash_variance as number) ?? null,
+        });
+      }
+      return out;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 
 function fmtMoney(n: number | null | undefined, ccy: string) {
@@ -196,9 +272,24 @@ function fmtMoney(n: number | null | undefined, ccy: string) {
   } catch { return v.toFixed(2); }
 }
 
+const EVENT_KIND_LABELS: Record<string, string> = {
+  shift_close: "Shift close",
+  drawer_close: "Drawer close",
+  day_close: "Day close",
+  sale: "Sale",
+  refund: "Refund",
+};
+
+function humanizeEventKind(kind: string): string {
+  if (EVENT_KIND_LABELS[kind]) return EVENT_KIND_LABELS[kind];
+  return kind.replace(/[_.]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function producerLabel(producer: string, docType: string): string {
   if (producer === "pos" && docType === "pos_statement") return "POS · Shift close";
-  return `${producer} · ${docType}`;
+  const p = producer.toUpperCase();
+  const d = docType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return `${p} · ${d}`;
 }
 
 function stateBadge(state: EventState) {
