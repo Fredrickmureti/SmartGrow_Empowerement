@@ -35,8 +35,6 @@ const PDF_UTILS_PATH = join(root, "src", "services", "printing", "pdfUtils.ts");
 // directly (legacy + reprint-from-history). All NEW POS code MUST go
 // through the renderer modules instead.
 const ALLOWED_DIRECT_CALLERS = new Set([
-  // legacy reprint-from-history dialog — migrated incrementally
-  "src/components/pos/ReceiptPreviewDialog.tsx",
   // unified printing utility module IS the helper itself
   "src/services/printing/pdfUtils.ts",
   // documents/sales modules use generate-document for invoices/quotes —
@@ -90,7 +88,7 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(src).toMatch(/PostPaymentScreen/);
   });
 
-  it("POS UI surfaces (excluding ReceiptPreviewDialog and pdfUtils) do not call generateDocumentEscPosBytes directly", () => {
+  it("POS UI surfaces (excluding pdfUtils) do not call generateDocumentEscPosBytes directly", () => {
     const offenders: string[] = [];
     const candidates = [
       ...walk(join(root, "src", "components", "pos")),
@@ -200,7 +198,9 @@ describe("Stage X6 — POS receipt renderer contract", () => {
   it("Phase A.3 — Receipt previews render through MonospacePreview, not ad-hoc flexbox columns", () => {
     const targets = [
       "src/components/settings/ReceiptLivePreview.tsx",
-      "src/components/pos/ReceiptPreviewDialog.tsx",
+      // Step 5.2 retired `ReceiptPreviewDialog`; the shared body is now
+      // the assertion target and covers every reprint surface.
+      "src/components/pos/ReceiptPreviewBody.tsx",
       "src/components/pos/PostPaymentScreen.tsx",
     ];
     for (const rel of targets) {

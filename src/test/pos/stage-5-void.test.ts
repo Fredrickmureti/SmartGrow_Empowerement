@@ -112,8 +112,11 @@ describe("Stage 5 — Void/Refund/Cancel separation", () => {
       expect(src).toMatch(/requires_note/);
     });
 
-    it("ReceiptPreviewDialog accepts is_voided for VOID watermark", () => {
-      const src = read("src/components/pos/ReceiptPreviewDialog.tsx");
+    it("ReceiptPreviewBody accepts is_voided for VOID watermark", () => {
+      // Step 5.2 retired `ReceiptPreviewDialog`; the void watermark now
+      // lives in the shared `ReceiptPreviewBody` consumed by every reprint
+      // surface.
+      const src = read("src/components/pos/ReceiptPreviewBody.tsx");
       expect(src).toMatch(/is_voided/);
       expect(src).toMatch(/VOID/);
     });

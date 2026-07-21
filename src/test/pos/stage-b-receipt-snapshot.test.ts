@@ -16,8 +16,11 @@ function read(rel: string): string {
 }
 
 describe("Stage B — receipt snapshot is consulted on reprint", () => {
-  it("ReceiptPreviewDialog imports useReceiptSnapshot and merges snapshot settings", () => {
-    const src = read("src/components/pos/ReceiptPreviewDialog.tsx");
+  it("ReceiptPreviewBody imports useReceiptSnapshot and merges snapshot settings", () => {
+    // ReceiptPreviewDialog was retired in Step 5.2; the snapshot-consuming
+    // reprint surface is now the shared `ReceiptPreviewBody` used by both
+    // the workstation `ReceiptPreviewSheet` and the admin POSReports dialog.
+    const src = read("src/components/pos/ReceiptPreviewBody.tsx");
     expect(src).toMatch(/useReceiptSnapshot/);
     expect(src).toMatch(/mergeReceiptSettings/);
     // snapshot-derived branding fields must take precedence over the live
