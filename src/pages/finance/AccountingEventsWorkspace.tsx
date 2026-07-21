@@ -44,10 +44,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { PageHeader } from "@/components/layout/page";
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useCurrency } from "@/hooks/useCurrency";
+import { AuditDetails } from "@/components/audit/auditFormat";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -181,6 +185,82 @@ function useDispatcherHealthForPos(events: AccountingEventRow[]) {
 }
 
 // ---------------------------------------------------------------------------
+// POS statement enrichment — replace bare uuids with human labels.
+
+interface PosStatementSummary {
+  statement_number: string;
+  close_kind: string | null;
+  closed_at: string | null;
+  opened_at: string | null;
+  register_name: string | null;
+  shift_number: string | null;
+  cashier_name: string | null;
+  total_sales: number | null;
+  total_transactions: number | null;
+  counted_cash: number | null;
+  expected_cash: number | null;
+  cash_variance: number | null;
+}
+
+function usePosStatementSummaries(events: AccountingEventRow[]) {
+  const posDocIds = useMemo(
+    () => Array.from(new Set(
+      events.filter((e) => e.producer === "pos" && e.producer_doc_type === "pos_statement")
+        .map((e) => e.producer_doc_id),
+    )),
+    [events],
+  );
+  return useQuery({
+    queryKey: ["accounting-events-pos-summaries", posDocIds.sort().join(",")],
+    enabled: posDocIds.length > 0,
+    queryFn: async (): Promise<Map<string, PosStatementSummary>> => {
+      const { data, error } = await supabase
+        .from("pos_statements")
+        .select(`
+          id, statement_number, close_kind, opened_at, closed_at,
+          total_sales, total_transactions, counted_cash, expected_cash, cash_variance,
+          closed_by,
+          register:pos_registers!pos_statements_register_id_fkey ( register_name ),
+          shift:pos_shifts!pos_statements_shift_id_fkey ( shift_number )
+        `)
+        .in("id", posDocIds);
+      if (error) throw error;
+      const closedByIds = Array.from(new Set(
+        (data ?? []).map((r) => (r as Record<string, unknown>).closed_by as string | null).filter(Boolean) as string[],
+      ));
+      const nameMap = new Map<string, string>();
+      if (closedByIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", closedByIds);
+        for (const p of (profs ?? []) as Array<Record<string, unknown>>) {
+          nameMap.set(p.id as string, (p.full_name as string) || (p.email as string) || "");
+        }
+      }
+      const out = new Map<string, PosStatementSummary>();
+      for (const r of (data ?? []) as Array<Record<string, unknown>>) {
+        out.set(r.id as string, {
+          statement_number: (r.statement_number as string) ?? "",
+          close_kind: (r.close_kind as string) ?? null,
+          opened_at: (r.opened_at as string) ?? null,
+          closed_at: (r.closed_at as string) ?? null,
+          register_name: ((r.register as { register_name?: string } | null)?.register_name) ?? null,
+          shift_number: ((r.shift as { shift_number?: string } | null)?.shift_number) ?? null,
+          cashier_name: nameMap.get(r.closed_by as string) ?? null,
+          total_sales: (r.total_sales as number) ?? null,
+          total_transactions: (r.total_transactions as number) ?? null,
+          counted_cash: (r.counted_cash as number) ?? null,
+          expected_cash: (r.expected_cash as number) ?? null,
+          cash_variance: (r.cash_variance as number) ?? null,
+        });
+      }
+      return out;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 
 function fmtMoney(n: number | null | undefined, ccy: string) {
@@ -192,9 +272,24 @@ function fmtMoney(n: number | null | undefined, ccy: string) {
   } catch { return v.toFixed(2); }
 }
 
+const EVENT_KIND_LABELS: Record<string, string> = {
+  shift_close: "Shift close",
+  drawer_close: "Drawer close",
+  day_close: "Day close",
+  sale: "Sale",
+  refund: "Refund",
+};
+
+function humanizeEventKind(kind: string): string {
+  if (EVENT_KIND_LABELS[kind]) return EVENT_KIND_LABELS[kind];
+  return kind.replace(/[_.]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function producerLabel(producer: string, docType: string): string {
   if (producer === "pos" && docType === "pos_statement") return "POS · Shift close";
-  return `${producer} · ${docType}`;
+  const p = producer.toUpperCase();
+  const d = docType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return `${p} · ${d}`;
 }
 
 function stateBadge(state: EventState) {
@@ -236,6 +331,7 @@ export default function AccountingEventsWorkspace() {
 
   const { data: rows = [], isLoading, error, refetch, isFetching } = useAccountingEvents(filter);
   const { data: dispatcherHealth } = useDispatcherHealthForPos(rows);
+  const { data: posSummaries } = usePosStatementSummaries(rows);
   const [selected, setSelected] = useState<AccountingEventRow | null>(null);
 
   const kpis = useMemo(() => {
@@ -326,11 +422,26 @@ export default function AccountingEventsWorkspace() {
                 const health = r.producer === "pos"
                   ? dispatcherHealth?.get(r.producer_doc_id)
                   : undefined;
+                const summary = r.producer === "pos"
+                  ? posSummaries?.get(r.producer_doc_id)
+                  : undefined;
+                const primaryLabel = summary?.statement_number
+                  || `#${r.producer_doc_id.slice(0, 8)}`;
+                const secondaryBits = [
+                  humanizeEventKind(r.event_kind),
+                  summary?.register_name,
+                  summary?.cashier_name,
+                ].filter(Boolean) as string[];
                 return (
                   <TableRow key={r.id} className={r.state === "needs_mapping" || r.state === "failed" ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}>
                     <TableCell className="text-xs">
                       <div className="font-medium">{producerLabel(r.producer, r.producer_doc_type)}</div>
-                      <div className="font-mono text-[10px] text-muted-foreground">{r.producer_doc_id.slice(0, 8)}… · v{r.version}</div>
+                      <div className="text-xs text-foreground">{primaryLabel}</div>
+                      {secondaryBits.length > 0 && (
+                        <div className="text-[11px] text-muted-foreground">
+                          {secondaryBits.join(" · ")}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs">
                       {r.business_date
@@ -352,8 +463,10 @@ export default function AccountingEventsWorkspace() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="font-mono text-[10px]">
-                      {r.journal_entry_id ? r.journal_entry_id.slice(0, 8) + "…" : "—"}
+                    <TableCell className="text-xs">
+                      {r.journal_entry_id
+                        ? <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">Journal posted</Badge>
+                        : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
                       <Button size="sm" variant="secondary" onClick={() => setSelected(r)}>
@@ -370,6 +483,7 @@ export default function AccountingEventsWorkspace() {
 
       <EventDrawer
         event={selected}
+        summary={selected && selected.producer === "pos" ? posSummaries?.get(selected.producer_doc_id) : undefined}
         onClose={() => setSelected(null)}
         currency={baseCurrency}
       />
@@ -402,8 +516,13 @@ function Kpi({
 }
 
 function EventDrawer({
-  event, onClose, currency,
-}: { event: AccountingEventRow | null; onClose: () => void; currency: string }) {
+  event, summary, onClose, currency,
+}: {
+  event: AccountingEventRow | null;
+  summary?: PosStatementSummary;
+  onClose: () => void;
+  currency: string;
+}) {
   const qc = useQueryClient();
 
   const postNow = useMutation({
@@ -433,38 +552,94 @@ function EventDrawer({
 
   if (!event) return null;
 
+  const headline = summary?.statement_number
+    || `${humanizeEventKind(event.event_kind)} #${event.producer_doc_id.slice(0, 8)}`;
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {producerLabel(event.producer, event.producer_doc_type)}
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>{producerLabel(event.producer, event.producer_doc_type)}</span>
+            <span className="text-muted-foreground">·</span>
+            <span>{headline}</span>
             {stateBadge(event.state)}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Event ID" value={event.id} mono />
-            <Field label="Producer document" value={event.producer_doc_id} mono />
-            <Field label="Event kind" value={event.event_kind} />
+        <div className="space-y-4 text-sm">
+          {/* Business summary — what actually happened, in accountant terms. */}
+          {summary && (
+            <div className="rounded-md border bg-muted/30 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+                Shift close summary
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <Field label="Statement" value={summary.statement_number || "—"} />
+                <Field label="Close kind" value={summary.close_kind ? humanizeEventKind(summary.close_kind) : "—"} />
+                <Field label="Register" value={summary.register_name || "—"} />
+                <Field label="Shift" value={summary.shift_number || "—"} />
+                <Field label="Closed by" value={summary.cashier_name || "—"} />
+                <Field
+                  label="Closed at"
+                  value={summary.closed_at ? format(new Date(summary.closed_at), "yyyy-MM-dd HH:mm") : "—"}
+                />
+                <Field
+                  label="Sales"
+                  value={`${fmtMoney(summary.total_sales, event.currency_code ?? currency)} · ${summary.total_transactions ?? 0} txns`}
+                />
+                <Field
+                  label="Cash variance"
+                  value={fmtMoney(summary.cash_variance, event.currency_code ?? currency)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Posting lifecycle */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            <Field label="Event kind" value={humanizeEventKind(event.event_kind)} />
             <Field label="Version" value={`v${event.version}`} />
             <Field label="Requested" value={format(new Date(event.requested_at), "yyyy-MM-dd HH:mm")} />
             <Field label="Posted" value={event.posted_at ? format(new Date(event.posted_at), "yyyy-MM-dd HH:mm") : "—"} />
             <Field label="Amount" value={fmtMoney(event.amount, event.currency_code ?? currency)} />
-            <Field label="Journal entry" value={event.journal_entry_id ? event.journal_entry_id.slice(0, 8) + "…" : "—"} mono />
+            <Field
+              label="Journal entry"
+              value={event.journal_entry_id ? "Posted to ledger" : "Not yet posted"}
+            />
           </div>
 
-          {event.last_diagnostic && (
+          {event.last_diagnostic && Object.keys(event.last_diagnostic).length > 0 && (
             <Alert>
               <AlertTitle className="text-xs">Last diagnostic</AlertTitle>
-              <AlertDescription>
-                <pre className="text-[10px] whitespace-pre-wrap font-mono max-h-40 overflow-auto">
-                  {JSON.stringify(event.last_diagnostic, null, 2)}
-                </pre>
+              <AlertDescription className="mt-2 space-y-2">
+                <AuditDetails details={event.last_diagnostic} max={12} />
+                <Collapsible>
+                  <CollapsibleTrigger className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                    Show raw payload
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <pre className="mt-2 text-[10px] whitespace-pre-wrap font-mono max-h-40 overflow-auto rounded border bg-background/50 p-2">
+                      {JSON.stringify(event.last_diagnostic, null, 2)}
+                    </pre>
+                  </CollapsibleContent>
+                </Collapsible>
               </AlertDescription>
             </Alert>
           )}
+
+          <Collapsible>
+            <CollapsibleTrigger className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground">
+              Technical identifiers
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+              <Field label="Event ID" value={event.id} mono />
+              <Field label="Producer document ID" value={event.producer_doc_id} mono />
+              {event.journal_entry_id && (
+                <Field label="Journal entry ID" value={event.journal_entry_id} mono />
+              )}
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
         <DialogFooter className="gap-2">
@@ -487,7 +662,8 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`text-xs ${mono ? "font-mono" : ""}`}>{value}</div>
+      <div className={`text-xs ${mono ? "font-mono break-all" : ""}`}>{value}</div>
     </div>
   );
 }
+
