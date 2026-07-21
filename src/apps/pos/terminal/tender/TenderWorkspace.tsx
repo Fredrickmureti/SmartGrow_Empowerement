@@ -687,13 +687,13 @@ export function TenderWorkspace({
               {formatCurrency(effectiveTotal)}
             </p>
           </div>
-          {/* Mobile summary trigger — the right rail becomes a bottom sheet on <md. */}
+          {/* Mobile summary trigger — right rail collapses to a bottom sheet on <sm. */}
           <Sheet>
             <SheetTrigger asChild>
               <Button
                 variant="outline"
                 size="icon"
-                className="shrink-0 md:hidden"
+                className="shrink-0 sm:hidden"
                 aria-label="Show payment summary"
               >
                 <Receipt className="h-4 w-4" />
