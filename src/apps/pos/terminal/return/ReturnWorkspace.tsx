@@ -563,8 +563,10 @@ export function ReturnWorkspace({ registerId, shiftId }: ReturnWorkspaceProps) {
               </div>
             )}
           </div>
-        </ScrollArea>
-      </section>
+          </ScrollArea>
+        </section>
+        </SheetContent>
+      </Sheet>
 
       <ManagerOverrideDialog
         open={showManagerOverride}
