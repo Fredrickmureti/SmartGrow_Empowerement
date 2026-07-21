@@ -7,7 +7,7 @@
  *     modules, not scattered across components / hooks. The legacy
  *     `ReceiptPreviewDialog` is exempt — it's the reprint-from-history
  *     surface and is being migrated incrementally.
- *  2. POSTerminal's success branch routes through PostPaymentScreen, not
+ *  2. POSTerminal's success branch routes through PostPaymentSurface, not
  *     through inline `supabase.functions.invoke("generate-document", ...)`
  *     auto-print bytes.
  */
