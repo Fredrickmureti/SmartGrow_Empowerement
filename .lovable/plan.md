@@ -75,4 +75,4 @@ No hardware-layer changes; no schema/RPC/edge-function/`pos_outbox` changes; no 
 - After Step 6, sibling routes stop being cosmetic — each phase URL renders its own workspace, deep-link refresh works without the monolith.
 
 ## Resume point
-Start at **Step 5.1** above.
+Steps 1, 2, 4, 5.0, 5.1, 5.2 complete. Resume at **Step 3 closeout / Step 6 entry** — dissolving the shared `PostPaymentScreen` shim by extracting its body into `apps/pos/terminal/receipt/PostPaymentSurface.tsx` (so `ReceiptWorkspace` and `HistoryWorkspace` both consume the workstation-scoped module), then pointing the `/receipt` route sibling at `ReceiptWorkspace` directly and beginning the `POSTerminal` decomposition.
