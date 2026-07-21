@@ -88,7 +88,7 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(src).toMatch(/PostPaymentScreen/);
   });
 
-  it("POS UI surfaces (excluding ReceiptPreviewDialog and pdfUtils) do not call generateDocumentEscPosBytes directly", () => {
+  it("POS UI surfaces (excluding pdfUtils) do not call generateDocumentEscPosBytes directly", () => {
     const offenders: string[] = [];
     const candidates = [
       ...walk(join(root, "src", "components", "pos")),
