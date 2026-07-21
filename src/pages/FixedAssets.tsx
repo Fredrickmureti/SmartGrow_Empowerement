@@ -406,7 +406,7 @@ export default function FixedAssets() {
                                   className="w-full justify-start font-normal px-2 h-8"
                                   label="Print Asset Tag"
                                   templateKey="asset_label"
-                                  workflow="asset"
+                                  workflow="asset_tag"
                                   product={{
                                     id: asset.id,
                                     name: asset.name,
