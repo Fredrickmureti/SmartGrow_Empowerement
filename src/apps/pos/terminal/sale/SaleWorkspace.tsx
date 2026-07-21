@@ -231,6 +231,9 @@ export function SaleWorkspace({
           open={showPeek}
           onOpenChange={setShowPeek}
           registerId={registerId}
+          cartProductIds={cart.items
+            .map((it) => it.product_id)
+            .filter((id): id is string => Boolean(id))}
           onAddToCart={(pid) => {
             const p = filteredProducts.find((fp) => fp.id === pid);
             if (p) handleProductClick(p);
