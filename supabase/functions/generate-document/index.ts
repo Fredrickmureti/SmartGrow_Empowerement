@@ -1902,6 +1902,11 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   // client naming conventions work.
   vendor_return: fetchPurchaseReturn,
   purchase_return: fetchPurchaseReturn,
+  // Phase B1 — cash-drawer audit slip (SOX / PCI evidence for every
+  // out-of-band drawer open). Backed by `pos_cash_movements`; the
+  // short-circuit renderer bypasses the invoice/receipt pipeline
+  // entirely (no templates, no branding config, no fiscal blocks).
+  drawer_slip: fetchDrawerSlip,
 };
 
 // ── Main Handler ───────────────────────────────────────────────────────────
