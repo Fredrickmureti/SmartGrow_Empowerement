@@ -93,7 +93,7 @@ import { DiscountDialog } from "@/components/pos/DiscountDialog";
 import { ReturnDialog } from "@/components/pos/ReturnDialog";
 import { TransactionHistoryDialog } from "@/components/pos/TransactionHistoryDialog";
 import { ReceiptPreviewDialog } from "@/components/pos/ReceiptPreviewDialog";
-import { PostPaymentScreen } from "@/components/pos/PostPaymentScreen";
+import { ReceiptWorkspace } from "@/apps/pos/terminal/receipt/ReceiptWorkspace";
 import { LoyaltyRedemptionDialog } from "@/components/pos/LoyaltyRedemptionDialog";
 import { AgeVerificationDialog } from "@/components/pos/AgeVerificationDialog";
 import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
