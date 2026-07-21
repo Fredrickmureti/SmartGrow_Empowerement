@@ -437,7 +437,10 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
 
                     {/* Wave 2 · Phase C-3.3 — post-commit card lifecycle. */}
                     {transactionDetails.payments?.some(
-                      (p: any) => p.tender_kind === "card" || p.payment_method === "card" || p.auth_state,
+                      (p) => {
+                        const row = p as CardTenderRow;
+                        return row.tender_kind === "card" || row.payment_method === "card" || !!row.auth_state;
+                      },
                     ) && (
                       <div className="space-y-2 pt-2 border-t">
                         <p className="text-muted-foreground text-xs">Card Actions</p>
