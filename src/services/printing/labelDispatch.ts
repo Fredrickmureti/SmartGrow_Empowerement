@@ -106,36 +106,94 @@ interface ResolvedMedia {
   dpi: number;
 }
 
+/**
+ * Resolve media geometry for a print job.
+ *
+ * Robust fallback chain (ADR-0087 addendum — 2026-07-21):
+ *   1. Explicit override (`overrideMediaId`) — caller-supplied.
+ *   2. Printer's `supported_media_ids[0]` — operator-pinned on the printer.
+ *   3. Org-scoped default media (`is_default = true`) — the "house default".
+ *   4. Any active media row for the org (oldest first) — last-resort so a
+ *      correctly-configured org never fails just because an operator forgot
+ *      to tick a checkbox on the printer profile.
+ *
+ * Rationale: previously we returned null whenever the printer profile had an
+ * empty `supported_media_ids` array, even when the org clearly had media
+ * configured. That produced loud failures on rigs that had media set up
+ * correctly and only lacked the (redundant) per-printer pin.
+ */
 async function resolvePrinterMedia(
-  printerProfileId: string,
+  printerProfileId: string | null,
+  orgId: string,
   overrideMediaId?: string | null,
 ): Promise<ResolvedMedia | null> {
-  const { data: printer } = await supabase
-    .from('printer_profiles')
-    .select('id, dpi, supported_media_ids')
-    .eq('id', printerProfileId)
-    .maybeSingle();
-  const p = printer as { dpi?: number | null; supported_media_ids?: string[] | null } | null;
-  const dpi = Number(p?.dpi) || 203;
-  const mediaId =
-    overrideMediaId
-    ?? (Array.isArray(p?.supported_media_ids) && p!.supported_media_ids!.length > 0
-          ? p!.supported_media_ids![0]
-          : null);
-  if (!mediaId) return null;
-  const { data: media } = await supabase
-    .from('media_profiles')
-    .select('id, width_mm, height_mm')
-    .eq('id', mediaId)
-    .maybeSingle();
-  const m = media as { id?: string; width_mm?: number; height_mm?: number | null } | null;
-  if (!m?.id || typeof m.width_mm !== 'number') return null;
-  return {
-    id: m.id,
-    widthMm: Number(m.width_mm),
-    heightMm: m.height_mm == null ? null : Number(m.height_mm),
-    dpi,
+  let dpi = 203;
+  let candidateMediaId: string | null = overrideMediaId ?? null;
+
+  if (printerProfileId) {
+    const { data: printer } = await supabase
+      .from('printer_profiles')
+      .select('id, dpi, supported_media_ids')
+      .eq('id', printerProfileId)
+      .maybeSingle();
+    const p = printer as { dpi?: number | null; supported_media_ids?: string[] | null } | null;
+    dpi = Number(p?.dpi) || 203;
+    if (!candidateMediaId && Array.isArray(p?.supported_media_ids) && p!.supported_media_ids!.length > 0) {
+      candidateMediaId = p!.supported_media_ids![0];
+    }
+  }
+
+  // Helper to hydrate a media row by id.
+  const loadById = async (id: string): Promise<ResolvedMedia | null> => {
+    const { data } = await supabase
+      .from('media_profiles')
+      .select('id, width_mm, height_mm')
+      .eq('id', id)
+      .maybeSingle();
+    const m = data as { id?: string; width_mm?: number; height_mm?: number | null } | null;
+    if (!m?.id || typeof m.width_mm !== 'number') return null;
+    return { id: m.id, widthMm: Number(m.width_mm), heightMm: m.height_mm == null ? null : Number(m.height_mm), dpi };
   };
+
+  if (candidateMediaId) {
+    const hit = await loadById(candidateMediaId);
+    if (hit) return hit;
+  }
+
+  // Fallback 3: org's default media profile.
+  {
+    const { data } = await supabase
+      .from('media_profiles')
+      .select('id, width_mm, height_mm')
+      .eq('org_id', orgId)
+      .eq('active', true)
+      .eq('is_default', true)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const m = data as { id?: string; width_mm?: number; height_mm?: number | null } | null;
+    if (m?.id && typeof m.width_mm === 'number') {
+      return { id: m.id, widthMm: Number(m.width_mm), heightMm: m.height_mm == null ? null : Number(m.height_mm), dpi };
+    }
+  }
+
+  // Fallback 4: any active media profile in the org.
+  {
+    const { data } = await supabase
+      .from('media_profiles')
+      .select('id, width_mm, height_mm')
+      .eq('org_id', orgId)
+      .eq('active', true)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const m = data as { id?: string; width_mm?: number; height_mm?: number | null } | null;
+    if (m?.id && typeof m.width_mm === 'number') {
+      return { id: m.id, widthMm: Number(m.width_mm), heightMm: m.height_mm == null ? null : Number(m.height_mm), dpi };
+    }
+  }
+
+  return null;
 }
 
 async function resolvePrinter(orgId: string, workflow: PrinterWorkflow, branchId?: string | null, warehouseId?: string | null): Promise<ResolvedPrinter | null> {
@@ -158,10 +216,15 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
     printer = await resolvePrinter(input.orgId, input.workflow, input.branchId, input.warehouseId);
   }
 
-  let media: ResolvedMedia | null = null;
-  if (printer) {
-    media = await resolvePrinterMedia(printer.printer_profile_id, input.mediaProfileId ?? null);
-  }
+  // ADR-0087 — media resolution now runs even without a workflow-bound
+  // printer, so an org with a default media_profile always gets a valid
+  // envelope. The `printer` arg is optional; when null we skip straight
+  // to the org-default fallback chain.
+  let media: ResolvedMedia | null = await resolvePrinterMedia(
+    printer?.printer_profile_id ?? null,
+    input.orgId,
+    input.mediaProfileId ?? null,
+  );
 
   const tpl = await resolveTemplate(
     input.orgId,
@@ -202,7 +265,7 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
   if ((tpl.engine === 'zpl' || tpl.engine === 'epl') && !media) {
     return {
       success: false,
-      error: `NO_MEDIA_RESOLVED: label template '${input.templateKey}' (engine=${tpl.engine}) requires a media profile, but none resolved from the printer or override. Assign a media profile to the printer (Platform → Hardware → Media) or pass mediaProfileId explicitly.`,
+      error: `NO_MEDIA_RESOLVED: label template '${input.templateKey}' (engine=${tpl.engine}) requires a media profile, but this organization has no active media_profiles rows. Create one in Platform → Hardware → Media (or mark an existing profile as default), or pass mediaProfileId explicitly.`,
     };
   }
 
