@@ -38,12 +38,12 @@ export function NumericKeypad({
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-3">
       {buttons.flat().map((key) => (
         <Button
           key={key}
           variant="outline"
-          className="h-14 text-xl font-medium"
+          className="h-20 sm:h-24 text-3xl sm:text-4xl font-semibold rounded-xl shadow-sm active:scale-95 transition-transform"
           onClick={() => {
             if (key === "⌫") {
               onBackspace();
@@ -52,15 +52,15 @@ export function NumericKeypad({
             }
           }}
         >
-          {key === "⌫" ? <Delete className="h-5 w-5" /> : key}
+          {key === "⌫" ? <Delete className="h-7 w-7" /> : key}
         </Button>
       ))}
       <Button
         variant="destructive"
-        className="col-span-3 h-12"
+        className="col-span-3 h-16 text-lg font-semibold rounded-xl"
         onClick={onClear}
       >
-        <X className="h-4 w-4 mr-2" />
+        <X className="h-5 w-5 mr-2" />
         Clear
       </Button>
     </div>
