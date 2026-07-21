@@ -633,6 +633,8 @@ export function TenderWorkspace({
     ((remaining <= 0 && tenderRows.length > 0) || draftCoversRemaining);
 
   const confirmHelper = (() => {
+    if (hasStockBlock)
+      return `Resolve ${stockBlockLines.length} out-of-stock item${stockBlockLines.length === 1 ? "" : "s"} to continue`;
     if (canConfirm) return null;
     if (tenderRows.length === 0 && draftAmountNum === 0)
       return "Enter an amount or pick a payment to enable Confirm";
