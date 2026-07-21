@@ -62,13 +62,14 @@ export class EplLabelDriver extends TransportDriver {
     if (!Number.isFinite(Number(p.mediaWidthMm)) || !Number.isFinite(Number(p.mediaHeightMm))) {
       return epl;
     }
-    const dpi = Number(p.dpi) || 203;
-    const dpmm = dpi / 25.4;
-    const widthDots = Math.max(1, Math.round(Number(p.mediaWidthMm) * dpmm));
-    const heightDots = Math.max(1, Math.round(Number(p.mediaHeightMm) * dpmm));
+    const { widthDots, heightDots } = mediaDots({
+      widthMm: Number(p.mediaWidthMm),
+      heightMm: Number(p.mediaHeightMm),
+      dpi: Number(p.dpi) || 203,
+    });
     const stripped = epl
       .replace(/^\s*q\d+\s*\r?\n/gm, '')
       .replace(/^\s*Q\d+,\d+(?:\+\d+)?\s*\r?\n/gm, '');
-    return `q${widthDots}\r\nQ${heightDots},24\r\n${stripped}`;
+    return `q${widthDots}\r\nQ${heightDots ?? widthDots},24\r\n${stripped}`;
   }
 }
