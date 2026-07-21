@@ -62,5 +62,42 @@ Read `.lovable/plan.md`, `docs/audit/2026-07-21-pos-terminal-architecture.md`, a
 - After Step 6, route siblings are no longer cosmetic — each phase URL renders its own workspace, and deep-link refresh works without the monolith fallback.
 
 ## Resume point
-Step 4 — **Complete.** `ReturnWorkspace` extracted to `src/apps/pos/terminal/return/ReturnWorkspace.tsx` and `HistoryWorkspace` to `src/apps/pos/terminal/history/HistoryWorkspace.tsx`; both are full-region `<section aria-labelledby>` surfaces that replace the retired `ReturnDialog.tsx` and `TransactionHistoryDialog.tsx` (deleted). `POSTerminal.tsx` no longer imports/mounts those dialogs. `HistoryWorkspace` reprints via an overlaid `PostPaymentScreen` section (no focus-trap dance) and downloads receipt PDFs through `printClient.print()` (ADR-0026) instead of the legacy `useDocumentPrint` shadow path. Static-analysis test `stage-4-returns.test.ts` retargeted to the new file. Typecheck clean; `bunx eslint src/apps/pos/terminal` shows 0 errors (4 pre-existing warnings only). Pre-existing failure noted: `stage-4-returns.test.ts` "enforces cross-tender refunds via a manager override" — the RPC definition no longer emits the string `'cross_tender_requires_override'`; SQL drift, unrelated to workspace extraction. **Next: Step 5** — inline `PostPaymentScreen` into `ReceiptWorkspace` (its last workstation consumer is now the history reprint overlay, which can live inside the receipt workspace instead), then migrate `POSReports.tsx` off `ReceiptPreviewDialog` onto `SheetShell` so both legacy dialog files can be deleted.
+
+**Step 5 — In progress (checkpoint 5.0).** Shared receipt-preview body extracted:
+
+- **Created** `src/components/pos/ReceiptPreviewBody.tsx` — shell-agnostic component owning snapshot resolution (`useReceiptSnapshot`), hardware-vs-PDF print decisioning (ADR-0008 unified pipeline), the summary/printer-preview tabs, and the nested `PrintFallbackDialog` + `SendDocumentDialog` overlays. Exports `ReceiptPreviewTransaction` type for reuse.
+- **Rewrote** `src/components/pos/ReceiptPreviewDialog.tsx` (568 → ~65 LOC) as a thin Radix `Dialog` shell around `ReceiptPreviewBody`. Public API unchanged: `POSTerminal.tsx` and `POSReports.tsx` continue to consume it without modification.
+- Typecheck clean for both files (`npx tsgo --noEmit` shows zero `ReceiptPreview*` diagnostics).
+
+### Next agent — verification checklist (do this FIRST)
+
+1. Confirm `ReceiptPreviewDialog` still renders correctly from **both** consumers by grep: `rg -n "ReceiptPreviewDialog" src/` — expect exactly two mount sites (`POSTerminal.tsx` and `POSReports.tsx`) plus the definition itself.
+2. Run `bunx tsgo --noEmit` and `bunx eslint src/apps/pos/terminal src/components/pos/ReceiptPreview*` — must be 0 errors.
+3. Inspect `ReceiptPreviewBody.tsx` for behavior parity vs. the pre-refactor dialog body (loading skeleton, `useCurrentSettings` switch, ETIMS overlay, VOID/REFUND watermarks, Clone button → `onClose()` cascade). All logic was ported verbatim; only outer Dialog chrome and title were externalized.
+
+### Next milestone — Step 5.1: `ReceiptPreviewSheet` + reducer sheet-id
+
+Only after verification succeeds:
+
+1. Add `"sale.receiptPreview"` to `SheetId` and to the `sale`-phase entry of `SHEETS_ALLOWED_PER_PHASE` in `src/apps/pos/terminal/useTerminalState.ts` (see enum near L32-50).
+2. Create `src/apps/pos/terminal/sale/ReceiptPreviewSheet.tsx` — `<SheetShell sheet="sale.receiptPreview" title="Print Bill">` wrapping `<ReceiptPreviewBody />`. Reads the pro-forma transaction from a small piece of local state on `POSTerminal` (the two `setCompletedTransaction({ id: "pro-forma", ... })` call sites at L1969 and L2221) and calls `closeSheet()` from `onClose`.
+3. In `src/pages/pos/POSTerminal.tsx`:
+   - Delete `const [showReceipt, setShowReceipt] = useState(false);` at L510.
+   - Replace both `setShowReceipt(true)` triggers (L1988, L2241) with `openSheet("sale.receiptPreview")` from `useTerminalContext()`.
+   - Replace the `<ReceiptPreviewDialog open={showReceipt} … />` mount around L2412 with `<ReceiptPreviewSheet transaction={completedTransaction} />`.
+   - Keep `completedTransaction` local state (it feeds both the pro-forma preview sheet AND the post-payment `ReceiptWorkspace`).
+4. Verify: architecture guard test still green; ESLint rule `no-dialog-for-pos-workspace` still 0 errors; Playwright smoke `sale → Print Bill → cart intact → dismiss`.
+
+### Then Step 5.2: migrate `POSReports` onto a report-local dialog
+
+`POSReports` legitimately needs a page dialog (it's not inside the workstation), but it should stop importing `ReceiptPreviewDialog` from `components/pos` and instead inline its own `<Dialog><ReceiptPreviewBody/></Dialog>` shell — this frees us to delete `ReceiptPreviewDialog.tsx` entirely, closing out Step 5.
+
+### After Step 5 fully lands
+
+Proceed to **Step 6** (SaleWorkspace decomposition) per the roadmap above — do NOT skip ahead to Steps 7-8; the monolith must be dissolved before route-siblings can stop being cosmetic.
+
+### Known pre-existing failures (not caused by refactor, do not fix opportunistically)
+
+- `stage-4-returns.test.ts` "enforces cross-tender refunds via a manager override": SQL drift, RPC no longer emits `'cross_tender_requires_override'`. Belongs to a separate refunds-hardening ticket.
+
 
