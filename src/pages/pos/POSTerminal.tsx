@@ -92,7 +92,7 @@ import { CashDrawerDialog } from "@/components/pos/CashDrawerDialog";
 import { DiscountDialog } from "@/components/pos/DiscountDialog";
 import { ReturnWorkspace } from "@/apps/pos/terminal/return/ReturnWorkspace";
 import { HistoryWorkspace } from "@/apps/pos/terminal/history/HistoryWorkspace";
-import { ReceiptPreviewDialog } from "@/components/pos/ReceiptPreviewDialog";
+import { ReceiptPreviewSheet } from "@/apps/pos/terminal/sale/ReceiptPreviewSheet";
 import { ReceiptWorkspace } from "@/apps/pos/terminal/receipt/ReceiptWorkspace";
 import { LoyaltyRedemptionDialog } from "@/components/pos/LoyaltyRedemptionDialog";
 import { AgeVerificationDialog } from "@/components/pos/AgeVerificationDialog";
