@@ -138,10 +138,8 @@ export class ZplLabelDriver extends TransportDriver {
    * profile's DPI: dpmm = dpi / 25.4.
    */
   private applyEnvelopeAndTransport(zpl: string, cfg: ZplConfig): string {
-    const dpmm = cfg.dpi / 25.4;
-    const widthDots = Math.max(1, Math.round(cfg.widthMm * dpmm));
-    const heightDots = Math.max(1, Math.round(cfg.heightMm * dpmm));
-    const parts: string[] = [`^PW${widthDots}`, `^LL${heightDots}`];
+    const { widthDots, heightDots } = mediaDots({ widthMm: cfg.widthMm, heightMm: cfg.heightMm, dpi: cfg.dpi });
+    const parts: string[] = [`^PW${widthDots}`, `^LL${heightDots ?? widthDots}`];
     if (typeof cfg.darkness === 'number') parts.push(`^MD${Math.max(0, Math.min(30, cfg.darkness))}`);
     if (typeof cfg.speed === 'number') parts.push(`^PR${Math.max(1, Math.min(14, cfg.speed))}`);
     const head = zpl.indexOf('^XA');
