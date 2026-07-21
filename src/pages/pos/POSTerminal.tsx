@@ -1347,6 +1347,115 @@ function POSTerminalInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart.items, cart.subtotal, promotions]);
 
+  // ----------------------------------------------------------------------
+  // Hooks below MUST stay above the loading / no-shift / lock-screen early
+  // returns further down. Placing a `useMemo` after a conditional `return`
+  // changes the hook count between renders as soon as the shift resolves
+  // or the lock screen dismisses, which trips React's
+  // "Rendered more hooks than during the previous render" invariant and
+  // crashes the terminal into the POSErrorBoundary ("Call a supervisor").
+  // See: rules-of-hooks — never call a hook after an early return.
+  // ----------------------------------------------------------------------
+  const saleActionBarCallbacks: SaleActionBarCallbacks = useMemo(() => ({
+    onClearCart: () => {
+      sound.play("cart_clear");
+      cart.clearCart();
+    },
+    onSplitBill: () => setShowBillSplit(true),
+    onTransferTable: () => setShowTableTransfer(true),
+    onPrintBill: () => {
+      setCompletedTransaction({
+        id: "pro-forma",
+        transaction_number: cart.draftTransactionNumber || "BILL",
+        total_amount: cart.total,
+        subtotal: cart.subtotal,
+        tax_amount: cart.tax_amount,
+        discount_amount: cart.discount_amount,
+        created_at: new Date().toISOString(),
+        customer_name: cart.customer?.name,
+        items: cart.items.map(i => ({
+          product_name: i.name,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          line_total: i.line_total,
+          display_quantity: i.display_quantity ?? null,
+          packaging_label: i.packaging_label ?? null,
+        })),
+        payments: [],
+      });
+      openSheet("sale.receiptPreview");
+    },
+    onHold: () => {
+      if (activeShift && registerId && currentOrg) {
+        holdTransaction.mutate({
+          register_id: registerId,
+          shift_id: activeShift.id,
+          organization_id: currentOrg.id,
+          cart: cart.cartState,
+        });
+        cart.clearCart();
+        sound.play("hold");
+      }
+    },
+    onRecallHeld: () => setShowHeld(true),
+    onDiscount: () => setShowDiscount(true),
+    onOpenPayment: () => setShowPayment(true),
+  }), [
+    sound,
+    cart,
+    activeShift,
+    registerId,
+    currentOrg,
+    holdTransaction,
+    setCompletedTransaction,
+    openSheet,
+    setShowHeld,
+    setShowDiscount,
+    setShowPayment,
+  ]);
+
+  /**
+   * Mobile drawer variant of `saleActionBarCallbacks` — preserves the
+   * three behavioural deltas the drawer had before the shared
+   * component was adopted:
+   *   1. Clear-with-confirm when there is an active table session and
+   *      the cart has items (touchscreen safety-net for wait staff).
+   *   2. Hold does NOT play the "hold" sound (drawer close already
+   *      provides audible affordance and stacking a second SFX under
+   *      the touch beep was too noisy in field testing).
+   *   3. Every button closes the drawer — handled generically via
+   *      `onAfterAction={() => setShowMobileCart(false)}` on the
+   *      component itself, so callbacks below don't repeat it.
+   */
+  const mobileSaleActionBarCallbacks: SaleActionBarCallbacks = useMemo(() => ({
+    ...saleActionBarCallbacks,
+    onClearCart: () => {
+      if (tableSessionId && cart.items.length > 0) {
+        if (!window.confirm("Clear all items from this table order? This cannot be undone.")) return;
+      }
+      cart.clearCart();
+    },
+    onHold: () => {
+      if (activeShift && registerId && currentOrg) {
+        holdTransaction.mutate({
+          register_id: registerId,
+          shift_id: activeShift.id,
+          organization_id: currentOrg.id,
+          cart: cart.cartState,
+        });
+        cart.clearCart();
+      }
+    },
+  }), [
+    saleActionBarCallbacks,
+    tableSessionId,
+    cart,
+    activeShift,
+    registerId,
+    currentOrg,
+    holdTransaction,
+  ]);
+
   if (isLoadingCurrentShift || isLoadingSession) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
