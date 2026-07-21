@@ -1653,89 +1653,49 @@ function POSTerminalInner() {
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Products */}
-        <ProductDiscoveryPanel
-          searchInputRef={searchInputRef}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          handleSearchKeyDown={handleSearchKeyDown}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
-          categories={categories}
-          selectedCategory={selectedCategory}
-          setSelectedCategory={setSelectedCategory}
-          filteredProducts={filteredProducts}
-          productsLoading={productsLoading}
-          productsLoadedCount={productsLoadedCount}
-          productsTotalCount={productsTotalCount}
-          productsHasMore={productsHasMore}
-          isFetchingMoreProducts={isFetchingMoreProducts}
-          fetchMoreProducts={fetchMoreProducts}
-          branchOnHand={branchOnHand}
-          handleProductClick={handleProductClick}
-          getDiscountedPrice={getDiscountedPrice}
-          formatCurrency={formatCurrency}
-        />
-
-        {/* Right Panel - Cart (Desktop) */}
-        <div className="hidden lg:flex w-80 xl:w-96 flex-col bg-card border-l">
-          <ScanRecoveryBanner
-            code={unknownScan?.code ?? null}
-            reason={unknownScan?.reason}
-            onSearch={(c) => {
-              setSearchQuery(c);
-              setUnknownScan(null);
-            }}
-            onCreateProduct={(c) => {
-              setUnknownScan(null);
-              navigate(`/products?createWithCode=${encodeURIComponent(c)}`);
-            }}
-            onDismiss={() => setUnknownScan(null)}
-          />
-          {/* Stage D: persistent held-orders strip */}
-          {registerId && activeShift && (
-            <HeldOrdersBar
-              registerId={registerId}
-              shiftId={activeShift.id}
-              hasActiveCart={cart.items.length > 0}
-              onRecall={(restoredCart) => cart.restoreCart(restoredCart)}
-            />
-          )}
-          {/* Customer */}
-          <div className="p-3 xl:p-4 border-b">
-            <Button
-              variant="outline"
-              className="w-full justify-start text-sm"
-              onClick={() => setShowCustomer(true)}
-            >
-              <User className="h-4 w-4 mr-2" />
-              {cart.customer ? cart.customer.name : "Add Customer"}
-            </Button>
-          </div>
-
-          {/* Cart Items */}
-          <BasketPanel cart={cart} sound={sound} formatCurrency={formatCurrency} />
-
-          {/* Cart Summary */}
-          <div className="border-t p-3 xl:p-4 space-y-3 xl:space-y-4">
-            <TransactionSummaryRail
-              cart={cart}
-              appliedPromotions={appliedPromotions}
-              formatCurrency={formatCurrency}
-            />
-
-            <SaleActionBar
-              cart={cart}
-              isTableSession={Boolean(tableSessionId)}
-              canHold={Boolean(activeShift && registerId && currentOrg)}
-              heldCount={heldCount}
-              formatCurrency={formatCurrency}
-              callbacks={saleActionBarCallbacks}
-            />
-          </div>
-        </div>
-      </div>
+      <SaleWorkspace
+        cart={cart}
+        sound={sound}
+        registerId={registerId}
+        activeShiftId={activeShift?.id ?? null}
+        tableSessionId={tableSessionId}
+        isTableSession={Boolean(tableSessionId)}
+        canHold={Boolean(activeShift && registerId && currentOrg)}
+        heldCount={heldCount}
+        appliedPromotions={appliedPromotions}
+        unknownScan={unknownScan}
+        searchInputRef={searchInputRef}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        handleSearchKeyDown={handleSearchKeyDown}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        categories={categories}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        filteredProducts={filteredProducts}
+        productsLoading={productsLoading}
+        productsLoadedCount={productsLoadedCount}
+        productsTotalCount={productsTotalCount}
+        productsHasMore={productsHasMore}
+        isFetchingMoreProducts={isFetchingMoreProducts}
+        fetchMoreProducts={fetchMoreProducts}
+        branchOnHand={branchOnHand}
+        handleProductClick={handleProductClick}
+        getDiscountedPrice={getDiscountedPrice}
+        formatCurrency={formatCurrency}
+        onScanRecoverySearch={(c) => {
+          setSearchQuery(c);
+          setUnknownScan(null);
+        }}
+        onScanRecoveryCreateProduct={(c) => {
+          setUnknownScan(null);
+          navigate(`/products?createWithCode=${encodeURIComponent(c)}`);
+        }}
+        onScanRecoveryDismiss={() => setUnknownScan(null)}
+        saleActionBarCallbacks={saleActionBarCallbacks}
+        onOpenCustomer={() => setShowCustomer(true)}
+      />
 
       {/* Mobile Cart Drawer */}
       <Dialog open={showMobileCart} onOpenChange={setShowMobileCart}>
