@@ -164,7 +164,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
         format: "pdf",
         title: `receipt-${details.transaction_number}`,
         businessId: currentBusiness?.id ?? null,
-        branchId: currentBusiness?.branch_id ?? null,
+        branchId: (currentBusiness as unknown as { branch_id?: string | null })?.branch_id ?? null,
       });
     } catch (error) {
       console.error("Failed to render receipt PDF:", error);
