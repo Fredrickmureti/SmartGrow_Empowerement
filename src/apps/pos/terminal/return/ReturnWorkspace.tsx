@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -316,10 +317,15 @@ export function ReturnWorkspace({ registerId, shiftId }: ReturnWorkspaceProps) {
 
   return (
     <>
-      <section
-        aria-labelledby="return-workspace-title"
-        className="absolute inset-0 z-40 flex flex-col bg-background"
-      >
+      <Sheet open={active} onOpenChange={(v) => !v && close()}>
+        <SheetContent
+          side="right"
+          className="w-full p-0 sm:max-w-2xl lg:max-w-3xl xl:max-w-4xl flex flex-col"
+        >
+          <section
+            aria-labelledby="return-workspace-title"
+            className="flex-1 min-h-0 flex flex-col bg-background"
+          >
         <header className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="icon" onClick={close} aria-label="Back">
@@ -557,8 +563,10 @@ export function ReturnWorkspace({ registerId, shiftId }: ReturnWorkspaceProps) {
               </div>
             )}
           </div>
-        </ScrollArea>
-      </section>
+          </ScrollArea>
+        </section>
+        </SheetContent>
+      </Sheet>
 
       <ManagerOverrideDialog
         open={showManagerOverride}
