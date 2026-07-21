@@ -2376,16 +2376,17 @@ function POSTerminalInner() {
                 expectedCash={activeShift.expected_cash}
               />
 
-              <ReturnDialog
-                open={showReturn}
-                onOpenChange={setShowReturn}
+              {/* Phase 3d — Return + History workspaces (replace the
+                  legacy `<ReturnDialog>` / `<TransactionHistoryDialog>`
+                  Radix Dialogs). Both are route-owned surfaces gated on
+                  `terminalState.phase`; exit dispatches `closeSide` on
+                  the reducer so the previous phase is restored. */}
+              <ReturnWorkspace
                 registerId={registerId}
                 shiftId={activeShift.id}
               />
 
-              <TransactionHistoryDialog
-                open={showHistory}
-                onOpenChange={setShowHistory}
+              <HistoryWorkspace
                 shiftId={activeShift.id}
                 registerId={registerId}
               />
