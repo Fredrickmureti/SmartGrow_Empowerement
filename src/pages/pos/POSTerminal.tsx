@@ -2411,18 +2411,17 @@ function POSTerminalInner() {
         </>
       )}
 
-      {/* Receipt Preview Dialog */}
-      <ReceiptPreviewDialog
-        open={showReceipt}
-        onOpenChange={setShowReceipt}
+      {/* Pro-forma Print Bill preview — sale-workspace sheet, opened via
+          `openSheet("sale.receiptPreview")` and auto-dismissed on phase
+          change by the reducer. Replaces the retired
+          `ReceiptPreviewDialog` page-dialog mount. */}
+      <ReceiptPreviewSheet
         transaction={completedTransaction}
-        onPrint={() => {
-          // Print handled by dialog
-        }}
-        onEmail={() => {
-          setShowEmailReceipt(true);
-        }}
+        onEmail={() => setShowEmailReceipt(true)}
       />
+      {/* closeSheet is destructured for future call sites; reference to
+          silence unused-var noise until Step 6 wires more sheet triggers. */}
+      {void closeSheet}
 
       {/* Phase 3c — Receipt workspace (replaces the ad-hoc
           <PostPaymentScreen> mount). Route-owned surface for
