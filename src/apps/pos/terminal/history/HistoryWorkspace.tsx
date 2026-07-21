@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search,
@@ -264,11 +265,15 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
   if (!active) return null;
 
   return (
-    <>
-      <section
-        aria-labelledby="history-workspace-title"
-        className="absolute inset-y-0 left-0 right-0 lg:right-80 xl:right-96 z-40 flex flex-col bg-background border-r shadow-xl"
+    <Sheet open={active} onOpenChange={(v) => !v && close()}>
+      <SheetContent
+        side="right"
+        className="w-full p-0 sm:max-w-2xl lg:max-w-3xl xl:max-w-5xl flex flex-col"
       >
+        <section
+          aria-labelledby="history-workspace-title"
+          className="flex-1 min-h-0 flex flex-col bg-background"
+        >
         <header className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="icon" onClick={close} aria-label="Back">
@@ -631,9 +636,9 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
               })) as unknown as ReceiptDocumentPayment[],
             }}
           />
-        </section>
-      )}
-    </>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
 
