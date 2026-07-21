@@ -113,6 +113,7 @@ import { useFloorPlan } from "@/hooks/pos/useFloorPlan";
 import { ProductDiscoveryPanel } from "@/apps/pos/terminal/sale/components/ProductDiscoveryPanel";
 import { BasketPanel } from "@/apps/pos/terminal/sale/components/BasketPanel";
 import { TransactionSummaryRail } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
+import { SaleActionBar, type SaleActionBarCallbacks } from "@/apps/pos/terminal/sale/components/SaleActionBar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
