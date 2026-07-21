@@ -1632,6 +1632,221 @@ async function fetchVendorStatement(supabase: any, documentId: string): Promise<
   };
 }
 
+// ── Inventory / Warehouse A4 voucher fetchers (Wave 21) ────────────────
+//
+// These close the three GAP rows in `docs/printing-event-coverage.md`
+// (`stock_adjustment`, `stock_transfer`, `vendor_return`). All three
+// were previously rendered through page-local HTML printing, bypassing
+// the enterprise PDF pipeline. They now flow through the canonical
+// `generate-document` → `PdfBuilder` seam like every other A4 voucher.
+//
+// Media geometry + branding stay in the businesses row via
+// `mapBusinessToOrg`. No client-side pdf-lib usage introduced (guarded
+// by the `no-raw-pdf-lib-in-app` ESLint rule).
+
+async function fetchStockAdjustment(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const { data: adj, error } = await supabase
+    .from("stock_adjustments")
+    .select(`
+      *,
+      organization:organizations(${ORG_FALLBACK_COLS}),
+      business:businesses(${BUSINESS_BRANDING_COLS}),
+      warehouse:warehouses(name),
+      items:stock_adjustment_items(
+        *,
+        packaging:product_packaging(name, qty_in_base_uom),
+        product:products(name, sku, base_uom:units_of_measure!base_uom_id(code, name))
+      )
+    `)
+    .eq("id", documentId)
+    .single();
+
+  if (error || !adj) {
+    throw new Error(`Stock adjustment not found: ${error?.message}`);
+  }
+
+  return {
+    document_number: adj.adjustment_number,
+    document_type: "stock_adjustment",
+    document_type_label: "STOCK ADJUSTMENT",
+    status: adj.status,
+    issue_date: adj.adjustment_date,
+    subtotal: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: 0,
+    currency: adj.business?.base_currency || "USD",
+    notes: adj.notes || adj.reason || null,
+    terms: null,
+    contact: null,
+    organization: await mapBusinessToOrg(
+      supabase,
+      adj.business,
+      adj.organization,
+      adj.branch_id,
+    ),
+    business_id: adj.business_id,
+    organization_id: adj.organization_id,
+    items: (adj.items || []).map((item: any) => ({
+      description:
+        item.product?.name ||
+        item.notes ||
+        `Product ${item.product_id?.slice?.(0, 8) ?? ""}`,
+      quantity: item.quantity_adjustment,
+      unit_price: item.unit_cost || 0,
+      tax_rate: 0,
+      tax_amount: 0,
+      line_total: (item.quantity_adjustment || 0) * (item.unit_cost || 0),
+      quantity_before: item.quantity_before,
+      quantity_after: item.quantity_after,
+      lot_number: item.lot_number,
+      serial_number: item.serial_number,
+      ...packFields(item),
+    })),
+    hide_amounts: true,
+    // Extras surfaced for the invoice-shaped renderer header.
+    warehouse_name: adj.warehouse?.name ?? null,
+    adjustment_reason: adj.reason,
+    adjustment_type: adj.adjustment_type,
+  } as DocumentData;
+}
+
+async function fetchStockTransfer(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const { data: tr, error } = await supabase
+    .from("stock_transfers")
+    .select(`
+      *,
+      organization:organizations(${ORG_FALLBACK_COLS}),
+      business:businesses(${BUSINESS_BRANDING_COLS}),
+      from_warehouse:warehouses!from_warehouse_id(name),
+      to_warehouse:warehouses!to_warehouse_id(name),
+      items:stock_transfer_items(
+        *,
+        packaging:product_packaging(name, qty_in_base_uom),
+        product:products(name, sku, base_uom:units_of_measure!base_uom_id(code, name))
+      )
+    `)
+    .eq("id", documentId)
+    .single();
+
+  if (error || !tr) {
+    throw new Error(`Stock transfer not found: ${error?.message}`);
+  }
+
+  return {
+    document_number: tr.transfer_number,
+    document_type: "stock_transfer",
+    document_type_label: "STOCK TRANSFER",
+    status: tr.status,
+    issue_date: tr.transfer_date,
+    subtotal: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: 0,
+    currency: tr.business?.base_currency || "USD",
+    notes: tr.notes || null,
+    terms: null,
+    contact: null,
+    organization: await mapBusinessToOrg(
+      supabase,
+      tr.business,
+      tr.organization,
+      tr.from_branch_id ?? tr.to_branch_id ?? null,
+    ),
+    business_id: tr.business_id,
+    organization_id: tr.organization_id,
+    items: (tr.items || []).map((item: any) => ({
+      description:
+        item.product?.name ||
+        item.notes ||
+        `Product ${item.product_id?.slice?.(0, 8) ?? ""}`,
+      quantity: item.quantity_sent ?? item.quantity_requested,
+      unit_price: 0,
+      tax_rate: 0,
+      tax_amount: 0,
+      line_total: 0,
+      quantity_requested: item.quantity_requested,
+      quantity_sent: item.quantity_sent,
+      quantity_received: item.quantity_received,
+      ...packFields(item),
+    })),
+    hide_amounts: true,
+    from_warehouse_name: tr.from_warehouse?.name ?? null,
+    to_warehouse_name: tr.to_warehouse?.name ?? null,
+    expected_arrival_date: tr.expected_arrival_date,
+    actual_arrival_date: tr.actual_arrival_date,
+  } as DocumentData;
+}
+
+async function fetchPurchaseReturn(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const { data: pr, error } = await supabase
+    .from("purchase_returns")
+    .select(`
+      *,
+      contact:contacts(name, email, phone, address_line1, city, state, postal_code, tax_id),
+      organization:organizations(${ORG_FALLBACK_COLS}),
+      business:businesses(${BUSINESS_BRANDING_COLS}),
+      items:purchase_return_items(
+        *,
+        packaging:product_packaging(name, qty_in_base_uom),
+        product:products(name, sku, base_uom:units_of_measure!base_uom_id(code, name))
+      )
+    `)
+    .eq("id", documentId)
+    .single();
+
+  if (error || !pr) {
+    throw new Error(`Vendor return not found: ${error?.message}`);
+  }
+
+  return {
+    document_number: pr.return_number,
+    document_type: "vendor_return",
+    document_type_label: "VENDOR RETURN",
+    status: pr.status,
+    issue_date: pr.return_date,
+    subtotal: pr.subtotal || 0,
+    tax_amount: pr.tax_amount || 0,
+    discount_amount: 0,
+    total: pr.total || 0,
+    currency: pr.currency || pr.business?.base_currency || "USD",
+    notes: pr.notes || pr.reason || null,
+    terms: null,
+    contact: pr.contact,
+    organization: await mapBusinessToOrg(
+      supabase,
+      pr.business,
+      pr.organization,
+      pr.branch_id,
+    ),
+    business_id: pr.business_id,
+    organization_id: pr.organization_id,
+    items: (pr.items || []).map((item: any) => ({
+      description:
+        item.description ||
+        item.product?.name ||
+        `Item ${item.product_id?.slice?.(0, 8) ?? ""}`,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      tax_rate: item.tax_rate || 0,
+      tax_amount: item.tax_amount || 0,
+      line_total: item.line_total,
+      return_reason: item.return_reason,
+      condition: item.condition,
+      ...packFields(item),
+    })),
+  } as DocumentData;
+}
+
 const TEMPLATE_TYPE_MAP: Record<string, string> = {
   invoice: "invoice",
   estimate: "estimate",
