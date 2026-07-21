@@ -1301,6 +1301,23 @@ function POSTerminalInner() {
       // pane, exposes Reprint / Save PDF / Email / New Sale, and pushes
       // a "thank you / change" frame to the customer display. We no
       // longer silently fire-and-forget bytes to the printer.
+      //
+      // POS workstation Phase 1 hardening: also graduate the terminal
+      // reducer to `receipt` deterministically. Previously the reducer
+      // waited on `pos.payment_completed` from the domain-event bus,
+      // which meant a slow or dropped event could leave `phase` stuck
+      // on `tender` while `PostPaymentScreen` was on screen.
+      terminalDispatch({
+        kind: "op",
+        op: "recordCompletion",
+        transaction: {
+          transactionId: result.transaction.id,
+          receiptNumber: result.transactionNumber ?? null,
+          total: cartData.total,
+          paidAt: result.transaction.created_at,
+          payload: null,
+        },
+      });
       setShowPostPayment(true);
     } catch (error) {
       // Error handled by mutation - reopen payment dialog on failure
