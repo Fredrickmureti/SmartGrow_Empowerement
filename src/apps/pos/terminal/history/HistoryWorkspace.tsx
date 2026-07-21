@@ -152,12 +152,25 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
     setShowReceiptPreview(true);
   };
 
-  const handleDownloadPdf = (details: POSTransactionRecord) => {
-    downloadPdf(
-      "pos_receipt",
-      details.id,
-      `receipt-${details.transaction_number}`,
-    );
+  const handleDownloadPdf = async (details: POSTransactionRecord) => {
+    setIsGeneratingPdf(true);
+    try {
+      // ADR-0026 — route receipt PDF renders through PrintClient so
+      // policy resolution and job telemetry stay unified.
+      await printClient.print({
+        intent: "receipt",
+        documentType: "pos_receipt",
+        documentId: details.id,
+        format: "pdf",
+        title: `receipt-${details.transaction_number}`,
+        businessId: currentBusiness?.id ?? null,
+        branchId: currentBusiness?.branch_id ?? null,
+      });
+    } catch (error) {
+      console.error("Failed to render receipt PDF:", error);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const handleVoid = (id: string) => {
