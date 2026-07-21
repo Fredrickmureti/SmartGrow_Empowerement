@@ -188,7 +188,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
           setPendingVoidPayload(null);
           setPendingOverrideId(null);
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
           if (isOverrideRequiredError(error)) {
             setPendingVoidPayload({ ...merged });
             setShowVoidDialog(false);
