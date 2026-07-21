@@ -226,6 +226,17 @@ export function SaleWorkspace({
           />
         </div>
       </div>
+      {registerId && (
+        <ProductPeekDialog
+          open={showPeek}
+          onOpenChange={setShowPeek}
+          registerId={registerId}
+          onAddToCart={(pid) => {
+            const p = filteredProducts.find((fp) => fp.id === pid);
+            if (p) handleProductClick(p);
+          }}
+        />
+      )}
     </div>
   );
 }
