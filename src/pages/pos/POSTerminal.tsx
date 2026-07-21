@@ -507,7 +507,10 @@ function POSTerminalInner() {
   const [showCloseShift, setShowCloseShift] = useState(false);
   const [showCashDrawer, setShowCashDrawer] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
-  const [showReceipt, setShowReceipt] = useState(false);
+  // `showReceipt` retired: the pro-forma "Print Bill" preview is now a
+  // sale-workspace sheet (`sale.receiptPreview`) owned by the reducer.
+  // Triggers below call `openSheet("sale.receiptPreview")`; the sheet
+  // auto-dismisses on phase change.
   // Phase 3 (POS workstation): side-transitions (Held / Return / History)
   // are owned by the terminal reducer. `showHeld/Return/History` become
   // derived reads of the current phase; opening dispatches an operator
