@@ -1437,6 +1437,48 @@ function POSTerminalInner() {
     setShowPayment,
   ]);
 
+  /**
+   * Mobile drawer variant of `saleActionBarCallbacks` — preserves the
+   * three behavioural deltas the drawer had before the shared
+   * component was adopted:
+   *   1. Clear-with-confirm when there is an active table session and
+   *      the cart has items (touchscreen safety-net for wait staff).
+   *   2. Hold does NOT play the "hold" sound (drawer close already
+   *      provides audible affordance and stacking a second SFX under
+   *      the touch beep was too noisy in field testing).
+   *   3. Every button closes the drawer — handled generically via
+   *      `onAfterAction={() => setShowMobileCart(false)}` on the
+   *      component itself, so callbacks below don't repeat it.
+   */
+  const mobileSaleActionBarCallbacks: SaleActionBarCallbacks = useMemo(() => ({
+    ...saleActionBarCallbacks,
+    onClearCart: () => {
+      if (tableSessionId && cart.items.length > 0) {
+        if (!window.confirm("Clear all items from this table order? This cannot be undone.")) return;
+      }
+      cart.clearCart();
+    },
+    onHold: () => {
+      if (activeShift && registerId && currentOrg) {
+        holdTransaction.mutate({
+          register_id: registerId,
+          shift_id: activeShift.id,
+          organization_id: currentOrg.id,
+          cart: cart.cartState,
+        });
+        cart.clearCart();
+      }
+    },
+  }), [
+    saleActionBarCallbacks,
+    tableSessionId,
+    cart,
+    activeShift,
+    registerId,
+    currentOrg,
+    holdTransaction,
+  ]);
+
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden relative max-w-[1920px] mx-auto w-full">
       {/* Phase 1 (POS workstation): sync live shift + cart state into
