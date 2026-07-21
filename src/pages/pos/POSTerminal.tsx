@@ -505,12 +505,40 @@ function POSTerminalInner() {
   );
   const [showCustomer, setShowCustomer] = useState(false);
   const [showCloseShift, setShowCloseShift] = useState(false);
-  const [showHeld, setShowHeld] = useState(false);
   const [showCashDrawer, setShowCashDrawer] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
-  const [showReturn, setShowReturn] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
+  // Phase 3 (POS workstation): side-transitions (Held / Return / History)
+  // are owned by the terminal reducer. `showHeld/Return/History` become
+  // derived reads of the current phase; opening dispatches an operator
+  // intent, closing dispatches `closeSide` which restores previousPhase.
+  // Sheet-shells inside the mounted workspace already auto-dismiss on
+  // phase change, so we get the "only one side workspace at a time"
+  // invariant for free from the state machine.
+  const showHeld = terminalState.phase === "held";
+  const showReturn = terminalState.phase === "return";
+  const showHistory = terminalState.phase === "history";
+  const setShowHeld = useCallback(
+    (next: boolean) => {
+      if (next) terminalDispatch({ kind: "op", op: "openHeld" });
+      else if (terminalState.phase === "held") terminalDispatch({ kind: "op", op: "closeSide" });
+    },
+    [terminalDispatch, terminalState.phase],
+  );
+  const setShowReturn = useCallback(
+    (next: boolean) => {
+      if (next) terminalDispatch({ kind: "op", op: "openReturn" });
+      else if (terminalState.phase === "return") terminalDispatch({ kind: "op", op: "closeSide" });
+    },
+    [terminalDispatch, terminalState.phase],
+  );
+  const setShowHistory = useCallback(
+    (next: boolean) => {
+      if (next) terminalDispatch({ kind: "op", op: "openHistory" });
+      else if (terminalState.phase === "history") terminalDispatch({ kind: "op", op: "closeSide" });
+    },
+    [terminalDispatch, terminalState.phase],
+  );
   // Stage X3 — full post-payment success screen (separate from the
   // pro-forma `showReceipt` flow, which keeps using ReceiptPreviewDialog).
   const [showPostPayment, setShowPostPayment] = useState(false);
