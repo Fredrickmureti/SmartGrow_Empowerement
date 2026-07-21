@@ -2,20 +2,18 @@
  * TenderWorkspace — Phase-3b, route-owned surface for
  * `terminalState.phase === "tender"`.
  *
- * Replaces the legacy `PaymentDialog` (previously mounted as a full-screen
- * `<Dialog>` inside `POSTerminal`) with a real workstation workspace: a
- * `<section>` that fills the terminal region provided by `TerminalShell`,
- * with no Dialog chrome. All payment-session semantics, split-tender
- * handling, quick-cash keypad affordances, M-Pesa STK/C2B, card auth and
- * finalize behaviour are preserved 1:1 from the previous implementation —
- * only the presentation shell (Dialog → section) and the exit mechanism
- * (onOpenChange → onBack dispatching `backToSale`) changed.
+ * Event-driven redesign (see .lovable/plan.md):
  *
- * Escape key and the header "Back" button both trigger `onBack` so the
- * reducer graduates the terminal back to `sale` without any composite
- * state living on the workspace.
+ *   selectMethod(method)   → sets draft.methodKey (+ pre-fills amount = remaining)
+ *   amendDraftAmount(n)    → keypad / quick-chips mutate draft.amount ONLY
+ *   commitDraft()          → session.recordTender(draft) → tender row persisted
+ *   reverseTender(id)      → session.reverseTender
+ *   confirmPayment()       → auto-commits pending cash draft if it covers
+ *                             remaining, then require remaining<=0 → onComplete
+ *   back()                 → onBack()
  *
- * See `docs/architecture/POS_WORKSTATION_STATES.md`.
+ * The workspace is a projection of `{ draft, session }`. Right rail is
+ * authoritative for Paid / Remaining / Change — keypad never writes there.
  */
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -25,7 +23,6 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Link as RouterLink } from "react-router-dom";
 import {
   Banknote,
@@ -34,7 +31,6 @@ import {
   Building,
   FileText,
   Wallet,
-  Plus,
   Trash2,
   CheckCircle,
   Loader2,
@@ -61,8 +57,10 @@ import {
   type PosSessionTenderInput,
 } from "@/lib/pos/paymentSessionClient";
 import { useCart } from "@/apps/pos/terminal/sale/CartContext";
-import { TransactionSummaryRail, type AppliedPromotionLine } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
-
+import {
+  TransactionSummaryRail,
+  type AppliedPromotionLine,
+} from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
 
 function paymentSessionErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof POSPaymentSessionError) {
@@ -152,6 +150,12 @@ function tenderRowToPayment(row: PaymentSessionTenderRow): TenderWorkspacePaymen
   };
 }
 
+interface TenderDraft {
+  methodKey: string;
+  amount: string;
+  reference: string;
+}
+
 export function TenderWorkspace({
   total,
   posTransactionId,
@@ -168,13 +172,20 @@ export function TenderWorkspace({
   const { formatCurrency } = useCurrency();
   const [localTip, setLocalTip] = useState("");
   const effectiveTotal = total + tipAmount;
-  const { enabledPaymentMethods: allEnabledMethods, isLoading, cashRoundingSettings } = usePOSSettings();
+  const {
+    enabledPaymentMethods: allEnabledMethods,
+    isLoading,
+    cashRoundingSettings,
+  } = usePOSSettings();
   const { configs: providerConfigs, getProviderConfig } = usePaymentProviders();
 
   const resolved = resolvePaymentMethods({
     enabledMethods: allEnabledMethods,
     registerAllowList: registerPaymentMethods ?? null,
-    providerConfigs: providerConfigs.map((c) => ({ provider: c.provider, is_active: c.is_active })),
+    providerConfigs: providerConfigs.map((c) => ({
+      provider: c.provider,
+      is_active: c.is_active,
+    })),
     hasCustomer,
   });
   const readyMethods = resolved.filter((m) => m.isReady);
@@ -204,18 +215,18 @@ export function TenderWorkspace({
   const remaining = session.remaining;
   const change = session.change;
 
-  const [selectedMethod, setSelectedMethod] = useState<string>("");
-  const [amount, setAmount] = useState("");
-  const [reference, setReference] = useState("");
-  const [cashTendered, setCashTendered] = useState("");
+  // Single active tender draft — the only thing the keypad / chips mutate.
+  const [draft, setDraft] = useState<TenderDraft>({
+    methodKey: "",
+    amount: "",
+    reference: "",
+  });
   const [isRecording, setIsRecording] = useState(false);
   const [showMpesaModal, setShowMpesaModal] = useState(false);
-  const [showSplitMpesaModal, setShowSplitMpesaModal] = useState(false);
-  const [splitMpesaAmount, setSplitMpesaAmount] = useState<number>(0);
+  const [pendingMpesaAmount, setPendingMpesaAmount] = useState<number>(0);
   const [showC2BLookup, setShowC2BLookup] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
-  const [cardModalAmount, setCardModalAmount] = useState<number>(0);
-  const [cardModalMode, setCardModalMode] = useState<"full" | "split">("full");
+  const [pendingCardAmount, setPendingCardAmount] = useState<number>(0);
 
   const applyCashRounding = (amt: number): number => {
     if (!cashRoundingSettings.enabled || cashRoundingSettings.precision <= 0) return amt;
@@ -224,13 +235,25 @@ export function TenderWorkspace({
   const roundedEffectiveTotal = applyCashRounding(effectiveTotal);
   const cashRoundingDiff = roundedEffectiveTotal - effectiveTotal;
   const mpesaConfig = getProviderConfig("mpesa");
-  const isMpesaEnabled = mpesaConfig?.is_active;
+  const isMpesaEnabled = Boolean(mpesaConfig?.is_active);
 
+  const selectedMethodConfig = enabledPaymentMethods.find(
+    (m) => m.method_key === draft.methodKey,
+  );
+  const selectedTenderKind = selectedMethodConfig?.tender_kind;
+  const selectedProviderKey = selectedMethodConfig?.provider_key;
+  const cashMethod = enabledPaymentMethods.find((m) => m.tender_kind === "cash");
+  const mpesaWalletMethod = enabledPaymentMethods.find(
+    (m) => m.tender_kind === "wallet" && m.provider_key === "mpesa",
+  );
+  const cardMethod = enabledPaymentMethods.find((m) => m.tender_kind === "card");
+
+  // Default the draft method once enabled methods resolve. Prefer cash if present.
   useEffect(() => {
-    if (enabledPaymentMethods.length > 0 && !selectedMethod) {
-      setSelectedMethod(enabledPaymentMethods[0].method_key);
-    }
-  }, [enabledPaymentMethods, selectedMethod]);
+    if (draft.methodKey || enabledPaymentMethods.length === 0) return;
+    const preferred = cashMethod ?? enabledPaymentMethods[0];
+    setDraft((d) => ({ ...d, methodKey: preferred.method_key }));
+  }, [enabledPaymentMethods, cashMethod, draft.methodKey]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -240,17 +263,28 @@ export function TenderWorkspace({
     return () => window.removeEventListener("keydown", onKey);
   }, [onBack]);
 
-  const cashPaymentChange = parseFloat(cashTendered) - effectiveTotal;
-  const selectedMethodConfig = enabledPaymentMethods.find((m) => m.method_key === selectedMethod);
-  const cashMethod = enabledPaymentMethods.find((m) => m.tender_kind === "cash");
-  const creditLiabilityMethod = enabledPaymentMethods.find((m) => m.tender_kind === "credit_liability");
-  const mpesaWalletMethod = enabledPaymentMethods.find(
-    (m) => m.tender_kind === "wallet" && m.provider_key === "mpesa",
+  const draftAmountNum = parseFloat(draft.amount) || 0;
+  // For cash drafts we treat draft.amount as tendered; change previewed on rail.
+  const draftIsCash = selectedTenderKind === "cash";
+  const targetForDraft = remaining > 0 ? remaining : effectiveTotal;
+  const draftCoversRemaining =
+    draftIsCash && remaining > 0 && draftAmountNum >= remaining;
+
+  const setDraftAmount = useCallback((v: string) => {
+    setDraft((d) => ({ ...d, amount: v }));
+  }, []);
+  const selectMethod = useCallback(
+    (methodKey: string) => {
+      setDraft((d) => {
+        if (d.methodKey === methodKey) return d;
+        // Pre-fill the remaining amount so single-tender flow is one click.
+        const nextAmount =
+          remaining > 0 ? remaining.toFixed(2) : "";
+        return { methodKey, amount: nextAmount, reference: "" };
+      });
+    },
+    [remaining],
   );
-  const cardMethod = enabledPaymentMethods.find((m) => m.tender_kind === "card");
-  const selectedTenderKind = selectedMethodConfig?.tender_kind;
-  const selectedProviderKey = selectedMethodConfig?.provider_key;
-  const canSplitPayment = enabledPaymentMethods.length >= 2;
 
   const recordTenderRow = useCallback(
     async (input: PosSessionTenderInput): Promise<PaymentSessionTenderRow | null> => {
@@ -268,68 +302,117 @@ export function TenderWorkspace({
     [session],
   );
 
-  const resetForm = useCallback(() => {
-    setAmount("");
-    setReference("");
-    setCashTendered("");
-    setShowMpesaModal(false);
-    setShowSplitMpesaModal(false);
-    setSplitMpesaAmount(0);
-    setShowCardModal(false);
-    setCardModalAmount(0);
-    setCardModalMode("full");
-    if (enabledPaymentMethods.length > 0) {
-      setSelectedMethod(enabledPaymentMethods[0].method_key);
-    }
-  }, [enabledPaymentMethods]);
+  const resetDraftAfterCommit = useCallback(() => {
+    setDraft((d) => ({ ...d, amount: "", reference: "" }));
+  }, []);
 
   const finalizeWith = useCallback(
     (rows: PaymentSessionTenderRow[]) => {
       const active = rows.filter((t) => t.reversed_at == null);
       onComplete(active.map(tenderRowToPayment));
-      resetForm();
     },
-    [onComplete, resetForm],
+    [onComplete],
   );
 
-  const handleAddPayment = async () => {
-    if (!amount || parseFloat(amount) <= 0) return;
-    const paymentAmount = parseFloat(amount);
+  // Commit the current draft as one tender row. Handles cash / wallet-mpesa /
+  // card / other by routing to the correct driver modal or straight to RPC.
+  const commitDraft = useCallback(
+    async (opts: { closeIfCovers?: boolean } = {}): Promise<PaymentSessionTenderRow | null> => {
+      if (!selectedMethodConfig) return null;
+      if (draftAmountNum <= 0) return null;
 
-    if (selectedTenderKind === "wallet" && selectedProviderKey === "mpesa" && isMpesaEnabled) {
-      setSplitMpesaAmount(paymentAmount);
-      setShowSplitMpesaModal(true);
+      // Cash: draft.amount is what the customer handed over (tendered).
+      if (selectedTenderKind === "cash") {
+        const applied = cashRoundingSettings.enabled ? roundedEffectiveTotal : effectiveTotal;
+        const owed = Math.min(applied - totalApplied, draftAmountNum);
+        const chargedAmount = Math.max(0, owed);
+        const changeGiven = Math.max(0, draftAmountNum - chargedAmount);
+        const row = await recordTenderRow({
+          tender_kind: "cash",
+          method_key: selectedMethodConfig.method_key,
+          amount: chargedAmount,
+          tendered_amount: draftAmountNum,
+          change_given: changeGiven,
+        });
+        if (row) {
+          resetDraftAfterCommit();
+          const nextRows = [...tenderRows, row];
+          const nextTotal = nextRows.reduce((s, r) => s + Number(r.amount), 0);
+          if (opts.closeIfCovers && nextTotal >= applied) finalizeWith(nextRows);
+        }
+        return row;
+      }
+
+      if (selectedTenderKind === "wallet" && selectedProviderKey === "mpesa" && isMpesaEnabled) {
+        setPendingMpesaAmount(draftAmountNum);
+        setShowMpesaModal(true);
+        return null;
+      }
+      if (selectedTenderKind === "card") {
+        setPendingCardAmount(draftAmountNum);
+        setShowCardModal(true);
+        return null;
+      }
+      if (selectedTenderKind === "credit_liability" && !hasCustomer) {
+        toast.error("Please select a customer before using Store Credit");
+        return null;
+      }
+      if (selectedMethodConfig.requires_reference && !draft.reference.trim()) {
+        toast.error(
+          `A reference is required for ${selectedMethodConfig.display_name} so finance can reconcile this payment.`,
+        );
+        return null;
+      }
+
+      const row = await recordTenderRow({
+        tender_kind: selectedMethodConfig.tender_kind as PosTenderKind,
+        method_key: selectedMethodConfig.method_key,
+        provider_key: selectedMethodConfig.provider_key ?? null,
+        amount: draftAmountNum,
+        tendered_amount: draftAmountNum,
+        change_given: 0,
+        reference: draft.reference.trim() || null,
+      });
+      if (row) {
+        resetDraftAfterCommit();
+        const nextRows = [...tenderRows, row];
+        const nextTotal = nextRows.reduce((s, r) => s + Number(r.amount), 0);
+        if (opts.closeIfCovers && nextTotal >= effectiveTotal) finalizeWith(nextRows);
+      }
+      return row;
+    },
+    [
+      selectedMethodConfig,
+      selectedTenderKind,
+      selectedProviderKey,
+      draftAmountNum,
+      draft.reference,
+      cashRoundingSettings.enabled,
+      roundedEffectiveTotal,
+      effectiveTotal,
+      totalApplied,
+      tenderRows,
+      isMpesaEnabled,
+      hasCustomer,
+      recordTenderRow,
+      resetDraftAfterCommit,
+      finalizeWith,
+    ],
+  );
+
+  const handleAddTender = () => {
+    void commitDraft({ closeIfCovers: false });
+  };
+
+  // Confirm is the terminal event. If a cash draft is pending and covers the
+  // remaining balance, commit it in the same action (single-tender fast path).
+  const handleConfirm = async () => {
+    if (draftIsCash && draftAmountNum > 0 && draftCoversRemaining) {
+      await commitDraft({ closeIfCovers: true });
       return;
     }
-    if (selectedTenderKind === "card") {
-      setCardModalAmount(paymentAmount);
-      setCardModalMode("split");
-      setShowCardModal(true);
-      return;
-    }
-    if (selectedTenderKind === "credit_liability" && !hasCustomer) {
-      toast.error("Please select a customer before using Store Credit");
-      return;
-    }
-    if (selectedMethodConfig?.requires_reference && !reference.trim()) {
-      toast.error(
-        `A reference is required for ${selectedMethodConfig.display_name} so finance can reconcile this payment.`,
-      );
-      return;
-    }
-    if (!selectedMethodConfig) return;
-    const row = await recordTenderRow({
-      tender_kind: selectedMethodConfig.tender_kind as PosTenderKind,
-      method_key: selectedMethodConfig.method_key,
-      provider_key: selectedMethodConfig.provider_key ?? null,
-      amount: paymentAmount,
-      tendered_amount: paymentAmount,
-      change_given: 0,
-      reference: reference.trim() || null,
-    });
-    if (row) {
-      setAmount("");
-      setReference("");
+    if (remaining <= 0 && tenderRows.length > 0) {
+      finalizeWith(tenderRows);
     }
   };
 
@@ -344,28 +427,6 @@ export function TenderWorkspace({
     } finally {
       setIsRecording(false);
     }
-  };
-
-  const handleQuickCashPayment = async () => {
-    if (!cashMethod) return;
-    const applied = cashRoundingSettings.enabled ? roundedEffectiveTotal : effectiveTotal;
-    const parsed = parseFloat(cashTendered);
-    const tendered = Number.isFinite(parsed) && parsed >= applied ? parsed : applied;
-    const changeGiven = Math.max(0, tendered - applied);
-    const row = await recordTenderRow({
-      tender_kind: "cash",
-      method_key: cashMethod.method_key,
-      amount: applied,
-      tendered_amount: tendered,
-      change_given: changeGiven,
-    });
-    if (!row) return;
-    finalizeWith([...tenderRows, row]);
-  };
-
-  const handleSplitPayment = () => {
-    if (totalApplied < effectiveTotal) return;
-    finalizeWith(tenderRows);
   };
 
   const handleTipQuick = (percent: number) => {
@@ -396,13 +457,14 @@ export function TenderWorkspace({
   };
 
   const handleCardSuccess = async (auth: CardAuthPayload) => {
-    const wasFull = cardModalMode === "full";
-    const row = await recordTenderRow(cardAuthToTender(auth, cardModalAmount));
+    const row = await recordTenderRow(cardAuthToTender(auth, pendingCardAmount));
     setShowCardModal(false);
-    setCardModalAmount(0);
+    setPendingCardAmount(0);
     if (!row) return;
-    if (wasFull) finalizeWith([...tenderRows, row]);
-    else setAmount("");
+    resetDraftAfterCommit();
+    const nextRows = [...tenderRows, row];
+    const nextTotal = nextRows.reduce((s, r) => s + Number(r.amount), 0);
+    if (nextTotal >= effectiveTotal) finalizeWith(nextRows);
   };
 
   const handleMpesaSuccess = async (receiptNumber: string) => {
@@ -411,85 +473,32 @@ export function TenderWorkspace({
       tender_kind: "wallet",
       method_key: mpesaWalletMethod.method_key,
       provider_key: mpesaWalletMethod.provider_key ?? "mpesa",
-      amount: effectiveTotal,
-      tendered_amount: effectiveTotal,
+      amount: pendingMpesaAmount,
+      tendered_amount: pendingMpesaAmount,
       change_given: 0,
       reference: receiptNumber,
     });
+    setShowMpesaModal(false);
+    setPendingMpesaAmount(0);
     if (!row) return;
-    finalizeWith([...tenderRows, row]);
+    resetDraftAfterCommit();
+    const nextRows = [...tenderRows, row];
+    const nextTotal = nextRows.reduce((s, r) => s + Number(r.amount), 0);
+    if (nextTotal >= effectiveTotal) finalizeWith(nextRows);
   };
 
-  const handleSplitMpesaSuccess = async (receiptNumber: string) => {
-    if (!mpesaWalletMethod) return;
-    const row = await recordTenderRow({
-      tender_kind: "wallet",
-      method_key: mpesaWalletMethod.method_key,
-      provider_key: mpesaWalletMethod.provider_key ?? "mpesa",
-      amount: splitMpesaAmount,
-      tendered_amount: splitMpesaAmount,
-      change_given: 0,
-      reference: receiptNumber,
-    });
-    setShowSplitMpesaModal(false);
-    setSplitMpesaAmount(0);
-    if (!row) return;
-    setAmount("");
-  };
-
-  const handleMpesaClick = () => setShowMpesaModal(true);
-
-  const getQuickAmounts = () => {
-    const amounts: number[] = [];
-    amounts.push(effectiveTotal);
-    const roundUps = [10, 20, 50, 100];
-    for (const round of roundUps) {
-      const rounded = Math.ceil(effectiveTotal / round) * round;
-      if (rounded > effectiveTotal && !amounts.includes(rounded)) {
-        amounts.push(rounded);
-      }
+  // Quick-fill chips — write to draft.amount only. Exact, next 10 / 50 / 100.
+  const quickChipAmounts = useMemo(() => {
+    const target = targetForDraft;
+    const amounts = new Set<number>();
+    amounts.add(Number(target.toFixed(2)));
+    for (const round of [10, 50, 100, 500]) {
+      const rounded = Math.ceil(target / round) * round;
+      if (rounded > target) amounts.add(rounded);
     }
-    return amounts.slice(0, 4).sort((a, b) => a - b);
-  };
-  const quickAmounts = getQuickAmounts();
+    return [...amounts].sort((a, b) => a - b).slice(0, 4);
+  }, [targetForDraft]);
 
-  const isCashEnabled = Boolean(cashMethod);
-  const isCreditEnabled = Boolean(creditLiabilityMethod);
-  const isCardEnabled = Boolean(cardMethod);
-
-  const handleCardQuickPay = () => {
-    if (!cardMethod) return;
-    const amt = payments.length === 0 ? effectiveTotal : remaining;
-    if (amt <= 0) return;
-    setCardModalAmount(amt);
-    setCardModalMode(payments.length === 0 ? "full" : "split");
-    setShowCardModal(true);
-  };
-
-  const handleCreditQuickPay = async () => {
-    if (!creditLiabilityMethod) return;
-    if (!hasCustomer) {
-      toast.error("Please select a customer before using Store Credit");
-      return;
-    }
-    const creditAmount = payments.length === 0 ? effectiveTotal : remaining;
-    if (creditAmount <= 0) return;
-    const wasFull = payments.length === 0;
-    const row = await recordTenderRow({
-      tender_kind: "credit_liability",
-      method_key: creditLiabilityMethod.method_key,
-      amount: creditAmount,
-      tendered_amount: creditAmount,
-      change_given: 0,
-    });
-    if (!row) return;
-    if (wasFull) finalizeWith([...tenderRows, row]);
-  };
-
-  // Persistent transaction context — the Enerpize-style rail on the right
-  // keeps cart totals visible during payment so the cashier never loses
-  // sight of the sale they're closing. `useCart()` is safe here because
-  // `TerminalShell` mounts `CartProvider` above every tender render.
   const railCart = useCart();
   const tenderSummaryCart = useMemo(
     () => ({
@@ -500,9 +509,18 @@ export function TenderWorkspace({
     }),
     [railCart.subtotal, railCart.discount_amount, railCart.tax_amount, effectiveTotal],
   );
-  const paidAmount = totalApplied;
-  const canConfirm = payments.length > 0 && totalApplied >= effectiveTotal;
 
+  const canConfirm =
+    (remaining <= 0 && tenderRows.length > 0) || draftCoversRemaining;
+
+  const confirmHelper = (() => {
+    if (canConfirm) return null;
+    if (tenderRows.length === 0 && draftAmountNum === 0)
+      return "Enter an amount or pick a payment to enable Confirm";
+    if (remaining > 0 && !draftCoversRemaining)
+      return `Collect ${formatCurrency(remaining)} more to confirm`;
+    return null;
+  })();
 
   return (
     <section
@@ -522,436 +540,366 @@ export function TenderWorkspace({
           </h1>
         </div>
         <div className="text-right">
-
           <p className="text-xs text-muted-foreground">Amount Due</p>
           <p className="text-xl font-bold sm:text-2xl">{formatCurrency(effectiveTotal)}</p>
         </div>
       </header>
 
       <div className="flex flex-1 min-h-0">
-      <ScrollArea className="flex-1 min-w-0">
-
-        <div className="mx-auto w-full max-w-3xl px-4 py-4 sm:px-6 sm:py-6">
+        {/* LEFT — event input surface. No ScrollArea: laid out to fit in
+            one viewport at register-class heights. */}
+        <div className="flex-1 min-w-0 flex flex-col">
           {isLoading ? (
-            <div className="flex items-center justify-center py-8 sm:py-12">
-              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-muted-foreground" />
+            <div className="flex flex-1 items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="space-y-3 sm:space-y-4">
-              {isMpesaEnabled && remaining > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    className="w-full h-12 sm:h-14 border-2 border-[#4caf50] hover:bg-[#4caf50]/10 justify-start gap-2 sm:gap-3"
-                    onClick={() => {
-                      if (payments.length === 0) handleMpesaClick();
-                      else {
-                        setSplitMpesaAmount(remaining);
-                        setShowSplitMpesaModal(true);
-                      }
-                    }}
-                  >
-                    <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-[#4caf50] flex items-center justify-center flex-shrink-0">
-                      <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-                    </div>
-                    <div className="text-left min-w-0">
-                      <p className="font-medium text-sm sm:text-base">
-                        {payments.length === 0 ? "Send STK Push" : `STK ${formatCurrency(remaining)}`}
-                      </p>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Prompt customer's phone</p>
-                    </div>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full h-12 sm:h-14 border-2 border-[#4caf50]/60 hover:bg-[#4caf50]/10 justify-start gap-2 sm:gap-3"
-                    onClick={() => setShowC2BLookup(true)}
-                    disabled={!posTransactionId}
-                    title={!posTransactionId ? "Save the sale first to enable lookup" : undefined}
-                  >
-                    <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-[#4caf50]/80 flex items-center justify-center flex-shrink-0">
-                      <Search className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-                    </div>
-                    <div className="text-left min-w-0">
-                      <p className="font-medium text-sm sm:text-base">Look up M-Pesa</p>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
-                        Customer already paid via paybill/till
-                      </p>
-                    </div>
-                  </Button>
-                </div>
-              )}
-
-              {isCreditEnabled && remaining > 0 && (
-                <Button
-                  variant="outline"
-                  className="w-full h-12 sm:h-14 border-2 border-primary hover:bg-primary/10 justify-start gap-2 sm:gap-3"
-                  onClick={handleCreditQuickPay}
-                >
-                  <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-                    <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-                  </div>
-                  <div className="text-left min-w-0">
-                    <p className="font-medium text-sm sm:text-base">
-                      {payments.length === 0 ? "Charge to Customer Account" : `Charge ${formatCurrency(remaining)} to Account`}
-                    </p>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Buy now, pay later — generates invoice</p>
-                  </div>
-                </Button>
-              )}
-
-              {isCardEnabled && remaining > 0 && (
-                <Button
-                  variant="outline"
-                  className="w-full h-12 sm:h-14 border-2 border-blue-500 hover:bg-blue-500/10 justify-start gap-2 sm:gap-3"
-                  onClick={handleCardQuickPay}
-                >
-                  <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
-                    <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-                  </div>
-                  <div className="text-left min-w-0">
-                    <p className="font-medium text-sm sm:text-base">
-                      {payments.length === 0
-                        ? `Card · ${formatCurrency(effectiveTotal)}`
-                        : `Card · ${formatCurrency(remaining)}`}
-                    </p>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
-                      {cardMethod?.capture_mode === "two_step"
-                        ? "Authorize now, capture on settlement"
-                        : "Authorize + capture immediately"}
-                    </p>
-                  </div>
-                </Button>
-              )}
-
-              {/* Amount Due block removed — the persistent TransactionSummaryRail
-                  on the right already surfaces this and Enerpize-style layout
-                  keeps the left column focused on payment method entry. */}
-              {cashRoundingSettings.enabled && cashRoundingDiff !== 0 && (
-                <div className="text-center py-2 bg-muted/40 rounded-md">
-                  <p className="text-xs text-muted-foreground">
-                    Cash rounding: {cashRoundingDiff > 0 ? "+" : ""}
-                    {formatCurrency(cashRoundingDiff)} → {formatCurrency(roundedEffectiveTotal)}
-                  </p>
-                </div>
-              )}
-
-
-              {onTipChange && (
-                <div className="space-y-2">
-                  <Label className="text-sm">Add Tip</Label>
-                  <div className="flex gap-1.5">
-                    {[10, 15, 20].map((pct) => (
-                      <Button
-                        key={pct}
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-xs"
-                        onClick={() => handleTipQuick(pct)}
-                      >
-                        {pct}%
-                      </Button>
-                    ))}
-                    <div className="flex-1">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={localTip}
-                        onChange={(e) => {
-                          setLocalTip(e.target.value);
-                          onTipChange(parseFloat(e.target.value) || 0);
-                        }}
-                        placeholder="Custom"
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {isCashEnabled && payments.length === 0 && (
-                <>
-                  <div className="space-y-2 sm:space-y-3">
-                    <Label className="text-sm">Quick Cash Payment</Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
-                      {quickAmounts.map((amt) => (
+            <div className="flex flex-1 min-h-0 flex-col gap-3 px-4 py-4 sm:px-6">
+              {/* Method row */}
+              <div className="space-y-2">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Payment Method
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  <TooltipProvider delayDuration={150}>
+                    {resolved.map((r) => {
+                      const IconComponent = r.icon ? iconMap[r.icon] : CreditCard;
+                      const isSelected = draft.methodKey === r.method_key;
+                      const isReady = r.isReady;
+                      const btn = (
                         <Button
-                          key={amt}
-                          variant="outline"
+                          key={r.method_key}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
                           size="sm"
-                          onClick={() => setCashTendered(amt.toString())}
                           className={cn(
-                            "text-xs sm:text-sm",
-                            cashTendered === amt.toString() && "border-primary",
+                            "h-11 gap-2 px-3 text-sm",
+                            !isReady && "opacity-50 cursor-not-allowed",
                           )}
+                          disabled={!isReady}
+                          aria-disabled={!isReady}
+                          aria-pressed={isSelected}
+                          onClick={() => isReady && selectMethod(r.method_key)}
                         >
-                          {formatCurrency(amt)}
+                          {IconComponent && <IconComponent className="h-4 w-4" />}
+                          <span>{r.display_name}</span>
                         </Button>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={cashTendered}
-                        onChange={(e) => setCashTendered(e.target.value)}
-                        placeholder="Cash tendered"
-                        className="text-base sm:text-lg"
-                      />
-                      <Button
-                        onClick={handleQuickCashPayment}
-                        disabled={!cashTendered || parseFloat(cashTendered) < effectiveTotal}
-                        className="whitespace-nowrap text-sm px-3"
-                      >
-                        <Banknote className="h-4 w-4 mr-1 sm:mr-2" />
-                        <span className="hidden xs:inline">Pay</span> Cash
-                      </Button>
-                    </div>
-                    <NumericKeypad
-                      value={cashTendered}
-                      onChange={(v) => setCashTendered(v)}
-                      onClear={() => setCashTendered("")}
-                      onBackspace={() => setCashTendered((v) => v.slice(0, -1))}
-                    />
-                    {cashTendered && parseFloat(cashTendered) >= effectiveTotal && (
-                      <div className="bg-green-500/10 text-green-600 rounded-lg p-2 sm:p-3 flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                        <span className="font-medium text-sm sm:text-base">
-                          Change: {formatCurrency(cashPaymentChange)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  {canSplitPayment ? (
-                    <div className="relative">
-                      <Separator />
-                      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs sm:text-sm text-muted-foreground">
-                        or split payment
-                      </span>
-                    </div>
-                  ) : null}
-                </>
-              )}
-
-              <div className="space-y-2 sm:space-y-3">
-                {payments.length > 0 && (
-                  <div className="space-y-2">
-                    {payments.map((payment, index) => {
-                      const method = enabledPaymentMethods.find((m) => m.method_key === payment.method);
-                      const IconComponent = method?.icon ? iconMap[method.icon] : CreditCard;
+                      );
+                      if (isReady) return btn;
+                      const settingsHref =
+                        r.blockedReason === "customer_required"
+                          ? "#"
+                          : r.blockedReason === "missing_debit_account"
+                          ? "/pos/settings#payment-methods"
+                          : "/pos/settings#providers";
                       return (
-                        <div key={index} className="flex items-center justify-between p-2 border rounded-lg gap-2">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            {IconComponent && <IconComponent className="h-4 w-4 flex-shrink-0" />}
-                            <span className="text-sm truncate">{method?.display_name || payment.method}</span>
-                            {payment.reference && (
-                              <Badge variant="outline" className="text-[10px] hidden sm:inline-flex">
-                                {payment.reference}
-                              </Badge>
+                        <Tooltip key={r.method_key}>
+                          <TooltipTrigger asChild>
+                            <span tabIndex={0}>{btn}</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[240px] text-xs">
+                            <div>{r.blockedMessage}</div>
+                            {settingsHref !== "#" && (
+                              <RouterLink to={settingsHref} className="mt-1 inline-block underline text-primary">
+                                Configure
+                              </RouterLink>
                             )}
-                          </div>
-                          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                            <span className="font-medium text-sm">{formatCurrency(payment.amount)}</span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 sm:h-8 sm:w-8 text-destructive"
-                              onClick={() => handleRemovePayment(index)}
-                              disabled={isRecording}
-                            >
-                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                            </Button>
-                          </div>
-                        </div>
+                          </TooltipContent>
+                        </Tooltip>
                       );
                     })}
-                    {remaining > 0 && (
-                      <div className="text-xs sm:text-sm text-muted-foreground">
-                        Remaining: <span className="font-medium">{formatCurrency(remaining)}</span>
-                      </div>
-                    )}
-                    {change > 0 && (
-                      <div className="bg-green-500/10 text-green-600 rounded-lg p-2 sm:p-3 text-sm">
-                        Change due: <span className="font-medium">{formatCurrency(change)}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {remaining > 0 && canSplitPayment && (
-                  <div className="space-y-2 sm:space-y-3">
-                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                      <TooltipProvider delayDuration={150}>
-                        {resolved.map((r) => {
-                          const source = allEnabledMethods.find((m) => m.method_key === r.method_key);
-                          const IconComponent = r.icon ? iconMap[r.icon] : CreditCard;
-                          const isReady = r.isReady;
-                          const btn = (
-                            <Button
-                              key={r.method_key}
-                              type="button"
-                              variant={selectedMethod === r.method_key ? "default" : "outline"}
-                              size="sm"
-                              className={cn(
-                                "text-xs sm:text-sm px-2 sm:px-3",
-                                !isReady && "opacity-50 cursor-not-allowed",
-                              )}
-                              disabled={!isReady}
-                              aria-disabled={!isReady}
-                              onClick={() => isReady && setSelectedMethod(r.method_key)}
-                            >
-                              {IconComponent && <IconComponent className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />}
-                              <span className="hidden xs:inline">{r.display_name}</span>
-                              <span className="xs:hidden">{r.display_name.slice(0, 4)}</span>
-                            </Button>
-                          );
-                          if (isReady || !source) return btn;
-                          const settingsHref =
-                            r.blockedReason === "customer_required"
-                              ? "#"
-                              : r.blockedReason === "missing_debit_account"
-                              ? "/pos/settings#payment-methods"
-                              : "/pos/settings#providers";
-                          return (
-                            <Tooltip key={r.method_key}>
-                              <TooltipTrigger asChild>
-                                <span tabIndex={0}>{btn}</span>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-[240px] text-xs">
-                                <div>{r.blockedMessage}</div>
-                                {settingsHref !== "#" && (
-                                  <RouterLink to={settingsHref} className="mt-1 inline-block underline text-primary">
-                                    Configure
-                                  </RouterLink>
-                                )}
-                              </TooltipContent>
-                            </Tooltip>
-                          );
-                        })}
-                      </TooltipProvider>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        placeholder={`Amount (${formatCurrency(remaining)})`}
-                        className="text-sm"
-                      />
-                      {selectedMethodConfig?.requires_reference && (
-                        <Input
-                          value={reference}
-                          onChange={(e) => setReference(e.target.value)}
-                          placeholder="Ref"
-                          className="w-20 sm:w-32 text-sm"
-                        />
-                      )}
-                      <Button onClick={handleAddPayment} disabled={!amount} size="sm">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {remaining > 0 && !canSplitPayment && payments.length === 0 && enabledPaymentMethods.length === 1 && (
-                  <p className="text-xs text-muted-foreground italic">
-                    Only {enabledPaymentMethods[0].display_name} is enabled on this register. Enable another payment method in Settings to split payments.
-                  </p>
-                )}
+                  </TooltipProvider>
+                  {isMpesaEnabled && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-11 gap-2 px-3 text-sm text-[#4caf50]"
+                      onClick={() => setShowC2BLookup(true)}
+                      disabled={!posTransactionId}
+                      title={!posTransactionId ? "Save the sale first to enable lookup" : undefined}
+                    >
+                      <Search className="h-4 w-4" />
+                      Look up M-Pesa
+                    </Button>
+                  )}
+                </div>
               </div>
 
-              {/* Confirm button lives in the persistent right rail below. */}
+              {/* Active-draft amount display */}
+              <div className="rounded-xl border bg-muted/30 px-4 py-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Amount to Tender
+                    {selectedMethodConfig && (
+                      <span className="ml-2 normal-case text-muted-foreground/80">
+                        · {selectedMethodConfig.display_name}
+                      </span>
+                    )}
+                  </span>
+                  {remaining > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                      onClick={() => setDraftAmount(remaining.toFixed(2))}
+                    >
+                      Use remaining
+                    </button>
+                  )}
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-3xl font-bold tabular-nums sm:text-4xl">
+                    {formatCurrency(draftAmountNum)}
+                  </span>
+                  {draftIsCash && draftAmountNum > effectiveTotal - totalApplied && (
+                    <span className="text-xs text-green-600">
+                      Change {formatCurrency(draftAmountNum - Math.max(0, effectiveTotal - totalApplied))}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick chips */}
+              {quickChipAmounts.length > 0 && (
+                <div className="grid grid-cols-4 gap-2">
+                  {quickChipAmounts.map((amt) => (
+                    <Button
+                      key={amt}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "h-10 text-sm tabular-nums",
+                        draft.amount === amt.toFixed(2) && "border-primary",
+                      )}
+                      onClick={() => setDraftAmount(amt.toFixed(2))}
+                    >
+                      {formatCurrency(amt)}
+                    </Button>
+                  ))}
+                </div>
+              )}
+
+              {/* Reference input for methods that need it */}
+              {selectedMethodConfig?.requires_reference && (
+                <Input
+                  value={draft.reference}
+                  onChange={(e) => setDraft((d) => ({ ...d, reference: e.target.value }))}
+                  placeholder={`Reference for ${selectedMethodConfig.display_name}`}
+                  className="h-11 text-sm"
+                />
+              )}
+
+              {/* Tip (optional, compact) */}
+              {onTipChange && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Tip
+                  </Label>
+                  {[10, 15, 20].map((pct) => (
+                    <Button
+                      key={pct}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 flex-1 text-xs"
+                      onClick={() => handleTipQuick(pct)}
+                    >
+                      {pct}%
+                    </Button>
+                  ))}
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={localTip}
+                    onChange={(e) => {
+                      setLocalTip(e.target.value);
+                      onTipChange(parseFloat(e.target.value) || 0);
+                    }}
+                    placeholder="Custom"
+                    className="h-8 w-24 text-xs"
+                  />
+                </div>
+              )}
+
+              {/* Cash rounding note */}
+              {cashRoundingSettings.enabled && cashRoundingDiff !== 0 && draftIsCash && (
+                <p className="text-xs text-muted-foreground">
+                  Cash rounding: {cashRoundingDiff > 0 ? "+" : ""}
+                  {formatCurrency(cashRoundingDiff)} → {formatCurrency(roundedEffectiveTotal)}
+                </p>
+              )}
+
+              {/* Keypad — the single amount input surface */}
+              <div className="flex-1 min-h-0 flex items-end">
+                <div className="w-full">
+                  <NumericKeypad
+                    value={draft.amount}
+                    onChange={setDraftAmount}
+                    onClear={() => setDraftAmount("")}
+                    onBackspace={() =>
+                      setDraftAmount(draft.amount.slice(0, -1))
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Add tender — commits the draft as one tender row */}
+              <Button
+                onClick={handleAddTender}
+                disabled={
+                  isRecording ||
+                  !selectedMethodConfig ||
+                  draftAmountNum <= 0 ||
+                  (selectedTenderKind === "credit_liability" && !hasCustomer)
+                }
+                className="h-12 w-full text-sm font-semibold"
+                variant="secondary"
+              >
+                Add Tender
+              </Button>
             </div>
           )}
         </div>
-      </ScrollArea>
 
-      {/* Persistent transaction summary rail — Enerpize-style.
-          Keeps subtotal / discounts / tax / net-payable and paid / change
-          visible for the entire tender phase. The Confirm CTA finalizes
-          the split-payment flow when the tender is fully covered. */}
-      <aside className="hidden md:flex w-80 xl:w-96 flex-col border-l bg-card">
-        <div className="border-b px-4 py-3">
-          <p className="text-xs text-muted-foreground">POS Client</p>
-          <p className="text-sm font-semibold truncate">
-            {railCart.customer?.name ?? "Walk-in customer"}
-          </p>
-        </div>
-        <ScrollArea className="flex-1 min-h-0 px-4 py-3">
-          <TransactionSummaryRail
-            cart={tenderSummaryCart}
-            appliedPromotions={appliedPromotions}
-            formatCurrency={formatCurrency}
-            size="md"
-            totalLabel="Net Payable"
-            totalOverride={effectiveTotal}
-          />
-          <div className="mt-4 space-y-1.5 text-sm">
-            {tipAmount > 0 && (
-              <div className="flex justify-between text-muted-foreground">
-                <span>Tip</span>
-                <span>{formatCurrency(tipAmount)}</span>
+        {/* RIGHT RAIL — authoritative projection of the payment session. */}
+        <aside className="hidden md:flex w-80 xl:w-96 flex-col border-l bg-card">
+          <div className="border-b px-4 py-3">
+            <p className="text-xs text-muted-foreground">POS Client</p>
+            <p className="text-sm font-semibold truncate">
+              {railCart.customer?.name ?? "Walk-in customer"}
+            </p>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+            <TransactionSummaryRail
+              cart={tenderSummaryCart}
+              appliedPromotions={appliedPromotions}
+              formatCurrency={formatCurrency}
+              size="md"
+              totalLabel="Net Payable"
+              totalOverride={effectiveTotal}
+            />
+            <div className="mt-4 space-y-1.5 text-sm">
+              {tipAmount > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Tip</span>
+                  <span>{formatCurrency(tipAmount)}</span>
+                </div>
+              )}
+              <Separator className="my-2" />
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Paid</span>
+                <span className="font-medium tabular-nums">
+                  {formatCurrency(totalApplied)}
+                </span>
               </div>
-            )}
-            <Separator className="my-2" />
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Paid</span>
-              <span className="font-medium">{formatCurrency(paidAmount)}</span>
+              {draftAmountNum > 0 && (
+                <div className="flex justify-between text-primary">
+                  <span>
+                    Draft{selectedMethodConfig ? ` · ${selectedMethodConfig.display_name}` : ""}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {formatCurrency(draftAmountNum)}
+                  </span>
+                </div>
+              )}
+              {remaining > 0 ? (
+                <div className="flex justify-between text-amber-600">
+                  <span>Remaining</span>
+                  <span className="font-medium tabular-nums">
+                    {formatCurrency(remaining)}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex justify-between text-green-600">
+                  <span>Change</span>
+                  <span className="font-medium tabular-nums">
+                    {formatCurrency(change)}
+                  </span>
+                </div>
+              )}
             </div>
-            {remaining > 0 ? (
-              <div className="flex justify-between text-amber-600">
-                <span>Remaining</span>
-                <span className="font-medium">{formatCurrency(remaining)}</span>
-              </div>
-            ) : (
-              <div className="flex justify-between text-green-600">
-                <span>Change</span>
-                <span className="font-medium">{formatCurrency(change)}</span>
+
+            {/* Recorded tenders */}
+            {payments.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Recorded
+                </p>
+                {payments.map((payment, index) => {
+                  const method = enabledPaymentMethods.find(
+                    (m) => m.method_key === payment.method,
+                  );
+                  const IconComponent = method?.icon ? iconMap[method.icon] : CreditCard;
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between gap-2 rounded-lg border p-2"
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        {IconComponent && (
+                          <IconComponent className="h-4 w-4 flex-shrink-0" />
+                        )}
+                        <span className="truncate text-sm">
+                          {method?.display_name ?? payment.method}
+                        </span>
+                        {payment.reference && (
+                          <Badge variant="outline" className="hidden text-[10px] sm:inline-flex">
+                            {payment.reference}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-shrink-0 items-center gap-1">
+                        <span className="text-sm font-medium tabular-nums">
+                          {formatCurrency(payment.amount)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => handleRemovePayment(index)}
+                          disabled={isRecording}
+                          aria-label="Remove tender"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
-        </ScrollArea>
-        <div className="border-t p-4">
-          <Button
-            className="w-full h-14 text-base bg-green-600 hover:bg-green-700 text-white"
-            onClick={handleSplitPayment}
-            disabled={!canConfirm || isRecording}
-            aria-label="Confirm payment"
-          >
-            <CheckCircle className="h-5 w-5 mr-2" />
-            Confirm
-          </Button>
-          {!canConfirm && (
-            <p className="text-[11px] text-muted-foreground mt-2 text-center">
-              {payments.length === 0
-                ? "Add a payment to enable Confirm"
-                : `Collect ${formatCurrency(remaining)} more to confirm`}
-            </p>
-          )}
-        </div>
-      </aside>
+
+          <div className="border-t p-4">
+            <Button
+              className="w-full h-14 text-base bg-green-600 hover:bg-green-700 text-white"
+              onClick={handleConfirm}
+              disabled={!canConfirm || isRecording}
+              aria-label="Confirm payment"
+            >
+              <CheckCircle className="h-5 w-5 mr-2" />
+              Confirm Payment
+            </Button>
+            {confirmHelper && (
+              <p className="text-[11px] text-muted-foreground mt-2 text-center">
+                {confirmHelper}
+              </p>
+            )}
+          </div>
+        </aside>
       </div>
 
-
-      {/* Payment provider sub-modals — these remain modal because they wrap
-          a device-driver conversation (STK push wait, card terminal auth).
-          They are not workstation phases. */}
+      {/* Payment provider sub-modals — remain modal (wrap device-driver
+          conversations, not workstation phases). */}
       <MpesaPaymentModal
         open={showMpesaModal}
         onOpenChange={setShowMpesaModal}
-        amount={effectiveTotal}
+        amount={pendingMpesaAmount}
         posTransactionId={posTransactionId}
         onSuccess={handleMpesaSuccess}
-        onCancel={() => setShowMpesaModal(false)}
-      />
-      <MpesaPaymentModal
-        open={showSplitMpesaModal}
-        onOpenChange={setShowSplitMpesaModal}
-        amount={splitMpesaAmount}
-        posTransactionId={posTransactionId}
-        onSuccess={handleSplitMpesaSuccess}
         onCancel={() => {
-          setShowSplitMpesaModal(false);
-          setSplitMpesaAmount(0);
+          setShowMpesaModal(false);
+          setPendingMpesaAmount(0);
         }}
       />
       <MpesaC2BLookupModal
@@ -978,12 +926,14 @@ export function TenderWorkspace({
       <CardPaymentModal
         open={showCardModal}
         onOpenChange={setShowCardModal}
-        amount={cardModalAmount}
-        captureMode={(cardMethod?.capture_mode as "auth_only" | "auth_capture") ?? "auth_capture"}
+        amount={pendingCardAmount}
+        captureMode={
+          (cardMethod?.capture_mode as "auth_only" | "auth_capture") ?? "auth_capture"
+        }
         onSuccess={handleCardSuccess}
         onCancel={() => {
           setShowCardModal(false);
-          setCardModalAmount(0);
+          setPendingCardAmount(0);
         }}
       />
     </section>
