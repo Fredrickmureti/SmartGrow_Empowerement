@@ -23,7 +23,7 @@
  */
 
 import { useCallback } from "react";
-import { PostPaymentScreen, type PrintPolicyHint } from "./PostPaymentSurface";
+import { PostPaymentSurface, type PrintPolicyHint } from "./PostPaymentSurface";
 import type { LiveTransactionInput } from "@/lib/pos/receipt/ReceiptDocumentModel";
 import { useTerminalContext } from "../TerminalStateContext";
 
@@ -57,7 +57,7 @@ export function ReceiptWorkspace({
   if (state.phase !== "receipt") return null;
 
   return (
-    <PostPaymentScreen
+    <PostPaymentSurface
       open
       transaction={transaction}
       policy={policy}

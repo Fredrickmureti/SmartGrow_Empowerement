@@ -45,7 +45,7 @@ import {
   Download,
   FileText,
 } from "lucide-react";
-import { PostPaymentScreen } from "../receipt/PostPaymentSurface";
+import { PostPaymentSurface } from "../receipt/PostPaymentSurface";
 import { VoidTransactionDialog } from "@/components/pos/VoidTransactionDialog";
 import { CardPaymentActions } from "@/components/pos/transaction-detail/CardPaymentActions";
 import { printClient } from "@/services/printing/PrintClient";
@@ -578,7 +578,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
           aria-label="Receipt reprint"
           className="absolute inset-0 z-50 flex flex-col bg-background"
         >
-          <PostPaymentScreen
+          <PostPaymentSurface
             open
             isReprint
             policy={posReceiptPolicy ? {

@@ -1256,7 +1256,12 @@ function POSTerminalInner() {
         }).catch(err => console.error("Split portion update error:", err));
       }
       
-      // Stage X3 — always land on PostPaymentScreen after a successful
+      // Stage X3 — always land on PostPaymentSurface after a successful
+      // tender. `phase = "receipt"` gates the workspace mount; the
+      // customer-facing "New Sale" button dispatches `newSale` which
+      // returns the reducer to `ready`. Historically we did this via a
+      // sibling `useState`, which meant the reducer could be stuck
+      // on `tender` while `PostPaymentSurface` was on screen.
       // payment. The screen owns its own auto-print state machine
       // (driven by `posReceiptPolicy`), shows the cashier a confirmation
       // pane, exposes Reprint / Save PDF / Email / New Sale, and pushes
@@ -1267,7 +1272,7 @@ function POSTerminalInner() {
       // reducer to `receipt` deterministically. Previously the reducer
       // waited on `pos.payment_completed` from the domain-event bus,
       // which meant a slow or dropped event could leave `phase` stuck
-      // on `tender` while `PostPaymentScreen` was on screen.
+      // on `tender` while `PostPaymentSurface` was on screen.
       terminalDispatch({
         kind: "op",
         op: "recordCompletion",
@@ -2379,7 +2384,7 @@ function POSTerminalInner() {
 
 
       {/* Phase 3c — Receipt workspace (replaces the ad-hoc
-          <PostPaymentScreen> mount). Route-owned surface for
+          <PostPaymentSurface> mount). Route-owned surface for
           `terminalState.phase === "receipt"`; `newSale` dispatch is
           handled inside the workspace itself, so the reducer — not a
           sibling useState — decides when the terminal returns to
