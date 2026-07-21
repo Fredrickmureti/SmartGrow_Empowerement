@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { POSProduct } from "@/hooks/pos/usePOSProducts";
+import type { HappyHour } from "@/hooks/pos/useHappyHour";
 
 export interface ProductDiscoveryPanelProps {
   searchInputRef: React.RefObject<HTMLInputElement>;
@@ -29,7 +30,7 @@ export interface ProductDiscoveryPanelProps {
   getDiscountedPrice: (
     productId: string,
     basePrice: number,
-  ) => { price: number; happyHour?: { name: string } | null };
+  ) => { price: number; happyHour: HappyHour | null; savings: number };
   formatCurrency: (value: number) => string;
 }
 
