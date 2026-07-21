@@ -112,6 +112,7 @@ import { useTableSessions } from "@/hooks/pos/useTableSessions";
 import { useFloorPlan } from "@/hooks/pos/useFloorPlan";
 import { ProductDiscoveryPanel } from "@/apps/pos/terminal/sale/components/ProductDiscoveryPanel";
 import { BasketPanel } from "@/apps/pos/terminal/sale/components/BasketPanel";
+import { TransactionSummaryRail } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -1658,33 +1659,11 @@ function POSTerminalInner() {
 
           {/* Cart Summary */}
           <div className="border-t p-3 xl:p-4 space-y-3 xl:space-y-4">
-            <div className="space-y-1.5 xl:space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatCurrency(cart.subtotal)}</span>
-              </div>
-              {cart.discount_amount > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Discount</span>
-                  <span>-{formatCurrency(cart.discount_amount)}</span>
-                </div>
-              )}
-              {appliedPromotions.length > 0 && appliedPromotions.map((promo, i) => (
-                <div key={i} className="flex justify-between text-xs text-green-600">
-                  <span className="flex items-center gap-1"><Sparkles className="h-3 w-3" />{promo.promotion.name}</span>
-                  <span>-{formatCurrency(promo.discountAmount)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Tax</span>
-                <span>{formatCurrency(cart.tax_amount)}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between text-base xl:text-lg font-bold">
-                <span>Total</span>
-                <span>{formatCurrency(cart.total)}</span>
-              </div>
-            </div>
+            <TransactionSummaryRail
+              cart={cart}
+              appliedPromotions={appliedPromotions}
+              formatCurrency={formatCurrency}
+            />
 
             {/* Action Buttons */}
             <div className={cn("grid gap-1.5 xl:gap-2", tableSessionId ? "grid-cols-5" : "grid-cols-4")}>
