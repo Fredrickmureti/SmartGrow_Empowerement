@@ -22851,6 +22851,7 @@ export type Database = {
           id: string
           is_default: boolean
           kind: string
+          media_profile_id: string | null
           name: string
           org_id: string
           template_key: string
@@ -22869,6 +22870,7 @@ export type Database = {
           id?: string
           is_default?: boolean
           kind: string
+          media_profile_id?: string | null
           name: string
           org_id: string
           template_key: string
@@ -22887,6 +22889,7 @@ export type Database = {
           id?: string
           is_default?: boolean
           kind?: string
+          media_profile_id?: string | null
           name?: string
           org_id?: string
           template_key?: string
@@ -22894,7 +22897,15 @@ export type Database = {
           version?: number
           width_mm?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "label_templates_media_profile_id_fkey"
+            columns: ["media_profile_id"]
+            isOneToOne: false
+            referencedRelation: "media_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       landed_cost_allocations: {
         Row: {
@@ -25620,6 +25631,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      media_profiles: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          gap_mm: number
+          height_mm: number | null
+          id: string
+          is_default: boolean
+          kind: string
+          name: string
+          org_id: string
+          orientation: string
+          updated_at: string
+          width_mm: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          gap_mm?: number
+          height_mm?: number | null
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name: string
+          org_id: string
+          orientation?: string
+          updated_at?: string
+          width_mm: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          gap_mm?: number
+          height_mm?: number | null
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name?: string
+          org_id?: string
+          orientation?: string
+          updated_at?: string
+          width_mm?: number
+        }
+        Relationships: []
       }
       member_permission_groups: {
         Row: {
@@ -44695,10 +44757,13 @@ export type Database = {
         Row: {
           address: string | null
           business_id: string
+          capabilities: string[]
           code128_native: boolean
           columns_override: number | null
+          command_language: string | null
           created_at: string
           cutter: string
+          dpi: number | null
           escpos_codepage: string | null
           font: string
           id: string
@@ -44706,20 +44771,25 @@ export type Database = {
           is_calibrated: boolean
           label: string
           margin_cols: number | null
+          margins_mm: Json
           notes: string | null
           paper_format: string
           paper_size: string | null
           qr_native: boolean
+          supported_media_ids: string[]
           transport: string
           updated_at: string
         }
         Insert: {
           address?: string | null
           business_id: string
+          capabilities?: string[]
           code128_native?: boolean
           columns_override?: number | null
+          command_language?: string | null
           created_at?: string
           cutter?: string
+          dpi?: number | null
           escpos_codepage?: string | null
           font?: string
           id?: string
@@ -44727,20 +44797,25 @@ export type Database = {
           is_calibrated?: boolean
           label: string
           margin_cols?: number | null
+          margins_mm?: Json
           notes?: string | null
           paper_format?: string
           paper_size?: string | null
           qr_native?: boolean
+          supported_media_ids?: string[]
           transport: string
           updated_at?: string
         }
         Update: {
           address?: string | null
           business_id?: string
+          capabilities?: string[]
           code128_native?: boolean
           columns_override?: number | null
+          command_language?: string | null
           created_at?: string
           cutter?: string
+          dpi?: number | null
           escpos_codepage?: string | null
           font?: string
           id?: string
@@ -44748,10 +44823,12 @@ export type Database = {
           is_calibrated?: boolean
           label?: string
           margin_cols?: number | null
+          margins_mm?: Json
           notes?: string | null
           paper_format?: string
           paper_size?: string | null
           qr_native?: boolean
+          supported_media_ids?: string[]
           transport?: string
           updated_at?: string
         }
@@ -79215,12 +79292,18 @@ export type Database = {
         Returns: Json
       }
       resolve_label_template: {
-        Args: { p_branch_id?: string; p_org_id: string; p_template_key: string }
+        Args: {
+          p_branch_id?: string
+          p_media_profile_id?: string
+          p_org_id: string
+          p_template_key: string
+        }
         Returns: {
           body: string
           engine: Database["public"]["Enums"]["label_engine"]
           id: string
           kind: string
+          media_profile_id: string
           scope: string
           version: number
         }[]
@@ -79674,6 +79757,10 @@ export type Database = {
         Returns: number
       }
       seed_default_loan_types: { Args: { _org_id: string }; Returns: undefined }
+      seed_default_media_profiles: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
       seed_default_permission_groups: {
         Args: { p_org_id: string }
         Returns: undefined
