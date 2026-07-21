@@ -42,8 +42,9 @@ import { runtimeCapability, type RuntimeCapability } from "@/services/hardware/H
 import type { DeviceRole } from "@/services/hardware/drivers/DriverInterface";
 import { useDeviceAssignments, type DeviceAssignment } from "@/hooks/useDeviceAssignments";
 import { DeviceRegistryCard } from "@/components/hardware/DeviceRegistryCard";
+import { WorkflowBindingsCard } from "@/components/hardware/WorkflowBindingsCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Cpu, Radar, ListChecks, PlugZap } from "lucide-react";
+import { Cpu, Radar, ListChecks, PlugZap, Route } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { printLabelByTemplate } from "@/services/printing/labelDispatch";
 
