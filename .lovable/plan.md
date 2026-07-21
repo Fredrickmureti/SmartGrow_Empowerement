@@ -25,18 +25,26 @@ Everything else in `.lovable/plan.md` (Steps 6–8, non-goals, technical notes) 
 
 Order of operations, single wave:
 
+**Progress log (this session):**
+- ✅ **6.1 CartProvider (ownership lift) — done.** `src/apps/pos/terminal/sale/CartContext.tsx` created. Mounted in `TerminalShell` as a peer of `ReceiptDataProvider`. `POSTerminal.tsx:231` now calls `useCart()` — zero downstream call-site changes. Adapter return shape preserved verbatim. Cart state now survives sibling-route swaps. Typecheck clean.
+- ✅ **Phase-2A stale-symbol sweep — done.** All non-test `PostPaymentScreen` comment strings renamed to `PostPaymentSurface` (`renderers/index.ts`, `ReceiptDocumentModel.ts`, `HistoryWorkspace.tsx`, `useHardwareProxy.ts`, `pos-receipt-renderer-contract.test.ts` docstrings). `rg PostPaymentScreen src/` now returns zero.
+- ⏸ **6.2–6.6 SaleWorkspace decomposition — deferred to a dedicated session.** Rationale: `POSTerminal.tsx` is still 2,505 LOC with receipt-adjacent surfaces (SendDocumentDialog for email, hardware/print policy consumers, held-transaction dialogs) interleaved with the sale render tree. Rewiring `/receipt` to a route-owned `ReceiptRoute` before extracting `SaleWorkspace` would strand those surfaces on route-swap. The plan already sequences these as one wave — honour that.
+
 1. **CartProvider (ownership lift).** Create `src/apps/pos/terminal/sale/CartContext.tsx` that internally calls `usePOSCartAdapter({ tableSessionId, registerId, shiftId, tableNumber })` from props and exposes the identical return object via `useCart()`. Mount inside `TerminalShell` as a peer of `ReceiptDataProvider`. `POSTerminal.tsx` replaces its L231 `usePOSCartAdapter(...)` invocation with `const cart = useCart();` — zero call-site changes downstream.
 2. **SaleWorkspace extraction.** Move the sale-phase render tree out of `POSTerminal.tsx` into `src/apps/pos/terminal/sale/SaleWorkspace.tsx`, decomposed into `ProductDiscoveryPanel`, `BasketPanel`, `SaleActionBar`, `TransactionSummaryRail`. The rail is a peer component so Tender + Receipt can mount it for permanent visibility (business-state driven UI requirement from parent prompt).
 3. **ReceiptRoute wrapper.** `src/apps/pos/terminal/receipt/ReceiptRoute.tsx` — thin: reads `useReceiptData()` + `useTerminalContext()`, renders `<ReceiptWorkspace />`. Unblocks Slice C.2.
 4. **Route rewire.** `src/apps/pos/routes.tsx` L130 (`sale` → `<SaleWorkspace />`) and L132 (`receipt` → `<ReceiptRoute />`). `tender/return/held/history` still point at `<POSTerminal />` — later waves.
 5. **POSTerminal shrinks to a router shim.** Once `sale` and `receipt` are gone, `POSTerminal` still hosts `tender/return/held/history` internally via `terminalState.phase`. Extend the shim contract explicitly (comment + arch test) — no user-visible change.
 6. **Route-sibling uniqueness test.** `src/test/architecture/pos-terminal-route-siblings.test.ts` — statically parses `routes.tsx` and asserts no two `terminal/:registerId` siblings share the same route element. Prevents regressing back to `<POSTerminal />`-for-everything.
-7. **Stale symbol sweep** (Phase-2 item A above).
+7. **Stale symbol sweep** (Phase-2 item A above). *— shipped ahead of the wave; safe in isolation.*
 
 ### Verification gate before ending Step 6
 - `bunx tsgo --noEmit` clean.
 - Four terminal guardrail suites + new sibling-uniqueness test green.
 - Playwright smoke: `sale → hold → recall → tender → receipt → new-sale` — cart state must survive the route-sibling swap. This is the exact regression Slice C.2 deferral was protecting against; passing it closes both Slice C.2 and Step 6.
+
+### Resume point for next session
+Start at **6.2 SaleWorkspace extraction**. The email receipt dialog (`SendDocumentDialog` at `POSTerminal.tsx:~2400`) and every hardware/print consumer must be traced during extraction — several read `completedTransaction` from `useReceiptData()` (already lifted, safe) but others read cart, shift, or hardware state that still lives in the monolith and must move to `SaleWorkspace`/`TerminalShell` first. Recommended sub-order inside 6.2: (a) extract `ProductDiscoveryPanel` + `BasketPanel` as pure prop-driven components still rendered from `POSTerminal`, (b) extract `SaleActionBar` + `TransactionSummaryRail`, (c) hoist the assembly into `SaleWorkspace.tsx` and rewire the route, (d) then land `ReceiptRoute` + sibling test in the same commit.
 
 ## Phase 4 — Steps 7 & 8 (unchanged from prior plan)
 
