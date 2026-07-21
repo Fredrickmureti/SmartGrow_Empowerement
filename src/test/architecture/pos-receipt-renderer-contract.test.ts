@@ -88,7 +88,7 @@ describe("Stage X6 — POS receipt renderer contract", () => {
   it("POSTerminal no longer inlines `generate-document` auto-print bytes in the success path", () => {
     const src = readFileSync(join(root, "src", "pages", "pos", "POSTerminal.tsx"), "utf8");
     expect(src).not.toMatch(/format:\s*"escpos"[\s\S]{0,200}printRawBytes/);
-    expect(src).toMatch(/PostPaymentScreen/);
+    expect(src).toMatch(/PostPaymentSurface/);
   });
 
   it("POS UI surfaces (excluding pdfUtils) do not call generateDocumentEscPosBytes directly", () => {
@@ -108,7 +108,7 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("PostPaymentScreen delegates print to printClient (Milestone B chokepoint)", () => {
+  it("PostPaymentSurface delegates print to printClient (Milestone B chokepoint)", () => {
     const src = readFileSync(
       join(root, "src", "apps", "pos", "terminal", "receipt", "PostPaymentSurface.tsx"),
       "utf8",
