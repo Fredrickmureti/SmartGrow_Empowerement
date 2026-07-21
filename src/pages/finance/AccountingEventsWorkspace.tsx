@@ -422,11 +422,26 @@ export default function AccountingEventsWorkspace() {
                 const health = r.producer === "pos"
                   ? dispatcherHealth?.get(r.producer_doc_id)
                   : undefined;
+                const summary = r.producer === "pos"
+                  ? posSummaries?.get(r.producer_doc_id)
+                  : undefined;
+                const primaryLabel = summary?.statement_number
+                  || `#${r.producer_doc_id.slice(0, 8)}`;
+                const secondaryBits = [
+                  humanizeEventKind(r.event_kind),
+                  summary?.register_name,
+                  summary?.cashier_name,
+                ].filter(Boolean) as string[];
                 return (
                   <TableRow key={r.id} className={r.state === "needs_mapping" || r.state === "failed" ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}>
                     <TableCell className="text-xs">
                       <div className="font-medium">{producerLabel(r.producer, r.producer_doc_type)}</div>
-                      <div className="font-mono text-[10px] text-muted-foreground">{r.producer_doc_id.slice(0, 8)}… · v{r.version}</div>
+                      <div className="text-xs text-foreground">{primaryLabel}</div>
+                      {secondaryBits.length > 0 && (
+                        <div className="text-[11px] text-muted-foreground">
+                          {secondaryBits.join(" · ")}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs">
                       {r.business_date
@@ -448,8 +463,10 @@ export default function AccountingEventsWorkspace() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="font-mono text-[10px]">
-                      {r.journal_entry_id ? r.journal_entry_id.slice(0, 8) + "…" : "—"}
+                    <TableCell className="text-xs">
+                      {r.journal_entry_id
+                        ? <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">Journal posted</Badge>
+                        : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
                       <Button size="sm" variant="secondary" onClick={() => setSelected(r)}>
@@ -466,6 +483,7 @@ export default function AccountingEventsWorkspace() {
 
       <EventDrawer
         event={selected}
+        summary={selected && selected.producer === "pos" ? posSummaries?.get(selected.producer_doc_id) : undefined}
         onClose={() => setSelected(null)}
         currency={baseCurrency}
       />
