@@ -47,26 +47,43 @@ interface AccountFormProps {
 
 export function AccountForm({ mode, account }: AccountFormProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { accounts, createAccount, updateAccount } = useAccounts();
   const { getEffectiveBalance: rpcBalance } = useAccountBalances();
   const { toast } = useToast();
 
-  const initialCategory =
-    account?.account_type
-      ? getCategoryValue(account.account_type, account.detail_type ?? null)
-      : "bank";
+  // Deep-link support from the CoA tree: `?parent_id=…&account_type=…`
+  // lets the "Add sub-account" affordance pre-fill both the parent picker
+  // and the account category so the accountant lands with the right
+  // classification already selected.
+  const paramParentId = mode === "create" ? searchParams.get("parent_id") : null;
+  const paramAccountType = mode === "create" ? searchParams.get("account_type") : null;
+  const paramParent = paramParentId ? accounts.find((a) => a.id === paramParentId) : null;
+
+  const seedType: Account["account_type"] =
+    account?.account_type ??
+    (paramParent?.account_type as Account["account_type"] | undefined) ??
+    ((paramAccountType as Account["account_type"] | null) ?? "asset");
+  const seedDetailType = account?.detail_type ?? paramParent?.detail_type ?? null;
+
+  const initialCategory = account?.account_type
+    ? getCategoryValue(account.account_type, account.detail_type ?? null)
+    : paramParent
+      ? getCategoryValue(paramParent.account_type, paramParent.detail_type ?? null)
+      : paramAccountType
+        ? getCategoryValue(paramAccountType as Account["account_type"], null)
+        : "bank";
 
   const [formData, setFormData] = useState({
-    account_type: (account?.account_type ?? "asset") as Account["account_type"],
+    account_type: seedType,
     category: initialCategory,
-    detail_type:
-      account?.detail_type ?? getDefaultDetailTypeForCategory(initialCategory),
+    detail_type: seedDetailType ?? getDefaultDetailTypeForCategory(initialCategory),
     code: account?.code ?? "",
     name: account?.name ?? "",
     description: account?.description ?? "",
     opening_balance: account?.opening_balance ?? 0,
-    is_sub_account: !!account?.parent_id,
-    parent_id: account?.parent_id ?? "",
+    is_sub_account: !!account?.parent_id || !!paramParent,
+    parent_id: account?.parent_id ?? paramParent?.id ?? "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -78,17 +95,32 @@ export function AccountForm({ mode, account }: AccountFormProps) {
     ? getDetailTypeDescription(formData.account_type, formData.detail_type)
     : "";
 
-  const parentCandidates = useMemo(
-    () =>
-      accounts.filter(
-        (a) =>
-          a.account_type === formData.account_type &&
-          a.is_active &&
-          a.id !== account?.id &&
-          !a.parent_id,
-      ),
-    [accounts, formData.account_type, account?.id],
-  );
+  // Any active account of the same type may act as a parent — supporting
+  // true N-level nesting (Assets → Current Assets → Cash → Petty Cash).
+  // We exclude the account being edited plus every one of its descendants
+  // so an accountant can't accidentally create a cycle.
+  const parentCandidates = useMemo(() => {
+    const forbidden = new Set<string>();
+    if (account?.id) {
+      forbidden.add(account.id);
+      const stack = [account.id];
+      while (stack.length) {
+        const parentId = stack.pop()!;
+        for (const a of accounts) {
+          if (a.parent_id === parentId && !forbidden.has(a.id)) {
+            forbidden.add(a.id);
+            stack.push(a.id);
+          }
+        }
+      }
+    }
+    return accounts.filter(
+      (a) =>
+        a.account_type === formData.account_type &&
+        a.is_active &&
+        !forbidden.has(a.id),
+    );
+  }, [accounts, formData.account_type, account?.id]);
 
   const isSystem = mode === "edit" && !!account?.is_system;
 
