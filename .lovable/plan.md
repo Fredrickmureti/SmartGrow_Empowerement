@@ -1,90 +1,107 @@
-# POS Terminal — Verification + Continuation
 
-## Phase 1 — Verification (independently checked against the codebase)
+# POS Terminal — Verification + Enerpize-style Workspace Reshape
+
+## Phase 1 — Verification against `.lovable/plan.md`
+
+Re-run the "Resume point" checks the previous agent left before continuing any new work. Findings so far from a first pass:
 
 | Prior claim | Verdict | Evidence |
 |---|---|---|
-| Steps 1, 2, 4, 5.0, 5.1, 5.2 complete | **Confirmed** | Reducer + `SHEETS_ALLOWED_PER_PHASE`, `TenderWorkspace`, `ReturnWorkspace`, `HistoryWorkspace`, `ReceiptPreviewBody` (thin), `ReceiptPreviewSheet`, `POSReports` inline dialog, deleted `ReceiptPreviewDialog.tsx`. |
-| Step 3 closeout Slices A–D complete | **Confirmed** | `PostPaymentSurface` is the canonical export (`rg PostPaymentScreen` returns only stale doc/comment strings — no imports or JSX). `ReceiptDataProvider` mounted in `TerminalShell` between `TerminalStateProvider` and `<Outlet />`. `POSTerminal.tsx` no longer holds `completedTransaction` state nor calls `useResolvedPrintPolicyWithDevice`. |
-| Slice C.2 deferred (cart still component-scoped in `POSTerminal`) | **Confirmed** | `usePOSCartAdapter` still invoked at `POSTerminal.tsx:231`. All six sibling routes (`sale/tender/receipt/return/held/history`) in `src/apps/pos/routes.tsx:130–135` still resolve to `<POSTerminal />`. |
-| Guardrail suites green | **Trusted, will re-run at Step 6 entry** | `pos-workspace-dialogs`, `pos-receipt-model-boundary`, `pos-receipt-renderer-contract`, `stage-b-receipt-snapshot`. |
-| Stale `PostPaymentScreen` strings in comments | **Cleanup** | Non-behavioural — `useHardwareProxy.ts` docstring, `renderers/index.ts`, `ReceiptDocumentModel.ts`, `HistoryWorkspace.tsx` inline comments, one arch-test comment. Sweep during Step 6. |
+| `SaleWorkspace` extracted, `POSTerminal` consumes `useCart()` | Confirmed | `POSTerminal.tsx:117,239,1698` |
+| Panels pure prop-driven under `sale/components/` | Confirmed | `src/apps/pos/terminal/sale/` |
+| `PostPaymentScreen` symbol sweep clean | Needs re-run | grep on fresh tree |
+| Step 6.2d (`ReceiptRoute`, route rewire, sibling-uniqueness test) | Not started | `routes.tsx` still points all six terminal sibling routes at `<POSTerminal />` |
+| `SendDocumentDialog` / `showEmailReceipt` relocation into `ReceiptRoute` | Not started | still inline in `POSTerminal.tsx` |
+| Cart/shell persistence across phase URL changes (`sale/tender/receipt/return/held/history`) | Structurally correct — `TerminalShell` is the layout route, `CartProvider` + `ReceiptDataProvider` live above `<Outlet />`. Behaviour still needs a Playwright pass. | `TerminalShell.tsx`, `routes.tsx` |
 
-**Verdict:** The prior agent's log is accurate. Nothing marked complete is actually pending. Resume point stands: **Step 6 — SaleWorkspace decomposition with cart-ownership lift**.
+If any check fails on rerun, that fix is inserted before Phase 2 begins.
 
-## Phase 2 — Plan adjustments (evidence-driven)
+## Phase 2 — Diagnosis of the user's concrete complaint
 
-No new phases required. Two small additions justified by the codebase read:
+The user's screenshots show two real problems, not just aesthetics:
 
-- **A. Stale-symbol sweep.** Update the `PostPaymentScreen` comment strings surfaced above in the same commit as Slice C.2 to keep grep clean and prevent contributors re-introducing the old name.
-- **B. Cart provider must expose the exact `usePOSCartAdapter` return shape unchanged** (retail + restaurant branches). `POSTerminal` currently threads ~40 cart methods into JSX; renaming or narrowing the surface would balloon this into a semantic refactor. `CartProvider` is a pure ownership lift, not an API redesign.
+1. **Payment page is a full-screen replacement.** Our current `/pos/terminal/:id/tender` mounts `TenderWorkspace` as a full `<section>`. The cart, product context, and top summary that were on `/sale` visually **disappear** — the cashier loses the transaction context they were just working in. Enerpize keeps the cart + net-payable summary permanently on the right; only the tender controls (methods list + numeric keypad) enter on the left. That is the enterprise-POS pattern the parent prompt calls for ("transaction summaries remain fixed", "payment becomes a dedicated workspace *with* permanent summary rail").
+2. **History is a full-region takeover.** Same issue: clicking History replaces the sale workspace entirely. Enerpize slides a receipts panel down over the sale surface with rows `[Receipt#, Date, Paid?, Refund, View]`, `View` opens an inline receipt preview with Print/Cancel — the sale workspace underneath is never torn down.
+3. **Broken tender state** ("Call a supervisor / Something went wrong. Please call a supervisor. Reload terminal"). The dark screenshot shows the tender surface in a fatal error state, and the caption "Only Cash is enabled on this register" indicates the resolver is running but the workspace's own render tree is throwing. Root cause has to be found before any redesign — a pretty broken screen is still broken.
 
-Everything else in `.lovable/plan.md` (Steps 6–8, non-goals, technical notes) stands.
+The URL still changes because the reducer + `useTerminalUrlSync` map phases to route segments — that is correct for deep-linking, browser back/forward, and F5. The user's real objection is not "the URL changed" but "the workspace context vanished." Fix the layout, keep the URL contract.
 
-## Phase 3 — Execution: Step 6 (SaleWorkspace decomposition + cart lift)
+## Phase 3 — Execution
 
-Order of operations, single wave:
+### Step A — Close out prior Step 6.2d (unblocks everything)
 
-**Progress log (this session):**
-- ✅ **6.1 CartProvider (ownership lift) — done.** `src/apps/pos/terminal/sale/CartContext.tsx` created. Mounted in `TerminalShell` as a peer of `ReceiptDataProvider`. `POSTerminal.tsx:231` now calls `useCart()` — zero downstream call-site changes. Adapter return shape preserved verbatim. Cart state now survives sibling-route swaps. Typecheck clean.
-- ✅ **Phase-2A stale-symbol sweep — done.** All non-test `PostPaymentScreen` comment strings renamed to `PostPaymentSurface` (`renderers/index.ts`, `ReceiptDocumentModel.ts`, `HistoryWorkspace.tsx`, `useHardwareProxy.ts`, `pos-receipt-renderer-contract.test.ts` docstrings). `rg PostPaymentScreen src/` now returns zero.
-- ✅ **6.2a — `ProductDiscoveryPanel` + `BasketPanel` extracted.** Both pure prop-driven under `src/apps/pos/terminal/sale/components/`. No hooks/context reads inside.
-- ✅ **6.2b (partial) — `TransactionSummaryRail` extracted.** Pure prop-driven, sized for reuse inside Tender + Receipt routes (per parent-prompt permanent-visibility requirement). Optional `size` prop for the future Tender/Receipt mounts.
-- ✅ **6.2b (rest) — `SaleActionBar` extracted.** `src/apps/pos/terminal/sale/components/SaleActionBar.tsx` — pure prop-driven, consumes a semantic `SaleActionBarCallbacks` object (8 callbacks) instead of 15 raw setters. Callbacks memoised in `POSTerminal.tsx` right before the render tree. Desktop action grid + quick-pay + primary pay button all replaced. Mobile cart drawer action buttons intentionally left inline for now (own follow-up during SaleWorkspace hoist so the mobile drawer can adopt the same component with a `variant="mobile"` prop rather than churn twice).
-- ✅ **6.2c (desktop hoist) — `SaleWorkspace` created.** `src/apps/pos/terminal/sale/SaleWorkspace.tsx` now owns the entire desktop sale-phase render tree. Prop-driven transitional contract so it can be mounted from the legacy monolith and the future `/sale` route without semantic drift.
-- ✅ **6.2c (mobile adoption) — `SaleActionBar` now variant-aware.** Added `variant?: "desktop" | "mobile"` + `onAfterAction?` to `SaleActionBar`. Mobile variant drops the quick-pay row + xl: size ramps and renames "Bill" → "Print Bill". The mobile cart drawer in `POSTerminal.tsx` now mounts `<SaleActionBar variant="mobile" ...>` with a `mobileSaleActionBarCallbacks` memo that preserves the three behavioural deltas (confirm-on-clear for tableSession, silent hold, drawer-close on every action via `onAfterAction`). Duplicated inline action grid deleted (−126 LOC).
-- 🟡 **6.2c residual — mobile drawer container still lives in `POSTerminal.tsx`.** The `<Dialog>` shell + item list + summary block above the action bar still render inline. Folding the whole drawer into `SaleWorkspace` (as `variant="mobile-drawer"` or a peer `<MobileCartDrawer>`) is a small mechanical follow-up now that the action bar is shared, but it is **not** on the Slice-C.2 critical path — leave it for a cleanup pass after 6.2d ships.
-- ⏭ **Next: 6.2d** `ReceiptRoute` + route rewire + sibling-uniqueness architecture test, all in one commit. Details in Resume point below.
+Exactly the resume point in `.lovable/plan.md` §Phase 3, item 2, no scope creep:
 
-**Session totals (running):** `POSTerminal.tsx` 2,505 → 2,088 LOC (−417). Four presentational components + one workspace assembly extracted under `src/apps/pos/terminal/sale/`; `SaleActionBar` now serves both the desktop rail and the mobile drawer. All typechecks clean (`bunx tsgo --noEmit`).
+- Create `src/apps/pos/terminal/receipt/ReceiptRoute.tsx` — thin: `useReceiptData()` + `useTerminalContext()`, renders `<ReceiptWorkspace />`.
+- Lift `showEmailReceipt` + `<SendDocumentDialog>` out of `POSTerminal.tsx` into `ReceiptRoute`.
+- Flip `SaleWorkspace` to consume its context hooks directly and drop the transitional prop surface.
+- `routes.tsx`: `sale` → `<SaleWorkspace />`, `receipt` → `<ReceiptRoute />`. `tender/return/held/history` still on `<POSTerminal />` for now.
+- Add `src/test/architecture/pos-terminal-route-siblings.test.ts` — static parse of `routes.tsx`, asserts no two `terminal/:registerId` siblings share the same element.
+- `bunx tsgo --noEmit` + all terminal guardrail suites must pass before Step B.
 
-1. **CartProvider (ownership lift).** Create `src/apps/pos/terminal/sale/CartContext.tsx` that internally calls `usePOSCartAdapter({ tableSessionId, registerId, shiftId, tableNumber })` from props and exposes the identical return object via `useCart()`. Mount inside `TerminalShell` as a peer of `ReceiptDataProvider`. `POSTerminal.tsx` replaces its L231 `usePOSCartAdapter(...)` invocation with `const cart = useCart();` — zero call-site changes downstream.
-2. **SaleWorkspace extraction.** Move the sale-phase render tree out of `POSTerminal.tsx` into `src/apps/pos/terminal/sale/SaleWorkspace.tsx`, decomposed into `ProductDiscoveryPanel`, `BasketPanel`, `SaleActionBar`, `TransactionSummaryRail`. The rail is a peer component so Tender + Receipt can mount it for permanent visibility (business-state driven UI requirement from parent prompt).
-3. **ReceiptRoute wrapper.** `src/apps/pos/terminal/receipt/ReceiptRoute.tsx` — thin: reads `useReceiptData()` + `useTerminalContext()`, renders `<ReceiptWorkspace />`. Unblocks Slice C.2.
-4. **Route rewire.** `src/apps/pos/routes.tsx` L130 (`sale` → `<SaleWorkspace />`) and L132 (`receipt` → `<ReceiptRoute />`). `tender/return/held/history` still point at `<POSTerminal />` — later waves.
-5. **POSTerminal shrinks to a router shim.** Once `sale` and `receipt` are gone, `POSTerminal` still hosts `tender/return/held/history` internally via `terminalState.phase`. Extend the shim contract explicitly (comment + arch test) — no user-visible change.
-6. **Route-sibling uniqueness test.** `src/test/architecture/pos-terminal-route-siblings.test.ts` — statically parses `routes.tsx` and asserts no two `terminal/:registerId` siblings share the same route element. Prevents regressing back to `<POSTerminal />`-for-everything.
-7. **Stale symbol sweep** (Phase-2 item A above). *— shipped ahead of the wave; safe in isolation.*
+### Step B — Diagnose and fix the tender "Call a supervisor" state
 
-### Verification gate before ending Step 6
-- `bunx tsgo --noEmit` clean.
-- Four terminal guardrail suites + new sibling-uniqueness test green.
-- Playwright smoke: `sale → hold → recall → tender → receipt → new-sale` — cart state must survive the route-sibling swap. This is the exact regression Slice C.2 deferral was protecting against; passing it closes both Slice C.2 and Step 6.
+- Reproduce against the running preview (Playwright, cash-only register, cart with 1 item → tap Pay). Capture the console + network trace at the failure.
+- Trace to the origin (`TenderWorkspace` render, `resolvePaymentMethods` output, `POSShellErrorBoundary` `resetKey`, `SaleSaga`/`openPaymentSession`). Fix at the origin, not with a try/catch.
+- Regression test: `src/test/pos/tender-cash-only-render.test.tsx` — cash-only register mounts `TenderWorkspace` without throwing and renders the numeric keypad + "Pay Cash" affordance.
 
-### Resume point for next session
-**For the next agent — verification first, then continue:**
+### Step C — Reshape Tender into a persistent-shell workspace (Enerpize pattern)
 
-1. **Verify prior work before writing any code.**
-   - `rg -n "SaleWorkspace" src/pages/pos/POSTerminal.tsx` must show one import + one JSX usage. The four panel components (`ProductDiscoveryPanel`/`BasketPanel`/`TransactionSummaryRail`/`SaleActionBar`) must only be **imported** by `SaleWorkspace.tsx` — they must not be rendered directly from `POSTerminal.tsx` (grep for their JSX tags there should return zero).
-   - `rg -n "PostPaymentScreen" src/` must return zero.
-   - `usePOSCartAdapter` must be called **only** inside `src/apps/pos/terminal/sale/CartContext.tsx` — grep should return exactly one call site (plus type-only imports in the extracted components). `POSTerminal.tsx` must consume `useCart()` only.
-   - `bunx tsgo --noEmit` clean.
-   - Confirm the four panel components + `SaleWorkspace` are still **pure prop-driven** (no `use*` hook or context reads inside their bodies — type-only `ReturnType<typeof usePOSCartAdapter>` imports are fine). `SaleWorkspace` will start consuming context directly in 6.2d — that's the intentional transition, but do it **only** when you also mount it as a route.
+Layout, no business-logic changes. Every payment invariant from ADR 0009 (four-axis payment row, resolver readiness, tender validation) is preserved verbatim.
 
-2. **Resume point: 6.2d — `ReceiptRoute` + route rewire + sibling-uniqueness test in one commit.**
-   - **Trace before extract (mandatory).** In `POSTerminal.tsx` grep for `completedTransaction`, `setCompletedTransaction`, `SendDocumentDialog`, `ReceiptWorkspace`, `onEmail`, `openSheet("sale.receiptPreview")`, and `handlePaymentComplete`. Confirm every reader is either (a) already reading from `useReceiptData()` (safe — survives POSTerminal unmount) or (b) local to POSTerminal and needs to be relocated. In particular: `SendDocumentDialog` and `showEmailReceipt` state currently live in `POSTerminal.tsx` — they must move into `ReceiptRoute` (or a shared `ReceiptEmailDialog` mounted by `TerminalShell`) before the route swap, otherwise navigating to `/receipt` unmounts POSTerminal and the "Email receipt" button becomes a no-op.
-   - **Implementation:**
-     - `src/apps/pos/terminal/receipt/ReceiptRoute.tsx` — thin: `useReceiptData()` + `useTerminalContext()`, render `<ReceiptWorkspace />`.
-     - Own the email side-effect there: lift `showEmailReceipt` + `<SendDocumentDialog>` out of `POSTerminal.tsx` into `ReceiptRoute` so the route mount is self-sufficient.
-     - Flip `SaleWorkspace` to consume `useCart()`, `useTerminalContext()`, `useReceiptData()`, `usePOSShifts()`, `usePOSRegisters()`, `useOrg()` directly (drop the transitional prop surface) so the `/sale` route can mount it with zero props.
-     - `src/apps/pos/routes.tsx` L130 (`sale` → `<SaleWorkspace />`), L132 (`receipt` → `<ReceiptRoute />`). Leave `tender/return/held/history` on `<POSTerminal />` — those are Step 8.
-     - `src/test/architecture/pos-terminal-route-siblings.test.ts` — statically parse `routes.tsx` and assert no two `terminal/:registerId` siblings share the same element.
-   - Keep `POSTerminal.tsx` responsible for `tender/return/held/history` until Step 8. Do **not** delete `POSTerminal.tsx` in this wave — Slice C.2 only requires `sale` + `receipt` to become sibling-unique routes.
-   - **After 6.2d:** small cleanup pass — fold the residual mobile cart drawer container (item list + summary + adopted action bar) out of `POSTerminal.tsx` into `SaleWorkspace` so the workspace fully owns the sale surface on both form factors.
+```
++----------------------------------------------------------------+
+|  Top rail (unchanged): register • branch • cashier • badges     |
++----------------------------------+-----------------------------+
+|  Payment methods (rows)          |  TRANSACTION SUMMARY RAIL   |
+|  [Cash] [ 80.00 ] [x]            |  (mounted from SaleWorkspace|
+|  [+ Add method]                  |   — same component, no      |
+|                                  |   remount)                  |
+|                                  |                             |
+|  Numeric keypad                  |  Subtotal        Ksh 80.00  |
+|   7 8 9   | quick-pay chips      |  Net Payable     Ksh 80.00  |
+|   4 5 6   | (Exact / next round) |  Paid            Ksh 80.00  |
+|   1 2 3   |                      |  Change          Ksh  0.00  |
+|   0 . ⌫   |                      |                             |
+|                                  |  [ Confirm payment ]        |
++----------------------------------+-----------------------------+
+```
 
-3. **Trace before extract.** `SendDocumentDialog` (email receipt, near the end of `POSTerminal.tsx`), all hardware/print consumers, and the `holdTransaction`/`openPaymentSession`/`recordPaymentTender`/`commitPaymentSession` flow read cart, shift, receipt, and hardware state that still lives in the monolith. Map every reader before moving it into `SaleWorkspace` / `TerminalShell` — a blind hoist will strand these consumers.
+- Reuse `TransactionSummaryRail` (already extracted, already reusable) as the right rail so cart totals are permanently visible during tender — this is a direct requirement from the parent prompt ("transaction summaries remain fixed").
+- Left column: `PaymentMethodRows` (existing rows) + `NumericKeypad` + quick-pay chips. All existing method drivers (cash / M-Pesa / card / bank / voucher / credit) are unchanged.
+- Delete the current full-width Tender chrome; keep the reducer contract (Back → `backToSale`, Confirm → `commitPaymentSession`).
+- Resolver-blocked methods render as disabled chips with reason + Settings link — already the resolver contract from ADR 0009, we just surface it in the new left column.
+- Escape and the header Back button still dispatch `backToSale`; browser Back still works because the URL still transitions `/tender` → `/sale`.
 
-4. **Do not** re-order phases, extract `tender/return/held/history` opportunistically, or touch the hardware layer. Chronological execution per Steps 6 → 7 → 8.
+### Step D — Reshape History into a slide-down overlay panel
 
-## Phase 4 — Steps 7 & 8 (unchanged from prior plan)
+The sale workspace stays mounted underneath.
 
-- **Step 7 — Cashier landing + IA gating.** `/pos` becomes a register-picker → workstation for cashier role. Manager-only admin nav (Reports, Settlements, Kitchen, Bookings, Payment Terminals, Settings) gated in `POSShellLayout` via existing `SubscriptionAccessContext`/role hooks. No new role model.
-- **Step 8 — Close-out.** Extract remaining `tender/return/held/history` workspaces one-per-wave, delete `POSTerminal.tsx`, extend `no-dialog-for-pos-workspace` to cover the file's former path, ship Playwright coverage for deep-link refresh + multi-register isolation, update `docs/audit/2026-07-21-pos-terminal-architecture.md`, save `mem://features/pos-workstation.md` with enforcement rules.
+- New `src/apps/pos/terminal/history/HistoryPanel.tsx` — an overlay `<section>` positioned inside the terminal content region (not a `<Dialog>`, not a full-region takeover). Slides in from the top of the content area with a translucent scrim over the sale grid; the summary rail on the right and the top rail stay visible.
+- Row schema: `Receipt#, Date, Total, Paid?, [Refund] [View]`. `View` opens an inline `ReceiptPreviewSheet` (already extracted) stacked over the panel; `Cancel` returns to the panel; `Print` triggers the existing hardware path.
+- Reducer behaviour: `openHistory` still transitions phase → `history` and the URL still becomes `/history`, but the sale workspace remains mounted behind the panel because the panel is rendered as an overlay sibling of `SaleWorkspace`, not a replacement. State-wise this means `phase === "history"` renders `SaleWorkspace` (read-only) + `HistoryPanel` on top; `backToSale` dismisses the panel.
+- Void / manager-override / refund flows are preserved (they were already sub-modals inside `HistoryWorkspace`; they simply move into `HistoryPanel`).
+- Delete the old full-region `HistoryWorkspace` after parity is confirmed.
 
-## Non-goals (unchanged)
-No hardware-layer changes. No schema/RPC/edge-function/`pos_outbox` changes. No new business logic. No admin-surface visual redesign.
+### Step E — Guardrails + Playwright coverage
+
+- Extend `no-dialog-for-pos-workspace` to also fail on `<Dialog>` inside `HistoryPanel`/`TenderWorkspace`.
+- Playwright: `sale → tap Pay → tender surface renders with summary rail visible → Confirm → receipt → new sale`; and `sale → History → View → Print → Cancel → back to sale (cart still intact)`.
+- Guardrail test: cart line count is identical before entering tender and after `backToSale`.
+
+## Phase 4 — Deferred (unchanged from prior plan)
+
+Step 7 (cashier landing / IA gating) and Step 8 (extract `return/held/history` fully, delete `POSTerminal.tsx`, docs + `mem://features/pos-workstation.md`) stay on the roadmap and are executed after Steps A–E land and stabilise.
+
+## Non-goals
+
+- No hardware-layer changes.
+- No schema / RPC / edge-function / `pos_outbox` changes.
+- No changes to payment business rules (ADR 0009 invariants preserved).
+- No admin-surface (Reports / Settings) visual redesign in this wave.
 
 ## Technical notes
-- `CartProvider` is a lift, not a rewrite — the `usePOSCartAdapter` return object is the public contract; changing it is out of scope for Step 6.
-- Do NOT inline `PostPaymentSurface` into `ReceiptWorkspace`/`HistoryWorkspace` — the shared surface is deliberate (Slice B design note).
-- Pre-existing failing suite `src/test/pos/stage-5-void.test.ts` is a separate ticket — do not fix opportunistically.
+
+- The URL-per-phase contract from `useTerminalUrlSync` is retained — deep links and browser back/forward stay first-class. The user's "URL changes" observation is addressed by keeping the cart + summary mounted, not by suppressing URL updates.
+- `TransactionSummaryRail` was extracted with a `size` prop specifically for reuse inside Tender/Receipt/History overlays — Step C is what that prop was designed for.
+- `PostPaymentSurface` stays shared between `ReceiptWorkspace` and the History overlay's inline preview — do not inline it.
