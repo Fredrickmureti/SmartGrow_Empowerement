@@ -20,7 +20,7 @@ export { showSuccessOnCustomerDisplay, type UpdateDisplayFn } from "./CustomerDi
 /**
  * Thermal paper widths supported by the unified receipt engine. Kept on
  * the renderer barrel for backwards-compatible imports from POS surfaces
- * (e.g. `PostPaymentScreen`). The canonical enum lives in the shared
+ * (e.g. `PostPaymentSurface`). The canonical enum lives in the shared
  * engine (`_shared/receipt/engine/PrinterProfile.ts` + its client mirror
  * `src/lib/receipt/engine/PrinterProfile.ts` as `PaperWidth`).
  */

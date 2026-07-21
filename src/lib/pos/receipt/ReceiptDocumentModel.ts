@@ -4,7 +4,7 @@
  * ADR-0086 — this dual-model split is INTENTIONAL and permanent:
  *   • `ReceiptDocumentModel` is the **UI/customer-display shape** for the
  *     four POS surfaces (TransactionSummaryView, ReceiptPreviewDialog,
- *     PostPaymentScreen, CustomerDisplayRenderer). It carries UI-only
+ *     PostPaymentSurface, CustomerDisplayRenderer). It carries UI-only
  *     concerns — is_reprint watermark, is_offline badge, resolved POS
  *     title, live tender/change derivation — that no emittable artifact
  *     needs.

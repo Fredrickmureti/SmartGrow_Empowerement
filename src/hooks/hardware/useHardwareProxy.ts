@@ -365,7 +365,7 @@ export function useHardwareProxy(
 
   /**
    * Force-disconnect the printer for `role` and retry connect. Used by the
-   * "Reconnect printer" button on PostPaymentScreen and by Test Connection.
+   * "Reconnect printer" button on PostPaymentSurface and by Test Connection.
    */
   const reconnectRole = useCallback(async (role: DeviceRole): Promise<DriverResult> => {
     const result = await hardwareClient.devices.reconnectRole(role);

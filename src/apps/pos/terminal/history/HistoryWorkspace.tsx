@@ -14,9 +14,9 @@
  *   - `VoidTransactionDialog` — reason + note capture; short-form.
  *
  * The reprint affordance previously had to close the outer `<Dialog>`
- * before mounting `PostPaymentScreen` so its focus trap and body
+ * before mounting `PostPaymentSurface` so its focus trap and body
  * `pointer-events: none` lock wouldn't fight. That dance is gone —
- * the workspace is not a Dialog, so `PostPaymentScreen` can simply
+ * the workspace is not a Dialog, so `PostPaymentSurface` can simply
  * render as a stacked full-region section on top of the history
  * grid, and dismissing it returns to the history workspace.
  *
@@ -147,7 +147,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
   };
 
   // Reprint no longer needs to close a parent Dialog first — the
-  // workspace has no focus trap. Just overlay PostPaymentScreen.
+  // workspace has no focus trap. Just overlay PostPaymentSurface.
   const handleReprint = () => {
     setShowReceiptPreview(true);
   };

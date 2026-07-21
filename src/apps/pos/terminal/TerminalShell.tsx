@@ -27,6 +27,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { TerminalStateProvider } from "./TerminalStateContext";
 import { useTerminalUrlSync } from "./useTerminalUrlSync";
 import { ReceiptDataProvider } from "./receipt/ReceiptDataContext";
+import { CartProvider } from "./sale/CartContext";
 
 function TerminalUrlSyncMount() {
   useTerminalUrlSync();
@@ -61,8 +62,13 @@ export default function TerminalShell() {
       registerId={registerId}
     >
       <ReceiptDataProvider businessId={currentBusiness?.id} branchId={shiftBranchId}>
-        <TerminalUrlSyncMount />
-        <Outlet />
+        <CartProvider
+          registerId={registerId ?? ""}
+          shiftId={activeShift?.id ?? ""}
+        >
+          <TerminalUrlSyncMount />
+          <Outlet />
+        </CartProvider>
       </ReceiptDataProvider>
     </TerminalStateProvider>
   );

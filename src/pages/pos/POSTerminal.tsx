@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import { usePOSProducts } from "@/hooks/pos/usePOSProducts";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
-import { usePOSCartAdapter } from "@/hooks/pos/usePOSCartAdapter";
+import { useCart } from "@/apps/pos/terminal/sale/CartContext";
 import { usePOSShifts } from "@/hooks/pos/usePOSShifts";
 import { usePOSTransactionOffline } from "@/hooks/pos/usePOSTransactionOffline";
 import { useCommitKey } from "@/hooks/pos/useCommitKey";
@@ -228,12 +228,10 @@ function POSTerminalInner() {
     staleTime: 30_000,
   });
   
-  const cart = usePOSCartAdapter({ 
-    tableSessionId: tableSessionId || null, 
-    registerId: registerId || "", 
-    shiftId: activeShift?.id || "",
-    tableNumber: tableNumber || undefined,
-  });
+  // Cart ownership lifted to <CartProvider> in TerminalShell (Step 6).
+  // The provider reads tableSessionId + tableNumber from URL search
+  // params itself so sibling routes see the same cart instance.
+  const cart = useCart();
   const { completeTransaction } = usePOSTransactionOffline();
   const commitKey = useCommitKey();
   const sound = usePOSSound();
