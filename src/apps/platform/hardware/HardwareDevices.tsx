@@ -44,6 +44,8 @@ import { useDeviceAssignments, type DeviceAssignment } from "@/hooks/useDeviceAs
 import { DeviceRegistryCard } from "@/components/hardware/DeviceRegistryCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Cpu, Radar, ListChecks, PlugZap } from "lucide-react";
+import { useOrganization } from "@/hooks/useOrganization";
+import { printLabelByTemplate } from "@/services/printing/labelDispatch";
 
 const ROLE_LABELS: Record<string, { label: string; description: string }> = {
   receipt_printer: { label: "Receipt printer", description: "Customer receipt slips at sale commit." },
