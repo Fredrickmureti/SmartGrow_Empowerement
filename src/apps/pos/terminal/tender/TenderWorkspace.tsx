@@ -485,31 +485,12 @@ export function TenderWorkspace({
 
   // Persistent transaction context — the Enerpize-style rail on the right
   // keeps cart totals visible during payment so the cashier never loses
-  // sight of the sale they're closing. Falls back gracefully if the
-  // CartProvider isn't mounted (defensive for tests / storybook).
-  let cartForRail: {
-    subtotal: number;
-    discount_amount: number;
-    tax_amount: number;
-    total: number;
-    items?: Array<{ id?: string | number; product_name?: string; quantity?: number; unit_price?: number }>;
-    customer?: { name?: string } | null;
-  } | null = null;
-  try {
-    cartForRail = useCart() as unknown as typeof cartForRail;
-  } catch {
-    cartForRail = null;
-  }
-  const railCart = cartForRail ?? {
-    subtotal: total,
-    discount_amount: 0,
-    tax_amount: 0,
-    total: effectiveTotal,
-    items: [],
-    customer: null,
-  };
+  // sight of the sale they're closing. `useCart()` is safe here because
+  // `TerminalShell` mounts `CartProvider` above every tender render.
+  const railCart = useCart();
   const paidAmount = totalApplied;
   const canConfirm = payments.length > 0 && totalApplied >= effectiveTotal;
+
 
   return (
     <section
