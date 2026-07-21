@@ -29,6 +29,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useAuth } from "@/contexts/AuthContext";
 import { ReceiveToWMSDialog } from "./ReceiveToWMSDialog";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 
 interface PutawayRow {
   id: string;
@@ -149,6 +150,25 @@ export default function PutawayQueue() {
             <Button asChild size="sm" variant="ghost">
               <Link to={`/warehouse-app/plates/${t.lpn_id}`}>Plate</Link>
             </Button>
+          )}
+          {t.destination_location_id && t.dest_loc?.code && (
+            <PrintLabelButton
+              label="Bin"
+              size="sm"
+              variant="ghost"
+              templateKey="bin_label"
+              workflow="receiving"
+              product={{
+                id: t.destination_location_id,
+                name: `Bin ${t.dest_loc.code}`,
+                sku: t.dest_loc.code,
+                barcode: null,
+              }}
+              sourceDocType="stock_location"
+              sourceDocId={t.destination_location_id}
+              idempotencyKey={`bin_label:${t.destination_location_id}`}
+              extraVars={{ bin_code: t.dest_loc.code }}
+            />
           )}
           {(t.state === "pending" || t.state === "assigned") && (
             <Button size="sm" variant="outline" onClick={() => startAndClaim.mutate(t.id)}>
