@@ -54,20 +54,9 @@ import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { BranchReadOnlyBanner } from "@/components/finance/BranchReadOnlyBanner";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { DeleteAllAccountsDialog } from "@/components/accounts/DeleteAllAccountsDialog";
-import { getDetailTypesForAccountType, getDetailTypeLabel, resolveDetailTypeFromName } from "@/lib/accountDetailTypes";
+import { AccountTree } from "@/components/accounts/AccountTree";
+import { getDetailTypesForAccountType, resolveDetailTypeFromName } from "@/lib/accountDetailTypes";
 import { normalizeError } from "@/services/resilience";
 // useSearchParams already imported above
 
