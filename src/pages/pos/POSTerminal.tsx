@@ -59,7 +59,7 @@ import { usePOSSessionsOffline } from "@/hooks/pos/usePOSSessionsOffline";
 import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
 import { useCustomerDisplay } from "@/hooks/pos/useCustomerDisplay";
 import { domainEventBus } from "@/services/events/domainEventBus";
-import { TerminalStateBridge } from "@/apps/pos/terminal";
+import { TerminalStateBridge, useTerminalContext } from "@/apps/pos/terminal";
 import { usePOSPromotions } from "@/hooks/pos/usePOSPromotions";
 import { useHappyHour } from "@/hooks/pos/useHappyHour";
 import { useKitchenDisplay } from "@/hooks/pos/useKitchenDisplay";
