@@ -1,6 +1,36 @@
 
 # Enterprise Printing Architecture — Continuation
 
+## Current status (2026-07-21, end of turn)
+
+**Active phase:** Phase 14 — Label template editor + printer self-service.
+
+**Fully implemented and verified:**
+- Phase 13 close-out: all 5 items landed (media-agnostic default tests, dispatcher error-taxonomy tests, housekeeping RAISE NOTICE migration, ADR-0087 addendum, D12 audit row). Printing suite 87/87 green.
+- Phase 14 step 8 — `src/apps/platform/hardware/HardwareLabelTemplates.tsx` shipped at `/platform/hardware/labels`. Uses canonical `mediaGeometry.mmToCssPx` for the preview canvas (scales paper AND content together — fixes the reported defect where only the paper resized). Envelope-token detection (`^PW`/`^LL`/`q<dots>`/`Q<dots>,<gap>`) blocks Save when the operator pastes double-injection content. Media pin dropdown includes "Any (media-agnostic)". Nav + route wired.
+- Phase 14 geometry consolidation — `src/services/printing/mediaGeometry.ts` is the single owner of mm→dot math. `ZplLabelDriver`, `EplLabelDriver`, `BrowserHardwareAdapter` and the preview canvas all delegate to it. Guardrail tests (`label-envelope-parity.test.ts`, `printer-profile-hardware-shape.test.ts`) updated to enforce this.
+- Phase 13 canonical `resolve_label_template` republished with `DROP FUNCTION` (3-arg) + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE` to `authenticated` and `service_role` so a fresh clone builds identically.
+- Build: `bun run build:dev` green. Fixed JSX parse error in `HardwareLabelTemplates.tsx` `<DialogDescription>` (raw `<dots>`/`<gap>` in JSX text was parsed as an opening tag — wrapped copy in a `{"…"}` string literal).
+
+**Pending (Phase 14 remaining):**
+- Step 6 — "Bind to workflow" action on the printer detail sheet in `HardwareDevices.tsx`. Must insert into `printer_workflow_bindings` (workflow + branch + optional warehouse, 100-priority band) via canonical Records dialog primitives. RLS: admin/owner only.
+- Step 7 — "Test print" button on the same sheet. Calls `printLabelByTemplate({ templateKey: 'product_label', vars: { name: 'Test', sku: 'TEST-000', barcode: '000000000000' }, workflow: 'product_tag', ... })` and surfaces structured result (template scope, printer scope, media geometry, driver bytes count) via toast + detail drawer.
+- Step 9 — Follow-up tests:
+  - `src/test/hardware/hardware-label-templates-editor.test.ts` — source-inspection that the editor imports `renderTemplateBody` from `labelDispatch` (no parallel token engine) and does not import `pdf-lib`/`bwip-js`/raw driver modules.
+  - `src/test/printing/media-geometry-single-owner.test.ts` — `mediaGeometry.ts` is the sole exporter of `mediaDots` / `mmToCssPx`; drivers + preview import from it.
+
+## Instructions for the next agent
+
+1. **Verify before continuing.** Run `bun run build:dev` and `bunx vitest run src/test/printing/ src/test/hardware/` — both must be green. Then open `/platform/hardware/labels`, create a template pinned to a media profile, switch the media pin, and confirm the preview canvas rescales paper AND content together (this is the acceptance criterion for the reported defect). Inspect `src/services/printing/mediaGeometry.ts` and confirm both drivers (`ZplLabelDriver.ts`, `EplLabelDriver.ts`) plus `BrowserHardwareAdapter.ts` call `mediaDots(...)` rather than doing `dpi / 25.4` inline.
+2. **Only then** pick up Phase 14 step 6 (Bind-to-workflow) → step 7 (Test print) → step 9 (guardrail tests). Do not skip ahead to Phase 15.
+3. Use canonical Records dialog primitives for any new modal — no ad-hoc `<Dialog>` compositions outside the pattern already established in `HardwareLabelTemplates.tsx`.
+4. When writing JSX text, remember: literal `<something>` in JSX text is parsed as a tag. Wrap technical strings that contain `<...>` in `{"…"}`.
+
+## Verification of prior work (Phase 1)
+
+I walked the codebase against `.lovable/plan.md`. Findings:
+
+
 ## Verification of prior work (Phase 1)
 
 I walked the codebase against `.lovable/plan.md`. Findings:
