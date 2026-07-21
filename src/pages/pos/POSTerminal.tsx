@@ -59,7 +59,7 @@ import { usePOSSessionsOffline } from "@/hooks/pos/usePOSSessionsOffline";
 import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
 import { useCustomerDisplay } from "@/hooks/pos/useCustomerDisplay";
 import { domainEventBus } from "@/services/events/domainEventBus";
-import { TerminalStateBridge } from "@/apps/pos/terminal";
+import { TerminalStateBridge, useTerminalContext } from "@/apps/pos/terminal";
 import { usePOSPromotions } from "@/hooks/pos/usePOSPromotions";
 import { useHappyHour } from "@/hooks/pos/useHappyHour";
 import { useKitchenDisplay } from "@/hooks/pos/useKitchenDisplay";
@@ -478,7 +478,31 @@ function POSTerminalInner() {
   }, [managerLogin, registerId, currentOrg]);
   
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [showPayment, setShowPayment] = useState(false);
+  // Phase 2 (POS workstation): tender lifecycle is owned by the terminal
+  // reducer — `showPayment` is now a derived read of `phase === 'tender'`.
+  // Any surface that used to call `setShowPayment(true)` now dispatches
+  // `openTender` (which freezes the idempotency key at the exact moment
+  // the operator entered tender, preserving the retail-vs-restaurant
+  // contract from the pre-refactor implementation).
+  const { state: terminalState, dispatch: terminalDispatch } = useTerminalContext();
+  const showPayment = terminalState.phase === "tender";
+  const openTender = useCallback(() => {
+    terminalDispatch({
+      kind: "op",
+      op: "openTender",
+      idempotencyKey:
+        cart.isRestaurantMode && cart.transactionId
+          ? cart.transactionId
+          : paymentSessionIdempotencyKey,
+    });
+  }, [terminalDispatch, cart.isRestaurantMode, cart.transactionId, paymentSessionIdempotencyKey]);
+  const setShowPayment = useCallback(
+    (next: boolean) => {
+      if (next) openTender();
+      else terminalDispatch({ kind: "op", op: "backToSale" });
+    },
+    [openTender, terminalDispatch],
+  );
   const [showCustomer, setShowCustomer] = useState(false);
   const [showCloseShift, setShowCloseShift] = useState(false);
   const [showHeld, setShowHeld] = useState(false);
