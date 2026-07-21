@@ -432,10 +432,15 @@ export default function Products() {
     const action = searchParams.get("action");
     const createWithCode = searchParams.get("createWithCode");
     if (action === "create" || createWithCode) {
+      const cleanReturnParams = new URLSearchParams(searchParams);
+      cleanReturnParams.delete("action");
+      cleanReturnParams.delete("createWithCode");
+      const cleanReturnSearch = cleanReturnParams.toString();
+      const returnTo = `/inventory-app/products${cleanReturnSearch ? `?${cleanReturnSearch}` : ""}`;
       navigate(
         createWithCode
-          ? `/inventory-app/products/new?createWithCode=${encodeURIComponent(createWithCode)}`
-          : "/inventory-app/products/new",
+          ? `/inventory-app/products/new?createWithCode=${encodeURIComponent(createWithCode)}&returnTo=${encodeURIComponent(returnTo)}`
+          : `/inventory-app/products/new?returnTo=${encodeURIComponent(returnTo)}`,
         { replace: true },
       );
     }
