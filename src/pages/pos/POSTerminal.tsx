@@ -72,7 +72,7 @@ import { CloseShiftDialog } from "@/components/pos/CloseShiftDialog";
 import { PaymentDialog } from "@/components/pos/PaymentDialog";
 import { usePOSRegisters } from "@/hooks/pos/usePOSRegisters";
 import { CustomerSelectDialog } from "@/components/pos/CustomerSelectDialog";
-import { HeldTransactionsDialog } from "@/components/pos/HeldTransactionsDialog";
+import { HeldWorkspace } from "@/apps/pos/terminal/held/HeldWorkspace";
 import { HeldOrdersBar } from "@/components/pos/HeldOrdersBar";
 import { KeyboardShortcutsOverlay } from "@/components/pos/KeyboardShortcutsOverlay";
 import { useDrawerPolicy } from "@/hooks/pos/useDrawerPolicy";
