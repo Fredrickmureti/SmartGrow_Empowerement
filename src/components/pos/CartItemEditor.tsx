@@ -16,6 +16,7 @@ import { useManagerOverride } from "@/hooks/pos/useManagerOverride";
 import { useOrganization } from "@/hooks/useOrganization";
 import { ManagerOverrideDialog } from "./ManagerOverrideDialog";
 import { useCurrency } from "@/hooks/useCurrency";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 
 interface CartItemEditorProps {
   open: boolean;
@@ -120,6 +121,7 @@ export function CartItemEditor({
   const subtotal = price * quantity;
   const discountAmount = subtotal * (discount / 100);
   const lineTotal = subtotal - discountAmount;
+  const priceChanged = !!item && price > 0 && price !== item.unit_price;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -240,6 +242,29 @@ export function CartItemEditor({
               Save Changes
             </Button>
           </div>
+
+          {/* Change-price → new shelf-edge label (Phase 17 step 15).
+              Only surfaced when the cashier has actually changed the price,
+              so a shelf label is only reprinted when the shelf tag is now
+              wrong. Routes through the shared useLabelPrint seam. */}
+          {priceChanged && item.product_id ? (
+            <PrintLabelButton
+              variant="outline"
+              size="sm"
+              className="w-full"
+              label="Print updated shelf label"
+              templateKey="shelf_label"
+              workflow="shelf_edge"
+              product={{
+                id: item.product_id,
+                name: item.name,
+                sku: item.sku ?? null,
+                barcode: null,
+              }}
+              extraVars={{ price: formatCurrency(price) }}
+              idempotencyKey={`pos:shelf_label:${item.product_id}:${price}`}
+            />
+          ) : null}
         </div>
       </DialogContent>
 
