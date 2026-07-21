@@ -516,7 +516,9 @@ export function TenderWorkspace({
         </div>
       </header>
 
-      <ScrollArea className="flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-w-0">
+
         <div className="mx-auto w-full max-w-3xl px-4 py-4 sm:px-6 sm:py-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-8 sm:py-12">
