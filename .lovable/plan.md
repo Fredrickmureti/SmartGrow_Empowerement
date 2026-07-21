@@ -16,9 +16,24 @@
 
 Phase 18 is genuinely shipped for ZPL and EPL. ESC/POS was a superficial pass — hardened this turn.
 
-### Phase B — Remaining gaps · QUEUED
+### Phase B — Reassessed after read-through · UPDATED
 
-B1 (receipt compiler), B3 (document compiler), B4 (media/printer admin audit), B5 (scanner platform), B6 (event coverage matrix) — not started this turn. Execution order unchanged from the plan below.
+On closer inspection several "queued" items were already implemented
+under different names in earlier waves. Re-scored below.
+
+| Item | Status | Evidence |
+|---|---|---|
+| B1 Receipt compiler | **ALREADY SHIPPED** (as Line[] AST) | `_shared/receipt/documentToLines.ts` + `_shared/escpos/renderLinesEscPos.ts` + `renderDocumentEscPos.ts`. `parity_gate_test.ts` locks PDF↔ESC/POS byte parity from one row producer. ADR-0084/0085. No new "receiptCompiler.ts" needed — the plan's assumption was stale. |
+| B2 ESC/POS label geometry | DONE (this wave) | `labelCompiler.ts` now emits `ESC $`, `GS !`, `ESC J`. |
+| B3 PDF document compiler | **ALREADY SHIPPED** (as PdfBuilder) | `_shared/pdf/PdfBuilder.ts` + `components/*` + `themes/accountantMono.ts` behind `generate-document`. Client-side pdf-lib banned by `no-raw-pdf-lib-in-app`. ADR-0085/0086. |
+| B4 Media/printer admin | DONE | `HardwareMedia.tsx` (media_profiles CRUD) + `HardwareCapability.tsx` (printer_profiles hardware-shape editor). ADR-0087. |
+| B5 Scanner platform service | DONE | `src/services/scanner/index.ts` is the universal barrel; `@/services/pos/*` retained as back-compat alias. Consumers span POS, Warehouse, Sales, Inventory. |
+| B6 Event coverage matrix | **DONE this turn** | `docs/printing-event-coverage.md` — event × template × renderer × status, with three GAP tickets called out. |
+
+Net remaining work is not "add another compiler" but "close the six
+wired-status GAPs listed in `docs/printing-event-coverage.md`" — each
+one is a single-row seed + one dispatch call site + one architecture
+test, sized for a normal PR rather than an audit wave.
 
 ---
 
