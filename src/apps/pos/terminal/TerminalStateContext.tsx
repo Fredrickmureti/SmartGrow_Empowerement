@@ -53,10 +53,10 @@ export function TerminalStateProvider({
   // Subscribe to committed business events. The reducer decides which
   // ones drive phase transitions (see PHASE_DRIVING_EVENTS).
   useEffect(() => {
-    const unsub = domainEventBus.subscribe("*" as unknown as never, (event: DomainEvent) => {
+    const unsub = domainEventBus.on("*", (event: DomainEvent) => {
       dispatch({ kind: "event", event });
     });
-    return () => unsub?.();
+    return () => unsub();
   }, []);
 
   // Reflect shift lifecycle into the reducer so the shell can render
