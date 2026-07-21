@@ -25,6 +25,7 @@ import type { DeviceRole, DriverCommand, DriverResult, IDriver } from './drivers
 import { createDriver } from './drivers/DriverRegistry';
 import type { DriverType } from './drivers/DriverInterface';
 import { hardwareEventBus } from './HardwareEventBus';
+import { mediaDots } from '@/services/printing/mediaGeometry';
 
 /**
  * ADR-0087 — mirror of the main-process ZPL envelope logic. Strip any
