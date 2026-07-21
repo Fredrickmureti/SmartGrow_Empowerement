@@ -24,6 +24,9 @@ export const HARDWARE_NAV: WorkspaceNav = {
         // ADR-0087: printer capability (command language, DPI, margins,
         // supported media) is what drivers read at dispatch time.
         { to: "/platform/hardware/capability", label: "Printer capability", icon: Gauge },
+        // ADR-0087 · Phase 14: content-only templates. Envelope is
+        // injected from the media profile at dispatch time.
+        { to: "/platform/hardware/labels", label: "Label templates", icon: Tag },
       ],
     },
     {
