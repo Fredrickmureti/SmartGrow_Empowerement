@@ -1,107 +1,128 @@
 
-# POS Terminal — Verification + Enerpize-style Workspace Reshape
+# Tender Workspace — Audit & Redesign Plan
 
-## Phase 1 — Verification against `.lovable/plan.md`
+## 1. Audit verdict against POS best practice
 
-Re-run the "Resume point" checks the previous agent left before continuing any new work. Findings so far from a first pass:
+Reference model: Square, Toast, Lightspeed, Erply, Enerpize all converge on the same tender contract:
 
-| Prior claim | Verdict | Evidence |
-|---|---|---|
-| `SaleWorkspace` extracted, `POSTerminal` consumes `useCart()` | Confirmed | `POSTerminal.tsx:117,239,1698` |
-| Panels pure prop-driven under `sale/components/` | Confirmed | `src/apps/pos/terminal/sale/` |
-| `PostPaymentScreen` symbol sweep clean | Needs re-run | grep on fresh tree |
-| Step 6.2d (`ReceiptRoute`, route rewire, sibling-uniqueness test) | Not started | `routes.tsx` still points all six terminal sibling routes at `<POSTerminal />` |
-| `SendDocumentDialog` / `showEmailReceipt` relocation into `ReceiptRoute` | Not started | still inline in `POSTerminal.tsx` |
-| Cart/shell persistence across phase URL changes (`sale/tender/receipt/return/held/history`) | Structurally correct — `TerminalShell` is the layout route, `CartProvider` + `ReceiptDataProvider` live above `<Outlet />`. Behaviour still needs a Playwright pass. | `TerminalShell.tsx`, `routes.tsx` |
+- One **active tender draft** at a time (method + amount).
+- One **input surface** (keypad) that mutates only that draft.
+- A **passive summary rail** that reflects the authoritative payment session (Net Payable, Paid, Remaining, Change, Confirm).
+- Terminal state advances on **explicit business events**: `tender.draft.amountChanged`, `tender.recorded`, `tender.reversed`, `payment.confirmed`.
 
-If any check fails on rerun, that fix is inserted before Phase 2 begins.
+Current `src/apps/pos/terminal/tender/TenderWorkspace.tsx` breaks every one of those rules:
 
-## Phase 2 — Diagnosis of the user's concrete complaint
+| # | Symptom you observed | Root cause in code | Verdict |
+|---|---|---|---|
+| 1 | Amount typed on keypad shows **below** the keypad, not in the right "Paid" area | `NumericKeypad` at line 709 is bound to local `cashTendered` state, which is a **cash-quick-pay draft only**. The right rail reads `session.allocated` (recorded tenders). They are two different variables. | Fails "single source of truth". |
+| 2 | Left column scrolls | Whole left pane wrapped in `<ScrollArea>` (line 532) and stacks: MPesa row, Credit, Card, Tip, "Quick Cash Payment" (quick amounts + input + Pay-Cash button + keypad + change banner), separator, split-tender chip bar, amount input, method chips. Vertical bloat forces scroll. | Fails "no-scroll cashier surface". Big systems fit tender in one viewport. |
+| 3 | Confirm does nothing | `handleSplitPayment` (line 366) requires `payments.length > 0 && totalApplied >= effectiveTotal` (`canConfirm`, line 504). Typing on the keypad never calls `recordTender`, so `payments` stays `[]` and Confirm is disabled forever unless the cashier hits the separate green "Pay Cash" button first. | Fails "Confirm = terminal event". Right now Confirm is a *finalize-already-recorded-tenders* button, misnamed. |
+| 4 | Two competing "pay" affordances (keypad + green "Pay Cash" button, and later Confirm) | Cash-quick-pay flow (`handleQuickCashPayment`) and split flow (`handleAddPayment` + `handleSplitPayment`) are two separate state machines rendered simultaneously. | Fails "one active tender draft". |
+| 5 | Aesthetic mismatch with Enerpize reference | Right rail is present but decorative — it doesn't participate in the input loop. | Fails "rail = authoritative projection". |
 
-The user's screenshots show two real problems, not just aesthetics:
+Overall verdict: **the surface is not event-driven, it is form-driven with two competing forms**. The keypad, the "Pay Cash" button, and the split-tender chip bar are three UIs racing over the same business event (`record a tender`). That is why it "looks like a joke": the cashier's inputs don't produce the state changes the layout implies they should.
 
-1. **Payment page is a full-screen replacement.** Our current `/pos/terminal/:id/tender` mounts `TenderWorkspace` as a full `<section>`. The cart, product context, and top summary that were on `/sale` visually **disappear** — the cashier loses the transaction context they were just working in. Enerpize keeps the cart + net-payable summary permanently on the right; only the tender controls (methods list + numeric keypad) enter on the left. That is the enterprise-POS pattern the parent prompt calls for ("transaction summaries remain fixed", "payment becomes a dedicated workspace *with* permanent summary rail").
-2. **History is a full-region takeover.** Same issue: clicking History replaces the sale workspace entirely. Enerpize slides a receipts panel down over the sale surface with rows `[Receipt#, Date, Paid?, Refund, View]`, `View` opens an inline receipt preview with Print/Cancel — the sale workspace underneath is never torn down.
-3. **Broken tender state** ("Call a supervisor / Something went wrong. Please call a supervisor. Reload terminal"). The dark screenshot shows the tender surface in a fatal error state, and the caption "Only Cash is enabled on this register" indicates the resolver is running but the workspace's own render tree is throwing. Root cause has to be found before any redesign — a pretty broken screen is still broken.
+## 2. Target contract (Enerpize-style, event-driven)
 
-The URL still changes because the reducer + `useTerminalUrlSync` map phases to route segments — that is correct for deep-linking, browser back/forward, and F5. The user's real objection is not "the URL changed" but "the workspace context vanished." Fix the layout, keep the URL contract.
+Business events, unchanged from `usePaymentSession`:
 
-## Phase 3 — Execution
-
-### Step A — Close out prior Step 6.2d (unblocks everything)
-
-Exactly the resume point in `.lovable/plan.md` §Phase 3, item 2, no scope creep:
-
-- Create `src/apps/pos/terminal/receipt/ReceiptRoute.tsx` — thin: `useReceiptData()` + `useTerminalContext()`, renders `<ReceiptWorkspace />`.
-- Lift `showEmailReceipt` + `<SendDocumentDialog>` out of `POSTerminal.tsx` into `ReceiptRoute`.
-- Flip `SaleWorkspace` to consume its context hooks directly and drop the transitional prop surface.
-- `routes.tsx`: `sale` → `<SaleWorkspace />`, `receipt` → `<ReceiptRoute />`. `tender/return/held/history` still on `<POSTerminal />` for now.
-- Add `src/test/architecture/pos-terminal-route-siblings.test.ts` — static parse of `routes.tsx`, asserts no two `terminal/:registerId` siblings share the same element.
-- `bunx tsgo --noEmit` + all terminal guardrail suites must pass before Step B.
-
-### Step B — Diagnose and fix the tender "Call a supervisor" state
-
-- Reproduce against the running preview (Playwright, cash-only register, cart with 1 item → tap Pay). Capture the console + network trace at the failure.
-- Trace to the origin (`TenderWorkspace` render, `resolvePaymentMethods` output, `POSShellErrorBoundary` `resetKey`, `SaleSaga`/`openPaymentSession`). Fix at the origin, not with a try/catch.
-- Regression test: `src/test/pos/tender-cash-only-render.test.tsx` — cash-only register mounts `TenderWorkspace` without throwing and renders the numeric keypad + "Pay Cash" affordance.
-
-### Step C — Reshape Tender into a persistent-shell workspace (Enerpize pattern)
-
-Layout, no business-logic changes. Every payment invariant from ADR 0009 (four-axis payment row, resolver readiness, tender validation) is preserved verbatim.
-
-```
-+----------------------------------------------------------------+
-|  Top rail (unchanged): register • branch • cashier • badges     |
-+----------------------------------+-----------------------------+
-|  Payment methods (rows)          |  TRANSACTION SUMMARY RAIL   |
-|  [Cash] [ 80.00 ] [x]            |  (mounted from SaleWorkspace|
-|  [+ Add method]                  |   — same component, no      |
-|                                  |   remount)                  |
-|                                  |                             |
-|  Numeric keypad                  |  Subtotal        Ksh 80.00  |
-|   7 8 9   | quick-pay chips      |  Net Payable     Ksh 80.00  |
-|   4 5 6   | (Exact / next round) |  Paid            Ksh 80.00  |
-|   1 2 3   |                      |  Change          Ksh  0.00  |
-|   0 . ⌫   |                      |                             |
-|                                  |  [ Confirm payment ]        |
-+----------------------------------+-----------------------------+
+```text
+selectMethod(method)         → sets active tender draft.method
+amendDraftAmount(n)          → sets active tender draft.amount (keypad, quick chips, %-tip all funnel here)
+commitDraft()                → session.recordTender(draft) → tender row persisted
+reverseTender(id)            → session.reverseTender
+confirmPayment()             → require remaining<=0 → onComplete(payments)
+back()                       → onBack()
 ```
 
-- Reuse `TransactionSummaryRail` (already extracted, already reusable) as the right rail so cart totals are permanently visible during tender — this is a direct requirement from the parent prompt ("transaction summaries remain fixed").
-- Left column: `PaymentMethodRows` (existing rows) + `NumericKeypad` + quick-pay chips. All existing method drivers (cash / M-Pesa / card / bank / voucher / credit) are unchanged.
-- Delete the current full-width Tender chrome; keep the reducer contract (Back → `backToSale`, Confirm → `commitPaymentSession`).
-- Resolver-blocked methods render as disabled chips with reason + Settings link — already the resolver contract from ADR 0009, we just surface it in the new left column.
-- Escape and the header Back button still dispatch `backToSale`; browser Back still works because the URL still transitions `/tender` → `/sale`.
+The workspace becomes a projection of `{ draft, session }`. Nothing else.
 
-### Step D — Reshape History into a slide-down overlay panel
+Layout (fits one 1280×800 viewport, no scrolling on left pane):
 
-The sale workspace stays mounted underneath.
+```text
+┌───────── Header: Back · "Payment" · Amount Due ─────────┐
+│                                                          │
+│  LEFT (flex-1, no scroll)          RIGHT RAIL (w-96)     │
+│  ┌────────────────────────────┐   ┌────────────────────┐│
+│  │ Method tiles               │   │ POS Client         ││
+│  │ (Cash · Card · M-Pesa ·    │   │ Walk-in customer   ││
+│  │  Store credit · Bank …)    │   ├────────────────────┤│
+│  ├────────────────────────────┤   │ Subtotal           ││
+│  │ Active-draft amount        │   │ Discount           ││
+│  │  KES 0.00  ← reflects draft│   │ Tax                ││
+│  ├────────────────────────────┤   │ Net Payable  BOLD  ││
+│  │ Quick chips: exact/+50/+100│   ├────────────────────┤│
+│  ├────────────────────────────┤   │ Paid               ││
+│  │ Keypad (1-9, 0, ., ⌫, C)   │   │ Remaining / Change ││
+│  │ writes to draft.amount     │   ├────────────────────┤│
+│  ├────────────────────────────┤   │ Recorded tenders … ││
+│  │ [Add tender]  (commits     │   ├────────────────────┤│
+│  │  draft, resets amount to   │   │ [ Confirm Payment ]││
+│  │  next remaining)           │   │  disabled until    ││
+│  └────────────────────────────┘   │  remaining<=0      ││
+│                                    └────────────────────┘│
+└──────────────────────────────────────────────────────────┘
+```
 
-- New `src/apps/pos/terminal/history/HistoryPanel.tsx` — an overlay `<section>` positioned inside the terminal content region (not a `<Dialog>`, not a full-region takeover). Slides in from the top of the content area with a translucent scrim over the sale grid; the summary rail on the right and the top rail stay visible.
-- Row schema: `Receipt#, Date, Total, Paid?, [Refund] [View]`. `View` opens an inline `ReceiptPreviewSheet` (already extracted) stacked over the panel; `Cancel` returns to the panel; `Print` triggers the existing hardware path.
-- Reducer behaviour: `openHistory` still transitions phase → `history` and the URL still becomes `/history`, but the sale workspace remains mounted behind the panel because the panel is rendered as an overlay sibling of `SaleWorkspace`, not a replacement. State-wise this means `phase === "history"` renders `SaleWorkspace` (read-only) + `HistoryPanel` on top; `backToSale` dismisses the panel.
-- Void / manager-override / refund flows are preserved (they were already sub-modals inside `HistoryWorkspace`; they simply move into `HistoryPanel`).
-- Delete the old full-region `HistoryWorkspace` after parity is confirmed.
+Only three interactive things on the left: **method row**, **keypad+chips (both mutate `draft.amount`)**, **Add-tender**. Right rail is read-only except for Confirm.
 
-### Step E — Guardrails + Playwright coverage
+## 3. Implementation steps
 
-- Extend `no-dialog-for-pos-workspace` to also fail on `<Dialog>` inside `HistoryPanel`/`TenderWorkspace`.
-- Playwright: `sale → tap Pay → tender surface renders with summary rail visible → Confirm → receipt → new sale`; and `sale → History → View → Print → Cancel → back to sale (cart still intact)`.
-- Guardrail test: cart line count is identical before entering tender and after `backToSale`.
+Scope: `src/apps/pos/terminal/tender/TenderWorkspace.tsx` only, plus a small extraction for the keypad wiring. No changes to `usePaymentSession`, RPCs, or reducer contract — those already model the events correctly; the UI just wasn't using them.
 
-## Phase 4 — Deferred (unchanged from prior plan)
+1. **Introduce a single draft state**
+   ```ts
+   const [draft, setDraft] = useState<{ methodKey: string; amount: string }>({
+     methodKey: "",
+     amount: "",
+   });
+   ```
+   Retire `cashTendered`, `amount`, `selectedMethod`, `reference` as separate ambient states — keep `reference` inside `draft` when the selected method requires it.
 
-Step 7 (cashier landing / IA gating) and Step 8 (extract `return/held/history` fully, delete `POSTerminal.tsx`, docs + `mem://features/pos-workstation.md`) stay on the roadmap and are executed after Steps A–E land and stabilise.
+2. **Method row = single component**
+   Replace the three stacked colored MPesa/Credit/Card "quick-pay" blocks *and* the split chip bar with one horizontal method row (icons + names). Selecting a method sets `draft.methodKey` and pre-fills `draft.amount = remaining`. Quick-pay behaviour is preserved as "one-click": if remaining pre-fills the draft, cashier just presses Add-tender.
 
-## Non-goals
+3. **Keypad + quick chips both write to `draft.amount`**
+   `<NumericKeypad value={draft.amount} onChange={(v) => setDraft(d => ({...d, amount: v}))} … />`
+   Quick chips (exact, next 10/50/100) call the same setter. Because the right rail reads `draft.amount` for a "would-pay preview" and `session.allocated` for actual Paid, the number the cashier types is visible on the right *immediately* (as "Draft") — killing symptom #1.
 
-- No hardware-layer changes.
-- No schema / RPC / edge-function / `pos_outbox` changes.
-- No changes to payment business rules (ADR 0009 invariants preserved).
-- No admin-surface (Reports / Settings) visual redesign in this wave.
+4. **`Add tender` button = single commit event**
+   - Validates method-specific rules (reference required, customer required for store credit, min tendered ≥ amount for cash).
+   - For device-mediated methods (M-Pesa STK, card terminal), opens the existing sub-modal with `draft.amount`. On success, `recordTender` runs.
+   - For non-mediated methods (cash, credit_liability, bank transfer), calls `recordTender` directly.
+   - On success: clear `draft.amount`, keep `draft.methodKey`, refocus keypad.
 
-## Technical notes
+5. **Confirm button becomes the terminal event**
+   - Enabled when `session.remaining <= 0`.
+   - If cash-only single tender with `tendered_amount >= amount`, allow Confirm to *both* record and finalize in one press (single-tender fast path — this is what "Pay Cash" was trying to be). Implement by having Confirm auto-commit any pending draft first, then `onComplete`.
+   - Fixes symptom #3 and #4 together: Confirm is now the only thing that closes the sale, whether via fast path or split.
 
-- The URL-per-phase contract from `useTerminalUrlSync` is retained — deep links and browser back/forward stay first-class. The user's "URL changes" observation is addressed by keeping the cart + summary mounted, not by suppressing URL updates.
-- `TransactionSummaryRail` was extracted with a `size` prop specifically for reuse inside Tender/Receipt/History overlays — Step C is what that prop was designed for.
-- `PostPaymentSurface` stays shared between `ReceiptWorkspace` and the History overlay's inline preview — do not inline it.
+6. **Remove `<ScrollArea>` from the left pane**
+   Left pane becomes `flex flex-col min-h-0` and each row is fixed-height. Method row `h-14`, draft display `h-16`, quick chips `h-10`, keypad grid `flex-1` (natural 4x4), Add-tender `h-14`. Total fits in ~640px vertical — no scroll on any register-class screen.
+   Keep MPesa/Card sub-modals as-is (they wrap driver conversations, correctly modal).
+
+7. **Right rail: authoritative projection only**
+   Preserve current `TransactionSummaryRail`, but add one row above "Paid":
+   `Draft (Cash) — KES 500.00` in muted foreground when `draft.amount > 0`, so the number the cashier is typing has an explicit home on the right — which is what your Enerpize reference shows.
+   Confirm button label and enable-rule updated per step 5.
+
+8. **Delete dead branches**
+   Remove the `payments.length === 0` "Quick Cash Payment" section (lines 671–733) — its role is absorbed by the unified draft+keypad+Add-tender path. Remove `canSplitPayment` gating on the method chip bar; multiple methods are always shown when configured, single-method registers just render one chip.
+
+9. **Escape / back / esc-key** untouched. All persistence still through `usePaymentSession` — no new RPCs, no schema changes.
+
+## 4. Event-driven checklist (post-change)
+
+- [ ] `draft.amount` is the *only* thing keypad and quick chips mutate.
+- [ ] Right rail's "Paid / Remaining / Change" reads *only* `session.allocated / remaining / change`.
+- [ ] `session.recordTender` is called from exactly one place (Add-tender handler, including the fast path inside Confirm).
+- [ ] `onComplete` is called from exactly one place (Confirm handler).
+- [ ] No local state duplicates a value present on `session`.
+- [ ] Left pane has no vertical scroll at ≥720px height.
+
+## 5. Out of scope for this change
+
+- Payment session RPCs, idempotency contract, saga wiring — already correct.
+- Card / M-Pesa driver modals — correct to remain modal.
+- Receipt phase, held-sale phase — separate workspaces, not touched.
+- Visual theming beyond adopting the two-pane layout; tokens stay on existing shadcn/tailwind semantics.
