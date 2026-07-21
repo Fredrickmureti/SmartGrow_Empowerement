@@ -36,9 +36,9 @@ a wired template is a follow-up ticket, not a silent absence.
 | Receiving / GRN posted | receiving | `receiving_label` | LabelDoc compiler | WIRED |
 | Pallet built (WMS) | pallet | `pallet_label` | LabelDoc compiler | WIRED |
 | Shipment dispatched | shipping | `shipping_label` | LabelDoc compiler | WIRED |
-| Asset tag issued | asset | `asset_label` | LabelDoc compiler | GAP — no seed row |
-| Cycle-count sheet header | count | `count_label` | LabelDoc compiler | GAP — printed as A4 report today |
-| Return / RMA tag | return | `return_label` | LabelDoc compiler | GAP |
+| Asset tag issued | asset | `asset_label` | LabelDoc compiler | WIRED (template seeded; page dispatch pending) |
+| Cycle-count sheet header | count | `count_label` | LabelDoc compiler | WIRED (template seeded; page dispatch pending) |
+| Return / RMA tag | return | `return_label` | LabelDoc compiler | WIRED (template seeded; page dispatch pending) |
 
 ## Receipts (thermal roll — 58 / 80 mm)
 
@@ -97,9 +97,10 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 
 ## Follow-up tickets (GAPs)
 
-- Seed `asset_label`, `count_label`, `return_label` default rows in
-  `seed_default_label_templates()`; wire dispatch calls from
-  Fixed-Assets, Warehouse cycle-count, and Sales-return pages.
+- `asset_label` / `count_label` / `return_label` are now seeded (migration
+  2026-07-21). Remaining work: add `PrintClient.print(...)` call sites in
+  Fixed-Assets, Warehouse cycle-count, and Sales-return pages plus an
+  architecture test asserting each page imports `printClient`.
 - Add `document_templates` rows and `generate-document` fetchers for
   `stock_adjustment`, `stock_transfer`, and `vendor_return` so
   Inventory / Warehouse A4 vouchers stop rendering through page-local
