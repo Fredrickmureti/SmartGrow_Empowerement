@@ -18,9 +18,11 @@ I read `.lovable/plan.md` end-to-end and spot-checked the codebase to confirm th
 - 17 printing test files under `src/test/printing/` cover envelope parity, media requirement, mm-scaling at 152/203/300 dpi, product-id-as-barcode policy, ZPL/kitchen goldens.
 
 **Verified genuinely pending** (only `src/pages/Products.tsx` currently calls `printLabelByTemplate` — no other pages or apps do):
-- Phase 15 · step 6 — editor Units toggle + multi-DPI preview + suspicious-integer warning.
-- Phase 17 · steps 13–15 — Inventory / Warehouse / POS caller wiring.
-- Phase 17 · step 18 — coverage guardrail test.
+- ✅ Phase 17 · step 13 — Inventory callers wired (`Products.tsx` shelf label, `inventory/LotDetail.tsx` lot label).
+- ✅ Phase 17 · step 14 — Warehouse callers wired (`PutawayQueue.tsx` bin label, `warehouse-mobile/MobileReceive.tsx` receiving label, `PackStation.tsx` pallet + shipping labels).
+- ✅ Phase 17 · step 18 — coverage guardrail test at `src/test/printing/label-coverage.test.ts`.
+- ✅ Shared caller component `src/components/labels/PrintLabelButton.tsx` — every new caller now goes through one seam.
+- Still pending: Phase 17 · step 15 (POS item-search reprint + change-price shelf label) and Phase 15 · step 6 (editor Units toggle + multi-DPI preview + suspicious-integer warning).
 
 **Known-unrelated (out of scope):** `src/test/hardware/electron-assignment-hydrator.test.ts` flake — owned by the hardware-runtime stream, not printing.
 
