@@ -92,7 +92,7 @@ import { CashDrawerDialog } from "@/components/pos/CashDrawerDialog";
 import { DiscountDialog } from "@/components/pos/DiscountDialog";
 import { ReturnWorkspace } from "@/apps/pos/terminal/return/ReturnWorkspace";
 import { HistoryWorkspace } from "@/apps/pos/terminal/history/HistoryWorkspace";
-import { ReceiptPreviewDialog } from "@/components/pos/ReceiptPreviewDialog";
+import { ReceiptPreviewSheet } from "@/apps/pos/terminal/sale/ReceiptPreviewSheet";
 import { ReceiptWorkspace } from "@/apps/pos/terminal/receipt/ReceiptWorkspace";
 import { LoyaltyRedemptionDialog } from "@/components/pos/LoyaltyRedemptionDialog";
 import { AgeVerificationDialog } from "@/components/pos/AgeVerificationDialog";
@@ -484,7 +484,7 @@ function POSTerminalInner() {
   // `openTender` (which freezes the idempotency key at the exact moment
   // the operator entered tender, preserving the retail-vs-restaurant
   // contract from the pre-refactor implementation).
-  const { state: terminalState, dispatch: terminalDispatch } = useTerminalContext();
+  const { state: terminalState, dispatch: terminalDispatch, openSheet } = useTerminalContext();
   const showPayment = terminalState.phase === "tender";
   const openTender = useCallback(() => {
     terminalDispatch({
@@ -507,7 +507,10 @@ function POSTerminalInner() {
   const [showCloseShift, setShowCloseShift] = useState(false);
   const [showCashDrawer, setShowCashDrawer] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
-  const [showReceipt, setShowReceipt] = useState(false);
+  // `showReceipt` retired: the pro-forma "Print Bill" preview is now a
+  // sale-workspace sheet (`sale.receiptPreview`) owned by the reducer.
+  // Triggers below call `openSheet("sale.receiptPreview")`; the sheet
+  // auto-dismisses on phase change.
   // Phase 3 (POS workstation): side-transitions (Held / Return / History)
   // are owned by the terminal reducer. `showHeld/Return/History` become
   // derived reads of the current phase; opening dispatches an operator
@@ -1985,7 +1988,7 @@ function POSTerminalInner() {
                         })),
                         payments: [],
                       });
-                      setShowReceipt(true);
+                      openSheet("sale.receiptPreview");
                     }}
                   >
                     <Receipt className="h-4 w-4 xl:h-5 xl:w-5 mb-0.5 xl:mb-1" />
@@ -2238,7 +2241,7 @@ function POSTerminalInner() {
                           payments: [], // No payments yet — pro-forma
                         });
                         setShowMobileCart(false);
-                        setShowReceipt(true);
+                        openSheet("sale.receiptPreview");
                       }}
                     >
                       <Receipt className="h-4 w-4 mb-0.5" />
@@ -2408,18 +2411,15 @@ function POSTerminalInner() {
         </>
       )}
 
-      {/* Receipt Preview Dialog */}
-      <ReceiptPreviewDialog
-        open={showReceipt}
-        onOpenChange={setShowReceipt}
+      {/* Pro-forma Print Bill preview — sale-workspace sheet, opened via
+          `openSheet("sale.receiptPreview")` and auto-dismissed on phase
+          change by the reducer. Replaces the retired
+          `ReceiptPreviewDialog` page-dialog mount. */}
+      <ReceiptPreviewSheet
         transaction={completedTransaction}
-        onPrint={() => {
-          // Print handled by dialog
-        }}
-        onEmail={() => {
-          setShowEmailReceipt(true);
-        }}
+        onEmail={() => setShowEmailReceipt(true)}
       />
+
 
       {/* Phase 3c — Receipt workspace (replaces the ad-hoc
           <PostPaymentScreen> mount). Route-owned surface for

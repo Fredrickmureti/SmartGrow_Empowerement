@@ -164,7 +164,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
         format: "pdf",
         title: `receipt-${details.transaction_number}`,
         businessId: currentBusiness?.id ?? null,
-        branchId: currentBusiness?.branch_id ?? null,
+        branchId: (currentBusiness as unknown as { branch_id?: string | null })?.branch_id ?? null,
       });
     } catch (error) {
       console.error("Failed to render receipt PDF:", error);
@@ -615,11 +615,11 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
               is_voided: transactionDetails.status === "voided",
               is_refund: transactionDetails.transaction_type === "return",
               items: (transactionDetails.items || []).map((item) => ({
-                product_name: item.product_name || item.description || "Item",
-                sku: item.sku ?? undefined,
+                product_name: (item as unknown as { product_name?: string }).product_name || item.description || "Item",
+                sku: (item as unknown as { sku?: string | null }).sku ?? undefined,
                 quantity: item.quantity,
                 unit_price: item.unit_price,
-                discount_amount: item.discount_amount ?? 0,
+                discount_amount: (item as unknown as { discount_amount?: number }).discount_amount ?? 0,
                 tax_rate_name:
                   (item as unknown as { tax_rate_name?: string | null }).tax_rate_name ?? null,
                 line_total: item.line_total,
