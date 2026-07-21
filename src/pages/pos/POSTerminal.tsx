@@ -1347,38 +1347,15 @@ function POSTerminalInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart.items, cart.subtotal, promotions]);
 
-  if (isLoadingCurrentShift || isLoadingSession) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
-  if (!activeShift) {
-    return null;
-  }
-
-  // Show lock screen if required (also enforce require_cashier_pin from security settings)
-  const showLock = shouldShowLockScreen || (securitySettings.require_cashier_pin && !activeSession);
-  if (showLock) {
-    return (
-      <TerminalLockScreen
-        registerName={activeShift.register?.register_name || 'Register'}
-        cashiers={assignedCashiers}
-        isLocked={isLocked}
-        lockedCashierName={activeSession?.cashier?.display_name}
-        onLogin={handleCashierLogin}
-        onUnlock={handleUnlock}
-        onManagerLogin={handleManagerLogin}
-        isLoading={isLoggingIn || isUnlocking}
-        isManagerLoading={isManagerLoggingIn}
-        error={loginError}
-        pinLength={securitySettings.pin_length}
-      />
-    );
-  }
-
+  // ----------------------------------------------------------------------
+  // Hooks below MUST stay above the loading / no-shift / lock-screen early
+  // returns further down. Placing a `useMemo` after a conditional `return`
+  // changes the hook count between renders as soon as the shift resolves
+  // or the lock screen dismisses, which trips React's
+  // "Rendered more hooks than during the previous render" invariant and
+  // crashes the terminal into the POSErrorBoundary ("Call a supervisor").
+  // See: rules-of-hooks — never call a hook after an early return.
+  // ----------------------------------------------------------------------
   const saleActionBarCallbacks: SaleActionBarCallbacks = useMemo(() => ({
     onClearCart: () => {
       sound.play("cart_clear");
@@ -1478,6 +1455,43 @@ function POSTerminalInner() {
     currentOrg,
     holdTransaction,
   ]);
+
+  if (isLoadingCurrentShift || isLoadingSession) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!activeShift) {
+    return null;
+  }
+
+  // Show lock screen if required (also enforce require_cashier_pin from security settings)
+  const showLock = shouldShowLockScreen || (securitySettings.require_cashier_pin && !activeSession);
+  if (showLock) {
+    return (
+      <TerminalLockScreen
+        registerName={activeShift.register?.register_name || 'Register'}
+        cashiers={assignedCashiers}
+        isLocked={isLocked}
+        lockedCashierName={activeSession?.cashier?.display_name}
+        onLogin={handleCashierLogin}
+        onUnlock={handleUnlock}
+        onManagerLogin={handleManagerLogin}
+        isLoading={isLoggingIn || isUnlocking}
+        isManagerLoading={isManagerLoggingIn}
+        error={loginError}
+        pinLength={securitySettings.pin_length}
+      />
+    );
+  }
+
+  // saleActionBarCallbacks / mobileSaleActionBarCallbacks are declared
+  // ABOVE the loading + lock-screen early returns so their `useMemo`
+  // calls do not change the hook count between renders.
+
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden relative max-w-[1920px] mx-auto w-full">
