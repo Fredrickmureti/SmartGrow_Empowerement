@@ -112,15 +112,15 @@ interface ResolvedMedia {
  * Robust fallback chain (ADR-0087 addendum — 2026-07-21):
  *   1. Explicit override (`overrideMediaId`) — caller-supplied.
  *   2. Printer's `supported_media_ids[0]` — operator-pinned on the printer.
- *   3. Org-scoped `media_profiles.is_default = true` — the "house default".
- *   4. Any active `media_profiles` row for the org (oldest first) — last-resort
- *      so a correctly-configured org NEVER fails NO_MEDIA_RESOLVED just
- *      because an operator forgot to tick a checkbox on the printer profile.
+ *   3. Org-scoped default media (`is_default = true`) — the "house default".
+ *   4. Any active media row for the org (oldest first) — last-resort so a
+ *      correctly-configured org never fails just because an operator forgot
+ *      to tick a checkbox on the printer profile.
  *
  * Rationale: previously we returned null whenever the printer profile had an
  * empty `supported_media_ids` array, even when the org clearly had media
- * configured. That produced loud NO_MEDIA_RESOLVED errors on rigs that had
- * media set up correctly and only lacked the (redundant) per-printer pin.
+ * configured. That produced loud failures on rigs that had media set up
+ * correctly and only lacked the (redundant) per-printer pin.
  */
 async function resolvePrinterMedia(
   printerProfileId: string | null,
