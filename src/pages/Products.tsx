@@ -255,6 +255,51 @@ export default function Products() {
       variant: result.success ? "default" : "destructive",
     });
   };
+  // Shelf-edge label — goes to the shelf_edge workflow-bound printer, not
+  // the general product_tag one (ADR-0086). Same barcode-identity rules.
+  const handlePrintShelfLabel = async (product: Product) => {
+    if (labelPrinter.missingDeviceCta) {
+      toast({
+        title: "No label printer assigned",
+        description: labelPrinter.missingDeviceCta.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!currentOrg?.id) return;
+    const identity = resolveLabelBarcode(product as any);
+    if (!identity) {
+      toast({
+        title: LABEL_BARCODE_REFUSAL.title,
+        description: LABEL_BARCODE_REFUSAL.description,
+        variant: "destructive",
+      });
+      return;
+    }
+    const result = await printLabelByTemplate({
+      orgId: currentOrg.id,
+      branchId: currentBranch?.id ?? null,
+      templateKey: "shelf_label",
+      workflow: "shelf_edge",
+      vars: {
+        name: (product.name || "").slice(0, 80),
+        sku: identity.skuDisplay,
+        sku_display: identity.skuDisplay,
+        barcode: identity.code,
+        hri_flag: identity.hri,
+      },
+      sourceDocType: "product",
+      sourceDocId: product.id,
+      idempotencyKey: `shelf_label:${product.id}:${Date.now()}`,
+    });
+    toast({
+      title: result.success ? "Shelf label sent" : "Print failed",
+      description: result.success
+        ? `Sent shelf label for ${product.name}.`
+        : result.error ?? "Unknown printer error",
+      variant: result.success ? "default" : "destructive",
+    });
+  };
   const { isComplianceAvailable, complianceInfo } = useTaxCompliance();
   const categoryResolverRef = useRef<CategoryResolver | null>(null);
 
@@ -840,6 +885,10 @@ export default function Products() {
                               <DropdownMenuItem onClick={() => handlePrintLabel(product)}>
                                 <Printer className="mr-2 h-4 w-4" />
                                 Print label
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handlePrintShelfLabel(product)}>
+                                <Printer className="mr-2 h-4 w-4" />
+                                Print shelf label
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDelete(product)}
