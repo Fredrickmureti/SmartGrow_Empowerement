@@ -2594,6 +2594,59 @@ serve(async (req) => {
       });
     }
 
+    // ─── Phase B1: drawer_slip short-circuit ───────────────────────────
+    //
+    // Drawer slips are compliance evidence, not commercial documents.
+    // They bypass templates, branding, fiscal blocks, and payment
+    // methods entirely and always emit ESC/POS bytes at the caller's
+    // paper width. Never call `fetchTemplate` for this type — there is
+    // no template to look up.
+    if (documentType === "drawer_slip") {
+      const { buildDrawerSlipEscPos } = await import("../_shared/escpos/drawer.ts");
+      const slip = (documentData as any).drawer_slip ?? {};
+      const widthHint: "40mm" | "58mm" | "80mm" =
+        body.paperFormat === "40mm" || body.paperFormat === "58mm" ? body.paperFormat : "80mm";
+      const labelMap: Record<string, string> = {
+        opening_float: "OPENING FLOAT",
+        cash_in: "CASH IN",
+        cash_out: "CASH OUT",
+        float: "OPENING FLOAT",
+        pickup: "PICKUP",
+        drop: "SAFE DROP",
+        safe_drop: "SAFE DROP",
+        bank_deposit: "BANK DEPOSIT",
+        petty_cash_out: "PETTY CASH",
+        correction: "CORRECTION",
+      };
+      const bytes = buildDrawerSlipEscPos({
+        movement_label: labelMap[String(slip.movement_type ?? "")] ?? "DRAWER OPEN",
+        amount: slip.amount ?? null,
+        currency: slip.currency ?? null,
+        performed_at: slip.performed_at ?? new Date().toISOString(),
+        reason: slip.reason ?? null,
+        reason_code: slip.reason_code ?? null,
+        notes: slip.notes ?? null,
+        business_name: slip.business_name ?? null,
+        register_name: slip.register_name ?? null,
+        cashier_name: slip.cashier_name ?? null,
+        shift_number: slip.shift_number ?? null,
+        manager_override_id: slip.manager_override_id ?? null,
+        movement_id: slip.movement_id ?? null,
+      }, { width: widthHint });
+      return new Response(bytes as unknown as BodyInit, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/octet-stream",
+          "Content-Disposition": buildContentDisposition("drawer_slip", slip.movement_id ?? documentId, "bin"),
+          "X-Print-Policy-Render-Mode": "escpos",
+          "X-Print-Policy-Paper": widthHint,
+          "Access-Control-Expose-Headers": "X-Print-Policy-Render-Mode, X-Print-Policy-Paper",
+        },
+      });
+    }
+
+
+
 
 
     const bizId = await getBusinessId(supabase, documentType, documentId);
