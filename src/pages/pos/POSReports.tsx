@@ -1387,12 +1387,17 @@ export default function POSReports() {
         </TabsContent>
       </Tabs>
 
-      <ReceiptPreviewDialog
-        open={isReceiptPreviewOpen}
-        onOpenChange={setIsReceiptPreviewOpen}
-        transaction={
-          receiptDetails
-            ? {
+      {/* Admin reprint from a report row — legitimate page-level dialog
+          (not a workstation sheet), so inlined here rather than routed
+          through the retired `ReceiptPreviewDialog` shell. */}
+      <Dialog open={isReceiptPreviewOpen} onOpenChange={setIsReceiptPreviewOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Transaction Complete</DialogTitle>
+          </DialogHeader>
+          {receiptDetails && (
+            <ReceiptPreviewBody
+              transaction={{
                 id: receiptDetails.id,
                 transaction_number: receiptDetails.transaction_number,
                 total_amount: receiptDetails.total,
@@ -1418,10 +1423,12 @@ export default function POSReports() {
                 })),
                 is_voided: receiptDetails.status === "voided",
                 is_refund: receiptDetails.transaction_type === "return",
-              }
-            : null
-        }
-      />
+              }}
+              onClose={() => setIsReceiptPreviewOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
