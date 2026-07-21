@@ -44759,6 +44759,99 @@ export type Database = {
           },
         ]
       }
+      print_jobs: {
+        Row: {
+          acked_at: string | null
+          attempt_count: number
+          branch_id: string | null
+          business_id: string
+          correlation_id: string
+          created_at: string
+          doc_id: string | null
+          doc_type: string
+          failed_at: string | null
+          format: string
+          hw_command_id: number | null
+          id: string
+          intent: string
+          last_error: string | null
+          media_profile_id: string | null
+          parent_job_id: string | null
+          printer_profile_id: string | null
+          requested_at: string
+          requested_by: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["print_job_status"]
+          transport: string
+          updated_at: string
+        }
+        Insert: {
+          acked_at?: string | null
+          attempt_count?: number
+          branch_id?: string | null
+          business_id: string
+          correlation_id: string
+          created_at?: string
+          doc_id?: string | null
+          doc_type: string
+          failed_at?: string | null
+          format: string
+          hw_command_id?: number | null
+          id?: string
+          intent: string
+          last_error?: string | null
+          media_profile_id?: string | null
+          parent_job_id?: string | null
+          printer_profile_id?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["print_job_status"]
+          transport: string
+          updated_at?: string
+        }
+        Update: {
+          acked_at?: string | null
+          attempt_count?: number
+          branch_id?: string | null
+          business_id?: string
+          correlation_id?: string
+          created_at?: string
+          doc_id?: string | null
+          doc_type?: string
+          failed_at?: string | null
+          format?: string
+          hw_command_id?: number | null
+          id?: string
+          intent?: string
+          last_error?: string | null
+          media_profile_id?: string | null
+          parent_job_id?: string | null
+          printer_profile_id?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["print_job_status"]
+          transport?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "print_jobs_hw_command_id_fkey"
+            columns: ["hw_command_id"]
+            isOneToOne: false
+            referencedRelation: "hardware_command_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "print_jobs_parent_job_id_fkey"
+            columns: ["parent_job_id"]
+            isOneToOne: false
+            referencedRelation: "print_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       printer_profiles: {
         Row: {
           address: string | null
@@ -78074,6 +78167,35 @@ export type Database = {
         Returns: Json
       }
       preview_organization_reset: { Args: { org_id: string }; Returns: Json }
+      print_job_insert: {
+        Args: {
+          p_branch_id: string
+          p_business_id: string
+          p_correlation_id: string
+          p_doc_id: string
+          p_doc_type: string
+          p_format: string
+          p_intent: string
+          p_media_profile_id: string
+          p_parent_job_id?: string
+          p_printer_profile_id: string
+          p_transport: string
+        }
+        Returns: string
+      }
+      print_job_mark_acked: {
+        Args: { p_hw_command_id: number }
+        Returns: number
+      }
+      print_job_mark_failed: {
+        Args: { p_error: string; p_id: string }
+        Returns: undefined
+      }
+      print_job_mark_sent: {
+        Args: { p_hw_command_id?: number; p_id: string }
+        Returns: undefined
+      }
+      print_job_resend: { Args: { p_id: string }; Returns: string }
       print_policies_resolve: {
         Args: {
           p_branch_id: string
@@ -81642,6 +81764,7 @@ export type Database = {
         | "adyen"
         | "verifone"
         | "square_terminal"
+      print_job_status: "queued" | "sent" | "acked" | "failed" | "abandoned"
       printer_workflow:
         | "receiving"
         | "shipping"
@@ -82411,6 +82534,7 @@ export const Constants = {
         "verifone",
         "square_terminal",
       ],
+      print_job_status: ["queued", "sent", "acked", "failed", "abandoned"],
       printer_workflow: [
         "receiving",
         "shipping",
