@@ -1841,140 +1841,22 @@ function POSTerminalInner() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className={cn("grid gap-1.5", tableSessionId ? "grid-cols-5" : "grid-cols-4")}>
-                <Button 
-                  variant="outline" 
-                  className="flex-col h-auto py-2 px-1"
-                  onClick={() => {
-                    if (tableSessionId && cart.items.length > 0) {
-                      if (!window.confirm("Clear all items from this table order? This cannot be undone.")) return;
-                    }
-                    cart.clearCart();
-                  }}
-                  disabled={cart.items.length === 0}
-                >
-                  <Trash2 className="h-4 w-4 mb-0.5" />
-                  <span className="text-[10px]">Clear</span>
-                </Button>
-                {tableSessionId ? (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      className="flex-col h-auto py-2 px-1"
-                      disabled={cart.items.length === 0}
-                      onClick={() => { setShowMobileCart(false); setShowBillSplit(true); }}
-                    >
-                      <Split className="h-4 w-4 mb-0.5" />
-                      <span className="text-[10px]">Split</span>
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="flex-col h-auto py-2 px-1"
-                      onClick={() => { setShowMobileCart(false); setShowTableTransfer(true); }}
-                    >
-                      <RotateCcw className="h-4 w-4 mb-0.5" />
-                      <span className="text-[10px]">Transfer</span>
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="flex-col h-auto py-2 px-1"
-                      disabled={cart.items.length === 0}
-                      onClick={() => {
-                        // Print Bill (pro-forma receipt) without payment
-                        setCompletedTransaction({
-                          id: "pro-forma",
-                          transaction_number: cart.draftTransactionNumber || "BILL",
-                          total_amount: cart.total,
-                          subtotal: cart.subtotal,
-                          tax_amount: cart.tax_amount,
-                          discount_amount: cart.discount_amount,
-                          created_at: new Date().toISOString(),
-                          customer_name: cart.customer?.name,
-                          items: cart.items.map(i => ({
-                            product_name: i.name,
-                            quantity: i.quantity,
-                            unit_price: i.unit_price,
-                            line_total: i.line_total,
-                            display_quantity: i.display_quantity ?? null,
-                            packaging_label: i.packaging_label ?? null,
-                          })),
-                          payments: [], // No payments yet — pro-forma
-                        });
-                        setShowMobileCart(false);
-                        openSheet("sale.receiptPreview");
-                      }}
-                    >
-                      <Receipt className="h-4 w-4 mb-0.5" />
-                      <span className="text-[10px]">Print Bill</span>
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      className="flex-col h-auto py-2 px-1 relative"
-                      disabled={cart.items.length === 0}
-                      onClick={() => {
-                        if (activeShift && registerId && currentOrg) {
-                          holdTransaction.mutate({
-                            register_id: registerId,
-                            shift_id: activeShift.id,
-                            organization_id: currentOrg.id,
-                            cart: cart.cartState,
-                          });
-                          cart.clearCart();
-                          setShowMobileCart(false);
-                        }
-                      }}
-                    >
-                      <Pause className="h-4 w-4 mb-0.5" />
-                      <span className="text-[10px]">Hold</span>
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="flex-col h-auto py-2 px-1 relative"
-                      onClick={() => {
-                        setShowMobileCart(false);
-                        setShowHeld(true);
-                      }}
-                    >
-                      <Play className="h-4 w-4 mb-0.5" />
-                      <span className="text-[10px]">Recall</span>
-                      {heldCount > 0 && (
-                        <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px]">
-                          {heldCount}
-                        </Badge>
-                      )}
-                    </Button>
-                  </>
-                )}
-                <Button 
-                  variant="outline" 
-                  className="flex-col h-auto py-2 px-1"
-                  disabled={cart.items.length === 0}
-                  onClick={() => {
-                    setShowMobileCart(false);
-                    setShowDiscount(true);
-                  }}
-                >
-                  <Tag className="h-4 w-4 mb-0.5" />
-                  <span className="text-[10px]">Discount</span>
-                </Button>
-              </div>
-
-              {/* Pay Button */}
-              <Button 
-                className="w-full h-12 text-lg"
-                disabled={cart.items.length === 0}
-                onClick={() => {
-                  setShowMobileCart(false);
-                  setShowPayment(true);
-                }}
-              >
-                <CreditCard className="h-5 w-5 mr-2" />
-                Pay {formatCurrency(cart.total)}
-              </Button>
+              {/* Action grid + Pay button — shared with the desktop
+                  sale rail. `variant="mobile"` drops the quick-pay row
+                  and the xl: size ramps; `onAfterAction` auto-closes
+                  the drawer after any commit. Behaviour deltas
+                  (confirm-on-clear for tableSession, silent hold) live
+                  in `mobileSaleActionBarCallbacks`. */}
+              <SaleActionBar
+                cart={cart}
+                isTableSession={!!tableSessionId}
+                canHold={!!activeShift && !!registerId && !!currentOrg}
+                heldCount={heldCount}
+                formatCurrency={formatCurrency}
+                callbacks={mobileSaleActionBarCallbacks}
+                variant="mobile"
+                onAfterAction={() => setShowMobileCart(false)}
+              />
             </div>
           </div>
         </DialogContent>
