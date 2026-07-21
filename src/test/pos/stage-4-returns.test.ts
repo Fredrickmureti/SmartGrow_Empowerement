@@ -73,20 +73,25 @@ describe("Stage 4 — process_pos_return enterprise guards", () => {
 
 describe("Stage 4 — usePOSReturns wiring", () => {
   const hook = readFileSync("src/hooks/pos/usePOSReturns.ts", "utf8");
-  const dialog = readFileSync("src/components/pos/ReturnDialog.tsx", "utf8");
+  // Phase 3d — ReturnDialog was retired; the same guards now target the
+  // route-owned ReturnWorkspace.
+  const workspace = readFileSync(
+    "src/apps/pos/terminal/return/ReturnWorkspace.tsx",
+    "utf8",
+  );
 
   it("usePOSReturns forwards override_id to the RPC", () => {
     expect(hook).toMatch(/override_id\?\s*:\s*string\s*\|\s*null/);
     expect(hook).toMatch(/p_override_id:\s*data\.override_id/);
   });
 
-  it("ReturnDialog detects cross-tender from original payments", () => {
-    expect(dialog).toMatch(/usePOSOriginalPayments/);
-    expect(dialog).toMatch(/isCrossTender/);
-    expect(dialog).toMatch(/cross_tender_refund/);
+  it("ReturnWorkspace detects cross-tender from original payments", () => {
+    expect(workspace).toMatch(/usePOSOriginalPayments/);
+    expect(workspace).toMatch(/isCrossTender/);
+    expect(workspace).toMatch(/cross_tender_refund/);
   });
 
-  it("ReturnDialog passes the override id back into executeReturn", () => {
-    expect(dialog).toMatch(/executeReturn\(result\.overrideId\)/);
+  it("ReturnWorkspace passes the override id back into executeReturn", () => {
+    expect(workspace).toMatch(/executeReturn\(result\.overrideId\)/);
   });
 });
