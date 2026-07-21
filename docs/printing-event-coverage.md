@@ -53,7 +53,7 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Vendor payment issued | `vendor_payment_receipt` | Line[] AST | WIRED |
 | Kitchen ticket | `kitchen_ticket` | Line[] AST (kitchen block) | WIRED |
 | X / Z fiscal reports | `pos_fiscal_report` | Line[] AST | WIRED |
-| Cash-drawer float open/close | `drawer_slip` | Line[] AST | PARTIAL — printed on demand only |
+| Cash-drawer float open/close | `drawer_slip` | Line[] AST | WIRED (auto-print on every `pos_cash_movements` insert via `usePOSCashDrawer` → `drawer_slip` short-circuit in `generate-document`; fire-and-forget so an offline printer never blocks the movement) |
 
 ## A4 documents (`generate-document` → `PdfBuilder`)
 
