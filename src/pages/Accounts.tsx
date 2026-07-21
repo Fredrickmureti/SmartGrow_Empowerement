@@ -421,204 +421,32 @@ export default function Accounts() {
             </CardContent>
           </Card>
         ) : (
-          <Accordion type="multiple" defaultValue={["asset", "liability", "equity", "income", "expense"]}>
-            {accountTypes.map(({ type, label, description }) => {
-              const typeAccounts = filteredAccounts.filter((a) => a.account_type === type);
-              if (typeAccounts.length === 0 && searchQuery) return null;
-
-              return (
-                <AccordionItem key={type} value={type}>
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center gap-3">
-                      {getTypeIcon(type)}
-                      <div className="text-left">
-                        <span className="font-medium">{label}</span>
-                        <span className="text-sm text-muted-foreground ml-2">
-                          ({typeAccounts.length})
-                        </span>
-                      </div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    {typeAccounts.length === 0 ? (
-                      <p className="text-sm text-muted-foreground py-4 text-center">
-                        No {label.toLowerCase()} accounts. {description}
-                      </p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Code</TableHead>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead className="text-right">Balance</TableHead>
-                            <TableHead className="w-12"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {typeAccounts.map((account) => {
-                            const children = getChildAccounts(account.id);
-                            const isParent = children.length > 0;
-                            const isChild = !!account.parent_id;
-                            // Skip children at top level - they render under parents
-                            if (isChild) return null;
-                            
-                            return (
-                              <React.Fragment key={account.id}>
-                              <TableRow key={account.id}>
-                              <TableCell className="font-mono text-sm">
-                                {account.code}
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-1">
-                                  {account.name}
-                                  {account.is_system && (
-                                    <Badge variant="outline" className="ml-2 text-xs">
-                                      System
-                                    </Badge>
-                                  )}
-                                  {!account.is_active && (
-                                    <Badge variant="secondary" className="ml-2 text-xs">
-                                      Archived
-                                    </Badge>
-                                  )}
-                                  {account.detail_type && (
-                                    <Badge variant="outline" className="ml-1 text-xs text-muted-foreground">
-                                      {getDetailTypeLabel(account.account_type, account.detail_type)}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {account.description || "—"}
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {formatCurrency(effectiveBalance(account))}
-                              </TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem
-                                      onClick={() => navigate(`/finance/accounts/register?account_id=${account.id}`)}
-                                    >
-                                      <BookOpen className="mr-2 h-4 w-4" />
-                                      View Register
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() => navigate(`/finance/reports/general-ledger?account_id=${account.id}`)}
-                                    >
-                                      <TrendingUp className="mr-2 h-4 w-4" />
-                                      Run Report
-                                    </DropdownMenuItem>
-                                    {canEditCoa && (
-                                      <DropdownMenuItem
-                                        onClick={() => handleEdit(account)}
-                                      >
-                                        <Pencil className="mr-2 h-4 w-4" />
-                                        Edit
-                                      </DropdownMenuItem>
-                                    )}
-                                    {canEditCoa && !account.is_system && account.is_active && (
-                                      <DropdownMenuItem
-                                        onClick={() => handleArchive(account)}
-                                      >
-                                        Make Inactive
-                                      </DropdownMenuItem>
-                                    )}
-                                    {canEditCoa && !account.is_system && !account.is_active && (
-                                      <DropdownMenuItem
-                                        onClick={() => handleRestore(account)}
-                                      >
-                                        Make Active
-                                      </DropdownMenuItem>
-                                    )}
-                                    {canEditCoa && !account.is_system && (
-                                      <DropdownMenuItem
-                                        onClick={() => handleDelete(account)}
-                                        className="text-destructive"
-                                      >
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Delete
-                                      </DropdownMenuItem>
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </TableCell>
-                            </TableRow>
-                              {/* Render child accounts indented */}
-                              {children.map((child) => (
-                                <TableRow key={child.id} className="bg-muted/30">
-                                  <TableCell className="font-mono text-sm pl-8">
-                                    <span className="text-muted-foreground mr-1">↳</span> {child.code}
-                                  </TableCell>
-                                  <TableCell className="font-medium pl-8">
-                                    <div className="flex items-center gap-1">
-                                      {child.name}
-                                      {child.detail_type && (
-                                        <Badge variant="outline" className="ml-1 text-xs text-muted-foreground">
-                                          {getDetailTypeLabel(child.account_type, child.detail_type)}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground">
-                                    {child.description || "—"}
-                                  </TableCell>
-                                  <TableCell className="text-right font-medium">
-                                    {formatCurrency(effectiveBalance(child))}
-                                  </TableCell>
-                                  <TableCell>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon">
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => navigate(`/finance/accounts/register?account_id=${child.id}`)}>
-                                          <BookOpen className="mr-2 h-4 w-4" /> View Register
-                                        </DropdownMenuItem>
-                                        {canEditCoa && (
-                                          <DropdownMenuItem onClick={() => handleEdit(child)}>
-                                            <Pencil className="mr-2 h-4 w-4" /> Edit
-                                          </DropdownMenuItem>
-                                        )}
-                                        {canEditCoa && !child.is_system && child.is_active && (
-                                          <DropdownMenuItem onClick={() => handleArchive(child)}>
-                                            Make Inactive
-                                          </DropdownMenuItem>
-                                        )}
-                                        {canEditCoa && !child.is_system && !child.is_active && (
-                                          <DropdownMenuItem onClick={() => handleRestore(child)}>
-                                            Make Active
-                                          </DropdownMenuItem>
-                                        )}
-                                        {canEditCoa && !child.is_system && (
-                                          <DropdownMenuItem onClick={() => handleDelete(child)} className="text-destructive">
-                                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                          </DropdownMenuItem>
-                                        )}
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </TableCell>
-                              </TableRow>
-                              ))}
-                              </React.Fragment>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
+          <AccountTree
+            accounts={filteredAccounts}
+            searchQuery={searchQuery}
+            formatCurrency={formatCurrency}
+            effectiveBalance={effectiveBalance}
+            canEditCoa={canEditCoa}
+            storageKey={`coa-tree-expanded:${currentOrg?.id ?? "default"}`}
+            onAddRoot={(type) =>
+              navigate(`/finance/accounts/new?account_type=${type}`)
+            }
+            onAddChild={(parent) =>
+              navigate(
+                `/finance/accounts/new?parent_id=${parent.id}&account_type=${parent.account_type}`,
+              )
+            }
+            onEdit={handleEdit}
+            onArchive={handleArchive}
+            onRestore={handleRestore}
+            onDelete={handleDelete}
+            onViewRegister={(a) =>
+              navigate(`/finance/accounts/register?account_id=${a.id}`)
+            }
+            onRunReport={(a) =>
+              navigate(`/finance/reports/general-ledger?account_id=${a.id}`)
+            }
+          />
         )}
 
 
