@@ -106,7 +106,7 @@ import { SoundToggleButton } from "@/components/pos/SoundToggleButton";
 import { usePOSSound } from "@/hooks/pos/usePOSSound";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
-import { useResolvedPrintPolicyWithDevice } from "@/hooks/useDocumentPrintPolicies";
+import { useReceiptData } from "@/apps/pos/terminal/receipt/ReceiptDataContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useTableSessions } from "@/hooks/pos/useTableSessions";
 import { useFloorPlan } from "@/hooks/pos/useFloorPlan";
@@ -244,28 +244,17 @@ function POSTerminalInner() {
   const { isOnline, queueCount } = usePOSOffline();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
-  // Stage W6 (ADR-0008) — resolved per-tenant print policy for POS receipts.
-  // Wave 10 — also resolves the bound device so PostPaymentScreen can show
-  // operators which physical printer the receipt will land on (and the
-  // dispatch hook can prefer device id over role lookup).
+  // Stage W6 (ADR-0008) — resolved per-tenant print policy for POS
+  // receipts is now provided by <ReceiptDataProvider> mounted in
+  // TerminalShell (Slice C.1). The completed transaction payload lives
+  // there too so the receipt phase can become a route-owned sibling
+  // (Slice C.2) without POSTerminal being on screen. Until Step 6 fully
+  // decomposes this monolith, POSTerminal remains the writer.
   const {
-    policy: posReceiptPolicy,
-    device: posReceiptDevice,
-  } = useResolvedPrintPolicyWithDevice(
-    currentBusiness?.id,
-    shiftBranchId,
-    "pos_receipt",
-  );
-  // Stable reference for PostPaymentScreen so its effects don't re-fire each render.
-  const postPaymentPolicy = useMemo(() => ({
-    auto_print: !!posReceiptPolicy.auto_print,
-    render_mode: (posReceiptPolicy.render_mode === "escpos" ? "escpos" : "pdf") as "pdf" | "escpos",
-    paper_format: posReceiptPolicy.paper_format as
-      | "58mm" | "80mm" | "a4" | "a5" | "letter",
-    device_id: posReceiptDevice?.id ?? null,
-    device_label: posReceiptDevice?.display_name
-      ?? (posReceiptDevice ? `${posReceiptDevice.role} (${posReceiptDevice.transport})` : null),
-  }), [posReceiptPolicy.auto_print, posReceiptPolicy.render_mode, posReceiptPolicy.paper_format, posReceiptDevice?.id, posReceiptDevice?.display_name, posReceiptDevice?.role, posReceiptDevice?.transport]);
+    transaction: completedTransaction,
+    setTransaction: setCompletedTransaction,
+    policy: postPaymentPolicy,
+  } = useReceiptData();
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
   // Set of product IDs that have at least one packaging level defined. Used to
