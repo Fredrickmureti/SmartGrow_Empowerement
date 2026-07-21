@@ -287,6 +287,7 @@ export default function Products() {
         sku_display: identity.skuDisplay,
         barcode: identity.code,
         hri_flag: identity.hri,
+        price: formatCurrency(product.unit_price ?? 0),
       },
       sourceDocType: "product",
       sourceDocId: product.id,
