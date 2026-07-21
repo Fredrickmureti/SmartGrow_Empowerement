@@ -42,6 +42,7 @@ export type SheetId =
   | "sale.hold"
   | "sale.billSplit"
   | "sale.tableTransfer"
+  | "sale.receiptPreview"
   // cross-cutting
   | "managerOverride"
   | "unlock"
