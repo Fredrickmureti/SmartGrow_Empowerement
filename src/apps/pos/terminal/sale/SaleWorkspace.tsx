@@ -185,15 +185,23 @@ export function SaleWorkspace({
             onRecall={(restoredCart) => cart.restoreCart(restoredCart)}
           />
         )}
-        {/* Customer */}
-        <div className="p-3 xl:p-4 border-b">
+        {/* Customer + Peek */}
+        <div className="p-3 xl:p-4 border-b flex gap-2">
           <Button
             variant="outline"
-            className="w-full justify-start text-sm"
+            className="flex-1 justify-start text-sm"
             onClick={onOpenCustomer}
           >
             <User className="h-4 w-4 mr-2" />
             {cart.customer ? cart.customer.name : "Add Customer"}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title="Product info (Alt+I)"
+            onClick={() => setShowPeek(true)}
+          >
+            <Info className="h-4 w-4" />
           </Button>
         </div>
 
