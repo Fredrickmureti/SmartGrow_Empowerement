@@ -267,7 +267,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
     <>
       <section
         aria-labelledby="history-workspace-title"
-        className="absolute inset-0 z-40 flex flex-col bg-background"
+        className="absolute inset-y-0 left-0 right-0 lg:right-80 xl:right-96 z-40 flex flex-col bg-background border-r shadow-xl"
       >
         <header className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-3 min-w-0">
