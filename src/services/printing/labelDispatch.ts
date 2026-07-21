@@ -170,6 +170,25 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
     media?.id ?? input.mediaProfileId ?? null,
   );
   if (!tpl) {
+    // Distinguish "no row at all" from "rows exist but ranking dropped them".
+    // The latter is almost always a mis-seeded template with a non-NULL
+    // media_profile_id when the caller has no printer/workflow binding yet.
+    const { count } = await supabase
+      .from('label_templates')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', input.orgId)
+      .eq('template_key', input.templateKey)
+      .eq('active', true);
+    if ((count ?? 0) > 0) {
+      return {
+        success: false,
+        error:
+          `Label template '${input.templateKey}' exists for this organization but could not be resolved for the requested scope ` +
+          `(branch=${input.branchId ?? 'none'}, media=${media?.id ?? input.mediaProfileId ?? 'none'}). ` +
+          `Bind a label printer to workflow '${input.workflow ?? 'product_tag'}' in Platform → Hardware, ` +
+          `or pass mediaProfileId explicitly.`,
+      };
+    }
     return {
       success: false,
       error: `no label template registered for key '${input.templateKey}' in this organization`,
