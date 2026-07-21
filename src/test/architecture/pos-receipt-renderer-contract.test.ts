@@ -198,7 +198,9 @@ describe("Stage X6 — POS receipt renderer contract", () => {
   it("Phase A.3 — Receipt previews render through MonospacePreview, not ad-hoc flexbox columns", () => {
     const targets = [
       "src/components/settings/ReceiptLivePreview.tsx",
-      "src/components/pos/ReceiptPreviewDialog.tsx",
+      // Step 5.2 retired `ReceiptPreviewDialog`; the shared body is now
+      // the assertion target and covers every reprint surface.
+      "src/components/pos/ReceiptPreviewBody.tsx",
       "src/components/pos/PostPaymentScreen.tsx",
     ];
     for (const rel of targets) {
