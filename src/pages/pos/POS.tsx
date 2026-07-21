@@ -324,8 +324,8 @@ export default function POS() {
               <h2 className="text-base font-semibold">Today's Analytics</h2>
               <Badge variant="outline">{scope.label}</Badge>
             </div>
-            <div className="flex flex-wrap gap-3 sm:gap-4">
-              <Card className="min-w-[140px] flex-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <Card className="w-full">
                 <CardContent className="p-3 sm:p-6 sm:pt-6">
                   <div className="flex items-center gap-3 sm:gap-4">
                     <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -338,7 +338,7 @@ export default function POS() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="min-w-[140px] flex-1">
+              <Card className="w-full">
                 <CardContent className="p-3 sm:p-6 sm:pt-6">
                   <div className="flex items-center gap-3 sm:gap-4">
                     <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-accent/50 flex items-center justify-center flex-shrink-0">
@@ -351,7 +351,7 @@ export default function POS() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="min-w-[140px] flex-1">
+              <Card className="w-full">
                 <CardContent className="p-3 sm:p-6 sm:pt-6">
                   <div className="flex items-center gap-3 sm:gap-4">
                     <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
@@ -364,7 +364,7 @@ export default function POS() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="min-w-[140px] flex-1">
+              <Card className="w-full">
                 <CardContent className="p-3 sm:p-6 sm:pt-6">
                   <div className="flex items-center gap-3 sm:gap-4">
                     <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
