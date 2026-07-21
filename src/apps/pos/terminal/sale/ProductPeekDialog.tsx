@@ -48,6 +48,7 @@ export function ProductPeekDialog({
   open,
   onOpenChange,
   registerId,
+  cartProductIds,
   onAddToCart,
 }: ProductPeekDialogProps) {
   const { formatCurrency } = useCurrency();
@@ -68,14 +69,41 @@ export function ProductPeekDialog({
     }
   }, [open]);
 
+  // Default listing: when the search field is empty, show whatever the
+  // cashier already has in the cart so peek doubles as a "what am I
+  // ringing up?" panel. Typing kicks over to a catalog search.
+  const cartIdsKey = (cartProductIds ?? []).join(",");
+  useEffect(() => {
+    if (!open) return;
+    const q = query.trim();
+    if (q.length >= 2) return;
+    if (!cartProductIds || cartProductIds.length === 0) {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, sku, barcode, description, price, image_url, track_inventory")
+        .in("id", cartProductIds);
+      if (!cancelled) {
+        setLoading(false);
+        if (!error && data) setResults(data as unknown as PeekProduct[]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, query, cartIdsKey]);
+
   // Debounced product search.
   useEffect(() => {
     if (!open) return;
     const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      return;
-    }
+    if (q.length < 2) return;
     const t = setTimeout(async () => {
       setLoading(true);
       const { data, error } = await supabase
