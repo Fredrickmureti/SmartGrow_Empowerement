@@ -82,6 +82,29 @@ export interface LabelDispatchResult extends DriverResult {
  * substitutions (name, sku, barcode, sku_display, …) unchanged. Legacy
  * dot-based bodies contain no mm-tokens and pass through untouched.
  */
+/**
+ * ASCII-safe substitution value. ZPL / EPL / ESC-POS wires are byte
+ * streams interpreted against a device code page (typically CP437 or
+ * PC850). A raw UTF-8 byte inside a `^FD…^FS` field renders as whatever
+ * glyph that byte maps to on the printer — e.g. `Intl.NumberFormat`
+ * inserts U+00A0 (NBSP) between currency code and amount, which prints
+ * as `á` on CP437. Mirror the edge builder's sanitiser byte-for-byte
+ * (see `supabase/functions/_shared/printing/zpl/builder.ts::asciiSafe`)
+ * and additionally fold known Unicode spaces to a regular space so
+ * "KES\u00A070.00" prints as "KES 70.00", not "KES70.00".
+ */
+export function asciiSafeLabelVar(v: unknown, max = 64): string {
+  if (v === null || v === undefined) return '';
+  return String(v)
+    // Fold NBSP, narrow-NBSP, thin/hair spaces, en/em spaces, figure space,
+    // zero-width joiners etc. to a plain ASCII space before stripping.
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, '')
+    .slice(0, max);
+}
+
 export function renderTemplateBody(
   body: string,
   vars: Record<string, unknown>,
@@ -98,9 +121,7 @@ export function renderTemplateBody(
       String(Math.max(1, Math.min(10, Math.round(Number(n) * dpmm)))),
     );
   return geomResolved.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => {
-    const v = vars[key];
-    if (v === undefined || v === null) return '';
-    return String(v);
+    return asciiSafeLabelVar(vars[key]);
   });
 }
 

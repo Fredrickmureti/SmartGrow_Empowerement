@@ -56,17 +56,28 @@ describe('parity: client vs edge renderTemplateBody', () => {
       body: 'A={{ a }} B={{b}} C={{  c  }}',
       vars: { a: '1', b: '2', c: '3' },
     },
+    {
+      // Regression: Intl.NumberFormat inserts U+00A0 (NBSP) between the
+      // currency code and amount. Without folding, a CP437 thermal head
+      // renders 0xA0 as `á`, producing `KESá70.00` on the shelf label.
+      label: 'shelf_label price with NBSP currency separator is folded to ASCII space',
+      body: '^XA^FD{{price}}^FS^XZ',
+      vars: { price: 'KES\u00A070.00' },
+    },
   ];
 
-  // Local re-implementation of the edge helper. If either side drifts
-  // from this shape, the "shared regex" assertion above catches the
-  // shape drift and one of the byte comparisons below catches semantic
-  // drift.
+  function asciiSafeRef(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    return String(v)
+      .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .normalize('NFKD')
+      .replace(/[^\x20-\x7E]/g, '')
+      .slice(0, 64);
+  }
+
   function edgeRenderReference(body: string, vars: Record<string, string>): string {
-    return body.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => {
-      const v = vars[key];
-      return v === undefined || v === null ? '' : String(v);
-    });
+    return body.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => asciiSafeRef(vars[key]));
   }
 
   for (const c of CASES) {
@@ -74,6 +85,9 @@ describe('parity: client vs edge renderTemplateBody', () => {
       const client = clientRender(c.body, c.vars);
       const edge = edgeRenderReference(c.body, c.vars);
       expect(edge).toBe(client);
+      // Also verify the rendered output is pure ASCII — no byte can
+      // survive to the printer that would map to a code-page glyph.
+      expect(/[^\x00-\x7F]/.test(client)).toBe(false);
     });
   }
 });
