@@ -1,107 +1,75 @@
-# POS Tender Page Redesign
+## Scope
 
-Fix the overflow, cluttered layout, and always-visible fields on the payment page. Cover the tender workspace, keypad component, and the Card / M-Pesa sub-modals.
+Three POS improvements:
 
-## Problems today
+1. Pre-payment stock validation with clear error messaging.
+2. "Peek mode" product info panel accessible from the sale workspace.
+3. Convert History from a full route redirect to a sheet that keeps the cart visible, matching the Drawer pattern.
 
-- Left column stacks method chips → amount display → quick chips → reference → tip → rounding note → keypad → Add Tender button in a fixed vertical order. On typical laptop heights (~700–800px CSS) the keypad's 4 rows of 80–96px keys plus the Clear bar push content off-screen.
-- All optional fields (tip, quick chips, reference) render regardless of whether they apply to the selected method.
-- Custom-built `NumericKeypad` uses `h-20 sm:h-24` fixed heights; it does not shrink to fit its container, which is what causes the overflow.
-- Card and M-Pesa sub-modals use their own layouts and don't share the same keypad, so the experience feels inconsistent.
+Deferred (out of scope for this plan — call out explicitly): backorder queueing, cross-store availability, real-time WebSocket inventory push. The existing `usePOSStockSync` Realtime subscription and per-register RPC already provide near-real-time inventory; no infra changes needed.
 
-## Redesign
+## 1. Pre-payment stock validation
 
-### 1. Layout reorganization (left surface)
+**Current gap:** `verifyCartStock` in `src/hooks/pos/usePOSStockSync.ts` exists but has **zero callers**. Payment proceeds without a final stock check, so out-of-stock items surface as a generic error from the commit RPC.
 
-Switch the left surface from a fixed vertical stack to a **two-region flex layout** that always fits the viewport:
+**Change:**
+- In `TenderWorkspace.tsx`, before the commit RPC fires (inside the confirm handler), call `verifyCartStock(registerId, cartItems)`.
+- On failure, block the commit and show a `<Dialog>` listing each offending line: `Product name — available: X, requested: Y`, plus two actions:
+  - **Remove from cart** (single-click per line; calls existing cart remove intent)
+  - **Adjust to available** (sets qty to the available number; disabled when available = 0)
+- Also add a lightweight, non-blocking check when the user *opens* the tender workspace (mount effect) so the warning appears before they start keying an amount. Payment buttons stay disabled while any line is over-available.
+- Normalize the commit RPC's stock error (`insufficient_stock` / Postgres check violation with the known code) inside `src/services/pos/*` so if the pre-check races with another till, the toast still reads `"Item X went out of stock during payment. Please remove it and try again."` instead of "something unexpected happened".
 
-```text
-┌───────────────────────────────────────────┐
-│ Header (Back • Payment • Amount Due)      │
-├───────────────┬───────────────────────────┤
-│ Methods (chip │ Right rail                │
-│  row, wraps)  │  • Customer               │
-│               │  • Cart totals            │
-│ Amount card   │  • Paid / Draft /         │
-│  (large, live │    Remaining / Change     │
-│   change hint)│  • Recorded tenders       │
-│               │  • Confirm (sticky)       │
-│ Context block │                           │
-│  (reference / │                           │
-│   tip / chips │                           │
-│   — only when │                           │
-│   applicable) │                           │
-│               │                           │
-│ Keypad        │                           │
-│  (fills       │                           │
-│   remaining   │                           │
-│   space, keys │                           │
-│   scale via   │                           │
-│   aspect-1)   │                           │
-│               │                           │
-│ Add Tender    │                           │
-└───────────────┴───────────────────────────┘
-```
+**Files touched:**
+- `src/apps/pos/terminal/tender/TenderWorkspace.tsx` — pre-flight + confirm-time check + dialog.
+- `src/apps/pos/terminal/tender/StockBlockerDialog.tsx` — new component.
+- POS commit service (whichever wraps the RPC) — map the DB error to a human message via the existing `normalizeError` layer in `src/services/resilience`.
 
-Key rules:
-- Left surface uses `flex flex-col min-h-0`; the keypad region uses `flex-1 min-h-0` so it always occupies leftover height instead of pushing content off-screen.
-- Keypad keys use `aspect-square` inside a `grid-cols-3 gap-2` container, so keys shrink together as the viewport shrinks — no more fixed 96px rows.
-- On `<md` (tablet / phone), the right rail collapses into a bottom sheet triggered by a "Details" chip in the header, and Confirm becomes a full-width sticky bar at the bottom.
-- Header collapses to one line on mobile (Amount Due moves under the title).
+## 2. Product "Peek Mode"
 
-### 2. Swap `NumericKeypad` for `react-simple-keyboard`
+**Change:**
+- New sheet `src/apps/pos/terminal/sale/ProductPeekSheet.tsx` mounted through the existing `SheetShell` so it inherits the phase-aware auto-dismiss and cart-visible layout.
+- Register a new `SheetId` `"peek"` in `useTerminalState.ts` (allowed in the `sale` and `tender` phases so cashiers can peek while on the payment screen too).
+- Trigger: a "Product Info" button in `SaleActionBar.tsx` and a keyboard shortcut (`F2`, wired via existing terminal shortcut layer).
+- Content: search input (SKU / barcode / name — debounced), result list, and a details panel showing:
+  - Name, description, image (if present)
+  - SKU, barcode(s) from `product_identifiers`
+  - Unit price (from active price list) and cost hidden unless the user has the existing `products.read_cost` permission
+  - Current per-register available stock via `get_available_pos_stock_for_register`
+  - Per-warehouse stock via a lightweight `warehouse_stock` read (organization-scoped, RLS-guarded)
+  - "Add to cart" action (respects existing cart intents; disabled when available = 0)
+- Scanner integration: when the sheet is open, the shared scanner event bus routes scans into the peek input instead of the cart (existing `useScannerScope` pattern).
 
-- Install `react-simple-keyboard` and use its numeric layout.
-- Wrap it in a new `POSKeypad` component that owns the theming and exposes the same `{ value, onChange, onClear, onBackspace }` API as today, so callers don't change.
-- Theme via a scoped CSS file (`pos-keypad.css`) that maps `.hg-button` to our design tokens (`--primary`, `--muted`, `--border`, radii, shadows). Buttons scale with container width, not fixed px.
-- Add "00" / "." / "⌫" / "Clear" keys as custom buttons in the layout string.
-- Reuse `POSKeypad` inside the Card and M-Pesa sub-modals so the amount-entry surface is identical everywhere.
+**Files touched (new + edits):**
+- New: `src/apps/pos/terminal/sale/ProductPeekSheet.tsx`, `src/hooks/pos/useProductPeek.ts`.
+- Edited: `src/apps/pos/terminal/useTerminalState.ts` (allow-list), `src/apps/pos/terminal/TerminalShell.tsx` (mount sheet), `src/apps/pos/terminal/sale/components/SaleActionBar.tsx` (button + shortcut).
 
-### 3. Context-aware field visibility
+## 3. History as a cart-preserving sheet
 
-Only render each optional block when it's relevant:
+**Current:** History is `phase === "history"` and renders as a full-region workspace via `HistoryWorkspace.tsx`; the URL redirects to `/history` and the cart is hidden.
 
-| block                | shown when |
-| -------------------- | ---------- |
-| Reference input      | `selectedMethodConfig.requires_reference` (already correct — keep) |
-| Tip row              | `onTipChange` is wired AND register has tips enabled |
-| Cash rounding note   | cash method selected AND `cashRoundingDiff !== 0` (already correct — keep) |
-| Quick-amount chips   | selected tender is cash (chips exist to round up cash tenders — hide for card/wallet where exact amount is used) |
-| "Look up M-Pesa"     | M-Pesa method is selected (move out of the always-visible header row) |
-| Change hint          | cash AND tendered > remaining (already correct — keep) |
+**Change:**
+- Demote History from a workspace phase to a sheet using the same `SheetShell` primitive that Drawer uses.
+  - Add `SheetId = "history"` (already implied by naming — verify + add allow-list entries for `sale` phase only).
+  - Move `HistoryWorkspace.tsx` body into `HistorySheet.tsx` — keep the void FSM, reprint path, and `PostPaymentSurface` stacking behaviour unchanged. `PostPaymentSurface` continues to work because the sheet uses shadcn `Sheet` (portal-based), not the retired `<Dialog>`.
+  - The sheet mounts on the right (`side="right"`) at width `w-full sm:max-w-3xl lg:max-w-5xl` so the cart column stays visible on ≥lg. On <sm it becomes a bottom sheet at `h-[92vh]`.
+- Route change: `/pos/terminal/:id/history` continues to work — the URL sync layer (`useTerminalUrlSync`) sets `activeSheet = "history"` on load instead of switching phase. The route entry stays for shareable links.
+- Remove the `history` phase from the phase enum after callers move; keep a one-release deprecation shim if any code still checks it.
 
-The "Context block" region between the amount card and the keypad renders whichever of the above blocks apply, or nothing at all when none apply — freeing that vertical space for the keypad.
+**Sub-modals kept modal on purpose (`ManagerOverrideDialog`, `VoidTransactionDialog`) continue to work — they render into the same portal root.**
 
-### 4. Card and M-Pesa sub-modals
+**Files touched:**
+- New: `src/apps/pos/terminal/history/HistorySheet.tsx` (thin wrapper reusing the existing body).
+- Edited: `src/apps/pos/terminal/history/HistoryWorkspace.tsx` (extract body / re-export), `src/apps/pos/terminal/useTerminalState.ts`, `src/apps/pos/terminal/useTerminalUrlSync.ts`, `src/apps/pos/terminal/TerminalShell.tsx`, `src/apps/pos/routes.tsx`.
 
-- Replace their custom amount inputs with the same `POSKeypad` component.
-- Apply the same responsive shell: `flex flex-col`, keypad in `flex-1 min-h-0`, sticky primary action at the bottom.
-- Keep all existing driver logic and callbacks unchanged — this is a presentation change only.
+## Cross-cutting
 
-### 5. Mobile / tablet breakpoints
+- **Permissions:** the peek cost/margin fields respect the existing `products.read_cost` capability; no new roles.
+- **Accessibility:** all new dialogs/sheets use shadcn primitives with proper `SheetTitle` / `DialogTitle`, `Esc` closes, focus returns to trigger. Peek input has an `aria-label` and result list is keyboard-navigable.
+- **Offline:** the pre-payment stock check falls back to the local reservation cache (`getReservations`) when the RPC errors with `offline`; a warning banner surfaces "Stock check unavailable — proceed at cashier discretion" instead of hard-blocking.
+- **No schema changes.** No new RPCs required — everything is composed from existing endpoints (`get_available_pos_stock_for_register`, `products` read, `warehouse_stock` read).
 
-- `<sm` (≤640px): single column, right rail becomes a bottom sheet, Confirm is a sticky footer button, keypad keys shrink via `aspect-square`.
-- `sm–md` (641–1023px): two columns but rail narrows to 18rem; method chips wrap to two rows if needed.
-- `md+` (≥1024px): current two-column layout with `w-80` / `xl:w-96` rail.
+## Verification
 
-## Technical details
-
-Files touched:
-- `src/apps/pos/terminal/tender/TenderWorkspace.tsx` — layout restructure and context-aware conditionals.
-- `src/components/pos/POSKeypad.tsx` (new) — wraps `react-simple-keyboard`, owns theming, exports the same props NumericKeypad exposed.
-- `src/components/pos/pos-keypad.css` (new) — scoped theme overrides mapping `.hg-*` classes to design tokens.
-- `src/components/pos/NumericKeypad.tsx` — becomes a thin re-export of `POSKeypad` so any other caller keeps working; deprecation comment added.
-- `src/components/pos/CardPaymentModal.tsx` — swap amount entry to `POSKeypad`, apply responsive shell.
-- `src/components/pos/MpesaPaymentModal.tsx` — same.
-
-Dependencies:
-- Add `react-simple-keyboard` (~40KB gzipped). No peer conflicts with React 19 (library is React-compatible via `preact-compat`-free build).
-
-Not changed:
-- Payment session model, RPCs, `resolvePaymentMethods`, tender persistence — the four-axis payment row (ADR 0009) and event model stay intact.
-- `TransactionSummaryRail`, the confirm/commit flow, and all driver callbacks.
-
-Verification:
-- Build passes typecheck.
-- Manual check via Playwright at 1280×720 (typical laptop), 1024×768 (small laptop), 768×1024 (tablet), 390×844 (mobile) — no overflow, keypad always visible, Confirm always reachable.
-- Existing `src/__tests__/architecture.pos-workspace-dialogs.test.ts` still passes.
+- `tsgo` typecheck.
+- Manual walk-through against preview: (a) add a zero-stock item and try to pay — expect blocker dialog; (b) open Peek via F2 while a cart is active — expect cart still visible; (c) open History — expect cart column visible, void + reprint still work.

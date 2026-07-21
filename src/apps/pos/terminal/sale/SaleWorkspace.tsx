@@ -1,11 +1,12 @@
-import type { RefObject, KeyboardEvent } from "react";
-import { User } from "lucide-react";
+import { useEffect, useState, type RefObject, type KeyboardEvent } from "react";
+import { User, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeldOrdersBar } from "@/components/pos/HeldOrdersBar";
 import { ScanRecoveryBanner } from "@/components/pos/ScanRecoveryBanner";
 import { ProductDiscoveryPanel } from "@/apps/pos/terminal/sale/components/ProductDiscoveryPanel";
 import { BasketPanel } from "@/apps/pos/terminal/sale/components/BasketPanel";
 import { TransactionSummaryRail } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
+import { ProductPeekDialog } from "@/apps/pos/terminal/sale/ProductPeekDialog";
 import {
   SaleActionBar,
   type SaleActionBarCallbacks,
@@ -126,6 +127,20 @@ export function SaleWorkspace({
   // workspace-owned confirms during mobile drawer consolidation.
   void tableSessionId;
 
+  // Product peek — read-only quick look-up. Alt+I opens; scanner input
+  // is not hijacked because Alt is required.
+  const [showPeek, setShowPeek] = useState(false);
+  useEffect(() => {
+    const handler = (e: globalThis.KeyboardEvent) => {
+      if (e.altKey && (e.key === "i" || e.key === "I")) {
+        e.preventDefault();
+        setShowPeek(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* Left Panel - Products */}
@@ -170,15 +185,23 @@ export function SaleWorkspace({
             onRecall={(restoredCart) => cart.restoreCart(restoredCart)}
           />
         )}
-        {/* Customer */}
-        <div className="p-3 xl:p-4 border-b">
+        {/* Customer + Peek */}
+        <div className="p-3 xl:p-4 border-b flex gap-2">
           <Button
             variant="outline"
-            className="w-full justify-start text-sm"
+            className="flex-1 justify-start text-sm"
             onClick={onOpenCustomer}
           >
             <User className="h-4 w-4 mr-2" />
             {cart.customer ? cart.customer.name : "Add Customer"}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title="Product info (Alt+I)"
+            onClick={() => setShowPeek(true)}
+          >
+            <Info className="h-4 w-4" />
           </Button>
         </div>
 
@@ -203,6 +226,17 @@ export function SaleWorkspace({
           />
         </div>
       </div>
+      {registerId && (
+        <ProductPeekDialog
+          open={showPeek}
+          onOpenChange={setShowPeek}
+          registerId={registerId}
+          onAddToCart={(pid) => {
+            const p = filteredProducts.find((fp) => fp.id === pid);
+            if (p) handleProductClick(p);
+          }}
+        />
+      )}
     </div>
   );
 }
