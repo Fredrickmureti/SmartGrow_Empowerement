@@ -59,11 +59,16 @@ const ROLE_LABELS: Record<string, { label: string; description: string }> = {
   },
   barcode_scanner: { label: "Barcode scanner", description: "USB HID / Bluetooth keyboard-wedge devices." },
   scanner: { label: "Barcode scanner", description: "USB HID / Bluetooth keyboard-wedge devices." },
+  label_printer: {
+    label: "Label printer",
+    description: "Thermal ZPL/EPL printers for product tags, shelf edges, receiving, pallets, and shipping.",
+  },
 };
 
 const ROLE_ORDER: DeviceRole[] = [
   "receipt_printer",
   "kitchen_printer",
+  "label_printer" as DeviceRole,
   "cash_drawer",
   "scale",
   "customer_display",
