@@ -38,7 +38,7 @@
  */
 
 import { useCallback, useEffect } from "react";
-import { PostPaymentScreen, type PrintPolicyHint } from "@/components/pos/PostPaymentScreen";
+import { PostPaymentScreen, type PrintPolicyHint } from "./PostPaymentSurface";
 import type { LiveTransactionInput } from "@/lib/pos/receipt/ReceiptDocumentModel";
 import { useTerminalContext } from "../TerminalStateContext";
 
