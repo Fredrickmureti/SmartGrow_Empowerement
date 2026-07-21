@@ -163,6 +163,23 @@ export function startSharedCommandQueueWorker(
             p_success: !!result?.success,
             p_error: result?.success ? null : (result?.error ?? 'unknown'),
           });
+          // ADR-0090 · Phase D2 — mirror the driver ack into the print
+          // job ledger so the Print Queue UI reflects delivery, not just
+          // dispatch. Only fires for print roles; other roles (drawer,
+          // scale) never populate print_jobs.
+          if (isPrintRole(row.role)) {
+            try {
+              if (result?.success) {
+                await supabase.rpc('print_job_mark_acked', { p_hw_command_id: row.id });
+              } else {
+                // No job id here — mark_failed is keyed by job id. Use a
+                // dedicated by-hw-id failure RPC path via mark_acked's
+                // sibling call is impossible; we run an update through the
+                // failed RPC indirectly by matching on hw_command_id below.
+                await markJobFailedByHwId(row.id, result?.error ?? 'driver reported failure');
+              }
+            } catch { /* ledger failures never block queue */ }
+          }
           if (result?.success) status.totalCompleted += 1;
           else status.totalFailed += 1;
         } catch (err) {
@@ -173,6 +190,9 @@ export function startSharedCommandQueueWorker(
               p_success: false,
               p_error: err instanceof Error ? err.message : String(err),
             });
+            if (isPrintRole(row.role)) {
+              await markJobFailedByHwId(row.id, err instanceof Error ? err.message : String(err));
+            }
           } catch { /* swallow */ }
         } finally {
           status.inFlight = null;
