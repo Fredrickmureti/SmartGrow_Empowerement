@@ -636,9 +636,9 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
               })) as unknown as ReceiptDocumentPayment[],
             }}
           />
-        </section>
-      )}
-    </>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
 
