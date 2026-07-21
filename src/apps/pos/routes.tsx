@@ -120,6 +120,19 @@ function POSApp() {
         }
       >
         <Route index element={<POSTerminal />} />
+        {/* Phase 3 — sibling routes for phase-driven workspaces. All
+            currently render POSTerminal (which internally derives its
+            surface from `terminalState.phase`); the URL sync inside
+            TerminalShell keeps the address bar and the reducer in
+            lock-step so deep links and browser back/forward behave
+            like real workspace navigation. Dedicated workspace chrome
+            (route-owned components) lands in Phase 3b. */}
+        <Route path="sale" element={<POSTerminal />} />
+        <Route path="tender" element={<POSTerminal />} />
+        <Route path="receipt" element={<POSTerminal />} />
+        <Route path="return" element={<POSTerminal />} />
+        <Route path="held" element={<POSTerminal />} />
+        <Route path="history" element={<POSTerminal />} />
       </Route>
       <Route
         path="customer-display"
