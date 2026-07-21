@@ -50,15 +50,19 @@ const RECEIPT_ONLY_TYPES = new Set<string>([
 ]);
 
 // Types registered in FETCHER_MAP that are not enumerated in the matrix
-// on purpose (statutory / payroll paths documented elsewhere, or aliases).
-const FETCHER_EXEMPT = new Set<string>([
-  // Payroll / statutory fetchers are covered by the payroll wave doc.
+// on purpose (aliases are handled via ALIASES below).
+const FETCHER_EXEMPT = new Set<string>([]);
+
+// Matrix rows whose renderer is NOT the `generate-document` FETCHER_MAP
+// path — statutory / payroll documents ship through pinned-paper
+// pipelines documented in the payroll wave (payslips, tax certs,
+// statutory returns, audit certs). They're listed in the matrix for
+// completeness; the fetcher-parity check exempts them.
+const MATRIX_ROW_EXEMPT = new Set<string>([
   "payslip",
   "tax_certificate",
   "statutory_return",
   "audit_certificate",
-  // Aliases whose canonical name IS in the matrix are exempt individually
-  // (see aliasResolves below).
 ]);
 
 // Bi-directional aliases: presence of any name on either side satisfies
@@ -71,7 +75,12 @@ const ALIASES: Record<string, string[]> = {
   purchase_return: ["vendor_return"],
   proforma: ["proforma_invoice"],
   proforma_invoice: ["proforma"],
+  // `fetchReceipt` renders the customer payment receipt; the matrix
+  // labels the receipts-section row `customer_payment_receipt`.
+  receipt: ["customer_payment_receipt"],
+  customer_payment_receipt: ["receipt"],
 };
+
 
 function anyAliasIn(name: string, set: Set<string>): boolean {
   if (set.has(name)) return true;
