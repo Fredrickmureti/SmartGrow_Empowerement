@@ -46,6 +46,7 @@ import { WorkflowBindingsCard } from "@/components/hardware/WorkflowBindingsCard
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Cpu, Radar, ListChecks, PlugZap, Route } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBranches } from "@/hooks/useBranches";
 import { printLabelByTemplate } from "@/services/printing/labelDispatch";
 
 const ROLE_LABELS: Record<string, { label: string; description: string }> = {

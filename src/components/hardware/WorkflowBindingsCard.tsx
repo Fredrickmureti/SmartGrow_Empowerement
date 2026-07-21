@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBranches } from "@/hooks/useBranches";
 import { normalizeError } from "@/services/resilience";
 import type { PrinterWorkflow } from "@/services/printing/labelDispatch";
 
@@ -83,7 +84,8 @@ const EMPTY_DRAFT: DraftForm = {
 };
 
 export function WorkflowBindingsCard() {
-  const { currentOrg, currentBranch } = useOrganization();
+  const { currentOrg } = useOrganization();
+  const { currentBranch } = useBranches();
   const orgId = currentOrg?.id ?? null;
 
   const [bindings, setBindings] = useState<Binding[]>([]);
