@@ -29,7 +29,10 @@ const ALLOWED = new Set<string>([
   "src/lib/pos/receipt/renderers/CustomerDisplayRenderer.ts",
   "src/components/pos/TransactionSummaryView.tsx",
   "src/components/pos/ReceiptPreviewBody.tsx",
-  "src/components/pos/PostPaymentScreen.tsx",
+  "src/apps/pos/terminal/receipt/PostPaymentSurface.tsx",
+  "src/apps/pos/terminal/receipt/ReceiptWorkspace.tsx",
+  "src/apps/pos/terminal/sale/ReceiptPreviewSheet.tsx",
+  "src/apps/pos/terminal/history/HistoryWorkspace.tsx",
 ]);
 
 /** Path fragments that identify the print / thermal / PDF / ESC/POS pipeline. */

@@ -37,6 +37,9 @@ const PDF_UTILS_PATH = join(root, "src", "services", "printing", "pdfUtils.ts");
 const ALLOWED_DIRECT_CALLERS = new Set([
   // unified printing utility module IS the helper itself
   "src/services/printing/pdfUtils.ts",
+  // Step 5.0 — the shared receipt preview body owns pro-forma / reprint
+  // ESC/POS fetches for POSReports and the sale.receiptPreview sheet.
+  "src/components/pos/ReceiptPreviewBody.tsx",
   // documents/sales modules use generate-document for invoices/quotes —
   // their own contract tests cover them. Allow the helper everywhere
   // outside POS by scoping the scan to src/components/pos + src/pages/pos.
@@ -74,7 +77,7 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     // `buildReceiptLines`, which is the single row producer shared by
     // the on-screen preview, the ESC/POS bytes and the thermal PDF.
     const src = readFileSync(
-      join(root, "src", "components", "pos", "PostPaymentScreen.tsx"),
+      join(root, "src", "apps", "pos", "terminal", "receipt", "PostPaymentSurface.tsx"),
       "utf8",
     );
     expect(src).toMatch(/ReceiptDocumentModel|buildReceiptDocument/);
@@ -107,7 +110,7 @@ describe("Stage X6 — POS receipt renderer contract", () => {
 
   it("PostPaymentScreen delegates print to printClient (Milestone B chokepoint)", () => {
     const src = readFileSync(
-      join(root, "src", "components", "pos", "PostPaymentScreen.tsx"),
+      join(root, "src", "apps", "pos", "terminal", "receipt", "PostPaymentSurface.tsx"),
       "utf8",
     );
     expect(src).toMatch(/printClient\.printReceiptThermal/);
@@ -201,7 +204,7 @@ describe("Stage X6 — POS receipt renderer contract", () => {
       // Step 5.2 retired `ReceiptPreviewDialog`; the shared body is now
       // the assertion target and covers every reprint surface.
       "src/components/pos/ReceiptPreviewBody.tsx",
-      "src/components/pos/PostPaymentScreen.tsx",
+      "src/apps/pos/terminal/receipt/PostPaymentSurface.tsx",
     ];
     for (const rel of targets) {
       const src = readFileSync(join(root, rel), "utf8");

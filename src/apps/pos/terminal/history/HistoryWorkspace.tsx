@@ -45,7 +45,7 @@ import {
   Download,
   FileText,
 } from "lucide-react";
-import { PostPaymentScreen } from "@/components/pos/PostPaymentScreen";
+import { PostPaymentScreen } from "../receipt/PostPaymentSurface";
 import { VoidTransactionDialog } from "@/components/pos/VoidTransactionDialog";
 import { CardPaymentActions } from "@/components/pos/transaction-detail/CardPaymentActions";
 import { printClient } from "@/services/printing/PrintClient";
