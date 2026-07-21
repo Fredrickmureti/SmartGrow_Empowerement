@@ -593,7 +593,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
                 payment_method: p.payment_method,
                 amount: p.amount,
                 reference: p.reference ?? null,
-              })) as unknown as ReceiptPayment[],
+              })) as unknown as ReceiptDocumentPayment[],
             }}
           />
         </section>
