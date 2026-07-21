@@ -200,6 +200,7 @@ export function CardPaymentModal({
             </>
           )}
         </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
