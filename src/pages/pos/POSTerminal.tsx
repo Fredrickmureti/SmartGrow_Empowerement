@@ -110,6 +110,7 @@ import { useReceiptData } from "@/apps/pos/terminal/receipt/ReceiptDataContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useTableSessions } from "@/hooks/pos/useTableSessions";
 import { useFloorPlan } from "@/hooks/pos/useFloorPlan";
+import { ProductDiscoveryPanel } from "@/apps/pos/terminal/sale/components/ProductDiscoveryPanel";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
