@@ -52,7 +52,7 @@ describe("no-client-payment-math (TenderWorkspace)", () => {
       /const\s+remaining\s*=\s*Math\.max\s*\(\s*0\s*,\s*effectiveTotal\s*-\s*totalApplied\s*\)/,
     ];
     for (const rx of forbiddenReduces) {
-      expect(source, `PaymentDialog re-derives money math: ${rx}`).not.toMatch(rx);
+      expect(source, `TenderWorkspace re-derives money math: ${rx}`).not.toMatch(rx);
     }
   });
 
