@@ -307,9 +307,10 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
     lot_number: input.lotNumber ?? null,
     expiry_date: input.expiryDate ?? null,
     manufacture_date: input.manufactureDate ?? null,
+    hri_flag: 'N',
     ...input.vars,
   };
-  const rendered = renderTemplateBody(tpl.body, mergedVars);
+  const rendered = renderTemplateBody(tpl.body, mergedVars, { dpi: media?.dpi ?? 203 });
 
   // Map engine → driver payload shape.
   // All label drivers accept `print_raw` with either `{ zpl }` (ZPL), `{ bytes }` (EPL/ESC-POS), or `{ pdfUrl }` (PDF, A4 driver).
