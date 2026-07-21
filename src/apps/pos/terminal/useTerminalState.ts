@@ -105,7 +105,8 @@ export type TerminalIntent =
   | { kind: "op"; op: "openSheet"; sheet: SheetId }
   | { kind: "op"; op: "closeSheet" }
   | { kind: "op"; op: "setTip"; tipAmount: number }
-  | { kind: "op"; op: "recordCompletion"; transaction: CompletedTransactionSnapshot };
+  | { kind: "op"; op: "recordCompletion"; transaction: CompletedTransactionSnapshot }
+  | { kind: "op"; op: "syncCart"; cartHasItems: boolean };
 
 /**
  * Sheets allowed per phase. `SheetShell` (rendered inside each workspace)
