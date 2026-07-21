@@ -1329,7 +1329,8 @@ function POSTerminalInner() {
           payload: null,
         },
       });
-      setShowPostPayment(true);
+      // `showPostPayment` is now derived from `terminalState.phase === "receipt"`,
+      // which the `recordCompletion` dispatch above already set. No sibling setter.
     } catch (error) {
       // Error handled by mutation - reopen payment dialog on failure
       setShowPayment(true);
