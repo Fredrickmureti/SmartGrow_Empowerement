@@ -203,9 +203,16 @@ export function ProductPeekDialog({
                   No products match "{query}".
                 </div>
               )}
-              {!loading && query.trim().length < 2 && (
+              {!loading && query.trim().length < 2 && results.length === 0 && (
                 <div className="p-3 text-sm text-muted-foreground">
-                  Type at least 2 characters to search.
+                  {cartProductIds && cartProductIds.length > 0
+                    ? "Loading cart products…"
+                    : "Cart is empty — type a name, SKU, or barcode to look up any product."}
+                </div>
+              )}
+              {!loading && query.trim().length < 2 && results.length > 0 && (
+                <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  In cart
                 </div>
               )}
               {results.map((p) => (
