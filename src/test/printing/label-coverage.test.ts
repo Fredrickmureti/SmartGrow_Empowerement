@@ -22,6 +22,10 @@ const CALLERS: { path: string; template: string; workflow: string }[] = [
   { path: "pages/warehouse-mobile/MobileReceive.tsx", template: "receiving_label", workflow: "receiving" },
   { path: "pages/warehouse/PackStation.tsx", template: "pallet_label", workflow: "receiving" },
   { path: "pages/warehouse/PackStation.tsx", template: "shipping_label", workflow: "shipping" },
+  // POS callers (Phase 17 · step 15).
+  { path: "components/pos/ProductQuickView.tsx", template: "product_label", workflow: "product_tag" },
+  { path: "components/pos/ProductQuickView.tsx", template: "shelf_label", workflow: "shelf_edge" },
+  { path: "components/pos/CartItemEditor.tsx", template: "shelf_label", workflow: "shelf_edge" },
 ];
 
 describe("Label print coverage (Phase 17)", () => {

@@ -22,7 +22,8 @@ I read `.lovable/plan.md` end-to-end and spot-checked the codebase to confirm th
 - ✅ Phase 17 · step 14 — Warehouse callers wired (`PutawayQueue.tsx` bin label, `warehouse-mobile/MobileReceive.tsx` receiving label, `PackStation.tsx` pallet + shipping labels).
 - ✅ Phase 17 · step 18 — coverage guardrail test at `src/test/printing/label-coverage.test.ts`.
 - ✅ Shared caller component `src/components/labels/PrintLabelButton.tsx` — every new caller now goes through one seam.
-- Still pending: Phase 17 · step 15 (POS item-search reprint + change-price shelf label) and Phase 15 · step 6 (editor Units toggle + multi-DPI preview + suspicious-integer warning).
+- ✅ Phase 17 · step 15 — POS callers wired (`components/pos/ProductQuickView.tsx` product tag + shelf label, `components/pos/CartItemEditor.tsx` change-price shelf label). Coverage test extended.
+- Still pending: Phase 15 · step 6 (editor Units toggle + multi-DPI preview + suspicious-integer warning).
 
 **Known-unrelated (out of scope):** `src/test/hardware/electron-assignment-hydrator.test.ts` flake — owned by the hardware-runtime stream, not printing.
 

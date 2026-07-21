@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { Plus, Minus, Package, DollarSign, Tag } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 
 interface ProductQuickViewProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface ProductQuickViewProps {
     id: string;
     name: string;
     sku?: string;
+    barcode?: string;
     selling_price: number;
     cost_price?: number;
     tax_rate?: number;
@@ -55,6 +57,11 @@ export function ProductQuickView({
   };
 
   const lineTotal = quantity * (useCustomPrice && customPrice ? parseFloat(customPrice) : product.selling_price);
+
+  const effectivePrice =
+    useCustomPrice && customPrice ? parseFloat(customPrice) : product.selling_price;
+  const priceChanged =
+    useCustomPrice && !!customPrice && parseFloat(customPrice) !== product.selling_price;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -167,6 +174,45 @@ export function ProductQuickView({
             <Button className="flex-1" onClick={handleAdd}>
               Add to Cart
             </Button>
+          </div>
+
+          {/* Label printing — POS caller (Phase 17 step 15).
+              Routes through the shared useLabelPrint seam: barcode identity
+              (ADR-0089), workflow-bound printer (ADR-0086), missing-device CTA. */}
+          <div className="flex gap-2 pt-1 border-t">
+            <PrintLabelButton
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              label="Reprint product tag"
+              templateKey="product_label"
+              workflow="product_tag"
+              product={{
+                id: product.id,
+                name: product.name,
+                sku: product.sku ?? null,
+                barcode: product.barcode ?? null,
+              }}
+              extraVars={{ price: formatCurrency(product.selling_price) }}
+              idempotencyKey={`pos:product_label:${product.id}`}
+            />
+            <PrintLabelButton
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              label={priceChanged ? "Print new shelf label" : "Print shelf label"}
+              disabled={useCustomPrice && !customPrice}
+              templateKey="shelf_label"
+              workflow="shelf_edge"
+              product={{
+                id: product.id,
+                name: product.name,
+                sku: product.sku ?? null,
+                barcode: product.barcode ?? null,
+              }}
+              extraVars={{ price: formatCurrency(effectivePrice) }}
+              idempotencyKey={`pos:shelf_label:${product.id}:${effectivePrice}`}
+            />
           </div>
         </div>
       </DialogContent>
