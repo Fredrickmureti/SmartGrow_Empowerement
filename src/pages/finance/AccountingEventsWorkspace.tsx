@@ -51,7 +51,7 @@ import { PageHeader } from "@/components/layout/page";
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useCurrency } from "@/hooks/useCurrency";
-import { AuditDetails, humanizeKey, formatValue } from "@/components/audit/auditFormat";
+import { AuditDetails } from "@/components/audit/auditFormat";
 
 // ---------------------------------------------------------------------------
 // Types
