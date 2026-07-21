@@ -137,8 +137,6 @@ export default function Accounts() {
   const handleCreate = () => navigate("/finance/accounts/new");
   const handleEdit = (account: Account) => navigate(`/finance/accounts/${account.id}/edit`);
 
-  // Build tree structure for display
-  const getChildAccounts = (parentId: string) => accounts.filter(a => a.parent_id === parentId);
 
   const executeDeleteAccount = async (account: Account) => {
     try {
