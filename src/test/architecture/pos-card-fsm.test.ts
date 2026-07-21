@@ -82,18 +82,18 @@ describe("pos-card-fsm: substrate & entry-point invariants", () => {
     expect(modal).not.toMatch(/cardTerminal\[["']driver["']\]/);
   });
 
-  it("PaymentDialog wires the card modal for tender_kind='card'", () => {
-    const dlg = readFileSync(join(REPO, "src/components/pos/PaymentDialog.tsx"), "utf8");
-    expect(dlg).toMatch(/import\s*\{[^}]*CardPaymentModal[^}]*\}\s*from\s*["']\.\/CardPaymentModal["']/);
+  it("TenderWorkspace wires the card modal for tender_kind='card'", () => {
+    const dlg = readFileSync(join(REPO, "src/apps/pos/terminal/tender/TenderWorkspace.tsx"), "utf8");
+    expect(dlg).toMatch(/import\s*\{[^}]*CardPaymentModal[^}]*\}\s*from\s*["']@\/components\/pos\/CardPaymentModal["']/);
     expect(dlg).toMatch(/tender_kind\s*===\s*["']card["']/);
     expect(dlg).toMatch(/<CardPaymentModal\b/);
   });
 
-  it("PaymentDialogPayment and PaymentMethod carry card FSM metadata", () => {
-    const dlg = readFileSync(join(REPO, "src/components/pos/PaymentDialog.tsx"), "utf8");
+  it("TenderWorkspacePayment and PaymentMethod carry card FSM metadata", () => {
+    const dlg = readFileSync(join(REPO, "src/apps/pos/terminal/tender/TenderWorkspace.tsx"), "utf8");
     const off = readFileSync(join(REPO, "src/hooks/pos/usePOSTransactionOffline.ts"), "utf8");
     for (const field of ["auth_state", "auth_id", "vendor_txn_id", "authorized_amount"]) {
-      expect(dlg, `PaymentDialogPayment must expose ${field}`).toMatch(new RegExp(`${field}\\??:`));
+      expect(dlg, `TenderWorkspacePayment must expose ${field}`).toMatch(new RegExp(`${field}\\??:`));
       expect(off, `PaymentMethod must expose ${field}`).toMatch(new RegExp(`${field}\\??:`));
     }
     // The RPC payload map must forward the FSM fields.
