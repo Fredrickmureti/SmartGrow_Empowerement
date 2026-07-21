@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, PackageCheck, PackagePlus, Lock, Check } from "lucide-react";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 
 interface WaveLine {
   id: string;
@@ -432,6 +433,47 @@ export default function PackStation() {
                             <Button size="sm" variant="outline" onClick={() => setSealDialog({ carton_id: c.id })}>
                               <Lock className="h-4 w-4 mr-1" /> Seal
                             </Button>
+                          )}
+                          {c.sealed_at && c.shipment_lpn?.code && (
+                            <>
+                              <PrintLabelButton
+                                label="Pallet"
+                                size="sm"
+                                variant="ghost"
+                                templateKey="pallet_label"
+                                workflow="receiving"
+                                product={{
+                                  id: c.id,
+                                  name: `Pallet ${c.shipment_lpn.code}`,
+                                  sku: c.shipment_lpn.code,
+                                  barcode: null,
+                                }}
+                                sourceDocType="wms_pack_carton"
+                                sourceDocId={c.id}
+                                idempotencyKey={`pallet_label:${c.id}`}
+                                extraVars={{ lpn_code: c.shipment_lpn.code }}
+                              />
+                              <PrintLabelButton
+                                label="Ship"
+                                size="sm"
+                                variant="outline"
+                                templateKey="shipping_label"
+                                workflow="shipping"
+                                product={{
+                                  id: c.id,
+                                  name: `Shipment ${c.shipment_lpn.code}`,
+                                  sku: c.shipment_lpn.code,
+                                  barcode: null,
+                                }}
+                                sourceDocType="wms_pack_carton"
+                                sourceDocId={c.id}
+                                idempotencyKey={`shipping_label:${c.id}`}
+                                extraVars={{
+                                  lpn_code: c.shipment_lpn.code,
+                                  weight_kg: c.weight_kg ?? "",
+                                }}
+                              />
+                            </>
                           )}
                         </div>
                       </div>

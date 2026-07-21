@@ -20,6 +20,8 @@ const CALLERS: { path: string; template: string; workflow: string }[] = [
   { path: "pages/inventory/LotDetail.tsx", template: "lot_label", workflow: "product_tag" },
   { path: "pages/warehouse/PutawayQueue.tsx", template: "bin_label", workflow: "receiving" },
   { path: "pages/warehouse-mobile/MobileReceive.tsx", template: "receiving_label", workflow: "receiving" },
+  { path: "pages/warehouse/PackStation.tsx", template: "pallet_label", workflow: "receiving" },
+  { path: "pages/warehouse/PackStation.tsx", template: "shipping_label", workflow: "shipping" },
 ];
 
 describe("Label print coverage (Phase 17)", () => {
