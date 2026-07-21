@@ -107,7 +107,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
     if (state.phase === "history") dispatch({ kind: "op", op: "closeSide" });
   };
 
-  const { downloadPdf, isGeneratingPdf } = useDocumentPrint();
+  const [isGeneratingPdf, setIsGeneratingPdf] = React.useState(false);
 
   const { formatCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
