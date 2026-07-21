@@ -637,6 +637,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
             }}
           />
         )}
+        </section>
       </SheetContent>
     </Sheet>
   );
