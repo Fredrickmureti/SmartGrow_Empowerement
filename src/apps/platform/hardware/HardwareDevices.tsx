@@ -177,7 +177,8 @@ function hasDiscover(): boolean {
 
 export function HardwareDevicesPage() {
   const { assignments, isLoading, error, refetch, remove } = useDeviceAssignments();
-  const { currentOrg, currentBranch } = useOrganization();
+  const { currentOrg } = useOrganization();
+  const { currentBranch } = useBranches();
 
   const [testing, setTesting] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
