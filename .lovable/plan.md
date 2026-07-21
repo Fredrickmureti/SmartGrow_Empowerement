@@ -1,144 +1,126 @@
 
-# Enterprise Output Platform — Remediation Plan
+# Enterprise Printing Architecture — Audit Findings & Remediation Plan
 
-Authoritative status for the Enterprise Output Platform Audit and its
-prioritized drift remediation. Kept in chronological order; each phase is
-brought to a coherent, production-ready state before the next begins.
+## Verified current architecture (evidence, not assumption)
 
-Anchor documents:
-- `docs/adr/0086-enterprise-output-platform.md`
-- `docs/audit/2026-07-20-enterprise-output-platform.md`
+Pipeline in place (post ADR-0086 D1–D6):
 
-## Roadmap
+```text
+business event → generate-document (canonical fetcher)
+              → canonical model (DocumentData | Line[] | label_templates row)
+              → renderer  (_shared/pdf | receipt/lines | template body render)
+              → driver    (ZplLabelDriver | EplLabelDriver | EscPos* | PDF)
+              → transport (Electron / LAN agent / browser)
+```
 
-| Phase | Drift | Medium family     | Status                                   |
-| ----- | ----- | ----------------- | ---------------------------------------- |
-| 0     | —     | Audit + ADR-0086  | **Done**                                 |
-| 1     | D1    | Label (ZPL)       | **Done** — 2026-07-20                    |
-| 2     | D2    | A4 in edge (PDF)  | **Done** — 2026-07-20                    |
-| 3     | D3    | Client entrypoint | **Done** — 2026-07-20                    |
-| 4     | D4    | Kitchen / CFD     | No action — single-source confirmed      |
-| 5     | D5    | Bespoke A4 marker | **Absorbed by D2**                       |
-| 6     | D6    | Driver-side label layout | **Done** — 2026-07-20              |
+**What is already correct** (verified file:line, do NOT touch):
 
-## Currently active phase
+- Paged/A4 family: single `_shared/pdf` engine; every A4 document goes through `generateDocumentPdf` / `generateReportPdf` / `hrLetterPdf`. Guarded by `no-raw-pdf-lib-in-app` + `no-raw-pdf-lib-in-edge-functions`.
+- Thermal/receipt family: single `receipt/lines.ts → Line[]` canonical, single ESC/POS renderer, guarded by `thermal-routing-architecture`, `parity_gate`, `escpos-parity`.
+- Label templates: `label_templates` table + `resolve_label_template` RPC + `printLabelByTemplate` client entrypoint + `buildLabelZpl` server adapter — all read the same rows (D1 fix, `label-builder-has-no-hardcoded-zpl.test.ts`).
+- Label drivers: `ZplLabelDriver` / `EplLabelDriver` are pure transports post-D6, no layout ops (`adr-0086-driver-side-label-layout-ownership.test.ts`).
+- Statement client entrypoints on canonical `useDocumentPrint` (D3).
 
-Roadmap fully closed. All six drift items D1–D6 resolved or absorbed.
+## Root cause of the "changing label size doesn't scale content" symptom
 
-## Phase 6 (D6) closure — driver-side label layout
+Confirmed by reading `label_templates` schema, `seed_default_label_templates`, `ZplLabelDriver.readConfig`, and `resolve_label_template`:
 
-Post-D1 the server-side emitter (`_shared/printing/zpl/builder.ts`) became a
-pure resolver over `label_templates`. The remaining second source of truth
-lived in the Electron label drivers: `ZplLabelDriver.renderSpec` and
-`EplLabelDriver.renderSpec` hardcoded `^FO/^FD/^BC` and `A<x>,<y>/B<x>,<y>`
-layout for a bespoke `LabelSpec` payload — a `print_label { spec }` op that
-no production caller ever emitted (`labelDispatch.ts` already sends
-`{ zpl }` / `{ bytes }` / `{ pdfUrl }` derived from templates).
+1. **Media is not a first-class concept.** Physical dimensions live redundantly in three unrelated places, none authoritative:
+   - `printer_profiles.paper_format` — enum `a4|letter|a5|80mm|58mm` (business-ish, no mm, no dpi, no length).
+   - `label_templates.width_mm/height_mm` — metadata only, never read by the renderer or driver.
+   - `device_assignments.config.{widthMm,heightMm,dpi}` — read by `ZplLabelDriver.readConfig` but only stored, **never emitted** (no `^PW`/`^LL` inserted).
+2. **Template bodies encode absolute dot coordinates** (`^PW640`, `^LL400`, `^FO20,20`, `A50,50,…`) hardcoded at seed time (`_shared/printing/zpl/builder.ts` history + `20260617213931_…sql:117-125`). A body seeded for `640×400` dots at 203dpi silently renders inside a `102×152 mm` roll — the label paper stretches, the content does not.
+3. **Template key has no media dimension.** `label_templates` unique index is `(org_id, branch_id, template_key)`. You cannot register a `shelf_edge` template for `50×30 mm` *and* `100×150 mm` — only one per key. So the label is fundamentally single-media.
+4. **`printer_profiles` describes a business paper, not hardware.** No `dpi`, no `command_language` (ZPL/EPL/ESC-POS), no `supported_media[]`, no `resolution_dpmm`. The driver's DPI comes from `device_assignments.config.dpi` — a per-device override, unbound to the printer profile it plays.
+5. **The `resolve_workflow_printer` RPC** picks a printer profile but has no media-awareness. Two branches can bind different physical printers with different DPI to the same workflow and the same template will drift on the wire.
 
-Actions:
+Net: the pipeline is canonical from `label_templates` on, but the layer *below* it (media + hardware capabilities) is missing. Every scaling/DPI complaint bottoms out here.
 
-- Deleted `LabelSpec`, `renderSpec`, and the spec branch from
-  `electron/hardware/drivers/ZplLabelDriver.ts` and
-  `electron/hardware/drivers/EplLabelDriver.ts`. Drivers are now pure
-  transports: envelope validation (`^XA…^XZ`), ESC/POS rejection, and
-  post-header injection of transport commands (`^MD`, `^PR`) — no layout.
-- New guardrail `src/test/architecture/adr-0086-driver-side-label-layout-ownership.test.ts`
-  scans every `electron/hardware/drivers/*Label*Driver.ts` for ZPL layout
-  opcodes (`^FO/^FD/^FS/^BC/^BQ/^CF`), EPL text/barcode opcodes
-  (`A<x>,<y>` / `B<x>,<y>`), and any re-introduction of `LabelSpec` /
-  `renderSpec`. Envelope/transport tokens remain allowed.
-- Audit ledger updated: D6 marked **Resolved 2026-07-20**; Label row in
-  the guardrail matrix upgraded to ✅.
+## Additional drift to close (verified, small)
 
----
+- **D7 · Media not modeled.** No `media_profiles` table. Dimensions duplicated (see above). Adding a new label size today requires editing template bodies by hand.
+- **D8 · `printer_profiles` conflates paper with hardware.** `paper_format` should describe supported media, not one paper choice. Missing `dpi`, `command_language`, `supported_media[]`, `margins_mm`, `capabilities`.
+- **D9 · Envelope commands not emitted by driver.** `ZplLabelDriver` reads `widthMm/heightMm/dpi` from config but never issues `^PW`/`^LL`. `EplLabelDriver` is a raw passthrough. Result: template body's dot envelope wins — media choice is cosmetic.
+- **D10 · Template key lacks media dimension.** `(org_id, branch_id, template_key)` — no `media_profile_id`. One template per business intent, forever.
+- **D11 · `assignment.config` is an ad-hoc hardware source.** Same fields (dpi, widthMm) exist on the printer profile in enterprise systems (SAP output devices, Odoo IoT drivers, LS Central hardware profiles).
 
-## Prior verification & Phase 3 (D3) execution record
+## Target architecture (mirrors SAP output management / Odoo IoT / LS Central)
 
-## Verification of prior work (Phases 0–2)
+Add exactly two first-class concepts and re-key labels on them; drivers become bytes+envelope emitters, not passthroughs.
 
-Independently re-checked `.lovable/plan.md` claims against the codebase:
+```text
+media_profiles          printer_profiles                label_templates
+──────────────          ────────────────                ───────────────
+id                      id                              id
+org_id                  org_id                          org_id, branch_id
+code (e.g. shelf_50x30) label                           kind, template_key
+width_mm, height_mm     command_language ZPL|EPL|ESC    media_profile_id  ← NEW
+orientation             dpi 203|300                     engine
+gap_mm                  margins_mm                      body (uses tokens
+kind roll|sheet|A-      supported_media_ids[]              only, no dot
+                        capabilities[]                     literals — the
+                        transport, address                 driver injects
+                        driver key                         the envelope)
+                                                        version, active
 
-- **Phase 0 (ADR + audit ledger)** — `docs/adr/0086-enterprise-output-platform.md` and `docs/audit/2026-07-20-enterprise-output-platform.md` exist and codify the 5-stage pipeline plus the D1–D6 ledger.
-- **Phase 1 (D1 · Label / ZPL)** — `supabase/functions/_shared/printing/zpl/builder.ts` present; guardrails green:
-  - `label-builder-has-no-hardcoded-zpl.test.ts` (2/2)
-  - `label-template-substitution-parity.test.ts` (4/4)
-  - `zpl-golden.test.ts` (6/6)
-- **Phase 2 (D2 · `pdf-lib` in edge)** — rule `eslint-rules/no-raw-pdf-lib-in-edge-functions.js` present, wired at `error` in `eslint.config.js`, allowlists only `_shared/pdf/**` and `_shared/receipt/pdf/**`, supports bare / `npm:` / `esm.sh` specifiers with `RENDERER-EXEMPT` escape hatch. Architecture test `adr-0086-edge-pdf-lib-ownership.test.ts` green (3/3). D5 correctly absorbed.
-- **Phase 4 (D4)** and **Phase 5 (D5)** — confirmed no-op / absorbed.
-- **Phase 6 (D6)** — legitimately deferred, low risk.
+printer_workflow_bindings  (unchanged — still resolves the physical printer per workflow)
+```
 
-Conclusion: Phases 0–2 are complete and enterprise-grade. **Phase 3 (D3) is the correct resumption point** — no re-work needed upstream.
+**Rendering contract change** (one line in the driver, one line in the template):
 
-## Confirmed remaining drift (D3)
+- Template body drops `^PW`/`^LL` / EPL `q`/`Q` header. It contains only content tokens (`^FO…^FD{{name}}^FS`).
+- Driver reads the target `media_profile` + `printer_profile.dpi` and emits the envelope: `^PW<dots>` `^LL<dots>` for ZPL; `q<dots>\nQ<dots>` for EPL. Content is then placed *inside* a media-sized frame instead of a body-hardcoded frame.
+- Same content template renders correctly on 50×30 mm, 80×50 mm, or 102×152 mm as long as the printer profile's `dpi` and `command_language` match.
 
-Two `src/pages/**` surfaces still call `supabase.functions.invoke("generate-document", …)` directly, bypassing the canonical client entrypoint `useDocumentPrint`:
+## Phases (chronological, each self-contained)
 
-- `src/pages/CustomerStatements.tsx:316` — single-statement PDF download.
-- `src/pages/VendorStatements.tsx:281` — single-statement PDF download.
+### Phase 7 — Media as first-class
 
-Both handlers download a PDF (not preview) after resolving a `statementId`, then `downloadPdfBlob(...)`. This is exactly what `useDocumentPrint.downloadPdf(documentType, id, filename)` already does — including the `%PDF` magic-byte defense and toast handling. The bulk-generation paths in these files invoke `send-document-email`, which is a different edge function and out of scope for D3.
+- Migration adds `public.media_profiles(id, org_id, code, name, width_mm, height_mm, orientation, gap_mm, kind)` with grants, RLS, updated_at trigger, seed of the platform defaults (`receipt_58`, `receipt_80`, `receipt_40`, `label_50x30`, `label_80x50`, `label_102x152`, `sheet_a4`, `sheet_letter`).
+- Backfill: for each existing `label_templates` row with `width_mm/height_mm`, upsert a matching `media_profiles` row and set the new FK.
 
-No other `src/pages/**` file directly invokes `generate-document` (spot-checked; will re-verify in step 4 below).
+### Phase 8 — Promote `printer_profiles` to hardware
 
-## Implementation
+- Migration adds `command_language text CHECK IN (zpl|epl|escpos|pdf)`, `dpi int`, `margins_mm jsonb`, `supported_media_ids uuid[]`, `capabilities text[]`. Keep `paper_format` for backcompat but stop reading it in code (added as legacy).
+- Deprecate reading `assignment.config.{dpi,widthMm,heightMm}` in drivers; drivers now read from the printer profile they're bound to (join in the exec dispatch path).
 
-### Step 1 — Migrate CustomerStatements
+### Phase 9 — Re-key `label_templates` on media
 
-In `src/pages/CustomerStatements.tsx` (`handlePrint` around L312–L325):
+- Migration adds `label_templates.media_profile_id uuid REFERENCES media_profiles`, drops the current unique index, adds `(org_id, branch_id, template_key, media_profile_id)` unique.
+- Update `resolve_label_template` to accept `p_media_profile_id` with fallback (exact media → media-agnostic (NULL) → org default).
+- Update `printLabelByTemplate` + `buildLabelZpl` to pass the resolved printer's media.
 
-- Remove the dynamic `supabase` + `downloadPdfBlob` imports and the direct `functions.invoke("generate-document", …)` block.
-- Replace with `downloadPdf("customer_statement", statementId, filename)` from `useDocumentPrint` (import the hook at the top of the component and destructure `downloadPdf` alongside existing state).
-- Compose the same `filename` (`Statement_<sanitized name>_<yyyy-MM-dd>`); hook appends `.pdf` and toasts on success/failure, so remove the local success toast and matching try/catch error toast for the PDF step (keep any state resets — `setIsGenerating(false)` moves into a `finally` around the `downloadPdf` call, or we rely on the hook's `isGeneratingPdf`; keep the page's `isGenerating` for the pre-download work only).
+### Phase 10 — Driver emits envelope, not template
 
-### Step 2 — Migrate VendorStatements
+- Strip `^PW`/`^LL` (and EPL `q`/`Q`) from all seeded template bodies. Add a migration that rewrites bodies inserted by `seed_default_label_templates` and its backfill counterpart.
+- `ZplLabelDriver.applyTransportCommands` gets a new job: compute `widthDots = round(mediaWidthMm * dpmm)` and prepend `^PW<widthDots>\n^LL<heightDots>\n` after `^XA`. Same for `EplLabelDriver` (`q<dots>\nQ<dots>,24\n`).
+- Guardrail test: any `label_templates` body containing `^PW` / `^LL` / bare EPL `q\d+` fails the build — envelope is a driver responsibility now.
 
-Same change in `src/pages/VendorStatements.tsx` (`handlePrint` around L281–L289): swap the direct invoke for `downloadPdf("vendor_statement", statementId, filename)` from `useDocumentPrint`. Preserve the surrounding `statementId` resolution and business-scope logic unchanged.
+### Phase 11 — UI: media & printer capability admin
 
-### Step 3 — Guardrail: forbid direct `generate-document` in pages
+- Small admin surface under `/platform/hardware`: manage `media_profiles`, and on each printer profile pick `command_language`, `dpi`, `supported_media`.
+- Label template editor gains a media picker; preview scales to the selected media so operators see the actual output size.
 
-Add ESLint rule `eslint-rules/no-direct-generate-document-in-pages.js` (mirroring the style of `no-document-print-shadow-path.js`):
+### Phase 12 — Guardrails & docs
 
-- Scope: `src/pages/**` and `src/features/**/pages/**`.
-- Flag any `CallExpression` matching `supabase.functions.invoke("generate-document", …)` (also handle aliased `functions.invoke` and dynamic-imported `supabase`).
-- Allowlist: none initially. The two hook files (`useDocumentPrint.ts`, `useDocumentPrintPolicies.ts`) are outside the scoped glob so they naturally pass.
-- Message: `"Direct generate-document invocation in a page bypasses the canonical print entrypoint. Use useDocumentPrint (ADR-0086 / D3)."`
-- Escape hatch: `// RENDERER-EXEMPT: <reason>` on the preceding line, matching ADR-0085 convention.
+- New arch tests:
+  - `label-templates-have-no-envelope.test.ts` — no `^PW/^LL/^Q/^q` in any seeded body.
+  - `printer-profile-hardware-shape.test.ts` — code reads `command_language`/`dpi` from `printer_profiles`, not from `device_assignments.config`.
+  - `media-profile-required-on-label-render.test.ts` — `printLabelByTemplate` never dispatches without a resolved media.
+- New ADR `docs/adr/0087-media-and-printer-capability.md` documenting the three-way ownership (media / printer capability / template) and superseding the mm-fields on `label_templates`.
+- Update `docs/audit/2026-07-20-enterprise-output-platform.md` with D7–D11 rows and closures.
 
-Register in `eslint.config.js` at `error` level for `src/pages/**/*.{ts,tsx}` and `src/features/**/pages/**/*.{ts,tsx}`.
+## Explicit non-goals
 
-### Step 4 — Architecture test locking D3
+- No change to A4/PDF pipeline — already single-source.
+- No change to POS receipt `Line[]` pipeline — already single-source.
+- No change to `HardwareClient` chokepoint, transport layer, or agent wire protocol.
+- No emulator/margin tweaks. Root cause is the missing media layer; symptomatic patches are rejected.
 
-New `src/test/architecture/adr-0086-generate-document-client-entrypoint.test.ts`:
+## Definition of done
 
-1. Reads the rule module from disk and asserts it's registered at `error` under `local/` for the scoped glob in `eslint.config.js`.
-2. Ripgrep sweep over `src/pages/**` + `src/features/**/pages/**` for the literal string `generate-document` — expects zero non-exempt matches.
-3. Positive test: temporary in-memory `RuleTester` case with `supabase.functions.invoke("generate-document", { body: {} })` → 1 report; add negative case for `useDocumentPrint` usage → 0 reports.
-
-### Step 5 — Runtime verification
-
-Playwright script under `/tmp/browser/d3-statements/`:
-
-1. Auth via injected Supabase session.
-2. Navigate to `/customer-statements`, resolve or generate a period, click **Print/Download**. Capture network: expect exactly one `POST /functions/v1/generate-document` with `documentType: "customer_statement"` and `format: "pdf"` (identical headers/body shape as pre-migration).
-3. Assert the downloaded blob starts with `%PDF`.
-4. Repeat for `/vendor-statements` with `documentType: "vendor_statement"`.
-5. Screenshot success toast for both.
-
-If the pages are gated by data that's not seedable in the sandbox, fall back to a lower-level runtime proof: mock `supabase.functions.invoke` in a component test that renders the page's print handler and asserts the hook's `downloadPdf` was called with the correct `(documentType, id, filename)`.
-
-### Step 6 — Ledger + plan updates
-
-- Mark **Phase 3 · D3** Done in `docs/audit/2026-07-20-enterprise-output-platform.md` with resolution notes (migrated files, new rule, runtime proof).
-- Update `.lovable/plan.md`: Phase 3 row → Done; active phase → Phase 6 (D6) or "roadmap closed except deferred D6"; append handoff notes for D6 revisit (server-side ZPL literals — low priority per prior audit).
-
-## Out of scope (intentional)
-
-- **D6 (server-side ZPL)** — deferred as originally scoped; audit ledger already classes it low. Not part of this plan.
-- The `send-document-email` calls in the bulk-generate handlers — different edge function, different ledger entry (none open), no drift.
-- Any changes to `generate-document` itself, PDF renderer internals, or the receipt Line AST — those are already canonical.
-
-## Technical notes
-
-- `useDocumentPrint.downloadPdf` already sends `format: "pdf"` (matching current inline behavior), validates `%PDF` magic bytes, and toasts — so the migration is behavior-preserving.
-- The `DocumentType` union in `useDocumentPrint.ts` already includes `"customer_statement"` and `"vendor_statement"`; no type surface changes.
-- `no-document-print-shadow-path.js` bans *new* `useDocumentPrint` importers via allowlist; extend that allowlist to include `src/pages/CustomerStatements.tsx` and `src/pages/VendorStatements.tsx` in the same edit batch so the migration doesn't trip the existing rule.
+1. Adding a new label size = insert one `media_profiles` row + reference it from an existing template. No code change, no template body edit.
+2. Adding a new printer model = insert one `printer_profiles` row with `command_language`+`dpi`+`supported_media[]`. No driver change.
+3. Same template body renders correctly on 50×30, 80×50, and 102×152 mm on both 203 and 300 dpi printers.
+4. `label_templates.body` contains content tokens only — never `^PW`/`^LL`/`q`/`Q`.
+5. Every guardrail from Phases 7–12 green.
