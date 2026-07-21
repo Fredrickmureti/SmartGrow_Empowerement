@@ -45,7 +45,13 @@ import {
 } from "@/hooks/pos/usePOSTransactionHistory";
 import { usePOSRegisters } from "@/hooks/pos/usePOSRegisters";
 import { usePOSEnhancedReports } from "@/hooks/pos/usePOSEnhancedReports";
-import { ReceiptPreviewDialog } from "@/components/pos/ReceiptPreviewDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ReceiptPreviewBody } from "@/components/pos/ReceiptPreviewBody";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranch } from "@/contexts/BranchContext";
