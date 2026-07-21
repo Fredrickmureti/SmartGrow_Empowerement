@@ -266,17 +266,19 @@ remaining second source of truth. Closure actions:
 | Item | Symptom                                                                | Resolution                                                                                                                                                     | Status |
 | ---- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | D7   | Media not modelled; paper geometry duplicated across three tables.     | `public.media_profiles` created with grants, RLS, per-org auto-seed trigger. Migration `20260721001823_*.sql`. Admin surface at `/platform/hardware/media`.    | ✅     |
-| D8   | `printer_profiles` conflated paper choice with hardware capability.    | Extended with `command_language`, `dpi`, `margins_mm`, `supported_media_ids[]`, `capabilities[]`. Dispatch reads capability from the profile, not from assignment.config. | ✅ (legacy `paper_format` retained; see follow-up below) |
+| D8   | `printer_profiles` conflated paper choice with hardware capability.    | Extended with `command_language`, `dpi`, `margins_mm`, `supported_media_ids[]`, `capabilities[]`. Dispatch reads capability from the profile, not from assignment.config. Admin surface at `/platform/hardware/capability`. | ✅ (legacy `paper_format` retained; see follow-up below) |
 | D9   | Drivers did not emit the paper envelope; body-hardcoded `^PW/^LL` won. | `ZplLabelDriver` / `EplLabelDriver` / `BrowserHardwareAdapter` now strip and re-emit `^PW/^LL` (ZPL) and `q<dots>/Q<dots>,<gap>` (EPL) from resolved media + dpi. | ✅     |
 | D10  | `label_templates` unique key had no media dimension.                   | Added `media_profile_id`; unique index rewritten to `(org_id, branch_id, template_key, media_profile_id)`. `resolve_label_template` gained media fallback (exact → NULL → default). | ✅     |
-| D11  | `device_assignments.config` was an ad-hoc hardware source.             | Dispatch payload now originates from `printer_profiles` + `media_profiles`. Drivers keep reading `assignment.config` only as a legacy per-device fallback and prefer payload hints. | ✅     |
+| D11  | `device_assignments.config` was an ad-hoc hardware source.             | Dispatch payload now originates from `printer_profiles` + `media_profiles`. Drivers keep reading `assignment.config` only as a legacy per-device fallback and prefer payload hints. Dispatch fails loud with `NO_MEDIA_RESOLVED` when a ZPL/EPL template has no resolvable media. | ✅     |
 
 Architecture reference: [ADR-0087](../adr/0087-media-and-printer-capability.md).
 
-Guardrail tests:
+Guardrail tests (Phase V + Phase 12):
+- `src/test/printing/media-profile-resolution.test.ts` — `resolve_label_template` fallback ordering is (branch+media) → (branch+null) → (org+media) → (org+null).
 - `src/test/printing/label-templates-have-no-envelope.test.ts` — no seeded body contains `^PW/^LL/q<n>/Q<n>`.
 - `src/test/printing/printer-profile-hardware-shape.test.ts` — dispatch + drivers source capability from `printer_profiles`, not `device_assignments.config`.
 - `src/test/printing/media-profile-required-on-label-render.test.ts` — media geometry + dpi flow through the dispatcher to the driver payload.
+- `src/test/printing/label-dispatch-requires-media.test.ts` — dispatch returns a structured `NO_MEDIA_RESOLVED` error rather than a silent unscaled print when ZPL/EPL media does not resolve.
 - `src/test/printing/label-envelope-parity.test.ts` — Electron ZPL/EPL drivers and `BrowserHardwareAdapter` share the same envelope math and ordering.
 
 Follow-up (tracked separately, not blocking D7–D11 closure):
@@ -285,10 +287,10 @@ Follow-up (tracked separately, not blocking D7–D11 closure):
   `useDocumentPrintPolicies.ts`, `usePrinterProfiles.ts`) onto
   `supported_media_ids[]`. The column stays for backwards compatibility with
   the A4/receipt PDF flow until those readers are cut over.
-- Label template editor (media picker + live-scaled preview) — Phase 11 of
-  the enterprise printing plan; not yet built (no existing editor to extend).
-  Media is admin-editable today; template bodies are edited via SQL/seed
-  until the editor lands.
+- Label template editor (media picker + live-scaled preview) — the media
+  picker slot is now available on `printer_profiles` via the capability
+  surface, but a dedicated template body editor with a scaled canvas is
+  still deferred. Template bodies are edited via SQL/seed migrations today.
 
 
 ## Runtime verification

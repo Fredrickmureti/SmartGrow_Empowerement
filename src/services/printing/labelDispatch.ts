@@ -176,6 +176,17 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
     };
   }
 
+  // ADR-0087 — envelope-emitting engines (ZPL, EPL) require a resolved
+  // media profile. Failing loud here prevents silent unscaled prints when
+  // a printer_profile.supported_media_ids array is empty and no override
+  // was passed.
+  if ((tpl.engine === 'zpl' || tpl.engine === 'epl') && !media) {
+    return {
+      success: false,
+      error: `NO_MEDIA_RESOLVED: label template '${input.templateKey}' (engine=${tpl.engine}) requires a media profile, but none resolved from the printer or override. Assign a media profile to the printer (Platform → Hardware → Media) or pass mediaProfileId explicitly.`,
+    };
+  }
+
   // Merge lot-aware fields into vars under the standard token names.
   // Callers can still override by passing keys explicitly in `vars`.
   const mergedVars: Record<string, unknown> = {

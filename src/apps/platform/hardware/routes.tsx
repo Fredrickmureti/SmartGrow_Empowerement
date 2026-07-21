@@ -19,6 +19,7 @@ const HardwareDevices = lazy(() => import("@/apps/platform/hardware/HardwareDevi
 const HardwareDiagnostics = lazy(() => import("@/apps/platform/hardware/HardwareDiagnostics"));
 const HardwareTopology = lazy(() => import("@/apps/platform/hardware/HardwareTopology"));
 const HardwareMedia = lazy(() => import("@/apps/platform/hardware/HardwareMedia"));
+const HardwareCapability = lazy(() => import("@/apps/platform/hardware/HardwareCapability"));
 const DeviceWizard = lazy(() => import("@/apps/platform/hardware/DeviceWizard"));
 
 import HardwareAppLayout from "@/apps/platform/hardware/HardwareAppLayout";
@@ -32,6 +33,7 @@ function PlatformHardwareApp() {
           <Route path="devices" element={<HardwareDevices />} />
           <Route path="devices/new" element={<DeviceWizard />} />
           <Route path="media" element={<HardwareMedia />} />
+          <Route path="capability" element={<HardwareCapability />} />
           <Route path="diagnostics" element={<HardwareDiagnostics />} />
           <Route path="topology" element={<HardwareTopology />} />
           <Route path="*" element={<Navigate to="devices" replace />} />
