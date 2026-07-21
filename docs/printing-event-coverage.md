@@ -33,7 +33,7 @@ a wired template is a follow-up ticket, not a silent absence.
 | Shelf reprice | shelf | `shelf_label` | LabelDoc compiler | WIRED |
 | Lot / batch create | lot | `lot_label` | LabelDoc compiler | WIRED |
 | Bin / location create | bin | `bin_label` | LabelDoc compiler | WIRED |
-| Receiving / GRN posted | receiving | `receiving_label` | LabelDoc compiler | WIRED |
+| Receiving / GRN posted | receiving | `receiving_label` | LabelDoc compiler | WIRED (thermal label on receipt; A4 `goods_receipt` bound in `GoodsReceiptWizardPage`) |
 | Pallet built (WMS) | pallet | `pallet_label` | LabelDoc compiler | WIRED |
 | Shipment dispatched | shipping | `shipping_label` | LabelDoc compiler | WIRED |
 | Asset tag issued | asset | `asset_label` | LabelDoc compiler | WIRED (Fixed-Assets → row action, Wave 21) |
