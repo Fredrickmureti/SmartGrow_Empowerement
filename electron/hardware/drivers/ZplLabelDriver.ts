@@ -41,6 +41,7 @@
  */
 import { TransportDriver } from './TransportDriver';
 import type { ExecCommand, ExecResult, DeviceRole } from '../types';
+import { mediaDots } from '../../../src/services/printing/mediaGeometry';
 
 const ESC = 0x1B;
 const AT = 0x40;
