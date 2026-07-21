@@ -22,9 +22,7 @@ import {
   Plus,
   Search,
   Landmark,
-  MoreHorizontal,
   Loader2,
-  Pencil,
   Trash2,
   TrendingUp,
   TrendingDown,
@@ -32,7 +30,6 @@ import {
   CreditCard,
   PiggyBank,
   Upload,
-  BookOpen,
 } from "lucide-react";
 import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
