@@ -32,6 +32,34 @@ import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from './HardwareClient';
 import type { DeviceRole } from './drivers/DriverInterface';
 
+/** ADR-0090 · Phase D2 — roles whose ack is mirrored into `print_jobs`. */
+const PRINT_ROLES = new Set<string>([
+  'receipt_printer', 'kitchen_printer', 'label_printer', 'a4_printer',
+]);
+function isPrintRole(role: string): boolean {
+  return PRINT_ROLES.has(role);
+}
+
+/**
+ * ADR-0090 · Phase D2 — flip the ledger row keyed by hw_command_id to
+ * `failed` with an error. There is no by-hw-id failure RPC (mark_failed
+ * expects the job id), so we look up the job id via a direct read
+ * against the RLS-protected `print_jobs` table, then call mark_failed.
+ */
+async function markJobFailedByHwId(hwCommandId: number, error: string): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from('print_jobs')
+      .select('id')
+      .eq('hw_command_id', hwCommandId)
+      .in('status', ['queued', 'sent'])
+      .maybeSingle();
+    const jobId = (data as { id?: string } | null)?.id;
+    if (!jobId) return;
+    await supabase.rpc('print_job_mark_failed', { p_id: jobId, p_error: error });
+  } catch { /* noop */ }
+}
+
 const POLL_INTERVAL_MS = 3_000;
 const RECLAIM_INTERVAL_MS = 60_000;
 const LEADER_HEARTBEAT_MS = 5_000;
