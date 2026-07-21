@@ -69,7 +69,7 @@ import { useBillSplitting, type SplitBillPortion } from "@/hooks/pos/useBillSpli
 import { usePOSSecuritySettings } from "@/hooks/pos/usePOSSecuritySettings";
 import { usePOSSecurityAudit } from "@/hooks/pos/usePOSSecurityAudit";
 import { CloseShiftDialog } from "@/components/pos/CloseShiftDialog";
-import { PaymentDialog } from "@/components/pos/PaymentDialog";
+import { TenderWorkspace } from "@/apps/pos/terminal/tender/TenderWorkspace";
 import { usePOSRegisters } from "@/hooks/pos/usePOSRegisters";
 import { CustomerSelectDialog } from "@/components/pos/CustomerSelectDialog";
 import { HeldWorkspace } from "@/apps/pos/terminal/held/HeldWorkspace";
