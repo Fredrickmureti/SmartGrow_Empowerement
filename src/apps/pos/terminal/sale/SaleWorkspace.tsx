@@ -1,11 +1,12 @@
-import type { RefObject, KeyboardEvent } from "react";
-import { User } from "lucide-react";
+import { useEffect, useState, type RefObject, type KeyboardEvent } from "react";
+import { User, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeldOrdersBar } from "@/components/pos/HeldOrdersBar";
 import { ScanRecoveryBanner } from "@/components/pos/ScanRecoveryBanner";
 import { ProductDiscoveryPanel } from "@/apps/pos/terminal/sale/components/ProductDiscoveryPanel";
 import { BasketPanel } from "@/apps/pos/terminal/sale/components/BasketPanel";
 import { TransactionSummaryRail } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
+import { ProductPeekDialog } from "@/apps/pos/terminal/sale/ProductPeekDialog";
 import {
   SaleActionBar,
   type SaleActionBarCallbacks,
