@@ -28,7 +28,7 @@ const ALLOWED = new Set<string>([
   "src/lib/pos/receipt/ReceiptDocumentModel.ts",
   "src/lib/pos/receipt/renderers/CustomerDisplayRenderer.ts",
   "src/components/pos/TransactionSummaryView.tsx",
-  "src/components/pos/ReceiptPreviewDialog.tsx",
+  "src/components/pos/ReceiptPreviewBody.tsx",
   "src/components/pos/PostPaymentScreen.tsx",
 ]);
 
