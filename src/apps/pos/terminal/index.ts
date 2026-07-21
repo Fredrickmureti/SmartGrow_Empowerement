@@ -14,6 +14,7 @@
 export { TerminalStateProvider, TerminalStateBridge, useTerminalContext } from "./TerminalStateContext";
 export { default as TerminalShell } from "./TerminalShell";
 export { SheetShell } from "./SheetShell";
+export { useTerminalUrlSync } from "./useTerminalUrlSync";
 export {
   derivePhase,
   terminalReducer,
