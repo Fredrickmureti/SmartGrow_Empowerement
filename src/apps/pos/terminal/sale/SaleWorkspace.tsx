@@ -127,6 +127,20 @@ export function SaleWorkspace({
   // workspace-owned confirms during mobile drawer consolidation.
   void tableSessionId;
 
+  // Product peek — read-only quick look-up. Alt+I opens; scanner input
+  // is not hijacked because Alt is required.
+  const [showPeek, setShowPeek] = useState(false);
+  useEffect(() => {
+    const handler = (e: globalThis.KeyboardEvent) => {
+      if (e.altKey && (e.key === "i" || e.key === "I")) {
+        e.preventDefault();
+        setShowPeek(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* Left Panel - Products */}
