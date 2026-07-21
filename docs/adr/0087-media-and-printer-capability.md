@@ -126,3 +126,58 @@ Negative
 - `supabase/migrations/20260721002219_*.sql` — rewrites
   `seed_default_label_templates` to link each seeded body to a media
   profile and to ship envelope-free bodies.
+- `supabase/migrations/20260721005711_*.sql` — Phase 13 fix.
+  Nulls `media_profile_id` on existing default org-scope rows, adds
+  the resolver's `rnk=5` last-resort arm, and rewrites the seed
+  function to insert `media_profile_id = NULL` for future orgs.
+
+## Addendum · Defaults are media-agnostic (Phase 13, 2026-07-21)
+
+A real-world failure surfaced this defect: an org with the default
+`product_label` template but no `printer_workflow_bindings` toasted
+"No label template registered for key 'product_label'". Root cause: the
+Phase-9/10 seeder inserted default rows with a pinned `media_profile_id`.
+When callers had no printer/workflow binding, the resolver received
+`p_media_profile_id = NULL` and every candidate row scored `rnk=99`
+under the original 4-tier CASE, so zero rows returned — indistinguishable
+at the dispatch layer from a genuinely missing template.
+
+The invariant is now explicit:
+
+> **Default templates MUST be media-agnostic.** Rows with
+> `is_default = true AND branch_id IS NULL` MUST have
+> `media_profile_id = NULL`. Only branch overrides and explicit media
+> variants (`is_default = false`) may pin `media_profile_id`.
+
+This invariant is enforced by three complementary mechanisms:
+
+1. **`seed_default_label_templates()`** inserts `media_profile_id = NULL`
+   for every new organization (migration `20260721005711_*`).
+2. **Existing rows** were repaired by the same migration: an UPDATE
+   nulls `media_profile_id` on every default org-scope row.
+3. **Resolver safety net (`rnk=5`).** Even if a future migration or
+   manual insert re-pins a default row, the resolver's last-resort arm
+   still returns the row when the caller has no media, converting a
+   silent-drop bug into a slightly-mis-scaled label (which is
+   noticeable, correctable, and non-catastrophic).
+
+The `rnk=5` arm is documented as "last-resort" in the SQL and is
+guarded by `src/test/printing/resolve-label-template-media-agnostic-default.test.ts`.
+Do not delete it as dead code — it is the forward-compatibility contract
+that keeps this class of defect from recurring.
+
+Callers with a resolved media (from `printer_profiles.supported_media_ids[0]`
+or an explicit `mediaProfileId`) still match `rnk=1..4` and receive the
+media-specific variant when one exists. The safety net only fires when
+`p_media_profile_id IS NULL` — the exact failure mode Phase 13 addressed.
+
+Dispatcher error taxonomy at `src/services/printing/labelDispatch.ts`:
+
+- **Zero rows exist** for `(org_id, template_key, active)` → plain
+  `no label template registered for key '<key>'` message.
+- **Rows exist but resolver returned none** → sharpened error naming
+  the branch and media scope, pointing operators at Platform → Hardware
+  and instructing them to bind a workflow or pass `mediaProfileId`
+  explicitly.
+
+Guarded by `src/test/printing/label-dispatch-error-taxonomy.test.ts`.

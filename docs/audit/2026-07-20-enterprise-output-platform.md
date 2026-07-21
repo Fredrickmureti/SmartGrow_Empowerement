@@ -261,7 +261,7 @@ remaining second source of truth. Closure actions:
 | Tabular    | ✅            | `no-raw-xlsx-in-app` + `csv-export-registered_test`                                     |
 | Client entrypoints | ⚠️    | `no-document-print-shadow-path`, `no-direct-window-print`, `no-direct-pdf-iframe`; **D3** extends |
 
-## Drift ledger — D7–D11 (media & printer capability, closed 2026-07-21)
+## Drift ledger — D7–D12 (media & printer capability, closed 2026-07-21)
 
 | Item | Symptom                                                                | Resolution                                                                                                                                                     | Status |
 | ---- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -270,6 +270,7 @@ remaining second source of truth. Closure actions:
 | D9   | Drivers did not emit the paper envelope; body-hardcoded `^PW/^LL` won. | `ZplLabelDriver` / `EplLabelDriver` / `BrowserHardwareAdapter` now strip and re-emit `^PW/^LL` (ZPL) and `q<dots>/Q<dots>,<gap>` (EPL) from resolved media + dpi. | ✅     |
 | D10  | `label_templates` unique key had no media dimension.                   | Added `media_profile_id`; unique index rewritten to `(org_id, branch_id, template_key, media_profile_id)`. `resolve_label_template` gained media fallback (exact → NULL → default). | ✅     |
 | D11  | `device_assignments.config` was an ad-hoc hardware source.             | Dispatch payload now originates from `printer_profiles` + `media_profiles`. Drivers keep reading `assignment.config` only as a legacy per-device fallback and prefer payload hints. Dispatch fails loud with `NO_MEDIA_RESOLVED` when a ZPL/EPL template has no resolvable media. | ✅     |
+| D12  | Seeded default `product_label` rows were pinned to a media profile. Callers without a `printer_workflow_bindings` row passed `p_media_profile_id = NULL`, every candidate scored `rnk=99` under the original 4-tier CASE, and the dispatcher reported "no template registered" — indistinguishable from a genuinely missing template. | Three-part fix (migration `20260721005711_*.sql`, dispatcher, ADR addendum): (1) `seed_default_label_templates()` now inserts `media_profile_id = NULL` and existing default rows were repaired in-place; (2) `resolve_label_template` gained a `rnk=5` "last-resort" arm so a mis-seeded pinned default still resolves when the caller has no media; (3) `labelDispatch.ts` runs a `count`-head lookup and emits a sharpened error naming branch/media scope and pointing at Platform → Hardware when rows exist but ranking dropped them, versus the plain "no template registered" only when zero rows exist. Guardrails: `resolve-label-template-media-agnostic-default.test.ts` and `label-dispatch-error-taxonomy.test.ts`. See [ADR-0087 addendum](../adr/0087-media-and-printer-capability.md#addendum--defaults-are-media-agnostic-phase-13-2026-07-21). Closed 2026-07-21. | ✅     |
 
 Architecture reference: [ADR-0087](../adr/0087-media-and-printer-capability.md).
 
@@ -280,8 +281,10 @@ Guardrail tests (Phase V + Phase 12):
 - `src/test/printing/media-profile-required-on-label-render.test.ts` — media geometry + dpi flow through the dispatcher to the driver payload.
 - `src/test/printing/label-dispatch-requires-media.test.ts` — dispatch returns a structured `NO_MEDIA_RESOLVED` error rather than a silent unscaled print when ZPL/EPL media does not resolve.
 - `src/test/printing/label-envelope-parity.test.ts` — Electron ZPL/EPL drivers and `BrowserHardwareAdapter` share the same envelope math and ordering.
+- `src/test/printing/resolve-label-template-media-agnostic-default.test.ts` — D12 guard: default org-scope rows are `media_profile_id = NULL`, the resolver's `rnk=5` last-resort arm is present and documented, and the seed function never re-pins a media profile.
+- `src/test/printing/label-dispatch-error-taxonomy.test.ts` — D12 guard: the dispatcher distinguishes "zero rows exist" (plain message) from "rows exist but ranking dropped them" (sharpened, scope-naming message with a Platform → Hardware CTA).
 
-Follow-up (tracked separately, not blocking D7–D11 closure):
+Follow-up (tracked separately, not blocking D7–D12 closure):
 - Migrate remaining readers of legacy `printer_profiles.paper_format`
   (`PrinterProfilesCard.tsx`, `PrintingSettings.tsx`, `PostPaymentScreen.tsx`,
   `useDocumentPrintPolicies.ts`, `usePrinterProfiles.ts`) onto

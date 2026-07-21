@@ -1,80 +1,79 @@
-# Enterprise Printing Architecture — Continuation Plan
 
-## Current status
+# Enterprise Printing Architecture — Continuation
 
-**Active phase:** Phase 13 — production hardening & data hygiene (in progress).
-**Next phase:** Phase 14 — label template editor with live media-aware preview + printer/binding self-service.
+## Verification of prior work (Phase 1)
 
----
+I walked the codebase against `.lovable/plan.md`. Findings:
 
-## Phases 7–12 — LANDED & VERIFIED
+**Landed and correct (Phases 7–12, and the migration+dispatcher parts of Phase 13):**
+- `media_profiles` + hardware-shaped `printer_profiles` + `label_templates.media_profile_id` — migrations `20260721001823`, `20260721002219` present.
+- ADR-0087 published; drivers (`ZplLabelDriver`, `EplLabelDriver`, `BrowserHardwareAdapter`) own the paper envelope.
+- Admin surfaces `/platform/hardware/media` and `/platform/hardware/capability` shipped.
+- Guardrail suite green: 11 test files in `src/test/printing/` covering envelope, resolver ordering, hardware shape, `NO_MEDIA_RESOLVED`, dispatch-requires-media, ZPL golden, kitchen ticket, print policies.
+- **Phase 13 partial landing verified:** migration `20260721005711` correctly (a) nulls `media_profile_id` on `is_default=true, branch_id IS NULL` rows, (b) extends `resolve_label_template` with the `rnk=5` last-resort case, (c) rewrites `seed_default_label_templates()` to insert `media_profile_id = NULL`. Dispatcher (`src/services/printing/labelDispatch.ts`) does the head-count lookup and emits the sharpened error.
 
-- **Phase 7–9 (schema & media layer):** `media_profiles` table (+ RLS, grants, per-org auto-seed trigger); `printer_profiles` extended with `command_language / dpi / margins_mm / supported_media_ids[] / capabilities[]`; `label_templates.media_profile_id` FK + composite unique index; `resolve_label_template` rewritten to 4-arg with media fallback.
-- **Phase 10 (drivers own envelope):** `ZplLabelDriver`, `EplLabelDriver`, `BrowserHardwareAdapter` all inject `^PW/^LL` (ZPL) or `q/Q` (EPL) from resolved media + DPI. Template bodies are envelope-free (ADR-0087 contract).
-- **Phase 11 (admin surfaces):** `HardwareMedia.tsx` (`/platform/hardware/media`) and `HardwareCapability.tsx` (`/platform/hardware/capability`) shipped; nav entries added; both use canonical Records dialog primitives.
-- **Phase 12 (guardrails, ADR, audit closure):** ADR `docs/adr/0087-media-and-printer-capability.md` published; audit `docs/audit/2026-07-20-enterprise-output-platform.md` updated with D7–D11 closure. Guardrail tests green (11 files, 73 tests): envelope-free bodies, media required on ZPL/EPL dispatch, printer-profile hardware shape, envelope parity across transports, resolver ordering, `NO_MEDIA_RESOLVED` structured error.
+**Genuinely pending (contrary to the log's "active" framing — none of the 5 Phase-13 follow-ups are done):**
+1. No test file `resolve-label-template-media-agnostic-default.test.ts`.
+2. No test file `label-dispatch-error-taxonomy.test.ts`.
+3. No housekeeping migration for non-default rows still pinning media.
+4. ADR-0087 has no "defaults are media-agnostic" addendum.
+5. Audit doc `2026-07-20-enterprise-output-platform.md` has no `D12` row (`grep -c D12` = 0).
 
----
+Phase 14 is entirely unstarted (no `HardwareLabelTemplates.tsx`, no "Bind to workflow" flow on the printer-detail sheet, no test-print button).
 
-## Phase 13 — Production hardening & data hygiene (ACTIVE)
+No architectural drift found outside the plan's scope: the ownership matrix in ADR-0085 holds, ESLint rules (`no-raw-zpl-outside-printing`, `no-raw-escpos-bytes`, `no-raw-pdf-lib-in-app`, `no-direct-barcode-lib`) plus their runtime mirrors are enforcing chokepoints, and `Products.tsx`'s label seam matches the Wave B2.2 contract test.
 
-Triggered by a real-world failure: `Products → Print label` toasted **"No label template registered for key 'product_label'"** for an org that in fact had the template. Root cause: the Phase-9/10 seed inserted default rows with a **pinned** `media_profile_id`. When callers had no `printer_workflow_bindings` yet, `p_media_profile_id` arrived NULL and every row scored `rnk=99` in the resolver, so 0 rows returned — indistinguishable from "no template" at the dispatch layer.
+## Plan
 
-**Landed in this wave**
+### Phase 13 close-out (do first, no Phase 14 work until every item is green)
 
-- Migration `2026-07-21_fix_label_template_default_media_agnostic.sql`:
-  - Nulls `media_profile_id` on all `is_default = true, branch_id IS NULL` rows so the resolver's media-agnostic ranks (2, 4) match them.
-  - Adds `rnk=5` last-resort case to `resolve_label_template` — template pins media but caller has none → still resolves. Prevents this class of silent-drop regression forever.
-  - Rewrites `seed_default_label_templates()` to insert `media_profile_id = NULL` for new orgs and inlines the canonical envelope-free ZPL body. Future orgs are correct by construction.
-- `src/services/printing/labelDispatch.ts`: dispatcher now distinguishes "no template row at all" from "rows exist but ranking dropped them" and returns an actionable message that names the branch/media scope and points operators to Platform → Hardware.
+1. **Regression test — media-agnostic default resolves.** New file `src/test/printing/resolve-label-template-media-agnostic-default.test.ts`. Two supabase-mocked cases against `resolve_label_template`:
+   - Template with `media_profile_id = NULL`, caller passes no media → resolves (rank 4).
+   - Template pinned to a media id, caller passes no media → still resolves via `rnk=5` last-resort.
+   - Caller passes a matching media → rank 1 wins over the media-agnostic default.
 
-**Pending in Phase 13 (do next, in order)**
+2. **Regression test — dispatcher error taxonomy.** New file `src/test/printing/label-dispatch-error-taxonomy.test.ts`. Mocks `supabase.rpc('resolve_label_template')` + the head-count query:
+   - Zero rows in `label_templates` → returns the plain `no label template registered` message.
+   - Rows exist but resolver returns none → returns the sharpened "exists but could not be resolved for the requested scope" message that names branch/media and points at Platform → Hardware.
+   - Resolver returns a ZPL row but no media resolves → `NO_MEDIA_RESOLVED` (guarded by existing `label-dispatch-requires-media.test.ts` — cross-reference, don't duplicate).
 
-1. Add regression test `src/test/printing/resolve-label-template-media-agnostic-default.test.ts`: seed one `product_label` template with `media_profile_id = NULL`, call the RPC with no media, assert it resolves. Also asserts `rnk=5` last-resort case with a pinned template.
-2. Add `src/test/printing/label-dispatch-error-taxonomy.test.ts`: mock supabase to assert the dispatcher emits the sharpened error when template rows exist but resolver returns none, and the original error only when 0 rows exist.
-3. One-time housekeeping migration to null-out any org-scope non-default rows that were seeded with a media pin they shouldn't have (audit `label_templates` for `is_default = false AND branch_id IS NULL AND media_profile_id IS NOT NULL` before altering — some may be intentional branch/media variants; only touch rows created by known seed timestamps).
-4. Update `docs/adr/0087-media-and-printer-capability.md` with an addendum: "Default templates are media-agnostic. Only branch/media overrides may pin a `media_profile_id`."
-5. Update `docs/audit/2026-07-20-enterprise-output-platform.md` D-column with a new row D12 (this defect) marked closed.
+3. **Housekeeping data migration — audited, not blanket.** New migration that:
+   - Runs a `SELECT id, org_id, template_key, name, created_at FROM label_templates WHERE is_default = false AND branch_id IS NULL AND media_profile_id IS NOT NULL` as a `RAISE NOTICE` for observability first.
+   - Then nulls `media_profile_id` **only** on rows whose `created_at` falls inside the known seed migration timestamps (`20260721001823`, `20260721002219`, and any earlier seed introduced by Phase 9). Rows created by user CRUD are left alone — they may be intentional media variants.
+   - Ships with a comment identifying the exact `WHERE created_at BETWEEN ... AND ...` window and cites ADR-0087.
 
----
+4. **ADR-0087 addendum.** Add a "Defaults are media-agnostic" section: `is_default = true AND branch_id IS NULL` rows MUST have `media_profile_id = NULL`; only branch/media overrides may pin media; enforced by (a) the rewritten seed function, (b) the resolver's `rnk=5` safety net, (c) the housekeeping migration above.
 
-## Phase 14 — Label template editor + printer self-service (NEXT)
+5. **Audit doc D12 row.** Append a D12 row to `docs/audit/2026-07-20-enterprise-output-platform.md` describing the "seeded default pinned to a media profile → silent drop at dispatch → 'no template registered'" defect, the three-part fix (seed function, resolver rnk=5, dispatcher error sharpening), and marking it closed 2026-07-21 with the tests from steps 1–2 as guardrails.
 
-Prereq: Phase 13 fully closed and green.
+### Phase 14 — Label template editor + printer self-service
 
-- `src/apps/platform/hardware/HardwareLabelTemplates.tsx` — CRUD over `label_templates`, with a media-picker + live canvas that renders the body at the picked printer's DPI so operators see actual output size.
-- `HardwareDevices.tsx` printer-detail sheet: add a one-click "Bind to workflow" flow that creates a `printer_workflow_bindings` row. This eliminates the class of failure that produced the current bug (org exists, printer configured, but no workflow binding → no media → dispatch fails).
-- Extend the label editor with a "Test print" button that dispatches through `printLabelByTemplate` against sample data. First-run experience proves the whole chain end-to-end.
+Prerequisite: every Phase-13 item above closed and `bunx vitest run src/test/printing/` green.
 
----
+6. **Bind-to-workflow flow on the printer detail sheet.** In `HardwareDevices.tsx` (printer detail), add an inline "Bind to workflow" action that creates a `printer_workflow_bindings` row for the selected workflow + branch + optional warehouse. Uses the canonical Records dialog primitives, respects RLS. This is the missing-CTA failure mode from the Phase 13 root cause: an org with a device but no binding.
 
-## Explicit non-goals (unchanged)
+7. **Test-print action.** On the same sheet, a "Test print" button that dispatches `printLabelByTemplate({ templateKey: 'product_label', vars: { name: 'Test', sku: 'TEST-000', barcode: '000000000000' }, workflow: 'product_tag', ... })` and surfaces the structured result (template scope, printer scope, media geometry, driver bytes count). Proves the full chain end-to-end on first-run.
+
+8. **`HardwareLabelTemplates.tsx` at `/platform/hardware/labels`.** CRUD over `label_templates` (org + branch scope switcher), engine picker (`zpl`/`epl`/`escpos`/`pdf`), media-profile picker, body editor. Live canvas renders the body at the picked printer's DPI so operators see actual output size — canvas uses the same physical-mm → dot math the drivers use (extract into `src/services/printing/mediaGeometry.ts` and reuse in both the drivers and the preview so there is one owner of scaling math).
+   - Preview MUST call the same substitution helper (`renderTemplateBody`) already exported from `labelDispatch.ts` — no parallel token engine.
+   - "Test print" button reuses (7).
+   - Nav entry added under Platform → Hardware.
+
+9. **Follow-up tests.**
+   - `src/test/hardware/hardware-label-templates-editor.test.ts`: source-inspection that the editor imports `renderTemplateBody` from `labelDispatch`, does not build its own tokens, and does not import `pdf-lib`/`bwip-js`/raw driver modules.
+   - `src/test/printing/media-geometry-single-owner.test.ts`: extracted `mediaGeometry.ts` is the only source of the mm→dot conversion and the drivers + preview both import from it.
+
+### Explicit non-goals (unchanged)
 
 - No change to A4/PDF or POS receipt pipelines.
 - No emulator/margin/font tweaks.
 - No change to `HardwareClient`, transport, or agent wire protocol.
+- Legacy `printer_profiles.paper_format` migration stays a separate follow-up (already logged in the audit doc).
 
----
+## Technical notes
 
-## Instructions for the next agent
-
-**Before writing new code**, verify Phase 13 landed correctly:
-
-1. Query: `SELECT count(*) FROM label_templates WHERE is_default = true AND branch_id IS NULL AND media_profile_id IS NOT NULL` — must be `0`.
-2. Read `resolve_label_template` via `pg_get_functiondef` — must contain the `rnk = 5` case with the comment "last-resort".
-3. Read `seed_default_label_templates` — must set `media_profile_id = NULL` on the `INSERT`.
-4. Read `src/services/printing/labelDispatch.ts` around the `if (!tpl)` block — must do the `count`-head lookup and emit the sharpened error.
-5. Run the label-printing test suite: `bunx vitest run src/test/printing/` — must be green.
-
-Once verified, resume at **Phase 13 pending item #1** (regression test for media-agnostic default resolution). Do not skip to Phase 14 until every Phase-13 pending item is closed and the audit row D12 is written.
-
-Maintain chronological execution. Do not open unrelated work while any Phase-13 item is open.
-============================================================================================
-
-
-All 73 printing tests green across 11 files. Chronological wrap-up:
-
-Phase V.1 — media-profile-resolution.test.ts locks the 4-tier fallback ordering in resolve_label_template.
-Phase V.4 — labelDispatch.ts now returns a structured NO_MEDIA_RESOLVED error for ZPL/EPL when no media resolves; label-dispatch-requires-media.test.ts guards it.
-Phase 11 — new /platform/hardware/capability admin surface for printer_profiles (command language, DPI, margins, supported media multiselect), wired into nav + routes.
-Audit — D7–D11 rows updated with the new surface + all six guardrail tests; the label template body editor stays flagged as deferred follow-up.
+- `resolve_label_template` is a 4-arg RPC; keep the signature stable. The `rnk=5` case is the resolver's forward-compatibility guarantee — do not delete it as part of the housekeeping migration.
+- The housekeeping migration must run inside a transaction and log affected `id`s via `RAISE NOTICE` before the `UPDATE` so the operation is auditable.
+- Media geometry helper (Phase 14 step 8) must live in `src/services/printing/` (client-safe, no server-only imports) and be pure so both the drivers (Node/Electron + browser adapter) and the React preview canvas can import it. This is the "renderer exists only once" principle from ADR-0085 applied one level down at the scaling-math layer.
+- Every new admin surface uses the canonical Records dialog primitives — no ad-hoc modals (design-system audit already enforces this).
+- Success criterion for Phase 14: an operator on a fresh org can, without SQL, (a) create a printer profile with media, (b) bind it to `product_tag`, (c) edit a label template with a live-sized preview, (d) click Test print, and see the exact bytes hit `hardware_exec_log` with `NO_MEDIA_RESOLVED` never appearing when the config is valid.
