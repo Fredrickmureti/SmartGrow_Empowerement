@@ -22847,6 +22847,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           engine: Database["public"]["Enums"]["label_engine"]
+          geometry_mode: string
           height_mm: number | null
           id: string
           is_default: boolean
@@ -22866,6 +22867,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           engine: Database["public"]["Enums"]["label_engine"]
+          geometry_mode?: string
           height_mm?: number | null
           id?: string
           is_default?: boolean
@@ -22885,6 +22887,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           engine?: Database["public"]["Enums"]["label_engine"]
+          geometry_mode?: string
           height_mm?: number | null
           id?: string
           is_default?: boolean
