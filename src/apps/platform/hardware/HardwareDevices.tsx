@@ -361,13 +361,16 @@ export function HardwareDevicesPage() {
       )}
 
       <Tabs defaultValue="register" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid md:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid md:grid-cols-5">
           <TabsTrigger value="register" data-testid="tab-register">
             <PlugZap className="mr-2 h-4 w-4" /> Register
           </TabsTrigger>
           <TabsTrigger value="assignments" data-testid="tab-assignments">
             <ListChecks className="mr-2 h-4 w-4" /> Assignments
             <Badge variant="secondary" className="ml-2">{assignments.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="bindings" data-testid="tab-bindings">
+            <Route className="mr-2 h-4 w-4" /> Bindings
           </TabsTrigger>
           <TabsTrigger value="discover" data-testid="tab-discover">
             <Radar className="mr-2 h-4 w-4" /> Discover
