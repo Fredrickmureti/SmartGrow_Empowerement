@@ -63,6 +63,12 @@ import {
   TransactionSummaryRail,
   type AppliedPromotionLine,
 } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
+import { usePOSStockSync } from "@/hooks/pos/usePOSStockSync";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  StockBlockerDialog,
+  type StockBlockerLine,
+} from "@/apps/pos/terminal/tender/StockBlockerDialog";
 
 function paymentSessionErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof POSPaymentSessionError) {
