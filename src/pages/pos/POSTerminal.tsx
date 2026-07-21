@@ -114,6 +114,7 @@ import { ProductDiscoveryPanel } from "@/apps/pos/terminal/sale/components/Produ
 import { BasketPanel } from "@/apps/pos/terminal/sale/components/BasketPanel";
 import { TransactionSummaryRail } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
 import { SaleActionBar, type SaleActionBarCallbacks } from "@/apps/pos/terminal/sale/components/SaleActionBar";
+import { SaleWorkspace } from "@/apps/pos/terminal/sale/SaleWorkspace";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
