@@ -417,6 +417,7 @@ export default function Products() {
   };
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const dismissedSelectedProductRef = useRef<string | null>(null);
   // Re-entry guard for page-level scan-to-onboard. The ref is the actual
   // guard (synchronous, race-proof); the state drives the router-active
   // gate + a "Looking up barcode…" toast so the operator gets immediate
@@ -444,9 +445,15 @@ export default function Products() {
   // Handle ?selected=productId to auto-open product detail
   useEffect(() => {
     const selectedId = searchParams.get("selected");
+    if (!selectedId) {
+      dismissedSelectedProductRef.current = null;
+      return;
+    }
+    if (dismissedSelectedProductRef.current === selectedId) return;
     if (selectedId && products.length > 0 && !showDetailDialog) {
       const found = products.find(p => p.id === selectedId);
       if (found) {
+        dismissedSelectedProductRef.current = null;
         setViewingProduct(found);
         setShowDetailDialog(true);
       }
@@ -457,6 +464,7 @@ export default function Products() {
     (open: boolean) => {
       setShowDetailDialog(open);
       if (open) return;
+      dismissedSelectedProductRef.current = searchParams.get("selected");
       setViewingProduct(null);
       if (!searchParams.has("selected")) return;
       const next = new URLSearchParams(searchParams);
