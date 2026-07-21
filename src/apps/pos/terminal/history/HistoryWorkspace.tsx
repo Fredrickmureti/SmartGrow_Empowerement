@@ -61,7 +61,24 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import type {
+  ReceiptDocumentItem,
+  ReceiptDocumentPayment,
+} from "@/lib/pos/receipt/ReceiptDocumentModel";
 import { useTerminalContext } from "../TerminalStateContext";
+
+/**
+ * Extended card-tender columns not on the base `POSTransactionRecord`
+ * `payments[]` row (they come from the card FSM tables). Kept local so
+ * the workspace can narrow the runtime shape without leaking a shared
+ * cross-module type.
+ */
+type CardTenderRow = {
+  id?: string;
+  tender_kind?: string | null;
+  payment_method?: string | null;
+  auth_state?: string | null;
+};
 
 interface HistoryWorkspaceProps {
   shiftId?: string;
