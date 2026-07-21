@@ -412,9 +412,119 @@ export function TenderWorkspace({
     void commitDraft({ closeIfCovers: false });
   };
 
+  // -----------------------------------------------------------------
+  // Pre-payment stock validation. The commit RPC will fail with a
+  // generic "insufficient stock" error if any cart line exceeds
+  // register-available inventory; we catch that here so the cashier
+  // gets an actionable dialog instead of a vague toast.
+  // -----------------------------------------------------------------
+  const railCartEarly = useCart();
+  const { verifyCartStock, checkAvailability } = usePOSStockSync();
+  const [stockBlockLines, setStockBlockLines] = useState<StockBlockerLine[]>([]);
+  const [showStockBlocker, setShowStockBlocker] = useState(false);
+  const [isCheckingStock, setIsCheckingStock] = useState(false);
+
+  const collectStockBlockers = useCallback(async (): Promise<StockBlockerLine[]> => {
+    const items = railCartEarly.items
+      .filter((it) => it.product_id)
+      .map((it) => ({
+        itemId: it.id,
+        productId: it.product_id as string,
+        name: it.name,
+        requested: it.quantity,
+      }));
+    if (items.length === 0) return [];
+    const result = await verifyCartStock(
+      sessionContext.registerId,
+      items.map((i) => ({
+        product_id: i.productId,
+        quantity: i.requested,
+        name: i.name,
+      })),
+    );
+    if (result.valid) return [];
+    const offenders = items.filter((i) => result.outOfStock.includes(i.name));
+    const lines: StockBlockerLine[] = [];
+    for (const o of offenders) {
+      const { data } = await supabase.rpc(
+        "get_available_pos_stock_for_register" as never,
+        {
+          p_product_id: o.productId,
+          p_register_id: sessionContext.registerId,
+          p_exclude_self: true,
+        } as never,
+      );
+      lines.push({ ...o, available: Math.max(0, Number(data ?? 0)) });
+    }
+    return lines;
+  }, [railCartEarly.items, sessionContext.registerId, verifyCartStock]);
+
+  // Pre-flight on mount / when cart changes. Non-blocking: surfaces the
+  // dialog automatically so the cashier can act before they key an amount.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const lines = await collectStockBlockers();
+      if (!cancelled) {
+        setStockBlockLines(lines);
+        if (lines.length > 0) setShowStockBlocker(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Re-run when the cart line count/quantities change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [railCartEarly.items.map((i) => `${i.id}:${i.quantity}`).join("|")]);
+
+  const removeOffendingLine = useCallback(
+    (line: StockBlockerLine) => {
+      railCartEarly.removeItem(line.itemId);
+      setStockBlockLines((cur) => cur.filter((l) => l.itemId !== line.itemId));
+    },
+    [railCartEarly],
+  );
+  const adjustOffendingLine = useCallback(
+    (line: StockBlockerLine) => {
+      if (line.available <= 0) return;
+      railCartEarly.updateQuantity(line.itemId, line.available);
+      setStockBlockLines((cur) => cur.filter((l) => l.itemId !== line.itemId));
+    },
+    [railCartEarly],
+  );
+  const recheckStock = useCallback(async () => {
+    setIsCheckingStock(true);
+    try {
+      const lines = await collectStockBlockers();
+      setStockBlockLines(lines);
+      if (lines.length === 0) {
+        setShowStockBlocker(false);
+        toast.success("Stock check cleared");
+      }
+    } finally {
+      setIsCheckingStock(false);
+    }
+  }, [collectStockBlockers]);
+
+  const hasStockBlock = stockBlockLines.length > 0;
+  // Suppress unused-warning for legacy per-item check helper — reserved for
+  // future line-scoped UI.
+  void checkAvailability;
+
   // Confirm is the terminal event. If a cash draft is pending and covers the
   // remaining balance, commit it in the same action (single-tender fast path).
   const handleConfirm = async () => {
+    // Final gate before we hand off to the commit RPC. Race-safe: another
+    // till may have sold the last unit between mount and this click.
+    setIsCheckingStock(true);
+    const blockers = await collectStockBlockers();
+    setIsCheckingStock(false);
+    if (blockers.length > 0) {
+      setStockBlockLines(blockers);
+      setShowStockBlocker(true);
+      toast.error("One or more items are out of stock. Resolve to continue.");
+      return;
+    }
     if (draftIsCash && draftAmountNum > 0 && draftCoversRemaining) {
       await commitDraft({ closeIfCovers: true });
       return;
