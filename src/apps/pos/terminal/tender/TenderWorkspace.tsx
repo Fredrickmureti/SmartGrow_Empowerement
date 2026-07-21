@@ -47,6 +47,7 @@ import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { resolvePaymentMethods } from "@/lib/pos/paymentMethodResolver";
 import { cn } from "@/lib/utils";
 import { MpesaPaymentModal } from "@/components/pos/MpesaPaymentModal";
+import { NumericKeypad } from "@/components/pos/NumericKeypad";
 import { MpesaC2BLookupModal } from "@/components/pos/MpesaC2BLookupModal";
 import { CardPaymentModal, type CardAuthPayload } from "@/components/pos/CardPaymentModal";
 import { toast } from "sonner";
