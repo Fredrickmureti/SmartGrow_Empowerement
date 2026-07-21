@@ -32,6 +32,34 @@ import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from './HardwareClient';
 import type { DeviceRole } from './drivers/DriverInterface';
 
+/** ADR-0090 · Phase D2 — roles whose ack is mirrored into `print_jobs`. */
+const PRINT_ROLES = new Set<string>([
+  'receipt_printer', 'kitchen_printer', 'label_printer', 'a4_printer',
+]);
+function isPrintRole(role: string): boolean {
+  return PRINT_ROLES.has(role);
+}
+
+/**
+ * ADR-0090 · Phase D2 — flip the ledger row keyed by hw_command_id to
+ * `failed` with an error. There is no by-hw-id failure RPC (mark_failed
+ * expects the job id), so we look up the job id via a direct read
+ * against the RLS-protected `print_jobs` table, then call mark_failed.
+ */
+async function markJobFailedByHwId(hwCommandId: number, error: string): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from('print_jobs')
+      .select('id')
+      .eq('hw_command_id', hwCommandId)
+      .in('status', ['queued', 'sent'])
+      .maybeSingle();
+    const jobId = (data as { id?: string } | null)?.id;
+    if (!jobId) return;
+    await supabase.rpc('print_job_mark_failed', { p_id: jobId, p_error: error });
+  } catch { /* noop */ }
+}
+
 const POLL_INTERVAL_MS = 3_000;
 const RECLAIM_INTERVAL_MS = 60_000;
 const LEADER_HEARTBEAT_MS = 5_000;
@@ -163,6 +191,23 @@ export function startSharedCommandQueueWorker(
             p_success: !!result?.success,
             p_error: result?.success ? null : (result?.error ?? 'unknown'),
           });
+          // ADR-0090 · Phase D2 — mirror the driver ack into the print
+          // job ledger so the Print Queue UI reflects delivery, not just
+          // dispatch. Only fires for print roles; other roles (drawer,
+          // scale) never populate print_jobs.
+          if (isPrintRole(row.role)) {
+            try {
+              if (result?.success) {
+                await supabase.rpc('print_job_mark_acked', { p_hw_command_id: row.id });
+              } else {
+                // No job id here — mark_failed is keyed by job id. Use a
+                // dedicated by-hw-id failure RPC path via mark_acked's
+                // sibling call is impossible; we run an update through the
+                // failed RPC indirectly by matching on hw_command_id below.
+                await markJobFailedByHwId(row.id, result?.error ?? 'driver reported failure');
+              }
+            } catch { /* ledger failures never block queue */ }
+          }
           if (result?.success) status.totalCompleted += 1;
           else status.totalFailed += 1;
         } catch (err) {
@@ -173,6 +218,9 @@ export function startSharedCommandQueueWorker(
               p_success: false,
               p_error: err instanceof Error ? err.message : String(err),
             });
+            if (isPrintRole(row.role)) {
+              await markJobFailedByHwId(row.id, err instanceof Error ? err.message : String(err));
+            }
           } catch { /* swallow */ }
         } finally {
           status.inFlight = null;

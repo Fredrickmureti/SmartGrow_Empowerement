@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.print_job_mark_acked(bigint) TO authenticated;
