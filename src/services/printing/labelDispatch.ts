@@ -48,6 +48,12 @@ export interface LabelDispatchInput {
   lotNumber?: string | null;
   expiryDate?: string | null;
   manufactureDate?: string | null;
+  /**
+   * ADR-0087 — explicit media profile override. When absent, media is
+   * resolved from the workflow-bound printer profile
+   * (`printer_profiles.supported_media_ids[0]`).
+   */
+  mediaProfileId?: string | null;
 }
 
 export interface LabelDispatchResult extends DriverResult {
