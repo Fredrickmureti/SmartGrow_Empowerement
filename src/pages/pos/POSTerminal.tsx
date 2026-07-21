@@ -2434,6 +2434,11 @@ function POSTerminalInner() {
         onNewSale={() => {
           setShowPostPayment(false);
           setCompletedTransaction(null);
+          // Reducer-side counterpart to `recordCompletion`: `newSale`
+          // clears `completedTransaction` inside the reducer and
+          // returns the workstation to `ready`. Keeps phase + local
+          // receipt payload in lock-step.
+          terminalDispatch({ kind: "op", op: "newSale" });
         }}
       />
 
