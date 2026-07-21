@@ -23,8 +23,10 @@
 
 import { Outlet, useParams } from "react-router-dom";
 import { usePOSShifts } from "@/hooks/pos/usePOSShifts";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { TerminalStateProvider } from "./TerminalStateContext";
 import { useTerminalUrlSync } from "./useTerminalUrlSync";
+import { ReceiptDataProvider } from "./receipt/ReceiptDataContext";
 
 function TerminalUrlSyncMount() {
   useTerminalUrlSync();
@@ -42,6 +44,15 @@ export default function TerminalShell() {
     (userCurrentShift?.register_id === registerId ? userCurrentShift : null);
   const hasActiveShift = !!activeShift;
 
+  // Slice C.1 — resolve the tenant + branch identifiers needed by the
+  // receipt print-policy hook so `ReceiptDataProvider` can compute a
+  // stable `PrintPolicyHint` for every child (including a future
+  // route-owned `ReceiptRoute`). Keeping this at the shell layer means
+  // sibling routes don't have to re-plumb business/branch context.
+  const { currentBusiness } = useBusinesses();
+  const shiftBranchId =
+    (activeShift as { branch_id?: string | null } | null)?.branch_id ?? null;
+
   return (
     <TerminalStateProvider
       hasActiveShift={hasActiveShift}
@@ -49,8 +60,10 @@ export default function TerminalShell() {
       hasUnreadCompletion={false}
       registerId={registerId}
     >
-      <TerminalUrlSyncMount />
-      <Outlet />
+      <ReceiptDataProvider businessId={currentBusiness?.id} branchId={shiftBranchId}>
+        <TerminalUrlSyncMount />
+        <Outlet />
+      </ReceiptDataProvider>
     </TerminalStateProvider>
   );
 }
