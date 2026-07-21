@@ -20,16 +20,17 @@ import { resolve } from "node:path";
 
 const DIALOG_PATH = resolve(
   process.cwd(),
-  "src/components/pos/PaymentDialog.tsx",
+  "src/apps/pos/terminal/tender/TenderWorkspace.tsx",
 );
 
-describe("no-client-payment-math (PaymentDialog)", () => {
+describe("no-client-payment-math (TenderWorkspace)", () => {
   const source = readFileSync(DIALOG_PATH, "utf8");
 
   it("does not declare a local useState for the tender list", () => {
-    // Any variant of `useState<PaymentDialogPayment[]>(` / `useState([]) `
+    // Any variant of `useState<TenderWorkspacePayment[]>(` / `useState([]) `
     // that stores the tender list. Server-authoritative rows come from
     // `usePaymentSession().tenders` and are mapped for the parent only.
+    expect(source).not.toMatch(/useState<TenderWorkspacePayment\[\]>/);
     expect(source).not.toMatch(/useState<PaymentDialogPayment\[\]>/);
     expect(source).not.toMatch(/setPayments\s*\(/);
   });
