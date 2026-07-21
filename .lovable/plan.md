@@ -80,5 +80,12 @@ Order chosen so each step ships a working terminal and lets us delete a legacy d
 - Register-id scoping added to the domain-event handler so multi-terminal dev sessions don't cross-contaminate reducers.
 - Deletions happen at the end of each step, not batched at the end, so `git blame` shows the replacement landing with the removal.
 
+## Progress log
+
+- **Step 1 — Complete.** Register-id scoping added to `TerminalStateContext`; `showPostPayment` derived from `terminalState.phase === "receipt"` (sibling `useState` removed at `POSTerminal.tsx:544`); `newSale` op dispatched on dismissal; `recordCompletion` dispatched directly from the payment-success path; architecture test `src/__tests__/architecture.pos-workspace-dialogs.test.ts` + ESLint rule `eslint-rules/no-dialog-for-pos-workspace.js` both green.
+- **Step 2 — Interim.** `PaymentDialog` forced full-screen via CSS override to satisfy the workspace surface contract while the underlying data hooks stay in `POSTerminal`; not yet extracted to `src/apps/pos/terminal/tender/TenderWorkspace.tsx`. The ESLint rule already forbids new Dialog imports under `terminal/**` so future extraction cannot regress.
+- **Steps 3–7 — Still open.** ReceiptWorkspace, ReturnWorkspace, HistoryWorkspace, Sheet standardisation (13 dialogs), SaleWorkspace decomposition, and cashier `/pos` landing all require ripping data hooks out of the 2,500 LOC monolith one workspace at a time; each is a self-contained multi-file change and the roadmap above is the order.
+
 ## Resume point
-Start at **Step 1** — the previous engineer's Phase-1 substrate is real but has two latent bugs (`showReceipt` sibling state, missing register-id scoping) that will contaminate every subsequent workspace if left in place.
+Start at **Step 2 completion** — extract `TenderWorkspace` for real so the `/tender` route stops mounting `POSTerminal` and the ESLint rule stays satisfied even as new files land. Then Step 3.
+
