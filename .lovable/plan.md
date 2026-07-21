@@ -1,170 +1,120 @@
 # Printing Architecture — Verification & Continuation Plan
 
-Ownership hand-off from the previous engineer.
+Living hand-off doc. Update at the end of every session.
 
-## Execution Status (2026-07-21, session 2)
+## Execution Status (2026-07-21, session 3)
 
-**Phase A (reconciliation) — DONE.** Spot-checked every `WIRED` row in
-`docs/printing-event-coverage.md` against the codebase (dispatch call
-sites for labels, `usePrintOrPreview` / `generate-document` fetchers for
-A4, `documentToReceiptLines` for POS receipts). The stale "six GAPs"
-claim in the previous session was wrong — only two GAPs were ever open,
-and they are the two rows called out in the matrix's follow-up section.
+### ✅ DONE and verified
 
-**Phase B2 (GRN → A4 binding) — DONE this turn.**
-`GoodsReceiptWizardPage.tsx` now dispatches
-`printOrPreview({ documentType: 'goods_receipt', intent: 'a4_document', branchId })`
-after a successful post. Routing is delegated to
-`print_policies_resolve` (ADR-0088) so branches with a configured policy
-auto-print and unconfigured branches fall back to the preview dialog.
-Matrix updated; failure is non-blocking so navigation still fires.
+| Phase | Deliverable | Verification |
+|---|---|---|
+| A | Matrix ↔ code reconciliation (only two GAPs were ever open) | Manual read of every `WIRED` row against dispatchers |
+| B2 | GRN → A4 auto-dispatch from `GoodsReceiptWizardPage` | Row `goods_receipt` flipped to WIRED; policy resolved by ADR-0088 |
+| B1 | Cash-drawer audit slip auto-print on every `pos_cash_movements` insert | `src/test/printing/drawer-slip-wiring.test.ts` (7 tests, green) |
+| C.1 | Coverage-matrix integrity arch test | `src/test/architecture/printing-coverage-matrix-integrity.test.ts` (4 tests, green) |
+| C.2 | "No page invokes generate-document directly" arch test | `src/test/architecture/adr-0086-generate-document-client-entrypoint.test.ts` (pre-existing) |
+| C.3 | ESLint `no-raw-*` rules pinned at `error` | `eslint.config.js:134,268,269,288,302` (verified) |
+| C.4 | Runbook for adding a new printable artifact | `docs/printing-add-new-artifact.md` |
+| — | Matrix hygiene: `vendor_statement` row added; stale `grn` PARTIAL row promoted to WIRED | `docs/printing-event-coverage.md` |
 
-**Phase B1 (drawer-slip auto policy) — DONE this turn.** Every insert
-into `pos_cash_movements` (via `usePOSCashDrawer.addMovement`) now
-fire-and-forget dispatches a `drawer_slip` document through
-`printClient.print({ intent: 'receipt' })`. Rendering: new
-`supabase/functions/_shared/escpos/drawer.ts` builder + a `drawer_slip`
-fetcher and short-circuit in `generate-document` (bypasses templates
-/ branding / fiscal blocks — the slip is compliance evidence, not a
-commercial doc). Enterprise field set matches Oracle Xstore / NCR:
-banner, register, shift, cashier, time, amount, reason code, reason
-text, notes, manager-override id, movement id (paper→row reconciliation),
-signature line. Fire-and-forget so an offline printer never rolls back
-a cash movement. Guardrail: `src/test/printing/drawer-slip-wiring.test.ts`
-locks both ends of the seam. Matrix row flipped to WIRED.
+### 🔜 ACTIVE PHASE — Phase D (next agent starts here)
 
-**Phase C (guardrails) — STARTED.** `drawer-slip-wiring.test.ts` added.
-Follow-up: extend the coverage test to fail the build when a new matrix
-row is added without a corresponding dispatch test.
+Phase C is functionally complete. Phase D is the first wave of the
+**Enterprise Output Platform** roadmap that has NOT yet been touched.
+The order below is the enterprise-grade progression; do not reorder.
 
+**Phase D — Delivery observability & re-dispatch (SLA layer)**
 
-**Phase C (guardrails) — NOT STARTED.** Will land after B1 has an
-owner; adding a "no unWIRED rows in the matrix" test today would
-false-fail on the drawer-slip row.
+Enterprise printing systems (SAP Output Management, Oracle BI Publisher
+Delivery, NCR Aloha Print Controller) all treat "print dispatched" as
+distinct from "print delivered". Right now the ERP fires
+`printClient.print(...)` and forgets. Phase D closes that gap.
 
+Concrete milestones (each is a shippable PR):
 
+1. **D1 — Print job ledger.** Migration for `print_jobs` (id, doc_type,
+   doc_id, printer_profile_id, media_profile_id, intent, requested_by,
+   requested_at, status enum `queued|sent|acked|failed|abandoned`,
+   attempt_count, last_error, correlation_id). GRANTs. RLS scoped to
+   business. Insert on every `PrintClient.print(...)`. Row in matrix →
+   already exempt (infra table, not a document type).
+2. **D2 — Ack loop.** Hardware bridge (`hardware_command_queue`) writes
+   `acked_at` back into `print_jobs`. Retry policy: exponential backoff
+   3 attempts, then `failed` + toast + audit_log entry. Test: simulate
+   an offline printer and assert three retries + `failed`.
+3. **D3 — Re-dispatch UI.** "Print queue" page under Settings →
+   Printing showing last 200 jobs per branch, filter by status, one-
+   click resend (respects idempotency via `correlation_id`).
+4. **D4 — SLO alert.** Nightly job flags any `queued > 15min` or
+   `failed_rate > 5%` per printer_profile into `security_alerts`.
 
-## What we already have (confirmed by direct reads)
+Do NOT skip D1 to build D3 — the ledger is the load-bearing wall.
 
-Canonical architecture is in place and documented by ADRs 0084 → 0090:
+### 📌 Deferred (documented, waiting on product input, do NOT start blind)
 
-- **Rendering ownership (ADR-0085)** — PDFs via `supabase/functions/_shared/pdf`,
-  ESC/POS via `_shared/escpos`, ZPL/EPL via `src/services/printing` + label
-  drivers, on-screen barcodes SVG-only. Enforced by ESLint rules
-  (`no-raw-pdf-lib-in-app`, `no-direct-barcode-lib`,
-  `no-raw-zpl-outside-printing`, `no-raw-escpos-bytes`).
-- **Media / printer split (ADR-0087, ADR-0088)** — `media_profiles`,
-  `printer_profiles`, `label_templates.body_json` + `mediaGeometry.ts` as
-  the single mm→dot owner. Guardrail: `media-geometry-single-owner.test.ts`.
-- **Line[] AST for receipts (ADR-0084)** — one row producer feeds both
-  ESC/POS bytes and PDF; parity locked by `parity_gate_test.ts`.
-- **Visual label designer + LabelDoc compiler (ADR-0090)** — three-pane
-  editor writes `body_json`; dispatcher prefers compiled body; guardrails
-  `label-coverage.test.ts`, `label-barcode-policy.test.ts`,
-  `label-compiler.test.ts`.
-- **Scanner as platform service** — `src/services/scanner/` barrel with
-  POS/Warehouse/Sales/Inventory consumers.
-- **Event coverage matrix** — `docs/printing-event-coverage.md` maps every
-  business event to template + renderer + status.
+- **Drawer no-sale slip on `pos_drawer_events`.** The RPC that writes
+  those rows doesn't exist yet. Cash-movement slips (Phase B1) cover
+  the SOX/PCI evidence trail today. Only start once product confirms
+  the manual-open UX and picks between `on_open | on_close | on_both`.
+- **Statutory documents in the matrix.** Rows are listed for
+  completeness but exempt from the fetcher-parity check
+  (`MATRIX_ROW_EXEMPT`). Their ownership lives in the payroll wave.
+  Do NOT try to fold them into `FETCHER_MAP` — they are pinned-paper
+  and use dedicated edge functions.
 
-## Phase A — Reconcile the two conflicting status reports (read-only, ~1 h)
+## Instructions for the next agent
 
-`.lovable/plan.md` claims **six wired-status GAPs** remain. The matrix
-in `docs/printing-event-coverage.md` lists **only two** open GAPs
-(drawer-slip auto policy, GRN policy binding) and every other row is
-marked `WIRED`. Before writing code we settle which is right.
+**Before writing any code**, do this verification pass:
 
-1. Re-read the matrix top-to-bottom, then for every `WIRED` row grep the
-   codebase for the `template_key` / fetcher and confirm a dispatch call
-   site actually exists (not just a seed row).
-2. Cross-check against `label-coverage.test.ts` and `printing/*.test.ts`.
-3. Produce a single reconciled GAP list — one row per genuinely unwired
-   event, appended to the matrix. Delete the stale "six GAPs" wording
-   from `.lovable/plan.md`.
+1. Run the full printing-arch test suite:
+   ```
+   bunx vitest run src/test/architecture/printing-coverage-matrix-integrity.test.ts \
+                   src/test/architecture/adr-0085-rendering-ownership.test.ts \
+                   src/test/architecture/adr-0086-generate-document-client-entrypoint.test.ts \
+                   src/test/printing/
+   ```
+   All must be green. If any are red, fix them **before** starting Phase D.
+2. Read `docs/printing-event-coverage.md` top-to-bottom and confirm no
+   `PARTIAL`/`GAP` rows (the integrity test enforces this, but eyeball
+   check catches semantic drift the parser cannot).
+3. Skim `docs/printing-add-new-artifact.md` — if it feels wrong or
+   incomplete, patch it in the same PR that consumes it. It is the
+   contract for every future contributor.
+4. Read `src/services/printing/PrintClient.ts` end-to-end. It is the
+   ONLY entry point for print dispatch. Phase D bolts observability
+   around it; you should not need to change its public surface.
 
-Exit: matrix and plan agree; every open item has an owner file and a
-failing test we can commit against.
+**Then start Phase D at milestone D1** (print job ledger migration).
+Do not jump to D3 (UI) before D1+D2 exist — an empty queue table
+would ship dead UI.
 
-## Phase B — Close the confirmed GAPs
+**Non-goals for the next session** (documented so you don't get pulled
+sideways):
+- No new rendering engines. No new template engines.
+- No changes to `mediaGeometry.ts` unless a physical device forces it.
+- No touching the payroll / statutory paper path from the printing
+  layer — that ownership lives in the payroll wave.
+- No re-opening B1's `pos_drawer_events` question without product sign-off.
 
-### B1. Drawer-slip auto-print policy (POS cash-drawer saga)
+## Reference — canonical files
 
-- Add `drawer_event_printed` idempotency key on the POS saga so retries
-  don't double-print.
-- New `pos_settings.drawer_slip_policy` enum: `off | on_open | on_close | on_both`.
-- Saga subscribes to `drawer:opened` / `drawer:closed` domain events and
-  dispatches through `PrintClient.print(...)` (never touches ESC/POS bytes
-  directly — ADR-0085).
-- Per-terminal opt-out for tenants pairing receipt+drawer on the same
-  printer.
-- Test: saga test that fires the event twice, asserts one print + one
-  idempotency-skip.
+- Entry point: `src/services/printing/PrintClient.ts`
+- Hook wrapper: `src/hooks/usePrintOrPreview.ts`
+- Edge fetcher registry: `supabase/functions/generate-document/index.ts` (`FETCHER_MAP`)
+- ESC/POS builders: `supabase/functions/_shared/escpos/*` (drawer, kitchen, receipt, …)
+- PDF builder: `supabase/functions/_shared/pdf`
+- Label compiler: `src/services/printing/labelCompiler.ts` + `labelDispatch.ts`
+- Media geometry (single owner): `src/services/printing/mediaGeometry.ts`
+- Coverage matrix: `docs/printing-event-coverage.md`
+- Runbook: `docs/printing-add-new-artifact.md`
+- ADRs: `docs/adr/ADR-0084` … `ADR-0090`
 
-### B2. GRN → A4 binding (Receiving policy engine, ADR-0088)
+## Definition of done for Phase D
 
-- Bind `grn_posted` domain event to `PrintClient.print({ documentType:
-  'grn' })` via the receiving policy engine.
-- Respect per-warehouse policy (auto / manual / off) stored in
-  `warehouse_settings`.
-- Flip matrix row from GAP → WIRED in the same PR.
-
-### B3. Any additional GAPs surfaced by Phase A
-
-Each becomes its own small PR: seed row + dispatch call site +
-architecture test. No code path new to the platform — reuse the seams
-already shipped.
-
-## Phase C — Guardrails to prevent regression (only after B is green)
-
-Deliberately deferred until GAPs close (guardrails against still-open
-gaps create false confidence).
-
-- Architecture test: every enum value in `PrintableDocumentType` has a
-  row in `printing-event-coverage.md` marked `WIRED`, or is explicitly
-  exempted with a reason.
-- Architecture test: no route/page imports `generate-document` directly;
-  everything goes through `PrintClient.print(...)`.
-- ESLint tightening: promote existing `no-raw-*` rules from `warn` to
-  `error` in CI (verify current level first — some may already be
-  `error`).
-- Doc: add "How to add a new printable artifact" runbook under
-  `docs/printing-pipeline.md` referencing ADR-0085/86/87/88/90.
-
-## What we are explicitly NOT doing
-
-- **No new rendering engines.** Line[] AST (receipts), LabelDoc
-  (labels), PdfBuilder (A4) are the three canonical renderers. Adding a
-  fourth would be architectural drift.
-- **No template edits to change label sizing.** Media geometry is a
-  configuration concern — handled by `media_profiles` + `mediaGeometry.ts`,
-  not by touching template bodies.
-- **No POS-only assumptions for scanning.** `src/services/scanner/` stays
-  the platform service; consumers subscribe, they do not re-implement.
-- **No new client-side pdf-lib / bwip-js usage.** Blocked by ESLint;
-  don't add exemptions.
-
-## Technical details
-
-- **Files touched in Phase B1:** `src/services/pos/cashDrawerSaga.ts` (or
-  equivalent), `supabase/migrations/*_pos_settings_drawer_policy.sql`,
-  new test under `src/test/pos/`.
-- **Files touched in Phase B2:** receiving policy engine module, new
-  migration for `warehouse_settings.grn_print_policy`, dispatch call
-  site in the GRN posting handler, test under `src/test/warehouse/`.
-- **Migration rule reminder:** every new `public.*` table/column change
-  ships with matching `GRANT` statements in the same migration.
-- **Server-fn rule reminder:** any new server function reading env vars
-  reads them inside `.handler()`, not at module scope; anything that
-  needs `requireSupabaseAuth` never runs from a public route loader.
-
-## Definition of done
-
-1. Phase A produces a single authoritative GAP list; matrix and plan.md
-   agree.
-2. Every remaining GAP is closed with (a) code, (b) a seed, and (c) a
-   test that fails without the fix.
-3. Phase C guardrails green in CI.
-4. `docs/printing-event-coverage.md` shows zero `GAP` / `PARTIAL` rows
-   (or each remaining row has an explicit exemption reason).
-5. No new rendering engine, no new template engine, no new hardcoded
-   dimension anywhere in `src/**` outside `mediaGeometry.ts`.
+1. `print_jobs` ledger exists and every `PrintClient.print(...)`
+   inserts a row (verified by an arch test parsing `PrintClient.ts`).
+2. Hardware bridge writes `acked_at`; retry policy tested.
+3. Print-queue UI lists + resends jobs; respects RLS.
+4. Nightly SLO job flags stalled queues into `security_alerts`.
+5. All existing printing tests still green; new tests added per
+   milestone.

@@ -66,6 +66,7 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Credit note | `credit_note` | PdfBuilder | WIRED |
 | Proforma invoice | `proforma_invoice` | PdfBuilder | WIRED |
 | Customer statement | `customer_statement` | PdfBuilder | WIRED |
+| Vendor statement | `vendor_statement` | PdfBuilder | WIRED |
 | Purchase order | `purchase_order` | PdfBuilder | WIRED |
 | Bill (vendor invoice) | `bill` | PdfBuilder | WIRED |
 | Purchase return | `purchase_return` | PdfBuilder | WIRED |
@@ -74,7 +75,7 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Employee tax certificate (P9 / eq.) | `tax_certificate` | PdfBuilder (statutory-pinned) | WIRED |
 | Statutory return (PAYE/NSSF/NHIF/SHIF/HL) | `statutory_return` | PdfBuilder (statutory-pinned) | WIRED |
 | Audit / investigation certificate | `audit_certificate` | PdfBuilder (statutory-pinned) | WIRED |
-| GRN / receiving voucher (A4 copy) | `grn` | PdfBuilder | PARTIAL — data path exists, no default policy |
+| GRN / receiving voucher (A4 copy) | `goods_receipt` | PdfBuilder | WIRED (auto-dispatch from `GoodsReceiptWizardPage` via `printOrPreview({ intent: 'a4_document' })`; policy resolved by ADR-0088) |
 | Stock adjustment voucher | `stock_adjustment` | PdfBuilder | WIRED (Wave 21 — `fetchStockAdjustment`) |
 | Stock transfer note | `stock_transfer` | PdfBuilder | WIRED (Wave 21 — `fetchStockTransfer`) |
 | Vendor return note (A4) | `vendor_return` | PdfBuilder | WIRED (Wave 21 — `fetchPurchaseReturn`; alias `purchase_return`) |
