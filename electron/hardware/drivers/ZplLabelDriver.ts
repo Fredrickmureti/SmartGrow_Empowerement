@@ -134,8 +134,9 @@ export class ZplLabelDriver extends TransportDriver {
 
   /**
    * Inject paper envelope (`^PW`, `^LL`) and transport commands (`^MD`,
-   * `^PR`) right after the `^XA` header. Dot conversion uses the printer
-   * profile's DPI: dpmm = dpi / 25.4.
+   * `^PR`) right after the `^XA` header. Dot conversion is delegated to
+   * `mediaGeometry.mediaDots` (Phase 14) so all four transports —
+   * ZPL, EPL, browser adapter, and preview canvas — share one owner.
    */
   private applyEnvelopeAndTransport(zpl: string, cfg: ZplConfig): string {
     const { widthDots, heightDots } = mediaDots({ widthMm: cfg.widthMm, heightMm: cfg.heightMm, dpi: cfg.dpi });
