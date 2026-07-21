@@ -216,10 +216,15 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
     printer = await resolvePrinter(input.orgId, input.workflow, input.branchId, input.warehouseId);
   }
 
-  let media: ResolvedMedia | null = null;
-  if (printer) {
-    media = await resolvePrinterMedia(printer.printer_profile_id, input.mediaProfileId ?? null);
-  }
+  // ADR-0087 — media resolution now runs even without a workflow-bound
+  // printer, so an org with a default media_profile always gets a valid
+  // envelope. The `printer` arg is optional; when null we skip straight
+  // to the org-default fallback chain.
+  let media: ResolvedMedia | null = await resolvePrinterMedia(
+    printer?.printer_profile_id ?? null,
+    input.orgId,
+    input.mediaProfileId ?? null,
+  );
 
   const tpl = await resolveTemplate(
     input.orgId,
