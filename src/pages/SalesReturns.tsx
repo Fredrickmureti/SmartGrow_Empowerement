@@ -51,6 +51,7 @@ import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { PageHeader, PageBody } from "@/design-system";
@@ -455,7 +456,36 @@ export default function SalesReturns() {
                                 });
                               }}>
                                 <Printer className="mr-2 h-4 w-4" />
-                                Print
+                                Print A4
+                              </DropdownMenuItem>
+                              {/* Wave 21 — RMA / return sticker.
+                                * Routes through the canonical label
+                                * dispatcher (ADR-0086 / ADR-0090) so the
+                                * physical return tag reuses the same
+                                * printer profile, media geometry and
+                                * audit trail as every other label. */}
+                              <DropdownMenuItem asChild>
+                                <PrintLabelButton
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full justify-start font-normal px-2 h-8"
+                                  label="Print Return Tag"
+                                  templateKey="return_label"
+                                  workflow="shipping"
+                                  product={{
+                                    id: ret.id,
+                                    name: ret.contact?.name || "Sales Return",
+                                    sku: ret.return_number,
+                                    barcode: ret.return_number,
+                                  }}
+                                  sourceDocType="sales_return"
+                                  sourceDocId={ret.id}
+                                  extraVars={{
+                                    return_number: ret.return_number,
+                                    customer_name: ret.contact?.name ?? "",
+                                    return_date: ret.return_date ?? "",
+                                  }}
+                                />
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => {
                                 const contact = contacts.find(c => c.id === ret.contact_id);
