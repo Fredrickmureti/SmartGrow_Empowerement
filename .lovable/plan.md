@@ -2,6 +2,35 @@
 
 ## Execution Status (2026-07-21)
 
+### Wave 22 · Product vs Shelf label parity fix — DONE this turn
+
+**Reported symptom:** "Print label" and "Print shelf label" on the Products
+page produced visually identical output.
+
+**Root cause:** DB templates are correctly distinct (verified via
+`SELECT body FROM label_templates` for the active org — `product_label`
+renders name + barcode + sku; `shelf_label` renders name + **prominent
+price (6mm font)** + barcode + sku). But `src/pages/Products.tsx`
+`handlePrintShelfLabel` never passed a `price` variable, so the
+shelf template's `{{price}}` line rendered blank — collapsing it to
+look like `product_label`.
+
+**Fix:** Pass `price: formatCurrency(product.unit_price ?? 0)` in the
+shelf-label `vars`. POS callers (`ProductQuickView`, `CartItemEditor`)
+already passed price correctly — only the Products page was the culprit.
+
+**Verification:** `products-label-print.test.ts` (7) + `label-compiler.test.ts` (5) green.
+
+**Next agent — start here:**
+1. Verify Wave 22 by printing both label types from Products.tsx against
+   a real ZPL device and confirming the shelf label shows a large price
+   line the product tag does not.
+2. Then resume the six wired-status GAPs enumerated in
+   `docs/printing-event-coverage.md` (drawer-slip auto policy, GRN policy
+   binding, and the three A4 fetchers not yet exercised end-to-end).
+3. Do NOT jump into Phase C guardrail work until those GAPs are closed —
+   guardrails against gaps that are still open create false confidence.
+
 ### Phase A — Verification of Phase 18 · COMPLETE
 
 | Claim                              | Verdict  | Evidence                                                                                          |
