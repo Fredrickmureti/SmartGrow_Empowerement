@@ -19,6 +19,9 @@
  */
 import { TransportDriver } from './TransportDriver';
 import type { ExecCommand, ExecResult, DeviceRole } from '../types';
+import { mediaDots } from '../../../src/services/printing/mediaGeometry';
+
+
 
 export class EplLabelDriver extends TransportDriver {
   readonly role: DeviceRole = 'label_printer';
