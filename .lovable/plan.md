@@ -31,9 +31,11 @@ Order of operations, single wave:
 - ✅ **6.2a — `ProductDiscoveryPanel` + `BasketPanel` extracted.** Both pure prop-driven under `src/apps/pos/terminal/sale/components/`. No hooks/context reads inside.
 - ✅ **6.2b (partial) — `TransactionSummaryRail` extracted.** Pure prop-driven, sized for reuse inside Tender + Receipt routes (per parent-prompt permanent-visibility requirement). Optional `size` prop for the future Tender/Receipt mounts.
 - ✅ **6.2b (rest) — `SaleActionBar` extracted.** `src/apps/pos/terminal/sale/components/SaleActionBar.tsx` — pure prop-driven, consumes a semantic `SaleActionBarCallbacks` object (8 callbacks) instead of 15 raw setters. Callbacks memoised in `POSTerminal.tsx` right before the render tree. Desktop action grid + quick-pay + primary pay button all replaced. Mobile cart drawer action buttons intentionally left inline for now (own follow-up during SaleWorkspace hoist so the mobile drawer can adopt the same component with a `variant="mobile"` prop rather than churn twice).
-- ⏭ **Next: 6.2c** hoist the four extracted panels (`ProductDiscoveryPanel`, `BasketPanel`, `TransactionSummaryRail`, `SaleActionBar`) into `src/apps/pos/terminal/sale/SaleWorkspace.tsx`; adopt the same `SaleActionBar` in the mobile drawer to eliminate the duplicated inline block. Then **6.2d** `ReceiptRoute` + route-sibling test, then route rewire.
+- ✅ **6.2c (desktop hoist) — `SaleWorkspace` created.** `src/apps/pos/terminal/sale/SaleWorkspace.tsx` now owns the entire desktop sale-phase render tree (product discovery + scan-recovery banner + held-orders strip + customer trigger + basket + summary rail + action bar). Prop-driven for now — deliberately a transitional contract so it can be mounted from the legacy monolith **and** the future `/sale` route without semantic drift. `POSTerminal.tsx` delegates the whole desktop sale layout to `<SaleWorkspace .../>`.
+- 🟡 **6.2c follow-up — mobile drawer still inline.** The mobile cart action grid has three behavioural deltas vs desktop (Clear confirms on tableSession, "Print Bill" label, every action closes the drawer, Hold doesn't play the sound). Add `variant?: "desktop" | "mobile"` + `onAfterAction?` to `SaleActionBar`, then fold the mobile drawer into `SaleWorkspace` — one commit per step so the behaviour delta stays observable.
+- ⏭ **Next: 6.2d** `ReceiptRoute` + route rewire + sibling-uniqueness architecture test, all in one commit. Details in Resume point below.
 
-**Session totals (running):** `POSTerminal.tsx` 2,505 → 2,203 LOC (−302). Four sale-phase presentational components extracted (`ProductDiscoveryPanel`, `BasketPanel`, `TransactionSummaryRail`, `SaleActionBar`). All typechecks clean (`bunx tsgo --noEmit`).
+**Session totals (running):** `POSTerminal.tsx` 2,505 → 2,164 LOC (−341). Four presentational components + one workspace assembly extracted under `src/apps/pos/terminal/sale/`. All typechecks clean (`bunx tsgo --noEmit`).
 
 1. **CartProvider (ownership lift).** Create `src/apps/pos/terminal/sale/CartContext.tsx` that internally calls `usePOSCartAdapter({ tableSessionId, registerId, shiftId, tableNumber })` from props and exposes the identical return object via `useCart()`. Mount inside `TerminalShell` as a peer of `ReceiptDataProvider`. `POSTerminal.tsx` replaces its L231 `usePOSCartAdapter(...)` invocation with `const cart = useCart();` — zero call-site changes downstream.
 2. **SaleWorkspace extraction.** Move the sale-phase render tree out of `POSTerminal.tsx` into `src/apps/pos/terminal/sale/SaleWorkspace.tsx`, decomposed into `ProductDiscoveryPanel`, `BasketPanel`, `SaleActionBar`, `TransactionSummaryRail`. The rail is a peer component so Tender + Receipt can mount it for permanent visibility (business-state driven UI requirement from parent prompt).
@@ -52,22 +54,24 @@ Order of operations, single wave:
 **For the next agent — verification first, then continue:**
 
 1. **Verify prior work before writing any code.**
-   - `rg -n "ProductDiscoveryPanel|BasketPanel|TransactionSummaryRail|SaleActionBar" src/pages/pos/POSTerminal.tsx` must show 4 imports + 4 JSX usages, no stale inline copies of the desktop action grid.
+   - `rg -n "SaleWorkspace" src/pages/pos/POSTerminal.tsx` must show one import + one JSX usage. The four panel components (`ProductDiscoveryPanel`/`BasketPanel`/`TransactionSummaryRail`/`SaleActionBar`) must only be **imported** by `SaleWorkspace.tsx` — they must not be rendered directly from `POSTerminal.tsx` (grep for their JSX tags there should return zero).
    - `rg -n "PostPaymentScreen" src/` must return zero.
-   - `usePOSCartAdapter` must be called **only** inside `src/apps/pos/terminal/sale/CartContext.tsx` — `rg -n "usePOSCartAdapter\\(" src/` should return exactly one call site (plus the type-only import in the extracted components). `POSTerminal.tsx` must consume `useCart()` only.
+   - `usePOSCartAdapter` must be called **only** inside `src/apps/pos/terminal/sale/CartContext.tsx` — grep should return exactly one call site (plus type-only imports in the extracted components). `POSTerminal.tsx` must consume `useCart()` only.
    - `bunx tsgo --noEmit` clean.
-   - Confirm the four extracted components under `src/apps/pos/terminal/sale/components/` are **pure prop-driven** (no `use*` hook or context reads inside their bodies — type-only `ReturnType<typeof usePOSCartAdapter>` imports are fine).
+   - Confirm the four panel components + `SaleWorkspace` are still **pure prop-driven** (no `use*` hook or context reads inside their bodies — type-only `ReturnType<typeof usePOSCartAdapter>` imports are fine). `SaleWorkspace` will start consuming context directly in 6.2d — that's the intentional transition, but do it **only** when you also mount it as a route.
 
-2. **Resume point: 6.2c — SaleWorkspace hoist.**
-   - Create `src/apps/pos/terminal/sale/SaleWorkspace.tsx` that renders the sale-phase layout (product discovery + basket + summary + action bar) by consuming `useCart()`, `useTerminalContext()`, `useReceiptData()`, and the shift/register context already established in `TerminalShell`.
-   - Adopt `SaleActionBar` inside the mobile cart drawer at the same time (deleting the duplicated inline block around former L1918 in `POSTerminal.tsx`) so the workspace owns one action-bar surface, not two.
-   - Keep `POSTerminal.tsx` responsible for `tender / return / held / history` until Step 8. Do **not** try to delete `POSTerminal.tsx` in this wave — Slice C.2 only requires `sale` + `receipt` to become sibling-unique routes.
+2. **Resume point: 6.2c mobile-drawer follow-up (small) → 6.2d (main).**
+   - **First:** fold the mobile cart drawer (currently inline in `POSTerminal.tsx` around L1700–1940) into `SaleWorkspace`. Add `variant?: "desktop" | "mobile"` + `onAfterAction?: () => void` to `SaleActionBar` so the shared component preserves the three mobile deltas: Clear-with-confirm on tableSession, "Print Bill" label, drawer-close on every action, no sound on Hold. Keep the diff observable — one commit for the variant, one for the mobile hoist.
+   - **Then 6.2d — `ReceiptRoute` + route rewire + sibling-uniqueness test in one commit:**
+     - `src/apps/pos/terminal/receipt/ReceiptRoute.tsx` — thin: `useReceiptData()` + `useTerminalContext()`, render `<ReceiptWorkspace />`.
+     - Flip `SaleWorkspace` to consume `useCart()`, `useTerminalContext()`, `useReceiptData()`, `usePOSShifts()`, `usePOSRegisters()`, `useOrg()` directly (drop the transitional prop surface) so the route can mount it with zero props.
+     - `src/apps/pos/routes.tsx` L130 (`sale` → `<SaleWorkspace />`), L132 (`receipt` → `<ReceiptRoute />`). Leave `tender/return/held/history` on `<POSTerminal />` — those are Step 8.
+     - `src/test/architecture/pos-terminal-route-siblings.test.ts` — statically parse `routes.tsx` and assert no two `terminal/:registerId` siblings share the same element.
+   - Keep `POSTerminal.tsx` responsible for `tender/return/held/history` until Step 8. Do **not** delete `POSTerminal.tsx` in this wave — Slice C.2 only requires `sale` + `receipt` to become sibling-unique routes.
 
-3. **Then 6.2d — `ReceiptRoute` + route rewire + sibling-uniqueness architecture test.** Land all three in one commit per the plan.
+3. **Trace before extract.** `SendDocumentDialog` (email receipt, near the end of `POSTerminal.tsx`), all hardware/print consumers, and the `holdTransaction`/`openPaymentSession`/`recordPaymentTender`/`commitPaymentSession` flow read cart, shift, receipt, and hardware state that still lives in the monolith. Map every reader before moving it into `SaleWorkspace` / `TerminalShell` — a blind hoist will strand these consumers.
 
-4. **Trace before extract.** `SendDocumentDialog` (email receipt, ~L2400 in current `POSTerminal.tsx`), all hardware/print consumers, and the `holdTransaction`/`openPaymentSession`/`recordPaymentTender`/`commitPaymentSession` flow read cart, shift, receipt, and hardware state that still lives in the monolith. Map every reader before moving it into `SaleWorkspace` / `TerminalShell` — a blind hoist will strand these consumers.
-
-5. **Do not** re-order phases, extract `tender/return/held/history` opportunistically, or touch the hardware layer. Chronological execution per Steps 6 → 7 → 8.
+4. **Do not** re-order phases, extract `tender/return/held/history` opportunistically, or touch the hardware layer. Chronological execution per Steps 6 → 7 → 8.
 
 ## Phase 4 — Steps 7 & 8 (unchanged from prior plan)
 
