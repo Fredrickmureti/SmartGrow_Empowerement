@@ -112,7 +112,8 @@ export function CardPaymentModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); else onOpenChange(o); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="flex max-h-[90vh] max-w-md flex-col p-0 sm:max-w-md">
+        <div className="flex min-h-0 flex-1 flex-col p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
@@ -198,6 +199,7 @@ export function CardPaymentModal({
               </div>
             </>
           )}
+        </div>
         </div>
       </DialogContent>
     </Dialog>
