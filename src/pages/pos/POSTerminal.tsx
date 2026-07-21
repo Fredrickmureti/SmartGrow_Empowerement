@@ -2241,7 +2241,7 @@ function POSTerminalInner() {
                           payments: [], // No payments yet — pro-forma
                         });
                         setShowMobileCart(false);
-                        setShowReceipt(true);
+                        openSheet("sale.receiptPreview");
                       }}
                     >
                       <Receipt className="h-4 w-4 mb-0.5" />
