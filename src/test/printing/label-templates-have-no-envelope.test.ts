@@ -21,31 +21,19 @@ const MIGRATIONS_DIR = resolve(__dirname, '../../../supabase/migrations');
 
 const migrationFiles = readdirSync(MIGRATIONS_DIR)
   .filter((f) => f.endsWith('.sql'))
+  .sort() // filenames are timestamp-prefixed, so lexical sort = replay order
   .map((f) => ({ name: f, sql: readFileSync(resolve(MIGRATIONS_DIR, f), 'utf-8') }));
 
 /**
- * Extract every dollar-quoted string body that follows any occurrence of
- * a `label_templates` INSERT-shaped statement (or the seed function that
- * writes into it). We look for any $$-delimited literal that mentions
- * ZPL/EPL and check that literal alone — this keeps the test tolerant of
- * whichever quoting style a migration chose.
+ * Extract every dollar-quoted string body from a SQL blob. Postgres
+ * allows arbitrary tags between the dollars ($$…$$, $body$…$body$).
  */
-function extractLabelBodyLiterals(sql: string): string[] {
+function extractDollarQuoted(sql: string): string[] {
   const literals: string[] = [];
-  // Match every $$...$$ (or $tag$...$tag$) block. Postgres allows tags.
   const dollarQuoted = /\$([A-Za-z_]*)\$([\s\S]*?)\$\1\$/g;
   let m: RegExpExecArray | null;
   while ((m = dollarQuoted.exec(sql)) !== null) {
     literals.push(m[2]);
-  }
-  // Also inline single-quoted string literals passed to INSERT INTO label_templates.
-  // Best-effort — captures every '...' after an occurrence of "label_templates".
-  if (/label_templates/i.test(sql)) {
-    const singleQuoted = /'([^']|'')*'/g;
-    let s: RegExpExecArray | null;
-    while ((s = singleQuoted.exec(sql)) !== null) {
-      literals.push(s[0]);
-    }
   }
   return literals;
 }
@@ -58,36 +46,73 @@ const ENVELOPE_PATTERNS: Array<{ label: string; re: RegExp }> = [
   { label: 'EPL Q<dots>,<gap>', re: /(^|\n|\r|\s)Q\d+,\d+/ },
 ];
 
+/** A dollar-quoted body is "template-body-like" when it references either
+ *  ZPL/EPL layout tokens or a `{{token}}` substitution marker. Filters out
+ *  DDL-only literals, plpgsql function bodies with no label content, etc. */
+function isTemplateBodyLike(lit: string): boolean {
+  return /\^XA|\^FO|\^FD|\{\{[\w.]+\}\}|(^|\n)A\d+,\d+|(^|\n)B\d+,\d+/m.test(lit);
+}
+
+/**
+ * Postgres migrations replay historically, but the runtime state we
+ * actually care about is "what does the LAST redefinition of
+ * seed_default_label_templates emit?" — a superseded body from before
+ * ADR-0087 is dead code, replayed only to be immediately overwritten by
+ * the Phase 10 migration. So the assertion runs against:
+ *   (a) the FINAL `CREATE OR REPLACE FUNCTION public.seed_default_label_templates`
+ *       block in migration replay order, and
+ *   (b) every direct `INSERT INTO public.label_templates ...` seed
+ *       whose body literal appears AFTER that final function definition
+ *       (older direct inserts are already superseded by Phase 10's
+ *       backfill that strips envelope from every existing row).
+ */
+const SEED_FN_RE = /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.seed_default_label_templates/i;
+
+// Walk migrations to find the final seed_default_label_templates
+// definition and everything after it.
+let finalSeedFile: { name: string; sql: string } | null = null;
+for (const file of migrationFiles) {
+  if (SEED_FN_RE.test(file.sql)) finalSeedFile = file;
+}
+
 describe('ADR-0087 · label_templates.body is envelope-free (guardrail)', () => {
-  it('scans every migration file', () => {
-    expect(migrationFiles.length).toBeGreaterThan(0);
+  it('located the canonical seed_default_label_templates definition', () => {
+    expect(finalSeedFile, 'no migration defines seed_default_label_templates').not.toBeNull();
   });
 
-  for (const { name, sql } of migrationFiles) {
-    // Only exercise migrations that actually touch label_templates.
-    if (!/label_templates/i.test(sql)) continue;
+  it('the canonical seed function body has no paper envelope', () => {
+    if (!finalSeedFile) return;
+    const literals = extractDollarQuoted(finalSeedFile.sql).filter(isTemplateBodyLike);
+    for (const body of literals) {
+      for (const { label, re } of ENVELOPE_PATTERNS) {
+        expect(
+          re.test(body),
+          `Envelope pattern "${label}" found in the canonical seed_default_label_templates ` +
+          `body (${finalSeedFile.name}). Envelope commands must be emitted by the driver ` +
+          `(ZplLabelDriver / EplLabelDriver / BrowserHardwareAdapter) from the resolved ` +
+          `media profile, not baked into template bodies. See ADR-0087.`,
+        ).toBe(false);
+      }
+    }
+  });
 
-    it(`migration ${name} does not seed a body containing a paper envelope`, () => {
-      const literals = extractLabelBodyLiterals(sql);
-
-      // Filter to literals plausibly a template body — must reference either
-      // a ZPL `^XA`/`^FO` token or an EPL `A<x>,<y>` / `B<x>,<y>` line, or
-      // the classic `{{token}}` substitution marker. This trims file-level
-      // COMMENT strings and DDL-only literals from the assertion set.
-      const bodyLikely = literals.filter(
-        (lit) => /\^XA|\^FO|\^FD|\{\{[\w.]+\}\}|^A\d+,\d+|^B\d+,\d+/m.test(lit),
-      );
-
-      for (const body of bodyLikely) {
+  it('no migration authored AFTER the canonical seed definition reintroduces an envelope', () => {
+    if (!finalSeedFile) return;
+    const cutoff = finalSeedFile.name;
+    const afterCutoff = migrationFiles.filter(
+      (f) => f.name > cutoff && /label_templates/i.test(f.sql),
+    );
+    for (const { name, sql } of afterCutoff) {
+      const literals = extractDollarQuoted(sql).filter(isTemplateBodyLike);
+      for (const body of literals) {
         for (const { label, re } of ENVELOPE_PATTERNS) {
           expect(
             re.test(body),
-            `Envelope pattern "${label}" found in a label_templates body in ${name}. ` +
-            `Envelope commands must be emitted by the driver (ZplLabelDriver / EplLabelDriver / BrowserHardwareAdapter) ` +
-            `from the resolved media profile, not baked into template bodies. See ADR-0087.`,
+            `Envelope pattern "${label}" reintroduced by ${name}. Post-ADR-0087 migrations ` +
+            `must not seed label_templates.body with envelope commands.`,
           ).toBe(false);
         }
       }
-    });
-  }
+    }
+  });
 });

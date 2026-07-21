@@ -24,9 +24,11 @@ const SRC = readFileSync(
 );
 
 describe('labelDispatch · media flows through to the driver (ADR-0087)', () => {
-  it('resolves the printer before the template', () => {
-    const printerIdx = SRC.indexOf('resolvePrinter(');
-    const templateIdx = SRC.indexOf('resolveTemplate(');
+  it('resolves the printer before the template (call-site order)', () => {
+    // Look at the awaited call sites, not the top-level function
+    // declarations — those live in the file in the opposite order.
+    const printerIdx = SRC.indexOf('await resolvePrinter(');
+    const templateIdx = SRC.indexOf('await resolveTemplate(');
     expect(printerIdx).toBeGreaterThan(-1);
     expect(templateIdx).toBeGreaterThan(-1);
     expect(printerIdx).toBeLessThan(templateIdx);
