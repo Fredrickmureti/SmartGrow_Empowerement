@@ -34,7 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useActiveBusiness } from "@/hooks/useActiveBusiness";
+import { useOrganization } from "@/hooks/useOrganization";
 
 type MediaKind = "label" | "receipt" | "sheet" | "continuous";
 type Orientation = "portrait" | "landscape";
@@ -85,8 +85,8 @@ function formatDim(w: number, h: number | null): string {
 }
 
 export default function HardwareMedia() {
-  const { activeBusiness } = useActiveBusiness();
-  const orgId = activeBusiness?.id ?? null;
+  const { currentOrg } = useOrganization();
+  const orgId = currentOrg?.id ?? null;
   const [rows, setRows] = useState<MediaProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DraftForm | null>(null);
