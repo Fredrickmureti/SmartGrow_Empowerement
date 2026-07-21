@@ -145,6 +145,12 @@ export default tseslint.config(
       // crypto.randomUUID() silently defeat retry-collapse.
       "local/no-pos-commit-without-idempotency-key": "error",
 
+      // POS workstation state chart — phase-change surfaces must be routed
+      // workspaces, not `<Dialog>` overlays. Guards src/apps/pos/terminal/**.
+      "local/no-dialog-for-pos-workspace": "error",
+
+
+
 
 
       // Platform stewardship — Phase F guardrail.
