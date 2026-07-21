@@ -26,6 +26,48 @@ import { createDriver } from './drivers/DriverRegistry';
 import type { DriverType } from './drivers/DriverInterface';
 import { hardwareEventBus } from './HardwareEventBus';
 
+/**
+ * ADR-0087 — mirror of the main-process ZPL envelope logic. Strip any
+ * `^PW`/`^LL` present in the body and re-emit them from the resolved
+ * media so the browser fallback path scales content the same way the
+ * Electron/LAN-agent paths do.
+ */
+function injectZplEnvelope(
+  zpl: string,
+  p: { mediaWidthMm?: number; mediaHeightMm?: number; dpi?: number },
+): string {
+  const w = Number(p.mediaWidthMm);
+  const h = Number(p.mediaHeightMm);
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return zpl;
+  const dpi = Number(p.dpi) || 203;
+  const dpmm = dpi / 25.4;
+  const widthDots = Math.max(1, Math.round(w * dpmm));
+  const heightDots = Math.max(1, Math.round(h * dpmm));
+  const stripped = zpl.replace(/\^PW\d+/g, '').replace(/\^LL\d+/g, '');
+  const head = stripped.indexOf('^XA');
+  if (head < 0) return `^XA\n^PW${widthDots}\n^LL${heightDots}\n${stripped}\n^XZ`;
+  const before = stripped.slice(0, head + 3);
+  const after = stripped.slice(head + 3);
+  return `${before}\n^PW${widthDots}\n^LL${heightDots}${after.startsWith('\n') ? '' : '\n'}${after}`;
+}
+
+function injectEplEnvelope(
+  epl: string,
+  p: { mediaWidthMm?: number; mediaHeightMm?: number; dpi?: number },
+): string {
+  const w = Number(p.mediaWidthMm);
+  const h = Number(p.mediaHeightMm);
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return epl;
+  const dpi = Number(p.dpi) || 203;
+  const dpmm = dpi / 25.4;
+  const widthDots = Math.max(1, Math.round(w * dpmm));
+  const heightDots = Math.max(1, Math.round(h * dpmm));
+  const stripped = epl
+    .replace(/^\s*q\d+\s*\r?\n/gm, '')
+    .replace(/^\s*Q\d+,\d+(?:\+\d+)?\s*\r?\n/gm, '');
+  return `q${widthDots}\r\nQ${heightDots},24\r\n${stripped}`;
+}
+
 export interface DeviceAssignment {
   id: string;
   deviceRole: DeviceRole;
@@ -168,16 +210,25 @@ class BrowserHardwareAdapterService {
           : 'receipt_printer';
         const type = cmd.op === 'print_receipt' ? 'print_receipt' : 'print_raw';
         // Normalize label payload → raw byte array. labelDispatch emits
-        // `{ zpl }` / `{ bytes }` / `{ pdfUrl }` shaped for the main-process
-        // label drivers; the renderer fallback speaks raw bytes only, so
-        // extract/encode here before handing to the ESC/POS transport.
-        // Without this, `{ zpl: "..." }` would be forwarded as the HTTP
-        // `data` field and the local agent would reject with
-        // "Missing required fields: ipAddress, port, data".
+        // `{ zpl }` / `{ epl }` / `{ bytes }` / `{ pdfUrl }` shaped for the
+        // main-process label drivers; the renderer fallback speaks raw
+        // bytes only, so extract/encode here before handing to the
+        // transport. ADR-0087: when the payload carries media hints
+        // (`mediaWidthMm`, `mediaHeightMm`, `dpi`), inject the paper
+        // envelope so ZPL/EPL bodies rendered from `label_templates` scale
+        // to the resolved media on the browser path too.
         const raw = cmd.payload as
           | number[]
           | Uint8Array
-          | { bytes?: number[] | Uint8Array; zpl?: string; epl?: string; text?: string }
+          | {
+              bytes?: number[] | Uint8Array;
+              zpl?: string;
+              epl?: string;
+              text?: string;
+              mediaWidthMm?: number;
+              mediaHeightMm?: number;
+              dpi?: number;
+            }
           | undefined;
         let bytes: number[] | Uint8Array | undefined;
         if (Array.isArray(raw) || raw instanceof Uint8Array) {
@@ -186,9 +237,11 @@ class BrowserHardwareAdapterService {
           if (Array.isArray(raw.bytes) || raw.bytes instanceof Uint8Array) {
             bytes = raw.bytes;
           } else if (typeof raw.zpl === 'string') {
-            bytes = Array.from(new TextEncoder().encode(raw.zpl));
+            const enveloped = injectZplEnvelope(raw.zpl, raw);
+            bytes = Array.from(new TextEncoder().encode(enveloped));
           } else if (typeof raw.epl === 'string') {
-            bytes = Array.from(new TextEncoder().encode(raw.epl));
+            const enveloped = injectEplEnvelope(raw.epl, raw);
+            bytes = Array.from(new TextEncoder().encode(enveloped));
           } else if (typeof raw.text === 'string') {
             bytes = Array.from(new TextEncoder().encode(raw.text));
           }
