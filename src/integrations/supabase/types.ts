@@ -33418,18 +33418,25 @@ export type Database = {
       }
       payroll_run_jobs: {
         Row: {
+          accepted_at: string | null
+          attempt: number
           business_id: string | null
+          cancel_requested_at: string | null
           created_at: string
           employee_count: number
           error_code: string | null
           error_message: string | null
           finished_at: string | null
+          heartbeat_at: string | null
           id: string
           idempotency_key: string
           organization_id: string
           pay_period_end: string
           pay_period_start: string
           payroll_run_id: string | null
+          phase: string | null
+          progress_current: number
+          progress_total: number
           request_payload: Json
           requested_by: string | null
           result: Json | null
@@ -33439,18 +33446,25 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accepted_at?: string | null
+          attempt?: number
           business_id?: string | null
+          cancel_requested_at?: string | null
           created_at?: string
           employee_count?: number
           error_code?: string | null
           error_message?: string | null
           finished_at?: string | null
+          heartbeat_at?: string | null
           id?: string
           idempotency_key: string
           organization_id: string
           pay_period_end: string
           pay_period_start: string
           payroll_run_id?: string | null
+          phase?: string | null
+          progress_current?: number
+          progress_total?: number
           request_payload?: Json
           requested_by?: string | null
           result?: Json | null
@@ -33460,18 +33474,25 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accepted_at?: string | null
+          attempt?: number
           business_id?: string | null
+          cancel_requested_at?: string | null
           created_at?: string
           employee_count?: number
           error_code?: string | null
           error_message?: string | null
           finished_at?: string | null
+          heartbeat_at?: string | null
           id?: string
           idempotency_key?: string
           organization_id?: string
           pay_period_end?: string
           pay_period_start?: string
           payroll_run_id?: string | null
+          phase?: string | null
+          progress_current?: number
+          progress_total?: number
           request_payload?: Json
           requested_by?: string | null
           result?: Json | null
@@ -77740,6 +77761,7 @@ export type Database = {
         }
         Returns: Json
       }
+      payroll_request_cancel: { Args: { p_job_id: string }; Returns: undefined }
       payroll_required_gl_mappings_for_run: {
         Args: { p_run_id: string }
         Returns: {
@@ -77853,6 +77875,7 @@ export type Database = {
         Returns: boolean
       }
       payroll_supersede_v1_certificates: { Args: never; Returns: number }
+      payroll_sweep_stale_jobs: { Args: never; Returns: number }
       payroll_validate_post_mappings: {
         Args: { p_run_id: string }
         Returns: {

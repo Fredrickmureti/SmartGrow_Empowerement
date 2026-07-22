@@ -224,6 +224,16 @@ export function usePayroll() {
       throw err;
     }
 
+    // Enterprise execution model — the edge function may have accepted the
+    // job and dispatched a background worker instead of running the engine
+    // inline. In that case there is NO `payroll_run` in the response — the
+    // UI transitions to observing `payroll_run_jobs` over realtime.
+    if (data?.accepted && data?.job_id) {
+      toast.info("Payroll queued — you can track progress in the runs list.");
+      await fetchPayrollRuns();
+      return { __async: true, job_id: data.job_id, status: data.status ?? "queued" } as any;
+    }
+
     // Show warnings if any (e.g., negative net pay adjustments)
     if (data?.warnings?.length > 0) {
       for (const w of data.warnings) {
