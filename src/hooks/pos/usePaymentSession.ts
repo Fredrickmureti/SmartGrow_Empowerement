@@ -127,7 +127,23 @@ export interface UsePaymentSession {
    * if this is the first tender.
    */
   recordTender: (tender: PosSessionTenderInput) => Promise<PaymentSessionTenderRow>;
-  reverseTender: (tenderId: string, reason: string) => Promise<void>;
+  reverseTender: (
+    tenderId: string,
+    reason: string,
+    /**
+     * Optional override + envelope forwarded to
+     * `pos_payment_session_reverse_tender`. Required whenever the
+     * `pos_override_matrix` has a row for
+     * `pos_payment_session_reverse_tender` — the server calls
+     * `assert_manager_override` unconditionally. Stage 3.
+     */
+    approval?: {
+      managerOverrideId?: string | null;
+      organizationId?: string | null;
+      businessId?: string | null;
+      shiftId?: string | null;
+    },
+  ) => Promise<void>;
   commit: (envelope: CommitSessionEnvelope) => Promise<CommitSessionResult>;
   cancel: (reason: string) => Promise<void>;
   /** Force a re-fetch of the tender list from the server. */
