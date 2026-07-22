@@ -52,9 +52,8 @@ export function CartItemEditor({
     notes?: string;
   } | null>(null);
 
-  const { currentOrg } = useOrganization();
   const { settings } = usePOSSecuritySettings();
-  const { requestOverride, isVerifying } = useManagerOverride(currentOrg?.id);
+  const { requestOverride, isVerifying } = useManagerOverride();
   const { formatCurrency } = useCurrency();
 
   useEffect(() => {
