@@ -62,7 +62,7 @@ import { useManagerOverride } from "@/hooks/pos/useManagerOverride";
 import { ManagerOverrideDialog } from "@/components/pos/ManagerOverrideDialog";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
-import { parseOverrideError } from "@/services/pos/reversal/overrideErrors";
+// parseOverrideError is applied at the card-tender edge (CardPaymentActions).
 import type { EligibilityFacts } from "@/services/pos/reversal/eligibility";
 import { toast } from "sonner";
 import { format } from "date-fns";
