@@ -430,6 +430,10 @@ export async function run(req: Request): Promise<Response> {
           created_new: glMappingsCreated,
           failures: glFailures,
         },
+        legal_order_kinds: {
+          projected: legalOrderKindsInstalled,
+          error: legalOrderKindsError,
+        },
       },
     };
 
