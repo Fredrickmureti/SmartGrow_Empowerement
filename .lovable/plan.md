@@ -1,92 +1,90 @@
-## Findings
+# Payroll Run Progress — Fix + Enterprise Redesign
 
-**The tax-certificate pipeline is architecturally correct. The Kenya localization pack ships a broken P9A template.** The observed symptoms all trace to that single class of defect, amplified by an engine gap that lets bad templates be persisted.
+## Why the card shows "succeeded · 0 / 1 employees"
 
-### Certificate lifecycle (as-built, verified)
+Traced end-to-end. The card is faithful — the bug is in the worker, not the UI.
 
+**`supabase/functions/compute-payroll/index.ts`**
+- Line 2684 only heartbeats progress on `payslipsData.length % 5 === 0`, so runs with fewer than 5 employees never increment `progress_current`.
+- `finalizeJob("succeeded", …)` (line 1147) writes `status`, `finished_at`, `result`, `payroll_run_id` but does **not** set `progress_current = progress_total`. The terminal row stays at `0 / 1`.
+- `PayrollJobPanel` (line 111–117) renders `progress_current / progress_total` directly, so the stale server value bleeds through.
+
+Net effect: any run of <5 employees, and every run at the finish line, misreports progress.
+
+## Scope
+
+Fix the underlying bug, then rework the card into the enterprise-grade tracker the user described (real-time, professional, optional completion chime). No changes to payroll engine math, RPCs, or accounting.
+
+## Plan
+
+### Phase 1 — Server correctness (authoritative truth)
+
+1. **Heartbeat every employee**, not every 5th.
+   - In the `for (const emp of employees)` loop, replace the mod-5 gate with an unconditional `await heartbeat("computing", { current: payslipsData.length, total: employees.length })` at the top of each iteration (still cheap: one UPDATE per employee).
+   - Add a post-employee heartbeat after `payslipsData.push(...)` so the counter reflects *completed*, not *in-flight*, work.
+2. **`finalizeJob` snaps progress to terminal state.**
+   - On `succeeded`: also write `progress_current = progress_total` (fallback to `employee_count` if `progress_total = 0`), and `phase = "completed"`.
+   - On `failed` (both `finalizeJob` and the outer catch at line 5484): write `phase = "failed"` and leave counters as they were so operators see how far it got.
+3. **Phase labels normalized** to a fixed enum so the UI can drive icons/copy: `queued → preparing → computing → posting → completed | failed | cancelled`.
+
+### Phase 2 — Card redesign (`src/components/payroll/PayrollJobPanel.tsx`)
+
+Replace the current single-row card with an enterprise tracker. Same file, same hook (`useActivePayrollJobs`), no new realtime channels.
+
+Structure per job:
+```text
+┌─ Payroll · May 2026 (regular) · Attempt 1 ────────── [succeeded] ─┐
+│  ● Preparing   ●  Computing   ●  Posting   ●  Completed           │
+│  ████████████████████████████████████████████████████ 100%        │
+│  12 of 12 employees processed · finished 2 min ago · 34 s elapsed │
+│  0 warnings · Journal entry JE-2026-0518 posted                   │
+│  [ View run ]  [ Download payslips ]  [ Cancel ]                  │
+└───────────────────────────────────────────────────────────────────┘
 ```
-payslip_lines (frozen at run.approved_at)
-   ↓
-payroll_employee_ytd_rollup  (canonical YTD projection — SQL RPC)
-payroll_employee_monthly_breakdown  (canonical monthly projection — SQL RPC)
-   ↓
-resolveCertificateYtd  (single reader — ADR-0060, arch-test locked)
-   ↓
-generate-tax-certificate  (template resolve → structural validate → payload assemble)
-   ↓
-certificate-engine v3 compile (HTML, CSS Paged Media — “preview === output”)
-   ↓
-payroll_tax_certificates row (payload snapshot + artifacts[] + provenance)
-   ↓
-lifecycle: issued / superseded / stale (regenerate flow)
-```
 
-The renderer never computes; formulas live in the pack template's `derived_columns`. That layering is right. The problem is upstream: the pack shipped a template where the formulas are missing.
+Visual/UX rules:
+- **Semantic tokens only** (`--primary`, `--muted`, `--success` if defined; add `--success` HSL to `index.css` if missing). No hardcoded `text-green-600`.
+- **Phase stepper** (4 dots) driven by normalized `phase`; completed phases filled, current phase pulsing, future phases muted.
+- **Progress bar always reflects reality**: when `status = "succeeded"` force `pct = 100` and counter `= progress_total || employee_count`, so even if a legacy row lands with stale counters the UI is truthful.
+- **Elapsed time** ticks live via a 1 s `setInterval` while `status ∈ {queued, running}`; frozen at `finished_at - started_at` when terminal.
+- **Density**: compact mode when >1 active job (collapse detail row); expanded when a job is the sole active one.
+- **Terminal auto-dismiss**: keeps the 15-min recentTerminal window but adds a small "Dismiss" affordance.
+- **Accessibility**: `role="status"` + `aria-live="polite"`; each phase dot has `aria-label`; progress bar has `aria-valuenow`.
 
-### Root cause
+### Phase 3 — Completion sound (opt-in, respectful)
 
-`localization_pack_certificate_templates.body.document[6]` for `P9A` (grid node bound to `p9.months`) declares 18 columns. Six of them — `col_d` (Total Gross Pay = A+B+C), `col_e1` (defined pension contribution), `col_e3` (actual pension contribution), `col_j` (chargeable pay), `col_k` (chargeable pay after mortgage relief), `col_l` (tax charged) — carry **no `source_key`, no membership in `derived_columns`**. These columns are statutorily computed, not read from a rule_code.
+- Ship two short WAVs (`success.wav` ~500 ms soft two-note chime, `failure.wav` ~400 ms low tone) under `src/assets/sounds/`.
+- Play once per job transition `running → succeeded | failed`, detected in `PayrollJobPanel` by diffing prev vs next status per `job.id` in a ref.
+- Guardrails:
+  - **User preference**: setting stored in `localStorage` key `payroll.jobPanel.sound` (`on | off`), default **on**. Toggle mounted in the panel header (speaker icon).
+  - Respect browser autoplay policy — swallow rejected `audio.play()` promises silently.
+  - Never play on initial mount (only on observed transition), never for jobs older than 60 s at mount time.
+  - Skip when `document.hidden === false` is not required; do fire when tab is backgrounded so accountants notice.
+- No sound framework — a plain `HTMLAudioElement` per file, lazily constructed.
 
-The engine's structural validator (`validateCanonicalSourceNode`) correctly refuses this with **HTTP 422 `TEMPLATE_STRUCTURAL_INVALID` / `GRID_COLUMN_UNBOUND`**. That is exactly the 422 the user sees on regenerate. Any prior "successful" issuance either predates this validator or was skipped via the idempotency short-circuit — the resulting payload contained `p9.months` rows with zeros in every unbound column, which is the "generates but empty" symptom.
+### Phase 4 — Verification
 
-The DB-level guard `assert_certificate_template_body_valid` does not enforce the column-binding contract, so the bad body was accepted at pack-publish time. That is the systemic gap.
+- Manual: run a 1-employee payroll, confirm bar reaches 100% and counter reads `1 / 1`.
+- Manual: run ≥5 employees, confirm counter ticks every employee (not every 5).
+- Manual: simulate failure via unmapped GL key, confirm phase = "failed", counter frozen at last completed employee, failure chime plays once.
+- Add a unit test on the card: given `{ status: "succeeded", progress_current: 0, progress_total: 1, employee_count: 1 }`, it renders "1 / 1" and 100%.
+- Update plan/audit docs (`.lovable/plan.md`) with a new "Payroll Job Panel Hardening" entry under Phase-current.
 
-### Architectural verdict
+## Out of scope
 
-- Pipeline design (canonical resolver → declarative pack → generic renderer) is sound and matches how SAP HCM / Workday / Oracle HCM separate statutory schema from computation.
-- Two concrete defects to fix:
-  1. **Kenya pack P9A template body is incomplete** — missing `derived_columns` block for the computed KRA columns.
-  2. **Engine allows structurally-invalid templates to be persisted** — runtime refuses them, but by then they have already shipped and every generation attempt 422s.
+- Payroll engine math, GL posting, RLS, or any change to `payroll_run_jobs` schema (all fields we need already exist).
+- Notifications outside the panel (email/push/toast) — the panel is the single source of truth per existing ADR.
+- Multi-tenant sound settings; single per-browser toggle is enough for v1.
 
-## Remediation plan
+## Files touched
 
-### 1. Republish P9A with complete `derived_columns` (migration)
+- `supabase/functions/compute-payroll/index.ts` (heartbeat every employee, terminal snap in `finalizeJob`, phase enum).
+- `src/components/payroll/PayrollJobPanel.tsx` (redesign, sound, elapsed timer, sound toggle).
+- `src/assets/sounds/success.wav`, `src/assets/sounds/failure.wav` (new).
+- `src/index.css` — add `--success` token if not present.
+- `.lovable/plan.md` — log the hardening entry.
+- Optional: `src/components/payroll/__tests__/PayrollJobPanel.test.tsx`.
 
-Update the pack row in `localization_pack_certificate_templates` (code=`P9A`, pack_id=Kenya) via migration to attach a `derived_columns` array to the grid node:
+## Next-agent handoff
 
-- `col_d = col_a + col_b + col_c` (Total Gross Pay)
-- `col_e1 = min(0.30 * col_a, 30000)` (defined pension contribution cap, KRA 2024 rules — pack-owned constant)
-- `col_e3 = col_e1` (actual = defined when no separate contribution source)
-- `col_j = col_d − col_e1 − col_e2 − col_e3 − col_f − col_g − col_h` (chargeable pay before mortgage)
-- `col_k = col_j − col_i` (chargeable pay)
-- `col_l = paye_gross_from_bands(col_k)` — expressed via the pack's supported derived arithmetic; if bands are not expressible in current derived-column grammar, bind `col_l` to a new canonical rule_code `paye_gross` that the payroll engine already produces, and keep the derived expression only for column arithmetic
-
-The Kenya pack owns these formulas — no country logic enters the generator.
-
-### 2. Extend DB validator to enforce column-binding contract
-
-New assertion added to `assert_certificate_template_body_valid` (or a new trigger): for every `grid`/`matrix` node, every non-month data column must have `source_key` OR appear as a key in `derived_columns`. Mirrors the runtime check in `validateCanonicalSourceNode`, so a broken template cannot be inserted or updated in the first place. Backfill audit: run the same check against all existing pack rows and emit `payroll_diagnostics` for any that fail (surfaces GH_PAYE / ANNUAL_EARNINGS / CERT_OF_SERVICE regressions in one pass).
-
-### 3. Refuse silent empty issuance
-
-Add an "empty payroll year" guard in `generate-tax-certificate` after payload assembly: if `rows.length === 0` AND every monthly grid row sums to zero, refuse with `EMPTY_PAYROLL_YEAR` (recovery: "run and approve at least one payroll for FY <year> before issuing a certificate"). Removes the ambiguous "issued but blank" outcome for the certificates that are not `CERT_OF_SERVICE`.
-
-### 4. Regenerate/supersede semantics
-
-Confirmed correct: on `regenerate=true` the prior `issued` row is flipped to `superseded` and a new row is inserted, both retained (audit trail). Once (1) lands, the 422 disappears; no behavioural change needed here.
-
-### 5. Coverage tests (block regressions class-wide)
-
-Add architecture tests under `src/test/architecture/`:
-- **`certificate-templates-canonical-binding.test.ts`** — loads every row from `localization_pack_certificate_templates`, walks each grid/matrix, asserts every data column is bound. Fails CI when any pack ships an unbound column.
-- **`certificate-empty-year-refused.test.ts`** — asserts the `EMPTY_PAYROLL_YEAR` branch exists in the generator.
-
-### 6. Verification
-
-- Deploy the updated P9A pack + validator migration.
-- `curl` `generate-tax-certificate` for a known employee with approved payroll → expect populated grid.
-- `curl` for an employee with no payroll → expect `EMPTY_PAYROLL_YEAR` (not empty PDF).
-- Regenerate an already-issued cert → expect prior row superseded, new row issued, no 422.
-- Attempt to `UPDATE` a pack template body to strip `source_key` from a column → expect DB trigger refusal.
-
-### Out of scope (deliberate, keeps engine layering intact)
-
-- No changes to the renderer (`certificate-engine v3 compile`) — computation must not migrate into HTML.
-- No changes to `resolveCertificateYtd` — it is already the single reader.
-- No new per-country branches in the generator.
-
-### Technical notes
-
-- Files: `supabase/functions/generate-tax-certificate/index.ts`, `supabase/functions/_shared/certificateSourceResolver.ts`, `supabase/functions/_shared/certificateMatrix.ts`.
-- New migration touches `localization_pack_certificate_templates` (P9A body update) and `assert_certificate_template_body_valid` (or adds a companion trigger). No new tables.
-- All new refusals go through `businessError()` so the UI keeps rendering the structured `{code, message, recovery}` envelope.
+After merge: verify by running a 1-employee payroll on the preview tenant and confirming (a) `payroll_run_jobs.progress_current = progress_total` at terminal state via `supabase--read_query`, (b) card shows 100% and matching counter, (c) success chime plays once with sound toggle on and is silent with it off.

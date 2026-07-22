@@ -1150,6 +1150,26 @@ Deno.serve(async (req) => {
     ) => {
       if (!jobId) return;
       try {
+        // On success, snap the progress bar to 100% so the UI never renders
+        // "succeeded · 0 / N employees" just because the loop finished before
+        // the last per-employee heartbeat landed. On failure, leave counters
+        // in place so operators can see how far the run got.
+        let terminalSnap: Record<string, unknown> = {};
+        if (state === "succeeded") {
+          try {
+            const { data: cur } = await supabaseAdmin
+              .from("payroll_run_jobs")
+              .select("progress_total, employee_count")
+              .eq("id", jobId)
+              .maybeSingle();
+            const total = Number((cur as any)?.progress_total || (cur as any)?.employee_count || 0);
+            terminalSnap = { progress_current: total, progress_total: total, phase: "completed" };
+          } catch {
+            terminalSnap = { phase: "completed" };
+          }
+        } else {
+          terminalSnap = { phase: "failed" };
+        }
         await supabaseAdmin
           .from("payroll_run_jobs")
           .update({
@@ -1159,6 +1179,7 @@ Deno.serve(async (req) => {
             payroll_run_id: payload.payrollRunId ?? null,
             error_code: payload.errorCode ?? null,
             error_message: payload.errorMessage ?? null,
+            ...terminalSnap,
           })
           .eq("id", jobId);
       } catch (e) {
@@ -2680,10 +2701,9 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // Heartbeat every 5 employees to keep the sweeper happy on large runs.
-      if (payslipsData.length > 0 && payslipsData.length % 5 === 0) {
-        await heartbeat("running", { current: payslipsData.length, total: employees.length });
-      }
+      // Heartbeat every employee so the UI progress bar is truthful even on
+      // small runs (previous mod-5 gate left <5-employee runs at 0/N).
+      await heartbeat("computing", { current: payslipsData.length, total: employees.length });
       // ─── Salary source: salary structure → contract → reject ───
       const contract = contractByEmployee[emp.id];
       let basicSalary: number;
@@ -4287,6 +4307,8 @@ Deno.serve(async (req) => {
         _inputs: inputRows,
       });
       phase("employee-loop-end", { emp: emp.employee_number, empMs: Date.now() - _empPhaseStart });
+      // Reflect this employee as *completed* in the progress bar.
+      await heartbeat("computing", { current: payslipsData.length, total: employees.length });
     }
 
     // ─── Dry-run: return preview without persisting ───
@@ -5487,6 +5509,7 @@ Deno.serve(async (req) => {
           .from("payroll_run_jobs")
           .update({
             status: "failed",
+            phase: "failed",
             finished_at: new Date().toISOString(),
             error_code: error?.code ?? null,
             error_message: error?.message ?? String(error),
