@@ -38,7 +38,7 @@ import { Plus, Pencil, Trash2, Scale, History, BookOpen, FileText, Workflow } fr
 import { GarnishmentDashboard } from "@/components/payroll/GarnishmentDashboard";
 import { AuthorityPicker } from "@/components/payroll/AuthorityPicker";
 import { LegalOrderDocuments } from "@/components/payroll/LegalOrderDocuments";
-import { useLegalOrder } from "@/hooks/useLegalOrders";
+import { useLegalOrder, useLegalOrders } from "@/hooks/useLegalOrders";
 
 /**
  * Allowed FSM transitions per source status. Mirrors garnishment_transition()
@@ -115,6 +115,25 @@ export default function GarnishmentsPage() {
     for (const e of employees) m.set(e.id, `${e.first_name} ${e.last_name}`);
     return m;
   }, [employees]);
+
+  // Resolved legal-order rows keyed by id — powers per-row compliance badges
+  // (priority_class, always_first, evidence-missing) without a second query per row.
+  const { data: legalOrderRows = [] } = useLegalOrders();
+  const legalOrderById = useMemo(() => {
+    const m = new Map<string, typeof legalOrderRows[number]>();
+    for (const r of legalOrderRows) m.set(r.id, r);
+    return m;
+  }, [legalOrderRows]);
+  const complianceCounts = useMemo(() => {
+    let pending = 0, missingEvidence = 0, alwaysFirst = 0;
+    for (const r of legalOrderRows) {
+      if (r.status === "pending_approval") pending++;
+      if ((r as any).priority_class === 1) alwaysFirst++;
+      const req = (r.evidence_requirements as any)?.required_kinds;
+      if (Array.isArray(req) && req.length > 0 && !r.document_url) missingEvidence++;
+    }
+    return { pending, missingEvidence, alwaysFirst };
+  }, [legalOrderRows]);
 
   const empty = {
     employee_id: "",
