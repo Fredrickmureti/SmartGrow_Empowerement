@@ -105,6 +105,8 @@ export function CreatePayrollDialog({
       <SheetContent
         side="right"
         className="w-full sm:!max-w-5xl p-0 flex flex-col overflow-hidden"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <SheetHeader className="px-5 py-4 border-b shrink-0">
           <SheetTitle className="text-base sm:text-lg">Create Payroll Run</SheetTitle>
