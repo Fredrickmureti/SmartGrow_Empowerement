@@ -12,7 +12,7 @@ import { usePOSDiscounts, POSDiscount } from "@/hooks/pos/usePOSDiscounts";
 import { useManagerOverride } from "@/hooks/pos/useManagerOverride";
 import { ManagerOverrideDialog } from "./ManagerOverrideDialog";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useOrganization } from "@/hooks/useOrganization";
+
 import { cn } from "@/lib/utils";
 
 interface ActiveSession {
