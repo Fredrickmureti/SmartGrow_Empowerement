@@ -32,6 +32,7 @@ import noRawPdfLibInEdgeFunctions from "./eslint-rules/no-raw-pdf-lib-in-edge-fu
 import noDirectGenerateDocumentInPages from "./eslint-rules/no-direct-generate-document-in-pages.js";
 import noProductIdAsBarcode from "./eslint-rules/no-product-id-as-barcode.js";
 import noDialogForPosWorkspace from "./eslint-rules/no-dialog-for-pos-workspace.js";
+import noLooseManagerOverrideArgs from "./eslint-rules/no-loose-manager-override-args.js";
 
 
 
@@ -78,6 +79,9 @@ export default tseslint.config(
           "no-direct-generate-document-in-pages": noDirectGenerateDocumentInPages,
           "no-product-id-as-barcode": noProductIdAsBarcode,
           "no-dialog-for-pos-workspace": noDialogForPosWorkspace,
+          "no-loose-manager-override-args": noLooseManagerOverrideArgs,
+
+
 
         },
       },
@@ -92,6 +96,10 @@ export default tseslint.config(
       // Phase 1C of Zero-Trust audit: escalated from `warn` to `error` so CI
       // fails on every unscoped query.
       "local/require-business-scope": "error",
+      // Stage 1 of POS refund/reversal remediation: forbid loose scalar
+      // args to useManagerOverride; the envelope-object form is the
+      // only legal shape. See .lovable/plan.md.
+      "local/no-loose-manager-override-args": "error",
       // Overlay guard: forbids `cond && <Dialog/Sheet/AlertDialog/Drawer>`,
       // which leaks Radix's body `pointer-events: none` and freezes the UI.
       // See docs/architecture/OVERLAYS.md.

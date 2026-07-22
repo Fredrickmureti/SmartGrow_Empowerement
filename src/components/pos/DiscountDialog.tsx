@@ -12,7 +12,7 @@ import { usePOSDiscounts, POSDiscount } from "@/hooks/pos/usePOSDiscounts";
 import { useManagerOverride } from "@/hooks/pos/useManagerOverride";
 import { ManagerOverrideDialog } from "./ManagerOverrideDialog";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useOrganization } from "@/hooks/useOrganization";
+
 import { cn } from "@/lib/utils";
 
 interface ActiveSession {
@@ -50,9 +50,8 @@ export function DiscountDialog({
 }: DiscountDialogProps) {
   const { discounts, getApplicableDiscounts, calculateDiscount } = usePOSDiscounts();
   const { formatCurrency, getCurrencySymbol } = useCurrency();
-  const { currentOrg } = useOrganization();
   // Stage 8.6: server-side gate via assert_manager_override / pos_override_matrix.
-  const { requestOverride, isVerifying } = useManagerOverride(currentOrg?.id);
+  const { requestOverride, isVerifying } = useManagerOverride();
   
   const [activeTab, setActiveTab] = useState("presets");
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");

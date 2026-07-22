@@ -76,7 +76,7 @@ export function ReturnWorkspace({ registerId, shiftId }: ReturnWorkspaceProps) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   // Stage 8.6: PIN/threshold gate is server-side via assert_manager_override.
-  const { requestOverride, isVerifying } = useManagerOverride(currentOrg?.id, currentBusiness?.id);
+  const { requestOverride, isVerifying } = useManagerOverride();
 
   const active = state.phase === "return";
   const close = () => {

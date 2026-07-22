@@ -119,7 +119,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
     null,
     "pos_receipt",
   );
-  const { requestOverride, isVerifying } = useManagerOverride(currentOrg?.id);
+  const { requestOverride, isVerifying } = useManagerOverride();
 
   const {
     transactions,

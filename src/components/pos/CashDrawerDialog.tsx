@@ -68,7 +68,7 @@ export function CashDrawerDialog({
     usePOSCashDrawer(shiftId);
   const { data: typeConfigs = [], isLoading: typesLoading } = usePOSCashMovementTypes();
   // settings hook removed — server-side matrix is the source of truth
-  const { requestOverride, isVerifying } = useManagerOverride(currentOrg?.id);
+  const { requestOverride, isVerifying } = useManagerOverride();
   const sound = usePOSSound();
 
   const [activeTab, setActiveTab] = useState("add");
