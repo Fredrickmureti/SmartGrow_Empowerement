@@ -22,8 +22,11 @@ import { cardTerminal, type CardAuthState } from "@/services/pos/CardTerminalCon
 import { ManagerOverrideDialog } from "@/components/pos/ManagerOverrideDialog";
 import { useManagerOverride } from "@/hooks/pos/useManagerOverride";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useTerminalSessionEnvelope } from "@/services/pos/session/TerminalSessionEnvelope";
+import { parseOverrideError } from "@/services/pos/reversal/overrideErrors";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
 
 export interface CardPaymentActionsPayment {
   id: string;
