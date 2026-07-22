@@ -133,7 +133,7 @@ export default function PayrollRuns() {
    *  - "user"     → plain validation toast
    */
   const classifyPayrollError = (err: any): {
-    kind: "setup" | "internal" | "user" | "offline";
+    kind: "setup" | "internal" | "user" | "offline" | "transport";
     msg: string;
     reasons: string[];
     runtimeBlockers: import("@/hooks/payroll/usePayrollReadiness").PayrollReadinessBlocker[] | null;
