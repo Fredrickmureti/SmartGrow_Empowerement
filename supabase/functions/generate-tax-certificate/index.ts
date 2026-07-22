@@ -606,6 +606,35 @@ Deno.serve(async (req) => {
         const provenance = source.provenance;
         const totals = source.totals;
 
+        // Refuse silent empty issuance. If the canonical YTD projection
+        // returned rows but every meaningful total is zero (no gross pay,
+        // no deductions, no employee/employer contributions), the
+        // certificate would render a grid of zeros — indistinguishable
+        // from an unpayrolled employee. Enterprise payroll systems refuse
+        // to file/issue statutory documents in this state (SAP HCM
+        // `PC00_M99_CIPE` "no payroll periods for year"; Workday
+        // "Complete required"). Skip with a structured reason so the
+        // batch surfaces the exact employees that need action.
+        if (!isServiceCertificate) {
+          const activity =
+            (Number((totals as any).gross_pay) || 0) +
+            (Number((totals as any).deductions) || 0) +
+            (Number((totals as any).employee) || 0) +
+            (Number((totals as any).employer) || 0) +
+            (Number((totals as any).taxable) || 0);
+          if (activity === 0) {
+            skipped.push({
+              employee_id: emp.id,
+              employee_number: (emp as any).employee_number ?? null,
+              reason: "EMPTY_PAYROLL_YEAR",
+              message: `Every payroll total for this employee in FY ${body.fiscal_year} is zero. Run and approve at least one payroll for this employee before issuing a certificate.`,
+            });
+            continue;
+          }
+        }
+
+
+
         const payload = {
           template_code: template.code,
           template_layout: template.layout,
