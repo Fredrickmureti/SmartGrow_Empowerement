@@ -262,7 +262,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
       });
       const hasSettledTender = tx.status === "completed" && payments.length > 0;
       return {
-        status: tx.status === "voided" ? "voided" : tx.status === "completed" ? "completed" : "pending",
+        status: tx.status === "voided" ? "voided" : tx.status === "completed" ? "completed" : "unknown",
         isOnCurrentShift: tx.shift_id === shiftId,
         hasSettledTender,
         hasAuthorizedCardTender,
