@@ -63,7 +63,9 @@ describe("paymentSessionClient", () => {
         p_cashier_id: "cash-1",
         p_settlement_currency: "KES",
         p_tip_policy: "none",
+        p_fx_rate: 1,
       });
+
 
     });
 
