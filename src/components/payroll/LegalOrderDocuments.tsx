@@ -50,7 +50,7 @@ interface Props {
 }
 
 export function LegalOrderDocuments({ garnishmentId, evidenceRequirements, canWrite = true }: Props) {
-  const { organization } = useOrganization();
+  const { currentOrg: organization } = useOrganization();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<LegalOrderDocumentRow["document_kind"]>("order");

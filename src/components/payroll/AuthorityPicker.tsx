@@ -41,7 +41,7 @@ interface Props {
 }
 
 export function AuthorityPicker({ value, fallbackText, onChange, disabled }: Props) {
-  const { organization } = useOrganization();
+  const { currentOrg: organization } = useOrganization();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [draft, setDraft] = useState({
