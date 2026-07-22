@@ -165,6 +165,76 @@ async function purgeBucketPrefix(
 // uses the central convention registry (Phase 2 governance). Do NOT
 // re-introduce a local TENANT_BUCKETS array here.
 
+/**
+ * Observability: persist an audit row per reset attempt to public.reset_runs.
+ * Best-effort — failures here never block or fail the reset itself, they are
+ * only logged. The row is written under service-role so RLS does not apply.
+ */
+// deno-lint-ignore no-explicit-any
+async function startRun(admin: any, row: {
+  organization_id: string | null;
+  initiated_by: string | null;
+  mode: string;
+  categories?: string[] | null;
+  trigger_source?: string | null;
+}): Promise<{ id: string | null; startedAt: number }> {
+  const startedAt = Date.now();
+  try {
+    const { data, error } = await admin
+      .from("reset_runs")
+      .insert({
+        organization_id: row.organization_id,
+        initiated_by: row.initiated_by,
+        mode: row.mode,
+        categories: row.categories ?? null,
+        trigger_source: row.trigger_source ?? null,
+        stage: "started",
+      })
+      .select("id")
+      .single();
+    if (error) {
+      console.error("[clear-org-data] reset_runs insert failed:", error.message);
+      return { id: null, startedAt };
+    }
+    return { id: data?.id ?? null, startedAt };
+  } catch (e) {
+    console.error("[clear-org-data] reset_runs insert threw:", e);
+    return { id: null, startedAt };
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+async function finishRun(admin: any, run: { id: string | null; startedAt: number }, patch: {
+  ok: boolean;
+  stage: string;
+  error?: string | null;
+  error_code?: string | null;
+  error_hint?: string | null;
+  counts?: unknown;
+  storage_result?: unknown;
+}) {
+  if (!run.id) return;
+  try {
+    await admin
+      .from("reset_runs")
+      .update({
+        ok: patch.ok,
+        stage: patch.stage,
+        error: patch.error ?? null,
+        error_code: patch.error_code ?? null,
+        error_hint: patch.error_hint ?? null,
+        counts: patch.counts ?? null,
+        storage_result: patch.storage_result ?? null,
+        finished_at: new Date().toISOString(),
+        duration_ms: Date.now() - run.startedAt,
+      })
+      .eq("id", run.id);
+  } catch (e) {
+    console.error("[clear-org-data] reset_runs update threw:", e);
+  }
+}
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
