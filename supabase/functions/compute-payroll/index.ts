@@ -1420,6 +1420,7 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    phase("employees-loaded", { count: employees.length });
 
     // ─── Fetch profile names for display ───
     const userIds = employees.filter(e => e.user_id).map(e => e.user_id);
