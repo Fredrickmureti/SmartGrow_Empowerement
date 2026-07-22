@@ -841,6 +841,25 @@ Deno.serve(async (req) => {
     } = body;
     let { pay_period_start, pay_period_end } = body;
 
+    // ─── Phase timer ───────────────────────────────────────────────────
+    // Lightweight instrumentation so we can pinpoint which section of the
+    // engine consumes the wall clock when a preview times out on the client.
+    // Emits one structured line per phase with elapsed-since-start and
+    // elapsed-since-previous-phase in milliseconds.
+    const _phaseT0 = Date.now();
+    let _phaseLast = _phaseT0;
+    const phase = (label: string, extra?: Record<string, unknown>) => {
+      const now = Date.now();
+      const total = now - _phaseT0;
+      const delta = now - _phaseLast;
+      _phaseLast = now;
+      console.log(
+        `[compute-payroll:phase] ${label} +${delta}ms total=${total}ms` +
+          (extra ? ` ${JSON.stringify(extra)}` : ""),
+      );
+    };
+    phase("request-parsed", { dry_run, employees: employee_ids?.length ?? 0 });
+
     // ─── Period management: when period_id is supplied, the period row is
     // the source of truth for the window and lock state. Caller-supplied
     // dates are only used as a fallback (back-compat). ───
