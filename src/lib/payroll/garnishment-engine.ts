@@ -21,6 +21,8 @@
 
 export {
   type GarnishmentCapRule,
+  type LegalOrderCalcModel,
+  type LegalOrderCapMembership,
   type GarnishmentOrder,
   type GarnishmentPolicy,
   type KindDefault,

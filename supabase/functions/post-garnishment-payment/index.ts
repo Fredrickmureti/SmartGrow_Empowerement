@@ -277,6 +277,32 @@ Deno.serve(async (req) => {
         actor_user_id: userId,
       });
 
+    // 10) Canonical business event — Phase 4 outbox emission.
+    //     Downstream consumers (remittance, statements, reporting) subscribe
+    //     to `legal_order.payment_posted` instead of polling the physical
+    //     garnishments/payments tables.
+    try {
+      await supabaseAdmin.from("business_event_outbox").insert({
+        organization_id,
+        business_id,
+        topic: "legal_order.payment_posted",
+        payload: {
+          legal_order_id: garnishment_id,
+          payment_id: payment.id,
+          journal_entry_id: jeId,
+          amount: total,
+          currency: null,
+          allocations: allocRows,
+          reference_number: reference_number || null,
+          payment_date,
+          actor_user_id: userId,
+        },
+      });
+    } catch (outboxErr) {
+      // Best-effort — do not fail the payment if the outbox is unavailable.
+      console.warn("[post-garnishment-payment] outbox emit failed:", (outboxErr as Error).message);
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
