@@ -1097,7 +1097,11 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          // Forward the original caller's JWT so downstream auth,
+          // entitlement, and permission checks continue to run as that
+          // user. If the JWT expires mid-worker the DB sweeper cleans up.
+          "Authorization": authHeader,
+          "apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
           "X-Payroll-Worker": "1",
         },
         body: workerBody,
