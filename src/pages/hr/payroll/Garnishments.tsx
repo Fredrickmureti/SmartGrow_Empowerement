@@ -256,6 +256,26 @@ export default function GarnishmentsPage() {
   return (
     <div className="space-y-4">
       <GarnishmentDashboard />
+      {(complianceCounts.pending + complianceCounts.missingEvidence + complianceCounts.alwaysFirst) > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs">
+          <span className="font-medium">Compliance:</span>
+          {complianceCounts.pending > 0 && (
+            <Badge variant="secondary" title="Orders awaiting a second approver (SoD).">
+              {complianceCounts.pending} pending approval
+            </Badge>
+          )}
+          {complianceCounts.missingEvidence > 0 && (
+            <Badge variant="destructive" title="Orders whose resolved legal kind requires evidence that has not been attached.">
+              {complianceCounts.missingEvidence} missing evidence
+            </Badge>
+          )}
+          {complianceCounts.alwaysFirst > 0 && (
+            <Badge variant="default" title="Statutory always-first orders (e.g. child support in many jurisdictions).">
+              {complianceCounts.alwaysFirst} always-first
+            </Badge>
+          )}
+        </div>
+      )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
