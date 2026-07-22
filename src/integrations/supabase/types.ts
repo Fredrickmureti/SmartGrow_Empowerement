@@ -75555,6 +75555,61 @@ export type Database = {
         Args: { _leave_id: string }
         Returns: number
       }
+      legal_order_transition: {
+        Args: {
+          p_action: string
+          p_evidence_url?: string
+          p_legal_order_id: string
+          p_payload?: Json
+          p_reason_code?: string
+          p_reason_text?: string
+        }
+        Returns: {
+          aggregate_cap_exempt: boolean
+          business_id: string | null
+          cap_rule: Database["public"]["Enums"]["garnishment_cap_rule"]
+          case_reference: string | null
+          created_at: string
+          created_by: string | null
+          document_filename: string | null
+          document_url: string | null
+          employee_id: string
+          employment_id: string | null
+          end_date: string | null
+          fixed_amount: number | null
+          id: string
+          is_active: boolean
+          issuing_authority: string | null
+          kind: Database["public"]["Enums"]["garnishment_kind"]
+          minimum_take_home_amount: number | null
+          notes: string | null
+          organization_id: string
+          payee_account: string | null
+          payee_bank: string | null
+          payee_contact_id: string | null
+          payee_name: string | null
+          payee_payment_method_id: string | null
+          payee_reference: string | null
+          payee_unmapped: boolean
+          percent_of_disposable: number | null
+          priority: number
+          start_date: string
+          status: Database["public"]["Enums"]["garnishment_status"]
+          status_changed_at: string | null
+          status_changed_by: string | null
+          status_reason: string | null
+          total_accrued: number
+          total_owed: number | null
+          total_paid: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_garnishments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       link_employee_to_user: {
         Args: { p_employee_id: string; p_force?: boolean; p_user_id: string }
         Returns: {
