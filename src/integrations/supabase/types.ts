@@ -19329,44 +19329,86 @@ export type Database = {
       }
       garnishment_kind_defaults: {
         Row: {
+          aggregate_cap_membership:
+            | Database["public"]["Enums"]["legal_order_cap_membership"]
+            | null
           always_first: boolean
+          calc_model:
+            | Database["public"]["Enums"]["legal_order_calc_model"]
+            | null
+          completion_rule:
+            | Database["public"]["Enums"]["legal_order_completion_rule"]
+            | null
           counts_toward_aggregate_cap: boolean
           default_priority: number
           description: string | null
           employer_fee_amount: number
           evidence_required: boolean
+          evidence_requirements: Json
           id: string
           kind: string
           max_concurrent: number | null
           organization_id: string | null
+          priority_class: number | null
+          protected_earnings_rule: Json
+          remittance_schedule_ref: string | null
+          reporting_binding_ref: string | null
           required_identifiers: Json
           source_pack_id: string | null
         }
         Insert: {
+          aggregate_cap_membership?:
+            | Database["public"]["Enums"]["legal_order_cap_membership"]
+            | null
           always_first?: boolean
+          calc_model?:
+            | Database["public"]["Enums"]["legal_order_calc_model"]
+            | null
+          completion_rule?:
+            | Database["public"]["Enums"]["legal_order_completion_rule"]
+            | null
           counts_toward_aggregate_cap?: boolean
           default_priority: number
           description?: string | null
           employer_fee_amount?: number
           evidence_required?: boolean
+          evidence_requirements?: Json
           id?: string
           kind: string
           max_concurrent?: number | null
           organization_id?: string | null
+          priority_class?: number | null
+          protected_earnings_rule?: Json
+          remittance_schedule_ref?: string | null
+          reporting_binding_ref?: string | null
           required_identifiers?: Json
           source_pack_id?: string | null
         }
         Update: {
+          aggregate_cap_membership?:
+            | Database["public"]["Enums"]["legal_order_cap_membership"]
+            | null
           always_first?: boolean
+          calc_model?:
+            | Database["public"]["Enums"]["legal_order_calc_model"]
+            | null
+          completion_rule?:
+            | Database["public"]["Enums"]["legal_order_completion_rule"]
+            | null
           counts_toward_aggregate_cap?: boolean
           default_priority?: number
           description?: string | null
           employer_fee_amount?: number
           evidence_required?: boolean
+          evidence_requirements?: Json
           id?: string
           kind?: string
           max_concurrent?: number | null
           organization_id?: string | null
+          priority_class?: number | null
+          protected_earnings_rule?: Json
+          remittance_schedule_ref?: string | null
+          reporting_binding_ref?: string | null
           required_identifiers?: Json
           source_pack_id?: string | null
         }
@@ -23774,6 +23816,60 @@ export type Database = {
           },
         ]
       }
+      legal_order_kind_overrides: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          organization_id: string
+          override_json: Json
+          reason: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          organization_id: string
+          override_json: Json
+          reason: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          organization_id?: string
+          override_json?: Json
+          reason?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_order_kind_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "legal_order_kind_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loan_lifecycle_events: {
         Row: {
           actor_user_id: string | null
@@ -24818,8 +24914,17 @@ export type Database = {
       }
       localization_pack_garnishment_kinds: {
         Row: {
+          aggregate_cap_membership:
+            | Database["public"]["Enums"]["legal_order_cap_membership"]
+            | null
           always_first: boolean
+          calc_model:
+            | Database["public"]["Enums"]["legal_order_calc_model"]
+            | null
           code: string
+          completion_rule:
+            | Database["public"]["Enums"]["legal_order_completion_rule"]
+            | null
           counts_toward_aggregate_cap: boolean
           created_at: string
           default_priority: number
@@ -24827,17 +24932,31 @@ export type Database = {
           employer_fee_account_role: string | null
           employer_fee_amount: number
           evidence_required: boolean
+          evidence_requirements: Json
           id: string
           is_active: boolean
           label: string
           max_concurrent: number | null
           pack_id: string
+          priority_class: number | null
+          protected_earnings_rule: Json
+          remittance_schedule_ref: string | null
+          reporting_binding_ref: string | null
           required_identifiers: Json
           updated_at: string
         }
         Insert: {
+          aggregate_cap_membership?:
+            | Database["public"]["Enums"]["legal_order_cap_membership"]
+            | null
           always_first?: boolean
+          calc_model?:
+            | Database["public"]["Enums"]["legal_order_calc_model"]
+            | null
           code: string
+          completion_rule?:
+            | Database["public"]["Enums"]["legal_order_completion_rule"]
+            | null
           counts_toward_aggregate_cap?: boolean
           created_at?: string
           default_priority?: number
@@ -24845,17 +24964,31 @@ export type Database = {
           employer_fee_account_role?: string | null
           employer_fee_amount?: number
           evidence_required?: boolean
+          evidence_requirements?: Json
           id?: string
           is_active?: boolean
           label: string
           max_concurrent?: number | null
           pack_id: string
+          priority_class?: number | null
+          protected_earnings_rule?: Json
+          remittance_schedule_ref?: string | null
+          reporting_binding_ref?: string | null
           required_identifiers?: Json
           updated_at?: string
         }
         Update: {
+          aggregate_cap_membership?:
+            | Database["public"]["Enums"]["legal_order_cap_membership"]
+            | null
           always_first?: boolean
+          calc_model?:
+            | Database["public"]["Enums"]["legal_order_calc_model"]
+            | null
           code?: string
+          completion_rule?:
+            | Database["public"]["Enums"]["legal_order_completion_rule"]
+            | null
           counts_toward_aggregate_cap?: boolean
           created_at?: string
           default_priority?: number
@@ -24863,11 +24996,16 @@ export type Database = {
           employer_fee_account_role?: string | null
           employer_fee_amount?: number
           evidence_required?: boolean
+          evidence_requirements?: Json
           id?: string
           is_active?: boolean
           label?: string
           max_concurrent?: number | null
           pack_id?: string
+          priority_class?: number | null
+          protected_earnings_rule?: Json
+          remittance_schedule_ref?: string | null
+          reporting_binding_ref?: string | null
           required_identifiers?: Json
           updated_at?: string
         }
@@ -75448,6 +75586,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      install_legal_order_kind_defaults: {
+        Args: { p_organization_id: string; p_pack_id: string }
+        Returns: number
+      }
       install_localization_pack_atomic: {
         Args: {
           _business_id: string
@@ -75554,6 +75696,61 @@ export type Database = {
       leave_to_attendance_stamp: {
         Args: { _leave_id: string }
         Returns: number
+      }
+      legal_order_transition: {
+        Args: {
+          p_action: string
+          p_evidence_url?: string
+          p_legal_order_id: string
+          p_payload?: Json
+          p_reason_code?: string
+          p_reason_text?: string
+        }
+        Returns: {
+          aggregate_cap_exempt: boolean
+          business_id: string | null
+          cap_rule: Database["public"]["Enums"]["garnishment_cap_rule"]
+          case_reference: string | null
+          created_at: string
+          created_by: string | null
+          document_filename: string | null
+          document_url: string | null
+          employee_id: string
+          employment_id: string | null
+          end_date: string | null
+          fixed_amount: number | null
+          id: string
+          is_active: boolean
+          issuing_authority: string | null
+          kind: Database["public"]["Enums"]["garnishment_kind"]
+          minimum_take_home_amount: number | null
+          notes: string | null
+          organization_id: string
+          payee_account: string | null
+          payee_bank: string | null
+          payee_contact_id: string | null
+          payee_name: string | null
+          payee_payment_method_id: string | null
+          payee_reference: string | null
+          payee_unmapped: boolean
+          percent_of_disposable: number | null
+          priority: number
+          start_date: string
+          status: Database["public"]["Enums"]["garnishment_status"]
+          status_changed_at: string | null
+          status_changed_by: string | null
+          status_reason: string | null
+          total_accrued: number
+          total_owed: number | null
+          total_paid: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_garnishments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       link_employee_to_user: {
         Args: { p_employee_id: string; p_force?: boolean; p_user_id: string }
@@ -81894,6 +82091,18 @@ export type Database = {
         | "confirmed"
         | "voided"
       label_engine: "zpl" | "epl" | "escpos" | "pdf"
+      legal_order_calc_model:
+        | "fixed"
+        | "percent_disposable"
+        | "percent_gross"
+        | "balance_remaining"
+        | "statutory_formula"
+      legal_order_cap_membership: "in_pool" | "exempt" | "always_first"
+      legal_order_completion_rule:
+        | "by_balance"
+        | "by_date"
+        | "by_court_order"
+        | "indefinite"
       offer_status:
         | "draft"
         | "sent"
@@ -82650,6 +82859,20 @@ export const Constants = {
         "voided",
       ],
       label_engine: ["zpl", "epl", "escpos", "pdf"],
+      legal_order_calc_model: [
+        "fixed",
+        "percent_disposable",
+        "percent_gross",
+        "balance_remaining",
+        "statutory_formula",
+      ],
+      legal_order_cap_membership: ["in_pool", "exempt", "always_first"],
+      legal_order_completion_rule: [
+        "by_balance",
+        "by_date",
+        "by_court_order",
+        "indefinite",
+      ],
       offer_status: [
         "draft",
         "sent",

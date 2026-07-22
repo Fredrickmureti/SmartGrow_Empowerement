@@ -396,6 +396,29 @@ export async function run(req: Request): Promise<Response> {
       glFailures = [{ phase: "exception", reason: (mapErr as any)?.message ?? String(mapErr) }];
     }
 
+    // Phase 2: publish legal-order kind defaults from the installed pack.
+    // The pack is the source of truth for legal behaviour; this projects it
+    // into the tenant-facing garnishment_kind_defaults table used by the
+    // engine + UI. Non-fatal — pack install still succeeds if this fails.
+    let legalOrderKindsInstalled = 0;
+    let legalOrderKindsError: string | null = null;
+    try {
+      const { data: kindsCount, error: kindsErr } = await admin.rpc(
+        "install_legal_order_kind_defaults",
+        { p_organization_id: orgId, p_pack_id: resolvedPackId },
+      );
+      if (kindsErr) {
+        legalOrderKindsError = kindsErr.message;
+        console.warn("[install-localization-pack] legal-order kind projection failed", {
+          business_id, pack_id: resolvedPackId, reason: kindsErr.message,
+        });
+      } else {
+        legalOrderKindsInstalled = Number(kindsCount ?? 0);
+      }
+    } catch (kindsExc) {
+      legalOrderKindsError = (kindsExc as any)?.message ?? String(kindsExc);
+    }
+
 
     const result = (installResult as any) || {};
     const responseBody = {
@@ -406,6 +429,10 @@ export async function run(req: Request): Promise<Response> {
           applied_existing: glMappingsApplied,
           created_new: glMappingsCreated,
           failures: glFailures,
+        },
+        legal_order_kinds: {
+          projected: legalOrderKindsInstalled,
+          error: legalOrderKindsError,
         },
       },
     };
