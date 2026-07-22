@@ -70,9 +70,8 @@ export function CardPaymentActions({
   onChanged,
   className,
 }: CardPaymentActionsProps) {
-  const { currentOrg } = useOrganization();
   const { formatCurrency } = useCurrency();
-  const { requestOverride, isVerifying } = useManagerOverride(currentOrg?.id);
+  const { requestOverride, isVerifying } = useManagerOverride();
 
   const [busy, setBusy] = useState<PendingAction>(null);
   const [overrideFor, setOverrideFor] = useState<PendingAction>(null);
