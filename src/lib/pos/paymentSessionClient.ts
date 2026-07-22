@@ -101,7 +101,19 @@ export interface ReverseTenderArgs {
   sessionId: string;
   tenderId: string;
   reason: string;
+  /**
+   * Manager approval id returned by `useManagerOverride`. Server calls
+   * `assert_manager_override` when the matrix has a row for
+   * `pos_payment_session_reverse_tender`; without a valid id above the
+   * configured threshold, the RPC raises `override_required` (SQLSTATE
+   * 42501). Safe to omit when no matrix row is configured. Stage 3.
+   */
+  managerOverrideId?: string | null;
+  organizationId?: string | null;
+  businessId?: string | null;
+  shiftId?: string | null;
 }
+
 
 export interface CancelSessionArgs {
   sessionId: string;
@@ -262,12 +274,17 @@ export async function recordTender(args: RecordTenderArgs): Promise<string> {
 
 export async function reverseTender(args: ReverseTenderArgs): Promise<void> {
   const { error } = await supabase.rpc("pos_payment_session_reverse_tender", {
-    p_session_id: args.sessionId,
-    p_tender_id: args.tenderId,
-    p_reason: args.reason,
+    p_session_id:          args.sessionId,
+    p_tender_id:           args.tenderId,
+    p_reason:              args.reason,
+    p_manager_override_id: args.managerOverrideId ?? null,
+    p_organization_id:     args.organizationId ?? null,
+    p_business_id:         args.businessId ?? null,
+    p_shift_id:            args.shiftId ?? null,
   });
   if (error) throwRpcError("pos_payment_session_reverse_tender", error);
 }
+
 
 export async function commitSession(args: CommitSessionArgs): Promise<CommitSessionResult> {
   const { data, error } = await supabase.rpc("pos_payment_session_commit", {

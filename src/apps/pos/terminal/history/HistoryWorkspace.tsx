@@ -49,6 +49,7 @@ import {
 import { PostPaymentSurface } from "../receipt/PostPaymentSurface";
 import { VoidTransactionDialog } from "@/components/pos/VoidTransactionDialog";
 import { CardPaymentActions } from "@/components/pos/transaction-detail/CardPaymentActions";
+import { TransactionActionMenu } from "./TransactionActionMenu";
 import { printClient } from "@/services/printing/PrintClient";
 import { useResolvedPrintPolicyWithDevice } from "@/hooks/useDocumentPrintPolicies";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -61,6 +62,9 @@ import { useManagerOverride } from "@/hooks/pos/useManagerOverride";
 import { ManagerOverrideDialog } from "@/components/pos/ManagerOverrideDialog";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
+// parseOverrideError is applied at the card-tender edge (CardPaymentActions).
+import type { EligibilityFacts } from "@/services/pos/reversal/eligibility";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type {
@@ -68,6 +72,7 @@ import type {
   ReceiptDocumentPayment,
 } from "@/lib/pos/receipt/ReceiptDocumentModel";
 import { useTerminalContext } from "../TerminalStateContext";
+
 
 /**
  * Extended card-tender columns not on the base `POSTransactionRecord`
@@ -237,6 +242,70 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
       voidNote: pendingVoidPayload.voidNote,
     });
   };
+
+  /**
+   * Derive Stage 2 EligibilityFacts from a persisted transaction record.
+   * Kept as a pure function so unit tests can pin the mapping — this is
+   * the authoritative bridge between the DB row shape and the taxonomy.
+   */
+  const deriveFacts = React.useCallback(
+    (tx: POSTransactionRecord): EligibilityFacts => {
+      const payments = tx.payments ?? [];
+      const items = tx.items ?? [];
+      const cardPayments = payments.filter((p) => {
+        const rec = p as unknown as { tender_kind?: string; payment_method?: string; auth_state?: string };
+        return rec.tender_kind === "card" || rec.payment_method === "card" || !!rec.auth_state;
+      });
+      const hasAuthorizedCardTender = cardPayments.some((p) => {
+        const s = (p as unknown as { auth_state?: string }).auth_state;
+        return s === "approved" || s === "authorized";
+      });
+      const hasSettledTender = tx.status === "completed" && payments.length > 0;
+      return {
+        status: tx.status === "voided" ? "voided" : tx.status === "completed" ? "completed" : "pending",
+        isOnCurrentShift: tx.shift_id === shiftId,
+        hasSettledTender,
+        hasAuthorizedCardTender,
+        // POS commits are synchronous — completed => goods fulfilled.
+        goodsFulfilled: tx.status === "completed",
+        hasPriorReversal: tx.status === "voided",
+        returnableLineCount: tx.status === "completed" ? items.length : 0,
+        hasIdentifiedCustomer: !!tx.customer_id,
+      };
+    },
+    [shiftId],
+  );
+
+  const openReturnFlow = (tx: POSTransactionRecord, kind: "return" | "exchange" | "refund" | "store_credit") => {
+    close();
+    dispatch({ kind: "op", op: "openReturn" });
+    const label = {
+      return: "Return workspace opened",
+      exchange: "Return workspace opened — add replacement items in Sale",
+      refund: "Return workspace opened — select items to refund",
+      store_credit: "Return workspace opened — issue as store credit at checkout",
+    }[kind];
+    toast.info(label, {
+      description: `Sale ${tx.transaction_number}`,
+    });
+  };
+
+  const buildActionHandlers = (tx: POSTransactionRecord) => ({
+    onVoid:         () => handleVoid(tx.id),
+    onReverseCard:  () => {
+      // The card FSM lives inline in the details panel below (see
+      // CardPaymentActions). We just surface a hint — the buttons are
+      // already visible and gated by their own state machine.
+      toast.info("Use the card actions below", {
+        description: "Void or Reverse the specific card tender on this sale.",
+      });
+    },
+    onRefund:       () => openReturnFlow(tx, "refund"),
+    onReturn:       () => openReturnFlow(tx, "return"),
+    onExchange:     () => openReturnFlow(tx, "exchange"),
+    onStoreCredit:  () => openReturnFlow(tx, "store_credit"),
+  });
+
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -522,16 +591,12 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
                             Invoice
                           </Button>
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 text-destructive hover:text-destructive"
-                          onClick={() => handleVoid(transactionDetails.id)}
+                        <TransactionActionMenu
+                          facts={deriveFacts(transactionDetails)}
+                          handlers={buildActionHandlers(transactionDetails)}
                           disabled={voidTransaction.isPending}
-                        >
-                          <Ban className="h-4 w-4 mr-1" />
-                          Void
-                        </Button>
+                        />
+
                       </div>
                     )}
                   </div>

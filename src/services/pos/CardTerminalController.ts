@@ -118,23 +118,58 @@ export class CardTerminalController {
     return (data as { auth_state: CardAuthState }).auth_state;
   }
 
-  async void(paymentId: string, reason?: string): Promise<CardAuthState> {
+  /**
+   * Extra context needed by `assert_manager_override` on the server. All
+   * fields are optional: when the matrix has no row for the action, the
+   * server proceeds regardless. Callers that need enforcement MUST pass
+   * `managerOverrideId` (obtained from `useManagerOverride`) and the
+   * envelope identity — otherwise a configured matrix row will raise
+   * `override_required`. See `docs/audit/…` and `.lovable/plan.md`.
+   */
+  async void(
+    paymentId: string,
+    reason?: string,
+    override?: {
+      managerOverrideId?: string | null;
+      organizationId?: string | null;
+      businessId?: string | null;
+      shiftId?: string | null;
+    },
+  ): Promise<CardAuthState> {
     const { data, error } = await supabase.rpc("pos_card_void", {
-      p_payment_id: paymentId,
-      p_reason:     reason ?? null,
+      p_payment_id:          paymentId,
+      p_reason:              reason ?? null,
+      p_manager_override_id: override?.managerOverrideId ?? null,
+      p_organization_id:     override?.organizationId ?? null,
+      p_business_id:         override?.businessId ?? null,
+      p_shift_id:            override?.shiftId ?? null,
     });
     if (error) throw error;
     return (data as { auth_state: CardAuthState }).auth_state;
   }
 
-  async reverse(paymentId: string, reason?: string): Promise<CardAuthState> {
+  async reverse(
+    paymentId: string,
+    reason?: string,
+    override?: {
+      managerOverrideId?: string | null;
+      organizationId?: string | null;
+      businessId?: string | null;
+      shiftId?: string | null;
+    },
+  ): Promise<CardAuthState> {
     const { data, error } = await supabase.rpc("pos_card_reverse", {
-      p_payment_id: paymentId,
-      p_reason:     reason ?? null,
+      p_payment_id:          paymentId,
+      p_reason:              reason ?? null,
+      p_manager_override_id: override?.managerOverrideId ?? null,
+      p_organization_id:     override?.organizationId ?? null,
+      p_business_id:         override?.businessId ?? null,
+      p_shift_id:            override?.shiftId ?? null,
     });
     if (error) throw error;
     return (data as { auth_state: CardAuthState }).auth_state;
   }
+
 }
 
 export const cardTerminal = new CardTerminalController();

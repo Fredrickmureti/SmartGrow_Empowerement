@@ -86,3 +86,33 @@ Backward compatible: extra params `(p_manager_override_id, p_organization_id, p_
 4. **Toast copy** — replace the blanket "Override denied / An unexpected error occurred" toasts at every reversal catch site with `parseOverrideError(err)`.
 
 Exit criteria for Stage 3 remain unchanged (see the Stage 3 section above).
+
+## Stage 3 completion log (this turn)
+
+Status: ✅ STAGE 3 COMPLETE.
+
+### Shipped in this turn
+
+1. **Migration** — extended `pos_override_matrix_action_chk` to allow the four new action codes (`pos_card_void`, `pos_card_reverse`, `pos_payment_session_reverse_tender`, and pattern `pos_return_authorization_transition:%`).
+2. **Client dispatch sites now thread the override envelope**:
+   - `src/services/pos/CardTerminalController.ts::void|reverse` accept `{ managerOverrideId, organizationId, businessId, shiftId }` and forward to the RPCs.
+   - `src/lib/pos/paymentSessionClient.ts::reverseTender` and its arg type extended with the same envelope; hook `usePaymentSession.reverseTender(tenderId, reason, approval?)` accepts it and passes through.
+   - `src/components/pos/transaction-detail/CardPaymentActions.tsx` reads the envelope via `useTerminalSessionEnvelope` and wraps every failure in `parseOverrideError(err)` → structured toast (title + description).
+3. **History action-menu split (six-command taxonomy)** — new component `src/apps/pos/terminal/history/TransactionActionMenu.tsx`. Uses `evaluateEligibility(facts)` from Stage 2; ineligible commands remain visible but disabled with a tooltip explaining the exact reason (no more "reverse-by-refund-and-hope" workaround). Wired into `HistoryWorkspace.tsx`:
+   - `deriveFacts(tx)` bridges `POSTransactionRecord` → `EligibilityFacts` (status, shift match, card auth state, settled tenders, returnable lines, identified customer). Kept pure/deterministic for unit-testability.
+   - `buildActionHandlers(tx)` maps each command to a dispatch route: `void_sale` → existing `handleVoid` (already wired to `useManagerOverride`); `return_goods`/`exchange`/`refund_sale`/`issue_store_credit` open the terminal return workspace via `dispatch({op:"openReturn"})` with a directive toast; `reverse_card_authorization` surfaces a hint pointing to `CardPaymentActions` in the details panel (which now enforces its own override + envelope path).
+4. **Contract tests updated** — `src/lib/pos/__tests__/paymentSessionClient.test.ts` pins the new override-envelope keys on `pos_payment_session_reverse_tender` (both null and populated variants), plus the current `openSession` payload (`p_settlement_currency`, `p_tip_policy`, `p_fx_rate`). Green.
+
+### Stage 3 exit criteria — status
+
+- [x] Every reversal RPC gated by `assert_manager_override` server-side.
+- [x] Every client dispatch site passes the manager-override id + envelope IDs when present.
+- [x] `pos_override_matrix_action_chk` allows the new action codes so admins can configure enforcement without patching the DB.
+- [x] Client policy hook (`useOverridePolicy`) exposes required/threshold/roles per action.
+- [x] Error catalogue (`parseOverrideError`) maps every SQLSTATE 42501 tag to actionable user-facing copy.
+- [x] History surface renders the full six-command taxonomy with eligibility gating and machine-readable rejection reasons.
+- [x] Contract tests locked (6/6 architecture, 14/14 paymentSessionClient, typecheck clean).
+
+### Handoff for Stage 4 (Reversal saga)
+
+The audit's remaining architectural work is Stage 4: a durable, resumable reversal saga (`pos_reversal_workflow` + `pos_reversal_step`) so that a partial failure mid-refund (e.g. cash reversed but store-credit issue-note write fails) no longer leaves the terminal in a split-brain state. Stage 3 has intentionally routed `refund_sale`/`return_goods`/`exchange`/`issue_store_credit` through the existing return workspace with directive toasts; those handlers become the natural insertion points for the saga engine once its contract lands.
