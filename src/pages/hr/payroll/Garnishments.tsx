@@ -36,6 +36,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, Scale, History, BookOpen, FileText, Workflow } from "lucide-react";
 import { GarnishmentDashboard } from "@/components/payroll/GarnishmentDashboard";
+import { AuthorityPicker } from "@/components/payroll/AuthorityPicker";
+import { LegalOrderDocuments } from "@/components/payroll/LegalOrderDocuments";
+import { useLegalOrder } from "@/hooks/useLegalOrders";
 
 /**
  * Allowed FSM transitions per source status. Mirrors garnishment_transition()
@@ -119,6 +122,7 @@ export default function GarnishmentsPage() {
     priority: 10,
     case_reference: "",
     issuing_authority: "",
+    authority_id: null as string | null,
     cap_rule: "fixed_amount" as GarnishmentCapRule,
     fixed_amount: "",
     percent_of_disposable: "",
@@ -138,6 +142,8 @@ export default function GarnishmentsPage() {
     notes: "",
   };
   const [form, setForm] = useState<typeof empty>(empty);
+  // Resolved legal-order row (view) drives evidence gating in the docs panel.
+  const { data: resolvedLegalOrder } = useLegalOrder(editing?.id ?? null);
 
   function openCreate() {
     setEditing(null);
