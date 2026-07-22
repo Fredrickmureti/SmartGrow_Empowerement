@@ -182,6 +182,14 @@ export function usePayroll() {
     if (!currentOrg || !user) throw new Error("No organization selected");
 
     // Call server-side Edge Function for computation
+    // Idempotency key: a stable UUID for THIS submit. If the transport drops
+    // mid-invoke and the user retries, the edge function can dedupe on this
+    // key (server-side enforcement is Phase 2). Sent even before the server
+    // reads it so the retry story is one code change away, not two.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `pay-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const { data, error } = await supabase.functions.invoke("compute-payroll", {
       body: {
         organization_id: currentOrg.id,
@@ -195,6 +203,7 @@ export function usePayroll() {
         run_type: runOptions?.run_type ?? "regular",
         parent_run_id: runOptions?.parent_run_id ?? null,
         proration_overrides: prorationOverrides || {},
+        idempotency_key: idempotencyKey,
       },
     });
 
