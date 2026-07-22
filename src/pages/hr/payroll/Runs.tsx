@@ -140,15 +140,22 @@ export default function PayrollRuns() {
   } => {
     const msg: string = err?.message || String(err) || "";
     const payload = err?.payload as any;
-    // Connectivity drop — the request never reached the payroll engine.
-    // Surface a clear "internet dropped" message, never a raw infra string.
+    // Split transport failures. OFFLINE = browser reports no connectivity
+    // (safe to say "no changes were saved"). TRANSPORT_FAILED = the browser
+    // is online but the edge runtime dropped mid-invoke — payroll may have
+    // committed partial state; the UI MUST refetch, not retry blindly.
     if (
       err?.code === "OFFLINE" ||
-      err?.name === "FunctionsFetchError" ||
-      (typeof navigator !== "undefined" && navigator.onLine === false) ||
-      /failed to send a request|failed to fetch|load failed|network ?error/i.test(msg)
+      (typeof navigator !== "undefined" && navigator.onLine === false)
     ) {
       return { kind: "offline", msg, reasons: [], runtimeBlockers: null };
+    }
+    if (
+      err?.code === "TRANSPORT_FAILED" ||
+      err?.name === "FunctionsFetchError" ||
+      /failed to send a request|failed to fetch|load failed|network ?error/i.test(msg)
+    ) {
+      return { kind: "transport", msg, reasons: [], runtimeBlockers: null };
     }
     // Preferred path: edge function returned 412 SETUP_REQUIRED with
     // structured blockers — surface them verbatim, no regex.
