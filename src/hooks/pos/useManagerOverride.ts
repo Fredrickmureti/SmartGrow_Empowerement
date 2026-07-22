@@ -3,6 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { humanizePosError } from '@/lib/pos/humanizePosError';
 import { normalizeError } from "@/services/resilience";
+import {
+  type TerminalSessionEnvelope,
+  useTerminalSessionEnvelope,
+  mergeEnvelope,
+  assertActiveTerminalSession,
+  TerminalSessionMissingFieldError,
+  describeMissingField,
+} from "@/services/pos/session/TerminalSessionEnvelope";
 
 // Stage 8: must mirror the action enum in pos_override_matrix.action_chk.
 // `assert_manager_override` rejects with `override_action_mismatch` if the
@@ -46,14 +54,37 @@ interface OverrideResult {
   managerName: string;
 }
 
-export function useManagerOverride(organizationId: string | undefined, businessId?: string) {
+/**
+ * Manager PIN override capture, consuming the canonical
+ * `TerminalSessionEnvelope` (Stage 1 remediation, see
+ * `src/services/pos/session/TerminalSessionEnvelope.ts`).
+ *
+ * Overloads:
+ *   - `useManagerOverride()`
+ *       reads the ambient terminal envelope from context.
+ *   - `useManagerOverride({ businessId })`
+ *       merges partial overrides onto the ambient envelope.
+ *       Used by rescue / reopen flows that target a different
+ *       business than the currently-selected one.
+ *
+ * The legacy `useManagerOverride(orgId, businessId?)` positional
+ * signature is REMOVED. The ESLint rule
+ * `local/no-loose-manager-override-args` fails the build on any
+ * call site that tries to reintroduce loose scalar arguments.
+ * See `.lovable/plan.md` Stage 1 for the rationale.
+ */
+export function useManagerOverride(
+  overrides?: Partial<TerminalSessionEnvelope>,
+) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const ambient = useTerminalSessionEnvelope();
+  const envelope = mergeEnvelope(ambient, overrides);
 
   const verifyOverrideMutation = useMutation({
     mutationFn: async (request: OverrideRequest): Promise<OverrideResult> => {
-      if (!organizationId) throw new Error('Organization not found');
-      if (!businessId) throw new Error('Company not selected');
+      const active = assertActiveTerminalSession(envelope);
+      const { organizationId, businessId } = active;
 
       // pos_manager_pins IS business-scoped (added in Phase A) — filter by both axes.
       const { data: managerPins, error: pinsError } = await supabase
@@ -107,8 +138,8 @@ export function useManagerOverride(organizationId: string | undefined, businessI
           business_id: businessId,
           manager_id: validManager.user_id,
           session_id: request.sessionId || null,
-          shift_id: request.shiftId || null,
-          register_id: request.registerId || null,
+          shift_id: request.shiftId || active.shiftId || null,
+          register_id: request.registerId || active.registerId || null,
           override_type: request.action,
           transaction_id: request.transactionId || null,
           original_value: typeof request.originalValue === 'string' ? parseFloat(request.originalValue) : request.originalValue,
@@ -135,6 +166,20 @@ export function useManagerOverride(organizationId: string | undefined, businessI
       });
     },
     onError: (error: Error) => {
+      // Stage 1: distinguish "envelope is missing a required field"
+      // (a client-side config / hydration problem) from a real
+      // authorization failure. The historical blanket "Override Denied"
+      // toast masked the former as the latter, which is what produced
+      // the reported "Override denied · An unexpected error occurred ·
+      // Company not selected" cascade.
+      if (error instanceof TerminalSessionMissingFieldError) {
+        toast({
+          title: 'Terminal not ready',
+          description: describeMissingField(error.field),
+          variant: 'destructive',
+        });
+        return;
+      }
       toast({
         title: 'Override Denied',
         description: humanizePosError(normalizeError(error).message),
@@ -146,5 +191,11 @@ export function useManagerOverride(organizationId: string | undefined, businessI
   return {
     requestOverride: verifyOverrideMutation.mutateAsync,
     isVerifying: verifyOverrideMutation.isPending,
+    /**
+     * Exposed so callers that need to gate UI on envelope readiness
+     * (e.g. disable a "Reverse" button until the envelope is ready)
+     * can do so without re-reading the ambient contexts themselves.
+     */
+    envelopeReady: envelope.ready,
   };
 }
