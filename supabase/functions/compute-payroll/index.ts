@@ -5300,10 +5300,21 @@ Deno.serve(async (req) => {
       jobId, key: idempotencyKey,
       error: error?.message, code: error?.code,
     });
-    await finalizeJob("failed", {
-      errorCode: error?.code ?? null,
-      errorMessage: error?.message ?? String(error),
-    });
+    if (jobId && supabaseAdminOuter) {
+      try {
+        await supabaseAdminOuter
+          .from("payroll_run_jobs")
+          .update({
+            status: "failed",
+            finished_at: new Date().toISOString(),
+            error_code: error?.code ?? null,
+            error_message: error?.message ?? String(error),
+          })
+          .eq("id", jobId);
+      } catch (e) {
+        console.error("[compute-payroll] outer finalize failed:", (e as Error).message);
+      }
+    }
     return new Response(JSON.stringify({ error: error.message || "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
