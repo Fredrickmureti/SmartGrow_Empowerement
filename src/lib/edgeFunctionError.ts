@@ -110,6 +110,14 @@ Object.assign(HINT_MESSAGES, {
 const OFFLINE_MESSAGE =
   "It looks like your internet connection dropped while running payroll, so we couldn't reach the server. No changes were saved — reconnect and run it again. If the connection is stable and this keeps happening, contact support.";
 
+// Distinct from OFFLINE: the browser is online but the request to the edge
+// runtime failed (edge-runtime CPU/wall-time kill, response too large, or
+// upstream drop). We MUST NOT tell the user "no changes were saved" —
+// compute-payroll may have already committed partial state. The UI should
+// refetch the run and let the user decide.
+const TRANSPORT_FAILED_MESSAGE =
+  "The payroll engine did not respond in time. Your payroll may still be running on the server — refresh this page and check the run's status before retrying. Retrying blindly can create duplicate payslips.";
+
 /**
  * Detect a transport-level failure (the request never reached the edge
  * function) versus a structured edge-function error. Supabase surfaces an
@@ -117,30 +125,35 @@ const OFFLINE_MESSAGE =
  * Edge Function") or a raw `TypeError: Failed to fetch` — neither carries a
  * `.context` Response. We must NOT show those raw strings to users.
  */
-function isConnectivityError(error: unknown): boolean {
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+function classifyTransport(error: unknown): "offline" | "transport" | null {
   const name = (error as { name?: string })?.name ?? "";
   const msg = ((error as { message?: string })?.message ?? "").toLowerCase();
-  if (name === "FunctionsFetchError") return true;
-  if (name === "AbortError" || name === "TimeoutError") return true;
-  return (
+  const isFetchShape =
+    name === "FunctionsFetchError" ||
+    name === "AbortError" ||
+    name === "TimeoutError" ||
     msg.includes("failed to send a request") ||
     msg.includes("failed to fetch") ||
     msg.includes("load failed") ||
     msg.includes("networkerror") ||
-    msg.includes("network error")
-  );
+    msg.includes("network error");
+  if (!isFetchShape) return null;
+  // Only claim OFFLINE when the browser itself says so. Everything else is
+  // a server-reachability failure, not a dropped internet connection.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return "offline";
+  return "transport";
 }
 
 export async function parseEdgeFunctionError(error: unknown): Promise<ParsedEdgeError> {
   if (!error) return { message: "Unknown error" };
 
-  // Internet drop / transport failure — the request never reached the server.
-  // Surface a clear connectivity message instead of "Failed to send a request
-  // to the Edge Function" or "non-2xx code".
-  if (isConnectivityError(error)) {
-    return { message: OFFLINE_MESSAGE, code: "OFFLINE" };
-  }
+  // Transport-layer failure — the request never reached the server, OR the
+  // edge runtime dropped the connection mid-invoke. We split these so the UI
+  // can react correctly: OFFLINE => "no changes were saved", TRANSPORT_FAILED
+  // => "may still be running, refresh before retrying".
+  const transport = classifyTransport(error);
+  if (transport === "offline") return { message: OFFLINE_MESSAGE, code: "OFFLINE" };
+  if (transport === "transport") return { message: TRANSPORT_FAILED_MESSAGE, code: "TRANSPORT_FAILED" };
 
   // FunctionsHttpError surfaces the original Response on `.context`.
   const ctx = (error as { context?: Response }).context;

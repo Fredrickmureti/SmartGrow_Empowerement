@@ -75,14 +75,28 @@ export class BusinessSaga {
       // drained by the `outbox-dispatcher` edge function on a pg_cron
       // schedule. This tab only picks up events tied to physically-attached
       // hardware (cash drawer, thermal printer) that must run on this host.
-      const { data, error } = await supabase.rpc('claim_next_business_event', {
-        p_org_id: this.orgId,
-        p_limit: 5,
-        p_claimant: null,
-        p_branch_id: this.branchId,
-        p_handler_scope: 'host',
-      } as never);
-      if (error || !data) return;
+      let data: unknown = null;
+      try {
+        const res = await supabase.rpc('claim_next_business_event', {
+          p_org_id: this.orgId,
+          p_limit: 5,
+          p_claimant: null,
+          p_branch_id: this.branchId,
+          p_handler_scope: 'host',
+        } as never);
+        if (res.error || !res.data) return;
+        data = res.data;
+      } catch (err) {
+        // A transport-level failure of the background poller MUST NOT bubble
+        // out — it would surface in DevTools as `net::ERR_FAILED` on
+        // `/rpc/claim_next_business_event` and mislead operators into
+        // thinking payroll (or any other foreground action) lost its
+        // connection. This poller is best-effort; the next tick retries.
+        if (typeof console !== 'undefined') {
+          console.debug('[BusinessSaga] poll skipped:', (err as Error)?.message ?? err);
+        }
+        return;
+      }
       for (const row of data as OutboxRow[]) {
         await this.process(row);
       }
