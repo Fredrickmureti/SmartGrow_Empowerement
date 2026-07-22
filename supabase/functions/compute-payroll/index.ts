@@ -871,6 +871,138 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ─── Phase 2 · Idempotency + job control row ───────────────────────
+    // The client sends `idempotency_key` on every invoke. If a transport
+    // failure led the UI to retry the same submit, we MUST NOT run the
+    // engine twice — that produces duplicate payslips. We check for an
+    // existing job under the same (org, key); if it's already succeeded we
+    // replay the stored result, if it's still running we tell the caller to
+    // wait, and if it failed we allow a fresh attempt by reusing the row.
+    //
+    // dry_run bypasses this entirely — previews are pure and don't mutate.
+    const idempotencyKey: string | null =
+      typeof (body as any).idempotency_key === "string" && (body as any).idempotency_key.length > 0
+        ? (body as any).idempotency_key
+        : null;
+    let jobId: string | null = null;
+    if (!dry_run && idempotencyKey) {
+      const { data: existing } = await supabaseAdmin
+        .from("payroll_run_jobs")
+        .select("id, status, result, payroll_run_id, error_message")
+        .eq("organization_id", organization_id)
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
+
+      if (existing?.status === "succeeded" && existing.result) {
+        console.log("[compute-payroll] idempotent replay", { jobId: existing.id, key: idempotencyKey });
+        return new Response(JSON.stringify({ ...(existing.result as Record<string, unknown>), idempotent_replay: true }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (existing?.status === "running") {
+        console.log("[compute-payroll] in-flight retry rejected", { jobId: existing.id, key: idempotencyKey });
+        return new Response(JSON.stringify({
+          error: "This payroll run is already in progress on the server. Wait for it to finish before retrying.",
+          code: "PAYROLL_JOB_IN_FLIGHT",
+          job_id: existing.id,
+        }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (existing) {
+        // Prior attempt failed — reuse the row, flip back to running.
+        jobId = existing.id;
+        await supabaseAdmin
+          .from("payroll_run_jobs")
+          .update({
+            status: "running",
+            started_at: new Date().toISOString(),
+            finished_at: null,
+            error_code: null,
+            error_message: null,
+            result: null,
+            payroll_run_id: null,
+          })
+          .eq("id", jobId);
+      } else {
+        const { data: inserted, error: insertErr } = await supabaseAdmin
+          .from("payroll_run_jobs")
+          .insert({
+            organization_id,
+            business_id: business_id ?? null,
+            requested_by: userId,
+            idempotency_key: idempotencyKey,
+            status: "running",
+            pay_period_start,
+            pay_period_end,
+            run_type: body.run_type ?? "regular",
+            employee_count: employee_ids.length,
+            request_payload: {
+              pay_period_start, pay_period_end,
+              employee_count: employee_ids.length,
+              run_type: body.run_type ?? "regular",
+              country_code: country_code ?? null,
+              period_id: resolvedPeriodId,
+            },
+            started_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+        if (insertErr) {
+          // 23505 race: another concurrent invoke with the same key won.
+          // Re-read and follow the same branch above.
+          if (String(insertErr.code) === "23505") {
+            const { data: raced } = await supabaseAdmin
+              .from("payroll_run_jobs")
+              .select("id, status, result")
+              .eq("organization_id", organization_id)
+              .eq("idempotency_key", idempotencyKey)
+              .maybeSingle();
+            if (raced?.status === "succeeded" && raced.result) {
+              return new Response(JSON.stringify({ ...(raced.result as Record<string, unknown>), idempotent_replay: true }), {
+                status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+            return new Response(JSON.stringify({
+              error: "This payroll run is already in progress on the server. Wait for it to finish before retrying.",
+              code: "PAYROLL_JOB_IN_FLIGHT",
+              job_id: raced?.id ?? null,
+            }), {
+              status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          console.error("[compute-payroll] failed to create job row:", insertErr);
+        } else {
+          jobId = inserted?.id ?? null;
+        }
+      }
+      console.log("[compute-payroll] job started", { jobId, key: idempotencyKey, employees: employee_ids.length });
+    }
+
+    // Helper: mark job terminal state (best-effort, never throws).
+    const finalizeJob = async (
+      state: "succeeded" | "failed",
+      payload: { result?: unknown; payrollRunId?: string | null; errorCode?: string | null; errorMessage?: string | null },
+    ) => {
+      if (!jobId) return;
+      try {
+        await supabaseAdmin
+          .from("payroll_run_jobs")
+          .update({
+            status: state,
+            finished_at: new Date().toISOString(),
+            result: (payload.result as Record<string, unknown>) ?? null,
+            payroll_run_id: payload.payrollRunId ?? null,
+            error_code: payload.errorCode ?? null,
+            error_message: payload.errorMessage ?? null,
+          })
+          .eq("id", jobId);
+      } catch (e) {
+        console.error("[compute-payroll] finalizeJob failed:", (e as Error).message);
+      }
+    };
+
     // ─── Subscription entitlement check ───
     const { checkAppEntitlement, entitlementDeniedResponse } = await import("../_shared/entitlementCheck.ts");
     const entitlementResult = await checkAppEntitlement(supabaseAdmin, organization_id, "payroll", { requireInstalled: true });
