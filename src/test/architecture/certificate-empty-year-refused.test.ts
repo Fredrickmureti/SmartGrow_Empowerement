@@ -23,7 +23,8 @@ describe("certificate empty-year refusal", () => {
     expect(src).toMatch(/EMPTY_PAYROLL_YEAR/);
     // Guard must sit on the totals from resolveCertificateYtd (canonical
     // projection), not on a re-derived value.
-    expect(src).toMatch(/totals\)\.gross_pay/);
-    expect(src).toMatch(/totals\)\.employee/);
+    expect(src).toMatch(/totals\b[^)]*\)\.gross_pay/);
+    expect(src).toMatch(/totals\b[^)]*\)\.employee\b/);
+
   });
 });
