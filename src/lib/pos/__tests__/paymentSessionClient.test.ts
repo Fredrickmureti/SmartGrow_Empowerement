@@ -147,16 +147,43 @@ describe("paymentSessionClient", () => {
   });
 
   describe("reverseTender", () => {
-    it("calls pos_payment_session_reverse_tender with the reason", async () => {
+    it("calls pos_payment_session_reverse_tender with the reason and override envelope", async () => {
       rpcMock.mockResolvedValueOnce({ data: null, error: null });
       await reverseTender({ sessionId: "s", tenderId: "t", reason: "cashier voided" });
       expect(rpcMock).toHaveBeenCalledWith("pos_payment_session_reverse_tender", {
         p_session_id: "s",
         p_tender_id: "t",
         p_reason: "cashier voided",
+        p_manager_override_id: null,
+        p_organization_id: null,
+        p_business_id: null,
+        p_shift_id: null,
+      });
+    });
+
+    it("threads the manager override envelope when supplied", async () => {
+      rpcMock.mockResolvedValueOnce({ data: null, error: null });
+      await reverseTender({
+        sessionId: "s",
+        tenderId: "t",
+        reason: "manager approved",
+        managerOverrideId: "ovr-1",
+        organizationId: "org-1",
+        businessId: "biz-1",
+        shiftId: "shift-1",
+      });
+      expect(rpcMock).toHaveBeenCalledWith("pos_payment_session_reverse_tender", {
+        p_session_id: "s",
+        p_tender_id: "t",
+        p_reason: "manager approved",
+        p_manager_override_id: "ovr-1",
+        p_organization_id: "org-1",
+        p_business_id: "biz-1",
+        p_shift_id: "shift-1",
       });
     });
   });
+
 
   describe("commitSession", () => {
     it("forwards the envelope as p_transaction_envelope and returns the full envelope", async () => {
