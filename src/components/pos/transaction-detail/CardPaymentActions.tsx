@@ -75,6 +75,7 @@ export function CardPaymentActions({
 }: CardPaymentActionsProps) {
   const { formatCurrency } = useCurrency();
   const { requestOverride, isVerifying } = useManagerOverride();
+  const envelope = useTerminalSessionEnvelope();
 
   const [busy, setBusy] = useState<PendingAction>(null);
   const [overrideFor, setOverrideFor] = useState<PendingAction>(null);
@@ -103,8 +104,9 @@ export function CardPaymentActions({
       setLocalState(next);
       onChanged?.(next);
       toast.success(`Captured ${formatCurrency(amount)}`);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Capture failed");
+    } catch (e: unknown) {
+      const info = parseOverrideError(e);
+      toast.error(info.title, { description: info.description });
     } finally {
       setBusy(null);
     }
@@ -113,18 +115,27 @@ export function CardPaymentActions({
   const runVoidOrReverse = async (kind: "void" | "reverse", overrideId?: string) => {
     setBusy(kind);
     try {
+      const approval = {
+        managerOverrideId: overrideId ?? null,
+        organizationId: envelope.organizationId ?? null,
+        businessId: envelope.businessId ?? null,
+        shiftId: envelope.shiftId ?? null,
+      };
+      const reasonText = overrideId ? `override:${overrideId}` : undefined;
       const next = kind === "void"
-        ? await cardTerminal.void(payment.id, overrideId ? `override:${overrideId}` : undefined)
-        : await cardTerminal.reverse(payment.id, overrideId ? `override:${overrideId}` : undefined);
+        ? await cardTerminal.void(payment.id, reasonText, approval)
+        : await cardTerminal.reverse(payment.id, reasonText, approval);
       setLocalState(next);
       onChanged?.(next);
       toast.success(kind === "void" ? "Authorization voided" : "Capture reversed");
-    } catch (e: any) {
-      toast.error(e?.message ?? `${kind} failed`);
+    } catch (e: unknown) {
+      const info = parseOverrideError(e);
+      toast.error(info.title, { description: info.description });
     } finally {
       setBusy(null);
     }
   };
+
 
   const requestPinFor = (kind: "void" | "reverse") => setOverrideFor(kind);
 
