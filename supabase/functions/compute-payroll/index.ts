@@ -841,6 +841,25 @@ Deno.serve(async (req) => {
     } = body;
     let { pay_period_start, pay_period_end } = body;
 
+    // ─── Phase timer ───────────────────────────────────────────────────
+    // Lightweight instrumentation so we can pinpoint which section of the
+    // engine consumes the wall clock when a preview times out on the client.
+    // Emits one structured line per phase with elapsed-since-start and
+    // elapsed-since-previous-phase in milliseconds.
+    const _phaseT0 = Date.now();
+    let _phaseLast = _phaseT0;
+    const phase = (label: string, extra?: Record<string, unknown>) => {
+      const now = Date.now();
+      const total = now - _phaseT0;
+      const delta = now - _phaseLast;
+      _phaseLast = now;
+      console.log(
+        `[compute-payroll:phase] ${label} +${delta}ms total=${total}ms` +
+          (extra ? ` ${JSON.stringify(extra)}` : ""),
+      );
+    };
+    phase("request-parsed", { dry_run, employees: employee_ids?.length ?? 0 });
+
     // ─── Period management: when period_id is supplied, the period row is
     // the source of truth for the window and lock state. Caller-supplied
     // dates are only used as a fallback (back-compat). ───
@@ -1401,6 +1420,7 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    phase("employees-loaded", { count: employees.length });
 
     // ─── Fetch profile names for display ───
     const userIds = employees.filter(e => e.user_id).map(e => e.user_id);
@@ -2507,6 +2527,8 @@ Deno.serve(async (req) => {
         warnings.push(`${emp.first_name} ${emp.last_name}: ${reason.message}`);
         continue;
       }
+      const _empPhaseStart = Date.now();
+      phase("employee-loop-start", { emp: emp.employee_number });
       // ─── Salary source: salary structure → contract → reject ───
       const contract = contractByEmployee[emp.id];
       let basicSalary: number;
@@ -4109,10 +4131,12 @@ Deno.serve(async (req) => {
         _lines: lineRows,
         _inputs: inputRows,
       });
+      phase("employee-loop-end", { emp: emp.employee_number, empMs: Date.now() - _empPhaseStart });
     }
 
     // ─── Dry-run: return preview without persisting ───
     if (dry_run) {
+      phase("dry-run-serializing", { payslips: payslipsData.length });
       // Per-employee bracket trace lets the UI explain exactly what `income`
       // PAYE (or any bracket_progressive tax) was computed against, plus the
       // tier-by-tier slab/tax. Mirrors the `payroll_run_issues` rows we
@@ -4128,7 +4152,7 @@ Deno.serve(async (req) => {
           traces,
         };
       });
-      return new Response(JSON.stringify({
+      const _dryPayload = JSON.stringify({
         dry_run: true,
         employee_count: payslipsData.length,
         total_gross: totalGross,
@@ -4140,7 +4164,9 @@ Deno.serve(async (req) => {
         payslips: payslipsData,
         warnings,
         bracket_trace,
-      }), {
+      });
+      phase("dry-run-return", { bytes: _dryPayload.length });
+      return new Response(_dryPayload, {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
