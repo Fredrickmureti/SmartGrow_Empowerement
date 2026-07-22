@@ -17,7 +17,9 @@ Verified directly against the DB + repo (not the plan.md):
 | P4c: effective-window filter in engine | **DONE (this turn)** | `computeGarnishments` now accepts `period_start`/`period_end` and skips out-of-window orders |
 | P5: context-aware UI (view read, dynamic calc fields, authority picker, evidence gating, completion gating) | **PARTIAL (this turn)** | `useLegalOrders`/`useLegalOrder` hook, `AuthorityPicker`, `LegalOrderDocuments` shipped; Garnishments form wires authority + versioned evidence; `/hr/payroll/legal-orders` alias route added; calc_model dynamic-field rewrite + dashboard badges still to do |
 | P5b-i: `legal_order_documents` table + private `legal-orders` storage bucket + RLS | **DONE (this turn)** | migration + bucket + storage.objects policies applied; upload/list/delete wired in form |
-| P6-i: `business_event_topics` seed for `legal_order.*` (11 topics incl. `payment_posted`) | **DONE (this turn)** | outbox worker will now route them |
+| P6-i: `business_event_topics` seed for `legal_order.*` (11 topics incl. `payment_posted`) | **DONE** | outbox worker will now route them |
+| P6b: outbox subscribers for all 11 `legal_order.*` topics + remittance projection + notification fan-out | **DONE (this turn)** | `legal_order_remittance_lines` table + `legal_order_apply_payment_remittance` RPC + `legal_order_notify_event` RPC + `legal_order_event_dispatch_log` dedupe; `outbox-dispatcher/index.ts` HANDLERS map extended with all 11 topics; engine tests still 13/13 |
+| P6 remainder: reporting rebind (payroll_return_runs → `legal_orders` view) + vendor statement export switch | **NOT STARTED** | see Phase 7 rebind list |
 | P6 remainder: outbox subscriber + reporting rebind + notification rules | **NOT STARTED** | subscribers + notification_alert_settings rows still to wire |
 
 Net: Phases 1–3 are genuinely complete; Phase 4 is code-complete but **tests are missing**; Phases 5 & 6 are untouched. No regressions found. The v3 plan is directionally correct — I extend it below rather than restart it.
