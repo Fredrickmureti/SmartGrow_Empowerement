@@ -32,6 +32,7 @@ import noRawPdfLibInEdgeFunctions from "./eslint-rules/no-raw-pdf-lib-in-edge-fu
 import noDirectGenerateDocumentInPages from "./eslint-rules/no-direct-generate-document-in-pages.js";
 import noProductIdAsBarcode from "./eslint-rules/no-product-id-as-barcode.js";
 import noDialogForPosWorkspace from "./eslint-rules/no-dialog-for-pos-workspace.js";
+import noLooseManagerOverrideArgs from "./eslint-rules/no-loose-manager-override-args.js";
 
 
 
