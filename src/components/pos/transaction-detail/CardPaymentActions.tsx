@@ -21,7 +21,6 @@ import { CreditCard, CheckCircle2, XCircle, RotateCcw, Loader2 } from "lucide-re
 import { cardTerminal, type CardAuthState } from "@/services/pos/CardTerminalController";
 import { ManagerOverrideDialog } from "@/components/pos/ManagerOverrideDialog";
 import { useManagerOverride } from "@/hooks/pos/useManagerOverride";
-import { useOrganization } from "@/hooks/useOrganization";
 import { useCurrency } from "@/hooks/useCurrency";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
