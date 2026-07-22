@@ -292,10 +292,34 @@ export default function GarnishmentsPage() {
                   <TableRow key={g.id}>
                     <TableCell>{employeeById.get(g.employee_id) ?? "—"}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{g.kind.replace(/_/g, " ")}</Badge>
-                      {g.aggregate_cap_exempt && (
-                        <Badge variant="secondary" className="ml-1 text-[10px]">cap-exempt</Badge>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge variant="outline">{g.kind.replace(/_/g, " ")}</Badge>
+                        {g.aggregate_cap_exempt && (
+                          <Badge variant="secondary" className="text-[10px]">cap-exempt</Badge>
+                        )}
+                        {(() => {
+                          const lo = legalOrderById.get(g.id);
+                          if (!lo) return null;
+                          const req = (lo.evidence_requirements as any)?.required_kinds;
+                          const evidenceMissing = Array.isArray(req) && req.length > 0 && !lo.document_url;
+                          return (
+                            <>
+                              {lo.priority_class === 1 && (
+                                <Badge variant="default" className="text-[10px]" title="Statutory always-first: pays before all other orders regardless of priority number.">always-first</Badge>
+                              )}
+                              {typeof lo.priority_class === "number" && lo.priority_class > 1 && (
+                                <Badge variant="outline" className="text-[10px]" title="Statutory priority class from the resolved legal-behaviour pack.">class {lo.priority_class}</Badge>
+                              )}
+                              {evidenceMissing && (
+                                <Badge variant="destructive" className="text-[10px]" title="Required evidence not yet attached — see the Evidence section in the editor.">no evidence</Badge>
+                              )}
+                              {lo.payee_unmapped && (
+                                <Badge variant="secondary" className="text-[10px]" title="Payee has not been mapped to a contact record.">payee unmapped</Badge>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </TableCell>
                     <TableCell>{g.priority}</TableCell>
                     <TableCell className="text-xs">
