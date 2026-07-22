@@ -428,16 +428,20 @@ export default function GarnishmentsPage() {
               </Select>
             </WorkflowField>
             <div className="grid grid-cols-2 gap-3">
-              <WorkflowField label="Fixed amount">
-                <Input type="number" step="0.01" value={form.fixed_amount} onChange={(e) => setForm({ ...form, fixed_amount: e.target.value })} />
-              </WorkflowField>
-              <WorkflowField label="% of disposable" hint="0.25 = 25%">
-                <Input type="number" step="0.0001" value={form.percent_of_disposable} onChange={(e) => setForm({ ...form, percent_of_disposable: e.target.value })} />
-              </WorkflowField>
-              <WorkflowField label="Total owed">
+              {(form.cap_rule === "fixed_amount" || form.cap_rule === "lesser_of_fixed_or_pct") && (
+                <WorkflowField label="Fixed amount" required={form.cap_rule === "fixed_amount"}>
+                  <Input type="number" step="0.01" value={form.fixed_amount} onChange={(e) => setForm({ ...form, fixed_amount: e.target.value })} />
+                </WorkflowField>
+              )}
+              {(form.cap_rule === "percent_disposable" || form.cap_rule === "lesser_of_fixed_or_pct") && (
+                <WorkflowField label="% of disposable" hint="0.25 = 25%" required={form.cap_rule === "percent_disposable"}>
+                  <Input type="number" step="0.0001" value={form.percent_of_disposable} onChange={(e) => setForm({ ...form, percent_of_disposable: e.target.value })} />
+                </WorkflowField>
+              )}
+              <WorkflowField label="Total owed" hint="Order stops accruing once this cumulative amount has been withheld.">
                 <Input type="number" step="0.01" value={form.total_owed} onChange={(e) => setForm({ ...form, total_owed: e.target.value })} />
               </WorkflowField>
-              <WorkflowField label="Min take-home">
+              <WorkflowField label="Min take-home" hint="Per-order protected earnings floor (overrides org default when set).">
                 <Input type="number" step="0.01" value={form.minimum_take_home_amount} onChange={(e) => setForm({ ...form, minimum_take_home_amount: e.target.value })} />
               </WorkflowField>
             </div>
