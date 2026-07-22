@@ -114,7 +114,7 @@ export interface LegalOrderRow {
 const VIEW_SELECT = "*";
 
 export function useLegalOrders(opts?: { employeeId?: string | null; status?: LegalOrderStatus | LegalOrderStatus[] | null }) {
-  const { organization } = useOrganization();
+  const { currentOrg: organization } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const orgId = organization?.id ?? null;
   const bizId = currentBusiness?.id ?? null;

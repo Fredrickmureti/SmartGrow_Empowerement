@@ -36,6 +36,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, Scale, History, BookOpen, FileText, Workflow } from "lucide-react";
 import { GarnishmentDashboard } from "@/components/payroll/GarnishmentDashboard";
+import { AuthorityPicker } from "@/components/payroll/AuthorityPicker";
+import { LegalOrderDocuments } from "@/components/payroll/LegalOrderDocuments";
+import { useLegalOrder } from "@/hooks/useLegalOrders";
 
 /**
  * Allowed FSM transitions per source status. Mirrors garnishment_transition()
@@ -119,6 +122,7 @@ export default function GarnishmentsPage() {
     priority: 10,
     case_reference: "",
     issuing_authority: "",
+    authority_id: null as string | null,
     cap_rule: "fixed_amount" as GarnishmentCapRule,
     fixed_amount: "",
     percent_of_disposable: "",
@@ -138,6 +142,8 @@ export default function GarnishmentsPage() {
     notes: "",
   };
   const [form, setForm] = useState<typeof empty>(empty);
+  // Resolved legal-order row (view) drives evidence gating in the docs panel.
+  const { data: resolvedLegalOrder } = useLegalOrder(editing?.id ?? null);
 
   function openCreate() {
     setEditing(null);
@@ -152,6 +158,7 @@ export default function GarnishmentsPage() {
       priority: g.priority,
       case_reference: g.case_reference ?? "",
       issuing_authority: g.issuing_authority ?? "",
+      authority_id: (g as any).authority_id ?? null,
       cap_rule: g.cap_rule,
       fixed_amount: g.fixed_amount?.toString() ?? "",
       percent_of_disposable: g.percent_of_disposable?.toString() ?? "",
@@ -182,6 +189,7 @@ export default function GarnishmentsPage() {
       priority: form.priority,
       case_reference: form.case_reference || null,
       issuing_authority: form.issuing_authority || null,
+      authority_id: form.authority_id,
       cap_rule: form.cap_rule,
       fixed_amount: form.fixed_amount ? Number(form.fixed_amount) : null,
       percent_of_disposable: form.percent_of_disposable ? Number(form.percent_of_disposable) : null,
@@ -390,8 +398,21 @@ export default function GarnishmentsPage() {
             <WorkflowField label="Case reference">
               <Input value={form.case_reference} onChange={(e) => setForm({ ...form, case_reference: e.target.value })} />
             </WorkflowField>
-            <WorkflowField label="Issuing authority">
-              <Input value={form.issuing_authority} onChange={(e) => setForm({ ...form, issuing_authority: e.target.value })} />
+            <WorkflowField label="Issuing authority" hint="Pick a curated authority for auto-populated payee defaults, or type a free-text value if not yet mapped.">
+              <AuthorityPicker
+                value={form.authority_id}
+                fallbackText={form.issuing_authority}
+                onChange={({ authority_id, authority_text, picked }) =>
+                  setForm({
+                    ...form,
+                    authority_id,
+                    issuing_authority: authority_text,
+                    // Prefill payee defaults from the authority when the user hasn't set them.
+                    payee_bank: form.payee_bank || picked?.default_payee_bank || "",
+                    payee_account: form.payee_account || picked?.default_payee_account || "",
+                  })
+                }
+              />
             </WorkflowField>
           </div>
         </WorkflowSheetSection>
@@ -471,13 +492,22 @@ export default function GarnishmentsPage() {
             </div>
           </WorkflowSheetSection>
 
-          <WorkflowSheetSection number={5} title="Order document" subtitle="Attach the court order PDF or link.">
-            <WorkflowField label="Document URL">
-              <Input value={form.document_url} onChange={(e) => setForm({ ...form, document_url: e.target.value })} placeholder="https://…" />
-            </WorkflowField>
-            <WorkflowField label="Document filename">
-              <Input value={form.document_filename} onChange={(e) => setForm({ ...form, document_filename: e.target.value })} />
-            </WorkflowField>
+          <WorkflowSheetSection number={5} title="Evidence" subtitle="Versioned court order, amendments and release notices. Files live in the private legal-orders bucket.">
+            <LegalOrderDocuments
+              garnishmentId={editing?.id ?? null}
+              evidenceRequirements={(resolvedLegalOrder?.evidence_requirements as any) ?? null}
+            />
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer">Legacy single-document link</summary>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <WorkflowField label="Document URL">
+                  <Input value={form.document_url} onChange={(e) => setForm({ ...form, document_url: e.target.value })} placeholder="https://…" />
+                </WorkflowField>
+                <WorkflowField label="Document filename">
+                  <Input value={form.document_filename} onChange={(e) => setForm({ ...form, document_filename: e.target.value })} />
+                </WorkflowField>
+              </div>
+            </details>
           </WorkflowSheetSection>
         </WorkflowSheetGrid>
 

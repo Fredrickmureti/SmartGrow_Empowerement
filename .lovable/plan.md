@@ -15,8 +15,8 @@ Verified directly against the DB + repo (not the plan.md):
 | P4: `post-garnishment-payment` emits `legal_order.payment_posted` | **Confirmed** | line 285–288 |
 | P4: unit tests for the 4 new branches | **DONE (this turn)** | 5 new cases added (`always_first`, `priority_class`, `protected_earnings_rule`, `calc_model` fallback, effective-window); `bunx vitest run` → 13/13 passing |
 | P4c: effective-window filter in engine | **DONE (this turn)** | `computeGarnishments` now accepts `period_start`/`period_end` and skips out-of-window orders |
-| P5: context-aware UI (view read, dynamic calc fields, authority picker, evidence gating, completion gating) | **IN PROGRESS** | `useLegalOrders`/`useLegalOrder` hook landed (reads `public.legal_orders`); form + dashboard rewrite still to do |
-| P5b-i: `legal_order_documents` table + private `legal-orders` storage bucket + RLS | **DONE (this turn)** | migration + bucket + storage.objects policies applied |
+| P5: context-aware UI (view read, dynamic calc fields, authority picker, evidence gating, completion gating) | **PARTIAL (this turn)** | `useLegalOrders`/`useLegalOrder` hook, `AuthorityPicker`, `LegalOrderDocuments` shipped; Garnishments form wires authority + versioned evidence; `/hr/payroll/legal-orders` alias route added; calc_model dynamic-field rewrite + dashboard badges still to do |
+| P5b-i: `legal_order_documents` table + private `legal-orders` storage bucket + RLS | **DONE (this turn)** | migration + bucket + storage.objects policies applied; upload/list/delete wired in form |
 | P6-i: `business_event_topics` seed for `legal_order.*` (11 topics incl. `payment_posted`) | **DONE (this turn)** | outbox worker will now route them |
 | P6 remainder: outbox subscriber + reporting rebind + notification rules | **NOT STARTED** | subscribers + notification_alert_settings rows still to wire |
 
