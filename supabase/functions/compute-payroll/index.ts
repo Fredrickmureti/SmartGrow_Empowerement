@@ -4131,10 +4131,12 @@ Deno.serve(async (req) => {
         _lines: lineRows,
         _inputs: inputRows,
       });
+      phase("employee-loop-end", { emp: emp.employee_number, empMs: Date.now() - _empPhaseStart });
     }
 
     // ─── Dry-run: return preview without persisting ───
     if (dry_run) {
+      phase("dry-run-serializing", { payslips: payslipsData.length });
       // Per-employee bracket trace lets the UI explain exactly what `income`
       // PAYE (or any bracket_progressive tax) was computed against, plus the
       // tier-by-tier slab/tax. Mirrors the `payroll_run_issues` rows we
@@ -4150,7 +4152,7 @@ Deno.serve(async (req) => {
           traces,
         };
       });
-      return new Response(JSON.stringify({
+      const _dryPayload = JSON.stringify({
         dry_run: true,
         employee_count: payslipsData.length,
         total_gross: totalGross,
@@ -4162,7 +4164,9 @@ Deno.serve(async (req) => {
         payslips: payslipsData,
         warnings,
         bracket_trace,
-      }), {
+      });
+      phase("dry-run-return", { bytes: _dryPayload.length });
+      return new Response(_dryPayload, {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
