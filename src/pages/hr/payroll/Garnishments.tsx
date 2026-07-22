@@ -398,8 +398,21 @@ export default function GarnishmentsPage() {
             <WorkflowField label="Case reference">
               <Input value={form.case_reference} onChange={(e) => setForm({ ...form, case_reference: e.target.value })} />
             </WorkflowField>
-            <WorkflowField label="Issuing authority">
-              <Input value={form.issuing_authority} onChange={(e) => setForm({ ...form, issuing_authority: e.target.value })} />
+            <WorkflowField label="Issuing authority" hint="Pick a curated authority for auto-populated payee defaults, or type a free-text value if not yet mapped.">
+              <AuthorityPicker
+                value={form.authority_id}
+                fallbackText={form.issuing_authority}
+                onChange={({ authority_id, authority_text, picked }) =>
+                  setForm({
+                    ...form,
+                    authority_id,
+                    issuing_authority: authority_text,
+                    // Prefill payee defaults from the authority when the user hasn't set them.
+                    payee_bank: form.payee_bank || picked?.default_payee_bank || "",
+                    payee_account: form.payee_account || picked?.default_payee_account || "",
+                  })
+                }
+              />
             </WorkflowField>
           </div>
         </WorkflowSheetSection>
@@ -479,13 +492,22 @@ export default function GarnishmentsPage() {
             </div>
           </WorkflowSheetSection>
 
-          <WorkflowSheetSection number={5} title="Order document" subtitle="Attach the court order PDF or link.">
-            <WorkflowField label="Document URL">
-              <Input value={form.document_url} onChange={(e) => setForm({ ...form, document_url: e.target.value })} placeholder="https://…" />
-            </WorkflowField>
-            <WorkflowField label="Document filename">
-              <Input value={form.document_filename} onChange={(e) => setForm({ ...form, document_filename: e.target.value })} />
-            </WorkflowField>
+          <WorkflowSheetSection number={5} title="Evidence" subtitle="Versioned court order, amendments and release notices. Files live in the private legal-orders bucket.">
+            <LegalOrderDocuments
+              garnishmentId={editing?.id ?? null}
+              evidenceRequirements={(resolvedLegalOrder?.evidence_requirements as any) ?? null}
+            />
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer">Legacy single-document link</summary>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <WorkflowField label="Document URL">
+                  <Input value={form.document_url} onChange={(e) => setForm({ ...form, document_url: e.target.value })} placeholder="https://…" />
+                </WorkflowField>
+                <WorkflowField label="Document filename">
+                  <Input value={form.document_filename} onChange={(e) => setForm({ ...form, document_filename: e.target.value })} />
+                </WorkflowField>
+              </div>
+            </details>
           </WorkflowSheetSection>
         </WorkflowSheetGrid>
 
