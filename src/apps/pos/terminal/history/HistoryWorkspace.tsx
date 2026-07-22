@@ -591,16 +591,12 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
                             Invoice
                           </Button>
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 text-destructive hover:text-destructive"
-                          onClick={() => handleVoid(transactionDetails.id)}
+                        <TransactionActionMenu
+                          facts={deriveFacts(transactionDetails)}
+                          handlers={buildActionHandlers(transactionDetails)}
                           disabled={voidTransaction.isPending}
-                        >
-                          <Ban className="h-4 w-4 mr-1" />
-                          Void
-                        </Button>
+                        />
+
                       </div>
                     )}
                   </div>
