@@ -802,6 +802,28 @@ Deno.serve(async (req) => {
   let idempotencyKey: string | null = null;
   let supabaseAdminOuter: ReturnType<typeof createClient> | null = null;
 
+  // Enterprise execution model — accept vs. execute split.
+  //
+  // The UI POST is the ACCEPT call: it authenticates the user, creates the
+  // `payroll_run_jobs` control row, and immediately returns HTTP 202 with
+  // `{ job_id, status: "queued" }`. The browser subscribes to
+  // `payroll_run_jobs` over realtime and observes authoritative server
+  // state from that point on — no HTTP promise, no "did it work?" toast.
+  //
+  // Execution happens in a second, self-invoked HTTP call that carries
+  // `X-Payroll-Worker: 1`. That worker call re-runs this same function,
+  // detects the header, skips the accept branch, and runs the engine to
+  // completion (or to a heartbeat-timeout the DB sweeper will reap).
+  //
+  // Why self-invoke instead of an in-process background task: a Supabase
+  // edge-function isolate can be torn down as soon as its Response is
+  // returned. `EdgeRuntime.waitUntil` on `fetch(...)` guarantees the
+  // outbound worker request is *dispatched*, giving the worker its own
+  // isolate with a fresh 400s budget — the engine is no longer coupled
+  // to the caller's socket or to a single isolate lifetime.
+  const isWorkerInvocation =
+    (req.headers.get("x-payroll-worker") ?? "").trim() === "1";
+
   try {
     // Auth
     const authHeader = req.headers.get("Authorization");
@@ -859,6 +881,43 @@ Deno.serve(async (req) => {
       );
     };
     phase("request-parsed", { dry_run, employees: employee_ids?.length ?? 0 });
+
+    // Heartbeat helper — the DB sweeper marks a job failed if it has not
+    // heard from the worker in 5 minutes. Update phase + heartbeat_at at
+    // meaningful transitions so the UI can render live status.
+    const heartbeat = async (
+      nextPhase: string,
+      progress?: { current?: number; total?: number },
+    ) => {
+      if (!jobId) return;
+      try {
+        await supabaseAdminOuter!
+          .from("payroll_run_jobs")
+          .update({
+            phase: nextPhase,
+            heartbeat_at: new Date().toISOString(),
+            ...(progress?.current != null ? { progress_current: progress.current } : {}),
+            ...(progress?.total != null ? { progress_total: progress.total } : {}),
+          })
+          .eq("id", jobId);
+      } catch (e) {
+        // Never let observability failures kill the engine.
+        console.error("[compute-payroll] heartbeat failed:", (e as Error).message);
+      }
+    };
+    const isCancelled = async (): Promise<boolean> => {
+      if (!jobId) return false;
+      try {
+        const { data } = await supabaseAdminOuter!
+          .from("payroll_run_jobs")
+          .select("cancel_requested_at")
+          .eq("id", jobId)
+          .maybeSingle();
+        return !!(data as any)?.cancel_requested_at;
+      } catch {
+        return false;
+      }
+    };
 
     // ─── Period management: when period_id is supplied, the period row is
     // the source of truth for the window and lock state. Caller-supplied
@@ -924,18 +983,23 @@ Deno.serve(async (req) => {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (existing?.status === "running") {
+      if (existing?.status === "running" && !isWorkerInvocation) {
         console.log("[compute-payroll] in-flight retry rejected", { jobId: existing.id, key: idempotencyKey });
+        // The engine is already executing under this key. The client should
+        // observe realtime, not fight the server. Return 202 with the
+        // existing jobId so the accept flow is idempotent from the UI's
+        // perspective — repeat clicks converge on the same job row.
         return new Response(JSON.stringify({
-          error: "This payroll run is already in progress on the server. Wait for it to finish before retrying.",
-          code: "PAYROLL_JOB_IN_FLIGHT",
+          accepted: true,
           job_id: existing.id,
+          status: "running",
+          idempotent_replay: true,
         }), {
-          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      if (existing) {
+      if (existing && !isWorkerInvocation) {
         // Prior attempt failed — reuse the row, flip back to running.
         jobId = existing.id;
         await supabaseAdmin
@@ -943,6 +1007,13 @@ Deno.serve(async (req) => {
           .update({
             status: "running",
             started_at: new Date().toISOString(),
+            accepted_at: new Date().toISOString(),
+            heartbeat_at: new Date().toISOString(),
+            phase: "queued",
+            progress_current: 0,
+            progress_total: employee_ids.length,
+            cancel_requested_at: null,
+            attempt: (existing as any).attempt ? Number((existing as any).attempt) + 1 : 2,
             finished_at: null,
             error_code: null,
             error_message: null,
@@ -950,6 +1021,9 @@ Deno.serve(async (req) => {
             payroll_run_id: null,
           })
           .eq("id", jobId);
+      } else if (existing && isWorkerInvocation) {
+        // Worker invocation for an already-running row — just adopt it.
+        jobId = existing.id;
       } else {
         const { data: inserted, error: insertErr } = await supabaseAdmin
           .from("payroll_run_jobs")
@@ -959,6 +1033,11 @@ Deno.serve(async (req) => {
             requested_by: userId,
             idempotency_key: idempotencyKey,
             status: "running",
+            phase: "queued",
+            accepted_at: new Date().toISOString(),
+            heartbeat_at: new Date().toISOString(),
+            progress_current: 0,
+            progress_total: employee_ids.length,
             pay_period_start,
             pay_period_end,
             run_type: body.run_type ?? "regular",
@@ -990,11 +1069,12 @@ Deno.serve(async (req) => {
               });
             }
             return new Response(JSON.stringify({
-              error: "This payroll run is already in progress on the server. Wait for it to finish before retrying.",
-              code: "PAYROLL_JOB_IN_FLIGHT",
+              accepted: true,
               job_id: raced?.id ?? null,
+              status: "running",
+              idempotent_replay: true,
             }), {
-              status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
           console.error("[compute-payroll] failed to create job row:", insertErr);
@@ -1003,6 +1083,64 @@ Deno.serve(async (req) => {
         }
       }
       console.log("[compute-payroll] job started", { jobId, key: idempotencyKey, employees: employee_ids.length });
+    }
+
+    // ─── Accept → fork worker → 202 ────────────────────────────────────
+    // Non-worker invocation, real (non-dry) run, and a job row exists:
+    // dispatch the worker on a fresh isolate and return 202 to the caller.
+    // The browser now subscribes to `payroll_run_jobs` — the HTTP response
+    // is no longer the source of truth for whether payroll ran.
+    if (!dry_run && jobId && !isWorkerInvocation) {
+      const workerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/compute-payroll`;
+      const workerBody = JSON.stringify(body);
+      const workerPromise = fetch(workerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Forward the original caller's JWT so downstream auth,
+          // entitlement, and permission checks continue to run as that
+          // user. If the JWT expires mid-worker the DB sweeper cleans up.
+          "Authorization": authHeader,
+          "apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+          "X-Payroll-Worker": "1",
+        },
+        body: workerBody,
+      })
+        .then(async (r) => {
+          // Drain the body so the connection can close cleanly; the actual
+          // outcome lives in `payroll_run_jobs`, not the worker's response.
+          try { await r.text(); } catch { /* ignore */ }
+          console.log("[compute-payroll] worker dispatched", { jobId, status: r.status });
+        })
+        .catch((e) => {
+          console.error("[compute-payroll] worker dispatch failed", { jobId, err: (e as Error).message });
+          // Mark the job failed so the UI stops showing "queued" forever.
+          void supabaseAdmin
+            .from("payroll_run_jobs")
+            .update({
+              status: "failed",
+              phase: "dispatch_failed",
+              finished_at: new Date().toISOString(),
+              error_code: "WORKER_DISPATCH_FAILED",
+              error_message: "Failed to dispatch payroll worker. Try again.",
+            })
+            .eq("id", jobId)
+            .then(() => {}, () => {});
+        });
+      try {
+        // Keep the isolate alive long enough to hand off the worker request.
+        (globalThis as any).EdgeRuntime?.waitUntil?.(workerPromise);
+      } catch { /* older runtimes: fetch is dispatched anyway */ }
+
+      return new Response(JSON.stringify({
+        accepted: true,
+        job_id: jobId,
+        status: "queued",
+        idempotency_key: idempotencyKey,
+      }), {
+        status: 202,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Helper: mark job terminal state (best-effort, never throws).
@@ -1421,6 +1559,7 @@ Deno.serve(async (req) => {
       });
     }
     phase("employees-loaded", { count: employees.length });
+    await heartbeat("running", { current: 0, total: employees.length });
 
     // ─── Fetch profile names for display ───
     const userIds = employees.filter(e => e.user_id).map(e => e.user_id);
@@ -2529,6 +2668,22 @@ Deno.serve(async (req) => {
       }
       const _empPhaseStart = Date.now();
       phase("employee-loop-start", { emp: emp.employee_number });
+      // Cancellation check between employees (cooperative).
+      if (!dry_run && (await isCancelled())) {
+        warnings.push(`Payroll cancelled by user after ${payslipsData.length}/${employees.length} employees.`);
+        await finalizeJob("failed", {
+          errorCode: "CANCELLED",
+          errorMessage: `Cancelled after ${payslipsData.length} of ${employees.length} employees.`,
+        });
+        return new Response(JSON.stringify({ cancelled: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // Heartbeat every 5 employees to keep the sweeper happy on large runs.
+      if (payslipsData.length > 0 && payslipsData.length % 5 === 0) {
+        await heartbeat("running", { current: payslipsData.length, total: employees.length });
+      }
       // ─── Salary source: salary structure → contract → reject ───
       const contract = contractByEmployee[emp.id];
       let basicSalary: number;

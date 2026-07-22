@@ -27,6 +27,7 @@ import { usePayrollGL } from "@/hooks/usePayrollGL";
 import { usePermissions } from "@/hooks/usePermissions";
 import { usePayrollReadiness } from "@/hooks/payroll/usePayrollReadiness";
 import { PayrollRunList } from "@/components/payroll/PayrollRunList";
+import { PayrollJobPanel } from "@/components/payroll/PayrollJobPanel";
 import { PayrollRunDetailsDialog } from "@/components/payroll/PayrollRunDetailsDialog";
 import { CreatePayrollDialog } from "@/components/payroll/CreatePayrollDialog";
 import { CreatePaymentBatchDialog } from "@/components/payroll/CreatePaymentBatchDialog";
@@ -234,16 +235,17 @@ export default function PayrollRuns() {
         variant: "destructive",
       });
     } else if (c.kind === "transport") {
-      // Server-side drop (edge runtime kill, oversized response, upstream
-      // reset). Compute-payroll may have committed partial state. Force a
-      // refetch of the runs list so the accountant sees what actually
-      // landed, and warn them NOT to blindly retry.
-      console.error("[Payroll transport failure]", err);
+      // Accept endpoint is fast (<2s) and hands off to a background worker.
+      // A transport failure here means the ACCEPT call itself was dropped —
+      // the job row may or may not exist. The PayrollJobPanel below reads
+      // authoritative state from `payroll_run_jobs`; if a job with the same
+      // idempotency key was created, it will surface there and continue.
+      console.error("[Payroll accept transport failure]", err);
       void refreshPayrollRuns?.();
       toast({
-        title: "Payroll engine did not respond",
+        title: "Couldn't reach the payroll service",
         description:
-          "Your payroll may still be running on the server. We've refreshed the runs list — check the latest run's status before retrying. Retrying blindly can create duplicate payslips.",
+          "Check the panel below the runs list — if a payroll job appears there, it is running on the server and will complete on its own. If nothing appears, try again in a moment; the server prevents duplicate payslips via the idempotency key.",
         variant: "destructive",
       });
     } else if (c.kind === "setup") {
@@ -372,14 +374,24 @@ export default function PayrollRuns() {
   const handleConfirm = async () => {
     setIsConfirming(true);
     try {
-      await createPayrollRun(
+      const result = await createPayrollRun(
         formData.pay_period_start, formData.pay_period_end, employeesForRun,
         undefined, undefined, currentBusiness?.country || null,
         variableEarnings, formData.payment_date,
         { run_type: runType, parent_run_id: parentRunId },
         prorationOverrides,
       );
-      toast({ title: "Payroll run created" });
+      // The accept endpoint returns 202 and hands off to a background
+      // worker. The runs list + PayrollJobPanel take over from here —
+      // do not report success or failure based on this promise.
+      if ((result as any)?.__async) {
+        toast({
+          title: "Payroll queued",
+          description: "The engine is running in the background. Progress is shown below the runs list; you can safely leave this page.",
+        });
+      } else {
+        toast({ title: "Payroll run created" });
+      }
       setShowPreview(false); setPreviewData(null); setVariableEarnings([]);
       setRunType("regular"); setParentRunId(null); setProrationOverrides({});
     } catch (err: any) {
@@ -508,6 +520,12 @@ export default function PayrollRuns() {
         onReverse={setReverseRun}
         postingRunId={postingRunId}
       />
+
+      {/* Authoritative execution state — visible whenever a payroll job is
+          queued, running, or recently completed. Survives page refresh. */}
+      <div className="mt-4">
+        <PayrollJobPanel />
+      </div>
 
       <CreatePayrollDialog
         open={showDialog} onOpenChange={setShowDialog}
