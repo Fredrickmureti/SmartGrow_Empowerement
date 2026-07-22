@@ -1,84 +1,92 @@
+## Findings
 
-# Tenant Transaction Reset — Audit & Remediation Plan
+**The tax-certificate pipeline is architecturally correct. The Kenya localization pack ships a broken P9A template.** The observed symptoms all trace to that single class of defect, amplified by an engine gap that lets bad templates be persisted.
 
-## Current architecture (verified by reading the code)
+### Certificate lifecycle (as-built, verified)
 
-The subsystem is more mature than the surface symptom suggests. Confirmed pieces:
+```
+payslip_lines (frozen at run.approved_at)
+   ↓
+payroll_employee_ytd_rollup  (canonical YTD projection — SQL RPC)
+payroll_employee_monthly_breakdown  (canonical monthly projection — SQL RPC)
+   ↓
+resolveCertificateYtd  (single reader — ADR-0060, arch-test locked)
+   ↓
+generate-tax-certificate  (template resolve → structural validate → payload assemble)
+   ↓
+certificate-engine v3 compile (HTML, CSS Paged Media — “preview === output”)
+   ↓
+payroll_tax_certificates row (payload snapshot + artifacts[] + provenance)
+   ↓
+lifecycle: issued / superseded / stale (regenerate flow)
+```
 
-- **UI** — `src/components/settings/OrgDataResetTool.tsx`: 3-step confirmation (`warning → type_confirm → final_countdown`), preview panel, per-category and `wipe_all` modes, uses `supabase.functions.invoke("clear-org-data")` with typed body, surfaces `{stage, error, code, hint, details}` from server.
-- **Edge function** — `supabase/functions/clear-org-data/index.ts` (515 LOC): five modes (`preview`, `wipe_all`, `categories`, `delete_organization`, `gc_orphans`), always returns HTTP 200 with `{ok, success, stage, error, code, hint, details}` envelope, service-role detection for pg_cron, storage GC via shared `runStorageGc`, orphan `auth.users` reaping on tenant delete, audit log writes.
-- **Database** — SQL RPCs `preview_organization_reset`, `reset_organization_data`, `reset_categories`, `platform_delete_organization`; a **governance teardown context** (`app.reset_in_progress` GUC, `_is_teardown_for_org(...)`) that immutability triggers must honor — enforced by an introspection test at `supabase/tests/teardown_context_bypass_test.sql` covering 29 guard functions.
+The renderer never computes; formulas live in the pack template's `derived_columns`. That layering is right. The problem is upstream: the pack shipped a template where the formulas are missing.
 
-The bones of an enterprise reset engine are in place. This plan does not tear that down — it verifies it works end-to-end, then closes the gaps that make the current failure possible.
+### Root cause
 
-## Diagnosis approach (before touching code)
+`localization_pack_certificate_templates.body.document[6]` for `P9A` (grid node bound to `p9.months`) declares 18 columns. Six of them — `col_d` (Total Gross Pay = A+B+C), `col_e1` (defined pension contribution), `col_e3` (actual pension contribution), `col_j` (chargeable pay), `col_k` (chargeable pay after mortgage relief), `col_l` (tax charged) — carry **no `source_key`, no membership in `derived_columns`**. These columns are statutorily computed, not read from a rule_code.
 
-The claim "CORS failure" is treated as a symptom until proven. Actual root causes at this layer are almost always one of:
+The engine's structural validator (`validateCanonicalSourceNode`) correctly refuses this with **HTTP 422 `TEMPLATE_STRUCTURAL_INVALID` / `GRID_COLUMN_UNBOUND`**. That is exactly the 422 the user sees on regenerate. Any prior "successful" issuance either predates this validator or was skipped via the idempotency short-circuit — the resulting payload contained `p9.months` rows with zeros in every unbound column, which is the "generates but empty" symptom.
 
-1. Edge function threw during boot/import (esm.sh drift, missing env) → no CORS headers reach browser → looks like CORS.
-2. Function ran > platform timeout on a large tenant → connection reset mid-response.
-3. Auth token expired → 401 without CORS headers on the error path.
-4. Real CORS mismatch (unlikely — headers include the full Supabase client header set).
+The DB-level guard `assert_certificate_template_body_valid` does not enforce the column-binding contract, so the bad body was accepted at pack-publish time. That is the systemic gap.
 
-### Diagnostic steps (read-only, run first in build mode)
+### Architectural verdict
 
-1. Deploy status + fresh boot: call `curl_edge_functions` with `mode: preview` on the current org — this exercises auth + one RPC and returns the structured envelope. If it fails, the payload's `stage`/`error`/`code` names the true fault.
-2. `edge_function_logs` for `clear-org-data` — look for boot errors, `list_org_storage_paths` failures, RPC exceptions, timeout markers.
-3. If preview works but `wipe_all` fails, call `wipe_all` on a scratch org and capture the failing stage.
-4. Only if the envelope never reaches the browser: inspect actual CORS response headers on a manually crafted OPTIONS request.
+- Pipeline design (canonical resolver → declarative pack → generic renderer) is sound and matches how SAP HCM / Workday / Oracle HCM separate statutory schema from computation.
+- Two concrete defects to fix:
+  1. **Kenya pack P9A template body is incomplete** — missing `derived_columns` block for the computed KRA columns.
+  2. **Engine allows structurally-invalid templates to be persisted** — runtime refuses them, but by then they have already shipped and every generation attempt 422s.
 
-## Enterprise correctness checklist (audit findings to confirm/close)
+## Remediation plan
 
-Verified from reading the code — each becomes a concrete remediation only if the diagnostic run shows it broken:
+### 1. Republish P9A with complete `derived_columns` (migration)
 
-| Concern | Current state | Action if gap found |
-| --- | --- | --- |
-| Atomicity per category | `reset_categories` is transactional (per UI comment) | Verify by reading the SQL; if not wrapped in a single txn, wrap it |
-| Atomicity of `wipe_all` | Runs `reset_organization_data` as one RPC (single txn) then storage purge (best-effort, post-commit) | Confirm SQL is single txn; document that storage is eventually-consistent and reconciled by `gc_orphans` |
-| Immutability triggers bypass | 29 guards asserted by pg_tap test | Add any new guard authors to the test's expected list; keep the test in CI |
-| Master data preservation | Enforced by RPC allow-lists inside `reset_organization_data` | Add an inverse coverage test: after wipe, assert core tables (organizations, users, roles, chart_of_accounts_templates, products, warehouses, tax config, printer/media/label templates, localization packs) are non-empty and unchanged |
-| Idempotency | Confirmation token `RESET-<org_id>` prevents accidental replay; RPC itself is naturally idempotent on empty tenant | Add explicit idempotency: second run returns `{already_clean: true}` instead of no-op silent success |
-| Recovery from partial failure | SQL txn rolls back cleanly; storage purge is best-effort with `gc_orphans` sweep | Ensure `gc_orphans` covers every bucket touched by `wipe_all` |
-| Sequences | Confirm `reset_organization_data` resets `*_sequences` tables (invoice_sequences, je_number_sequences, payroll_number_sequences, etc.) | If missing any, add to the RPC |
-| Derived state | Confirm reset clears `*_ytd`, `*_daily`, `*_summary`, cache tables (`ai_insights_cache`, `pos_daily_summary`, `payroll_employee_ytd`, `project_burndown_daily`) | Add anything missing |
-| Event queues | Confirm `business_event_outbox`, `email_event_outbox`, `sms_event_outbox`, `notifications`, `webhook_events` are cleared to avoid dangling FK refs | Add if missing |
-| Audit logs | Currently NOT cleared (verified — audit insert happens after wipe) — correct enterprise behavior (audit is regulatory) | Document; expose a separate platform-admin-only "purge audit" path if ever needed |
-| Observability | Console-only logging in edge fn | Persist a `reset_runs` table row per attempt with `{stage, started_at, finished_at, ok, error, counts}` for support recovery |
-| Long-running risk | Currently synchronous HTTP; fine for evaluation-sized tenants but not for production-scale | If diagnostic shows timeouts, promote `wipe_all` to a background job pattern: edge fn enqueues, `pg_cron`/`process-scheduled-automations` executes, UI polls `reset_runs` row |
-| UI states | Only `loading`/`done`/`error` | Add explicit `preparing → validating → running → finalizing → complete` states driven by a `reset_runs` row when async path is enabled |
+Update the pack row in `localization_pack_certificate_templates` (code=`P9A`, pack_id=Kenya) via migration to attach a `derived_columns` array to the grid node:
 
-## Execution plan
+- `col_d = col_a + col_b + col_c` (Total Gross Pay)
+- `col_e1 = min(0.30 * col_a, 30000)` (defined pension contribution cap, KRA 2024 rules — pack-owned constant)
+- `col_e3 = col_e1` (actual = defined when no separate contribution source)
+- `col_j = col_d − col_e1 − col_e2 − col_e3 − col_f − col_g − col_h` (chargeable pay before mortgage)
+- `col_k = col_j − col_i` (chargeable pay)
+- `col_l = paye_gross_from_bands(col_k)` — expressed via the pack's supported derived arithmetic; if bands are not expressible in current derived-column grammar, bind `col_l` to a new canonical rule_code `paye_gross` that the payroll engine already produces, and keep the derived expression only for column arithmetic
 
-**Phase 0 — Investigate (no code changes)**
-- Run `preview`, `wipe_all` on scratch org via `curl_edge_functions`.
-- Pull `edge_function_logs`.
-- Read `reset_organization_data`, `reset_categories`, `preview_organization_reset` SQL bodies from a recent migration to verify allow-lists, sequence resets, derived-state clears, event-queue clears.
-- Produce a short verdict: what actually failed and which checklist rows are gaps vs. already-correct.
+The Kenya pack owns these formulas — no country logic enters the generator.
 
-**Phase 1 — Fix the real failure**
-- Address the concrete cause identified in Phase 0 (e.g. missing table in RPC allow-list, edge-fn boot error, expired auth path). Not speculated in advance.
+### 2. Extend DB validator to enforce column-binding contract
 
-**Phase 2 — Close verified gaps only**
-- Extend `reset_organization_data` SQL with any missing sequences / derived tables / event queues found in Phase 0.
-- Add `public.reset_runs` observability table (id, org_id, mode, categories, stage, started_at, finished_at, ok, error, counts_json, initiated_by) with RLS + grants, written from the edge function.
-- Add architecture test: after `wipe_all`, master-data tables are unchanged and transactional tables are empty.
+New assertion added to `assert_certificate_template_body_valid` (or a new trigger): for every `grid`/`matrix` node, every non-month data column must have `source_key` OR appear as a key in `derived_columns`. Mirrors the runtime check in `validateCanonicalSourceNode`, so a broken template cannot be inserted or updated in the first place. Backfill audit: run the same check against all existing pack rows and emit `payroll_diagnostics` for any that fail (surfaces GH_PAYE / ANNUAL_EARNINGS / CERT_OF_SERVICE regressions in one pass).
 
-**Phase 3 — UI honesty**
-- Consume `reset_runs` (if added) so the UI shows the real stage instead of a single spinner.
-- Ensure error toasts always render the normalized `{stage, error, hint}` — already implemented, just verify no path bypasses it.
+### 3. Refuse silent empty issuance
 
-**Phase 4 — Optional async promotion**
-- Only if Phase 0 shows timeout risk: convert `wipe_all` to enqueue + background worker + poll. Otherwise leave synchronous — added complexity without benefit for evaluation-scale resets.
+Add an "empty payroll year" guard in `generate-tax-certificate` after payload assembly: if `rows.length === 0` AND every monthly grid row sums to zero, refuse with `EMPTY_PAYROLL_YEAR` (recovery: "run and approve at least one payroll for FY <year> before issuing a certificate"). Removes the ambiguous "issued but blank" outcome for the certificates that are not `CERT_OF_SERVICE`.
 
-## Technical notes
+### 4. Regenerate/supersede semantics
 
-- All schema changes go through the migration tool with proper `GRANT` + RLS.
-- The teardown-context test (`teardown_context_bypass_test.sql`) is the safety net for any new immutability trigger — any new guard added in Phase 2 SQL must be added to its expected list.
-- No changes to `platform_delete_organization` in scope — separate concern.
-- Storage GC continues to reconcile any object the SQL path misses; do not try to make storage cleanup transactional (it can't be).
+Confirmed correct: on `regenerate=true` the prior `issued` row is flipped to `superseded` and a new row is inserted, both retained (audit trail). Once (1) lands, the 422 disappears; no behavioural change needed here.
 
-## Out of scope
+### 5. Coverage tests (block regressions class-wide)
 
-- Tenant creation flow.
-- Multi-region / cross-cluster replication of resets.
-- Backup/restore before reset (separate feature).
+Add architecture tests under `src/test/architecture/`:
+- **`certificate-templates-canonical-binding.test.ts`** — loads every row from `localization_pack_certificate_templates`, walks each grid/matrix, asserts every data column is bound. Fails CI when any pack ships an unbound column.
+- **`certificate-empty-year-refused.test.ts`** — asserts the `EMPTY_PAYROLL_YEAR` branch exists in the generator.
+
+### 6. Verification
+
+- Deploy the updated P9A pack + validator migration.
+- `curl` `generate-tax-certificate` for a known employee with approved payroll → expect populated grid.
+- `curl` for an employee with no payroll → expect `EMPTY_PAYROLL_YEAR` (not empty PDF).
+- Regenerate an already-issued cert → expect prior row superseded, new row issued, no 422.
+- Attempt to `UPDATE` a pack template body to strip `source_key` from a column → expect DB trigger refusal.
+
+### Out of scope (deliberate, keeps engine layering intact)
+
+- No changes to the renderer (`certificate-engine v3 compile`) — computation must not migrate into HTML.
+- No changes to `resolveCertificateYtd` — it is already the single reader.
+- No new per-country branches in the generator.
+
+### Technical notes
+
+- Files: `supabase/functions/generate-tax-certificate/index.ts`, `supabase/functions/_shared/certificateSourceResolver.ts`, `supabase/functions/_shared/certificateMatrix.ts`.
+- New migration touches `localization_pack_certificate_templates` (P9A body update) and `assert_certificate_template_body_valid` (or adds a companion trigger). No new tables.
+- All new refusals go through `businessError()` so the UI keeps rendering the structured `{code, message, recovery}` envelope.
