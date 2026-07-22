@@ -61,7 +61,10 @@ describe("paymentSessionClient", () => {
         p_idempotency_key: "key-1",
         p_tip_amount: 50,
         p_cashier_id: "cash-1",
+        p_settlement_currency: "KES",
+        p_tip_policy: "none",
       });
+
     });
 
     it("defaults tip_amount to 0 when omitted", async () => {
