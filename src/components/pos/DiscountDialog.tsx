@@ -50,9 +50,8 @@ export function DiscountDialog({
 }: DiscountDialogProps) {
   const { discounts, getApplicableDiscounts, calculateDiscount } = usePOSDiscounts();
   const { formatCurrency, getCurrencySymbol } = useCurrency();
-  const { currentOrg } = useOrganization();
   // Stage 8.6: server-side gate via assert_manager_override / pos_override_matrix.
-  const { requestOverride, isVerifying } = useManagerOverride(currentOrg?.id);
+  const { requestOverride, isVerifying } = useManagerOverride();
   
   const [activeTab, setActiveTab] = useState("presets");
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
