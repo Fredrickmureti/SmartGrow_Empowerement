@@ -38,7 +38,7 @@ import { Plus, Pencil, Trash2, Scale, History, BookOpen, FileText, Workflow } fr
 import { GarnishmentDashboard } from "@/components/payroll/GarnishmentDashboard";
 import { AuthorityPicker } from "@/components/payroll/AuthorityPicker";
 import { LegalOrderDocuments } from "@/components/payroll/LegalOrderDocuments";
-import { useLegalOrder } from "@/hooks/useLegalOrders";
+import { useLegalOrder, useLegalOrders } from "@/hooks/useLegalOrders";
 
 /**
  * Allowed FSM transitions per source status. Mirrors garnishment_transition()
@@ -115,6 +115,25 @@ export default function GarnishmentsPage() {
     for (const e of employees) m.set(e.id, `${e.first_name} ${e.last_name}`);
     return m;
   }, [employees]);
+
+  // Resolved legal-order rows keyed by id — powers per-row compliance badges
+  // (priority_class, always_first, evidence-missing) without a second query per row.
+  const { data: legalOrderRows = [] } = useLegalOrders();
+  const legalOrderById = useMemo(() => {
+    const m = new Map<string, typeof legalOrderRows[number]>();
+    for (const r of legalOrderRows) m.set(r.id, r);
+    return m;
+  }, [legalOrderRows]);
+  const complianceCounts = useMemo(() => {
+    let pending = 0, missingEvidence = 0, alwaysFirst = 0;
+    for (const r of legalOrderRows) {
+      if (r.status === "pending_approval") pending++;
+      if ((r as any).priority_class === 1) alwaysFirst++;
+      const req = (r.evidence_requirements as any)?.required_kinds;
+      if (Array.isArray(req) && req.length > 0 && !r.document_url) missingEvidence++;
+    }
+    return { pending, missingEvidence, alwaysFirst };
+  }, [legalOrderRows]);
 
   const empty = {
     employee_id: "",
@@ -237,6 +256,26 @@ export default function GarnishmentsPage() {
   return (
     <div className="space-y-4">
       <GarnishmentDashboard />
+      {(complianceCounts.pending + complianceCounts.missingEvidence + complianceCounts.alwaysFirst) > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs">
+          <span className="font-medium">Compliance:</span>
+          {complianceCounts.pending > 0 && (
+            <Badge variant="secondary" title="Orders awaiting a second approver (SoD).">
+              {complianceCounts.pending} pending approval
+            </Badge>
+          )}
+          {complianceCounts.missingEvidence > 0 && (
+            <Badge variant="destructive" title="Orders whose resolved legal kind requires evidence that has not been attached.">
+              {complianceCounts.missingEvidence} missing evidence
+            </Badge>
+          )}
+          {complianceCounts.alwaysFirst > 0 && (
+            <Badge variant="default" title="Statutory always-first orders (e.g. child support in many jurisdictions).">
+              {complianceCounts.alwaysFirst} always-first
+            </Badge>
+          )}
+        </div>
+      )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -273,10 +312,34 @@ export default function GarnishmentsPage() {
                   <TableRow key={g.id}>
                     <TableCell>{employeeById.get(g.employee_id) ?? "—"}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{g.kind.replace(/_/g, " ")}</Badge>
-                      {g.aggregate_cap_exempt && (
-                        <Badge variant="secondary" className="ml-1 text-[10px]">cap-exempt</Badge>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge variant="outline">{g.kind.replace(/_/g, " ")}</Badge>
+                        {g.aggregate_cap_exempt && (
+                          <Badge variant="secondary" className="text-[10px]">cap-exempt</Badge>
+                        )}
+                        {(() => {
+                          const lo = legalOrderById.get(g.id);
+                          if (!lo) return null;
+                          const req = (lo.evidence_requirements as any)?.required_kinds;
+                          const evidenceMissing = Array.isArray(req) && req.length > 0 && !lo.document_url;
+                          return (
+                            <>
+                              {lo.priority_class === 1 && (
+                                <Badge variant="default" className="text-[10px]" title="Statutory always-first: pays before all other orders regardless of priority number.">always-first</Badge>
+                              )}
+                              {typeof lo.priority_class === "number" && lo.priority_class > 1 && (
+                                <Badge variant="outline" className="text-[10px]" title="Statutory priority class from the resolved legal-behaviour pack.">class {lo.priority_class}</Badge>
+                              )}
+                              {evidenceMissing && (
+                                <Badge variant="destructive" className="text-[10px]" title="Required evidence not yet attached — see the Evidence section in the editor.">no evidence</Badge>
+                              )}
+                              {lo.payee_unmapped && (
+                                <Badge variant="secondary" className="text-[10px]" title="Payee has not been mapped to a contact record.">payee unmapped</Badge>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </TableCell>
                     <TableCell>{g.priority}</TableCell>
                     <TableCell className="text-xs">
@@ -428,16 +491,20 @@ export default function GarnishmentsPage() {
               </Select>
             </WorkflowField>
             <div className="grid grid-cols-2 gap-3">
-              <WorkflowField label="Fixed amount">
-                <Input type="number" step="0.01" value={form.fixed_amount} onChange={(e) => setForm({ ...form, fixed_amount: e.target.value })} />
-              </WorkflowField>
-              <WorkflowField label="% of disposable" hint="0.25 = 25%">
-                <Input type="number" step="0.0001" value={form.percent_of_disposable} onChange={(e) => setForm({ ...form, percent_of_disposable: e.target.value })} />
-              </WorkflowField>
-              <WorkflowField label="Total owed">
+              {(form.cap_rule === "fixed_amount" || form.cap_rule === "lesser_of_fixed_or_pct") && (
+                <WorkflowField label="Fixed amount" required={form.cap_rule === "fixed_amount"}>
+                  <Input type="number" step="0.01" value={form.fixed_amount} onChange={(e) => setForm({ ...form, fixed_amount: e.target.value })} />
+                </WorkflowField>
+              )}
+              {(form.cap_rule === "percent_disposable" || form.cap_rule === "lesser_of_fixed_or_pct") && (
+                <WorkflowField label="% of disposable" hint="0.25 = 25%" required={form.cap_rule === "percent_disposable"}>
+                  <Input type="number" step="0.0001" value={form.percent_of_disposable} onChange={(e) => setForm({ ...form, percent_of_disposable: e.target.value })} />
+                </WorkflowField>
+              )}
+              <WorkflowField label="Total owed" hint="Order stops accruing once this cumulative amount has been withheld.">
                 <Input type="number" step="0.01" value={form.total_owed} onChange={(e) => setForm({ ...form, total_owed: e.target.value })} />
               </WorkflowField>
-              <WorkflowField label="Min take-home">
+              <WorkflowField label="Min take-home" hint="Per-order protected earnings floor (overrides org default when set).">
                 <Input type="number" step="0.01" value={form.minimum_take_home_amount} onChange={(e) => setForm({ ...form, minimum_take_home_amount: e.target.value })} />
               </WorkflowField>
             </div>
