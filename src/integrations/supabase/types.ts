@@ -33416,6 +33416,72 @@ export type Database = {
           },
         ]
       }
+      payroll_run_jobs: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          employee_count: number
+          error_code: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          idempotency_key: string
+          organization_id: string
+          pay_period_end: string
+          pay_period_start: string
+          payroll_run_id: string | null
+          request_payload: Json
+          requested_by: string | null
+          result: Json | null
+          run_type: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          employee_count?: number
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          pay_period_end: string
+          pay_period_start: string
+          payroll_run_id?: string | null
+          request_payload?: Json
+          requested_by?: string | null
+          result?: Json | null
+          run_type?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          employee_count?: number
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          pay_period_end?: string
+          pay_period_start?: string
+          payroll_run_id?: string | null
+          request_payload?: Json
+          requested_by?: string | null
+          result?: Json | null
+          run_type?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payroll_run_loan_skip_overrides: {
         Row: {
           approved_at: string | null

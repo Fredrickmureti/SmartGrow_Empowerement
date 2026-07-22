@@ -36,6 +36,7 @@ import { PayrollSetupGate } from "@/components/payroll/PayrollSetupGate";
 import { PayrollSetupGuideDialog } from "@/components/payroll/PayrollSetupGuideDialog";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function PayrollRuns() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -115,6 +116,53 @@ export default function PayrollRuns() {
     }
   }, [searchParams, setSearchParams]);
 
+  // Phase 3 · Realtime job-status subscription.
+  // The HTTP response from compute-payroll is no longer the source of truth
+  // for whether payroll ran (a transport drop can hide a successful run).
+  // Subscribe to `payroll_run_jobs` for this org — when the server marks a
+  // job succeeded or failed we refresh the runs list and notify the user,
+  // regardless of whether their invoke() call ever returned.
+  useEffect(() => {
+    const orgId = currentOrg?.id;
+    if (!orgId) return;
+    const channel = supabase
+      .channel(`payroll_run_jobs:${orgId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "payroll_run_jobs",
+          filter: `organization_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            status?: string;
+            error_message?: string | null;
+            payroll_run_id?: string | null;
+          };
+          if (row?.status === "succeeded") {
+            void refreshPayrollRuns?.();
+            toast({
+              title: "Payroll finished on the server",
+              description: "The run has been recorded. Refreshing the list.",
+            });
+          } else if (row?.status === "failed") {
+            void refreshPayrollRuns?.();
+            toast({
+              title: "Payroll engine reported a failure",
+              description: row.error_message || "Check the runs list for details.",
+              variant: "destructive",
+            });
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentOrg?.id, refreshPayrollRuns, toast]);
+
   // Default to current month — last month was confusing when employees only
   // have contracts that start this month (they would be silently filtered).
   const today = new Date();
@@ -133,7 +181,7 @@ export default function PayrollRuns() {
    *  - "user"     → plain validation toast
    */
   const classifyPayrollError = (err: any): {
-    kind: "setup" | "internal" | "user" | "offline";
+    kind: "setup" | "internal" | "user" | "offline" | "transport";
     msg: string;
     reasons: string[];
     runtimeBlockers: import("@/hooks/payroll/usePayrollReadiness").PayrollReadinessBlocker[] | null;
