@@ -490,12 +490,20 @@ serve(async (req) => {
         });
       }
 
+      const run = await startRun(admin, {
+        organization_id,
+        initiated_by: user.id,
+        mode: "delete_organization",
+        trigger_source: "clear-org-data:delete_organization",
+      });
+
       const { data: pathData, error: pathErr } = await supabaseUser.rpc(
         "list_org_storage_paths",
         { org_id: organization_id },
       );
       if (pathErr) {
-        return reply({ ok: false, success: false, stage: "list_storage_paths", error: pathErr.message, code: pathErr.code });
+        await finishRun(admin, run, { ok: false, stage: "list_storage_paths", error: pathErr.message, error_code: pathErr.code });
+        return reply({ ok: false, success: false, run_id: run.id, stage: "list_storage_paths", error: pathErr.message, code: pathErr.code });
       }
 
       const { data, error } = await supabaseUser.rpc("platform_delete_organization", {
@@ -504,10 +512,13 @@ serve(async (req) => {
       });
       if (error) {
         console.error("[clear-org-data] platform_delete_organization failed:", error);
-        return reply({ ok: false, success: false, stage: "platform_delete_organization", error: error.message, code: error.code, hint: error.hint ?? null, details: error.details ?? null });
+        await finishRun(admin, run, {
+          ok: false, stage: "platform_delete_organization",
+          error: error.message, error_code: error.code, error_hint: error.hint ?? null,
+        });
+        return reply({ ok: false, success: false, run_id: run.id, stage: "platform_delete_organization", error: error.message, code: error.code, hint: error.hint ?? null, details: error.details ?? null });
       }
 
-      // Full tenant storage purge via the central garbage collector.
       const gcDel = await runStorageGc(admin, {
         scope: "organization",
         id: organization_id,
@@ -515,18 +526,9 @@ serve(async (req) => {
         triggerSource: "clear-org-data:delete_organization",
       });
       const storage: Record<string, unknown> = { gc: gcDel };
-      // Belt-and-braces: the two buckets whose paths SQL enumerates may
-      // contain objects written before the Phase 1 trigger; do an
-      // explicit-path pass for them too.
       storage.receipts_explicit = await purgeBucket(admin, "receipts", pathData?.receipts ?? []);
       storage["document-pdfs_explicit"] = await purgeBucket(admin, "document-pdfs", pathData?.document_pdfs ?? []);
 
-      // ── Orphan-identity GC ─────────────────────────────────────────────
-      // platform_delete_organization returns `orphan_member_user_ids` —
-      // former members whose ONLY tenancy was the org we just deleted and
-      // who are not platform admins. Reap their auth.users rows so the
-      // email is freed for a fresh signup. Without this, the email is
-      // permanently locked out (the devmuret@gmail.com bug).
       const orphanIds: string[] = Array.isArray((data as any)?.orphan_member_user_ids)
         ? ((data as any).orphan_member_user_ids as string[])
         : [];
@@ -548,9 +550,13 @@ serve(async (req) => {
         }
       }
 
+      await finishRun(admin, run, {
+        ok: true, stage: "complete", counts: data, storage_result: storage,
+      });
       return reply({
         ok: true,
         success: true,
+        run_id: run.id,
         mode: "delete_organization",
         result: data,
         storage,
@@ -570,6 +576,14 @@ serve(async (req) => {
       });
     }
 
+    const run = await startRun(admin, {
+      organization_id,
+      initiated_by: user.id,
+      mode: "categories",
+      categories,
+      trigger_source: "clear-org-data:categories",
+    });
+
     console.log(`[clear-org-data] reset_categories: ${categories.join(",")}`);
     const { data, error } = await supabaseUser.rpc("reset_categories", {
       org_id: organization_id,
@@ -577,9 +591,14 @@ serve(async (req) => {
     });
     if (error) {
       console.error("[clear-org-data] reset_categories failed:", error);
+      await finishRun(admin, run, {
+        ok: false, stage: "reset_categories",
+        error: error.message, error_code: error.code, error_hint: error.hint ?? null,
+      });
       return reply({
         ok: false,
         success: false,
+        run_id: run.id,
         stage: "reset_categories",
         error: error.message,
         code: error.code,
@@ -597,13 +616,15 @@ serve(async (req) => {
         entity_id: organization_id,
         entity_name: "Partial Data Wipe",
         changes_summary: `Cleared ${categories.length} module categories`,
-        new_values: { categories, ...data },
+        new_values: { categories, run_id: run.id, ...data },
       });
     } catch (e) {
       console.error("[clear-org-data] audit log failed:", e);
     }
 
-    return reply({ ok: true, success: true, mode: "categories", result: data });
+    await finishRun(admin, run, { ok: true, stage: "complete", counts: data });
+    return reply({ ok: true, success: true, run_id: run.id, mode: "categories", result: data });
+
   } catch (error: unknown) {
     console.error("[clear-org-data] Unexpected error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";
