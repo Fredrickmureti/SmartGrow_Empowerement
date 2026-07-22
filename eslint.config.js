@@ -79,6 +79,9 @@ export default tseslint.config(
           "no-direct-generate-document-in-pages": noDirectGenerateDocumentInPages,
           "no-product-id-as-barcode": noProductIdAsBarcode,
           "no-dialog-for-pos-workspace": noDialogForPosWorkspace,
+          "no-loose-manager-override-args": noLooseManagerOverrideArgs,
+
+
 
         },
       },
