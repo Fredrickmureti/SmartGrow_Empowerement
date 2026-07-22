@@ -1150,6 +1150,26 @@ Deno.serve(async (req) => {
     ) => {
       if (!jobId) return;
       try {
+        // On success, snap the progress bar to 100% so the UI never renders
+        // "succeeded · 0 / N employees" just because the loop finished before
+        // the last per-employee heartbeat landed. On failure, leave counters
+        // in place so operators can see how far the run got.
+        let terminalSnap: Record<string, unknown> = {};
+        if (state === "succeeded") {
+          try {
+            const { data: cur } = await supabaseAdmin
+              .from("payroll_run_jobs")
+              .select("progress_total, employee_count")
+              .eq("id", jobId)
+              .maybeSingle();
+            const total = Number((cur as any)?.progress_total || (cur as any)?.employee_count || 0);
+            terminalSnap = { progress_current: total, progress_total: total, phase: "completed" };
+          } catch {
+            terminalSnap = { phase: "completed" };
+          }
+        } else {
+          terminalSnap = { phase: "failed" };
+        }
         await supabaseAdmin
           .from("payroll_run_jobs")
           .update({
@@ -1159,6 +1179,7 @@ Deno.serve(async (req) => {
             payroll_run_id: payload.payrollRunId ?? null,
             error_code: payload.errorCode ?? null,
             error_message: payload.errorMessage ?? null,
+            ...terminalSnap,
           })
           .eq("id", jobId);
       } catch (e) {
