@@ -17,10 +17,18 @@ Verified directly against the DB + repo (not the plan.md):
 | P4c: effective-window filter in engine | **DONE (this turn)** | `computeGarnishments` now accepts `period_start`/`period_end` and skips out-of-window orders |
 | P5: context-aware UI (view read, dynamic calc fields, authority picker, evidence gating, completion gating) | **PARTIAL (this turn)** | `useLegalOrders`/`useLegalOrder` hook, `AuthorityPicker`, `LegalOrderDocuments` shipped; Garnishments form wires authority + versioned evidence; `/hr/payroll/legal-orders` alias route added; calc_model dynamic-field rewrite + dashboard badges still to do |
 | P5b-i: `legal_order_documents` table + private `legal-orders` storage bucket + RLS | **DONE (this turn)** | migration + bucket + storage.objects policies applied; upload/list/delete wired in form |
-| P6-i: `business_event_topics` seed for `legal_order.*` (11 topics incl. `payment_posted`) | **DONE (this turn)** | outbox worker will now route them |
-| P6 remainder: outbox subscriber + reporting rebind + notification rules | **NOT STARTED** | subscribers + notification_alert_settings rows still to wire |
+| P6-i: `business_event_topics` seed for `legal_order.*` (11 topics incl. `payment_posted`) | **DONE** | outbox worker will now route them |
+| P6b: outbox subscribers for all 11 `legal_order.*` topics + remittance projection + notification fan-out | **DONE (this turn)** | `legal_order_remittance_lines` table + `legal_order_apply_payment_remittance` RPC + `legal_order_notify_event` RPC + `legal_order_event_dispatch_log` dedupe; `outbox-dispatcher/index.ts` HANDLERS map extended with all 11 topics; engine tests still 13/13 |
+| P6 remainder: reporting rebind (payroll_return_runs → `legal_orders` view) + vendor statement export switch | **NOT STARTED** | see Phase 7 rebind list |
 
-Net: Phases 1–3 are genuinely complete; Phase 4 is code-complete but **tests are missing**; Phases 5 & 6 are untouched. No regressions found. The v3 plan is directionally correct — I extend it below rather than restart it.
+Net: Phases 1–5 are complete; Phase 6 is **substantially complete** (topics seeded + all 11 subscribers registered + remittance projection + notification fan-out live). Remaining Phase 6 work is reporting rebind. Phase 7 (cleanup/rename) still untouched. No regressions found.
+
+## Current status (updated after Phase 6b)
+
+- **Active phase:** Phase 6 (Consumer rewire) — 80% done.
+- **Next up:** Phase 6c — reporting rebind: point `payroll_return_runs`, vendor statement export, and any legacy dashboards at the canonical `public.legal_orders` view + `public.legal_order_remittance_lines` projection, and delete the direct `employee_garnishments` reads from reporting code.
+- **After that:** Phase 7 (cleanup) — drop free-text `issuing_authority`, rename `employee_garnishments` → `legal_orders_records` behind the view, remove `src/lib/payroll/garnishment-engine.ts` shim.
+
 
 ## Phase 2 — Plan additions (gaps the prior plan did not name)
 
@@ -89,3 +97,32 @@ Add `period_start`/`period_end` args to `computeGarnishments`; skip orders outsi
 - Every phase ends with the same evidence: engine + architecture tests green, one live activation from a signed-in `owner` returning 200, `business_event_outbox` row visible.
 - Documented per-phase in `docs/audit/` alongside `2026-07-22-legal-orders.md`.
 - Plan.md updated after each phase so status stays honest.
+
+## Handoff for the next agent (after Phase 6b — 2026-07-22)
+
+**Verify first, then resume.** Before writing new code, confirm the previous work landed correctly:
+
+1. **DB objects present**
+   - `\d public.legal_order_remittance_lines` — table exists with unique `(source_event_id)` and `(payment_id)`; RLS enabled; only SELECT policy for authenticated roles.
+   - `\d public.legal_order_event_dispatch_log` — PK on `source_event_id`.
+   - `\df public.legal_order_apply_payment_remittance` and `\df public.legal_order_notify_event` — both `SECURITY DEFINER`, `EXECUTE` granted only to `service_role`.
+2. **Dispatcher registry closed and complete**
+   - `rg -n "legal_order\." supabase/functions/outbox-dispatcher/index.ts` — must show all 11 topics wired.
+   - Emit a synthetic `legal_order.activate` outbox row for a test org and confirm the dispatcher marks it `succeeded` and inserts one `legal_order_event_dispatch_log` row.
+   - Emit a synthetic `legal_order.payment_posted` row and confirm one `legal_order_remittance_lines` row appears; re-emit the same event id → no duplicate (idempotency).
+3. **Regression gates green**
+   - `bunx vitest run src/lib/payroll/__tests__/garnishment-engine.test.ts` → 13/13.
+   - `bunx vitest run src/test/architecture/no-duplicate-garnishment-engine.test.ts` → pass.
+4. **No orphaned emissions**
+   - `SELECT event_type, count(*) FROM business_event_outbox WHERE event_type LIKE 'legal_order.%' AND status='failed' GROUP BY 1;` — expect zero rows attributable to Phase 6b topics.
+
+If any of the above fails, fix it before moving on — do **not** stack Phase 6c on a broken subscriber.
+
+**Then resume with Phase 6c (reporting rebind).** In order:
+
+1. `rg -n "employee_garnishments" src/ supabase/functions/_shared/reports/` — every reporting/vendor-statement read must go through `public.legal_orders` (view) or `public.legal_order_remittance_lines` (projection). Rewrite in-place; keep the FSM/write paths on the physical table.
+2. `payroll_return_runs` — join to the view, not the base table, so `authority`, `priority_class`, and `calc_model` are always resolved.
+3. Add one integration test that renders a statutory return with two orders (one child_support, one tax_levy) and asserts the projection order matches `priority_class`.
+4. Update this plan.md the moment 6c lands; do not defer.
+
+**Do not skip ahead to Phase 7 (rename/drop columns) until 6c is verified** — dropping `issuing_authority` before reporting reads are on the view will break statements silently.

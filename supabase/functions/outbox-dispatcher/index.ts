@@ -263,6 +263,48 @@ async function handlePosStatementPostingRequested(row: OutboxRow): Promise<void>
 // unknown topics are `failed` with a structured `posting.contract_violation`
 // diagnostic, so they retry into the DLQ and become visible instead of
 // disappearing. Adding a new topic must always be paired with a handler.
+// --- Phase 6b handlers: Legal Order fabric --------------------------------
+// The FSM (`garnishment_transition`) and payment poster
+// (`post-garnishment-payment`) emit one outbox row per lifecycle transition
+// plus one per posted payment. We (a) project payment_posted into the
+// legal_order_remittance_lines finance ledger and (b) fan out in-app
+// notifications for every lifecycle event. Both RPCs are idempotent via
+// `source_event_id`, so outbox retries never double-book.
+
+async function handleLegalOrderPaymentPosted(row: OutboxRow): Promise<void> {
+  const { error: remitErr } = await admin.rpc(
+    "legal_order_apply_payment_remittance",
+    {
+      p_event_id: row.id,
+      p_org_id:   row.org_id,
+      p_business: row.branch_id ? null : null, // resolved from payload below
+      p_payload:  row.payload ?? {},
+    },
+  );
+  if (remitErr) throw new Error(`remittance projection: ${remitErr.message}`);
+
+  // Also notify — payment posted is finance-visible.
+  const { error: notifErr } = await admin.rpc("legal_order_notify_event", {
+    p_event_id: row.id,
+    p_org_id:   row.org_id,
+    p_business: null,
+    p_topic:    row.event_type,
+    p_payload:  row.payload ?? {},
+  });
+  if (notifErr) throw new Error(`notify: ${notifErr.message}`);
+}
+
+async function handleLegalOrderLifecycle(row: OutboxRow): Promise<void> {
+  const { error } = await admin.rpc("legal_order_notify_event", {
+    p_event_id: row.id,
+    p_org_id:   row.org_id,
+    p_business: null,
+    p_topic:    row.event_type,
+    p_payload:  row.payload ?? {},
+  });
+  if (error) throw new Error(`notify: ${error.message}`);
+}
+
 const HANDLERS: Record<string, HandlerFn> = {
   "pos.sale.committed":              handlePosSaleCommitted,
   "inventory.movement.recorded":     handleInventoryMovementRecorded,
@@ -270,6 +312,19 @@ const HANDLERS: Record<string, HandlerFn> = {
   "payment.card.reversed":           (r) => handleCardSettlementLine(r, "reversal"),
   "settlement.card.closed":          handleSettlementCardClosed,
   "pos.statement.posting.requested": handlePosStatementPostingRequested,
+
+  // Legal Order fabric — Phase 6b
+  "legal_order.payment_posted":        handleLegalOrderPaymentPosted,
+  "legal_order.submit":                handleLegalOrderLifecycle,
+  "legal_order.approve":               handleLegalOrderLifecycle,
+  "legal_order.reject":                handleLegalOrderLifecycle,
+  "legal_order.activate":              handleLegalOrderLifecycle,
+  "legal_order.suspend":               handleLegalOrderLifecycle,
+  "legal_order.resume":                handleLegalOrderLifecycle,
+  "legal_order.mark_satisfied":        handleLegalOrderLifecycle,
+  "legal_order.release":               handleLegalOrderLifecycle,
+  "legal_order.expire":                handleLegalOrderLifecycle,
+  "legal_order.terminate_unsatisfied": handleLegalOrderLifecycle,
 };
 
 async function dispatch(row: OutboxRow): Promise<void> {
