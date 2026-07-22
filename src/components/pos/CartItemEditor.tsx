@@ -13,7 +13,7 @@ import { Plus, Minus, Percent, DollarSign, Trash2 } from "lucide-react";
 import { CartItem } from "@/hooks/pos/usePOSCart";
 import { usePOSSecuritySettings } from "@/hooks/pos/usePOSSecuritySettings";
 import { useManagerOverride } from "@/hooks/pos/useManagerOverride";
-import { useOrganization } from "@/hooks/useOrganization";
+
 import { ManagerOverrideDialog } from "./ManagerOverrideDialog";
 import { useCurrency } from "@/hooks/useCurrency";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
