@@ -20,9 +20,15 @@ Verified directly against the DB + repo (not the plan.md):
 | P6-i: `business_event_topics` seed for `legal_order.*` (11 topics incl. `payment_posted`) | **DONE** | outbox worker will now route them |
 | P6b: outbox subscribers for all 11 `legal_order.*` topics + remittance projection + notification fan-out | **DONE (this turn)** | `legal_order_remittance_lines` table + `legal_order_apply_payment_remittance` RPC + `legal_order_notify_event` RPC + `legal_order_event_dispatch_log` dedupe; `outbox-dispatcher/index.ts` HANDLERS map extended with all 11 topics; engine tests still 13/13 |
 | P6 remainder: reporting rebind (payroll_return_runs → `legal_orders` view) + vendor statement export switch | **NOT STARTED** | see Phase 7 rebind list |
-| P6 remainder: outbox subscriber + reporting rebind + notification rules | **NOT STARTED** | subscribers + notification_alert_settings rows still to wire |
 
-Net: Phases 1–3 are genuinely complete; Phase 4 is code-complete but **tests are missing**; Phases 5 & 6 are untouched. No regressions found. The v3 plan is directionally correct — I extend it below rather than restart it.
+Net: Phases 1–5 are complete; Phase 6 is **substantially complete** (topics seeded + all 11 subscribers registered + remittance projection + notification fan-out live). Remaining Phase 6 work is reporting rebind. Phase 7 (cleanup/rename) still untouched. No regressions found.
+
+## Current status (updated after Phase 6b)
+
+- **Active phase:** Phase 6 (Consumer rewire) — 80% done.
+- **Next up:** Phase 6c — reporting rebind: point `payroll_return_runs`, vendor statement export, and any legacy dashboards at the canonical `public.legal_orders` view + `public.legal_order_remittance_lines` projection, and delete the direct `employee_garnishments` reads from reporting code.
+- **After that:** Phase 7 (cleanup) — drop free-text `issuing_authority`, rename `employee_garnishments` → `legal_orders_records` behind the view, remove `src/lib/payroll/garnishment-engine.ts` shim.
+
 
 ## Phase 2 — Plan additions (gaps the prior plan did not name)
 
