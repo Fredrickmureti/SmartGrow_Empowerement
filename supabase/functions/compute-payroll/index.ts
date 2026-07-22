@@ -2680,10 +2680,9 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // Heartbeat every 5 employees to keep the sweeper happy on large runs.
-      if (payslipsData.length > 0 && payslipsData.length % 5 === 0) {
-        await heartbeat("running", { current: payslipsData.length, total: employees.length });
-      }
+      // Heartbeat every employee so the UI progress bar is truthful even on
+      // small runs (previous mod-5 gate left <5-employee runs at 0/N).
+      await heartbeat("computing", { current: payslipsData.length, total: employees.length });
       // ─── Salary source: salary structure → contract → reject ───
       const contract = contractByEmployee[emp.id];
       let basicSalary: number;
