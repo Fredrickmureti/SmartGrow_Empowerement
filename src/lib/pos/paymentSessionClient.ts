@@ -101,7 +101,19 @@ export interface ReverseTenderArgs {
   sessionId: string;
   tenderId: string;
   reason: string;
+  /**
+   * Manager approval id returned by `useManagerOverride`. Server calls
+   * `assert_manager_override` when the matrix has a row for
+   * `pos_payment_session_reverse_tender`; without a valid id above the
+   * configured threshold, the RPC raises `override_required` (SQLSTATE
+   * 42501). Safe to omit when no matrix row is configured. Stage 3.
+   */
+  managerOverrideId?: string | null;
+  organizationId?: string | null;
+  businessId?: string | null;
+  shiftId?: string | null;
 }
+
 
 export interface CancelSessionArgs {
   sessionId: string;
