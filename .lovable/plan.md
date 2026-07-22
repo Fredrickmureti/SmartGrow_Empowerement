@@ -1,194 +1,88 @@
-# Payroll Legal Orders — Architecture Plan (v3, execution status)
+# Payroll Legal Orders — Verification & Continuation Plan
 
-Phase 0 diagnosis is committed at `docs/audit/2026-07-22-legal-orders.md`.
-Architectural decisions were locked in v2 by inference from Workday
-(Involuntary Deductions), Oracle HCM (Legal Reporting Units + Third-Party
-Payments), SAP SuccessFactors EC Payroll, and UK/US statutory payroll
-practice. No further user decision is required.
+## Phase 1 — Independent verification of prior agent's claims
 
----
+Verified directly against the DB + repo (not the plan.md):
 
-## Locked architectural decisions
+| Prior claim | Verdict | Evidence |
+|---|---|---|
+| P1: `garnishment_transition` rewritten with RLS-aligned roles + SoD + optional approval-workflow gate + outbox emit | **Confirmed** | `pg_get_functiondef('garnishment_transition')` shows role gate (admin/owner/accountant/super_admin + manager for suspend/resume), `governance_assert_not_subject`, workflow gate for activate/release/terminate_unsatisfied, `future-dated activation blocked`; migration `20260722225911_*` emits 11 `legal_order.*` outbox rows |
+| P1: `legal_order_transition` alias exposed | **Confirmed** | `pg_proc` row present |
+| P2: enums + extended `garnishment_kind_defaults` + `legal_order_kind_overrides` + `install_legal_order_kind_defaults` RPC | **Confirmed** | `calc_model`, `protected_earnings_rule` columns present; RPC present; overrides table present |
+| P2: `install-localization-pack` projects pack rows | **Confirmed** | `install.ts:407` calls `install_legal_order_kind_defaults` and reports counts |
+| P3: `legal_orders` view + `legal_order_authorities` + `employee_garnishments.authority_id` FK | **Confirmed** | view + table + FK all present |
+| P4: shared engine extended with `calc_model`, `priority_class`, `aggregate_cap_membership`, `protected_earnings_rule`, `always_first` reservation | **Confirmed** | inspected `_shared/garnishment-engine.ts` |
+| P4: `post-garnishment-payment` emits `legal_order.payment_posted` | **Confirmed** | line 285–288 |
+| P4: unit tests for the 4 new branches | **NOT DONE** | test file has only the 8 legacy cases; no `always_first` / `priority_class` / `protected_earnings_rule` / `calc_model` fallback cases |
+| P5: context-aware UI (view read, dynamic calc fields, authority picker, evidence gating, completion gating) | **NOT STARTED** | no `useLegalOrders`, no `from('legal_orders')`, no `authority_id`/`calc_model`/`evidence_requirements`/`completion_rule` bindings in `Garnishments.tsx` / `GarnishmentDashboard.tsx` / `useGarnishments.ts` |
+| P6: consumer rewire onto `legal_order.*` outbox + topics seed | **NOT STARTED** | no subscribers, `business_event_topics` seed not extended |
 
-1. **Rename bounded context to Payroll Legal Orders.** New reads through the
-   `public.legal_orders` view + `legal_order_*` RPC aliases. Underlying table
-   `employee_garnishments` stays; a physical rename is deferred to a dedicated
-   migration once every consumer has migrated to the view.
-2. **Policy-driven activation with optional approval workflow.** Authorization
-   is `has_role` ∩ `governance_assert_not_subject` ∩ optional
-   `approval_workflows`. When the org has configured a workflow with
-   `entity_type='legal_order'`, an approved `approval_requests` row is
-   required for `activate` / `release` / `terminate_unsatisfied`. Otherwise
-   the SoD check plus the RLS-aligned role check is sufficient.
-3. **Localization pack is the sole authority for kind behaviour after install.**
-   `install-localization-pack` calls `install_legal_order_kind_defaults` to
-   upsert pack rows into `garnishment_kind_defaults`. Tenant deviations go
-   through `legal_order_kind_overrides` (audited). The global 13-row seed is
-   bootstrap only.
+Net: Phases 1–3 are genuinely complete; Phase 4 is code-complete but **tests are missing**; Phases 5 & 6 are untouched. No regressions found. The v3 plan is directionally correct — I extend it below rather than restart it.
 
----
+## Phase 2 — Plan additions (gaps the prior plan did not name)
 
-## Roadmap status
+Reviewing against Workday IVDs / Oracle HCM 3PP / SAP EC Payroll / UK AEO / US CCPA:
 
-| Phase | Title                                              | Status                    |
-| ----- | -------------------------------------------------- | ------------------------- |
-| 0     | Diagnosis                                          | Complete                  |
-| 1     | Policy-driven authorization + FSM + outbox emit    | Complete & verified       |
-| 2     | Pack legal-behaviour contract + install projection | Complete & verified       |
-| 3     | Domain rename (view + authorities)                 | Complete & verified       |
-| 4     | Engine consolidation + payment outbox emission     | Complete (tests pending)  |
-| 5     | Context-aware UI (dynamic legal reflection)        | **Active — next up**      |
-| 6     | Consumer rewire onto canonical `legal_order.*`     | Pending                   |
+- **A. Document evidence is not real.** Schema only has `document_url/filename` (a single link). The spec calls out uploaded/scanned court orders, versioning, retention, audit. Needs: `legal_order_documents` table (order → many docs, versioned, sha256, uploaded_by, retention_until), Storage bucket `legal-orders` with owner-only RLS, upload UI, and `evidence_requirements` gating that reads real document rows (not the free-text URL).
+- **B. Approval-workflow configuration surface.** The RPC now requires an approved `approval_request` when a workflow exists for `entity_type='legal_order'`, but there is no UI/seed to create such a workflow. Without it, the gate is silently bypassed. Add: (1) a per-org default `approval_workflow` seed for `legal_order` when the pack policy demands it, (2) an "Approvals" tab entry so admins see/edit it, (3) auto-creation of an `approval_request` when a user submits a legal order (submit → pending_approval already exists in the FSM).
+- **C. Finance liability + remittance are not event-derived yet.** Payslip posting creates the liability today via direct SQL. Phase 6 must add an outbox subscriber (`legal_order.payment_posted` → remittance batch line) and stop the direct-poll path so ownership is unambiguous.
+- **D. `business_event_topics` seed** for the full `legal_order.<action>` set — currently missing; outbox worker will drop unknown topics.
+- **E. Notifications.** Wire `legal_order.activate`, `legal_order.approve`, `legal_order.mark_satisfied`, `legal_order.terminate_unsatisfied` into `notification_alert_settings` so HR/finance are told, not just the DB.
+- **F. Reporting projection.** `payroll_return_runs` and vendor/third-party statements must read from `public.legal_orders` (view) + outbox, not from `employee_garnishments` directly. Reporting extract job needs a hook.
+- **G. Route + nav rename.** Add `/hr/payroll/legal-orders` route rendering the same shell; keep `/hr/payroll/garnishments` as alias (v3 plan calls this out, but adds no acceptance criteria — I'll assert both routes render + deep links redirect).
+- **H. Effective-window enforcement in payroll compute.** `garnishment-engine.ts` accepts orders but does not filter by `start_date <= period_end AND (end_date IS NULL OR end_date >= period_start)` — verify + add.
 
----
+## Phase 3 — Continuation roadmap (resume here)
 
-## Phase-by-phase detail
+### Phase 4b — Test backfill (start here)
 
-### Phase 1 — Authorization (DONE)
+Add to `src/lib/payroll/__tests__/garnishment-engine.test.ts`:
+1. `always_first` reserves before pool; child_support kind default drives it.
+2. `priority_class` orders two statutory kinds (tax_levy `class=2` before creditor `class=5`) irrespective of `priority` ties.
+3. `protected_earnings_rule.min_pct_of_gross` merges with explicit floor (max wins).
+4. `calc_model` fallback: order with `cap_rule=null` uses pack's `percent_disposable` model.
 
-- `public.garnishment_transition` rewritten: RLS-aligned role set
-  (admin/owner/accountant/super_admin; manager also for suspend/resume) +
-  `governance_assert_not_subject` (SoD, actor ≠ subject employee) + optional
-  approval-workflow gate for activate/release/terminate_unsatisfied when the
-  org has an `approval_workflows` row for `entity_type='legal_order'`.
-- Future-dated activation blocked (`start_date > current_date`).
-- Every transition writes `garnishment_lifecycle_events` **and** emits a
-  canonical `legal_order.<action>` event to `business_event_outbox`.
-- Enterprise-domain alias `public.legal_order_transition` exposed for new code.
-- `self_action_policy` seeded with SoD-block rows for every org × new
-  action-key combination.
-- Verified: RPC signature preserved, existing frontend calls keep working.
+Then confirm `src/test/architecture/no-duplicate-garnishment-engine.test.ts` still passes.
 
-### Phase 2 — Pack contract (DONE)
+### Phase 4c — Effective-window filter in engine
 
-- New enums: `legal_order_calc_model`, `legal_order_cap_membership`,
-  `legal_order_completion_rule`.
-- Extended columns on `localization_pack_garnishment_kinds` **and**
-  `garnishment_kind_defaults`: `calc_model`, `priority_class`,
-  `protected_earnings_rule` (jsonb), `aggregate_cap_membership`,
-  `remittance_schedule_ref`, `evidence_requirements` (jsonb),
-  `completion_rule`, `reporting_binding_ref`. Legacy booleans backfilled.
-- New table `legal_order_kind_overrides` (org-scoped RLS; write =
-  admin/owner only; unique per org × kind).
-- New RPC `install_legal_order_kind_defaults(org, pack)` — idempotent
-  upsert. `install-localization-pack` edge function calls it after GL
-  finalize and reports counts under `summary.legal_order_kinds`.
-- Verified: unique index `garnishment_kind_defaults_org_kind_uk` in place;
-  install path is non-fatal on projection error.
+Add `period_start`/`period_end` args to `computeGarnishments`; skip orders outside window; unit-test future-dated + expired orders.
 
-### Phase 3 — Domain rename (DONE)
+### Phase 5 — Context-aware UI
 
-- `public.legal_order_authorities` (courts, tax agencies, child-support
-  agencies, labor ministries, statutory bodies). Jurisdiction, contact,
-  default payee routing, remittance & reporting bindings. Org-scoped RLS;
-  write = admin/owner/accountant/super_admin.
-- `employee_garnishments.authority_id` (nullable FK) — legacy free-text
-  `issuing_authority` preserved for the transition period.
-- `public.legal_orders` view (`security_invoker=true`) joins
-  `employee_garnishments` with resolved `garnishment_kind_defaults` and
-  exposes the full contract to consumers.
-- Verified: view is invoker-mode (RLS enforced against caller); linter
-  delta zero.
+1. New hook `src/hooks/useLegalOrders.ts` reading `public.legal_orders` view — returns resolved kind contract (`calc_model`, `priority_class`, `evidence_requirements`, `completion_rule`, `aggregate_cap_membership`, `authority`).
+2. Rewrite `Garnishments.tsx` form:
+   - Kind picker seeds order defaults from resolved kind row.
+   - Calc section shows only fields matching `calc_model` (fixed vs %disposable vs lesser_of vs statutory_formula placeholder).
+   - Authority: replace free-text with `AuthorityPicker` bound to `legal_order_authorities` + "add new" affordance for admins.
+   - Completion section: `by_date`⇒require `end_date`, `by_balance`⇒require `total_owed`, `indefinite`⇒hide both.
+   - Evidence section: renders `legal_order_documents` list with upload; blocks Activate when required evidence missing.
+3. `GarnishmentDashboard.tsx`: show `priority_class`, badge `always_first`, badge missing evidence, badge pending-approval.
+4. Route alias `/hr/payroll/legal-orders` (same component); update `PayrollSidebar` label to "Legal Orders" with "Garnishments" as secondary.
 
-### Phase 4 — Engine + event emission (DONE, tests pending)
+### Phase 5b — Documents & Approvals (from gaps A & B)
 
-- `supabase/functions/_shared/garnishment-engine.ts` extended (backward
-  compatible):
-  - New optional `KindDefault` fields: `calc_model`, `priority_class`,
-    `aggregate_cap_membership`, `protected_earnings_rule`.
-  - `aggregate_cap_membership` supersedes legacy booleans when set.
-  - `always_first` group applied before pooled orders; sort key is
-    `(always_first desc, priority_class asc, priority asc)`.
-  - Fallback to pack `calc_model` when order-level `cap_rule` is null.
-    `statutory_formula` returns 0 (reserved for pack-scripted evaluators).
-  - `protected_earnings_rule.{min_pct_of_gross, min_amount}` merged into
-    the take-home floor.
-- Client shim `src/lib/payroll/garnishment-engine.ts` re-exports the two
-  new type unions (`LegalOrderCalcModel`, `LegalOrderCapMembership`).
-- `post-garnishment-payment` emits `legal_order.payment_posted` to
-  `business_event_outbox` after the lifecycle event (best-effort).
-- **Pending in Phase 4:**
-  - Add unit tests covering `always_first`, `priority_class`,
-    `protected_earnings_rule`, and `calc_model` fallback branches.
-  - Confirm `no-duplicate-garnishment-engine` architecture guard still
-    passes after the shim re-export was widened.
+- Migration: `legal_order_documents` table + `legal-orders` storage bucket + RLS.
+- Migration: seed default `approval_workflow` per org on first pack install requiring approval; expose via existing Approvals surface.
+- FSM: on `submit`, RPC auto-creates `approval_requests` row when workflow exists.
 
-### Phase 5 — Context-aware UI (NEXT — active phase)
+### Phase 6 — Consumer rewire + event fabric
 
-Goal: the UI reflects the pack-published legal contract instead of
-hard-coding fields. Scope:
+1. Seed `business_event_topics` with every `legal_order.<action>`.
+2. Outbox subscriber: `legal_order.payment_posted` → append remittance batch line (replace direct poll).
+3. Reporting extract binds to `public.legal_orders` view.
+4. Notification rules: activate/approve/mark_satisfied/terminate_unsatisfied.
+5. Vendor statement export switches to view.
 
-1. Read from `public.legal_orders` (not `employee_garnishments`) wherever
-   the UI needs the resolved contract. Add a `useLegalOrders` hook mirroring
-   `useGarnishments` but reading the view.
-2. In the order form:
-   - Read `calc_model` from the resolved kind and show/hide `fixed_amount`
-     vs `percent_of_disposable` accordingly.
-   - Surface `evidence_requirements` — block save when required documents
-     are missing.
-   - Surface `completion_rule` — require `end_date` when `by_date`,
-     require `total_owed` when `by_balance`, hide both when `indefinite`.
-   - Replace the free-text authority input with a picker bound to
-     `legal_order_authorities` (with an "add new authority" affordance for
-     admins).
-3. In the dashboard summary:
-   - Show `priority_class` alongside priority.
-   - Badge orders with `aggregate_cap_membership='always_first'`.
-4. Guard rails: no route rename yet; keep `/hr/payroll/garnishments` as an
-   alias and add `/hr/payroll/legal-orders` that renders the same shell so
-   deep links keep working.
+### Phase 7 — Cleanup
 
-### Phase 6 — Consumer rewire (PENDING)
+- Drop free-text `issuing_authority` after all rows have `authority_id`.
+- Rename `employee_garnishments` → `legal_orders_records`; keep view.
+- Remove `src/lib/payroll/garnishment-engine.ts` shim if all imports moved to canonical path (guard test permits).
 
-Migrate downstream consumers from polling the physical table to consuming
-`legal_order.*` outbox topics:
+## Technical notes
 
-- Remittance batch builder → `legal_order.payment_posted`,
-  `legal_order.release`.
-- Vendor / third-party statements → `legal_order.payment_posted`.
-- Reporting extract jobs → `legal_order.activate`,
-  `legal_order.mark_satisfied`, `legal_order.terminate_unsatisfied`.
-- Notifications → `legal_order.activate`, `legal_order.approve`.
-
-Also: expand `business_event_topics` seed with the full
-`legal_order.<action>` set so the outbox worker recognises them.
-
----
-
-## Files touched (this pass)
-
-- `supabase/migrations/*` — three migrations (Phase 1, 2, 3).
-- `supabase/functions/_shared/garnishment-engine.ts` — Phase 4 rewrite.
-- `src/lib/payroll/garnishment-engine.ts` — shim widened.
-- `supabase/functions/post-garnishment-payment/index.ts` — outbox emit.
-- `supabase/functions/localization-pack/ops/install.ts` — pack projection.
-
----
-
-## Handoff — instructions for the next agent
-
-1. **Verify Phase 4 first (do not skip):**
-   - Run `bunx vitest run src/lib/payroll/__tests__/garnishment-engine.test.ts`
-     and `src/test/architecture/no-duplicate-garnishment-engine.test.ts` —
-     both must pass unchanged. If either fails, fix before proceeding.
-   - Add new unit tests for the four Phase-4 branches listed above
-     (`always_first` reservation, `priority_class` ordering,
-     `protected_earnings_rule` floor merge, `calc_model` fallback).
-   - Quick end-to-end sanity: sign in as `owner`, create a draft legal
-     order, and hit **Activate**. Expect 200 (not 403). Confirm the
-     `business_event_outbox` receives `legal_order.activate`.
-2. **Verify Phase 1–3 didn't drift:**
-   - `select topic, count(*) from business_event_outbox where topic like 'legal_order.%' group by 1;`
-     should show at least the activate row from the sanity check.
-   - `select * from garnishment_kind_defaults where organization_id is not null limit 5;`
-     — the Phase-2 columns must be populated for tenants that installed a
-     pack after Phase 2 landed.
-3. **Only then start Phase 5.** Do not begin Phase 6 first — the UI must
-   already be reading from the view before we cut consumers over, or
-   diagnosing UI regressions during Phase 6 becomes ambiguous.
-4. **Do not** rename `employee_garnishments`, drop the free-text
-   `issuing_authority`, or delete the client-side engine shim yet — those
-   are explicit Phase-7 (cleanup) tasks after every consumer is on the
-   view + outbox.
-5. Update this file after each phase so it stays the single source of
-   truth for status.
+- All DB writes via migrations; grants + RLS reviewed per new table.
+- Every phase ends with the same evidence: engine + architecture tests green, one live activation from a signed-in `owner` returning 200, `business_event_outbox` row visible.
+- Documented per-phase in `docs/audit/` alongside `2026-07-22-legal-orders.md`.
+- Plan.md updated after each phase so status stays honest.
