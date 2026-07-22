@@ -1,109 +1,84 @@
-# Payroll Execution — Architectural Remediation
 
-## Verdict
+# Tenant Transaction Reset — Audit & Remediation Plan
 
-The current model is **request-driven pretending to be job-driven**. `payroll_run_jobs` exists as a control row, but the *engine* still runs inline inside the HTTP request that created it. When the request dies (timeout, network blip, tab close), the UI loses its only handle to the work and the user is stranded — even though on the server side the job row is real and reachable.
+## Current architecture (verified by reading the code)
 
-Two invariants are violated:
+The subsystem is more mature than the surface symptom suggests. Confirmed pieces:
 
-1. **State ownership** — the browser's pending HTTP call is treated as the source of truth. It must be `payroll_run_jobs`.
-2. **Execution durability** — the engine is coupled to the caller's socket. A long-running enterprise process must survive the caller disconnecting.
+- **UI** — `src/components/settings/OrgDataResetTool.tsx`: 3-step confirmation (`warning → type_confirm → final_countdown`), preview panel, per-category and `wipe_all` modes, uses `supabase.functions.invoke("clear-org-data")` with typed body, surfaces `{stage, error, code, hint, details}` from server.
+- **Edge function** — `supabase/functions/clear-org-data/index.ts` (515 LOC): five modes (`preview`, `wipe_all`, `categories`, `delete_organization`, `gc_orphans`), always returns HTTP 200 with `{ok, success, stage, error, code, hint, details}` envelope, service-role detection for pg_cron, storage GC via shared `runStorageGc`, orphan `auth.users` reaping on tenant delete, audit log writes.
+- **Database** — SQL RPCs `preview_organization_reset`, `reset_organization_data`, `reset_categories`, `platform_delete_organization`; a **governance teardown context** (`app.reset_in_progress` GUC, `_is_teardown_for_org(...)`) that immutability triggers must honor — enforced by an introspection test at `supabase/tests/teardown_context_bypass_test.sql` covering 29 guard functions.
 
-Fixing the toast copy or raising the timeout does not address either. The remediation below decouples *acceptance* from *execution* and makes the UI a subscriber to server state.
+The bones of an enterprise reset engine are in place. This plan does not tear that down — it verifies it works end-to-end, then closes the gaps that make the current failure possible.
 
-## Target model
+## Diagnosis approach (before touching code)
 
-```text
-UI ── invoke ──► compute-payroll (accept only)
-                     │
-                     │ insert/lock payroll_run_jobs (status=queued)
-                     │ enqueue business event: payroll.job.queued
-                     ▼
-              returns 202 { jobId } within ~1s
-                     │
-UI subscribes to payroll_run_jobs realtime + progress rows
-                     │
-                     ▼
-        payroll-worker (invoked by DB webhook / cron / event)
-          claims job (status=running, worker_id, heartbeat_at)
-          streams phase + per-employee progress rows
-          finalises job (succeeded | failed | cancelled)
-```
+The claim "CORS failure" is treated as a symptom until proven. Actual root causes at this layer are almost always one of:
 
-Key properties:
+1. Edge function threw during boot/import (esm.sh drift, missing env) → no CORS headers reach browser → looks like CORS.
+2. Function ran > platform timeout on a large tenant → connection reset mid-response.
+3. Auth token expired → 401 without CORS headers on the error path.
+4. Real CORS mismatch (unlikely — headers include the full Supabase client header set).
 
-- Acceptance and execution are **separate transactions**.
-- The job row is the **single source of truth**; UI never infers state from the HTTP promise.
-- The worker is **idempotent, resumable, and heartbeated**. A crashed worker is reclaimed by a stale-heartbeat sweeper.
-- Every meaningful transition is a **business event** the UI observes over Realtime.
+### Diagnostic steps (read-only, run first in build mode)
 
-## Plan
+1. Deploy status + fresh boot: call `curl_edge_functions` with `mode: preview` on the current org — this exercises auth + one RPC and returns the structured envelope. If it fails, the payload's `stage`/`error`/`code` names the true fault.
+2. `edge_function_logs` for `clear-org-data` — look for boot errors, `list_org_storage_paths` failures, RPC exceptions, timeout markers.
+3. If preview works but `wipe_all` fails, call `wipe_all` on a scratch org and capture the failing stage.
+4. Only if the envelope never reaches the browser: inspect actual CORS response headers on a manually crafted OPTIONS request.
 
-### 1. Split accept vs. execute
+## Enterprise correctness checklist (audit findings to confirm/close)
 
-- `compute-payroll` becomes an **accept-only** endpoint. It:
-  - validates payload,
-  - upserts `payroll_run_jobs` by `(organization_id, idempotency_key)` with `status='queued'`,
-  - emits `payroll.job.queued` into `business_event_outbox`,
-  - returns `202 { jobId, status, replay? }` in <2s.
-- If a matching job is `running` → return current snapshot (200), never 409-block the UI.
-- If `succeeded` → replay stored `result` (idempotent).
+Verified from reading the code — each becomes a concrete remediation only if the diagnostic run shows it broken:
 
-### 2. New `payroll-worker` edge function
+| Concern | Current state | Action if gap found |
+| --- | --- | --- |
+| Atomicity per category | `reset_categories` is transactional (per UI comment) | Verify by reading the SQL; if not wrapped in a single txn, wrap it |
+| Atomicity of `wipe_all` | Runs `reset_organization_data` as one RPC (single txn) then storage purge (best-effort, post-commit) | Confirm SQL is single txn; document that storage is eventually-consistent and reconciled by `gc_orphans` |
+| Immutability triggers bypass | 29 guards asserted by pg_tap test | Add any new guard authors to the test's expected list; keep the test in CI |
+| Master data preservation | Enforced by RPC allow-lists inside `reset_organization_data` | Add an inverse coverage test: after wipe, assert core tables (organizations, users, roles, chart_of_accounts_templates, products, warehouses, tax config, printer/media/label templates, localization packs) are non-empty and unchanged |
+| Idempotency | Confirmation token `RESET-<org_id>` prevents accidental replay; RPC itself is naturally idempotent on empty tenant | Add explicit idempotency: second run returns `{already_clean: true}` instead of no-op silent success |
+| Recovery from partial failure | SQL txn rolls back cleanly; storage purge is best-effort with `gc_orphans` sweep | Ensure `gc_orphans` covers every bucket touched by `wipe_all` |
+| Sequences | Confirm `reset_organization_data` resets `*_sequences` tables (invoice_sequences, je_number_sequences, payroll_number_sequences, etc.) | If missing any, add to the RPC |
+| Derived state | Confirm reset clears `*_ytd`, `*_daily`, `*_summary`, cache tables (`ai_insights_cache`, `pos_daily_summary`, `payroll_employee_ytd`, `project_burndown_daily`) | Add anything missing |
+| Event queues | Confirm `business_event_outbox`, `email_event_outbox`, `sms_event_outbox`, `notifications`, `webhook_events` are cleared to avoid dangling FK refs | Add if missing |
+| Audit logs | Currently NOT cleared (verified — audit insert happens after wipe) — correct enterprise behavior (audit is regulatory) | Document; expose a separate platform-admin-only "purge audit" path if ever needed |
+| Observability | Console-only logging in edge fn | Persist a `reset_runs` table row per attempt with `{stage, started_at, finished_at, ok, error, counts}` for support recovery |
+| Long-running risk | Currently synchronous HTTP; fine for evaluation-sized tenants but not for production-scale | If diagnostic shows timeouts, promote `wipe_all` to a background job pattern: edge fn enqueues, `pg_cron`/`process-scheduled-automations` executes, UI polls `reset_runs` row |
+| UI states | Only `loading`/`done`/`error` | Add explicit `preparing → validating → running → finalizing → complete` states driven by a `reset_runs` row when async path is enabled |
 
-- Triggered by (a) a DB `pg_net` webhook fired from the outbox trigger, and (b) a `pg_cron` sweeper every minute for missed/stale jobs.
-- Claims a queued job with `SELECT … FOR UPDATE SKIP LOCKED`, stamps `worker_id`, `started_at`, `heartbeat_at`.
-- Runs the existing engine **unchanged mathematically**, but wrapped so it:
-  - updates `heartbeat_at` every N employees,
-  - writes phase transitions to a new `payroll_run_job_events` table,
-  - writes per-employee progress to a new `payroll_run_job_progress` table (employee_id, status, error),
-  - commits final state via `finalizeJob`.
-- On crash / timeout, the sweeper flips stale `running` jobs (heartbeat > 90s) back to `queued` with `attempt = attempt + 1` up to a cap, then `failed` with a structured reason.
+## Execution plan
 
-### 3. Per-employee resumability
+**Phase 0 — Investigate (no code changes)**
+- Run `preview`, `wipe_all` on scratch org via `curl_edge_functions`.
+- Pull `edge_function_logs`.
+- Read `reset_organization_data`, `reset_categories`, `preview_organization_reset` SQL bodies from a recent migration to verify allow-lists, sequence resets, derived-state clears, event-queue clears.
+- Produce a short verdict: what actually failed and which checklist rows are gaps vs. already-correct.
 
-- Progress rows let the worker skip employees already `succeeded` on retry — no duplicate payslips even if the engine restarts mid-run.
-- Payslip writes stay inside the existing per-employee transaction; the idempotency guard already prevents duplicates at the DB layer, this layer just makes retries cheap.
+**Phase 1 — Fix the real failure**
+- Address the concrete cause identified in Phase 0 (e.g. missing table in RPC allow-list, edge-fn boot error, expired auth path). Not speculated in advance.
 
-### 4. Cancellation
+**Phase 2 — Close verified gaps only**
+- Extend `reset_organization_data` SQL with any missing sequences / derived tables / event queues found in Phase 0.
+- Add `public.reset_runs` observability table (id, org_id, mode, categories, stage, started_at, finished_at, ok, error, counts_json, initiated_by) with RLS + grants, written from the edge function.
+- Add architecture test: after `wipe_all`, master-data tables are unchanged and transactional tables are empty.
 
-- New RPC `payroll_request_cancel(job_id)` sets `cancel_requested_at`.
-- Worker checks the flag between employees; on cancel, finalises as `cancelled` and leaves already-computed payslips in place (surfaced to user as "partial — review before posting").
+**Phase 3 — UI honesty**
+- Consume `reset_runs` (if added) so the UI shows the real stage instead of a single spinner.
+- Ensure error toasts always render the normalized `{stage, error, hint}` — already implemented, just verify no path bypasses it.
 
-### 5. Frontend: UI observes server truth
+**Phase 4 — Optional async promotion**
+- Only if Phase 0 shows timeout risk: convert `wipe_all` to enqueue + background worker + poll. Otherwise leave synchronous — added complexity without benefit for evaluation-scale resets.
 
-- Replace the "await invoke → toast" pattern in `Runs.tsx` and `usePayroll.ts`:
-  - Call accept endpoint, get `jobId`, immediately render a **Payroll Job panel** driven by `useQuery` + Realtime on `payroll_run_jobs`, `payroll_run_job_events`, `payroll_run_job_progress`.
-  - Panel shows: `queued → validating → running (x/y employees) → finalising → succeeded/failed/cancelled`, elapsed time, last heartbeat, and per-employee failures inline.
-  - Panel persists across refresh: on mount, `useActivePayrollJobs(orgId)` restores any non-terminal job for the current pay period.
-- Remove the "engine did not respond" toast entirely. Transport failures on the *accept* call are the only place a retry toast is appropriate, and even then the accept is idempotent by `idempotency_key`.
+## Technical notes
 
-### 6. Reliability & guards
+- All schema changes go through the migration tool with proper `GRANT` + RLS.
+- The teardown-context test (`teardown_context_bypass_test.sql`) is the safety net for any new immutability trigger — any new guard added in Phase 2 SQL must be added to its expected list.
+- No changes to `platform_delete_organization` in scope — separate concern.
+- Storage GC continues to reconcile any object the SQL path misses; do not try to make storage cleanup transactional (it can't be).
 
-- Unique index preventing two non-terminal jobs for the same `(org, business, period, run_type='regular')`.
-- Row-level lock on accept so simultaneous tab clicks converge on one job row.
-- Structured logging (`[payroll-worker] jobId=… phase=… elapsed_ms=…`) on every phase.
-- Architecture test: no component may branch on `invoke('compute-payroll')` promise result to decide payroll state; state must come from the job hook. Enforced via ESLint rule + unit test.
+## Out of scope
 
-### 7. Migration & rollout
-
-- Ship new tables + worker + accept-only endpoint behind a feature flag `payroll.async_execution`.
-- Dual-path for one release: legacy inline path remains available for rollback; new path is default.
-- After one clean payroll cycle in staging, remove the inline path.
-
-## Out of scope (explicit)
-
-- Changing payroll math, statutory rules, or GL posting logic.
-- Chunking the engine into parallel workers (single worker per job is sufficient; parallelism is a later optimisation).
-- Reworking `business_event_outbox` itself — we only add one new event type.
-- Increasing any client or edge function timeout.
-
-## Deliverables this pass
-
-1. Migration: `payroll_run_jobs` extensions (`worker_id`, `heartbeat_at`, `attempt`, `cancel_requested_at`, `phase`), new `payroll_run_job_events`, `payroll_run_job_progress`, sweeper cron, RLS + GRANTs.
-2. `compute-payroll` reduced to accept-only.
-3. New `payroll-worker` edge function containing the engine, driven by outbox webhook + cron.
-4. `useActivePayrollJobs`, `usePayrollJob(jobId)` hooks with Realtime.
-5. `PayrollJobPanel` component; `Runs.tsx` refactor to mount it instead of awaiting the invoke.
-6. Architecture test + ESLint rule forbidding UI from treating the invoke promise as state.
-7. Docs: `docs/architecture/PAYROLL_EXECUTION.md` describing the model, invariants, and recovery paths.
+- Tenant creation flow.
+- Multi-region / cross-cluster replication of resets.
+- Backup/restore before reset (separate feature).
