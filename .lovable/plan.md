@@ -1,128 +1,261 @@
-# POS Refund/Reversal — Execution Plan
+# POS Refund/Reversal — Execution Plan (Living Document)
 
-Investigation is complete (see previous turn's verdicts). This is the execution plan. No fix-the-toast patches. Each stage lands behind a feature flag, ships with tests, and does not remove old behaviour until the replacement is verified.
+Investigation complete. Execution in progress. Each stage lands behind a
+seam, ships with tests, and does not remove old behaviour until the
+replacement is verified end-to-end.
 
-Supabase: proceeding against the currently-linked project (`jkszmrroyjfdwokbkzis`). If `AccrualFlowCorporation` is a different project, swap it in the Cloud panel before Stage 4 (finance/GL work) — Stages 1–3 are code-only and project-agnostic.
+Supabase: proceeding against the currently-linked project (`jkszmrroyjfdwokbkzis`).
+If `AccrualFlowCorporation` is a different project, swap it in the Cloud
+panel BEFORE Stage 4 (finance/GL work). Stages 1–3 are code-only and
+project-agnostic.
 
-## Root defects (from audit, evidence in previous message)
+---
 
-- F1 — No `TerminalSessionEnvelope`; 25+ duplicated `!companyId` guards; five call sites drop `businessId`.
-- F2 — Void / Card-Auth-Reversal / Refund / Return / Exchange / Store-Credit collapsed into one "Reverse" button; 4 overlapping implementations.
-- F3 — `pos_override_matrix` + `assert_manager_override` exist but `pos_card_reverse` never calls them; PIN is client-side theatre.
-- F4 — Reversal path does not touch inventory, GL, tax, receipt, audit, or outbox despite comments claiming otherwise.
-- F5 — No offline capability on PIN verify or reversal RPC.
-- F6 — Two parallel financial reversal models produce divergent state.
+## Status board
 
-## Stage 1 — TerminalSessionEnvelope (kills F1 permanently)
+| Stage | Title                         | State        | Verified by                                                        |
+| ----- | ----------------------------- | ------------ | ------------------------------------------------------------------ |
+| 1     | TerminalSessionEnvelope       | ✅ COMPLETE  | `src/test/architecture/terminal-session-envelope.test.ts` (5/5)    |
+| 2     | Domain event taxonomy         | ✅ COMPLETE  | `src/test/architecture/pos-reversal-taxonomy.test.ts` (7/7)        |
+| 3     | Policy-driven authorization   | ⏭ NEXT       | (pending)                                                          |
+| 4     | Refund saga                   | ⏳ PENDING    | (pending)                                                          |
+| 5     | Offline resilience            | ⏳ PENDING    | (pending)                                                          |
+| 6     | Consolidation & deprecation   | ⏳ PENDING    | (pending)                                                          |
 
-New module `src/services/pos/session/TerminalSessionEnvelope.ts`:
+**Currently active phase:** Stage 2 just landed. Next agent begins Stage 3.
+
+---
+
+## Root defects (from the audit — never edit, this is the reference)
+
+- **F1** — No `TerminalSessionEnvelope`; 25+ duplicated `!companyId`
+  guards; five call sites drop `businessId`.
+- **F2** — Void / Card-Auth-Reversal / Refund / Return / Exchange /
+  Store-Credit collapsed into one "Reverse" button; four overlapping
+  implementations.
+- **F3** — `pos_override_matrix` + `assert_manager_override` exist but
+  `pos_card_reverse` never calls them; PIN is client-side theatre.
+- **F4** — Reversal path does not touch inventory, GL, tax, receipt,
+  audit, or outbox despite comments claiming otherwise.
+- **F5** — No offline capability on PIN verify or reversal RPC.
+- **F6** — Two parallel financial reversal models produce divergent state.
+
+---
+
+## Stage 1 — TerminalSessionEnvelope ✅ COMPLETE (kills F1)
+
+**Delivered:**
+
+- `src/services/pos/session/TerminalSessionEnvelope.ts` — envelope type,
+  `useTerminalSessionEnvelope`, `assertActiveTerminalSession`,
+  `mergeEnvelope`, `TerminalSessionMissingFieldError`,
+  `describeMissingField`.
+- `src/hooks/pos/useManagerOverride.ts` — refactored to accept
+  `Partial<TerminalSessionEnvelope>` only. Legacy positional signature
+  removed. Distinguishes envelope-hydration errors ("Terminal not ready")
+  from real authorization failures ("Override Denied").
+- **All 8 call sites migrated** to the envelope-object shape:
+  - `src/components/pos/transaction-detail/CardPaymentActions.tsx`
+  - `src/apps/pos/terminal/history/HistoryWorkspace.tsx`
+  - `src/components/pos/CartItemEditor.tsx`
+  - `src/components/pos/DiscountDialog.tsx`
+  - `src/components/pos/CashDrawerDialog.tsx`
+  - `src/components/pos/RescueSessionAlert.tsx` (envelope override for rescue)
+  - `src/components/pos/ReopenShiftDialog.tsx` (envelope override for rescue)
+  - `src/apps/pos/terminal/return/ReturnWorkspace.tsx`
+- **ESLint rule** `local/no-loose-manager-override-args` at
+  `eslint-rules/no-loose-manager-override-args.js`, registered in
+  `eslint.config.js` at `error`.
+- **Contract test** `src/test/architecture/terminal-session-envelope.test.ts`
+  (5/5 passing) — enforces the loose-arg ban, envelope signature, and
+  presence of the historical error-literal purge.
+
+**Exit criteria met:** "Company not selected" cannot originate from any
+POS call site of `useManagerOverride`; ESLint + contract test prevent
+regression.
+
+---
+
+## Stage 2 — Domain event taxonomy ✅ COMPLETE (kills F2)
+
+**Delivered — `src/services/pos/reversal/`:**
+
+- `reasonCodes.ts` — the canonical `POSReversalReasonCode` union
+  (superset of ADR-0012 `PaymentReversalReason`), `REASON_METADATA`,
+  `getReasonsForCommand`, `assertReasonAllowedForCommand`,
+  `toAccountingReason` (exhaustive mapping to the finance leg).
+- `events.ts` — `POS_REVERSAL_EVENT_TOPICS` (`pos.sale.voided`,
+  `pos.card.reversed`, `pos.sale.refunded`, `pos.goods.returned`,
+  `pos.sale.exchanged`, `pos.store_credit.issued`) and the strict
+  `POSReversalEventPayload` shape for `business_event_outbox`.
+- `commands.ts` — discriminated union
+  `POSReversalCommand = VoidSaleCommand | ReverseCardAuthorizationCommand
+  | RefundSaleCommand | ReturnGoodsCommand | ExchangeCommand
+  | IssueStoreCreditCommand`, each carrying an `ActiveTerminalSession`
+  envelope + `clientRequestId` + `reasonCode` + `managerOverrideId`.
+  Type guards `isVoidSale`, `isRefundSale`, … for exhaustive dispatch.
+- `eligibility.ts` — pure `evaluateEligibility(facts) →
+  EligibilityResult[]` and `eligibleCommands(facts)`. Encodes the
+  audit's business rules (same-shift void, auth-only card reversal,
+  settled-tender refund, returnable-line return/exchange, identified-
+  customer store credit).
+- `index.ts` — barrel export. Import from `@/services/pos/reversal`.
+- **Contract test** `src/test/architecture/pos-reversal-taxonomy.test.ts`
+  (7/7 passing) — pins the command union to exactly six members,
+  guarantees every command has an outbox topic and ≥ 1 reason code,
+  proves no orphan reasons, proves ADR-0012 codes are a strict subset,
+  proves reason/command mismatches throw, proves the finance mapping is
+  exhaustive.
+
+**Exit criteria met:** commands are now first-class data objects; the
+saga in Stage 4 will pattern-match on `command.type` with compiler-
+enforced exhaustiveness. Reason vocabulary unified with ADR-0012 — no
+fork.
+
+**Not yet done (intentional — belongs with Stage 3):** the History
+screen still shows a single "Reverse" button. Splitting it into an
+action menu requires the Stage-3 policy matrix so eligible commands can
+be gated per role/threshold. Do NOT split the menu without Stage 3, or
+you will re-create F3.
+
+---
+
+## Stage 3 — Policy-driven authorization ⏭ NEXT (kills F3)
+
+**Objective:** every reversal command RPC calls `assert_manager_override(...)`
+server-side. Client-side PIN dialog becomes an approval-capture UI,
+not a gate.
+
+**Plan of record:**
+
+1. **Server** — audit every RPC that currently mutates POS state without
+   calling `assert_manager_override`. Add the call, wired to the
+   `manager_override_id` on the command envelope. `pos_card_reverse` is
+   the known offender; expect siblings.
+2. **View** — create `pos_override_matrix_effective` that resolves the
+   applicable policy per `{command, amount, tender, receipt_age,
+   category, role, store}` given the six-command taxonomy from Stage 2.
+   Migration + GRANTs + RLS in the same file.
+3. **Client hook** — `useOverridePolicy(command, facts)` asks the
+   matrix "is approval required?"; if not, no PIN dialog; if yes,
+   dialog → `pos_manager_overrides` insert → command dispatched with
+   `managerOverrideId` populated.
+4. **Error copy** — replace the blanket "Override denied" toast with
+   reason-specific copy driven by RPC error codes: `override_expired`,
+   `wrong_role`, `threshold_exceeded`, `invalid_pin`, `wrong_business`.
+5. **UI seam** — with the policy hook available, split the History
+   "Reverse" button into the action menu whose items map 1:1 to the
+   six commands from Stage 2, gated by `evaluateEligibility` +
+   `useOverridePolicy`.
+6. **Contract test** at `src/test/architecture/pos-override-policy.test.ts`:
+   every command's dispatch path calls `assert_manager_override` when
+   the matrix says approval is required; no direct RPC caller from
+   feature code.
+
+**Exit criteria for Stage 3:** every reversal command with a
+policy-mandated approval step provably fails at the RPC layer when the
+override is missing or forged. Blanket "Override denied" replaced with
+five specific reason strings. History screen shows the six-command
+action menu (dispatch is still Stage-4 saga; for Stage 3 each menu item
+routes to its existing implementation).
+
+---
+
+## Stage 4 — Refund saga ⏳ PENDING (kills F4 and F6)
+
+Orchestrator at `src/services/pos/reversal/RefundSaga.ts`:
 
 ```text
-TerminalSessionEnvelope = {
-  organizationId, businessId, storeId, warehouseId,
-  registerId, shiftId, cashierId,
-  currency, taxProfile, pricingProfile, hardwareProfile,
-  openedAt, envelopeVersion
-}
-```
-
-- `TerminalSessionProvider` React context, populated once at shift-open, immutable for the shift.
-- `useTerminalSession()` hook + `assertActiveTerminalSession(envelope, action)` guard.
-- Mutation hooks (`useManagerOverride`, `usePOSVoid`, `usePOSReturns`, `usePOSHeldTransactions`, `usePOSShifts`, `usePOSTransactionHistory`, card terminal controller) accept the envelope, not loose IDs.
-- Delete the 25+ local `!companyId` guards; one canonical guard remains.
-- ESLint rule `no-loose-org-business-id-in-pos` forbids new `useX(orgId, businessId)`-style hooks in `src/apps/pos/**` and `src/services/pos/**`.
-- Codemod migrates the five broken call sites (`CardPaymentActions.tsx:76`, `HistoryWorkspace.tsx:122`, `CartItemEditor.tsx:57`, `CashDrawerDialog.tsx:71`, `DiscountDialog.tsx:55`) plus the correct-but-loose ones.
-
-Exit criteria: "Company not selected" cannot be thrown from any POS call site; unit test covers each migrated hook; contract test forbids re-introduction.
-
-## Stage 2 — Domain event taxonomy (kills F2)
-
-New domain module `src/services/pos/reversal/`:
-
-```text
-commands/
-  VoidSaleCommand          (same-shift, pre-settlement, no goods movement)
-  ReverseCardAuthorization (settlement-state flip, tender-only)
-  RefundSaleCommand        (money out, whole or partial)
-  ReturnGoodsCommand       (goods back + disposition)
-  ExchangeCommand          (return + new sale, atomic)
-  IssueStoreCreditCommand
-events/
-  pos.sale.voided
-  pos.card.reversed
-  pos.sale.refunded
-  pos.goods.returned
-  pos.sale.exchanged
-  pos.store_credit.issued
-reasonCodes/  (canonical enum, shared with existing PaymentReversalReason)
-```
-
-- Reason codes unified with Path 4's existing `PaymentReversalReason`.
-- History screen replaces the single "Reverse" button with an action menu whose items map 1:1 to commands, gated by policy (Stage 3) and eligibility (item state / receipt age / tender type).
-- Existing `pos_card_reverse` becomes the implementation of `ReverseCardAuthorization` only; RPC name preserved for backward compat, semantics narrowed.
-
-## Stage 3 — Policy-driven authorization (kills F3)
-
-- Every command RPC calls `assert_manager_override(...)` server-side. PIN dialog becomes an approval-capture UI, not a gate.
-- New view `pos_override_matrix_effective` resolves the applicable policy per `{command, amount, tender, receipt_age, category, role, store}`.
-- Client asks the matrix "is approval required for this command with these facts?" — if no, no PIN dialog; if yes, PIN dialog → `pos_manager_overrides` insert → RPC references the override id, and `assert_manager_override` enforces it.
-- Replace blanket "Override denied" toast with reason-specific copy driven by RPC error codes (`override_expired`, `wrong_role`, `threshold_exceeded`, `invalid_pin`, `wrong_business`).
-
-## Stage 4 — Refund saga (kills F4 and F6)
-
-New service `src/services/pos/reversal/RefundSaga.ts` orchestrates:
-
-```text
-payment reversal (Path-4 code, reused, not duplicated)
+payment reversal (ADR-0012 path, reused, not duplicated)
    → inventory return-to-stock (stock_movements, stock_quants, cost_layers)
    → warehouse disposition (sellable | inspection | damaged | quarantine | vendor_return)
    → reversing journal (void_journal_entry_atomic, existing)
    → tax/fiscal notification (etims_transmission_logs, fiscal_transmissions)
    → receipt artifact (document_artifacts, print_jobs)
    → audit (commercial_audit_logs, payment_reversal_events)
-   → outbox (business_event_outbox event per Stage 2 vocabulary)
+   → outbox (business_event_outbox event per Stage 2 topics)
 ```
 
-- Saga is transactional at the DB layer where possible (single migration RPC `pos_refund_execute`), with compensating actions for external legs (fiscal/print).
-- Path 1's ad-hoc `pos_card_reverse` mutation stays only as the tender leg invoked by the saga.
-- `useTransactionReversal` (Path 4) becomes the payment leg of this saga — one implementation, called from both the POS terminal and `ReversePaymentWizard`.
+- Transactional at the DB layer via a single RPC `pos_refund_execute`;
+  compensating actions for network legs (fiscal/print).
+- `pos_card_reverse` becomes the tender leg only, invoked by the saga.
+- `useTransactionReversal` (Path 4) becomes the payment leg — one
+  implementation, called from POS terminal AND `ReversePaymentWizard`.
 
-## Stage 5 — Offline resilience (kills F5)
+---
 
-- Shift-open mints a short-TTL signed manager-credential bundle (list of managers + hashed PINs + policy snapshot) stored in the envelope.
-- PIN verification runs locally against that bundle when offline; the override + command are queued to `business_event_outbox` and replayed on reconnect with idempotency keys.
-- `ConnectivityManager` gates whether the saga executes online (immediate) or defers legs that require the network (fiscal, print server).
+## Stage 5 — Offline resilience ⏳ PENDING (kills F5)
 
-## Stage 6 — Consolidation & deprecation
+- Shift-open mints a short-TTL signed manager-credential bundle
+  (managers + hashed PINs + policy snapshot) stored in the envelope.
+- Offline PIN verification runs locally against that bundle; override +
+  command queued to `business_event_outbox` and replayed on reconnect
+  with `clientRequestId` as the idempotency key.
+- `ConnectivityManager` gates whether the saga runs online (immediate)
+  or defers network legs.
 
-- Delete duplicate void hooks and any code superseded by the saga.
+---
+
+## Stage 6 — Consolidation & deprecation ⏳ PENDING
+
+- Delete duplicate void hooks superseded by the saga.
 - Freeze `pos_card_reverse` as an internal RPC callable only by the saga.
-- Contract test forbids new direct callers of low-level reversal RPCs from feature code.
+- Contract test forbids new direct callers of low-level reversal RPCs
+  from feature code.
 
-## Sequencing & rollout
+---
 
-```text
-Stage 1  →  Stage 2  →  Stage 3  →  Stage 4  →  Stage 5  →  Stage 6
-   |          |          |           |           |           |
-   flag       flag       flag        flag        flag       cleanup
-```
+## Handoff instructions for the next agent
 
-Each stage:
-1. Migration (where needed) with GRANTs and RLS.
-2. Code + feature flag.
-3. Vitest unit + `src/test/architecture/` contract test + integration test.
-4. Verify against a real POS reverse flow.
-5. Move to next stage only when the previous stage's flag is on for real traffic and no regressions surface.
+**Do NOT skip verification.** Before writing any Stage-3 code:
 
-## First implementation slice on approval
+1. **Re-run both contract tests:**
+   ```
+   bunx vitest run src/test/architecture/terminal-session-envelope.test.ts src/test/architecture/pos-reversal-taxonomy.test.ts
+   ```
+   Both must be green (5/5 and 7/7). If either fails, STOP and repair —
+   Stage 3 depends on both invariants holding.
 
-**Stage 1 in full** (session envelope + 5 broken call sites + ESLint rule + contract test) — this alone eliminates the "Company not selected" bug class and unlocks Stages 2–5 without further schema churn. I will start there and stop for review before opening Stage 2.
+2. **Sanity-check the taxonomy is actually consumed nowhere yet.** The
+   plan requires the History action menu split to land WITH Stage 3, not
+   before. Confirm no PR has jumped ahead and split the button without
+   the policy hook — that would recreate F3.
+   ```
+   rg -n "eligibleCommands|evaluateEligibility|POS_REVERSAL_EVENT_TOPICS" src/
+   ```
+   Expected: matches only in `src/services/pos/reversal/` and
+   `src/test/architecture/`. Any hit under `src/apps/pos/` or
+   `src/components/pos/` before Stage 3 lands is a scope violation —
+   revert it and continue.
 
-## Explicit non-goals
+3. **Do NOT edit `supabase/migrations/` by hand.** Use the migration tool
+   when Stage 3 needs `pos_override_matrix_effective`. Follow the
+   GRANT + RLS ordering from `<supabase-db>` — table create, GRANT,
+   ENABLE RLS, CREATE POLICY.
 
-- Do NOT add `businessId` as a second argument to `useManagerOverride` as a spot fix. That was the shortcut; it is rejected in favour of the envelope.
-- Do NOT introduce a parallel event bus. Reuse `business_event_outbox`.
-- Do NOT touch `auth.users`, reserved schemas, or `service_role` in client code.
-- Do NOT edit `supabase/migrations/` files by hand — migrations go through the migration tool.
+4. **Do NOT reintroduce loose scalar IDs.** The Stage-1 ESLint rule and
+   contract test will bounce you, but be aware that hooks OTHER than
+   `useManagerOverride` still take loose IDs today (out of Stage-1
+   scope). If Stage 3 needs to touch one of them, either extend the
+   envelope contract to that hook FIRST or leave it alone.
 
-Approve this plan and I will begin Stage 1 immediately upon build-mode switch, and stop for review before Stage 2.
+5. **Start Stage 3 at step 1** ("audit every RPC that mutates POS state
+   without `assert_manager_override`"). That inventory drives every
+   subsequent step and cannot be shortcut.
+
+6. **Update THIS file** (`.lovable/plan.md`) as Stage 3 progresses.
+   Move the status row from ⏭ NEXT → 🚧 IN PROGRESS → ✅ COMPLETE and
+   record the contract-test path that verifies the stage.
+
+---
+
+## Explicit non-goals (still in force)
+
+- Do NOT add `businessId` as a second argument to any hook as a spot fix.
+  The envelope replaces the loose-argument contract.
+- Do NOT introduce a parallel event bus. Reuse `business_event_outbox`
+  with the Stage-2 topic vocabulary.
+- Do NOT touch `auth.users`, reserved schemas, or `service_role` in
+  client code.
+- Do NOT edit `supabase/migrations/` files by hand — migrations go
+  through the migration tool.
