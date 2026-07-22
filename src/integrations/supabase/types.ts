@@ -77840,7 +77840,14 @@ export type Database = {
         }
       }
       pos_card_reverse: {
-        Args: { p_payment_id: string; p_reason?: string }
+        Args: {
+          p_business_id?: string
+          p_manager_override_id?: string
+          p_organization_id?: string
+          p_payment_id: string
+          p_reason?: string
+          p_shift_id?: string
+        }
         Returns: {
           amount: number
           auth_id: string | null
@@ -77890,7 +77897,14 @@ export type Database = {
         Returns: Json
       }
       pos_card_void: {
-        Args: { p_payment_id: string; p_reason?: string }
+        Args: {
+          p_business_id?: string
+          p_manager_override_id?: string
+          p_organization_id?: string
+          p_payment_id: string
+          p_reason?: string
+          p_shift_id?: string
+        }
         Returns: {
           amount: number
           auth_id: string | null
@@ -77994,7 +78008,15 @@ export type Database = {
         Returns: string
       }
       pos_payment_session_reverse_tender: {
-        Args: { p_reason: string; p_session_id: string; p_tender_id: string }
+        Args: {
+          p_business_id?: string
+          p_manager_override_id?: string
+          p_organization_id?: string
+          p_reason: string
+          p_session_id: string
+          p_shift_id?: string
+          p_tender_id: string
+        }
         Returns: undefined
       }
       pos_payment_session_sweep_abandoned: {
@@ -78072,6 +78094,19 @@ export type Database = {
       pos_return_authorization_transition: {
         Args: { p_id: string; p_manager_pin?: string; p_to_state: string }
         Returns: string
+      }
+      pos_return_authorization_transition_v2: {
+        Args: {
+          p_amount?: number
+          p_authorization_id: string
+          p_business_id?: string
+          p_manager_override_id?: string
+          p_organization_id?: string
+          p_reason: string
+          p_shift_id?: string
+          p_to_state: string
+        }
+        Returns: undefined
       }
       pos_revoke_scanner_pairing: {
         Args: { p_register_id: string }

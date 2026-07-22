@@ -53,3 +53,36 @@ Goal: every reversal command's RPC enforces `assert_manager_override` server-sid
 - `useOverridePolicy` uses `useQuery` with `queryKey: ['pos-override-policy', command.type, businessId, thresholds]` and `staleTime: 5 min`; the shift-open envelope is authoritative for `businessId/branchId/registerId/shiftId/cashierId`.
 - Error-code contract between RPC and client: RPCs raise with `ERRCODE = 'P0001'` and a machine tag in the message prefix (`[override_expired]`), parsed centrally.
 - Do not modify `src/routeTree.gen.ts` or `supabase/functions/`; this stage is TanStack server-fn + migration only.
+
+---
+
+## Stage 3 progress log (executed this turn)
+
+Status: 🚧 IN PROGRESS — server enforcement + client policy hook + error catalogue landed. History menu split + UI wiring pending.
+
+### RPC audit table
+
+| RPC                                        | Before | After  | Action code                                             |
+| ------------------------------------------ | ------ | ------ | ------------------------------------------------------- |
+| `pos_card_void`                            | none   | ✅     | `pos_card_void`                                         |
+| `pos_card_reverse`                         | none   | ✅     | `pos_card_reverse`                                      |
+| `pos_payment_session_reverse_tender`       | none   | ✅     | `pos_payment_session_reverse_tender`                    |
+| `pos_return_authorization_transition_v2`   | new    | ✅     | `pos_return_authorization_transition:<to_state>`        |
+
+Backward compatible: extra params `(p_manager_override_id, p_organization_id, p_business_id, p_shift_id)` default to NULL. When `pos_override_matrix` has no row for the action, `assert_manager_override` returns NULL and the RPC behaves as before. Legacy `pos_return_authorization_transition` remains as the internal transition; `_v2` is the enforcement-aware entry point.
+
+### Shipped
+
+- Migration extending the four reversal RPCs above with override enforcement.
+- `src/services/pos/reversal/overrideErrors.ts` — `parseOverrideError(err) → { code, title, description, retryable }`, `OVERRIDE_ERROR_CATALOGUE`; wired into the reversal barrel.
+- `src/hooks/pos/useOverridePolicy.ts` — reads `pos_override_matrix` with business→org precedence; returns `{ required, thresholdAmount, restrictedRoles, actionCode }`. Exports `OVERRIDE_ACTION_FOR_COMMAND` mapping every `POSReversalCommandType`.
+- Contract test `src/test/architecture/pos-override-policy.test.ts` (6/6): RPCs call `assert_manager_override`, taxonomy coverage complete, error catalogue complete.
+
+### Remaining Stage 3 work (next turn)
+
+1. **Extend `pos_override_matrix_action_chk`** to allow the new action codes so orgs can configure enforcement. Migration only.
+2. **Wire dispatch sites** — `CardTerminalController.void/reverse`, `paymentSessionClient.reverseTender`, and any return-authorization dispatcher: call `useOverridePolicy` first, open `ManagerOverrideDialog` when `required`, forward the returned override id + envelope IDs into the RPC's new params.
+3. **History action-menu split** — replace the single "Reverse" button in `src/apps/pos/terminal/history/HistoryWorkspace.tsx` with the six-command menu from `eligibleCommands(facts)`, each item gated by `useOverridePolicy`.
+4. **Toast copy** — replace the blanket "Override denied / An unexpected error occurred" toasts at every reversal catch site with `parseOverrideError(err)`.
+
+Exit criteria for Stage 3 remain unchanged (see the Stage 3 section above).

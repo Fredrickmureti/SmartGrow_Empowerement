@@ -8,3 +8,4 @@ export * from "./reasonCodes";
 export * from "./events";
 export * from "./commands";
 export * from "./eligibility";
+export * from "./overrideErrors";
