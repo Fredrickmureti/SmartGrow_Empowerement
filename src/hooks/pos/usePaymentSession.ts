@@ -315,11 +315,28 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
   );
 
   const reverseTender = useCallback(
-    async (tenderId: string, reason: string): Promise<void> => {
+    async (
+      tenderId: string,
+      reason: string,
+      approval?: {
+        managerOverrideId?: string | null;
+        organizationId?: string | null;
+        businessId?: string | null;
+        shiftId?: string | null;
+      },
+    ): Promise<void> => {
       if (!sessionId) return;
       setError(null);
       try {
-        await reverseTenderRpc({ sessionId, tenderId, reason });
+        await reverseTenderRpc({
+          sessionId,
+          tenderId,
+          reason,
+          managerOverrideId: approval?.managerOverrideId ?? null,
+          organizationId:    approval?.organizationId ?? null,
+          businessId:        approval?.businessId ?? null,
+          shiftId:           approval?.shiftId ?? null,
+        });
         await refresh();
       } catch (e) {
         if (alive.current) setError(e as Error);
@@ -328,6 +345,7 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
     },
     [sessionId, refresh],
   );
+
 
   const commit = useCallback(
     async (envelope: CommitSessionEnvelope): Promise<CommitSessionResult> => {
