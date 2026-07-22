@@ -94,6 +94,13 @@ export interface ComputeArgs {
   orders: GarnishmentOrder[];
   policy: GarnishmentPolicy;
   kindDefaults: Record<string, KindDefault>;
+  /**
+   * Payroll period being computed (ISO yyyy-mm-dd). When supplied, orders
+   * whose effective window does not overlap the period are skipped. When
+   * omitted, every order is considered (legacy behaviour).
+   */
+  period_start?: string | null;
+  period_end?: string | null;
 }
 
 export interface ComputeResult {
