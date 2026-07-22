@@ -171,7 +171,7 @@ export function useManagerOverride(
       // authorization failure. The historical blanket "Override Denied"
       // toast masked the former as the latter, which is what produced
       // the reported "Override denied · An unexpected error occurred ·
-      // Company not selected" cascade.
+      // <business-missing>" cascade.
       if (error instanceof TerminalSessionMissingFieldError) {
         toast({
           title: 'Terminal not ready',
