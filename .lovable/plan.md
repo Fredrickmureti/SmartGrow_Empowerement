@@ -116,3 +116,78 @@ Status: ✅ STAGE 3 COMPLETE.
 ### Handoff for Stage 4 (Reversal saga)
 
 The audit's remaining architectural work is Stage 4: a durable, resumable reversal saga (`pos_reversal_workflow` + `pos_reversal_step`) so that a partial failure mid-refund (e.g. cash reversed but store-credit issue-note write fails) no longer leaves the terminal in a split-brain state. Stage 3 has intentionally routed `refund_sale`/`return_goods`/`exchange`/`issue_store_credit` through the existing return workspace with directive toasts; those handlers become the natural insertion points for the saga engine once its contract lands.
+
+---
+
+## Stage 4 completion log (this turn)
+
+Status: ✅ STAGE 4 ENGINE + DURABLE STATE COMPLETE. Command-level integration pending (Stage 4b, scoped below).
+
+### Shipped
+
+1. **Migration — durable saga state store.** Creates `pos_reversal_workflow` and `pos_reversal_step` with full envelope columns, status CHECK constraints (`pending|running|completed|failed|compensating|compensated` for workflows; `pending|running|completed|failed|skipped|compensated` for steps), a `command_type` CHECK aligned with `POSReversalCommandType`, a unique `client_request_id` for idempotency, and an FK from workflows to `pos_manager_overrides`. GRANTs to `authenticated`/`service_role`, RLS enabled with three org-scoped policies per table (view / insert / advance), and `updated_at` triggers via a new `pos_reversal_touch_updated_at` helper.
+2. **Migration — five saga RPCs** (all `SECURITY INVOKER`, `search_path = public`, `EXECUTE` granted to `authenticated`):
+   - `pos_reversal_workflow_start(client_request_id, command_type, command_payload, org, business, branch, register, shift, cashier, manager_override, source_txn, step_plan jsonb)` — inserts workflow + steps atomically; if `client_request_id` already exists, returns the existing workflow + steps with `resumed: true` (idempotent by construction).
+   - `pos_reversal_step_start(workflow_id, step_index)` — marks the step running, bumps `attempt_count`, stamps `started_at` on first attempt only.
+   - `pos_reversal_step_record(workflow_id, step_index, status, result, error)` — validates status ∈ {completed, failed, skipped, compensated} and persists result/error payloads.
+   - `pos_reversal_workflow_finalize(workflow_id, status, compensating_record_id, error)` — validates terminal status and hoists `compensating_record_id` onto the workflow row for downstream analytics.
+   - `pos_reversal_workflow_get(workflow_id)` — returns `{workflow, steps}` as a single jsonb blob for resume flows.
+3. **Engine — `src/services/pos/reversal/saga.ts`.** Transport-agnostic saga runner. Contract:
+   - Runs planned steps in order; each step receives `priorResults` keyed by `step_key` so downstream steps can consume upstream ids.
+   - On failure, records the failed step and invokes `compensate()` on every previously-completed step in **reverse order**, then finalises the workflow as `compensated` (or `failed` if no compensations existed). Compensation errors are recorded but do not throw — the workflow row keeps the original triggering error for operator triage.
+   - Recognises three resumable modes: fresh, mid-saga resume (`resumed: true`, some steps completed → replayed skip), and already-finalised (`completed`/`failed`/`compensated` → returned verbatim, no side effects). This is what closes F4.
+4. **Supabase transport — `src/services/pos/reversal/sagaClient.ts`.** `supabaseSagaClient` wraps the five RPCs into the `SagaClient` interface.
+5. **Client hook — `src/hooks/pos/useReversalSaga.ts`.** Mutation-shaped API: `{ status, outcome, error, run(input), reset() }`. Pure orchestration — no toasts, no dialogs. Toast copy remains the caller's responsibility so the existing `parseOverrideError` path is undisturbed.
+6. **Barrel exports** — `saga.ts` and `supabaseSagaClient` re-exported from `@/services/pos/reversal`.
+7. **Contract test — `src/test/architecture/pos-reversal-saga.test.ts` (5/5 green).** Uses an in-memory `SagaClient` that mirrors the RPC state machine to pin:
+   - Happy path: all steps run in order, workflow finalises `completed`, `compensating_record_id` is hoisted from `priorResults`.
+   - Failure path: compensations run in reverse order (`run:A → run:B → run:C fails → comp:B → comp:A`), workflow finalises `compensated`.
+   - Resume path: seeded workflow with step 0 already completed → step 0's `run` is NOT invoked, step 1 sees `priorResults.A` from the seeded row, workflow finalises `completed` with `resumed: true`.
+   - Idempotent terminal state: seeded `completed` workflow returns without invoking any `run`.
+   - Server contract: sweeps `supabase/migrations/` and asserts both tables exist with GRANTs + RLS, and all five RPCs exist with EXECUTE granted to `authenticated`.
+8. **Regression fixes rolled up while landing Stage 4.**
+   - `src/services/pos/reversal/eligibility.ts`: replaced the dead `facts.status === "refunded"` branch (unreachable — narrowed away by the earlier guard) with the correct `hasPriorReversal && returnableLineCount <= 0` check for the `sale_already_reversed` reason.
+   - `src/apps/pos/terminal/history/HistoryWorkspace.tsx::deriveFacts`: mapped non-terminal statuses to `"unknown"` (the taxonomy's fallback) instead of the non-existent `"pending"` literal.
+
+### Stage 4 exit criteria — status
+
+- [x] Durable `pos_reversal_workflow` + `pos_reversal_step` tables with GRANTs, RLS, and CHECK-constrained state machines.
+- [x] Five RPCs cover start (idempotent), step start, step record, workflow finalize, and workflow get.
+- [x] Client engine `executeReversalSaga` runs steps in order, resumes without replay, compensates in reverse order on failure, and returns terminal outcomes without side effects.
+- [x] `useReversalSaga` hook binds the engine to the Supabase transport for React callers.
+- [x] Contract test locks in every invariant (5/5) and the migration surface (both tables + all five RPCs with the right grants).
+- [x] Full Stage 1–4 architecture suite green: 23/23 (5 saga + 6 override + 5 envelope + 7 taxonomy).
+- [ ] **Stage 4b — Command wiring (pending).** The six command paths (`void_sale`, `reverse_card_authorization`, `refund_sale`, `return_goods`, `exchange`, `issue_store_credit`) still dispatch through their legacy hooks (`useTransactionReversal`, `CardTerminalController`, terminal return workspace). Stage 4b routes each command through `useReversalSaga` with a concrete `SagaStepDefinition[]` plan (see the roadmap below).
+
+### Stage 4b roadmap (for the next agent — DO NOT SKIP VERIFICATION)
+
+Before writing any code, the next agent MUST verify Stage 4 as delivered:
+1. Run `bunx vitest run src/test/architecture/pos-reversal-saga.test.ts src/test/architecture/pos-override-policy.test.ts src/test/architecture/terminal-session-envelope.test.ts src/test/architecture/pos-reversal-taxonomy.test.ts src/lib/pos/__tests__/paymentSessionClient.test.ts` and confirm **32/32 green**.
+2. Confirm the Stage 4 migration (`pos_reversal_workflow`, `pos_reversal_step`, five RPCs) is present and lints clean against the org-scoped RLS pattern (`user_roles.is_active = true`).
+3. Confirm `@/services/pos/reversal` exports `executeReversalSaga`, `supabaseSagaClient`, and the saga types.
+4. Confirm `useReversalSaga` compiles and has no runtime callers yet (grep is expected to return only the hook file itself).
+
+Only then proceed with Stage 4b:
+
+A. **Per-command step plans** — create one factory per command in `src/services/pos/reversal/plans/` (e.g. `refundSalePlan(command): SagaStepDefinition[]`). Each factory returns the leg sequence for that command, calling the *existing* leaf RPCs / hooks inside `run()` and their inverses inside `compensate()`. Suggested plans:
+   - `void_sale`: [`assert_void_eligibility`, `mark_transaction_voided`, `release_reservations`, `emit_outbox`]
+   - `reverse_card_authorization`: [`pos_card_reverse`, `mark_tender_reversed`, `emit_outbox`]
+   - `refund_sale`: [`reverse_payment` (ADR-0012), `post_refund_gl`, `emit_outbox`]
+   - `return_goods`: [`create_return_authorization`, `move_inventory`, `optional refund_sale sub-plan`, `emit_outbox`]
+   - `exchange`: [`return_goods sub-plan`, `commit_new_sale`, `settle_price_delta`, `emit_outbox`]
+   - `issue_store_credit`: [`post_liability_gl`, `create_store_credit_note`, `notify_customer`, `emit_outbox`]
+
+B. **Refactor call sites** — replace direct RPC calls in `useTransactionReversal.refundCustomer`, `CardTerminalController.void|reverse`, and the terminal return workspace with `useReversalSaga.run({ command, sourceTransactionId, steps: plan(command) })`. Preserve the current toast / `parseOverrideError` flow — the saga hook is orchestration only.
+
+C. **Outbox integration** — the last step of every plan MUST publish `POS_REVERSAL_EVENT_TOPICS[command.type]` to `business_event_outbox` (Stage 2 vocabulary). This is what makes downstream analytics + fiscal + receipt reprint stop diverging.
+
+D. **New contract test** — extend `pos-reversal-saga.test.ts` with one test per command asserting the plan factory returns the expected step keys in the expected order. Grep-based structural test in `pos-override-policy.test.ts` should be extended to require every reversal call site to route through `useReversalSaga`.
+
+E. **Delete legacy reversal helpers** only after every call site is migrated and Stage 4b tests are green. Do NOT delete anything before command-level parity is proven.
+
+### Current phase after this turn
+
+- **Active phase:** Stage 4b — Command wiring onto the durable saga engine.
+- **Next milestone:** `refundSalePlan` factory + `useTransactionReversal.refundCustomer` refactor + outbox emission, gated by a new per-command contract test. Once green, proceed to `void_sale`, then `reverse_card_authorization`, then the goods paths, in that order (payment-only legs first so we don't couple inventory movement into the first migration).
+- **Do not** start Stage 5 (offline PIN bundle) or Stage 6 (legacy hook deletion) before Stage 4b is closed end-to-end.
+

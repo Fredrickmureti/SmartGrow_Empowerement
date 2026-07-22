@@ -41412,6 +41412,136 @@ export type Database = {
         }
         Relationships: []
       }
+      pos_reversal_step: {
+        Row: {
+          attempt_count: number
+          completed_at: string | null
+          created_at: string
+          error: Json | null
+          id: string
+          request_payload: Json
+          result_payload: Json | null
+          started_at: string | null
+          status: string
+          step_index: number
+          step_key: string
+          updated_at: string
+          workflow_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          completed_at?: string | null
+          created_at?: string
+          error?: Json | null
+          id?: string
+          request_payload?: Json
+          result_payload?: Json | null
+          started_at?: string | null
+          status?: string
+          step_index: number
+          step_key: string
+          updated_at?: string
+          workflow_id: string
+        }
+        Update: {
+          attempt_count?: number
+          completed_at?: string | null
+          created_at?: string
+          error?: Json | null
+          id?: string
+          request_payload?: Json
+          result_payload?: Json | null
+          started_at?: string | null
+          status?: string
+          step_index?: number
+          step_key?: string
+          updated_at?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_reversal_step_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "pos_reversal_workflow"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_reversal_workflow: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          cashier_id: string | null
+          client_request_id: string
+          command_payload: Json
+          command_type: string
+          compensating_record_id: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: Json | null
+          manager_override_id: string | null
+          organization_id: string
+          register_id: string | null
+          shift_id: string | null
+          source_transaction_id: string | null
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          cashier_id?: string | null
+          client_request_id: string
+          command_payload: Json
+          command_type: string
+          compensating_record_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: Json | null
+          manager_override_id?: string | null
+          organization_id: string
+          register_id?: string | null
+          shift_id?: string | null
+          source_transaction_id?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          cashier_id?: string | null
+          client_request_id?: string
+          command_payload?: Json
+          command_type?: string
+          compensating_record_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: Json | null
+          manager_override_id?: string | null
+          organization_id?: string
+          register_id?: string | null
+          shift_id?: string | null
+          source_transaction_id?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_reversal_workflow_manager_override_id_fkey"
+            columns: ["manager_override_id"]
+            isOneToOne: false
+            referencedRelation: "pos_manager_overrides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_sales_daily: {
         Row: {
           branch_id: string | null
@@ -78107,6 +78237,50 @@ export type Database = {
           p_to_state: string
         }
         Returns: undefined
+      }
+      pos_reversal_step_record: {
+        Args: {
+          p_error: Json
+          p_result: Json
+          p_status: string
+          p_step_index: number
+          p_workflow_id: string
+        }
+        Returns: undefined
+      }
+      pos_reversal_step_start: {
+        Args: { p_step_index: number; p_workflow_id: string }
+        Returns: undefined
+      }
+      pos_reversal_workflow_finalize: {
+        Args: {
+          p_compensating_record_id: string
+          p_error: Json
+          p_status: string
+          p_workflow_id: string
+        }
+        Returns: undefined
+      }
+      pos_reversal_workflow_get: {
+        Args: { p_workflow_id: string }
+        Returns: Json
+      }
+      pos_reversal_workflow_start: {
+        Args: {
+          p_branch_id: string
+          p_business_id: string
+          p_cashier_id: string
+          p_client_request_id: string
+          p_command_payload: Json
+          p_command_type: string
+          p_manager_override_id: string
+          p_organization_id: string
+          p_register_id: string
+          p_shift_id: string
+          p_source_transaction_id: string
+          p_step_plan: Json
+        }
+        Returns: Json
       }
       pos_revoke_scanner_pairing: {
         Args: { p_register_id: string }
