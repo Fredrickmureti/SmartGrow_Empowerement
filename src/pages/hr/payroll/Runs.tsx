@@ -185,6 +185,19 @@ export default function PayrollRuns() {
           "Your internet connection dropped while running payroll, so we couldn't reach the server. No changes were saved — reconnect and try again.",
         variant: "destructive",
       });
+    } else if (c.kind === "transport") {
+      // Server-side drop (edge runtime kill, oversized response, upstream
+      // reset). Compute-payroll may have committed partial state. Force a
+      // refetch of the runs list so the accountant sees what actually
+      // landed, and warn them NOT to blindly retry.
+      console.error("[Payroll transport failure]", err);
+      void refreshPayrollRuns?.();
+      toast({
+        title: "Payroll engine did not respond",
+        description:
+          "Your payroll may still be running on the server. We've refreshed the runs list — check the latest run's status before retrying. Retrying blindly can create duplicate payslips.",
+        variant: "destructive",
+      });
     } else if (c.kind === "setup") {
       setSetupGuide({ open: true, reasons: c.reasons, runtimeBlockers: c.runtimeBlockers });
     } else if (c.kind === "internal") {
