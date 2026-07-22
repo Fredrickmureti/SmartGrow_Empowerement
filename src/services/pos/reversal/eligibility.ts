@@ -111,7 +111,7 @@ export function evaluateEligibility(
     results.push(NO("refund_sale", "sale_not_completed"));
   } else if (!facts.hasSettledTender) {
     results.push(NO("refund_sale", "no_settled_tender"));
-  } else if (facts.status === "refunded" && !facts.returnableLineCount) {
+  } else if (facts.hasPriorReversal && facts.returnableLineCount <= 0) {
     results.push(NO("refund_sale", "sale_already_reversed"));
   } else {
     results.push(OK("refund_sale"));
