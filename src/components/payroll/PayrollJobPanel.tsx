@@ -70,8 +70,6 @@ function writeSoundPref(on: boolean) {
   window.localStorage.setItem(SOUND_PREF_KEY, on ? "on" : "off");
 }
 
-const successAudioSrc = (successAsset as { url: string }).url;
-const failureAudioSrc = (failureAsset as { url: string }).url;
 
 // ─── Web Audio synthesis ────────────────────────────────────────────────
 // We synthesize the chime with Web Audio API instead of streaming a wav.
