@@ -26,8 +26,6 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import successAsset from "@/assets/sounds/payroll-success.wav.asset.json";
-import failureAsset from "@/assets/sounds/payroll-failure.wav.asset.json";
 
 // ─── Phase stepper contract ──────────────────────────────────────────────
 type PhaseKey = "preparing" | "computing" | "posting" | "completed";
