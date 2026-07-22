@@ -49,6 +49,7 @@ import {
 import { PostPaymentSurface } from "../receipt/PostPaymentSurface";
 import { VoidTransactionDialog } from "@/components/pos/VoidTransactionDialog";
 import { CardPaymentActions } from "@/components/pos/transaction-detail/CardPaymentActions";
+import { TransactionActionMenu } from "./TransactionActionMenu";
 import { printClient } from "@/services/printing/PrintClient";
 import { useResolvedPrintPolicyWithDevice } from "@/hooks/useDocumentPrintPolicies";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -61,6 +62,9 @@ import { useManagerOverride } from "@/hooks/pos/useManagerOverride";
 import { ManagerOverrideDialog } from "@/components/pos/ManagerOverrideDialog";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
+import { parseOverrideError } from "@/services/pos/reversal/overrideErrors";
+import type { EligibilityFacts } from "@/services/pos/reversal/eligibility";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type {
@@ -68,6 +72,7 @@ import type {
   ReceiptDocumentPayment,
 } from "@/lib/pos/receipt/ReceiptDocumentModel";
 import { useTerminalContext } from "../TerminalStateContext";
+
 
 /**
  * Extended card-tender columns not on the base `POSTransactionRecord`
