@@ -345,6 +345,11 @@ export default function GarnishmentsPage() {
         title={editing ? "Edit Garnishment" : "New Garnishment"}
         description="Court-ordered wage deduction. Engine enforces priority, per-order caps, the org aggregate cap and a minimum take-home floor."
         size="xl"
+        preventAutoClose
+        onAutoCloseAttempt={() => {
+          // Enterprise form guard: outside-click / Esc must not silently
+          // discard a legal order draft. Users close via Cancel/Save.
+        }}
         footer={
           <>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
