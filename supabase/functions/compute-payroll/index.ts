@@ -796,6 +796,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Hoisted so the outer catch can finalize the job row even when the
+  // engine throws before/after the id is assigned.
+  let jobId: string | null = null;
+  let idempotencyKey: string | null = null;
+  let supabaseAdminOuter: ReturnType<typeof createClient> | null = null;
+
   try {
     // Auth
     const authHeader = req.headers.get("Authorization");
@@ -809,6 +815,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+    supabaseAdminOuter = supabaseAdmin;
 
     const supabaseUser = createClient(
       Deno.env.get("SUPABASE_URL")!,
