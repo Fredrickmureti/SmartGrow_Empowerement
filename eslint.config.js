@@ -96,6 +96,10 @@ export default tseslint.config(
       // Phase 1C of Zero-Trust audit: escalated from `warn` to `error` so CI
       // fails on every unscoped query.
       "local/require-business-scope": "error",
+      // Stage 1 of POS refund/reversal remediation: forbid loose scalar
+      // args to useManagerOverride; the envelope-object form is the
+      // only legal shape. See .lovable/plan.md.
+      "local/no-loose-manager-override-args": "error",
       // Overlay guard: forbids `cond && <Dialog/Sheet/AlertDialog/Drawer>`,
       // which leaks Radix's body `pointer-events: none` and freezes the UI.
       // See docs/architecture/OVERLAYS.md.
