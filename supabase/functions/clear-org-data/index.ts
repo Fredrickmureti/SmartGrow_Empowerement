@@ -381,6 +381,13 @@ serve(async (req) => {
         });
       }
 
+      const run = await startRun(admin, {
+        organization_id,
+        initiated_by: user.id,
+        mode: "wipe_all",
+        trigger_source: "clear-org-data:wipe_all",
+      });
+
       console.log("[clear-org-data] step 1: list_org_storage_paths");
       const { data: pathData, error: pathErr } = await supabaseUser.rpc(
         "list_org_storage_paths",
@@ -388,9 +395,14 @@ serve(async (req) => {
       );
       if (pathErr) {
         console.error("[clear-org-data] list_org_storage_paths failed:", pathErr);
+        await finishRun(admin, run, {
+          ok: false, stage: "list_storage_paths",
+          error: pathErr.message, error_code: pathErr.code, error_hint: pathErr.hint ?? null,
+        });
         return reply({
           ok: false,
           success: false,
+          run_id: run.id,
           stage: "list_storage_paths",
           error: pathErr.message,
           code: pathErr.code,
@@ -411,9 +423,14 @@ serve(async (req) => {
       });
       if (error) {
         console.error("[clear-org-data] reset_organization_data failed:", error);
+        await finishRun(admin, run, {
+          ok: false, stage: "reset_organization_data",
+          error: error.message, error_code: error.code, error_hint: error.hint ?? null,
+        });
         return reply({
           ok: false,
           success: false,
+          run_id: run.id,
           stage: "reset_organization_data",
           error: error.message,
           code: error.code,
@@ -424,13 +441,6 @@ serve(async (req) => {
       console.log("[clear-org-data] DB wipe completed:", JSON.stringify(data).slice(0, 500));
 
       console.log("[clear-org-data] step 3: storage purge");
-      // Delegate to storage-gc — purges every bucket the convention
-      // registry knows about for this org, not just receipts +
-      // document-pdfs. Explicit-path purge of those two stays as a
-      // belt-and-braces step for files whose storage rows were
-      // recorded before Phase 1 trigger went live (already backfilled,
-      // but keep the explicit pass for paths the resolver might miss
-      // if a writer inserts without going through the trigger).
       const gcWipe = await runStorageGc(admin, {
         scope: "organization",
         id: organization_id,
@@ -452,14 +462,18 @@ serve(async (req) => {
           entity_id: organization_id,
           entity_name: "Full Transactional Data Wipe",
           changes_summary: "Go-live wipe of all transactional data via clear-org-data",
-          new_values: { db: data, storage },
+          new_values: { db: data, storage, run_id: run.id },
         });
       } catch (e) {
         console.error("[clear-org-data] audit log failed:", e);
       }
 
-      return reply({ ok: true, success: true, mode: "wipe_all", result: data, storage });
+      await finishRun(admin, run, {
+        ok: true, stage: "complete", counts: data, storage_result: storage,
+      });
+      return reply({ ok: true, success: true, run_id: run.id, mode: "wipe_all", result: data, storage });
     }
+
 
     // ============================================================
     // DELETE_ORGANIZATION — platform-admin only full tenant removal
