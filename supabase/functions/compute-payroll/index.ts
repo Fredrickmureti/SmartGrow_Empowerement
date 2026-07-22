@@ -5269,18 +5269,35 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({
+    const successPayload = {
       payroll_run: payrollRun,
       employee_count: payslipsData.length,
       warnings,
       mapping_issue_count: mappingIssueCount,
-    }), {
+    };
+    await finalizeJob("succeeded", {
+      result: successPayload,
+      payrollRunId: (payrollRun as any)?.id ?? null,
+    });
+    console.log("[compute-payroll] job succeeded", {
+      jobId, key: idempotencyKey,
+      payrollRunId: (payrollRun as any)?.id ?? null,
+      employees: payslipsData.length,
+    });
+    return new Response(JSON.stringify(successPayload), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error: any) {
-    console.error("Payroll computation error:", error);
+    console.error("[compute-payroll] job failed", {
+      jobId, key: idempotencyKey,
+      error: error?.message, code: error?.code,
+    });
+    await finalizeJob("failed", {
+      errorCode: error?.code ?? null,
+      errorMessage: error?.message ?? String(error),
+    });
     return new Response(JSON.stringify({ error: error.message || "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
