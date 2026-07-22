@@ -53,10 +53,9 @@ export function ReopenShiftDialog({ open, onOpenChange, shift }: ReopenShiftDial
   const [reason, setReason] = useState("");
   const [pinOpen, setPinOpen] = useState(false);
 
-  const { requestOverride, isVerifying } = useManagerOverride(
-    currentOrg?.id,
-    shift?.business_id
-  );
+  const { requestOverride, isVerifying } = useManagerOverride({
+    businessId: shift?.business_id,
+  });
 
   const closedAt = shift?.closed_at ? new Date(shift.closed_at) : null;
   const hoursSinceClose = closedAt ? differenceInHours(new Date(), closedAt) : null;

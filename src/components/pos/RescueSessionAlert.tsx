@@ -49,10 +49,9 @@ export function RescueSessionAlert() {
   const [reason, setReason] = useState("");
   const [actualCash, setActualCash] = useState<string>("0");
 
-  const { requestOverride, isVerifying } = useManagerOverride(
-    currentOrg?.id,
-    rescueShift?.business_id
-  );
+  const { requestOverride, isVerifying } = useManagerOverride({
+    businessId: rescueShift?.business_id,
+  });
 
   const activeBranchId = currentBranch?.id ?? null;
 
