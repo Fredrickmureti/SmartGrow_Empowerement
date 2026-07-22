@@ -887,11 +887,10 @@ Deno.serve(async (req) => {
     // wait, and if it failed we allow a fresh attempt by reusing the row.
     //
     // dry_run bypasses this entirely — previews are pure and don't mutate.
-    const idempotencyKey: string | null =
+    idempotencyKey =
       typeof (body as any).idempotency_key === "string" && (body as any).idempotency_key.length > 0
         ? (body as any).idempotency_key
         : null;
-    let jobId: string | null = null;
     if (!dry_run && idempotencyKey) {
       const { data: existing } = await supabaseAdmin
         .from("payroll_run_jobs")
