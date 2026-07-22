@@ -15268,6 +15268,7 @@ export type Database = {
       employee_garnishments: {
         Row: {
           aggregate_cap_exempt: boolean
+          authority_id: string | null
           business_id: string | null
           cap_rule: Database["public"]["Enums"]["garnishment_cap_rule"]
           case_reference: string | null
@@ -15307,6 +15308,7 @@ export type Database = {
         }
         Insert: {
           aggregate_cap_exempt?: boolean
+          authority_id?: string | null
           business_id?: string | null
           cap_rule?: Database["public"]["Enums"]["garnishment_cap_rule"]
           case_reference?: string | null
@@ -15346,6 +15348,7 @@ export type Database = {
         }
         Update: {
           aggregate_cap_exempt?: boolean
+          authority_id?: string | null
           business_id?: string | null
           cap_rule?: Database["public"]["Enums"]["garnishment_cap_rule"]
           case_reference?: string | null
@@ -15384,6 +15387,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "employee_garnishments_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_authorities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "employee_garnishments_employee_id_fkey"
             columns: ["employee_id"]
@@ -19325,6 +19335,13 @@ export type Database = {
             referencedRelation: "employee_garnishments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "garnishment_carry_forward_garnishment_id_fkey"
+            columns: ["garnishment_id"]
+            isOneToOne: false
+            referencedRelation: "legal_orders"
+            referencedColumns: ["id"]
+          },
         ]
       }
       garnishment_kind_defaults: {
@@ -19491,6 +19508,13 @@ export type Database = {
             columns: ["garnishment_id"]
             isOneToOne: false
             referencedRelation: "employee_garnishments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "garnishment_lifecycle_events_garnishment_id_fkey"
+            columns: ["garnishment_id"]
+            isOneToOne: false
+            referencedRelation: "legal_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -23812,6 +23836,90 @@ export type Database = {
             columns: ["work_entry_type_id"]
             isOneToOne: false
             referencedRelation: "payroll_work_entry_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_order_authorities: {
+        Row: {
+          address: string | null
+          authority_type: string
+          code: string
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          default_payee_account: string | null
+          default_payee_bank: string | null
+          default_payee_reference_template: string | null
+          id: string
+          is_active: boolean
+          jurisdiction_country: string | null
+          jurisdiction_region: string | null
+          metadata: Json
+          name: string
+          organization_id: string
+          remittance_schedule_ref: string | null
+          reporting_binding_ref: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          authority_type: string
+          code: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          default_payee_account?: string | null
+          default_payee_bank?: string | null
+          default_payee_reference_template?: string | null
+          id?: string
+          is_active?: boolean
+          jurisdiction_country?: string | null
+          jurisdiction_region?: string | null
+          metadata?: Json
+          name: string
+          organization_id: string
+          remittance_schedule_ref?: string | null
+          reporting_binding_ref?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          authority_type?: string
+          code?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          default_payee_account?: string | null
+          default_payee_bank?: string | null
+          default_payee_reference_template?: string | null
+          id?: string
+          is_active?: boolean
+          jurisdiction_country?: string | null
+          jurisdiction_region?: string | null
+          metadata?: Json
+          name?: string
+          organization_id?: string
+          remittance_schedule_ref?: string | null
+          reporting_binding_ref?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_order_authorities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "legal_order_authorities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -30693,6 +30801,13 @@ export type Database = {
             columns: ["garnishment_id"]
             isOneToOne: false
             referencedRelation: "employee_garnishments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_liabilities_garnishment_id_fkey"
+            columns: ["garnishment_id"]
+            isOneToOne: false
+            referencedRelation: "legal_orders"
             referencedColumns: ["id"]
           },
           {
@@ -64408,6 +64523,149 @@ export type Database = {
           },
         ]
       }
+      legal_orders: {
+        Row: {
+          aggregate_cap_exempt: boolean | null
+          aggregate_cap_membership:
+            | Database["public"]["Enums"]["legal_order_cap_membership"]
+            | null
+          authority_id: string | null
+          business_id: string | null
+          calc_model:
+            | Database["public"]["Enums"]["legal_order_calc_model"]
+            | null
+          cap_rule: Database["public"]["Enums"]["garnishment_cap_rule"] | null
+          case_reference: string | null
+          completion_rule:
+            | Database["public"]["Enums"]["legal_order_completion_rule"]
+            | null
+          created_at: string | null
+          created_by: string | null
+          document_filename: string | null
+          document_url: string | null
+          employee_id: string | null
+          employment_id: string | null
+          end_date: string | null
+          evidence_requirements: Json | null
+          fixed_amount: number | null
+          id: string | null
+          is_active: boolean | null
+          issuing_authority_text: string | null
+          kind_code: Database["public"]["Enums"]["garnishment_kind"] | null
+          legal_behavior_pack_id: string | null
+          minimum_take_home_amount: number | null
+          notes: string | null
+          organization_id: string | null
+          payee_account: string | null
+          payee_bank: string | null
+          payee_contact_id: string | null
+          payee_name: string | null
+          payee_payment_method_id: string | null
+          payee_reference: string | null
+          payee_unmapped: boolean | null
+          percent_of_disposable: number | null
+          priority: number | null
+          priority_class: number | null
+          protected_earnings_rule: Json | null
+          remittance_schedule_ref: string | null
+          reporting_binding_ref: string | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["garnishment_status"] | null
+          status_changed_at: string | null
+          status_changed_by: string | null
+          status_reason: string | null
+          total_accrued: number | null
+          total_owed: number | null
+          total_paid: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_garnishments_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_authorities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_setup_health"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_employee_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_employment_id_fkey"
+            columns: ["employment_id"]
+            isOneToOne: false
+            referencedRelation: "employments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
+            columns: ["payee_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_garnishments_payee_payment_method_id_fkey"
+            columns: ["payee_payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "organization_payment_methods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "garnishment_kind_defaults_source_pack_id_fkey"
+            columns: ["legal_behavior_pack_id"]
+            isOneToOne: false
+            referencedRelation: "localization_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lot_quant_drift_view: {
         Row: {
           business_id: string | null
@@ -74437,6 +74695,7 @@ export type Database = {
         }
         Returns: {
           aggregate_cap_exempt: boolean
+          authority_id: string | null
           business_id: string | null
           cap_rule: Database["public"]["Enums"]["garnishment_cap_rule"]
           case_reference: string | null
@@ -75708,6 +75967,7 @@ export type Database = {
         }
         Returns: {
           aggregate_cap_exempt: boolean
+          authority_id: string | null
           business_id: string | null
           cap_rule: Database["public"]["Enums"]["garnishment_cap_rule"]
           case_reference: string | null
