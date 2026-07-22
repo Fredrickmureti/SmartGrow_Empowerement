@@ -5509,6 +5509,7 @@ Deno.serve(async (req) => {
           .from("payroll_run_jobs")
           .update({
             status: "failed",
+            phase: "failed",
             finished_at: new Date().toISOString(),
             error_code: error?.code ?? null,
             error_message: error?.message ?? String(error),
