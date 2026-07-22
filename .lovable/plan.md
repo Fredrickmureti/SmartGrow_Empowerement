@@ -13,9 +13,12 @@ Verified directly against the DB + repo (not the plan.md):
 | P3: `legal_orders` view + `legal_order_authorities` + `employee_garnishments.authority_id` FK | **Confirmed** | view + table + FK all present |
 | P4: shared engine extended with `calc_model`, `priority_class`, `aggregate_cap_membership`, `protected_earnings_rule`, `always_first` reservation | **Confirmed** | inspected `_shared/garnishment-engine.ts` |
 | P4: `post-garnishment-payment` emits `legal_order.payment_posted` | **Confirmed** | line 285–288 |
-| P4: unit tests for the 4 new branches | **NOT DONE** | test file has only the 8 legacy cases; no `always_first` / `priority_class` / `protected_earnings_rule` / `calc_model` fallback cases |
-| P5: context-aware UI (view read, dynamic calc fields, authority picker, evidence gating, completion gating) | **NOT STARTED** | no `useLegalOrders`, no `from('legal_orders')`, no `authority_id`/`calc_model`/`evidence_requirements`/`completion_rule` bindings in `Garnishments.tsx` / `GarnishmentDashboard.tsx` / `useGarnishments.ts` |
-| P6: consumer rewire onto `legal_order.*` outbox + topics seed | **NOT STARTED** | no subscribers, `business_event_topics` seed not extended |
+| P4: unit tests for the 4 new branches | **DONE (this turn)** | 5 new cases added (`always_first`, `priority_class`, `protected_earnings_rule`, `calc_model` fallback, effective-window); `bunx vitest run` → 13/13 passing |
+| P4c: effective-window filter in engine | **DONE (this turn)** | `computeGarnishments` now accepts `period_start`/`period_end` and skips out-of-window orders |
+| P5: context-aware UI (view read, dynamic calc fields, authority picker, evidence gating, completion gating) | **IN PROGRESS** | `useLegalOrders`/`useLegalOrder` hook landed (reads `public.legal_orders`); form + dashboard rewrite still to do |
+| P5b-i: `legal_order_documents` table + private `legal-orders` storage bucket + RLS | **DONE (this turn)** | migration + bucket + storage.objects policies applied |
+| P6-i: `business_event_topics` seed for `legal_order.*` (11 topics incl. `payment_posted`) | **DONE (this turn)** | outbox worker will now route them |
+| P6 remainder: outbox subscriber + reporting rebind + notification rules | **NOT STARTED** | subscribers + notification_alert_settings rows still to wire |
 
 Net: Phases 1–3 are genuinely complete; Phase 4 is code-complete but **tests are missing**; Phases 5 & 6 are untouched. No regressions found. The v3 plan is directionally correct — I extend it below rather than restart it.
 
