@@ -64,6 +64,8 @@ describe("Stage 1 — TerminalSessionEnvelope contract", () => {
     for (const file of CALL_SITE_FILES) {
       // Skip the hook definition itself.
       if (file.endsWith("useManagerOverride.ts")) continue;
+      // Skip the envelope module (contains illegal examples in doc comments).
+      if (file.endsWith("TerminalSessionEnvelope.ts")) continue;
       // Skip this test file.
       if (file.endsWith("terminal-session-envelope.test.ts")) continue;
       // Skip the ESLint rule file (contains illegal examples in comments).
