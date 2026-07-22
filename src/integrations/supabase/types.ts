@@ -24007,6 +24007,30 @@ export type Database = {
           },
         ]
       }
+      legal_order_event_dispatch_log: {
+        Row: {
+          dispatched_at: string
+          notified_users: number
+          organization_id: string
+          source_event_id: string
+          topic: string
+        }
+        Insert: {
+          dispatched_at?: string
+          notified_users?: number
+          organization_id: string
+          source_event_id: string
+          topic: string
+        }
+        Update: {
+          dispatched_at?: string
+          notified_users?: number
+          organization_id?: string
+          source_event_id?: string
+          topic?: string
+        }
+        Relationships: []
+      }
       legal_order_kind_overrides: {
         Row: {
           approved_at: string | null
@@ -24054,6 +24078,101 @@ export type Database = {
           },
           {
             foreignKeyName: "legal_order_kind_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_order_remittance_lines: {
+        Row: {
+          actor_user_id: string | null
+          amount: number
+          business_id: string | null
+          created_at: string
+          garnishment_id: string
+          id: string
+          journal_entry_id: string | null
+          organization_id: string
+          payment_date: string
+          payment_id: string
+          reference_number: string | null
+          source_event_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          amount: number
+          business_id?: string | null
+          created_at?: string
+          garnishment_id: string
+          id?: string
+          journal_entry_id?: string | null
+          organization_id: string
+          payment_date: string
+          payment_id: string
+          reference_number?: string | null
+          source_event_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          amount?: number
+          business_id?: string | null
+          created_at?: string
+          garnishment_id?: string
+          id?: string
+          journal_entry_id?: string | null
+          organization_id?: string
+          payment_date?: string
+          payment_id?: string
+          reference_number?: string | null
+          source_event_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_order_remittance_lines_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_lines_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_lines_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_lines_garnishment_id_fkey"
+            columns: ["garnishment_id"]
+            isOneToOne: false
+            referencedRelation: "employee_garnishments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_lines_garnishment_id_fkey"
+            columns: ["garnishment_id"]
+            isOneToOne: false
+            referencedRelation: "legal_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_lines_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -76037,6 +76156,25 @@ export type Database = {
       }
       leave_to_attendance_stamp: {
         Args: { _leave_id: string }
+        Returns: number
+      }
+      legal_order_apply_payment_remittance: {
+        Args: {
+          p_business: string
+          p_event_id: string
+          p_org_id: string
+          p_payload: Json
+        }
+        Returns: string
+      }
+      legal_order_notify_event: {
+        Args: {
+          p_business: string
+          p_event_id: string
+          p_org_id: string
+          p_payload: Json
+          p_topic: string
+        }
         Returns: number
       }
       legal_order_transition: {
