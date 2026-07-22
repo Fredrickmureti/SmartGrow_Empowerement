@@ -23924,6 +23924,89 @@ export type Database = {
           },
         ]
       }
+      legal_order_documents: {
+        Row: {
+          byte_size: number | null
+          content_type: string | null
+          created_at: string
+          document_kind: string
+          garnishment_id: string
+          id: string
+          notes: string | null
+          organization_id: string
+          original_filename: string
+          retention_until: string | null
+          sha256: string | null
+          storage_bucket: string
+          storage_path: string
+          uploaded_by: string | null
+          version: number
+        }
+        Insert: {
+          byte_size?: number | null
+          content_type?: string | null
+          created_at?: string
+          document_kind?: string
+          garnishment_id: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          original_filename: string
+          retention_until?: string | null
+          sha256?: string | null
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Update: {
+          byte_size?: number | null
+          content_type?: string | null
+          created_at?: string
+          document_kind?: string
+          garnishment_id?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          original_filename?: string
+          retention_until?: string | null
+          sha256?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_order_documents_garnishment_id_fkey"
+            columns: ["garnishment_id"]
+            isOneToOne: false
+            referencedRelation: "employee_garnishments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_documents_garnishment_id_fkey"
+            columns: ["garnishment_id"]
+            isOneToOne: false
+            referencedRelation: "legal_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "legal_order_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_order_kind_overrides: {
         Row: {
           approved_at: string | null
