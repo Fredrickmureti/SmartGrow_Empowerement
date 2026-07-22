@@ -175,7 +175,7 @@ function comparePriority(
 }
 
 export function computeGarnishments(args: ComputeArgs): ComputeResult {
-  const { gross, preGarnishmentDeductions, orders, policy, kindDefaults } = args;
+  const { gross, preGarnishmentDeductions, orders, policy, kindDefaults, period_start, period_end } = args;
   const disposable = Math.max(0, gross - preGarnishmentDeductions);
   let disposableRemaining = disposable;
   const aggregateCapPool =
@@ -184,13 +184,23 @@ export function computeGarnishments(args: ComputeArgs): ComputeResult {
       : Number.POSITIVE_INFINITY;
   let cappedPoolRemaining = aggregateCapPool;
   const orgFloor = Math.max(
-    policy.min_take_home_amount ?? 0,
-    policy.min_take_home_pct != null ? gross * policy.min_take_home_pct : 0,
+      policy.min_take_home_amount ?? 0,
+      policy.min_take_home_pct != null ? gross * policy.min_take_home_pct : 0,
   );
+
+  // Effective-window filter: only orders whose window overlaps [period_start, period_end]
+  // are considered. When the payroll period is not supplied (legacy callers),
+  // every order is considered.
+  const inWindow = (g: GarnishmentOrder): boolean => {
+    if (!period_start && !period_end) return true;
+    if (period_end && g.start_date && g.start_date > period_end) return false;
+    if (period_start && g.end_date && g.end_date < period_start) return false;
+    return true;
+  };
 
   // Resolve membership + kind default once, then sort deterministically so
   // always_first orders + lower priority_class consume the pool first.
-  const enriched = orders.map((g) => {
+  const enriched = orders.filter(inWindow).map((g) => {
     const kd = kindDefaults[g.kind];
     return { g, kd, membership: resolveMembership(g, kd) };
   });
