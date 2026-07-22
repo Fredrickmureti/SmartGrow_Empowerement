@@ -73,15 +73,80 @@ function writeSoundPref(on: boolean) {
 const successAudioSrc = (successAsset as { url: string }).url;
 const failureAudioSrc = (failureAsset as { url: string }).url;
 
+// ─── Web Audio synthesis ────────────────────────────────────────────────
+// We synthesize the chime with Web Audio API instead of streaming a wav.
+// This removes the dependency on a hosted asset (which 404s in preview),
+// works offline, and is robust to autoplay policies once the user has
+// interacted with the page (e.g. toggled the sound button).
+let _audioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  const Ctor: typeof AudioContext | undefined =
+    window.AudioContext ?? (window as any).webkitAudioContext;
+  if (!Ctor) return null;
+  if (!_audioCtx) {
+    try {
+      _audioCtx = new Ctor();
+    } catch {
+      return null;
+    }
+  }
+  if (_audioCtx.state === "suspended") {
+    // Best-effort resume — will succeed if a prior user gesture unlocked audio.
+    _audioCtx.resume().catch(() => {});
+  }
+  return _audioCtx;
+}
+
+// Unlock the audio context on the first user gesture so later programmatic
+// chimes (fired from a realtime callback, not a click) are allowed to play.
+if (typeof window !== "undefined") {
+  const unlock = () => {
+    getAudioCtx();
+    window.removeEventListener("pointerdown", unlock);
+    window.removeEventListener("keydown", unlock);
+  };
+  window.addEventListener("pointerdown", unlock, { once: true });
+  window.addEventListener("keydown", unlock, { once: true });
+}
+
+function playTone(
+  ctx: AudioContext,
+  freq: number,
+  startAt: number,
+  durationMs: number,
+  gain = 0.18,
+) {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(freq, startAt);
+  // Short attack + exponential release for a pleasant chime, avoids clicks.
+  g.gain.setValueAtTime(0.0001, startAt);
+  g.gain.exponentialRampToValueAtTime(gain, startAt + 0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001, startAt + durationMs / 1000);
+  osc.connect(g).connect(ctx.destination);
+  osc.start(startAt);
+  osc.stop(startAt + durationMs / 1000 + 0.02);
+}
+
 function playChime(kind: "success" | "failure") {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const t0 = ctx.currentTime + 0.01;
   try {
-    const el = new Audio(kind === "success" ? successAudioSrc : failureAudioSrc);
-    el.volume = 0.55;
-    const p = el.play();
-    if (p && typeof p.catch === "function") p.catch(() => {});
+    if (kind === "success") {
+      // Rising two-note: C5 → E5 → G5 (major triad arpeggio).
+      playTone(ctx, 523.25, t0, 160);
+      playTone(ctx, 659.25, t0 + 0.14, 160);
+      playTone(ctx, 783.99, t0 + 0.28, 260);
+    } else {
+      // Descending two-note failure cue: A4 → E4.
+      playTone(ctx, 440.0, t0, 200, 0.2);
+      playTone(ctx, 329.63, t0 + 0.18, 340, 0.2);
+    }
   } catch {
-    // Silently ignore — autoplay policies may block; the visual state is
-    // still authoritative.
+    // Silently ignore — visual state remains authoritative.
   }
 }
 
