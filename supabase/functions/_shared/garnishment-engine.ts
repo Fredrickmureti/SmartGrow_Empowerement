@@ -47,6 +47,9 @@ export interface GarnishmentOrder {
   aggregate_cap_exempt?: boolean;
   case_reference?: string | null;
   priority?: number | null;
+  /** Effective window (ISO yyyy-mm-dd). Orders outside the payroll period are skipped. */
+  start_date?: string | null;
+  end_date?: string | null;
 }
 
 export interface GarnishmentPolicy {
