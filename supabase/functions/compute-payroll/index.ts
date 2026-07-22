@@ -4286,6 +4286,8 @@ Deno.serve(async (req) => {
         _inputs: inputRows,
       });
       phase("employee-loop-end", { emp: emp.employee_number, empMs: Date.now() - _empPhaseStart });
+      // Reflect this employee as *completed* in the progress bar.
+      await heartbeat("computing", { current: payslipsData.length, total: employees.length });
     }
 
     // ─── Dry-run: return preview without persisting ───
