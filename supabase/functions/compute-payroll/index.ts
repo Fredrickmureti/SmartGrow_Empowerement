@@ -2527,6 +2527,8 @@ Deno.serve(async (req) => {
         warnings.push(`${emp.first_name} ${emp.last_name}: ${reason.message}`);
         continue;
       }
+      const _empPhaseStart = Date.now();
+      phase("employee-loop-start", { emp: emp.employee_number });
       // ─── Salary source: salary structure → contract → reject ───
       const contract = contractByEmployee[emp.id];
       let basicSalary: number;
