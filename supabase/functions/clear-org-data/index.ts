@@ -299,6 +299,14 @@ serve(async (req) => {
         }
       }
       const dryRun = body.dry_run !== false; // default TRUE for safety
+      const run = await startRun(admin, {
+        organization_id: null,
+        initiated_by: user?.id ?? null,
+        mode: "gc_orphans",
+        trigger_source: isServiceRoleCaller
+          ? "clear-org-data:gc_orphans:cron"
+          : "clear-org-data:gc_orphans",
+      });
       try {
         const gc = await runStorageGc(admin, {
           scope: "orphan",
@@ -308,16 +316,21 @@ serve(async (req) => {
             ? "clear-org-data:gc_orphans:cron"
             : "clear-org-data:gc_orphans",
         });
-        return reply({ ok: true, success: true, mode: "gc_orphans", dry_run: dryRun, result: gc });
+        await finishRun(admin, run, { ok: true, stage: "complete", storage_result: gc });
+        return reply({ ok: true, success: true, run_id: run.id, mode: "gc_orphans", dry_run: dryRun, result: gc });
       } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await finishRun(admin, run, { ok: false, stage: "gc_orphans", error: msg });
         return reply({
           ok: false,
           success: false,
+          run_id: run.id,
           stage: "gc_orphans",
-          error: e instanceof Error ? e.message : String(e),
+          error: msg,
         });
       }
     }
+
 
     // All other modes require an authenticated end user.
     if (!user) {
