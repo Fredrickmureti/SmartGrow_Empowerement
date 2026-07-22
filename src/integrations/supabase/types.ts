@@ -50455,6 +50455,66 @@ export type Database = {
         }
         Relationships: []
       }
+      reset_runs: {
+        Row: {
+          categories: string[] | null
+          counts: Json | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          error_code: string | null
+          error_hint: string | null
+          finished_at: string | null
+          id: string
+          initiated_by: string | null
+          mode: string
+          ok: boolean | null
+          organization_id: string | null
+          stage: string
+          started_at: string
+          storage_result: Json | null
+          trigger_source: string | null
+        }
+        Insert: {
+          categories?: string[] | null
+          counts?: Json | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          error_code?: string | null
+          error_hint?: string | null
+          finished_at?: string | null
+          id?: string
+          initiated_by?: string | null
+          mode: string
+          ok?: boolean | null
+          organization_id?: string | null
+          stage?: string
+          started_at?: string
+          storage_result?: Json | null
+          trigger_source?: string | null
+        }
+        Update: {
+          categories?: string[] | null
+          counts?: Json | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          error_code?: string | null
+          error_hint?: string | null
+          finished_at?: string | null
+          id?: string
+          initiated_by?: string | null
+          mode?: string
+          ok?: boolean | null
+          organization_id?: string | null
+          stage?: string
+          started_at?: string
+          storage_result?: Json | null
+          trigger_source?: string | null
+        }
+        Relationships: []
+      }
       retro_pay_adjustments: {
         Row: {
           applied_at: string | null
