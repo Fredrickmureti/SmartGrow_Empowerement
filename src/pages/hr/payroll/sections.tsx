@@ -1346,7 +1346,7 @@ export function PayrollConfigurationPage() {
       hint: "Localized tax, social, and court-ordered obligations.",
       links: [
         { to: "/hr/payroll/statutory-rules",            label: "Statutory Rules",   hint: "Tax, pension & social contributions" },
-        { to: "/hr/payroll/garnishments",               label: "Garnishments",      hint: "Court orders, aggregate caps & take-home floor" },
+        { to: "/hr/payroll/legal-orders",               label: "Legal Orders",      hint: "Court orders, aggregate caps & take-home floor" },
         { to: "/hr/payroll/configuration/localization", label: "Localization Pack", hint: "Country-specific payroll rules" },
       ],
     },

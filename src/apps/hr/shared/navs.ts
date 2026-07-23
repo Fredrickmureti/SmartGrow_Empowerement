@@ -182,7 +182,7 @@ export const PAYROLL_NAV: WorkspaceNav = {
       items: [
         { to: "/hr/payroll/loans", label: "Loans", icon: Wallet, permission: "manageEmployeeLoans" },
         { to: "/hr/payroll/statutory-rules", label: "Statutory rules", icon: Shield, permission: "manageStatutoryRules" },
-        { to: "/hr/payroll/garnishments", label: "Garnishments", icon: Scale, permission: "managePayroll" },
+        { to: "/hr/payroll/legal-orders", label: "Legal orders", icon: Scale, permission: "managePayroll" },
         { to: "/hr/payroll/loan-skip-overrides", label: "Loan skip overrides", icon: Ban, permission: "runPayroll" },
         { to: "/hr/payroll/tax-certificates", label: "Tax certificates", icon: FileText, permission: "viewPayroll" },
         { to: "/hr/remittances", label: "Remittances", icon: Landmark, permission: "viewRemittances" },
