@@ -1,15 +1,8 @@
 /**
- * Regression pin — the country-neutral ANNUAL_EARNINGS_STATEMENT
- * certificate template must bind its matrix data columns via
- * `derived_columns` (category-aggregate `cat:*` expressions), so that
- * `generate-tax-certificate` does NOT refuse it with
- * `TEMPLATE_STRUCTURAL_INVALID / MATRIX_NO_RULE_CODES`.
- *
- * This is the exact defect that produced the "422 Unprocessable Content"
- * error surfaced from useTaxCertificates.ts. The fix is a
- * republished template body (see the accompanying data migration) plus a
- * small extension to `monthlyMatrix.ts` accepting `cat:*` tokens. This
- * test pins both.
+ * Regression pin — the country-neutral ANNUAL_EARNINGS_STATEMENT must be
+ * rendered from AnnualEarningsStatementDTO only. The base annual statement
+ * template is presentation: no rule-code list, no amount-field switch, and
+ * no `derived_columns` formula path that can compete with DTO.months.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
@@ -51,40 +44,37 @@ describe("ANNUAL_EARNINGS_STATEMENT — country-neutral canonical binding", () =
     expect(body.schema_version).toBeGreaterThanOrEqual(3);
   });
 
-  it("its matrix declares derived_columns (no more unbound-column 422)", () => {
+  it("its monthly matrix binds DTO.months directly, without formula metadata", () => {
     const matrix = (body.document as any[]).find((n) => n.type === "matrix");
     expect(matrix, "template must include a matrix node").toBeTruthy();
-    expect(Array.isArray(matrix.derived_columns), "matrix.derived_columns must be an array").toBe(true);
-    expect(matrix.derived_columns.length).toBeGreaterThan(0);
+    expect(matrix.rows_binding).toBe("months");
+    expect(matrix.rule_codes ?? []).toEqual([]);
+    expect(matrix.amount_field).toBeUndefined();
+    expect(matrix.derived_columns).toBeUndefined();
   });
 
-  it("uses category aggregation (cat:*) — the country-neutral binding channel", () => {
+  it("every visible monthly data column is a canonical DTO.months key", () => {
     const matrix = (body.document as any[]).find((n) => n.type === "matrix");
-    const flatArgs = (matrix.derived_columns as any[])
-      .flatMap((d) => (Array.isArray(d.args) ? d.args : []))
-      .filter((a) => typeof a === "string");
-    const catArgs = flatArgs.filter((a: string) => a.startsWith("cat:"));
-    expect(
-      catArgs.length,
-      "generic template must reference cat:* tokens instead of hardcoded country-specific rule_codes",
-    ).toBeGreaterThan(0);
+    const keys = (matrix.columns as any[]).map((c) => String(c.key));
+    expect(keys).toEqual([
+      "month",
+      "gross",
+      "benefits",
+      "taxable",
+      "statutory_employee",
+      "statutory_employer",
+      "other_deductions",
+      "reliefs",
+      "net",
+    ]);
   });
 
-  it("every data column is either a month axis or backed by a derived key", () => {
-    const matrix = (body.document as any[]).find((n) => n.type === "matrix");
-    const derivedKeys = new Set(
-      (matrix.derived_columns as any[]).map((d) => String(d.key)),
+  it("generate-tax-certificate cannot overwrite annual DTO months via legacy matrix assembly", () => {
+    const src = readFileSync(
+      join(process.cwd(), "supabase", "functions", "generate-tax-certificate", "index.ts"),
+      "utf8",
     );
-    const dataCols = (matrix.columns as any[]).filter((c) => {
-      const key = String(c.key ?? c.bind_key ?? c.id ?? "");
-      if (!key || key === "month" || key === "month_index") return false;
-      if (String(c.format ?? "").toLowerCase() === "month_short") return false;
-      return true;
-    });
-    const unbound = dataCols
-      .filter((c) => !c.source_key && !derivedKeys.has(String(c.key)))
-      .map((c) => String(c.key));
-    expect(unbound).toEqual([]);
+    expect(src).toContain('template.code !== "ANNUAL_EARNINGS_STATEMENT"');
   });
 
   it("binds YTD employer contributions to the canonical aggregate field", () => {

@@ -139,6 +139,42 @@ describe("certificate-engine compile() — v3 backward compat", () => {
     expect(out.html).toContain("350.00");
     expect(out.html).toContain("Total");
   });
+
+  it("renders Annual Earnings monthly columns from DTO.months, not derived formulas", async () => {
+    const { compile } = await import(
+      "../../../supabase/functions/_shared/certificate-engine/compile.ts"
+    );
+    const out = compile(
+      {
+        schema_version: 3,
+        code: "ANNUAL_EARNINGS_STATEMENT",
+        display_name: "Annual Earnings Statement",
+        paper_format: {
+          size: "A4", orientation: "portrait",
+          margin_top: 10, margin_right: 10, margin_bottom: 10, margin_left: 10,
+          header_height: 8, footer_height: 8,
+        },
+        document: [
+          {
+            type: "matrix",
+            rows_binding: "months",
+            columns: [
+              { key: "month", header: { kind: "literal", value: "Month" }, format: "month_short" },
+              { key: "taxable", header: { kind: "literal", value: "Taxable" }, align: "right", format: "number" },
+              { key: "statutory_employer", header: { kind: "literal", value: "Statutory (ER)" }, align: "right", format: "number" },
+            ],
+            footer: { label: { kind: "literal", value: "TOTAL" }, sum_columns: ["taxable", "statutory_employer"] },
+          },
+        ],
+      },
+      { months: [{ month: 5, month_index: 5, taxable: 84365.06, statutory_employer: 7099.94 }] },
+      {},
+    );
+
+    expect(out.html).toContain("May");
+    expect(out.html).toContain("84,365.06");
+    expect(out.html).toContain("7,099.94");
+  });
 });
 
 describe("certificate-engine compile() — v4 primitives", () => {

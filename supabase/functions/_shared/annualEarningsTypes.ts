@@ -48,6 +48,7 @@ export interface AnnualEarningsEmployee {
  */
 export interface AnnualEarningsMonth {
   month: number;                 // 1..12
+  month_index: number;           // 1..12, canonical RPC-facing alias
   gross: number;
   benefits: number;
   taxable: number;
@@ -117,6 +118,7 @@ export interface AnnualEarningsStatementDTO {
 export function emptyMonth(m: number): AnnualEarningsMonth {
   return {
     month: m,
+    month_index: m,
     gross: 0, benefits: 0, taxable: 0,
     statutory_employee: 0, statutory_employer: 0,
     other_deductions: 0, reliefs: 0,
