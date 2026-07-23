@@ -23,7 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Scale } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { LegalOrderDocuments } from "@/components/payroll/LegalOrderDocuments";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
 
@@ -108,7 +108,6 @@ export default function MyLegalOrders() {
       <PageHeader
         title="My Legal Orders"
         description="Court orders, garnishments and tax levies applied to your payroll. Upload supporting documents when your HR team requests them."
-        icon={Scale}
       />
       <PageBody>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
