@@ -37,6 +37,7 @@ import {
   type WorkEntryType,
   type WorkEntryRow,
 } from "./structureEngine.ts";
+import { classifyPayslipLine } from "../_shared/payslipClassifier.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
