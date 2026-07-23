@@ -30457,6 +30457,51 @@ export type Database = {
           },
         ]
       }
+      payroll_certificate_template_extensions: {
+        Row: {
+          base_template_code: string
+          body: Json
+          created_at: string
+          description: string | null
+          display_name: string | null
+          effective_date: string | null
+          id: string
+          pack_code: string
+          region: string
+          sunset_date: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          base_template_code: string
+          body: Json
+          created_at?: string
+          description?: string | null
+          display_name?: string | null
+          effective_date?: string | null
+          id?: string
+          pack_code: string
+          region: string
+          sunset_date?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          base_template_code?: string
+          body?: Json
+          created_at?: string
+          description?: string | null
+          display_name?: string | null
+          effective_date?: string | null
+          id?: string
+          pack_code?: string
+          region?: string
+          sunset_date?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       payroll_certificate_template_overrides: {
         Row: {
           base_pack_id: string | null
