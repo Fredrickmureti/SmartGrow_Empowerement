@@ -140,10 +140,15 @@ export function emptyYtd(): AnnualEarningsYtd {
 
 /**
  * Category → DTO channel routing. The categories come from
- * `payslip_lines.category` (canonical set: earning, benefit, taxable,
- * statutory_employee, statutory_employer, deduction, relief,
- * adjustment, reversal, leave_payout, bonus). Unknown categories are
- * ignored — the base DTO never guesses.
+ * `payslip_lines.category` (canonical set: earning, benefit,
+ * statutory_employee, statutory_employer, deduction,
+ * post_tax_deduction, relief, adjustment, reversal, leave_payout,
+ * bonus). Unknown categories are ignored — the base DTO never guesses.
+ *
+ * Amount-source invariant (documented once, enforced by the resolver):
+ *   - channel `statutory_employer` is fed from row.employer_amount
+ *   - every other channel is fed from row.employee_amount
+ * The resolver is the single site that applies this rule.
  */
 export function routeCategoryToChannel(
   cat: string | null | undefined,
@@ -159,6 +164,7 @@ export function routeCategoryToChannel(
     case "statutory_employee": return "statutory_employee";
     case "statutory_employer": return "statutory_employer";
     case "deduction": return "other_deductions";
+    case "post_tax_deduction": return "other_deductions";
     case "relief": return "reliefs";
     case "adjustment": return "adjustments";
     case "reversal": return "reversals";
