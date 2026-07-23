@@ -77,6 +77,21 @@ describe("ANNUAL_EARNINGS_STATEMENT — country-neutral canonical binding", () =
     expect(src).toContain('template.code !== "ANNUAL_EARNINGS_STATEMENT"');
   });
 
+  it("generate-tax-certificate skips the rule-code binding validator for the DTO-bound annual statement", () => {
+    const src = readFileSync(
+      join(process.cwd(), "supabase", "functions", "generate-tax-certificate", "index.ts"),
+      "utf8",
+    );
+    // Both guards must be present: one gating validateCanonicalSourceNode,
+    // one gating the legacy pivot. Count occurrences to prove both exist.
+    const matches = src.match(/template\.code !== "ANNUAL_EARNINGS_STATEMENT"/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
+    // And the validator loop must sit inside that guard.
+    expect(src).toMatch(
+      /template\.code !== "ANNUAL_EARNINGS_STATEMENT"[\s\S]{0,600}validateCanonicalSourceNode/,
+    );
+  });
+
   it("binds YTD employer contributions to the canonical aggregate field", () => {
     const ytd = (body.document as any[]).find(
       (n) => n.type === "section" && n.title?.value === "Year-to-Date Summary",

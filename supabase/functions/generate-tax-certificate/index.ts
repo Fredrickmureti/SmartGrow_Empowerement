@@ -422,19 +422,26 @@ Deno.serve(async (req) => {
       // column on a filed statutory document. Refuse loudly instead —
       // this is the class-level fix that prevents this defect from
       // recurring across every localization pack and future certificate.
-      const matrixNodes: any[] = [];
-      const gridNodes: any[] = [];
-      walkDocumentNodes(nodes, (n) => {
-        if (n.type === "matrix") matrixNodes.push(n);
-        if (n.type === "grid") gridNodes.push(n);
-      });
-      for (const m of matrixNodes) {
-        const invalid = validateCanonicalSourceNode({ node: m, templateCode: template.code, templateSource, kind: "matrix" });
-        if (invalid) return invalid;
-      }
-      for (const g of gridNodes) {
-        const invalid = validateCanonicalSourceNode({ node: g, templateCode: template.code, templateSource, kind: "grid" });
-        if (invalid) return invalid;
+      // ADR-0091: ANNUAL_EARNINGS_STATEMENT is DTO-bound. Its matrix rows
+      // are populated by resolveAnnualEarnings (see overlay ~line 802) —
+      // not by the rule-code stream — so canonical-source binding
+      // assertions do not apply. Mirrors the guard at ~line 859 that
+      // skips the legacy pivot for the same template.
+      if (template.code !== "ANNUAL_EARNINGS_STATEMENT") {
+        const matrixNodes: any[] = [];
+        const gridNodes: any[] = [];
+        walkDocumentNodes(nodes, (n) => {
+          if (n.type === "matrix") matrixNodes.push(n);
+          if (n.type === "grid") gridNodes.push(n);
+        });
+        for (const m of matrixNodes) {
+          const invalid = validateCanonicalSourceNode({ node: m, templateCode: template.code, templateSource, kind: "matrix" });
+          if (invalid) return invalid;
+        }
+        for (const g of gridNodes) {
+          const invalid = validateCanonicalSourceNode({ node: g, templateCode: template.code, templateSource, kind: "grid" });
+          if (invalid) return invalid;
+        }
       }
     }
 
