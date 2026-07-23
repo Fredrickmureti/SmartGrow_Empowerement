@@ -82,6 +82,8 @@ const commonParams = {
 describe("resolveAnnualEarnings", () => {
   it("populates monthly rows from month_index (not row.month)", async () => {
     const dto = await resolveAnnualEarnings({ admin: makeAdminStub() as any, ...commonParams });
+    expect(dto.months[0].month).toBe(1);
+    expect(dto.months[0].month_index).toBe(1);
     expect(dto.months[0].gross).toBe(1000);
     expect(dto.months[0].statutory_employee).toBe(100);
     expect(dto.months[1].gross).toBe(1000);

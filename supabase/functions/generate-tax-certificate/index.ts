@@ -856,7 +856,7 @@ Deno.serve(async (req) => {
         // semantic matrix rows the template binds to (e.g. `p9.months`),
         // applying the pack's derived columns. The country's tax math lives
         // entirely in the pack-authored matrix node — this code is generic.
-        if (isV3EngineTemplate(template)) {
+        if (isV3EngineTemplate(template) && template.code !== "ANNUAL_EARNINGS_STATEMENT") {
           const doc = Array.isArray((template.body as any).document) ? (template.body as any).document : [];
           const dataNodes: any[] = [];
           walkDocumentNodes(doc, (n) => {
