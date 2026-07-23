@@ -101,3 +101,27 @@ Both changes non-breaking; engine + architecture tests untouched. See `docs/audi
 - **Writes stay on `employee_garnishments`.** Only reporting/hydration paths use `public.legal_orders`.
 - **No new authz primitives.** The workflow-seed helper only reads `self_action_policy` + writes `approval_workflows` — reuses existing RLS/tables.
 - **Idempotent everywhere.** Re-installing the pack for the same tenant does not duplicate the workflow row (uniqueness by `organization_id + entity_type='legal_order'`).
+
+---
+
+## Progress log — 2026-07-23 (session 2)
+
+### Step D executed in full — no deferrals
+
+- **Physical rename applied.** `public.employee_garnishments` → `public.legal_orders_records` in a single migration. Free-text `issuing_authority` column dropped. The `public.legal_orders` view was rebuilt to read from the renamed table and now exposes `authority_name` via `LEFT JOIN legal_order_authorities` (replacing the removed free-text field).
+- **9 database functions repointed** to the new table name: `apply_garnishment_payment_to_order`, `apply_system_garnishment_transition`, `garnishment_auto_expire`, `garnishment_dashboard_summary`, `garnishment_notify_employee`, `garnishment_transition`, `legal_order_transition`, `payroll_invert_correction_adjustments`, `tg_hr_event_apply_garnishment`. Triggers/FSM behavior unchanged.
+- **Code refactored** to the new table + view:
+  - `src/hooks/useGarnishments.ts`, `src/pages/hr/payroll/Garnishments.tsx`: `.from("legal_orders_records")`, `issuing_authority` removed from the `Garnishment` interface and form state (renamed to `authority_text` for the free-text overlay only used by `AuthorityPicker.fallbackText`).
+  - `src/hooks/useLegalOrders.ts`: `issuing_authority_text` → `authority_name` on `LegalOrderRow`.
+  - `src/components/hr/MyGarnishmentsTab.tsx`: switched to `public.legal_orders` view, reads `authority_name`.
+  - `supabase/functions/compute-payroll/index.ts`, `supabase/functions/post-garnishment-payment/index.ts`, `supabase/functions/post-payroll-gl/index.ts` (comment): all table refs updated.
+  - `src/pages/audit-logs/format.ts`, `src/hooks/usePayrollRuleTypes.ts`, `src/test/architecture/turn-f-orphan-admin-uis.test.ts`, plus SQL test fixtures: updated to `legal_orders_records`.
+- **Shim removed.**
+  - Deleted `src/lib/payroll/garnishment-engine.ts` (obsolete re-export).
+  - Deleted `src/test/architecture/no-duplicate-garnishment-engine.test.ts` (the guard is now moot).
+  - Redirected `src/lib/payroll/__tests__/garnishment-engine.test.ts` to import from `supabase/functions/_shared/garnishment-engine` directly.
+
+### Updated invariants
+
+- **Writes go to `legal_orders_records`.** Reads may use either the table (HR admin editor) or the `legal_orders` view (reporting, employee self-serve, GL hydration). The view is the read contract; the table is the write contract.
+- **`issuing_authority` no longer exists.** All authority metadata flows through `legal_order_authorities` via `authority_id`; the view surfaces the joined `authority_name` for display.
