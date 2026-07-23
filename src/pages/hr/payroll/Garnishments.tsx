@@ -347,7 +347,7 @@ export default function GarnishmentsPage() {
                                 <Badge variant="destructive" className="text-[10px]" title="Required evidence not yet attached — see the Evidence section in the editor.">no evidence</Badge>
                               )}
                               {lo.payee_unmapped && (
-                                <Badge variant="secondary" className="text-[10px]" title="Payee has not been mapped to a contact record.">payee unmapped</Badge>
+                                <Badge variant="secondary" className="text-[10px]" title="The third-party recipient (e.g. court, CSA, creditor) is stored as free text only. Link it to a Contact to enable remittance payments. This is unrelated to PAYE tax.">recipient not linked</Badge>
                               )}
                             </>
                           );
@@ -576,18 +576,18 @@ export default function GarnishmentsPage() {
         </WorkflowSheetGrid>
 
         <WorkflowSheetGrid>
-          <WorkflowSheetSection number={4} title="Payee & remittance" subtitle="Where the deducted amount is sent.">
+          <WorkflowSheetSection number={4} title="Recipient & remittance" subtitle="Where the deducted amount is sent. This is the third party on the legal order (court, CSA, creditor) — not the tax authority.">
             <div className="grid grid-cols-2 gap-3">
-              <WorkflowField label="Payee name">
+              <WorkflowField label="Recipient name">
                 <Input value={form.payee_name} onChange={(e) => setForm({ ...form, payee_name: e.target.value })} />
               </WorkflowField>
-              <WorkflowField label="Payee bank">
+              <WorkflowField label="Recipient bank">
                 <Input value={form.payee_bank} onChange={(e) => setForm({ ...form, payee_bank: e.target.value })} />
               </WorkflowField>
-              <WorkflowField label="Payee account">
+              <WorkflowField label="Recipient account">
                 <Input value={form.payee_account} onChange={(e) => setForm({ ...form, payee_account: e.target.value })} />
               </WorkflowField>
-              <WorkflowField label="Payee reference">
+              <WorkflowField label="Recipient reference">
                 <Input value={form.payee_reference} onChange={(e) => setForm({ ...form, payee_reference: e.target.value })} />
               </WorkflowField>
             </div>
