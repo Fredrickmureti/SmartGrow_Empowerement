@@ -16,6 +16,7 @@ const FILES = [
   "supabase/functions/_shared/annualEarningsResolver.ts",
   "supabase/functions/generate-annual-earnings-statement/index.ts",
   "src/pages/me/MyAnnualEarnings.tsx",
+  "supabase/functions/_shared/certificateSourceResolver.ts",
 ];
 
 describe("annual-earnings country agnosticism", () => {
