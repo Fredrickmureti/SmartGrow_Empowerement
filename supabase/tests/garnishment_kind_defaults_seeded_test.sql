@@ -32,8 +32,8 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'garnishment_status enum missing'; END IF;
 
   PERFORM 1 FROM information_schema.columns
-    WHERE table_schema='public' AND table_name='employee_garnishments' AND column_name='aggregate_cap_exempt';
-  IF NOT FOUND THEN RAISE EXCEPTION 'employee_garnishments.aggregate_cap_exempt missing'; END IF;
+    WHERE table_schema='public' AND table_name='legal_orders_records' AND column_name='aggregate_cap_exempt';
+  IF NOT FOUND THEN RAISE EXCEPTION 'legal_orders_records.aggregate_cap_exempt missing'; END IF;
 
   PERFORM 1 FROM information_schema.columns
     WHERE table_schema='public' AND table_name='payroll_settings' AND column_name='garnishment_aggregate_cap_pct';

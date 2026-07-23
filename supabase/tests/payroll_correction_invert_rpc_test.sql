@@ -53,7 +53,7 @@ BEGIN
     (v_rev_run,  v_org, v_biz, 'TEST-REV-'  || substr(v_rev_run::text, 1,8),
      CURRENT_DATE - 30, CURRENT_DATE - 1, 'USD');
 
-  INSERT INTO public.employee_garnishments (
+  INSERT INTO public.legal_orders_records (
     id, organization_id, business_id, employee_id,
     kind, start_date, total_amount, total_paid
   ) VALUES (
@@ -100,7 +100,7 @@ SELECT is(
 );
 
 SELECT is(
-  (SELECT total_paid FROM public.employee_garnishments
+  (SELECT total_paid FROM public.legal_orders_records
     WHERE id = current_setting('test.garn')::uuid),
   150.00::numeric,
   'garnishment total_paid decremented by forward delta (250 - 100)'
@@ -134,7 +134,7 @@ DECLARE
   v_orig2 uuid := gen_random_uuid();
   v_rev2  uuid := gen_random_uuid();
 BEGIN
-  INSERT INTO public.employee_garnishments (
+  INSERT INTO public.legal_orders_records (
     id, organization_id, business_id, employee_id,
     kind, start_date, total_amount, total_paid
   ) VALUES (
@@ -165,7 +165,7 @@ END
 $clamp$;
 
 SELECT cmp_ok(
-  (SELECT total_paid FROM public.employee_garnishments
+  (SELECT total_paid FROM public.legal_orders_records
     WHERE id = current_setting('test.garn2')::uuid),
   '>=',
   0::numeric,

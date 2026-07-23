@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeGarnishments, type GarnishmentOrder, type KindDefault } from "@/lib/payroll/garnishment-engine";
+import { computeGarnishments, type GarnishmentOrder, type KindDefault } from "../../../../supabase/functions/_shared/garnishment-engine";
 
 const KIND_DEFAULTS: Record<string, KindDefault> = {
   child_support: { counts_toward_aggregate_cap: false },

@@ -1018,7 +1018,7 @@ Deno.serve(async (req) => {
         // Phase 6c: read from canonical `legal_orders` view so authority,
         // calc_model, priority_class, and pack-resolved payee fields land here
         // instead of the raw physical row. FSM/write paths still use the
-        // physical `employee_garnishments` table.
+        // physical `legal_orders_records` table.
         const { data: garnRows } = await supabaseAdmin
           .from("legal_orders")
           .select("id, payee_contact_id, payee_name, kind_code, end_date, priority_class, calc_model, authority_id")
