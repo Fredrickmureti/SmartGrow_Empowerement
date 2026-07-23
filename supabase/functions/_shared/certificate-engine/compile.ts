@@ -349,7 +349,16 @@ function renderRichText(n: Extract<Node, { type: "rich_text" }>, ctx: ResolveCon
 
 function renderKeyValue(n: KeyValueNode, ctx: ResolveContext) {
   const cls = n.emphasis === "primary" ? "ce-kv ce-kv-primary" : "ce-kv";
-  return `<div class="${cls}"><div class="ce-kv-label">${esc(resolveValue(n.label, ctx))}</div><div class="ce-kv-value">${esc(resolveValue(n.value, ctx))}</div></div>`;
+  const resolved = resolveValue(n.value, ctx);
+  // Optional-row elision: a binding with no explicit fallback that
+  // resolves to empty means the underlying config is genuinely missing.
+  // Enterprise reports should omit the row rather than render an
+  // em-dash placeholder. Literals and bindings with an explicit
+  // fallback still render (fallback text is intentional).
+  if (resolved === "" && n.value && (n.value as any).kind === "binding" && (n.value as any).fallback == null) {
+    return "";
+  }
+  return `<div class="${cls}"><div class="ce-kv-label">${esc(resolveValue(n.label, ctx))}</div><div class="ce-kv-value">${esc(resolved)}</div></div>`;
 }
 
 function renderIdentityStrip(n: IdentityStripNode, ctx: ResolveContext) {

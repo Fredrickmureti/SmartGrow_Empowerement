@@ -183,12 +183,18 @@ export async function resolveAnnualEarnings(
   };
 
   for (const row of ((mmRows ?? []) as any[])) {
-    const mIdx = Math.max(1, Math.min(12, Number(row.month) || 0));
+    // Canonical RPC column is `month_index`; accept `month` as a legacy
+    // alias for defensive forward-compat.
+    const rawMonth = Number(row.month_index ?? row.month) || 0;
+    const mIdx = rawMonth >= 1 && rawMonth <= 12 ? rawMonth : 0;
     if (!mIdx) continue;
     const target = months[mIdx - 1];
     const channel = routeCategoryToChannel(row.category);
     const amt = Number(row.employee_amount) || 0;
     if (channel) (target as any)[channel] += amt;
+    // `taxable` is not a category — it is a scalar on each payslip line
+    // proportionally attributed by the RPC. Sum it directly.
+    target.taxable += Number(row.taxable_amount) || 0;
   }
   // Compute canonical net per month: gross + benefits − statutory_ee −
   // other_deductions. Reliefs are already netted inside PAYE (see the
@@ -215,21 +221,18 @@ export async function resolveAnnualEarnings(
     else if (channel === "reliefs") breakdown.reliefs.push(row);
   }
 
-  // 3. YTD aggregate from the monthly rows (single source of truth for
-  //    every column) plus employer-side totals from the rollup.
+  // 3. YTD aggregate — derived ONLY from the canonical rollup
+  //    (`payroll_employee_ytd`). This is the single source of truth for
+  //    every YTD column; monthly rows are a projection of the same
+  //    underlying `payslip_lines`, so months and YTD agree by
+  //    construction. Summing months would introduce a parallel
+  //    aggregation path and drift (already happened once with the
+  //    `taxable` category that does not exist in payslip_lines).
   const ytd: AnnualEarningsYtd = emptyYtd();
-  for (const m of months) {
-    ytd.gross += m.gross;
-    ytd.benefits += m.benefits;
-    ytd.taxable += m.taxable;
-    ytd.statutory_employee += m.statutory_employee;
-    ytd.statutory_employer += m.statutory_employer;
-    ytd.other_deductions += m.other_deductions;
-    ytd.reliefs += m.reliefs;
-    ytd.adjustments += m.adjustments;
-    ytd.reversals += m.reversals;
-    ytd.leave_payouts += m.leave_payouts;
-    ytd.bonuses += m.bonuses;
+  for (const r of ytdSource.rows) {
+    const channel = routeCategoryToChannel(r.category);
+    if (channel) (ytd as any)[channel] += r.employee_amount;
+    ytd.taxable += r.taxable_amount;
   }
   ytd.net = ytd.gross + ytd.benefits - ytd.statutory_employee - ytd.other_deductions;
   ytd.employer_contributions_total = ytdSource.totals.employer;
