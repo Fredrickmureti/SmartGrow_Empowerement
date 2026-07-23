@@ -13,6 +13,9 @@
  * produced by the country-agnostic `generate-statutory-return` function which
  * reads `localization_pack_return_templates` rows seeded by the installed
  * localization pack.
+ *
+ * Deploy-bump 2026-07-23: re-bundle so `_shared/payslipClassifier.ts`
+ * (post_tax_deduction + garnishment buckets) is inlined here.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
