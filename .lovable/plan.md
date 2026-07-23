@@ -1,110 +1,61 @@
+## Confirmed root cause
 
-## Investigation summary (verified against DB + code)
-
-I traced the full pipeline for the one existing payroll run on this tenant (payslip `266baf7d…`, May 2026) and located the architectural defect. It is **not** a template issue and **not** a data-population issue — it is a routing/aggregation bug in `annualEarningsResolver.ts` combined with an incomplete category → channel map.
-
-### Pipeline (as currently implemented)
+The Annual Earnings Statement currently has two competing monthly projection paths:
 
 ```text
-payroll_runs → payslips → payslip_lines
-                 │
-                 ├── payroll_employee_ytd_rollup RPC ──► resolveCertificateYtd ──► ytdSource.rows
-                 │                                                                    │
-                 └── payroll_employee_monthly_breakdown RPC ──► mmRows                │
-                                                                    │                 │
-                              annualEarningsResolver builds:  months[]           ytd (parallel!)
-                                                                    │                 │
-                                          v3 certificate compiler.renderMatrix reads months[i][col.key]
-                                          v3 compiler.renderSection reads ytd.*
+Payroll facts
+  -> Annual Earnings Resolver -> DTO.months / DTO.ytd
+  -> generate-annual-earnings-statement -> compiler
+
+Payroll facts
+  -> generate-tax-certificate legacy matrix assembly
+  -> buildMatrixRows(derived_columns, amount_field=employee_amount)
+  -> overwrites payload.months before compiler
 ```
 
-Two parallel aggregation paths (`months` from monthly RPC vs `ytd` from YTD rollup) — a violation of the "monthly is projected once, YTD is its aggregate" invariant the request calls out.
+The failing PDF matches the second path. The resolver can produce `months.taxable` and `months.statutory_employer`, but `generate-tax-certificate` later reprojects `months` from the template's legacy `derived_columns`:
 
-### Canonical `payslip_lines.category` values in this DB
-`earning`, `deduction`, `post_tax_deduction`, `statutory_employee`, `statutory_employer`, `relief` (verified). There is **no** `benefit` category emitted by `compute-payroll` today.
+- `taxable` derives from `cat:taxable`, but taxable is a scalar, not a payslip category, so it resolves to zero.
+- `statutory_employer` derives using `amount_field: employee_amount`, but employer rows carry value in `employer_amount`, so it resolves to zero.
+- The compiler itself just reads `row[column.key]`; it does not execute the template derivations.
 
-### Concrete defects in `annualEarningsResolver.ts`
+This is architectural drift, not a formatting issue.
 
-1. **Statutory Employer monthly is always 0.**
-   Line 194: `(target as any)[channel] += amt` where `amt = Number(row.employee_amount)`. For `statutory_employer` rows, `employee_amount = 0` and the real number lives in `employer_amount`. Channel `statutory_employer` must consume `employer_amount`. YTD works only because it uses `ytdSource.totals.employer` (line 238).
+## Implementation plan
 
-2. **`post_tax_deduction` category is dropped everywhere.**
-   `routeCategoryToChannel` (annualEarningsTypes.ts) has no case for it → returns `null` → the 7 000 garnishment is invisible in both monthly `other_deductions` **and** `ytd.other_deductions`.
+1. **Consolidate the renderer path**
+   - In `generate-tax-certificate`, when `template.code === "ANNUAL_EARNINGS_STATEMENT"`, stop running the generic v3 matrix assembly over the annual statement.
+   - Keep Annual Earnings rendering bound only to `resolveAnnualEarnings()` output.
+   - Preserve the generic matrix assembly for actual statutory certificate templates.
 
-3. **Monthly `net` formula omits post-tax deductions.**
-   `m.net = m.gross + m.benefits − m.statutory_employee − m.other_deductions`. With (2) fixed, adding `post_tax_deduction` to `other_deductions` makes the arithmetic reconcile with `payslips.net_pay` (94 000 − 27 327.26 − 2 000 − 7 000 = 57 672.74 ✓).
+2. **Republish the base Annual Earnings template as DTO-bound presentation**
+   - Update the live `localization_pack_certificate_templates` row for `ANNUAL_EARNINGS_STATEMENT`.
+   - Remove `rule_codes`, `amount_field`, and `derived_columns` from the base annual statement matrix.
+   - Leave columns bound directly to `months.gross`, `months.taxable`, `months.statutory_employer`, etc.
+   - Keep formula-driven `derived_columns` available for country/statutory certificate templates only.
 
-4. **Two independent YTD aggregations.**
-   `ytd.gross/benefits/statutory_employee/other_deductions/reliefs/taxable` sum `ytdSource.rows` directly; `months[]` sum from a different RPC. Even after (1)–(3), any future divergence between the two RPCs re-introduces drift. YTD must be the sum of monthly (with employer contributions and taxable stored as first-class monthly fields sourced from the same rows).
+3. **Harden the DTO contract**
+   - Ensure each `AnnualEarningsMonth` exposes both `month` and `month_index`, because the compiler's visible month column binds to `month`.
+   - Keep YTD folding from `months[]` so monthly totals and Year-to-Date totals reconcile by construction.
 
-5. **`taxable` and `statutory_employer` are not attributes on `months` in a way the template can bind.** They are, but populated incorrectly (see 1) and (for taxable) only via a scalar side-channel — the routing table for `statutory_employer` and the fact that we never add `employer_amount` into any monthly channel means the monthly grid can never carry employer numbers. That is the architectural gap.
+4. **Add regression guards**
+   - Update architecture tests so the base annual statement must not contain formula metadata or `cat:*` derived columns.
+   - Add a source-level guard ensuring `generate-tax-certificate` cannot overwrite `months` for `ANNUAL_EARNINGS_STATEMENT` after resolving the annual DTO.
+   - Add a compiler/resolver integration test proving the rendered monthly table contains non-zero taxable and employer contribution values from `DTO.months`.
 
-6. **Benefits.** No pack currently classifies anything as `benefit` (fringe/benefit-in-kind). The column stays 0 today; that is legitimate. The fix here is architectural: the routing table already accepts `benefit`, and the seed list in `monthlyMatrix.ts` already includes it. Packs may start emitting `benefit`-category lines (BIK: housing, vehicle, employer-paid insurance) and the statement will pick them up automatically. No hardcoding.
+5. **Validate the fix**
+   - Run targeted tests for the resolver, annual statement architecture, and certificate compiler.
+   - Deploy affected edge functions if needed, then call the annual-statement edge path with the known employee/year and verify the HTML contains the expected monthly values (`84,365.06` taxable and `7,099.94` employer contributions) and matching YTD values.
 
-### What needs to change
-
-Make **`months[]` the single canonical projection**, carry both employee and employer amounts per channel, derive **YTD as the sum of months**, and complete the category routing so nothing is silently dropped.
-
-## Changes
-
-### 1. `supabase/functions/_shared/annualEarningsTypes.ts`
-- Add `post_tax_deduction` → `other_deductions` in `routeCategoryToChannel`.
-- Keep `benefit` → `benefits` (localization packs supply BIK classification; no hardcoding).
-- Comment: `statutory_employer` channel is fed from `employer_amount`, all other channels from `employee_amount` (documented invariant).
-
-### 2. `supabase/functions/_shared/annualEarningsResolver.ts`
-Rewrite the monthly aggregation to be the single writer:
+## Expected end state
 
 ```text
-for each row in payroll_employee_monthly_breakdown:
-    channel = routeCategoryToChannel(row.category)
-    if channel == "statutory_employer":
-        months[m].statutory_employer += employer_amount
-    elif channel:
-        months[m][channel] += employee_amount
-    months[m].taxable += taxable_amount          # scalar, proportionally attributed by RPC
-    months[m]._employer_total += employer_amount # for YTD.employer_contributions_total
-
-for each m:
-    m.net = m.gross + m.benefits
-          − m.statutory_employee
-          − m.other_deductions      # now includes post_tax_deduction
+Payroll Engine / payslip_lines
+  -> payroll_employee_monthly_breakdown
+  -> resolveAnnualEarnings (single DTO writer)
+  -> DTO.months and DTO.ytd
+  -> Annual Earnings template (presentation only)
+  -> compiler / PDF HTML
 ```
 
-Then compute YTD by folding `months`:
-
-```text
-ytd.<channel> = Σ months[m].<channel>          for every channel
-ytd.taxable   = Σ months[m].taxable
-ytd.net       = Σ months[m].net
-ytd.employer_contributions_total = Σ months[m]._employer_total  (equivalent to ytdSource.totals.employer by construction)
-ytd.pension_total = as today (rule_code regex over ytdSource.rows — still used only for the pension key)
-```
-
-`breakdown.*` (per-rule-code tables) still comes from `ytdSource.rows` (that's a rule-code breakdown, not an aggregate — no double path).
-
-Keep `ytdSource` only for: provenance (`run_ids`, `payslip_ids`, high-water mark), the pension key, and `breakdown.*` grouping. Numeric totals no longer come from it.
-
-### 3. `src/test/payroll/annual-earnings-resolver.test.ts`
-Add reconciliation assertions:
-- `sum(months[*].gross)                       === ytd.gross`
-- `sum(months[*].taxable)                     === ytd.taxable`
-- `sum(months[*].statutory_employee)          === ytd.statutory_employee`
-- `sum(months[*].statutory_employer)          === ytd.employer_contributions_total`
-- `sum(months[*].other_deductions)            === ytd.other_deductions`
-- `sum(months[*].reliefs)                     === ytd.reliefs`
-- `sum(months[*].net)                         === ytd.net`
-- Fixture with `post_tax_deduction` line → asserts it lands in monthly `other_deductions` and monthly `net` matches `payslips.net_pay`.
-
-### 4. Template
-No change. `ANNUAL_EARNINGS_STATEMENT` already binds `months[i].{gross,benefits,taxable,statutory_employee,statutory_employer,other_deductions,reliefs,net}` and `ytd.*`. The compiler's `renderMatrix` reads those keys verbatim — once the resolver populates them correctly, the columns fill in.
-
-### Explicitly out of scope
-- No template edits, no PDF/HTML changes.
-- No new columns, no cosmetic changes.
-- No country tokens anywhere (arch test `annual-earnings-country-agnostic` continues to pass).
-- Benefits column: architecture is correct; blank today because no pack emits `benefit` category. Not a defect.
-
-## Verification plan
-1. `bunx vitest run src/test/payroll/annual-earnings-resolver.test.ts src/test/architecture/annual-earnings-*.test.ts`
-2. Invoke `generate-annual-earnings-statement` for the existing employee/2026 and confirm edge log shows `ytd_gross=94000`, `ytd_stat_ee=27327.26`, `ytd_er_total=7099.94`, `ytd_net=57672.74`, and every `months[m].*` reconciles.
+No annual-statement template-side calculations, no legacy overwrite of `months`, no hidden alternate path.
