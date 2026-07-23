@@ -4759,7 +4759,7 @@ Deno.serve(async (req) => {
       const psId = psIdByEmployee.get(ps.employee_id);
       if (!psId) continue;
       for (const ln of (ps._lines || [])) {
-        allLineRows.push({
+        allLineRows.push(normalizePayslipLineRow({
           ...ln,
           payslip_id: psId,
           payroll_run_id: payrollRun.id,
@@ -4769,7 +4769,7 @@ Deno.serve(async (req) => {
           // R3: stamp every line with the rule set used to compute this payslip.
           rule_version_id: ps.rule_set_id || null,
           rule_version_hash: ps.rule_set_hash || null,
-        });
+        }));
       }
       for (const inp of (ps._inputs || [])) {
         allInputRows.push({
@@ -4835,7 +4835,7 @@ Deno.serve(async (req) => {
         for (const dr of deltaLineRows) {
           const psId = psIdByEmployee.get(dr.employee_id);
           if (!psId) continue; // employee was zero-delta and dropped
-          reKeyed.push({ ...dr, payslip_id: psId, payroll_run_id: payrollRun.id });
+          reKeyed.push(normalizePayslipLineRow({ ...dr, payslip_id: psId, payroll_run_id: payrollRun.id }));
         }
         allLineRows.length = 0;
         allLineRows.push(...reKeyed);
@@ -4998,28 +4998,33 @@ Deno.serve(async (req) => {
       } else {
         try {
           // ─── Fetch parent payslip_lines for garnishment + reimbursement
-          // sources. We use category to filter so the lookup is independent
-          // of rule_code naming.
+          // sources. Legal orders are stored as category=post_tax_deduction
+          // with source/input_ref kind=garnishment; reimbursements are stored
+          // as category=earning with source/input_ref kind=reimbursement.
           const { data: parentLines, error: pErr } = await supabaseAdmin
             .from("payslip_lines")
-            .select("employee_id, category, amount, details, rule_code")
+            .select("employee_id, category, employee_amount, employer_amount, source, rule_code")
             .eq("payroll_run_id", parentRunId)
-            .in("category", ["garnishment", "reimbursement"]);
+            .in("category", ["post_tax_deduction", "earning"]);
           if (pErr) throw pErr;
 
           // Aggregate parent amounts by (employee_id, source_kind, source_id).
-          // source_id comes from details->>'garnishment_id' or details->>'expense_id'.
+          // source_id comes from source/input_ref garnishment_id or expense_id.
           type Key = string; // `${empId}|${kind}|${sourceId}`
           const k = (e: string, kind: string, sid: string): Key => `${e}|${kind}|${sid}`;
           const parentAmt = new Map<Key, number>();
           const allKeys = new Map<Key, { empId: string; kind: "garnishment" | "reimbursement"; sourceId: string }>();
           for (const ln of (parentLines || []) as any[]) {
-            const det = (ln.details || {}) as Record<string, unknown>;
-            const kind = ln.category as "garnishment" | "reimbursement";
-            const sid = kind === "garnishment" ? (det.garnishment_id as string) : (det.expense_id as string);
+            const src = (ln.source || {}) as Record<string, any>;
+            const inputRef = (src.input_ref || {}) as Record<string, any>;
+            const kind = (src.kind || inputRef.kind) as "garnishment" | "reimbursement" | undefined;
+            if (kind !== "garnishment" && kind !== "reimbursement") continue;
+            const sid = kind === "garnishment"
+              ? ((src.garnishment_id || inputRef.garnishment_id) as string)
+              : ((src.expense_id || inputRef.expense_id) as string);
             if (!sid) continue;
             const key = k(ln.employee_id, kind, sid);
-            parentAmt.set(key, (parentAmt.get(key) || 0) + Number(ln.amount || 0));
+            parentAmt.set(key, (parentAmt.get(key) || 0) + Number(ln.employee_amount || ln.employer_amount || 0));
             allKeys.set(key, { empId: ln.employee_id, kind, sourceId: sid });
           }
 
@@ -5032,13 +5037,15 @@ Deno.serve(async (req) => {
           }
           // For reimbursements the per-line amount lives on the new payslip
           // lines we just inserted; recover it from `allLineRows` (still in
-          // scope above) by category + details.expense_id.
+          // scope above) by source/input_ref expense_id.
           for (const ln of allLineRows as any[]) {
-            if (ln.category !== "reimbursement") continue;
-            const sid = (ln.details || {}).expense_id;
+            const src = (ln.source || {}) as Record<string, any>;
+            const inputRef = (src.input_ref || {}) as Record<string, any>;
+            if ((src.kind || inputRef.kind) !== "reimbursement") continue;
+            const sid = src.expense_id || inputRef.expense_id;
             if (!sid) continue;
             const key = k(ln.employee_id, "reimbursement", sid);
-            newAmt.set(key, (newAmt.get(key) || 0) + Number(ln.amount || 0));
+            newAmt.set(key, (newAmt.get(key) || 0) + Number(ln.employee_amount || ln.employer_amount || 0));
             allKeys.set(key, { empId: ln.employee_id, kind: "reimbursement", sourceId: sid });
           }
 
@@ -5281,14 +5288,14 @@ Deno.serve(async (req) => {
             appliedUpdates.push({ id: r.id, payslip_id: psId });
             const lines = Array.isArray(r.delta_lines) ? r.delta_lines : [];
             for (const ln of lines) {
-              retroLineRows.push({
+              retroLineRows.push(normalizePayslipLineRow({
                 ...ln,
                 payslip_id: psId,
                 payroll_run_id: payrollRun.id,
                 employee_id: r.employee_id,
                 organization_id,
                 business_id: business_id || null,
-              });
+              }));
             }
           }
           if (retroLineRows.length > 0) {
