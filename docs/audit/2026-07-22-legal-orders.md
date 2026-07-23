@@ -123,3 +123,46 @@ adopted the workflow yet).
 - Phase 7 cleanup (Step D): drop free-text `issuing_authority`, rename
   `employee_garnishments` → `legal_orders_records` behind the view, remove
   the client-side engine shim.
+
+---
+
+## Addendum 2026-07-23 (session 3) — Milestone 1: statutory return legal-order line items
+
+**Verification of prior work.** All four handoff checks from `.lovable/plan.md`
+passed on the live DB (`legal_orders_records` table present, `employee_garnishments`
+gone, `issuing_authority` column dropped, six RPCs present, 11 `legal_order.*`
+outbox topics seeded). Repo grep confirmed no live `.from("employee_garnishments")`
+or column selectors on the old names — only auto-generated FK constraint names
+in `src/integrations/supabase/types.ts` (harmless; constraint identifiers were
+not renamed).
+
+**What landed in this session.**
+
+- New DB function `public.legal_orders_return_extract(org, business, period_start,
+  period_end, branch)` — `SECURITY INVOKER`, granted to `authenticated` +
+  `service_role`. Reads `legal_order_remittance_lines` joined to the
+  `public.legal_orders` view and `legal_order_authorities`; groups by order;
+  orders by `priority_class` then authority name. Enforces the invariant that
+  all reporting/return joins must go through the view.
+- `supabase/functions/generate-statutory-return/index.ts` now attaches a
+  `legal_orders` block to every generated `payroll_return_runs.payload`:
+  flat `rows[]`, `groups[]` bucketed by authority, and a `totals` roll-up.
+  Enrichment is opt-out via `template.body.include_legal_orders = false`;
+  failures degrade gracefully (warn + omit the section) so return generation
+  is never broken by garnishment-side issues.
+- Lifecycle gate (`requireClosedPeriod`) is already invoked upstream — no
+  duplicate guard added.
+
+**Invariants preserved.**
+
+- Writes still land on `legal_orders_records`; extract only reads the view.
+- No new authz primitives; `SECURITY INVOKER` inherits caller RLS.
+- Zero country-specific branches — priority and authority come from
+  pack-seeded rows.
+- Non-breaking for existing return templates; the new payload key is additive.
+
+**Deferred to milestone 2 / 3 (unchanged from prior handoff).**
+
+- Remittance batch payments UI (surface `legal_order_remittance_lines` in the
+  payment batch builder, grouped by authority).
+- Employee-facing document uploads (extend `LegalOrderDocuments.tsx` for ESS).

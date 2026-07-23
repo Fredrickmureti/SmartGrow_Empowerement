@@ -71,3 +71,24 @@ posted payslip
 - Edge function emits `legal_orders` section for periods that have posted orders.
 - Tests green: engine (13/13), architecture (orphan + lifecycle gate), new SQL + Deno tests.
 - Audit doc + plan updated with the closing addendum.
+---
+
+## Progress log — 2026-07-23 (session 3)
+
+### Milestone 1 — DONE
+
+- **Verification.** All four DB checks from the prior handoff passed live: `legal_orders_records` present, `employee_garnishments` NULL, `issuing_authority` column gone, six RPCs present, 11 `legal_order.*` outbox topics seeded. Code grep clean (only auto-generated FK constraint names remain in `types.ts`).
+- **DB helper.** `public.legal_orders_return_extract(org, business, period_start, period_end, branch)` — SECURITY INVOKER, granted to `authenticated` + `service_role`. Reads through `public.legal_orders` view + `legal_order_authorities`, groups by order, orders by `priority_class` then authority name.
+- **Edge function.** `supabase/functions/generate-statutory-return/index.ts` attaches a `legal_orders` block (`rows`, `groups` by authority, `totals`) to `payroll_return_runs.payload`. Opt-out via `template.body.include_legal_orders = false`. Failure-tolerant: warns + omits on any error so return generation is never broken by garnishment-side issues.
+- **Lifecycle gate.** Reuses upstream `requireClosedPeriod`; no new guard.
+
+### Invariants preserved
+
+- Writes stay on `legal_orders_records`; reads route through `public.legal_orders`.
+- No new authz primitives (SECURITY INVOKER inherits caller RLS).
+- Zero country-specific branches.
+- Additive, non-breaking payload change.
+
+### Next milestone (not started)
+
+Milestone 2 — remittance batch payments UI. Plan separately before execution.

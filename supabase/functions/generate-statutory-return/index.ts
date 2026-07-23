@@ -893,6 +893,83 @@ Deno.serve(async (req) => {
       },
     };
 
+    // Legal-orders projection — canonical per-authority breakdown of
+    // garnishment/legal-order deductions posted inside this period, ordered
+    // by priority_class then authority name. Sourced from the
+    // `public.legal_orders` view via `legal_orders_return_extract` so the
+    // "reads go through the view" invariant is preserved. Attaches when the
+    // template opts in via `template.body.include_legal_orders = true` OR
+    // the tenant has any remittance lines in-period (safe default — empty
+    // array when none, cheap when nothing to emit). Grouped structure so
+    // filing templates can iterate authority → orders without re-grouping.
+    try {
+      const wantsLegalOrders = template.body?.include_legal_orders !== false;
+      if (wantsLegalOrders) {
+        const { data: loRows, error: loErr } = await admin.rpc(
+          "legal_orders_return_extract",
+          {
+            _organization_id: body.organization_id,
+            _business_id: body.business_id,
+            _period_start: body.period_start,
+            _period_end: body.period_end,
+            _branch_id: body.branch_id ?? null,
+          },
+        );
+        if (loErr) {
+          console.warn(
+            "generate-statutory-return: legal_orders_return_extract failed",
+            loErr.message,
+          );
+        } else {
+          const rows = Array.isArray(loRows) ? loRows : [];
+          const byAuthority = new Map<string, {
+            authority_id: string | null;
+            authority_name: string | null;
+            authority_code: string | null;
+            priority_class: number | null;
+            total_amount: number;
+            order_count: number;
+            orders: any[];
+          }>();
+          for (const r of rows) {
+            const key = r.authority_id ?? `__unassigned__${r.authority_name ?? ""}`;
+            const bucket = byAuthority.get(key) ?? {
+              authority_id: r.authority_id ?? null,
+              authority_name: r.authority_name ?? null,
+              authority_code: r.authority_code ?? null,
+              priority_class: r.priority_class ?? null,
+              total_amount: 0,
+              order_count: 0,
+              orders: [],
+            };
+            bucket.total_amount = Number(bucket.total_amount) + Number(r.gross_deducted ?? 0);
+            bucket.order_count += 1;
+            bucket.orders.push(r);
+            byAuthority.set(key, bucket);
+          }
+          (payload as any).legal_orders = {
+            period_start: body.period_start,
+            period_end: body.period_end,
+            rows,
+            groups: Array.from(byAuthority.values()),
+            totals: {
+              order_count: rows.length,
+              gross_deducted: rows.reduce(
+                (s: number, r: any) => s + Number(r.gross_deducted ?? 0),
+                0,
+              ),
+            },
+          };
+        }
+      }
+    } catch (err) {
+      // Never let the legal-orders enrichment break statutory return generation.
+      console.warn(
+        "generate-statutory-return: legal_orders enrichment error",
+        (err as Error)?.message ?? err,
+      );
+    }
+
     // Deterministic idempotency key so a retried invocation with the same
     // amendment lineage collapses to a single row instead of racing the
     // unique index.
