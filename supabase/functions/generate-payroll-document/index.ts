@@ -18,6 +18,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { generateReportPdf, type ReportPdfPayload } from "../_shared/reportPdfGenerator.ts";
 import { getOrganizationBranding, type OrganizationBranding } from "../_shared/branding/index.ts";
+import { classifyPayslipLine } from "../_shared/payslipClassifier.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -103,11 +104,13 @@ interface PayslipLine {
   employer_amount: number;
 }
 
-const EARNING_CATS = new Set(["earning", "allowance", "bonus", "overtime", "basic"]);
-const DEDUCTION_CATS = new Set([
-  "deduction", "statutory_employee", "tax", "loan_repayment", "benefit_recovery",
-]);
-const EMPLOYER_CATS = new Set(["employer_contribution", "statutory_employer"]);
+// Category buckets are owned exclusively by `_shared/payslipClassifier.ts`.
+// Never re-declare Sets of category strings here — a divergent set caused
+// the PAY-0065 legal-order regression where `post_tax_deduction` lines
+// were silently filtered out of the PDF. See ADR-0022 pattern.
+const isEarning = (l: PayslipLine) => classifyPayslipLine(l) === "earning";
+const isDeduction = (l: PayslipLine) => classifyPayslipLine(l) === "deduction";
+const isEmployer = (l: PayslipLine) => classifyPayslipLine(l) === "employer_contribution";
 
 const formatLabel = (key: string) =>
   key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -210,9 +213,9 @@ async function generatePayslipPdf(
   if (emp?.department?.name) rows.push({ description: `Department: ${emp.department.name}`, amount: "" });
   rows.push({ description: "", amount: "" });
 
-  const earnings = lines.filter((l) => EARNING_CATS.has(l.category) && (l.employee_amount || 0) > 0);
-  const deductions = lines.filter((l) => DEDUCTION_CATS.has(l.category) && (l.employee_amount || 0) > 0);
-  const contribs = lines.filter((l) => EMPLOYER_CATS.has(l.category) && (l.employer_amount || 0) > 0);
+  const earnings = lines.filter((l) => isEarning(l) && (l.employee_amount || 0) > 0);
+  const deductions = lines.filter((l) => isDeduction(l) && (l.employee_amount || 0) > 0);
+  const contribs = lines.filter((l) => isEmployer(l) && (l.employer_amount || 0) > 0);
 
   const derivedBasic = deriveBasic(lines);
   rows.push({ description: "EARNINGS", amount: "", _isHeader: true });
@@ -267,7 +270,7 @@ async function generatePayrollSummaryPdf(
     const emp = ps.employee;
     const psLines = byPs.get(ps.id) || [];
     const earnings = psLines
-      .filter((l) => EARNING_CATS.has(l.category))
+      .filter((l) => isEarning(l))
       .reduce((s, l) => s + (l.employee_amount || 0), 0);
     const basic = deriveBasic(psLines);
     return {
@@ -323,9 +326,9 @@ function generatePayrollRegisterCSV(
   const deductionKeys = new Set<string>();
   const employerKeys = new Set<string>();
   for (const l of lines) {
-    if (EARNING_CATS.has(l.category)) earningKeys.add(l.rule_code);
-    else if (DEDUCTION_CATS.has(l.category)) deductionKeys.add(l.rule_code);
-    else if (EMPLOYER_CATS.has(l.category)) employerKeys.add(l.rule_code);
+    if (isEarning(l)) earningKeys.add(l.rule_code);
+    else if (isDeduction(l)) deductionKeys.add(l.rule_code);
+    else if (isEmployer(l)) employerKeys.add(l.rule_code);
   }
   const eArr = Array.from(earningKeys);
   const dArr = Array.from(deductionKeys);
