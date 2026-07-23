@@ -1,96 +1,85 @@
+## What I actually see in the PDF you uploaded (PAY-0069, generated 15:45:08 UTC)
 
-## Diagnosis (verified against DB + code)
+Rendered deduction lines:
 
-Traced PAY-0065 (Kimathi Mureti) end-to-end. Two independent architectural drifts, both confirmed:
+| Line | Amount |
+|---|---|
+| NSSF | 5,639.94 |
+| SHIF | 2,585.00 |
+| AHL | 1,410.00 |
+| PAYE | 17,692.32 |
+| NSSF Voluntary | 2,000.00 |
+| **Sum of visible lines** | **29,327.26** |
+| **"Total Deductions" printed** | **36,327.26** |
+| **Silent delta** | **7,000.00** |
 
-### Drift 1 — Renderer has its own private category set
+The 7,000 delta is exactly the child-support garnishment. Same class of bug the previous turn claimed to have fixed. It is not fixed.
 
-`supabase/functions/generate-payroll-document/index.ts` (lines 106-110) declares a **local** `DEDUCTION_CATS` set:
+## What the database actually contains for that same payslip
 
-```ts
-const DEDUCTION_CATS = new Set([
-  "deduction", "statutory_employee", "tax", "loan_repayment", "benefit_recovery",
-]);
+Payslip `15575106-c29a-4ffb-8ae7-d58a8ae11c20` in `payslip_lines`:
+
+```
+seq 8  category=post_tax_deduction  label=child_support  employee_amount=7000
+       rule_code=garnishment_0dfb6e04-b7bd-4e40-9507-ec56fb370f7f
 ```
 
-This omits `post_tax_deduction`, `pre_tax_deduction`, `income_tax`, `voluntary_deduction`, and `garnishment`. The canonical classifiers do include them:
+So the engine DID write a canonical line. The line exists. The header total is correct. The PDF simply did not render it.
 
-- `supabase/functions/_shared/payslipClassifier.ts`
-- `src/lib/payroll/payslipClassifier.ts` (browser mirror)
+## Where the divergence is (verified, not assumed)
 
-Verified in DB: payslip `a661a090-…` has line
-`{category: "post_tax_deduction", rule_code: "garnishment_0dfb6e04…", label: "child_support", employee_amount: 7000}`
-at sequence 8. The line exists. `generate-payroll-document` filters it out because its private set doesn't include `post_tax_deduction`. The other PDF path (`generate-payslip-pdf/index.ts`) correctly uses `classifyPayslipLine` and would render it — proving the canonical classifier is right and the renderer is the divergence.
+1. `generate-payslip-pdf/index.ts:177-190` iterates `payslip_lines` and pushes anything the shared `classifyPayslipLine` buckets as `"deduction"` into the printed rows.
+2. `_shared/payslipClassifier.ts` (source on disk) DOES include `post_tax_deduction` in its `DEDUCTION` set.
+3. Yet the freshly-rendered PDF (15:45:08 log confirms `generate-payslip-pdf` served it) omits the `post_tax_deduction` row.
 
-### Drift 2 — Header totals bypass payslip_lines entirely
+Two-file source vs runtime disagree → the deployed edge-function bundle for `generate-payslip-pdf` is running against an older snapshot of `_shared/payslipClassifier.ts` (one that did not know about `post_tax_deduction` / `garnishment`). Supabase edge functions inline `_shared/*` at deploy time; editing a shared file does NOT redeploy the functions that import it. The previous turn edited the classifier and the caller sources, but never forced a rebuild of the leaf functions. Everything downstream stayed on the pre-change bundle.
 
-`supabase/functions/compute-payroll/index.ts:3917`:
+This is the architectural smell that keeps producing this bug: any renderer / GL poster / report has its own frozen copy of the classifier, and the "unified classifier" only works if every consumer is redeployed in lock-step. That is not a contract, it's a hope.
 
-```ts
-const empTotalDeductions =
-  Object.values(deductionsDetail).reduce((s, v) => s + v, 0) + customEmployeeDeductionTotal;
-```
+## Plan
 
-`payslips.total_deductions`, `net_pay`, `gross_pay`, and `total_employer_contributions` are computed from the **parallel** in-memory `deductionsDetail` / `contributionsDetail` maps and then persisted on the header. `payslip_lines` are built independently from `garnishmentLineMeta`, `customDeductionLineMeta`, etc. Nothing enforces `sum(payslip_lines) == header total`.
+### 1. Prove the deploy-drift theory before touching code
+- Add one `console.info` at the top of `generate-payslip-pdf` bucketing loop that prints, for the target payslip: `{seq, category, bucket}` for every fetched line.
+- Re-run the PDF for `15575106-…`. Read `supabase edge_function_logs generate-payslip-pdf`.
+  - If `category=post_tax_deduction` logs as `bucket=info` → deployed bundle is stale (deploy-drift confirmed).
+  - If it logs as `bucket=deduction` but the row is still missing → the drift is inside the row-emission loop or `reportPdfGenerator`, and I'll trace from there.
 
-DB confirms the divergence today:
-- Header `total_deductions = 36,327.26` = NSSF 5,639.94 + SHIF 2,585 + AHL 1,410 + PAYE 17,692.32 + NSSF-Voluntary 2,000 + **garnishment 7,000**
-- PDF renders NSSF + SHIF + AHL + PAYE + NSSF-Voluntary = 29,327.26 and the header total 36,327.26 side-by-side. The 7,000 gap is Drift 1.
+### 2. Fix the deploy-drift (root cause)
+- Force a rebuild of every leaf function that imports `_shared/payslipClassifier.ts` by touching each `index.ts` with a header-comment bump:
+  - `generate-payslip-pdf`
+  - `generate-payroll-document`
+  - `post-payroll-gl`
+  - any other match `rg -l "payslipClassifier" supabase/functions | xargs -n1 dirname` returns.
 
-Any future deduction path that increments `deductionsDetail` without a matching `pushLine(...)` (or vice versa) will re-open this class of bug silently. Legal Orders are the canary; the architecture is the wound.
+### 3. Make it architecturally impossible to reproduce
+The current design lets a header total be right while a line is invisible because the renderer trusts its own bundled classifier and the DB never enforces line↔header agreement. Add the guard the previous turn deferred:
 
-## Objective
+- **DB trigger `payslips_totals_match_lines` (migration):** on `INSERT`/`UPDATE` of `payslips`, sum `payslip_lines` for that payslip via the SAME categorisation the engine uses (a SQL function `payslip_bucket(category text)` returning `earning|deduction|employer_contribution|info`). Reject when `gross_pay`, `total_deductions`, or the employer-contribution total disagree with the summed lines beyond a 0.01 tolerance. This makes it impossible to persist a header that lies about its lines — no engine change, no renderer change can bring the bug back.
+- **SQL bucketing function is the ONE source of truth**; the TS classifiers become thin mirrors that call a shared JSON constant generated from the same table, or (simpler) an architecture test asserts the SQL `payslip_bucket` list equals the TS `EARNING`/`DEDUCTION`/`EMPLOYER` sets byte-for-byte.
 
-Make it structurally impossible for a payroll header total to disagree with the sum of the payslip_lines that back it, and impossible for a renderer to silently drop a category. Legal Order will then render as a natural consequence — not because we hard-coded it anywhere.
+### 4. Verify end-to-end
+- Re-invoke `generate-payslip-pdf` for PAY-0069 (and a freshly-computed run) and confirm:
+  - The child_support 7,000 row appears under DEDUCTIONS.
+  - Line sum == printed `Total Deductions` == 36,327.26.
+  - Removing the line in a test payload causes the DB trigger to reject the payslip write.
 
-## Changes
+### Out of scope
+- Not touching PAYE bracket rendering, YTD math, or the personal-relief line (that's a separate cosmetic — the relief is categorised `relief` → `info` by design, which is correct; it's already netted inside PAYE).
+- Not backfilling PAY-0069's PDF — it re-renders on demand and will be correct once step 2 lands.
 
-### 1. One classifier, everywhere (fixes Drift 1)
+## Technical detail
 
-- Delete `EARNING_CATS` / `DEDUCTION_CATS` / `EMPLOYER_CATS` from `supabase/functions/generate-payroll-document/index.ts`.
-- Replace the three filters at lines 213-215 (and the summary loop at 326-328, and 270) with `classifyPayslipLine` from `supabase/functions/_shared/payslipClassifier.ts`.
-- Add an architecture guard test `src/test/architecture/single-payslip-classifier.test.ts` that greps every file under `supabase/functions/**` and `src/**` and fails if any file other than the two canonical `payslipClassifier.ts` files declares a `Set<string>` literal containing `"statutory_employee"` (proxy for "someone re-invented category buckets").
-
-### 2. Header totals derived from lines (fixes Drift 2)
-
-Inside `compute-payroll/index.ts`, after `lineRows` is fully built for an employee and *before* `payslipsData.push({...})`:
-
-- Compute `empTotalDeductions`, `empTotalEmployerContributions`, and the earnings portion of `grossPay` by summing `lineRows` via `classifyPayslipLine`. The existing `deductionsDetail` / `contributionsDetail` maps are demoted to *breakdown metadata* only (stored as `deductions_detail` JSON for reports) — they no longer feed totals.
-- Add an assertion: `Math.abs(fromLines - fromDict) < 0.01`. If it trips, throw `PAYSLIP_LINES_TOTAL_MISMATCH` with the diff — this catches any future forked pipeline immediately in dev/staging.
-- Reimbursement add-back to `storedGrossPay` / `storedNetPay` (line 4332-4333) stays, because a reimbursement `earning` line is already emitted at 4181.
-
-### 3. Database-level guard (defense-in-depth, mirrors ADR-0022 pattern)
-
-Add a migration that installs a `DEFERRABLE INITIALLY DEFERRED` constraint trigger on `payslips`:
-
-- `_payslip_assert_totals_match_lines(payslip_id)` — SECURITY DEFINER, sums `payslip_lines` grouped via the same rule set the classifier uses, rejects with `payslip_total_mismatch` if `total_deductions`, `total_employer_contributions`, or `gross_pay` differ from the aggregate by more than one cent.
-- Attached AFTER INSERT OR UPDATE OF (`gross_pay`, `total_deductions`, `net_pay`, `total_employer_contributions`) on `payslips`, deferred so `compute-payroll` can insert header then lines in one transaction.
-- Skipped for correction-run delta payslips (`retro_of_payslip_id IS NOT NULL`) — ADR-0045 explicitly stores signed deltas; the guard would need to be delta-aware. Track that follow-up in a comment on the trigger; not in scope here.
-
-This turns the drift into a runtime failure at the table tier, exactly like ADR-0022 did for GL mappings. UI upserts, future RPCs, ad-hoc scripts — all subject to the same check.
-
-### 4. Kill the opaque `garnishment_<uuid>` header key
-
-`deductions_detail` currently stores `"garnishment_0dfb6e04-…": 7000` on the header — unreadable in reports and unresolvable without joining back to `legal_orders_records`. In the same edit, replace with the human label (`"child_support"` or `"Child support (CASE-…)"`) already computed for `garnishmentLineMeta`. The stable per-line join key remains on `payslip_lines.source.garnishment_id`.
-
-### 5. Regenerate PAY-0065
-
-Trigger `compute-payroll` in `run_mode='reissue'` (or delete + recompute the already-frozen payslips) for the affected run so the header re-derives, the trigger validates, and the PDF picks up the shared classifier. No manual PDF patching, no hand-inserted lines — the fix is upstream.
-
-## Out of scope
-
-- Any change to the garnishment engine (`_shared/garnishment-engine.ts`) or `legal_orders_records` — the engine's output is correct and already emits a canonical `post_tax_deduction` line.
-- Reworking correction/retro delta accounting (ADR-0045) — the new trigger explicitly exempts `retro_of_payslip_id`.
-- Refactoring `deductionsDetail` / `contributionsDetail` out of existence — they stay as breakdown JSON so existing reports don't break; they just stop being the source of truth for totals.
-
-## Tests
-
-- `src/test/architecture/single-payslip-classifier.test.ts` — guard 1.
-- `src/test/architecture/payslip-header-totals-derived-from-lines.test.ts` — greps `compute-payroll/index.ts` for `Object.values(deductionsDetail).reduce` in a `total_deductions:` context and fails the build.
-- `supabase/tests/payslip_totals_match_lines_trigger_test.sql` — pgTAP: insert a payslip with a mismatched `total_deductions`, expect `payslip_total_mismatch`; insert a matched one, expect success; insert a `retro_of_payslip_id`-tagged mismatch, expect success (exemption).
-- Existing `src/test/payroll/payslip-classifier.test.ts` extended with a case pinning `post_tax_deduction → deduction`.
-
-## Rollback
-
-- Migration reversible (`DROP TRIGGER`, `DROP FUNCTION`).
-- Code changes are contained to two edge functions + one migration + tests; reverting the diff restores the pre-fix behaviour without data loss.
+- SQL function skeleton for the trigger:
+  ```sql
+  create or replace function public.payslip_bucket(cat text)
+  returns text language sql immutable as $$
+    select case lower(cat)
+      when 'earning' then 'earning' … when 'basic' then 'earning' …
+      when 'deduction' then 'deduction' … when 'post_tax_deduction' then 'deduction'
+        … when 'garnishment' then 'deduction' …
+      when 'statutory_employer' then 'employer_contribution' …
+      else 'info' end;
+  $$;
+  ```
+- Trigger compares `sum(employee_amount) filter (where payslip_bucket(category)='earning')` vs `payslips.gross_pay`, etc.
+- Architecture test in `src/test/architecture/` reads the SQL function body and asserts every string in the TS `EARNING`/`DEDUCTION`/`EMPLOYER` sets appears in the SQL CASE — prevents future drift.
