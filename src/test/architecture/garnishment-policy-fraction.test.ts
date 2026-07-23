@@ -19,14 +19,18 @@ describe("garnishment policy pct columns are stored in fraction form", () => {
     const columnHint = /(aggregate_cap_pct|min_take_home_pct|garnishment_aggregate_cap_pct|garnishment_minimum_take_home_pct)/i;
 
     for (const file of files) {
-      const body = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
-      if (!columnHint.test(body)) continue;
-      // Look for VALUES / SET lines pairing the column with a numeric literal > 1
+      const raw = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
+      if (!columnHint.test(raw)) continue;
+      // Strip SQL line- and block-comments so literals inside prose don't false-positive.
+      const body = raw
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .split("\n")
+        .map((line) => line.replace(/--.*$/, ""))
+        .join("\n");
       const lines = body.split("\n");
       for (let i = 0; i < lines.length; i++) {
         const window = lines.slice(Math.max(0, i - 2), i + 3).join(" ");
         if (!columnHint.test(window)) continue;
-        // Any bare numeric literal in the window that is > 1 and <= 100 is suspect
         const matches = lines[i].match(/(?<![\w.])(\d+\.\d+)(?![\w.])/g);
         if (!matches) continue;
         for (const m of matches) {
