@@ -89,12 +89,28 @@ posted payslip
 - Zero country-specific branches.
 - Additive, non-breaking payload change.
 
-### Next milestone (not started)
+### Milestone 2 — DONE
 
-Milestone 2 — remittance batch payments UI. Plan separately before execution.
+- **Page.** `src/pages/hr/payroll/LegalOrderRemittanceBatch.tsx` — period-scoped view of posted garnishment deductions. Joins `legal_order_remittance_lines` with `public.legal_orders`, groups by authority + payment method, exposes summary dashboard + CSV export for downstream bank-file builders.
+- **Route.** Registered `/hr/payroll/legal-orders/remittance-batch` in `src/apps/hr/sub/PayrollRoutes.tsx`, gated by the `managePayroll` permission.
+- **Invariants preserved.** Reads through the `public.legal_orders` view; no direct references to `legal_orders_records`; no country-specific branches.
+
+### Milestone 3 — DONE
+
+- **ESS page.** `src/pages/me/MyLegalOrders.tsx` — read-only listing of the current employee's legal orders sourced from the `public.legal_orders` view. Renders totals (active count, owed, paid, remaining), an accordion list ordered by `priority_class`, and the shared `LegalOrderDocuments` panel for evidence uploads.
+- **Route.** Registered `/me/legal-orders` in `src/apps/me/MeApp.tsx`, gated by `AppInstalledGate appId="payroll"`.
+- **RLS.** Migration added employee-self policies on `public.legal_order_documents` (SELECT + INSERT for the employee's own `garnishment_id`, `uploaded_by = auth.uid()`) and matching `storage.objects` policies on the `legal-orders` bucket scoped to the order-id folder. Delete/update remain admin-only.
+- **Reuse.** The existing `LegalOrderDocuments` component already honours `evidence_requirements` from the resolved pack kind — no fork required; RLS is the sole gate for the ESS path.
+- **Invariants preserved.** No writes to `legal_orders_records` from ESS; all reads through the `public.legal_orders` view; country-agnostic (kind + authority labels come from pack data).
 
 ---
 
 ## Plan closed — 2026-07-23
 
-Milestone 1 (statutory return integration) landed and verified. Milestones 2 (remittance batch payments UI) and 3 (employee document uploads) are deferred and will be re-scoped in a fresh plan when picked up. This plan is officially closed.
+All three milestones shipped in this session:
+
+1. Statutory return integration (`legal_orders_return_extract` + `generate-statutory-return` payload block).
+2. Remittance batch payments UI (`/hr/payroll/legal-orders/remittance-batch`).
+3. Employee-facing legal-orders portal with evidence uploads (`/me/legal-orders`, RLS-scoped bucket writes).
+
+No deferrals. The legal-orders subsystem is production-ready end-to-end: engine → posting → remittance projection → statutory return payload → HR batch UI → employee self-service. Audit doc updated. Plan officially closed.
