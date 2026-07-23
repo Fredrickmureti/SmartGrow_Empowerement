@@ -153,7 +153,9 @@ export function routeCategoryToChannel(
   switch ((cat ?? "").toLowerCase()) {
     case "earning": return "gross";
     case "benefit": return "benefits";
-    case "taxable": return "taxable";
+    // NOTE: there is no "taxable" category in payslip_lines. The taxable
+    // channel is populated from the per-row `taxable_amount` scalar
+    // (see annualEarningsResolver), NOT from category routing.
     case "statutory_employee": return "statutory_employee";
     case "statutory_employer": return "statutory_employer";
     case "deduction": return "other_deductions";
