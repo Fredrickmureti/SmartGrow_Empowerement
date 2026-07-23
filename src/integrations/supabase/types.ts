@@ -78706,6 +78706,7 @@ export type Database = {
         }[]
       }
       payroll_work_entries_project: { Args: { _run_id: string }; Returns: Json }
+      payslip_bucket: { Args: { cat: string }; Returns: string }
       payslip_header: { Args: { _payslip_id: string }; Returns: Json }
       payslip_relevant_identifier_types: {
         Args: { _payslip_id: string }
