@@ -34,6 +34,7 @@ const MyLeave = lazy(() => import("@/pages/me/MyLeave"));
 const Timesheets = lazy(() => import("@/pages/timesheets/MyTimesheets"));
 const MyAttendance = lazy(() => import("@/pages/me/MyAttendance"));
 const MyLoans = lazy(() => import("@/pages/me/MyLoans"));
+const MyLegalOrders = lazy(() => import("@/pages/me/MyLegalOrders"));
 const MyOnboarding = lazy(() => import("@/pages/me/MyOnboarding"));
 const MyShifts = lazy(() => import("@/pages/me/MyShifts"));
 const MyDocuments = lazy(() => import("@/pages/me/MyDocuments"));
@@ -184,6 +185,18 @@ export default function MeApp() {
             <AppInstalledGate appId="payroll">
               <Lazy module="My Loans">
                 <MyLoans />
+              </Lazy>
+            </AppInstalledGate>
+          }
+        />
+
+        {/* My Legal Orders — read-only garnishments/tax levies + evidence uploads */}
+        <Route
+          path="legal-orders"
+          element={
+            <AppInstalledGate appId="payroll">
+              <Lazy module="My Legal Orders">
+                <MyLegalOrders />
               </Lazy>
             </AppInstalledGate>
           }
