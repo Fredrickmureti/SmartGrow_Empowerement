@@ -6,6 +6,12 @@
  * 
  * Accepts: { payslip_id } or { payroll_run_id, employee_id }
  * Returns: application/pdf binary
+ *
+ * Deploy-bump 2026-07-23: force re-bundle so the shared
+ * `_shared/payslipClassifier.ts` (which now buckets `post_tax_deduction`
+ * and `garnishment` as deductions) is inlined into this function.
+ * Editing a `_shared/*` file does NOT trigger a redeploy of dependent
+ * leaf functions — this comment change does.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -180,6 +186,23 @@ serve(async (req) => {
       const label = l.label || formatLabel(l.rule_code || "");
       const code = (l.rule_code || "").toString();
       const bucket = classifyPayslipLine(l);
+      // Diagnostic — kept intentionally: proves the deployed bundle is
+      // categorising every persisted line the same way the engine did.
+      // If a persisted deduction ever prints as `bucket=info` here, the
+      // shared classifier drifted. Cheap to keep, invaluable when the
+      // renderer and the header disagree.
+      console.info(
+        "[generate-payslip-pdf] line bucket",
+        JSON.stringify({
+          payslip_id: payslip.id,
+          sequence: l.sequence,
+          category: l.category,
+          rule_code: code,
+          employee_amount: empAmt,
+          employer_amount: erAmt,
+          bucket,
+        }),
+      );
       if (bucket === "earning" && empAmt !== 0) {
         earnings.push({ label, amount: empAmt, type: "earning", rule_code: code, source: l.source });
       } else if (bucket === "deduction" && empAmt !== 0) {
