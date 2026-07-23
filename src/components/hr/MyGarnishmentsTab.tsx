@@ -54,8 +54,8 @@ export function MyGarnishmentsTab({ employeeId }: { employeeId: string }) {
     setLoading(true);
     (async () => {
       const { data: ord } = await supabase
-        .from("employee_garnishments")
-        .select("id, kind, case_reference, issuing_authority, status, start_date, end_date, total_owed, total_paid")
+        .from("legal_orders" as any)
+        .select("id, kind, case_reference, authority_name, status, start_date, end_date, total_owed, total_paid")
         .eq("employee_id", employeeId)
         .order("priority", { ascending: true });
       setOrders((ord ?? []) as OrderRow[]);
