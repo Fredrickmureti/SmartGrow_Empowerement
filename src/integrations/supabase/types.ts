@@ -74595,6 +74595,10 @@ export type Database = {
         Args: { _org_id: string }
         Returns: undefined
       }
+      ensure_default_legal_order_workflow: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       ensure_default_scrap_reasons: {
         Args: { p_org_id: string }
         Returns: undefined
