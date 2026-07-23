@@ -1,5 +1,6 @@
 /**
- * useGarnishments — Turn F admin hook for `employee_garnishments`.
+ * useGarnishments — Turn F admin hook for `legal_orders_records`
+ * (formerly `employee_garnishments`).
  *
  * Court-ordered/regulatory wage deductions. RLS already restricts to org HR.
  */
