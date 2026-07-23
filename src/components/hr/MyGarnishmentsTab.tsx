@@ -1,12 +1,11 @@
 /**
- * MyGarnishmentsTab — Employee-facing view of their own garnishment orders.
+ * MyGarnishmentsTab — Employee-facing view of their own legal orders.
  *
- * Backed by the tightened RLS on `employee_garnishments` and the
- * `garnishment_ledger` view (single-source-of-truth: payslip_lines).
- * Employees see only their own rows; HR-only fields (audit log, payee account
- * detail) are intentionally omitted here — this is the worker view, not the
- * payroll-officer view.
+ * Reads from the `public.legal_orders` view (RLS enforced on the underlying
+ * `legal_orders_records` table) plus `garnishment_ledger` (payslip_lines
+ * SSOT). Employees see only their own rows; HR-only fields are omitted.
  */
+
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
