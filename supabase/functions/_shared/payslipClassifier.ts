@@ -37,7 +37,6 @@ const DEDUCTION = new Set([
   "statutory_employee",
   "tax",
   "income_tax",
-  "relief",
   "loan_repayment",
   "benefit_recovery",
   "voluntary_deduction",
