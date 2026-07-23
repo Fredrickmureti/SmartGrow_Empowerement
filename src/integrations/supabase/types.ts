@@ -76232,6 +76232,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      legal_orders_return_extract: {
+        Args: {
+          _branch_id?: string
+          _business_id: string
+          _organization_id: string
+          _period_end: string
+          _period_start: string
+        }
+        Returns: {
+          authority_code: string
+          authority_id: string
+          authority_name: string
+          calc_model: string
+          case_reference: string
+          employee_id: string
+          end_date: string
+          gross_deducted: number
+          kind_code: string
+          line_count: number
+          order_id: string
+          period_end: string
+          period_start: string
+          priority_class: number
+          start_date: string
+        }[]
+      }
       link_employee_to_user: {
         Args: { p_employee_id: string; p_force?: boolean; p_user_id: string }
         Returns: {
