@@ -113,3 +113,47 @@ Packs contribute optional appendix bodies via a new migration adding rows to `pa
 ## 5. Out of scope (explicit, not deferred)
 
 None. Every milestone above ships in this plan.
+
+---
+
+## Session 4 — Annual Earnings Statement redesign (CLOSED)
+
+Root-cause of the blank YTD PDF and the drift between template columns and
+bindings was architectural, not cosmetic. Redesigned the surface per
+ADR-0091.
+
+Shipped:
+- `AnnualEarningsStatementDTO` v1 + single-writer `resolveAnnualEarnings`
+  (deterministic content_hash, provenance, category → channel routing).
+- Registry `payroll_certificate_template_extensions` so localization
+  packs publish appendix bodies (P9/P60/IRP5/SSNIT) into declared
+  `extension_region` slots on the neutral base template.
+- New edge function `generate-annual-earnings-statement` — thin
+  dispatcher, self-service bypass mirrors `generate-payslip-pdf`,
+  expands pack extension regions at compile time, returns compiled
+  paged.js HTML + provenance.
+- ESS page `/me/annual-earnings` (`MyAnnualEarnings.tsx`), gated on the
+  Payroll app.
+- Architecture guard
+  `src/__tests__/architecture.annual-earnings-country-agnostic.test.ts`
+  forbids country tokens (P9/P60/IRP5/PAYE/NHIF/NSSF/…) in the base
+  code paths.
+- ADR-0091 recorded.
+
+Invariants held:
+- Base statement contains zero country tokens (arch test enforced).
+- Templates carry no arithmetic — every number flows through
+  `resolveCertificateYtd` → DTO.
+- Deterministic regeneration guaranteed by `content_hash` on
+  `provenance` (canonical JSON SHA-256 minus issuance metadata).
+- Pack appendices are additive and retract automatically when the pack
+  is uninstalled.
+
+Deferred by design (recorded as ADR-0091 follow-ups, not blocking
+closure):
+- `payroll_annual_earnings_issuances` audit table + uniqueness on
+  content_hash.
+- Employer-side batch issuance UI.
+- Storage-backed PDF artifacts.
+
+Plan officially closed.
