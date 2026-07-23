@@ -4117,7 +4117,7 @@ Deno.serve(async (req) => {
 
       // Turn C: garnishment lines (priority-ordered)
       for (const gl of garnishmentLineMeta) {
-        pushLine(gl.code, "garnishment", gl.label, gl.amount, 0, false, "garnishment", { garnishment_id: gl.id }, null, { kind: "garnishment", code: gl.code, garnishment_id: gl.id, label: gl.label });
+        pushLine(gl.code, "post_tax_deduction", gl.label, gl.amount, 0, false, "garnishment", { garnishment_id: gl.id }, null, { kind: "garnishment", code: gl.code, garnishment_id: gl.id, label: gl.label });
       }
       // Turn C: reimbursement lines (non-taxable earnings)
       for (const rl of reimbursementLineMeta) {
