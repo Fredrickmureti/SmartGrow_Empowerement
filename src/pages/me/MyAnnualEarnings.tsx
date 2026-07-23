@@ -85,9 +85,9 @@ export default function MyAnnualEarnings() {
             <CardDescription>
               The statement is regenerated from the authoritative payroll
               ledger every time — identical inputs produce an identical
-              document (deterministic content hash). Applicable localization
-              appendices (e.g. P9, P60, IRP5) are added automatically if
-              your employer has the matching pack installed.
+              document (deterministic content hash). Applicable jurisdiction
+              appendices are added automatically when your employer has the
+              matching localization pack installed.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex items-end gap-3">
