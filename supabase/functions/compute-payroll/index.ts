@@ -37,6 +37,7 @@ import {
   type WorkEntryType,
   type WorkEntryRow,
 } from "./structureEngine.ts";
+import { classifyPayslipLine } from "../_shared/payslipClassifier.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -4336,6 +4337,41 @@ Deno.serve(async (req) => {
         totalNet += reimbursementTotal;
       }
 
+      // ─── Header ← Lines reconciliation (ADR-0058 payslip integrity) ───
+      // The single source of truth for what an employee sees, what the GL
+      // posts, and what statutory returns aggregate is `payslip_lines`.
+      // Any header total we persist MUST equal the sum of the lines that
+      // back it — otherwise a future engine path could (and historically
+      // did, see PAY-0065 legal-order incident) grow a total via the
+      // `deductionsDetail` dict without emitting a matching line.
+      // We fail closed rather than silently persisting a divergent header.
+      const linesEmpDeductions = lineRows
+        .filter((l) => classifyPayslipLine(l as any) === "deduction")
+        .reduce((s, l) => s + Number((l as any).employee_amount || 0), 0);
+      const linesEmpEmployerContribs = lineRows
+        .filter((l) => classifyPayslipLine(l as any) === "employer_contribution")
+        .reduce((s, l) => s + Number((l as any).employer_amount || 0), 0);
+      const linesEmpEarnings = lineRows
+        .filter((l) => classifyPayslipLine(l as any) === "earning")
+        .reduce((s, l) => s + Number((l as any).employee_amount || 0), 0);
+      const roundCent = (n: number) => Math.round(n * 100) / 100;
+      const empKey = `${emp.first_name} ${emp.last_name} (${emp.employee_number})`;
+      if (Math.abs(roundCent(linesEmpDeductions) - roundCent(empTotalDeductions)) > 0.01) {
+        throw new Error(
+          `PAYSLIP_LINES_TOTAL_MISMATCH: ${empKey} header total_deductions=${roundCent(empTotalDeductions)} but sum(payslip_lines[deduction])=${roundCent(linesEmpDeductions)}. A deduction pipeline updated the dict without emitting a line, or vice versa.`,
+        );
+      }
+      if (Math.abs(roundCent(linesEmpEmployerContribs) - roundCent(empTotalEmployerContributions)) > 0.01) {
+        throw new Error(
+          `PAYSLIP_LINES_TOTAL_MISMATCH: ${empKey} header employer_contributions=${roundCent(empTotalEmployerContributions)} but sum(payslip_lines[employer_contribution])=${roundCent(linesEmpEmployerContribs)}.`,
+        );
+      }
+      if (Math.abs(roundCent(linesEmpEarnings) - roundCent(storedGrossPay)) > 0.01) {
+        throw new Error(
+          `PAYSLIP_LINES_TOTAL_MISMATCH: ${empKey} header gross_pay=${roundCent(storedGrossPay)} but sum(payslip_lines[earning])=${roundCent(linesEmpEarnings)}.`,
+        );
+      }
+
       payslipsData.push({
         employee_id: emp.id,
         organization_id,
@@ -4343,9 +4379,17 @@ Deno.serve(async (req) => {
         // Phase 4 P1.2c: header carries only universal totals + lineage.
         // Per-line decomposition (incl. basic, allowances, other earnings)
         // lives exclusively in payslip_lines — the single source of truth.
-        gross_pay: storedGrossPay,
-        total_deductions: empTotalDeductions,
-        net_pay: storedNetPay,
+        // The three money totals below are DERIVED from `lineRows` (verified
+        // by the reconciliation block above) so it is structurally
+        // impossible for the header to disagree with its lines.
+        gross_pay: roundCent(linesEmpEarnings),
+        total_deductions: roundCent(linesEmpDeductions),
+        // Preserve the historical clamp: only base earnings (linesEmpEarnings
+        // minus the reimbursement passthrough) can be reduced to 0 by
+        // deductions; reimbursements always pay out on top.
+        net_pay: roundCent(
+          Math.max(0, linesEmpEarnings - reimbursementTotal - linesEmpDeductions) + reimbursementTotal,
+        ),
         taxable_income: finalTaxableBase,
         // Audit 2026-07-05 closeout — persist the base PAYE was computed
         // against + the gross tax before reliefs so reports/tax certificates
@@ -4360,7 +4404,18 @@ Deno.serve(async (req) => {
           return sum > 0 ? Math.round(sum * 100) / 100 : null;
         })(),
         status: "pending",
-        deductions_detail: deductionsDetail,
+        // Human-readable breakdown for reports/UI. Garnishment keys are
+        // remapped from opaque `garnishment_<uuid>` codes to the resolved
+        // order label ("Child support (CASE-…)") — the join key stays on
+        // `payslip_lines.source.garnishment_id`.
+        deductions_detail: (() => {
+          const remapped: Record<string, number> = {};
+          for (const [key, val] of Object.entries(deductionsDetail)) {
+            const label = garnLabelByCode.get(key) ?? key;
+            remapped[label] = (remapped[label] || 0) + Number(val || 0);
+          }
+          return remapped;
+        })(),
         contributions_detail: contributionsDetail,
         unpaid_leave_days: unpaidLeaveDays,
         leave_deduction: leaveDeduction,

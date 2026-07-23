@@ -1,78 +1,96 @@
 
-## Diagnosis (traced end-to-end against live data)
+## Diagnosis (verified against DB + code)
 
-Order in DB: `child_support`, `cap_rule='fixed_amount'`, `fixed_amount=7000`, `status='active'`, window `2026-01-01..2026-12-31`, org `8e682296…`, employee `Kimathi Mureti`.
+Traced PAY-0065 (Kimathi Mureti) end-to-end. Two independent architectural drifts, both confirmed:
 
-Run `61be148e…` (May 2026, `run_type='regular'`) posted a payslip with gross 94,000, net 64,672.74, PAYE/NSSF/SHIF/AHL only — **no garnishment line, no run issue, no error**. The engine did load the order (query, gating, `applies_garnishments=true`, `computeGarnishments` call are all wired correctly).
+### Drift 1 — Renderer has its own private category set
 
-Root cause is in the resolved garnishment policy for the Kenya pack:
-
-```
-garnishment_resolve_policy(<org>) →
-  aggregate_cap_pct      = 66.6667
-  min_take_home_pct      = 33.3333
-```
-
-Seed migration `20260630225031_…` inserted the Employment-Act two-thirds rule as **percent form (66.6667 / 33.3333)** into `localization_pack_garnishment_policies`. But the engine (`supabase/functions/_shared/garnishment-engine.ts` lines 189–195) treats these values as **fractions**:
+`supabase/functions/generate-payroll-document/index.ts` (lines 106-110) declares a **local** `DEDUCTION_CATS` set:
 
 ```ts
-aggregateCapPool = disposable * policy.aggregate_cap_pct;         // → 94000 × 66.6667 (nonsense, big)
-orgFloor         = gross      * policy.min_take_home_pct;         // → 94000 × 33.3333 ≈ 3,133,330
+const DEDUCTION_CATS = new Set([
+  "deduction", "statutory_employee", "tax", "loan_repayment", "benefit_recovery",
+]);
 ```
 
-That floor of ~KES 3.1M vs a disposable of ~66k triggers `floorBreach > 0` for every order → `raw = 0` → `amt = 0` → the order is silently dropped (`continue` at line 246). The column type `numeric(6,4)`, JSON-schema `maximum:1`, and every other consumer in the codebase confirm fraction form is the canonical contract; the seed row violates it.
+This omits `post_tax_deduction`, `pre_tax_deduction`, `income_tax`, `voluntary_deduction`, and `garnishment`. The canonical classifiers do include them:
 
-The downstream chain (`payroll_liabilities` write in `post-payroll-gl`, `post-garnishment-payment` FIFO allocator, `trg_apply_garnishment_payment_to_order` closure, lifecycle events, outbox) is intact — it never fires because step 1 emits nothing.
+- `supabase/functions/_shared/payslipClassifier.ts`
+- `src/lib/payroll/payslipClassifier.ts` (browser mirror)
 
-## Plan
+Verified in DB: payslip `a661a090-…` has line
+`{category: "post_tax_deduction", rule_code: "garnishment_0dfb6e04…", label: "child_support", employee_amount: 7000}`
+at sequence 8. The line exists. `generate-payroll-document` filters it out because its private set doesn't include `post_tax_deduction`. The other PDF path (`generate-payslip-pdf/index.ts`) correctly uses `classifyPayslipLine` and would render it — proving the canonical classifier is right and the renderer is the divergence.
 
-### 1. Data-tier fix + guardrail (single migration)
+### Drift 2 — Header totals bypass payslip_lines entirely
 
-- **Repair rows** in `localization_pack_garnishment_policies` and `payroll_settings` (tenant override columns `garnishment_aggregate_cap_pct`, `garnishment_minimum_take_home_pct`): `UPDATE … SET col = col/100 WHERE col > 1`. Idempotent (no-op for already-fractional rows).
-- **CHECK constraints** on both columns in both tables: `col IS NULL OR (col >= 0 AND col <= 1)`. Makes percent-form storage impossible going forward — the engine's fraction assumption becomes a DB invariant.
-- Also add the same check to `localization_pack_garnishment_kinds.protected_earnings_rule` numeric bounds where applicable.
-- Fix the seed literal `66.6667, NULL, 33.3333` in `20260630225031_…` to `0.6667, NULL, 0.3333` so re-applying the migration on a fresh DB is correct (leave the historical `INSERT … ON CONFLICT DO NOTHING` shape).
+`supabase/functions/compute-payroll/index.ts:3917`:
 
-### 2. Engine observability (no math change)
+```ts
+const empTotalDeductions =
+  Object.values(deductionsDetail).reduce((s, v) => s + v, 0) + customEmployeeDeductionTotal;
+```
 
-In `supabase/functions/compute-payroll/index.ts`, when `computeGarnishments` returns zero applied for an employee who had ≥1 in-window active order, push a run issue: `GARNISHMENT_WITHHELD_ZERO` with `{ employee_id, order_ids, reason: shortfall_reason[], disposable, orgFloor, aggregateCapPool }`. This turns "silent drop" into a first-class UI signal, so no future policy/seed drift can hide the same way.
+`payslips.total_deductions`, `net_pay`, `gross_pay`, and `total_employer_contributions` are computed from the **parallel** in-memory `deductionsDetail` / `contributionsDetail` maps and then persisted on the header. `payslip_lines` are built independently from `garnishmentLineMeta`, `customDeductionLineMeta`, etc. Nothing enforces `sum(payslip_lines) == header total`.
 
-Also emit a per-order `payroll_readiness_findings` warning at readiness time when a garnishment order exists but the resolved policy would breach the floor at current comp — surfaces the issue *before* the run.
+DB confirms the divergence today:
+- Header `total_deductions = 36,327.26` = NSSF 5,639.94 + SHIF 2,585 + AHL 1,410 + PAYE 17,692.32 + NSSF-Voluntary 2,000 + **garnishment 7,000**
+- PDF renders NSSF + SHIF + AHL + PAYE + NSSF-Voluntary = 29,327.26 and the header total 36,327.26 side-by-side. The 7,000 gap is Drift 1.
 
-### 3. Country-agnostic guarantee
+Any future deduction path that increments `deductionsDetail` without a matching `pushLine(...)` (or vice versa) will re-open this class of bug silently. Legal Orders are the canary; the architecture is the wound.
 
-The engine, `payroll_liabilities`, `post-garnishment-payment`, and `payroll_liability_sources` remain country-agnostic. All Kenya-specific behaviour stays in the pack seed (`localization_pack_garnishment_kinds`, `..._policies`). No new branching in payroll code.
+## Objective
 
-### 4. Tests (lock the invariant)
+Make it structurally impossible for a payroll header total to disagree with the sum of the payslip_lines that back it, and impossible for a renderer to silently drop a category. Legal Order will then render as a natural consequence — not because we hard-coded it anywhere.
 
-- **pgTAP** `supabase/tests/garnishment_policy_fraction_invariant_test.sql` — asserts (a) every row in the two policy tables has `aggregate_cap_pct` and `min_take_home_pct` in `[0,1]`, (b) the CHECK constraints exist.
-- **Vitest architecture** `src/test/architecture/garnishment-policy-fraction.test.ts` — fails if any seed migration writes a policy value `> 1`.
-- **Deno integration** in `supabase/functions/compute-payroll/*.test.ts` — a fixture with Kenya pack + one active `child_support` order at 7,000 fixed on a 94k gross must produce a `payslip_lines` row with `category='garnishment'`, amount 7,000, and `payroll_liabilities` row with `source_kind='garnishment'`.
+## Changes
 
-### 5. Verification (post-migration, no code path change beyond §2)
+### 1. One classifier, everywhere (fixes Drift 1)
 
-Re-run compute-payroll for a new May 2026 period on Kimathi Mureti and confirm:
-- `payslip_lines` contains one `category='garnishment'` row, amount 7,000.
-- `payroll_liabilities` gets a row keyed to `legal_order_id = 0dfb6e04…`.
-- `legal_orders_records.total_accrued` bumps to 7,000.
-- After `post-garnishment-payment`, `total_paid` bumps and `garnishment_lifecycle_events` records the payment; `trg_apply_garnishment_payment_to_order` sets status to `completed` once `total_paid ≥ total_owed` (order currently has `total_owed=NULL`, so closure is manual — flagged in §2 UI as informational only, no code change).
+- Delete `EARNING_CATS` / `DEDUCTION_CATS` / `EMPLOYER_CATS` from `supabase/functions/generate-payroll-document/index.ts`.
+- Replace the three filters at lines 213-215 (and the summary loop at 326-328, and 270) with `classifyPayslipLine` from `supabase/functions/_shared/payslipClassifier.ts`.
+- Add an architecture guard test `src/test/architecture/single-payslip-classifier.test.ts` that greps every file under `supabase/functions/**` and `src/**` and fails if any file other than the two canonical `payslipClassifier.ts` files declares a `Set<string>` literal containing `"statutory_employee"` (proxy for "someone re-invented category buckets").
 
-## Files touched
+### 2. Header totals derived from lines (fixes Drift 2)
 
-- `supabase/migrations/<new>__fix_garnishment_policy_fraction_form.sql` (repair + CHECK + comment on the two tables)
-- `supabase/migrations/20260630225031_…sql` (correct the literal in the historical seed; safe because it's `ON CONFLICT DO NOTHING`)
-- `supabase/functions/compute-payroll/index.ts` (§2 issue emit only)
-- `supabase/tests/garnishment_policy_fraction_invariant_test.sql` (new)
-- `src/test/architecture/garnishment-policy-fraction.test.ts` (new)
-- `supabase/functions/compute-payroll/*.test.ts` (extend with fixture)
+Inside `compute-payroll/index.ts`, after `lineRows` is fully built for an employee and *before* `payslipsData.push({...})`:
 
-## Out of scope (deliberately)
+- Compute `empTotalDeductions`, `empTotalEmployerContributions`, and the earnings portion of `grossPay` by summing `lineRows` via `classifyPayslipLine`. The existing `deductionsDetail` / `contributionsDetail` maps are demoted to *breakdown metadata* only (stored as `deductions_detail` JSON for reports) — they no longer feed totals.
+- Add an assertion: `Math.abs(fromLines - fromDict) < 0.01`. If it trips, throw `PAYSLIP_LINES_TOTAL_MISMATCH` with the diff — this catches any future forked pipeline immediately in dev/staging.
+- Reimbursement add-back to `storedGrossPay` / `storedNetPay` (line 4332-4333) stays, because a reimbursement `earning` line is already emitted at 4181.
 
-- No new deduction engine, no changes to `computeGarnishments` math, no changes to `post-payroll-gl` / `post-garnishment-payment` / lifecycle triggers — the audit confirmed those are already the single canonical implementation. Adding logic there would be the duplication the brief warns against.
-- No UI redesign of Legal Orders; only readiness-warning surface (§2).
+### 3. Database-level guard (defense-in-depth, mirrors ADR-0022 pattern)
 
-## Technical notes
+Add a migration that installs a `DEFERRABLE INITIALLY DEFERRED` constraint trigger on `payslips`:
 
-- `numeric(6,4)` already caps at `9.9999`, so the 66.6667/33.3333 values only got through because the pack seed predates the CHECK. The repair `UPDATE … / 100` for the pack row will land 0.6667/0.3333 — a lossless conversion at 4dp.
-- The engine treats `null` policy values as "no cap / no floor" (see `Number.POSITIVE_INFINITY` init). Repair leaves nulls untouched.
-- `total_owed=NULL` on the current order means "open-ended" (child support). Closure trigger is `total_paid >= total_owed` — with NULL it will never auto-close, which is correct enterprise behaviour for maintenance orders. Documented, not "fixed".
+- `_payslip_assert_totals_match_lines(payslip_id)` — SECURITY DEFINER, sums `payslip_lines` grouped via the same rule set the classifier uses, rejects with `payslip_total_mismatch` if `total_deductions`, `total_employer_contributions`, or `gross_pay` differ from the aggregate by more than one cent.
+- Attached AFTER INSERT OR UPDATE OF (`gross_pay`, `total_deductions`, `net_pay`, `total_employer_contributions`) on `payslips`, deferred so `compute-payroll` can insert header then lines in one transaction.
+- Skipped for correction-run delta payslips (`retro_of_payslip_id IS NOT NULL`) — ADR-0045 explicitly stores signed deltas; the guard would need to be delta-aware. Track that follow-up in a comment on the trigger; not in scope here.
+
+This turns the drift into a runtime failure at the table tier, exactly like ADR-0022 did for GL mappings. UI upserts, future RPCs, ad-hoc scripts — all subject to the same check.
+
+### 4. Kill the opaque `garnishment_<uuid>` header key
+
+`deductions_detail` currently stores `"garnishment_0dfb6e04-…": 7000` on the header — unreadable in reports and unresolvable without joining back to `legal_orders_records`. In the same edit, replace with the human label (`"child_support"` or `"Child support (CASE-…)"`) already computed for `garnishmentLineMeta`. The stable per-line join key remains on `payslip_lines.source.garnishment_id`.
+
+### 5. Regenerate PAY-0065
+
+Trigger `compute-payroll` in `run_mode='reissue'` (or delete + recompute the already-frozen payslips) for the affected run so the header re-derives, the trigger validates, and the PDF picks up the shared classifier. No manual PDF patching, no hand-inserted lines — the fix is upstream.
+
+## Out of scope
+
+- Any change to the garnishment engine (`_shared/garnishment-engine.ts`) or `legal_orders_records` — the engine's output is correct and already emits a canonical `post_tax_deduction` line.
+- Reworking correction/retro delta accounting (ADR-0045) — the new trigger explicitly exempts `retro_of_payslip_id`.
+- Refactoring `deductionsDetail` / `contributionsDetail` out of existence — they stay as breakdown JSON so existing reports don't break; they just stop being the source of truth for totals.
+
+## Tests
+
+- `src/test/architecture/single-payslip-classifier.test.ts` — guard 1.
+- `src/test/architecture/payslip-header-totals-derived-from-lines.test.ts` — greps `compute-payroll/index.ts` for `Object.values(deductionsDetail).reduce` in a `total_deductions:` context and fails the build.
+- `supabase/tests/payslip_totals_match_lines_trigger_test.sql` — pgTAP: insert a payslip with a mismatched `total_deductions`, expect `payslip_total_mismatch`; insert a matched one, expect success; insert a `retro_of_payslip_id`-tagged mismatch, expect success (exemption).
+- Existing `src/test/payroll/payslip-classifier.test.ts` extended with a case pinning `post_tax_deduction → deduction`.
+
+## Rollback
+
+- Migration reversible (`DROP TRIGGER`, `DROP FUNCTION`).
+- Code changes are contained to two edge functions + one migration + tests; reverting the diff restores the pre-fix behaviour without data loss.
