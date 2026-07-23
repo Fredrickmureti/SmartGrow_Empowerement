@@ -78706,7 +78706,19 @@ export type Database = {
         }[]
       }
       payroll_work_entries_project: { Args: { _run_id: string }; Returns: Json }
-      payslip_bucket: { Args: { cat: string }; Returns: string }
+      payslip_bucket:
+        | {
+            Args: { cat: Database["public"]["Enums"]["payslip_line_category"] }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.payslip_bucket(cat => text), public.payslip_bucket(cat => payslip_line_category). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { cat: string }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.payslip_bucket(cat => text), public.payslip_bucket(cat => payslip_line_category). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
       payslip_header: { Args: { _payslip_id: string }; Returns: Json }
       payslip_relevant_identifier_types: {
         Args: { _payslip_id: string }
