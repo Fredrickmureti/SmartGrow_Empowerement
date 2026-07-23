@@ -495,6 +495,14 @@ export default function GarnishmentsPage() {
 
         <WorkflowSheetGrid>
           <WorkflowSheetSection number={2} title="Calculation" subtitle="How the deduction amount is computed each period.">
+            {resolvedLegalOrder?.calc_model && (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                Resolved calculation model from pack: <Badge variant="outline" className="text-[10px]">{String(resolvedLegalOrder.calc_model).replace(/_/g, " ")}</Badge>
+                {typeof resolvedLegalOrder.priority_class === "number" && (
+                  <span className="ml-2 text-muted-foreground">priority class {resolvedLegalOrder.priority_class}{resolvedLegalOrder.priority_class === 1 ? " (always-first)" : ""}</span>
+                )}
+              </div>
+            )}
             <WorkflowField label="Cap rule">
               <Select value={form.cap_rule} onValueChange={(v) => setForm({ ...form, cap_rule: v as GarnishmentCapRule })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
