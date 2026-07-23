@@ -200,6 +200,19 @@ export default function GarnishmentsPage() {
   }
 
   async function submit() {
+    // Completion-rule gating (Step C, 2026-07-23): the resolved legal-order
+    // kind determines which end-condition fields are mandatory. `by_date`
+    // requires an end_date; `by_balance` (default) requires a total_owed.
+    // `indefinite` / `manual_release_only` have no such requirement.
+    const completionRule = (resolvedLegalOrder?.completion_rule as string | undefined) ?? null;
+    if (completionRule === "until_end_date" && !form.end_date) {
+      window.alert("This legal-order kind ends on a specific date — please set an End date before saving.");
+      return;
+    }
+    if (completionRule === "until_total_owed_met" && !form.total_owed) {
+      window.alert("This legal-order kind ends when a total is met — please set Total owed before saving.");
+      return;
+    }
     // Status is FSM-owned: never set directly here on existing rows.
     // New rows are created in 'draft' (DB default); status moves via transitionGarnishment.
     const base: any = {
@@ -482,6 +495,14 @@ export default function GarnishmentsPage() {
 
         <WorkflowSheetGrid>
           <WorkflowSheetSection number={2} title="Calculation" subtitle="How the deduction amount is computed each period.">
+            {resolvedLegalOrder?.calc_model && (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                Resolved calculation model from pack: <Badge variant="outline" className="text-[10px]">{String(resolvedLegalOrder.calc_model).replace(/_/g, " ")}</Badge>
+                {typeof resolvedLegalOrder.priority_class === "number" && (
+                  <span className="ml-2 text-muted-foreground">priority class {resolvedLegalOrder.priority_class}{resolvedLegalOrder.priority_class === 1 ? " (always-first)" : ""}</span>
+                )}
+              </div>
+            )}
             <WorkflowField label="Cap rule">
               <Select value={form.cap_rule} onValueChange={(v) => setForm({ ...form, cap_rule: v as GarnishmentCapRule })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -515,11 +536,24 @@ export default function GarnishmentsPage() {
           </WorkflowSheetSection>
 
           <WorkflowSheetSection number={3} title="Effective window" subtitle="Start and optional end of garnishment.">
+            {resolvedLegalOrder?.completion_rule && (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                Completion rule: <Badge variant="outline" className="text-[10px]">{String(resolvedLegalOrder.completion_rule).replace(/_/g, " ")}</Badge>
+                {resolvedLegalOrder.completion_rule === "until_end_date" && <span className="ml-2 text-muted-foreground">End date is required.</span>}
+                {resolvedLegalOrder.completion_rule === "until_total_owed_met" && <span className="ml-2 text-muted-foreground">Total owed is required.</span>}
+                {(resolvedLegalOrder.completion_rule === "manual_release_only" || resolvedLegalOrder.completion_rule === "until_authority_release") && (
+                  <span className="ml-2 text-muted-foreground">Order runs until manually released — no end date needed.</span>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <WorkflowField label="Start date" required>
                 <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
               </WorkflowField>
-              <WorkflowField label="End date">
+              <WorkflowField
+                label="End date"
+                required={resolvedLegalOrder?.completion_rule === "until_end_date"}
+              >
                 <Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
               </WorkflowField>
             </div>

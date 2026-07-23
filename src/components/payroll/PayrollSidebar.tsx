@@ -77,7 +77,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { title: "Loans",            to: "/hr/payroll/loans",            icon: Wallet,   permission: "manageEmployeeLoans" },
       { title: "Statutory Rules",  to: "/hr/payroll/statutory-rules",  icon: Shield,   permission: "manageStatutoryRules" },
-      { title: "Garnishments",     to: "/hr/payroll/garnishments",     icon: Scale,    permission: "managePayroll" },
+      { title: "Legal Orders",     to: "/hr/payroll/legal-orders",     icon: Scale,    permission: "managePayroll" },
       { title: "Loan Skip Overrides", to: "/hr/payroll/loan-skip-overrides", icon: Ban, permission: "runPayroll" },
       { title: "Tax Certificates", to: "/hr/payroll/tax-certificates", icon: FileText, permission: "viewPayroll" },
       { title: "Remittances",      to: "/hr/remittances",              icon: Landmark, permission: "viewRemittances" },

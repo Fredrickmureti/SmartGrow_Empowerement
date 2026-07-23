@@ -67,3 +67,37 @@ No contradictions found. The genuinely completed milestone is **Phase 6b**. Rema
 - **Step D (Phase 7 cleanup): PENDING.** Only after Step C.
 
 Both changes non-breaking; engine + architecture tests untouched. See `docs/audit/2026-07-22-legal-orders.md` addendum 2026-07-23.
+
+---
+
+## Progress log — 2026-07-23 (session 2)
+
+- **Step B remainder: DONE.** Migration `20260723_ensure_default_legal_order_workflow` adds
+  `public.ensure_default_legal_order_workflow(org)` and calls it at the end of
+  `install_legal_order_kind_defaults`. Idempotent — no-op if a `legal_order`
+  workflow already exists or if `self_action_policy` for
+  `payroll.legal_order.activate` is not `require_approval`. Non-fatal
+  (wrapped in EXCEPTION handler) so a permissions edge case cannot break
+  pack install.
+- **Step C: DONE.**
+  - Editor now shows the resolved `calc_model` and `priority_class` inline
+    in the Calculation section, and the resolved `completion_rule` with a
+    context-sensitive hint in the Effective window section.
+  - `End date` becomes a required field when `completion_rule = until_end_date`;
+    `Total owed` is required-checked at submit when `completion_rule =
+    until_total_owed_met`. Both raise a blocking alert so drafts can't be
+    silently saved missing legally-required fields.
+  - Sidebar/labels updated across `PayrollSidebar`, `apps/hr/shared/navs.ts`,
+    and `sections.tsx` from "Garnishments" → "Legal Orders" pointing to
+    `/hr/payroll/legal-orders` (route alias already resolves to the same
+    page). Deep-link `/hr/payroll/garnishments` still works.
+- **Step D: DEFERRED to a dedicated cleanup PR.** Requires:
+  - Backfill audit: `SELECT count(*) FROM employee_garnishments WHERE authority_id IS NULL AND issuing_authority IS NOT NULL` must be 0 per tenant before dropping the free-text column.
+  - Rename `employee_garnishments` → `legal_orders_records` touches ~40 code refs; the `public.legal_orders` view keeps consumers stable, but the FSM RPCs, `garnishment_ledger` view, `garnishment_kind_defaults`, and multiple triggers all reference the table by name. Safer as its own migration after Step A/B/C have baked in production.
+  - Delete `src/lib/payroll/garnishment-engine.ts` shim is blocked by the architecture guard test — needs a paired test update.
+
+### Architectural invariants (unchanged)
+
+- **Writes stay on `employee_garnishments`.** Only reporting/hydration paths use `public.legal_orders`.
+- **No new authz primitives.** The workflow-seed helper only reads `self_action_policy` + writes `approval_workflows` — reuses existing RLS/tables.
+- **Idempotent everywhere.** Re-installing the pack for the same tenant does not duplicate the workflow row (uniqueness by `organization_id + entity_type='legal_order'`).
