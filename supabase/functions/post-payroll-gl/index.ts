@@ -1015,9 +1015,13 @@ Deno.serve(async (req) => {
       if (garnishmentMap.size > 0) {
         // Hydrate payee_contact_id + due_date hint from the order + resolved policy.
         const garnIds = Array.from(garnishmentMap.keys());
+        // Phase 6c: read from canonical `legal_orders` view so authority,
+        // calc_model, priority_class, and pack-resolved payee fields land here
+        // instead of the raw physical row. FSM/write paths still use the
+        // physical `employee_garnishments` table.
         const { data: garnRows } = await supabaseAdmin
-          .from("employee_garnishments")
-          .select("id, payee_contact_id, payee_name, kind, end_date")
+          .from("legal_orders")
+          .select("id, payee_contact_id, payee_name, kind_code, end_date, priority_class, calc_model, authority_id")
           .in("id", garnIds);
         const garnById = new Map<string, any>(
           (garnRows || []).map((r: any) => [r.id, r]),
@@ -1060,7 +1064,7 @@ Deno.serve(async (req) => {
             liability_account_id: garnishmentPayableAcct,
             garnishment_id: garn.garnishment_id,
             payee_contact_id: order.payee_contact_id || null,
-            notes: `Auto-created from payroll ${payrollRun.payroll_number} (garnishment ${order.kind ?? ""})`.trim(),
+            notes: `Auto-created from payroll ${payrollRun.payroll_number} (garnishment ${order.kind_code ?? ""})`.trim(),
             created_by: userId,
           });
         }
