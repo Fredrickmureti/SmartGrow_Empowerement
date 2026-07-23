@@ -30,6 +30,7 @@ const Garnishments = lazy(() => import("@/pages/hr/payroll/Garnishments"));
 const LoanSkipOverrides = lazy(() => import("@/pages/hr/payroll/LoanSkipOverrides"));
 const CustomDeductionTypes = lazy(() => import("@/pages/hr/payroll/CustomDeductionTypes"));
 const CustomDeductions = lazy(() => import("@/pages/hr/payroll/CustomDeductions"));
+const LegalOrderRemittanceBatch = lazy(() => import("@/pages/hr/payroll/LegalOrderRemittanceBatch"));
 
 interface PayrollAppProps {
   surface: "payroll" | "remittances";
@@ -119,6 +120,7 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           <Route path="garnishments"         element={gate(<LazyRoute module="Garnishments"><Garnishments /></LazyRoute>, "managePayroll")} />
           {/* Phase 5: canonical "legal orders" alias — same shell, keeps old links working. */}
           <Route path="legal-orders"         element={gate(<LazyRoute module="Legal Orders"><Garnishments /></LazyRoute>, "managePayroll")} />
+          <Route path="legal-orders/remittance-batch" element={gate(<LazyRoute module="Legal Order Remittance Batches"><LegalOrderRemittanceBatch /></LazyRoute>, "managePayroll")} />
           <Route path="loan-skip-overrides"  element={gate(<LazyRoute module="Loan Skip Overrides"><LoanSkipOverrides /></LazyRoute>, "runPayroll")} />
         </Routes>
       ) : (
