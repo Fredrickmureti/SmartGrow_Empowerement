@@ -2705,6 +2705,21 @@ Deno.serve(async (req) => {
     const cfConsumedIds: string[] = [];
 
     const garnishmentsApplied: { id: string; amount: number; employee_id: string }[] = [];
+    // Observability: any employee who had ≥1 in-window active legal order but
+    // whose garnishment engine result withheld nothing. Silent drops here in
+    // the past hid a Kenya-pack policy-fraction bug for weeks — surface it
+    // as a first-class run issue so it can never happen invisibly again.
+    const garnishmentZeroIssues: Array<{
+      employee_id: string;
+      order_ids: string[];
+      order_count: number;
+      disposable: number;
+      gross: number;
+      pre_garnishment_deductions: number;
+      aggregate_cap_pct: number | null;
+      min_take_home_pct: number | null;
+      min_take_home_amount: number | null;
+    }> = [];
     const reimbursementsConsumed: { id: string; employee_id: string }[] = [];
 
 
@@ -3654,6 +3669,24 @@ Deno.serve(async (req) => {
           period_end: pay_period_end,
         });
 
+        // Observability: orders supplied but engine withheld nothing.
+        // Silent drops here previously hid a policy-fraction misconfiguration
+        // for weeks. Surface as a first-class run issue so it can never
+        // happen invisibly again.
+        if (garns.length > 0 && computedGarnishments.totalGarnished === 0) {
+          garnishmentZeroIssues.push({
+            employee_id: emp.id,
+            order_ids: garns.map((g) => g.id),
+            order_count: garns.length,
+            disposable: computedGarnishments.disposable,
+            gross: grossPay,
+            pre_garnishment_deductions: preGarnDeductions,
+            aggregate_cap_pct: (garnPolicy?.aggregate_cap_pct ?? null) as number | null,
+            min_take_home_pct: (garnPolicy?.min_take_home_pct ?? null) as number | null,
+            min_take_home_amount: (garnPolicy?.min_take_home_amount ?? null) as number | null,
+          });
+        }
+
         for (const applied of computedGarnishments.applied) {
           const g = garns.find((order) => order.id === applied.id);
           if (!g) continue;
@@ -4493,6 +4526,27 @@ Deno.serve(async (req) => {
         await supabaseAdmin.from("payroll_run_issues").insert(rows.slice(i, i + 500));
       }
     }
+
+    // Garnishment engine withheld nothing despite active in-window orders.
+    // Emit a warning per employee so the run details panel names the reason
+    // (floor breached / cap exhausted / policy misconfig) instead of silently
+    // producing a payslip without the ordered deduction.
+    if (garnishmentZeroIssues.length > 0) {
+      const rows = garnishmentZeroIssues.map((iss) => ({
+        organization_id,
+        business_id: business_id || null,
+        payroll_run_id: payrollRun.id,
+        employee_id: iss.employee_id,
+        code: "GARNISHMENT_WITHHELD_ZERO",
+        severity: "warning",
+        message: `${iss.order_count} active legal order${iss.order_count === 1 ? "" : "s"} withheld nothing this period — check garnishment policy (protected-earnings floor / aggregate cap) or the employee's disposable income.`,
+        details: iss,
+      }));
+      for (let i = 0; i < rows.length; i += 500) {
+        await supabaseAdmin.from("payroll_run_issues").insert(rows.slice(i, i + 500));
+      }
+    }
+
 
     // Pre-existing user-recorded skip overrides for this run → info-level visibility.
     {
