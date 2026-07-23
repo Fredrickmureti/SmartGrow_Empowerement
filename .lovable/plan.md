@@ -1,25 +1,39 @@
-## Root cause (confirmed)
+# Disambiguate "payee unmapped" from PAYE (tax)
 
-`generate-tax-certificate` returns **422 TEMPLATE_STRUCTURAL_INVALID** for `ANNUAL_EARNINGS_STATEMENT`.
+## Verdict first
 
-- `validateCanonicalSourceNode` at `supabase/functions/generate-tax-certificate/index.ts:431-434` walks every `matrix`/`grid` node and requires each data column to declare `source_key`, or appear in `node.rule_codes`, or in `derived_columns`.
-- The live template row in `localization_pack_certificate_templates` for `ANNUAL_EARNINGS_STATEMENT` (just queried) has a single matrix with columns `gross / benefits / taxable / statutory_employee / statutory_employer / other_deductions / reliefs / net`, **none** carrying `source_key`, and **no** `derived_columns` — because the previous consolidation deliberately made this template DTO-bound (rows come from `resolveAnnualEarnings().months`, not from the rule-code stream).
-- The validator was designed for statutory forms (P9, P60, …) where zero-filled columns would be a filed-document defect. It must not run against templates whose rows are populated from a canonical DTO overlay.
+The garnishment subsystem is **solid and matches how SAP, Oracle HCM, Workday, Dynamics and Odoo model third-party garnishment recipients**:
 
-## Change
+- Each legal order has its **own** liability account ("Garnishment Payable"), separate from statutory liabilities like **PAYE Payable** (tax withholding to KRA). They are not the same account and must never be merged — different creditor, different remittance channel, different reporting.
+- `employee_garnishments.payee_unmapped` is a trigger-computed flag meaning "the recipient of this deduction is free-text only and has **not been linked to a `contacts` row**". Until it is linked, the remittance batch flow cannot cut a real payment to that third party. This is the same gate SAP enforces with "Vendor for garnishment" and Workday with "Third Party Payee".
 
-Single edit in `supabase/functions/generate-tax-certificate/index.ts`, in the block that walks matrix/grid nodes (~line 425-438):
+Nothing in the accounting or lifecycle model needs to change.
 
-- Skip `validateCanonicalSourceNode` when `template.code === "ANNUAL_EARNINGS_STATEMENT"`. Mirrors the identical guard already present at line 859 that skips the legacy pivot for the same template.
-- Add a short comment tying both guards to ADR-0091: the annual statement is DTO-bound; its columns are populated by `resolveAnnualEarnings`, so rule-code binding assertions do not apply.
+## The only real problem: wording collision with PAYE
 
-No template, migration, resolver, or compiler change. Statutory templates (P9/P60/W-2/…) keep the strict validator.
+On a payroll screen, the string **"payee unmapped"** sits inches away from **"PAYE Payable"**. That's a UX trap — the user reasonably reads it as "PAYE unmapped" and assumes the tax mapping is broken. Fix the copy, not the model.
 
-## Regression guard
+## Changes
 
-Add one test in `src/test/architecture/tax-certificate-lifecycle.test.ts` (or the existing `annual-earnings-canonical-binding.test.ts`) that greps the edge-function source and asserts both the validator loop and the legacy-pivot loop exclude `ANNUAL_EARNINGS_STATEMENT` by code. Prevents someone re-enabling the validator for this template without also making its matrix rule-code-bound.
+Presentation-only, in `src/pages/hr/payroll/Garnishments.tsx`:
 
-## Verification
+1. Rename the badge from **"payee unmapped"** → **"recipient not linked"**.
+2. Update the tooltip to make the meaning explicit and unambiguous:
+   > "The third-party recipient (e.g. court, CSA, creditor) is stored as free text only. Link it to a Contact to enable remittance payments. This is unrelated to PAYE tax."
+3. Rename the section header on the create/edit sheet from **"Payee & remittance"** → **"Recipient & remittance"** and each field label from "Payee name / bank / account / reference" → "Recipient name / bank / account / reference". Keep the DB column names (`payee_*`) as-is — API stability.
+4. Add a one-line ADR note in `docs/adr/` (or append to an existing garnishment ADR if present) recording the invariant:
+   *"Garnishment Payable ≠ PAYE Payable. Each legal order maps to a distinct third-party liability with its own recipient (`contacts` row)."*
 
-1. `bunx vitest run src/test/architecture/tax-certificate-lifecycle.test.ts src/test/architecture/annual-earnings-canonical-binding.test.ts src/test/payroll/annual-earnings-resolver.test.ts`.
-2. `supabase--curl_edge_functions` POST to `/generate-tax-certificate` with the failing employee + `ANNUAL_EARNINGS_STATEMENT` template — expect 200 with populated `ytd` and `months[]`, not 422.
+## Out of scope
+
+- No schema changes. `payee_contact_id`, `payee_unmapped`, and the trigger stay.
+- No changes to remittance batching, GL posting, or account auto-provisioning.
+- No changes to statutory (PAYE/NSSF/SHIF/AHL/NITA) mappings.
+
+## Technical notes
+
+- Column `employee_garnishments.payee_unmapped` is maintained by trigger `payee_unmapped := (payee_contact_id IS NULL)` (migration `20260630171823`). We keep that as-is; it's already correct.
+- `payroll_liabilities.payee_contact_id` (migration `20260630172003`) is the join used by the remittance batch page — unchanged.
+- Only the two files below are touched:
+  - `src/pages/hr/payroll/Garnishments.tsx` (badge text, tooltip, section/field labels)
+  - `docs/adr/xxxx-garnishment-vs-paye.md` (new short ADR, ~20 lines)
