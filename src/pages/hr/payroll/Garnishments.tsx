@@ -1,5 +1,6 @@
 /**
- * Garnishments admin — manage `employee_garnishments`.
+ * Legal Orders admin — manage `legal_orders_records`
+ * (formerly `employee_garnishments`).
  *
  * Phase 2 (closed shallow gaps): status lifecycle, payee remittance,
  * document attachment, aggregate-cap exemption, per-order take-home floor,
