@@ -155,6 +155,8 @@ export interface KeyValueNode {
   label: Value;
   value: Value;
   emphasis?: "primary" | "regular";
+  /** Missing bindings are rendered unless the template explicitly marks the row optional. */
+  optional?: boolean;
 }
 
 export interface IdentityStripNode {

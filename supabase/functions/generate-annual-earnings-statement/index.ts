@@ -208,7 +208,24 @@ Deno.serve(async (req) => {
       document: expandedDoc,
     };
 
-    const { html } = compileCertificateHtml(v3Template as any, dto as any, { currency });
+    const compiled = compileCertificateHtml(v3Template as any, dto as any, { currency });
+    const unresolvedReportBindings = compiled.unresolved.filter((path) =>
+      path === "dto_version" ||
+      path === "serial_number" ||
+      path === "generated_at" ||
+      path.startsWith("period.") ||
+      path.startsWith("employer.") ||
+      path.startsWith("employee.") ||
+      path.startsWith("ytd.") ||
+      path.startsWith("provenance.")
+    );
+    if (unresolvedReportBindings.length) {
+      console.error("[generate-annual-earnings-statement] unresolved bindings", unresolvedReportBindings);
+      return json(500, {
+        error: "template_binding_unresolved",
+        unresolved: unresolvedReportBindings,
+      });
+    }
 
     return json(200, {
       ok: true,
@@ -217,7 +234,7 @@ Deno.serve(async (req) => {
       provenance: dto.provenance,
       serial_number: dto.serial_number,
       generated_at: dto.generated_at,
-      html,
+      html: compiled.html,
     });
   } catch (e) {
     console.error("[generate-annual-earnings-statement]", e);
