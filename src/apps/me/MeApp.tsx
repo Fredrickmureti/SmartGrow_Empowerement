@@ -39,6 +39,7 @@ const MyOnboarding = lazy(() => import("@/pages/me/MyOnboarding"));
 const MyShifts = lazy(() => import("@/pages/me/MyShifts"));
 const MyDocuments = lazy(() => import("@/pages/me/MyDocuments"));
 const MyTaxCertificates = lazy(() => import("@/pages/me/MyTaxCertificates"));
+const MyAnnualEarnings = lazy(() => import("@/pages/me/MyAnnualEarnings"));
 const MyExitClearance = lazy(() => import("@/pages/me/MyExitClearance"));
 const MySettings = lazy(() => import("@/pages/me/MySettings"));
 const MyTalent = lazy(() => import("@/pages/me/MyTalent"));
