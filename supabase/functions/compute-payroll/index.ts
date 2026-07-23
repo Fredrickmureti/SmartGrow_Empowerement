@@ -4404,7 +4404,18 @@ Deno.serve(async (req) => {
           return sum > 0 ? Math.round(sum * 100) / 100 : null;
         })(),
         status: "pending",
-        deductions_detail: deductionsDetail,
+        // Human-readable breakdown for reports/UI. Garnishment keys are
+        // remapped from opaque `garnishment_<uuid>` codes to the resolved
+        // order label ("Child support (CASE-…)") — the join key stays on
+        // `payslip_lines.source.garnishment_id`.
+        deductions_detail: (() => {
+          const remapped: Record<string, number> = {};
+          for (const [key, val] of Object.entries(deductionsDetail)) {
+            const label = garnLabelByCode.get(key) ?? key;
+            remapped[label] = (remapped[label] || 0) + Number(val || 0);
+          }
+          return remapped;
+        })(),
         contributions_detail: contributionsDetail,
         unpaid_leave_days: unpaidLeaveDays,
         leave_deduction: leaveDeduction,
