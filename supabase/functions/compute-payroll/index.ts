@@ -4384,7 +4384,12 @@ Deno.serve(async (req) => {
         // impossible for the header to disagree with its lines.
         gross_pay: roundCent(linesEmpEarnings),
         total_deductions: roundCent(linesEmpDeductions),
-        net_pay: roundCent(linesEmpEarnings - linesEmpDeductions),
+        // Preserve the historical clamp: only base earnings (linesEmpEarnings
+        // minus the reimbursement passthrough) can be reduced to 0 by
+        // deductions; reimbursements always pay out on top.
+        net_pay: roundCent(
+          Math.max(0, linesEmpEarnings - reimbursementTotal - linesEmpDeductions) + reimbursementTotal,
+        ),
         taxable_income: finalTaxableBase,
         // Audit 2026-07-05 closeout — persist the base PAYE was computed
         // against + the gross tax before reliefs so reports/tax certificates
