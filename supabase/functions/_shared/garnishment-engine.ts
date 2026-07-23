@@ -43,6 +43,10 @@ export interface GarnishmentOrder {
   percent_of_disposable?: number | null;
   total_owed?: number | null;
   total_paid?: number | null;
+  /** Amount already accrued by posted/created payroll. This is the balance basis for payroll withholding. */
+  total_accrued?: number | null;
+  /** Prior under-withheld amount to attempt this period, still subject to caps/floors. */
+  carry_forward_amount?: number | null;
   minimum_take_home_amount?: number | null;
   aggregate_cap_exempt?: boolean;
   case_reference?: string | null;
@@ -84,6 +88,9 @@ export interface GarnishmentApplied {
   code: string;
   label: string;
   amount: number;
+  requested_amount: number;
+  shortfall_amount: number;
+  shortfall_reason: "floor_breached" | "aggregate_cap_exhausted" | "disposable_exhausted" | null;
   employer_fee_amount: number;
   employer_fee_account_role: string | null;
 }
@@ -140,7 +147,7 @@ function resolveRawAmount(
   if (model === "percent_disposable") return disposable * (Number(g.percent_of_disposable) || 0);
   if (model === "percent_gross") return gross * (Number(g.percent_of_disposable) || 0);
   if (model === "balance_remaining") {
-    return Math.max(0, Number(g.total_owed || 0) - Number(g.total_paid || 0));
+    return Math.max(0, Number(g.total_owed || 0) - Number(g.total_accrued || 0));
   }
   // statutory_formula: reserved for pack-scripted rules; engine returns 0
   // (the pack's rule evaluator must inject the amount upstream). This keeps
@@ -214,10 +221,16 @@ export function computeGarnishments(args: ComputeArgs): ComputeResult {
     if (countsTowardCap && cappedPoolRemaining <= 0) continue;
 
     let raw = resolveRawAmount(g, kd, gross, disposable);
+    const carryForward = Number(g.carry_forward_amount || 0);
+    if (carryForward > 0) raw += carryForward;
 
     if (g.total_owed != null) {
-      raw = Math.min(raw, Math.max(0, Number(g.total_owed) - Number(g.total_paid || 0)));
+      // Payroll creates the payable/accrual; cash remittance may happen later.
+      // Therefore the remaining order balance for new payroll withholding is
+      // total_owed - total_accrued, not total_owed - total_paid.
+      raw = Math.min(raw, Math.max(0, Number(g.total_owed) - Number(g.total_accrued || 0)));
     }
+    const requested = Math.round(raw * 100) / 100;
 
     const perOrderFloor = Number(g.minimum_take_home_amount || 0);
     const kindFloor = packFloor(kd, gross);
@@ -231,6 +244,12 @@ export function computeGarnishments(args: ComputeArgs): ComputeResult {
 
     const amt = Math.round(capped * 100) / 100;
     if (amt <= 0) continue;
+    const shortfall = Math.round(Math.max(0, requested - amt) * 100) / 100;
+    const shortfallReason = shortfall <= 0
+      ? null
+      : floorBreach > 0
+        ? "floor_breached"
+        : (countsTowardCap && cappedPoolRemaining <= 0 ? "aggregate_cap_exhausted" : "disposable_exhausted");
 
     const key = `garnishment_${g.id}`;
     disposableRemaining -= amt;
@@ -244,6 +263,9 @@ export function computeGarnishments(args: ComputeArgs): ComputeResult {
       code: key,
       label: `${g.kind}${g.case_reference ? ` (${g.case_reference})` : ""}`,
       amount: amt,
+      requested_amount: requested,
+      shortfall_amount: shortfall,
+      shortfall_reason: shortfallReason,
       employer_fee_amount: employerFee,
       employer_fee_account_role: kd?.employer_fee_account_role ?? null,
     });
