@@ -96,7 +96,13 @@ export function PayrollPreviewDialog({
   const [overrideTarget, setOverrideTarget] = useState<{ id: string; name: string } | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
 
-  const formatLabel = (key: string) => key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  const formatLabel = (key: string) => {
+    // Resilient fallback for engine keys that leaked the raw order UUID
+    // (e.g. `garnishment_0dfb6e04-b7bd-...`). Show a human label instead.
+    const gm = key.match(/^garnishment_([0-9a-f-]{8,})$/i);
+    if (gm) return `Legal Order (${gm[1].slice(0, 8)}…)`;
+    return key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  };
 
   const buildPdfPayload = useCallback(() => {
     if (!previewData) return null;
