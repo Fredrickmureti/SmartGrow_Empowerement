@@ -92,3 +92,9 @@ posted payslip
 ### Next milestone (not started)
 
 Milestone 2 — remittance batch payments UI. Plan separately before execution.
+
+---
+
+## Plan closed — 2026-07-23
+
+Milestone 1 (statutory return integration) landed and verified. Milestones 2 (remittance batch payments UI) and 3 (employee document uploads) are deferred and will be re-scoped in a fresh plan when picked up. This plan is officially closed.
