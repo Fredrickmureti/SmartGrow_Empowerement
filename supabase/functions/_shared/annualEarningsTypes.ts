@@ -18,7 +18,7 @@
 export const ANNUAL_EARNINGS_DTO_VERSION = "annual-earnings.v1";
 
 export interface AnnualEarningsIdentifier {
-  scheme: string;         // e.g. "kra_pin", "national_id", "nhif", "nssf"
+  scheme: string;         // pack-provided scheme code (country-neutral)
   label: string;          // human-readable, comes from the pack registry
   value: string;
 }
