@@ -200,6 +200,19 @@ export default function GarnishmentsPage() {
   }
 
   async function submit() {
+    // Completion-rule gating (Step C, 2026-07-23): the resolved legal-order
+    // kind determines which end-condition fields are mandatory. `by_date`
+    // requires an end_date; `by_balance` (default) requires a total_owed.
+    // `indefinite` / `manual_release_only` have no such requirement.
+    const completionRule = (resolvedLegalOrder?.completion_rule as string | undefined) ?? null;
+    if (completionRule === "until_end_date" && !form.end_date) {
+      window.alert("This legal-order kind ends on a specific date — please set an End date before saving.");
+      return;
+    }
+    if (completionRule === "until_total_owed_met" && !form.total_owed) {
+      window.alert("This legal-order kind ends when a total is met — please set Total owed before saving.");
+      return;
+    }
     // Status is FSM-owned: never set directly here on existing rows.
     // New rows are created in 'draft' (DB default); status moves via transitionGarnishment.
     const base: any = {
