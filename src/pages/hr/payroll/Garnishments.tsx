@@ -221,7 +221,7 @@ export default function GarnishmentsPage() {
       kind: form.kind,
       priority: form.priority,
       case_reference: form.case_reference || null,
-      issuing_authority: form.issuing_authority || null,
+      authority_id: form.authority_id,
       authority_id: form.authority_id,
       cap_rule: form.cap_rule,
       fixed_amount: form.fixed_amount ? Number(form.fixed_amount) : null,
