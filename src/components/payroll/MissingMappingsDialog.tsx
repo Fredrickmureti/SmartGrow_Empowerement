@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, Sparkles, Plus, ArrowRight, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
 
 interface Props {
   open?: boolean;
@@ -138,6 +139,46 @@ function MappingsBody({
         .map((r) => ({ setting_key: r.setting_key, account_id: r.suggested_account_id! }))
     : setupSuggestedPairs;
 
+  const [autoRunning, setAutoRunning] = useState(false);
+
+  /**
+   * One-click setup: for every missing mapping, either apply the heuristic
+   * suggestion (existing account) or provision a new chart-of-accounts row
+   * using the canonical label and required account type, then map it.
+   * Runs sequentially so DB-side uniqueness checks are respected and the
+   * user gets a precise error if any single row fails.
+   */
+  const runOneClickSetup = async () => {
+    if (effectiveMissing.length === 0) return;
+    setAutoRunning(true);
+    let applied = 0;
+    let created = 0;
+    try {
+      // Apply all suggested first in a single RPC round-trip
+      if (effectiveSuggestedPairs.length > 0) {
+        await applyAll.mutateAsync(effectiveSuggestedPairs);
+        applied = effectiveSuggestedPairs.length;
+      }
+      const needsCreate = effectiveMissing.filter((r) => !r.suggested_account_id);
+      for (const r of needsCreate) {
+        await createAndMap.mutateAsync({
+          setting_key: r.setting_key,
+          name: r.label,
+          account_type: r.required_account_type,
+        });
+        created += 1;
+      }
+      toast.success(
+        `Payroll GL ready — ${applied} mapped, ${created} account${created === 1 ? "" : "s"} created`,
+      );
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.message || "One-click setup failed — fix the failing row and retry");
+    } finally {
+      setAutoRunning(false);
+    }
+  };
+
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts-for-mapping", currentOrg?.id, currentBusiness?.id],
     enabled: !!currentOrg?.id,
@@ -201,6 +242,20 @@ function MappingsBody({
           <Button
             size="sm"
             variant="default"
+            className="w-full sm:w-auto"
+            disabled={autoRunning}
+            onClick={runOneClickSetup}
+          >
+            {autoRunning ? (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+            )}
+            One-click setup ({missing.length})
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             className="w-full sm:w-auto"
             disabled={suggestedPairs.length === 0 || applyAll.isPending}
             onClick={() => applyAll.mutate(suggestedPairs)}
