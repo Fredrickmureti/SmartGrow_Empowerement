@@ -141,7 +141,7 @@ export default function GarnishmentsPage() {
     kind: "child_support" as GarnishmentKind,
     priority: 10,
     case_reference: "",
-    issuing_authority: "",
+    authority_text: "",
     authority_id: null as string | null,
     cap_rule: "fixed_amount" as GarnishmentCapRule,
     fixed_amount: "",
