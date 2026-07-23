@@ -3669,6 +3669,24 @@ Deno.serve(async (req) => {
           period_end: pay_period_end,
         });
 
+        // Observability: orders supplied but engine withheld nothing.
+        // Silent drops here previously hid a policy-fraction misconfiguration
+        // for weeks. Surface as a first-class run issue so it can never
+        // happen invisibly again.
+        if (garns.length > 0 && computedGarnishments.totalGarnished === 0) {
+          garnishmentZeroIssues.push({
+            employee_id: emp.id,
+            order_ids: garns.map((g) => g.id),
+            order_count: garns.length,
+            disposable: computedGarnishments.disposable,
+            gross: grossPay,
+            pre_garnishment_deductions: preGarnDeductions,
+            aggregate_cap_pct: (garnPolicy?.aggregate_cap_pct ?? null) as number | null,
+            min_take_home_pct: (garnPolicy?.min_take_home_pct ?? null) as number | null,
+            min_take_home_amount: (garnPolicy?.min_take_home_amount ?? null) as number | null,
+          });
+        }
+
         for (const applied of computedGarnishments.applied) {
           const g = garns.find((order) => order.id === applied.id);
           if (!g) continue;
