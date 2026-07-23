@@ -32,9 +32,12 @@ export interface ClassifiableLine {
 const EARNING = new Set(["earning", "basic", "allowance", "bonus", "overtime"]);
 const DEDUCTION = new Set([
   "deduction",
+  "pre_tax_deduction",
+  "post_tax_deduction",
   "statutory_employee",
   "tax",
   "income_tax",
+  "relief",
   "loan_repayment",
   "benefit_recovery",
   "voluntary_deduction",
