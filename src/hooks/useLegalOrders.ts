@@ -56,7 +56,7 @@ export interface LegalOrderRow {
   // Resolved from authority + pack
   kind_code: string;
   authority_id: string | null;
-  issuing_authority_text: string | null;
+  authority_name: string | null;
   case_reference: string | null;
 
   // Legal-behaviour (from pack; overrideable per-order)
