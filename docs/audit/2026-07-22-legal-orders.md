@@ -90,3 +90,36 @@ starts by tracing that edge function.
 
 Three questions posted to the user; Phase 1 migration is blocked on their
 answers so we do not solidify the wrong authz model.
+
+---
+
+## Addendum 2026-07-23 — Phase 6c (Step A) + approval auto-request (Step B)
+
+**Step A — reporting rebind (partial, targeted).** `supabase/functions/post-payroll-gl/index.ts`
+now hydrates garnishment payee metadata from the canonical `public.legal_orders`
+view instead of the raw `employee_garnishments` table (fields: `payee_name`,
+`payee_contact_id`, `kind_code`, `end_date`, `priority_class`, `calc_model`,
+`authority_id`). FSM/write paths (`compute-payroll`, `post-garnishment-payment`,
+`garnishment_transition`) intentionally remain on the physical table.
+`payroll_return_runs` currently has no direct garnishment binding (grep clean),
+so no return-extract rewrite was required in this pass; the invariant to
+preserve is that any future statutory-return join must go through the view.
+
+**Step B — approval-workflow auto-request.** `garnishment_transition` now, on
+the `submit` action, inserts a `pending` row into `approval_requests` when an
+active `approval_workflow` exists for `entity_type='legal_order'` in the org
+and no open/approved request is already tied to the order. This closes the
+"silent no-op" gap where the activation gate would happily let orders through
+because nobody had ever created a request row. No behaviour change when no
+workflow is configured (backward compatible with tenants that have not
+adopted the workflow yet).
+
+**Still pending (tracked in .lovable/plan.md):**
+
+- Default `approval_workflow` seed on first `install_legal_order_kind_defaults`
+  when the pack policy demands approval (Step B, second half).
+- UI polish (Step C): `calc_model`-driven form, completion-rule gating,
+  dashboard badges, `/hr/payroll/legal-orders` promoted to primary route.
+- Phase 7 cleanup (Step D): drop free-text `issuing_authority`, rename
+  `employee_garnishments` → `legal_orders_records` behind the view, remove
+  the client-side engine shim.

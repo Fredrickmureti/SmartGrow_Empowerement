@@ -55,3 +55,15 @@ No contradictions found. The genuinely completed milestone is **Phase 6b**. Rema
 - DB changes via `supabase--migration`; new tables get GRANTs + RLS in the same migration.
 - No new `has_permission` function; reuse `has_role` + `self_action_policy` per existing decision.
 - FSM/write paths stay on `employee_garnishments`; read/reporting paths move to the view — this is the invariant that survives the rename in Step D.
+
+---
+
+## Progress log — 2026-07-23
+
+- **Step A (Phase 6c reporting rebind): DONE (targeted).** `supabase/functions/post-payroll-gl/index.ts` now hydrates garnishment payee info from `public.legal_orders` view. No other reporting reads exist against `employee_garnishments` today (grep clean across `src/` and `supabase/functions/`); future statutory-return joins must go through the view.
+- **Step B (approval workflow auto-request): DONE for transition path.** `garnishment_transition` now, on `submit`, inserts a `pending` `approval_requests` row referencing the order when an active `approval_workflow` exists for `entity_type='legal_order'`. Backward compatible when no workflow is configured.
+- **Step B remainder: PENDING.** Default `approval_workflow` seed at first `install_legal_order_kind_defaults` when the pack's `self_action_policy.mode='require_approval'` for `payroll.legal_order.activate`.
+- **Step C (UI polish): PENDING.** `calc_model`-driven form, completion-rule gating, dashboard badges, `/hr/payroll/legal-orders` promoted to primary route.
+- **Step D (Phase 7 cleanup): PENDING.** Only after Step C.
+
+Both changes non-breaking; engine + architecture tests untouched. See `docs/audit/2026-07-22-legal-orders.md` addendum 2026-07-23.
