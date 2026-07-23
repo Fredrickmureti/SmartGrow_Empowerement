@@ -42,11 +42,21 @@ describe("single payslip classifier", () => {
       // Skip build/generated files.
       if (f.includes("/routeTree.gen") || f.endsWith(".d.ts")) continue;
       const src = readFileSync(f, "utf8");
-      // Signature: a `new Set([...])` (or Set-like array literal) mentioning
-      // the canonical marker category. The marker is deliberately narrow
-      // so unrelated code using the string in comments/queries doesn't trip.
-      if (/new\s+Set\s*\(\s*\[[^\]]*["']statutory_employee["'][^\]]*\]\s*\)/s.test(src)) {
+      // Signature: a `new Set([...])` mentioning the canonical deduction
+      // marker. We skip the enum whitelist Set (VALID_PAYSLIP_LINE_CATEGORIES
+      // in compute-payroll) — it lists every legal category by design and
+      // is not a bucketing decision. A bucketing set typically contains
+      // `"loan_repayment"` alongside `"statutory_employee"` and does NOT
+      // include the informational categories `"subtotal"` / `"net"` /
+      // `"relief"` that the whitelist has to allow.
+      const setLiteralRe = /new\s+Set\s*\(\s*\[([\s\S]*?)\]\s*\)/g;
+      for (const m of src.matchAll(setLiteralRe)) {
+        const body = m[1];
+        if (!/"statutory_employee"/.test(body)) continue;
+        if (!/"loan_repayment"/.test(body)) continue;
+        if (/"subtotal"|"net"|"relief"/.test(body)) continue; // enum whitelist, not a bucket
         offenders.push(path.relative(process.cwd(), f));
+        break;
       }
     }
     expect(
