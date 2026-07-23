@@ -177,6 +177,18 @@ export default function MeApp() {
           }
         />
 
+        {/* My Annual Earnings — country-neutral canonical earnings statement (ADR-0063) */}
+        <Route
+          path="annual-earnings"
+          element={
+            <AppInstalledGate appId="payroll">
+              <Lazy module="My Annual Earnings">
+                <MyAnnualEarnings />
+              </Lazy>
+            </AppInstalledGate>
+          }
+        />
+
 
         {/* My Loans & Advances — self-service request + tracking.
             Gated on the Payroll app because loans are a payroll surface. */}
