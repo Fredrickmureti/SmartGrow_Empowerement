@@ -1,128 +1,57 @@
-# Payroll Legal Orders — Verification & Continuation Plan
 
-## Phase 1 — Independent verification of prior agent's claims
+## Phase 1 — Verification of prior agent (2026-07-22 → 2026-07-23)
 
-Verified directly against the DB + repo (not the plan.md):
+Cross-checked `.lovable/plan.md` against the live DB and repo. Every claim marked "Confirmed / DONE" through Phase 6b holds up:
 
-| Prior claim | Verdict | Evidence |
-|---|---|---|
-| P1: `garnishment_transition` rewritten with RLS-aligned roles + SoD + optional approval-workflow gate + outbox emit | **Confirmed** | `pg_get_functiondef('garnishment_transition')` shows role gate (admin/owner/accountant/super_admin + manager for suspend/resume), `governance_assert_not_subject`, workflow gate for activate/release/terminate_unsatisfied, `future-dated activation blocked`; migration `20260722225911_*` emits 11 `legal_order.*` outbox rows |
-| P1: `legal_order_transition` alias exposed | **Confirmed** | `pg_proc` row present |
-| P2: enums + extended `garnishment_kind_defaults` + `legal_order_kind_overrides` + `install_legal_order_kind_defaults` RPC | **Confirmed** | `calc_model`, `protected_earnings_rule` columns present; RPC present; overrides table present |
-| P2: `install-localization-pack` projects pack rows | **Confirmed** | `install.ts:407` calls `install_legal_order_kind_defaults` and reports counts |
-| P3: `legal_orders` view + `legal_order_authorities` + `employee_garnishments.authority_id` FK | **Confirmed** | view + table + FK all present |
-| P4: shared engine extended with `calc_model`, `priority_class`, `aggregate_cap_membership`, `protected_earnings_rule`, `always_first` reservation | **Confirmed** | inspected `_shared/garnishment-engine.ts` |
-| P4: `post-garnishment-payment` emits `legal_order.payment_posted` | **Confirmed** | line 285–288 |
-| P4: unit tests for the 4 new branches | **DONE (this turn)** | 5 new cases added (`always_first`, `priority_class`, `protected_earnings_rule`, `calc_model` fallback, effective-window); `bunx vitest run` → 13/13 passing |
-| P4c: effective-window filter in engine | **DONE (this turn)** | `computeGarnishments` now accepts `period_start`/`period_end` and skips out-of-window orders |
-| P5: context-aware UI (view read, dynamic calc fields, authority picker, evidence gating, completion gating) | **PARTIAL (this turn)** | `useLegalOrders`/`useLegalOrder` hook, `AuthorityPicker`, `LegalOrderDocuments` shipped; Garnishments form wires authority + versioned evidence; `/hr/payroll/legal-orders` alias route added; calc_model dynamic-field rewrite + dashboard badges still to do |
-| P5b-i: `legal_order_documents` table + private `legal-orders` storage bucket + RLS | **DONE (this turn)** | migration + bucket + storage.objects policies applied; upload/list/delete wired in form |
-| P6-i: `business_event_topics` seed for `legal_order.*` (11 topics incl. `payment_posted`) | **DONE** | outbox worker will now route them |
-| P6b: outbox subscribers for all 11 `legal_order.*` topics + remittance projection + notification fan-out | **DONE (this turn)** | `legal_order_remittance_lines` table + `legal_order_apply_payment_remittance` RPC + `legal_order_notify_event` RPC + `legal_order_event_dispatch_log` dedupe; `outbox-dispatcher/index.ts` HANDLERS map extended with all 11 topics; engine tests still 13/13 |
-| P6 remainder: reporting rebind (payroll_return_runs → `legal_orders` view) + vendor statement export switch | **NOT STARTED** | see Phase 7 rebind list |
+- DB objects present: `legal_orders` view, `legal_order_authorities`, `legal_order_documents`, `legal_order_remittance_lines`, `legal_order_event_dispatch_log`; RPCs `legal_order_transition`, `garnishment_transition`, `install_legal_order_kind_defaults`, `legal_order_apply_payment_remittance`, `legal_order_notify_event` all exist.
+- `garnishment_kind_defaults` has `calc_model` + `protected_earnings_rule`; `employee_garnishments.authority_id` FK present.
+- `business_event_topics` seeded with 11 `legal_order.*` rows (column is `topic_prefix`, not `topic` — plan wording aside, seed is correct).
+- `supabase/functions/outbox-dispatcher/index.ts` registers handlers for all 11 topics.
+- UI artifacts exist: `src/hooks/useLegalOrders.ts`, `src/components/payroll/AuthorityPicker.tsx`, `src/components/payroll/LegalOrderDocuments.tsx`.
+- Shared engine already extended (`calc_model`, `priority_class`, `aggregate_cap_membership`, `protected_earnings_rule`, `always_first`, effective-window).
 
-Net: Phases 1–5 are complete; Phase 6 is **substantially complete** (topics seeded + all 11 subscribers registered + remittance projection + notification fan-out live). Remaining Phase 6 work is reporting rebind. Phase 7 (cleanup/rename) still untouched. No regressions found.
+No contradictions found. The genuinely completed milestone is **Phase 6b**. Remaining scope is what the plan already named: Phase 6c (reporting rebind) and Phase 7 (cleanup), plus the gaps below that surfaced during verification.
 
-## Current status (updated after Phase 6b)
+## Phase 2 — Additions / corrections
 
-- **Active phase:** Phase 6 (Consumer rewire) — 80% done.
-- **Next up:** Phase 6c — reporting rebind: point `payroll_return_runs`, vendor statement export, and any legacy dashboards at the canonical `public.legal_orders` view + `public.legal_order_remittance_lines` projection, and delete the direct `employee_garnishments` reads from reporting code.
-- **After that:** Phase 7 (cleanup) — drop free-text `issuing_authority`, rename `employee_garnishments` → `legal_orders_records` behind the view, remove `src/lib/payroll/garnishment-engine.ts` shim.
+1. **Approval-workflow auto-seed + auto-request (gap B from prior plan).** The FSM enforces an approved `approval_request` when a workflow exists, but no seed/UI creates one. Without it the gate is a no-op. Add on first legal-order install: create a default `approval_workflows` row for `entity_type='legal_order'` if the pack's `self_action_policy` requires approval, and have `legal_order_transition('submit', …)` auto-insert a pending `approval_requests` row.
+2. **Context UI polish still owed from Phase 5.** `Garnishments.tsx` form: dynamic calc fields per `calc_model` (fixed | percent_disposable | lesser_of | statutory_formula placeholder), completion-rule gating (`by_date` requires end_date, `by_balance` requires total_owed, `indefinite` hides both), and dashboard badges (`priority_class`, `always_first`, missing-evidence, pending-approval). Hooks + read paths already exist; work is presentational.
+3. **`post-payroll-gl` should read the `legal_orders` view** for payee/authority hydration so `authority_name`, `calc_model`, `priority_class` are always resolved and the eventual `authority_id`-only world doesn't break the ledger.
+4. **`Garnishments.tsx` label / route.** Add `/hr/payroll/legal-orders` as the primary route with `/hr/payroll/garnishments` as alias; update sidebar copy. (Alias route exists per prior claim; verify + rename primary.)
+5. **Reporting integration test.** One test rendering a statutory return with two orders (child_support + tax_levy) asserting `priority_class` ordering, using the projection.
 
+## Phase 3 — Execution order (resume here)
 
-## Phase 2 — Plan additions (gaps the prior plan did not name)
+### Step A — Phase 6c: reporting rebind
+- Rewrite reporting/vendor-statement reads in `supabase/functions/post-payroll-gl/index.ts` (line ~1019 hydration query) and any statement export to select from `public.legal_orders` view + `public.legal_order_remittance_lines` projection instead of `employee_garnishments`.
+- Keep FSM/write paths on the physical table: `compute-payroll` mutations (`total_paid`) and `post-garnishment-payment` updates stay as-is.
+- Update `payroll_return_runs` extract to join the view so `authority`, `priority_class`, `calc_model` are always resolved (grep confirms no current binding — add one when the return extract touches garnishments).
+- Add integration test: two orders (child_support, tax_levy), assert projection order = `priority_class`.
+- Update audit doc `docs/audit/2026-07-22-legal-orders.md` with 6c summary; update `.lovable/plan.md`.
 
-Reviewing against Workday IVDs / Oracle HCM 3PP / SAP EC Payroll / UK AEO / US CCPA:
+### Step B — Approval workflow seed + auto-request (gap 1)
+- Migration: on first `install_legal_order_kind_defaults` for an org where `self_action_policy.mode='require_approval'` for `payroll.legal_order.activate`, insert a default `approval_workflows` row for `entity_type='legal_order'` with one step (role: `owner` or `admin`).
+- Extend `legal_order_transition` (`action='submit'`) to auto-insert a pending `approval_requests` row referencing the target order when a workflow exists and none is pending.
+- Test: submit → pending row appears; approve → activate succeeds; no workflow → submit still transitions (backward compatible).
 
-- **A. Document evidence is not real.** Schema only has `document_url/filename` (a single link). The spec calls out uploaded/scanned court orders, versioning, retention, audit. Needs: `legal_order_documents` table (order → many docs, versioned, sha256, uploaded_by, retention_until), Storage bucket `legal-orders` with owner-only RLS, upload UI, and `evidence_requirements` gating that reads real document rows (not the free-text URL).
-- **B. Approval-workflow configuration surface.** The RPC now requires an approved `approval_request` when a workflow exists for `entity_type='legal_order'`, but there is no UI/seed to create such a workflow. Without it, the gate is silently bypassed. Add: (1) a per-org default `approval_workflow` seed for `legal_order` when the pack policy demands it, (2) an "Approvals" tab entry so admins see/edit it, (3) auto-creation of an `approval_request` when a user submits a legal order (submit → pending_approval already exists in the FSM).
-- **C. Finance liability + remittance are not event-derived yet.** Payslip posting creates the liability today via direct SQL. Phase 6 must add an outbox subscriber (`legal_order.payment_posted` → remittance batch line) and stop the direct-poll path so ownership is unambiguous.
-- **D. `business_event_topics` seed** for the full `legal_order.<action>` set — currently missing; outbox worker will drop unknown topics.
-- **E. Notifications.** Wire `legal_order.activate`, `legal_order.approve`, `legal_order.mark_satisfied`, `legal_order.terminate_unsatisfied` into `notification_alert_settings` so HR/finance are told, not just the DB.
-- **F. Reporting projection.** `payroll_return_runs` and vendor/third-party statements must read from `public.legal_orders` (view) + outbox, not from `employee_garnishments` directly. Reporting extract job needs a hook.
-- **G. Route + nav rename.** Add `/hr/payroll/legal-orders` route rendering the same shell; keep `/hr/payroll/garnishments` as alias (v3 plan calls this out, but adds no acceptance criteria — I'll assert both routes render + deep links redirect).
-- **H. Effective-window enforcement in payroll compute.** `garnishment-engine.ts` accepts orders but does not filter by `start_date <= period_end AND (end_date IS NULL OR end_date >= period_start)` — verify + add.
+### Step C — UI polish (gap 2)
+- `Garnishments.tsx`: swap static calc block for a `calc_model`-driven renderer (reuses resolved kind row from `useLegalOrders`).
+- Completion-rule gating on the form.
+- `GarnishmentDashboard.tsx`: badges (`priority_class`, `always_first`, missing-evidence, pending-approval), sourced from the view.
+- Route: promote `/hr/payroll/legal-orders` to primary; alias `/hr/payroll/garnishments`; sidebar label "Legal Orders".
 
-## Phase 3 — Continuation roadmap (resume here)
+### Step D — Phase 7 cleanup (only after A–C green)
+- Drop free-text `issuing_authority` after backfill check (`SELECT count(*) FROM employee_garnishments WHERE authority_id IS NULL AND issuing_authority IS NOT NULL` must be 0; if not, backfill via migration first).
+- Rename `employee_garnishments` → `legal_orders_records`; preserve `public.legal_orders` view name for consumers; update code refs.
+- Delete `src/lib/payroll/garnishment-engine.ts` shim if the guard architecture test allows.
 
-### Phase 4b — Test backfill (start here)
-
-Add to `src/lib/payroll/__tests__/garnishment-engine.test.ts`:
-1. `always_first` reserves before pool; child_support kind default drives it.
-2. `priority_class` orders two statutory kinds (tax_levy `class=2` before creditor `class=5`) irrespective of `priority` ties.
-3. `protected_earnings_rule.min_pct_of_gross` merges with explicit floor (max wins).
-4. `calc_model` fallback: order with `cap_rule=null` uses pack's `percent_disposable` model.
-
-Then confirm `src/test/architecture/no-duplicate-garnishment-engine.test.ts` still passes.
-
-### Phase 4c — Effective-window filter in engine
-
-Add `period_start`/`period_end` args to `computeGarnishments`; skip orders outside window; unit-test future-dated + expired orders.
-
-### Phase 5 — Context-aware UI
-
-1. New hook `src/hooks/useLegalOrders.ts` reading `public.legal_orders` view — returns resolved kind contract (`calc_model`, `priority_class`, `evidence_requirements`, `completion_rule`, `aggregate_cap_membership`, `authority`).
-2. Rewrite `Garnishments.tsx` form:
-   - Kind picker seeds order defaults from resolved kind row.
-   - Calc section shows only fields matching `calc_model` (fixed vs %disposable vs lesser_of vs statutory_formula placeholder).
-   - Authority: replace free-text with `AuthorityPicker` bound to `legal_order_authorities` + "add new" affordance for admins.
-   - Completion section: `by_date`⇒require `end_date`, `by_balance`⇒require `total_owed`, `indefinite`⇒hide both.
-   - Evidence section: renders `legal_order_documents` list with upload; blocks Activate when required evidence missing.
-3. `GarnishmentDashboard.tsx`: show `priority_class`, badge `always_first`, badge missing evidence, badge pending-approval.
-4. Route alias `/hr/payroll/legal-orders` (same component); update `PayrollSidebar` label to "Legal Orders" with "Garnishments" as secondary.
-
-### Phase 5b — Documents & Approvals (from gaps A & B)
-
-- Migration: `legal_order_documents` table + `legal-orders` storage bucket + RLS.
-- Migration: seed default `approval_workflow` per org on first pack install requiring approval; expose via existing Approvals surface.
-- FSM: on `submit`, RPC auto-creates `approval_requests` row when workflow exists.
-
-### Phase 6 — Consumer rewire + event fabric
-
-1. Seed `business_event_topics` with every `legal_order.<action>`.
-2. Outbox subscriber: `legal_order.payment_posted` → append remittance batch line (replace direct poll).
-3. Reporting extract binds to `public.legal_orders` view.
-4. Notification rules: activate/approve/mark_satisfied/terminate_unsatisfied.
-5. Vendor statement export switches to view.
-
-### Phase 7 — Cleanup
-
-- Drop free-text `issuing_authority` after all rows have `authority_id`.
-- Rename `employee_garnishments` → `legal_orders_records`; keep view.
-- Remove `src/lib/payroll/garnishment-engine.ts` shim if all imports moved to canonical path (guard test permits).
+### Acceptance per step
+- Engine + architecture tests green (`bunx vitest run src/lib/payroll/__tests__/garnishment-engine.test.ts` → 13/13; no-duplicate guard passes).
+- One signed-in `owner` activation succeeds end-to-end.
+- No `legal_order.*` outbox rows in `failed` state after step lands.
 
 ## Technical notes
 
-- All DB writes via migrations; grants + RLS reviewed per new table.
-- Every phase ends with the same evidence: engine + architecture tests green, one live activation from a signed-in `owner` returning 200, `business_event_outbox` row visible.
-- Documented per-phase in `docs/audit/` alongside `2026-07-22-legal-orders.md`.
-- Plan.md updated after each phase so status stays honest.
-
-## Handoff for the next agent (after Phase 6b — 2026-07-22)
-
-**Verify first, then resume.** Before writing new code, confirm the previous work landed correctly:
-
-1. **DB objects present**
-   - `\d public.legal_order_remittance_lines` — table exists with unique `(source_event_id)` and `(payment_id)`; RLS enabled; only SELECT policy for authenticated roles.
-   - `\d public.legal_order_event_dispatch_log` — PK on `source_event_id`.
-   - `\df public.legal_order_apply_payment_remittance` and `\df public.legal_order_notify_event` — both `SECURITY DEFINER`, `EXECUTE` granted only to `service_role`.
-2. **Dispatcher registry closed and complete**
-   - `rg -n "legal_order\." supabase/functions/outbox-dispatcher/index.ts` — must show all 11 topics wired.
-   - Emit a synthetic `legal_order.activate` outbox row for a test org and confirm the dispatcher marks it `succeeded` and inserts one `legal_order_event_dispatch_log` row.
-   - Emit a synthetic `legal_order.payment_posted` row and confirm one `legal_order_remittance_lines` row appears; re-emit the same event id → no duplicate (idempotency).
-3. **Regression gates green**
-   - `bunx vitest run src/lib/payroll/__tests__/garnishment-engine.test.ts` → 13/13.
-   - `bunx vitest run src/test/architecture/no-duplicate-garnishment-engine.test.ts` → pass.
-4. **No orphaned emissions**
-   - `SELECT event_type, count(*) FROM business_event_outbox WHERE event_type LIKE 'legal_order.%' AND status='failed' GROUP BY 1;` — expect zero rows attributable to Phase 6b topics.
-
-If any of the above fails, fix it before moving on — do **not** stack Phase 6c on a broken subscriber.
-
-**Then resume with Phase 6c (reporting rebind).** In order:
-
-1. `rg -n "employee_garnishments" src/ supabase/functions/_shared/reports/` — every reporting/vendor-statement read must go through `public.legal_orders` (view) or `public.legal_order_remittance_lines` (projection). Rewrite in-place; keep the FSM/write paths on the physical table.
-2. `payroll_return_runs` — join to the view, not the base table, so `authority`, `priority_class`, and `calc_model` are always resolved.
-3. Add one integration test that renders a statutory return with two orders (one child_support, one tax_levy) and asserts the projection order matches `priority_class`.
-4. Update this plan.md the moment 6c lands; do not defer.
-
-**Do not skip ahead to Phase 7 (rename/drop columns) until 6c is verified** — dropping `issuing_authority` before reporting reads are on the view will break statements silently.
+- DB changes via `supabase--migration`; new tables get GRANTs + RLS in the same migration.
+- No new `has_permission` function; reuse `has_role` + `self_action_policy` per existing decision.
+- FSM/write paths stay on `employee_garnishments`; read/reporting paths move to the view — this is the invariant that survives the rename in Step D.
