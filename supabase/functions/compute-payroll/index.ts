@@ -4403,7 +4403,14 @@ Deno.serve(async (req) => {
           }
           return sum > 0 ? Math.round(sum * 100) / 100 : null;
         })(),
-        status: "pending",
+        // Insert the header as a construction draft because Supabase REST
+        // writes payslips and payslip_lines in separate database transactions.
+        // The DB integrity trigger intentionally skips draft headers, then we
+        // promote regular-run payslips to `pending` after authoritative lines
+        // have been inserted below, causing the trigger to validate against the
+        // completed line set. Do not insert non-draft here unless headers and
+        // lines are persisted in the same SQL transaction.
+        status: "draft",
         // Human-readable breakdown for reports/UI. Garnishment keys are
         // remapped from opaque `garnishment_<uuid>` codes to the resolved
         // order label ("Child support (CASE-…)") — the join key stays on
@@ -4935,6 +4942,26 @@ Deno.serve(async (req) => {
           if (!code) continue;
           const lid = lineIdByKey.get(`${(ir as any).payslip_id}|${code}`);
           if (lid) (ir as any).payslip_line_id = lid;
+        }
+      }
+    }
+
+    // Finalize regular-run payslips only after payslip_lines exist. This is
+    // the transaction-boundary bridge for the DB guard: the status transition
+    // draft -> pending fires `payslips_totals_match_lines`, which now sees the
+    // authoritative lines and rejects any header/line drift. Corrections remain
+    // draft delta documents until their existing lifecycle advances them.
+    if (runType !== "correction" && (insertedPayslips || []).length > 0) {
+      const insertedPayslipIds = (insertedPayslips || []).map((row: any) => row.id).filter(Boolean);
+      if (insertedPayslipIds.length > 0) {
+        const { error: finalizePayslipsErr } = await supabaseAdmin
+          .from("payslips")
+          .update({ status: "pending" })
+          .in("id", insertedPayslipIds);
+        if (finalizePayslipsErr) {
+          await supabaseAdmin.from("payslips").delete().eq("payroll_run_id", payrollRun.id);
+          await supabaseAdmin.from("payroll_runs").delete().eq("id", payrollRun.id);
+          throw finalizePayslipsErr;
         }
       }
     }
