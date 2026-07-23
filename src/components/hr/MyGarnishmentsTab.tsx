@@ -127,7 +127,7 @@ export function MyGarnishmentsTab({ employeeId }: { employeeId: string }) {
                   <TableRow key={o.id}>
                     <TableCell className="capitalize">{o.kind.replace(/_/g, " ")}</TableCell>
                     <TableCell>{o.case_reference ?? "—"}</TableCell>
-                    <TableCell>{o.issuing_authority ?? "—"}</TableCell>
+                    <TableCell>{o.authority_name ?? "—"}</TableCell>
                     <TableCell>
                       <Badge variant={STATUS_TONE[o.status] ?? "outline"} className="capitalize">{o.status}</Badge>
                     </TableCell>
