@@ -3929,8 +3929,14 @@ Deno.serve(async (req) => {
       totalEmployerContributions += empTotalEmployerContributions;
       totalNet += safeNetPay;
 
+      // Remap opaque `garnishment_<uuid>` keys to human labels for the
+      // run-level summary so the preview shows e.g. "Child support (CASE-123)"
+      // instead of a raw order id. The per-payslip deductions_detail still
+      // uses the stable code for downstream joins.
+      const garnLabelByCode = new Map(garnishmentLineMeta.map((g) => [g.code, g.label]));
       for (const [key, val] of Object.entries(deductionsDetail)) {
-        runDeductionsSummary[key] = (runDeductionsSummary[key] || 0) + val;
+        const summaryKey = garnLabelByCode.get(key) ?? key;
+        runDeductionsSummary[summaryKey] = (runDeductionsSummary[summaryKey] || 0) + val;
       }
       for (const [key, val] of Object.entries(contributionsDetail)) {
         runContributionsSummary[key] = (runContributionsSummary[key] || 0) + val;
