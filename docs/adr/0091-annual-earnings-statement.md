@@ -49,6 +49,9 @@ reporting) as extensions grafted onto that base.
   resolver.
 - Pack appendices are additive; they cannot mutate the base DTO.
 - dto_version + content_hash travel with every generation.
+- DTO-owned annual matrices are never re-pivoted by the generic statutory
+  certificate matrix path. `resolveAnnualEarnings()` is the sole writer of
+  `months[]`; renderers may only bind those values.
 
 ## Consequences
 
@@ -56,6 +59,10 @@ reporting) as extensions grafted onto that base.
 - The blank-YTD document is fixed at the root: the DTO now carries YTD
   totals, monthly matrix, and category breakdowns.
 - Regeneration is reproducible and auditable via content_hash.
+- The Annual Earnings Statement is protected from statutory template drift:
+  taxable income remains a canonical `taxable_amount` scalar, and employer
+  contributions remain sourced from `employer_amount`, not from a generic
+  `employee_amount` matrix pivot.
 
 ## Follow-ups
 
