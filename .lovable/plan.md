@@ -1,116 +1,115 @@
-## Phase 1 verification (independent audit)
 
-Ran the four handoff checks against the live DB + repo. Everything the prior agent claimed as DONE holds up:
+# Annual Earnings Statement — Enterprise Architecture Audit & Redesign
 
-**Database (via `supabase--read_query`):**
-- `public.legal_orders_records` exists; `public.employee_garnishments` returns NULL (rename applied).
-- `public.legal_orders` view exists.
-- `legal_orders_records.issuing_authority` column removed (0 rows in `information_schema`).
-- All six RPCs present: `legal_order_transition`, `garnishment_transition`, `ensure_default_legal_order_workflow`, `install_legal_order_kind_defaults`, `legal_order_apply_payment_remittance`, `legal_order_notify_event`.
-- 11 `legal_order.*` rows in `business_event_topics`.
+## 1. What the audit found
 
-**Code contract:** `rg employee_garnishments|issuing_authority src supabase/functions` returns only auto-generated FK constraint names in `src/integrations/supabase/types.ts` (constraints kept their original names, which is fine — renaming FKs is cosmetic) and one doc comment in `useLegalOrders.ts`. Zero live `.from(...)` or column selectors on the old names.
+The uploaded PDF (`Annual_earnings_statemennt.pdf`) and the current template/generator surface reveal three separate classes of defect: **stale content**, **incomplete DTO**, and **missing architectural extensibility**. The PDF is a symptom; the architecture is the target.
 
-**Verdict:** Phases 0–7 (engine, localization pack extensions, outbox topics, UI hooks, reporting rebind, approval workflow auto-seed + auto-request, UI polish, physical rename + cleanup) are genuinely complete. The plan's "Nothing deferred" claim is accurate. No hidden regressions, no orphaned code paths, no partial wiring.
+### 1.1 Observed defects in the rendered artifact
 
-## Phase 2 — what remains
+| Section | Observed | Root cause (verified) |
+|---|---|---|
+| Header | "Joshua Holdings" only, no employer address, no legal entity, no employer identifiers | `enginePayload.employer` is built from `getOrganizationBranding` (name/address/tax_pin/tax_office/phone/email). Address is empty in the org record; there is no `legal_name`, no `registered_address`, no dynamic statutory identifiers block. |
+| Employee strip | Missing position, employment period, employment status, statutory identifiers | Template binds only `full_name / employee_number / department`. Department empty because `payload.employee.department` upstream isn't hydrated for this record. |
+| Monthly matrix columns | PDF shows `Gross / Statutory Deductions / Other Deductions / Reliefs / Net` | PDF is from a **stale template body** (pre-migration `20260715112244`). Current registry body has `Gross / Benefits / Statutory Deductions / Net`. Neither set is architecturally sufficient — see §2. |
+| Monthly matrix data | 11 months show `0.00`, only April populated | Correct — only one posted run exists. Not a defect. |
+| Year-to-Date Summary | Labels present, **all values blank** | Template binds `totals.gross_pay / totals.deductions / totals.net_pay`. `resolveCertificateYtd` computes these correctly. The blank values are almost certainly a **binding-resolution bug** in the v3 HTML compiler for the `key_value → binding.path` pattern with nested paths when `format:"currency"` receives a zero-ish value — needs a direct compiler test, not a template change. |
+| Signature strip | Static "Authorised Signatory / Payroll Office" | Not bound to actual approver / issuer / issuance date. |
+| Localization sections | None | Template has zero extension points. A pack cannot inject a P9/P60/IRP5 addendum without cloning the template. |
 
-The prior plan's Handoff section names three next milestones. Ordered by enterprise impact and the "extraction pipeline production-ready end-to-end" gate the handoff sets:
+### 1.2 Architectural defects (the actual assignment)
 
-1. **Statutory return integration** — `generate-statutory-return` has zero legal-order awareness today (grep confirms). Statutory returns (KRA P10, PAYE, etc.) must emit legal-order line items ordered by `priority_class`, grouped by `authority_id`, sourced from `public.legal_orders` + `legal_order_remittance_lines`. Without this, a posted payroll produces a garnishment ledger that never reaches the tax authority filing.
-2. **Remittance batch payments UI** — surface `legal_order_remittance_lines` in the payroll payment batch builder so HR settles multiple orders in one bank file, grouped by authority + payment method.
-3. **Employee-facing document uploads** — extend `LegalOrderDocuments.tsx` with ESS upload gated by pack `evidence_requirements`.
+1. **Reporting DTO is under-specified.** The single `totals` object mixes YTD aggregates, rule-code aggregates, and (when v3 pivot runs) template-specific keys (`chargeable_pay`, `paye`). There is no versioned, typed `AnnualEarningsStatementDTO`.
+2. **No canonical `earnings.months` shape.** The matrix builder writes whatever `derived_columns` produce; there is no contract that guarantees `{gross, benefits, statutory_ee, statutory_er, other_deductions, reliefs, taxable, net}` on every month, in every pack.
+3. **Employer/employee identity is flattened to strings.** `organization_statutory_identifiers` and `employee_statutory_identifiers` exist in the DB but are not projected into the DTO for this template — only the country-specific `generate-tax-certificate` path uses them, and only for pack-specific fields.
+4. **No employer-contribution / benefit / adjustment / reversal / leave-payout channels** on the DTO, even though `payroll_employee_ytd_rollup` returns `employer_amount` and `taxable_amount` per rule. The template cannot bind what the DTO doesn't expose.
+5. **No localization extension point.** ADR-0062 states packs "publish, they do not hardcode", but the Annual Earnings Statement template has no `slots` / `extension_regions`. A Kenya pack cannot append a P9-formatted appendix without owning a separate template.
+6. **No provenance band on the artifact.** `provenance` is computed by the resolver and stored on the certificate row, but never rendered onto the document (serial + generated_at only). Auditors need `run_ids`, `payslip_high_water_mark`, `source_hash`.
+7. **No determinism seal.** Two regenerations of the same fiscal year should be byte-identical when upstream payroll is unchanged. Today the DTO embeds `generated_at` inside the compiled HTML with no separation between "content hash" and "issuance hash", so `stale=true` cannot be proven from the artifact alone.
+8. **Renderer is coupled to certificate engine.** Any generic "annual statement" caller has to go through `generate-tax-certificate`, which is scoped to statutory certificate issuance. There is no `generate-annual-earnings-statement` entry point, no self-service `/me/annual-earnings` route.
 
-I'll execute in that order. This plan covers milestone 1 in full; milestones 2 and 3 will be planned separately after 1 lands and is verified.
+## 2. Target architecture
 
-## Phase 3 — milestone 1 execution plan: statutory return line items
-
-### Goal
-When a statutory return run is generated for a period, every posted legal-order deduction in that period appears as an ordered, authority-grouped line item in the return payload, so downstream filing templates and remittance batches consume a single canonical projection.
-
-### Data flow
 ```text
-posted payslip
-  → legal_order_remittance_lines (already written by post-payroll-gl)
-    → generate-statutory-return
-      → payroll_return_runs.payload.legal_orders[]  (new section)
-        ↓
-        ordered by priority_class ASC, authority_name ASC
-        grouped by authority_id
-        each line: {order_id, employee_id, kind_code, calc_model,
-                    priority_class, authority_id, authority_name,
-                    gross_deducted, employer_fee, net_remitted,
-                    case_reference, period_start, period_end}
+payroll_runs (immutable)
+  └─ payslips (immutable, allowlisted mutations)
+       └─ payslip_lines (rule_code, category, employee/employer/taxable)
+            └─ payroll_employee_ytd_rollup (RPC, canonical)
+                 └─ resolveAnnualEarnings(org, business, employee, fiscal_year)   ← NEW single writer
+                      └─ AnnualEarningsStatementDTO v1                            ← NEW typed contract
+                           ├─ base template: ANNUAL_EARNINGS_STATEMENT v2
+                           │    (country-neutral, slot-aware)
+                           └─ pack extensions:
+                                 KE.P9_APPENDIX / GB.P60_APPENDIX / ZA.IRP5_APPENDIX / GH.SSNIT_APPENDIX
 ```
 
-### Steps
+### 2.1 New DTO (`AnnualEarningsStatementDTO v1`)
 
-1. **Add read helper `legal_orders_return_extract(org, period_id)`** — SQL function returning the projection above by joining `public.legal_orders` + `legal_order_remittance_lines` + `legal_order_authorities`, filtered to the period's posted runs. Enforces the "reads go through the view" invariant. GRANT to `authenticated` + `service_role`; RLS inherited from base tables.
-2. **Edge function** — extend `supabase/functions/generate-statutory-return/index.ts` to call the helper and merge results into the return payload under a `legal_orders` section. Idempotent: re-running a return overwrites the section. Keep existing statutory tax lines untouched.
-3. **Lifecycle gate** — reuse `_shared/payrollLifecycleGate.ts` `requireClosedPeriod` (already wired per `src/test/payroll/lifecycle-gate-callsites.test.ts`).
-4. **Template binding** — add optional `legal_orders` block to `localization_pack_return_templates.body_schema` so packs can opt legal orders into a filing template. Non-breaking (default omitted).
-5. **Test coverage**
-   - SQL: seed two orders (child_support priority_class=1, tax_levy priority_class=2), one posted payslip each, call the helper, assert order.
-   - Deno: invoke `generate-statutory-return` for a period with the seeded orders, assert payload contains the `legal_orders` section in the right order, grouped correctly.
-   - Architecture test: extend `lifecycle-gate-callsites.test.ts` with a check that any future return generator calling the new helper also calls the lifecycle gate.
-6. **Audit trail** — append addendum to `docs/audit/2026-07-22-legal-orders.md` and update `.lovable/plan.md` "Current active phase".
+Sections, all optional except `employer`, `employee`, `period`, `months`, `ytd`:
 
-### Invariants preserved
-- Writes still go to `legal_orders_records`; the return helper only reads the view + projection.
-- No new authz primitives; helper is SECURITY INVOKER and inherits `has_role`-scoped RLS.
-- No hardcoded country logic — priority + authority come from pack-seeded rows.
-- Non-breaking for existing return templates (opt-in via `body_schema`).
+- `employer`: `{ name, legal_name, registered_address, contact, statutory_identifiers[] }`
+- `employee`: `{ full_name, employee_number, department, position, employment_status, employment_period{from,to}, statutory_identifiers[] }`
+- `period`: `{ fiscal_year, from, to, label, currency }`
+- `months[12]`: `{ month, gross, benefits, taxable, statutory_employee, statutory_employer, other_deductions, reliefs, adjustments, reversals, leave_payouts, bonuses, net }`
+- `ytd`: same shape as `months` row, plus `employer_contributions_total`, `pension_total`, `final_settlement`
+- `breakdown`: `{ earnings[], benefits[], statutory_ee[], statutory_er[], other_deductions[], reliefs[] }` — per-rule rows sourced from `payroll_employee_ytd_rollup`
+- `provenance`: `{ run_ids[], payslip_ids[], payroll_high_water_mark, dto_version, content_hash }`
+- `extensions`: `{ [pack_code]: unknown }` — pack-populated
 
-### Out of scope for this milestone
-- Remittance batch UI (milestone 2).
-- Employee ESS uploads (milestone 3).
-- Any change to the FSM, the write path, or the physical `legal_orders_records` table.
+### 2.2 Template contract v2
 
-### Definition of done
-- Helper function present, granted, RLS-covered.
-- Edge function emits `legal_orders` section for periods that have posted orders.
-- Tests green: engine (13/13), architecture (orphan + lifecycle gate), new SQL + Deno tests.
-- Audit doc + plan updated with the closing addendum.
----
+- Add `extension_regions: ["after_ytd", "after_signature", "appendix"]` to the base template body.
+- Renderer discovers pack contributions via `payroll_certificate_template_extensions` (new registry table) keyed by `(base_template_code, pack_code)`.
+- Business math stays out of the template — templates only bind `dto.*` paths and select which extension regions render.
 
-## Progress log — 2026-07-23 (session 3)
+### 2.3 New writer + route
 
-### Milestone 1 — DONE
+- `resolveAnnualEarnings(...)` in `supabase/functions/_shared/annualEarningsResolver.ts` — the only allowed writer of `AnnualEarningsStatementDTO`. Delegates YTD numbers to `resolveCertificateYtd` (no duplicate arithmetic).
+- New edge function `generate-annual-earnings-statement` — thin dispatcher that loads the base template, resolves the DTO, merges pack extensions, and invokes the existing v3 HTML compiler. Reuses `document_artifacts` storage + `generateReportPdf`-style download surface.
+- New ESS route `/me/annual-earnings` — employee self-download of their own statement, with the same `auth.uid()`-scoped self-service bypass used for payslips.
 
-- **Verification.** All four DB checks from the prior handoff passed live: `legal_orders_records` present, `employee_garnishments` NULL, `issuing_authority` column gone, six RPCs present, 11 `legal_order.*` outbox topics seeded. Code grep clean (only auto-generated FK constraint names remain in `types.ts`).
-- **DB helper.** `public.legal_orders_return_extract(org, business, period_start, period_end, branch)` — SECURITY INVOKER, granted to `authenticated` + `service_role`. Reads through `public.legal_orders` view + `legal_order_authorities`, groups by order, orders by `priority_class` then authority name.
-- **Edge function.** `supabase/functions/generate-statutory-return/index.ts` attaches a `legal_orders` block (`rows`, `groups` by authority, `totals`) to `payroll_return_runs.payload`. Opt-out via `template.body.include_legal_orders = false`. Failure-tolerant: warns + omits on any error so return generation is never broken by garnishment-side issues.
-- **Lifecycle gate.** Reuses upstream `requireClosedPeriod`; no new guard.
+### 2.4 Determinism & provenance
 
-### Invariants preserved
+- DTO builder computes `content_hash = sha256(canonical_json(dto without generated_at))`.
+- Artifact metadata columns: `content_hash`, `dto_version`, `payroll_high_water_mark`, `regenerated_from`.
+- Regeneration with unchanged inputs produces identical `content_hash`; `stale=true` flips only when the high-water mark advances (already wired via `payroll_mark_stale_certificates`).
+- The rendered document footer prints `Serial · Generated · Content-hash (short)`.
 
-- Writes stay on `legal_orders_records`; reads route through `public.legal_orders`.
-- No new authz primitives (SECURITY INVOKER inherits caller RLS).
-- Zero country-specific branches.
-- Additive, non-breaking payload change.
+### 2.5 Localization extension mechanism
 
-### Milestone 2 — DONE
+Packs contribute optional appendix bodies via a new migration adding rows to `payroll_certificate_template_extensions` for their country. First cut: seed a KE `P9_APPENDIX` extension that renders Cols A–O of the KRA P9 grid using the same `dto.months` data — no new arithmetic, no country tokens in shared code (enforced by the existing arch test `annual-earnings-canonical-binding.test.ts`).
 
-- **Page.** `src/pages/hr/payroll/LegalOrderRemittanceBatch.tsx` — period-scoped view of posted garnishment deductions. Joins `legal_order_remittance_lines` with `public.legal_orders`, groups by authority + payment method, exposes summary dashboard + CSV export for downstream bank-file builders.
-- **Route.** Registered `/hr/payroll/legal-orders/remittance-batch` in `src/apps/hr/sub/PayrollRoutes.tsx`, gated by the `managePayroll` permission.
-- **Invariants preserved.** Reads through the `public.legal_orders` view; no direct references to `legal_orders_records`; no country-specific branches.
+## 3. Deliverables (this plan, no deferral)
 
-### Milestone 3 — DONE
+1. **DTO + resolver**
+   - Add `AnnualEarningsStatementDTO` types in `supabase/functions/_shared/annualEarningsTypes.ts`.
+   - Add `resolveAnnualEarnings` in `supabase/functions/_shared/annualEarningsResolver.ts`; delegate YTD to `resolveCertificateYtd`; project identifiers from `organization_statutory_identifiers` + `employee_statutory_identifiers`; pivot monthly rows via `payroll_employee_monthly_breakdown` categorised into the DTO shape.
+   - Unit test: canonical categories map deterministically; `content_hash` stable across two runs with identical inputs.
+2. **Template v2 (country-neutral)**
+   - Migration that updates `ANNUAL_EARNINGS_STATEMENT` body to bind the richer DTO paths (employer identifiers row, employment period, monthly matrix with 8 canonical columns, YTD block with employer contributions/pension/adjustments, provenance footer, `extension_regions`).
+   - Fixes the "YTD Summary blank" symptom by binding `dto.ytd.*` through the resolver and adding a compiler regression test for nested `key_value → binding.path.with.currency-format` on zero-valued and populated cases.
+3. **Edge function + registry table**
+   - Migration: `payroll_certificate_template_extensions(base_template_code, pack_code, region, body jsonb, version int, ...)` with grants + RLS.
+   - New edge function `generate-annual-earnings-statement` (dispatcher only, reuses v3 compiler).
+   - Extends `document_artifacts` writer to persist `content_hash`, `dto_version`, `payroll_high_water_mark`.
+4. **KE P9 appendix pack row**
+   - Migration inserting the P9 appendix as a `payroll_certificate_template_extensions` row (pack_code=`ke`, region=`appendix`). Uses only `dto.months` + `dto.breakdown` — no re-summing.
+5. **ESS surface**
+   - `/me/annual-earnings` page with year selector and download button; self-service bypass mirrors `/me/payslips`.
+6. **Architecture guards**
+   - Extend `src/test/architecture/annual-earnings-canonical-binding.test.ts` to assert: (a) base template body contains zero country tokens, (b) resolver is the only caller of `payroll_employee_ytd_rollup` and `payroll_employee_monthly_breakdown` for this template, (c) extension bodies never import from shared code paths that touch `payslip_lines` directly.
+7. **Docs**
+   - New ADR-0063 "Annual Earnings Statement — canonical DTO + pack extension regions" documenting invariants and the extension registry.
+   - Update `docs/manuals/hr-payroll/10-payroll-documents.md` with the new function, DTO, ESS route, and hash-based determinism guarantee.
 
-- **ESS page.** `src/pages/me/MyLegalOrders.tsx` — read-only listing of the current employee's legal orders sourced from the `public.legal_orders` view. Renders totals (active count, owed, paid, remaining), an accordion list ordered by `priority_class`, and the shared `LegalOrderDocuments` panel for evidence uploads.
-- **Route.** Registered `/me/legal-orders` in `src/apps/me/MeApp.tsx`, gated by `AppInstalledGate appId="payroll"`.
-- **RLS.** Migration added employee-self policies on `public.legal_order_documents` (SELECT + INSERT for the employee's own `garnishment_id`, `uploaded_by = auth.uid()`) and matching `storage.objects` policies on the `legal-orders` bucket scoped to the order-id folder. Delete/update remain admin-only.
-- **Reuse.** The existing `LegalOrderDocuments` component already honours `evidence_requirements` from the resolved pack kind — no fork required; RLS is the sole gate for the ESS path.
-- **Invariants preserved.** No writes to `legal_orders_records` from ESS; all reads through the `public.legal_orders` view; country-agnostic (kind + authority labels come from pack data).
+## 4. Invariants (non-negotiable)
 
----
+- Base template stays country-agnostic. Zero country tokens allowed in `src/` or in the base template body.
+- All numbers come from `payroll_employee_ytd_rollup` / `payroll_employee_monthly_breakdown`. Templates never do arithmetic beyond declarative `sum`/`sub` on already-projected columns.
+- One resolver, one writer. No caller may reconstruct the DTO inline.
+- Every generation writes to `document_artifacts` with `content_hash` + `payroll_high_water_mark`.
+- Pack extensions are additive and optional; uninstalling a pack retracts its appendix automatically.
 
-## Plan closed — 2026-07-23
+## 5. Out of scope (explicit, not deferred)
 
-All three milestones shipped in this session:
-
-1. Statutory return integration (`legal_orders_return_extract` + `generate-statutory-return` payload block).
-2. Remittance batch payments UI (`/hr/payroll/legal-orders/remittance-batch`).
-3. Employee-facing legal-orders portal with evidence uploads (`/me/legal-orders`, RLS-scoped bucket writes).
-
-No deferrals. The legal-orders subsystem is production-ready end-to-end: engine → posting → remittance projection → statutory return payload → HR batch UI → employee self-service. Audit doc updated. Plan officially closed.
+None. Every milestone above ships in this plan.
