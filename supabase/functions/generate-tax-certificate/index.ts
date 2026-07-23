@@ -21,6 +21,7 @@ import { getOrganizationBranding } from "../_shared/branding/index.ts";
 import { renderTemplateBody } from "../_shared/renderTemplateBody.ts";
 import { type MonthlyRow } from "../_shared/certificateSections.ts";
 import { resolveCertificateYtd } from "../_shared/certificateSourceResolver.ts";
+import { resolveAnnualEarnings } from "../_shared/annualEarningsResolver.ts";
 import {
   requireApprovedRunsForYear,
 } from "../_shared/payrollLifecycleGate.ts";
