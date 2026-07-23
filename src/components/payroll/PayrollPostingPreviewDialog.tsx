@@ -45,6 +45,7 @@ import {
 import { AlertTriangle, CheckCircle2, PlayCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
+import { dispatchMissingMappings } from "@/hooks/payroll/usePayrollGlReadiness";
 
 interface SimLine {
   account_id: string;
@@ -96,10 +97,42 @@ export function PayrollPostingPreviewDialog({
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<PreviewResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [missingMappingsErr, setMissingMappingsErr] = useState<
+    | {
+        message: string;
+        missing: Array<{ setting_key: string; label: string; kind: string }>;
+      }
+    | null
+  >(null);
+
+  const handleMissingMappings = (parsed: any) => {
+    const missing = Array.isArray(parsed?.missing) ? parsed.missing : [];
+    setMissingMappingsErr({
+      message:
+        parsed?.message ||
+        "One or more GL accounts required for this run aren't mapped yet.",
+      missing,
+    });
+    // Fire the global event so the MissingMappingsDialog auto-opens with
+    // the exact keys (and its "One-click setup" button).
+    dispatchMissingMappings({
+      message: parsed?.message ?? "Missing GL mappings",
+      missing: missing.map((m: any) => ({
+        setting_key: m.setting_key,
+        label: m.label ?? m.setting_key,
+        rule_code: m.rule_code ?? null,
+        kind: m.kind ?? "employee_payable",
+        suggested_account_id: m.suggested_account_id ?? null,
+        suggested_account_label: m.suggested_account_label ?? null,
+      })),
+      action: parsed?.action,
+    });
+  };
 
   const runSim = useMutation({
     mutationFn: async () => {
       setErrorMsg(null);
+      setMissingMappingsErr(null);
       const { data, error } = await supabase.functions.invoke("post-payroll-gl", {
         body: {
           payroll_run_id: runId,
@@ -114,6 +147,10 @@ export function PayrollPostingPreviewDialog({
           const ctx: any = (error as any)?.context;
           if (ctx && typeof ctx.json === "function") parsed = await ctx.json();
         } catch { /* keep parsed = null */ }
+        if (parsed?.error === "missing_mappings") {
+          handleMissingMappings(parsed);
+          throw new Error(parsed.message || "Missing GL mappings");
+        }
         const msg =
           parsed?.message ||
           parsed?.error ||
@@ -122,7 +159,13 @@ export function PayrollPostingPreviewDialog({
         throw new Error(msg);
       }
       const d = data as any;
-      if (d?.error) throw new Error(d.message || d.error);
+      if (d?.error) {
+        if (d.error === "missing_mappings") {
+          handleMissingMappings(d);
+          throw new Error(d.message || "Missing GL mappings");
+        }
+        throw new Error(d.message || d.error);
+      }
       return d as PreviewResult;
     },
     onSuccess: (r) => {
@@ -139,8 +182,12 @@ export function PayrollPostingPreviewDialog({
       }
     },
     onError: (e: any) => {
-      const msg = normalizeError(e).message || "Preview failed";
-      setErrorMsg(msg);
+      // If we already captured a structured missing-mappings error, keep the
+      // richer inline UI instead of overwriting it with a plain string.
+      if (!missingMappingsErr) {
+        const msg = normalizeError(e).message || "Preview failed";
+        setErrorMsg(msg);
+      }
       setResult(null);
     },
   });
@@ -153,6 +200,7 @@ export function PayrollPostingPreviewDialog({
         if (!v) {
           setResult(null);
           setErrorMsg(null);
+          setMissingMappingsErr(null);
         } else {
           // Auto-run on open so the accountant sees the projection immediately.
           runSim.mutate();
@@ -190,6 +238,49 @@ export function PayrollPostingPreviewDialog({
                 Preview failed
               </div>
               <div className="mt-1 text-destructive/90">{errorMsg}</div>
+            </div>
+          )}
+
+          {missingMappingsErr && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm space-y-2">
+              <div className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-4 w-4" />
+                Setup required before this run can post
+              </div>
+              <p className="text-amber-800 dark:text-amber-300">
+                {missingMappingsErr.message}
+              </p>
+              <ul className="ml-5 list-disc text-xs text-amber-900/90 dark:text-amber-200/90">
+                {missingMappingsErr.missing.map((m) => (
+                  <li key={m.setting_key}>
+                    <span className="font-medium">{m.label}</span>{" "}
+                    <span className="font-mono opacity-70">({m.setting_key})</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    // Re-dispatch to re-open the global setup dialog in case
+                    // it was dismissed, then close the preview sheet.
+                    handleMissingMappings({
+                      message: missingMappingsErr.message,
+                      missing: missingMappingsErr.missing,
+                    });
+                    setOpen(false);
+                  }}
+                >
+                  Fix now (one-click setup)
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => runSim.mutate()}
+                >
+                  Retry preview
+                </Button>
+              </div>
             </div>
           )}
 
