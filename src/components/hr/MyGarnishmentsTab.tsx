@@ -19,7 +19,7 @@ interface OrderRow {
   id: string;
   kind: string;
   case_reference: string | null;
-  issuing_authority: string | null;
+  authority_name: string | null;
   status: string;
   start_date: string;
   end_date: string | null;
