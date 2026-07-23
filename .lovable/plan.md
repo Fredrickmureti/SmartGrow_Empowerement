@@ -1,69 +1,100 @@
-## Diagnosis (verified against code + database)
+## Root cause
 
-Enterprise ownership is already correct in this codebase:
+`public.garnishment_transition` writes directly into `business_event_outbox` using a legacy column vocabulary that no longer exists:
 
-- **Annual Earnings Statement** is a payroll-engine report. Its single writer is `supabase/functions/_shared/annualEarningsResolver.ts` and its versioned contract is `AnnualEarningsStatementDTO v1` (`annualEarningsTypes.ts`). Dispatcher `generate-annual-earnings-statement` is thin.
-- **Country certificates (P9/P60/IRP5/...)** are localization-pack extension bodies spliced into the base template via `payroll_certificate_template_extensions` (ADR-0091). They do not fork the engine.
-- **Statutory returns** (`generate-statutory-return`) and **tax certificates** (`generate-tax-certificate`) both go through `resolveCertificateYtd` — the canonical YTD reader — enforced by ESLint (`no-payslip-lines-in-certificates`) and the arch tests.
-
-So the ownership model does not need to be re-drawn. What is actually broken is the resolver's read of canonical payroll data, plus a duplicate aggregation path that produced the empty YTD Summary and made the base DTO non-single-source. Fix at the root, not the template.
-
-### Root causes
-
-1. **Empty YTD Summary and empty matrix.** `resolveAnnualEarnings` reads `row.month` from RPC `payroll_employee_monthly_breakdown`, but the RPC returns `month_index` (confirmed via `pg_get_functiondef`). Every row is dropped (`mIdx = 0 → continue`), so `months[]` stays zero-filled. `ytd` is then derived by summing those zero months → the entire Year-to-Date Summary renders as 0.
-
-2. **Duplicate YTD aggregation.** Even after (1) is fixed, YTD totals are computed twice: once by summing months in the resolver, once by `resolveCertificateYtd` from the canonical `payroll_employee_ytd` view. That violates single-writer: the same figure has two derivations that will drift (taxable is the obvious one — `category='taxable'` does not exist in payslip_lines; only `taxable_amount` per row does, so summing months gives 0 while the rollup has real values).
-
-3. **`taxable` channel is dead code.** `routeCategoryToChannel('taxable')` never fires — production categories are `earning|benefit|statutory_employee|statutory_employer|deduction|relief`. `ytd.taxable` must come from summing `taxable_amount` on the rollup, not from a non-existent category.
-
-4. **Identity placeholders render `—` instead of being either authoritative or intentionally omitted.** Employer legal_name/address/contact and employee employment_period fall through to `fallback: "—"` in the template even when the underlying config is genuinely missing. Enterprise reports should show authoritative data or omit the row, not decorate it with an em-dash.
-
-5. **`content_hash_short` in the page footer has `fallback: "—"`.** The resolver always writes it, so the fallback is misleading — remove it so a missing hash is a bug, not a designed state.
-
-## Fix — payroll-engine layer only
-
-### A. `supabase/functions/_shared/annualEarningsResolver.ts`
-- Read `row.month_index` (with `row.month` as a legacy alias for safety).
-- Make `ytdSource` the single source for every YTD total. Compute:
-  - `gross`, `benefits`, `statutory_employee`, `statutory_employer`, `other_deductions`, `reliefs`, `adjustments`, `reversals`, `leave_payouts`, `bonuses` — by summing `employee_amount` grouped by `routeCategoryToChannel(row.category)` over `ytdSource.rows`.
-  - `taxable` — by summing `taxable_amount` over all rows (only real source; no category).
-  - `net = gross + benefits − statutory_employee − other_deductions` (matches per-payslip net convention already used).
-  - `employer_contributions_total = ytdSource.totals.employer`.
-  - `pension_total` — keep the existing rule_code-token heuristic (country-neutral, packs opt in via naming).
-- Monthly rows: still built from `payroll_employee_monthly_breakdown`, but each month's `taxable` comes from `taxable_amount` per row (not category routing). Monthly `net` uses the same formula.
-- Remove the "sum months → YTD" loop; `ytd` is derived only from the canonical rollup. Months and YTD then agree by construction (both read the same underlying `payslip_lines` through the two SECURITY DEFINER views).
-
-### B. `supabase/functions/_shared/annualEarningsTypes.ts`
-- Drop the dead `case "taxable"` branch from `routeCategoryToChannel` and add a comment naming `taxable_amount` as the sole source of the taxable channel.
-
-### C. Base template row `ANNUAL_EARNINGS_STATEMENT` (migration)
-- Remove `fallback: "—"` on `employer.legal_name`, `employer.registered_address`, `employer.contact`, `employee.department`, `employee.position`, `employee.employment_period.label`, `provenance.content_hash_short`. The compiler already elides `key_value` rows whose binding resolves to `null`/empty, so missing config becomes an omitted row instead of a decorative em-dash. `content_hash_short` is always populated by the resolver — a missing value is now a visible bug (correct signal).
-- Keep every other node identical — no cosmetic changes.
-
-### D. Regression tests
-- `supabase/tests/annual_earnings_resolver_test.ts` (new Deno test): seed a minimal payslip set and assert `dto.ytd.gross > 0` and `dto.ytd.gross === Σ dto.months[i].gross` — i.e. the two projections agree by construction, and the RPC-column-name bug cannot come back silently.
-- Extend `src/__tests__/architecture.annual-earnings-country-agnostic.test.ts` list with any file touched (no new files added outside the guard).
-
-### E. Provenance already satisfies determinism
-- `content_hash` strips `generated_at` and `serial_number` and canonical-sorts keys. No change needed. The test in (D) also asserts hash stability across two resolves with the same inputs.
-
-## Out of scope (intentionally)
-
-- No changes to `generate-tax-certificate`, statutory-return generation, localization-pack contract, ESLint rules, or the certificate compiler. Those layers are already architecturally correct.
-- No new UI or template polish beyond removing misleading em-dash fallbacks.
-- No changes to `payroll_employee_ytd_rollup` / `payroll_employee_monthly_breakdown` SQL — the resolver aligns with them, not the reverse.
-
-## Files touched
-
-```text
-supabase/functions/_shared/annualEarningsResolver.ts
-supabase/functions/_shared/annualEarningsTypes.ts
-supabase/migrations/<new>_annual_earnings_template_no_placeholders.sql
-supabase/tests/annual_earnings_resolver_test.ts   (new)
-src/__tests__/architecture.annual-earnings-country-agnostic.test.ts   (guard list)
+```sql
+INSERT INTO business_event_outbox(
+  organization_id, business_id, event_type,
+  aggregate_type, aggregate_id, payload, status
+) ...
 ```
 
-## Verification
+The canonical outbox schema is:
 
-- Unit: run the new resolver test.
-- Manual: invoke `generate-annual-earnings-statement` for an employee with approved payroll history; confirm matrix months are non-zero, YTD Summary matches the sum of months, footer shows a real 12-char content hash, and re-invoking yields the same `content_hash`.
+```
+org_id, branch_id, warehouse_id, event_type,
+source_doc_type, source_doc_id, payload,
+status, attempts, idempotency_key (NOT NULL, UNIQUE),
+actor_user_id, source (event_source_domain, NOT NULL),
+handler_scope (NOT NULL), claimed_at, claim_lease_seconds, worker_id, ...
+```
+
+So `organization_id`/`business_id`/`aggregate_*` don't exist, `idempotency_key` and `source` are required, and there is no `status='pending'` literal wiring — status has a default via the enum. The `EXCEPTION WHEN undefined_table THEN NULL` swallowed nothing (the table exists), but `undefined_column` (42703) is not caught, so the whole transition RPC 400s.
+
+The canonical publisher already exists and is used by inventory / PO / GRN / bill / sourcing / ASN / POS / payslip / payroll batch modules:
+
+```sql
+public.publish_business_event(
+  p_org_id, p_branch_id, p_warehouse_id,
+  p_event_type, p_source_doc_type, p_source_doc_id,
+  p_payload, p_idempotency_key, p_actor_user_id
+) RETURNS uuid
+```
+
+It handles `ON CONFLICT (org_id, idempotency_key) DO NOTHING`, sets `source` from the topic registry, and lets triggers stamp `handler_scope`. This is the source of truth. Garnishments must use it — not a bespoke INSERT and not a new schema.
+
+`business_id` is not a column on the outbox anymore; downstream consumers read it from the payload (see `emit_business_event`, which folds `business_id` into payload JSON). We follow the same convention.
+
+## Plan
+
+Single migration on `public.garnishment_transition` (SECURITY DEFINER, same signature, same behavior) that:
+
+1. Removes the direct `INSERT INTO business_event_outbox(...)` block.
+2. Registers the six legal-order topics in `business_event_topics` if missing, mapped to the `payroll` source domain (the domain already used by `_payroll_batch_emit_event` / `_payroll_payment_batch_emit_event`):
+   - `legal_order.submit`, `legal_order.approve`, `legal_order.reject`,
+     `legal_order.activate`, `legal_order.suspend`, `legal_order.resume`,
+     `legal_order.mark_satisfied`, `legal_order.release`,
+     `legal_order.expire`, `legal_order.terminate_unsatisfied`
+3. Replaces the emit block with a single call:
+   ```sql
+   PERFORM public.publish_business_event(
+     p_org_id           => v_row.organization_id,
+     p_branch_id        => NULL,
+     p_warehouse_id     => NULL,
+     p_event_type       => 'legal_order.' || p_action,
+     p_source_doc_type  => 'legal_order',
+     p_source_doc_id    => v_row.id,
+     p_payload          => jsonb_build_object(
+                             'business_id',   v_row.business_id,
+                             'employee_id',   v_row.employee_id,
+                             'from',          v_from,
+                             'to',            v_to,
+                             'reason_code',   p_reason_code,
+                             'reason_text',   p_reason_text,
+                             'evidence_url',  p_evidence_url,
+                             'actor',         v_actor,
+                             'payload',       p_payload
+                           ),
+     p_idempotency_key  => 'legal_order:' || v_row.id::text || ':'
+                           || v_from::text || '->' || v_to::text || ':'
+                           || extract(epoch from now())::bigint::text,
+     p_actor_user_id    => v_actor
+   );
+   ```
+   Idempotency key format matches the ADR-0022 / POS reversal convention (`<topic>:<entity>:<state>`), with the `from->to` fragment ensuring one event per state change while allowing legitimate re-transitions (e.g. suspend→resume→suspend). The `extract(epoch…)` bucket is intentionally omitted — a single transition should collapse retries; if the caller needs to force a new event they must first advance state.
+
+   (Final key will be `'legal_order:' || v_row.id || ':' || p_action || ':' || v_row.status_changed_at::text` to guarantee one row per successful transition and safe retries — same shape as `_emit_grn_outbox`.)
+4. Drops the `EXCEPTION WHEN undefined_table` swallow. If the outbox insert fails now, the whole transition rolls back (correct behavior — no lifecycle event = no state change).
+
+## Downstream verification (no code changes required, confirmed by reading canonical modules)
+
+- **Payroll deduction engine**: reads `legal_orders_records` by `status='active'` and `employee_id`; unaffected by event vocabulary — will pick up newly activated orders immediately.
+- **Payslips / Payment Ledger / Finance / Remittance**: these consume `payroll.*` and `legal_order.*` topics via the outbox worker (`handler_scope` routing). Because we're now emitting on the canonical topic + schema, they will start receiving activation/suspension/release/completion events they were previously being denied by the 400.
+- **Audit**: `admin_audit_log` and `governance_events` are already written by triggers on `legal_orders_records` — untouched.
+- **Reporting / Employee History**: driven by outbox subscribers; auto-picks up once events land.
+- **Localization**: legal-order kinds (`localization_pack_garnishment_kinds`, `garnishment_kind_defaults`) are read-side only; unaffected.
+- Suspend / resume / mark_satisfied / release / expire / terminate_unsatisfied all flow through the same emit block — one fix covers the whole lifecycle.
+
+## Out of scope
+
+- No UI, hook, or service changes. The RPC signature is unchanged, so `useMutation`/service call sites keep working.
+- No new columns on `business_event_outbox`. Adding `organization_id`/`aggregate_*` back would fork the schema and re-introduce the drift ADR-0022 explicitly warns against.
+- No new edge function. Consumers already exist.
+
+## Deliverable
+
+One `supabase--migration` call:
+1. `INSERT ... ON CONFLICT DO NOTHING` into `business_event_topics` for the ten `legal_order.*` topics under the `payroll` source domain.
+2. `CREATE OR REPLACE FUNCTION public.garnishment_transition(...)` with the emit block rewritten to call `publish_business_event`, and the `undefined_table` swallow removed.
+
+No frontend edits.
