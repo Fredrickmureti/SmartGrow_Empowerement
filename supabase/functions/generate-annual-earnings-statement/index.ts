@@ -164,13 +164,16 @@ Deno.serve(async (req) => {
     // Branding
     const branding = await getOrganizationBranding(admin, body.organization_id, body.business_id);
 
-    // Currency
-    const { data: orgRow } = await admin
-      .from("organizations")
-      .select("currency")
-      .eq("id", body.organization_id)
+    // Currency — canonical source is `businesses.base_currency` (the
+    // tenant's operating currency). Fall back to USD only when the
+    // business row is missing a value, which should never happen in a
+    // production tenant. `organizations` has no currency column.
+    const { data: bizRow } = await admin
+      .from("businesses")
+      .select("base_currency, country")
+      .eq("id", body.business_id)
       .maybeSingle();
-    const currency = (orgRow as any)?.currency ?? "USD";
+    const currency = ((bizRow as any)?.base_currency as string | null) || "USD";
 
     // Load template body
     const { data: template, error: tplErr } = await admin
@@ -237,6 +240,18 @@ Deno.serve(async (req) => {
       ...v3Template.document,
     ]);
     const compiled = compileCertificateHtml(v3Template as any, dto as any, { currency });
+    console.log("[generate-annual-earnings-statement] resolved", {
+      employee_id: body.employee_id,
+      fiscal_year: body.fiscal_year,
+      currency,
+      country: (bizRow as any)?.country ?? null,
+      ytd_gross: dto.ytd.gross,
+      ytd_stat_ee: dto.ytd.statutory_employee,
+      ytd_er_total: dto.ytd.employer_contributions_total,
+      ytd_net: dto.ytd.net,
+      months_with_gross: dto.months.filter((m: any) => m.gross > 0).length,
+      unresolved: compiled.unresolved,
+    });
     const unresolvedReportBindings = compiled.unresolved.filter((path) =>
       !optionalBindings.has(path) &&
       (path === "dto_version" ||
