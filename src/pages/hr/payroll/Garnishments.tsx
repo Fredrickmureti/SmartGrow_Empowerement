@@ -1,5 +1,6 @@
 /**
- * Garnishments admin — manage `employee_garnishments`.
+ * Legal Orders admin — manage `legal_orders_records`
+ * (formerly `employee_garnishments`).
  *
  * Phase 2 (closed shallow gaps): status lifecycle, payee remittance,
  * document attachment, aggregate-cap exemption, per-order take-home floor,
@@ -140,7 +141,7 @@ export default function GarnishmentsPage() {
     kind: "child_support" as GarnishmentKind,
     priority: 10,
     case_reference: "",
-    issuing_authority: "",
+    authority_text: "",
     authority_id: null as string | null,
     cap_rule: "fixed_amount" as GarnishmentCapRule,
     fixed_amount: "",
@@ -176,7 +177,7 @@ export default function GarnishmentsPage() {
       kind: g.kind,
       priority: g.priority,
       case_reference: g.case_reference ?? "",
-      issuing_authority: g.issuing_authority ?? "",
+      authority_text: "",
       authority_id: (g as any).authority_id ?? null,
       cap_rule: g.cap_rule,
       fixed_amount: g.fixed_amount?.toString() ?? "",
@@ -220,7 +221,6 @@ export default function GarnishmentsPage() {
       kind: form.kind,
       priority: form.priority,
       case_reference: form.case_reference || null,
-      issuing_authority: form.issuing_authority || null,
       authority_id: form.authority_id,
       cap_rule: form.cap_rule,
       fixed_amount: form.fixed_amount ? Number(form.fixed_amount) : null,
@@ -474,15 +474,15 @@ export default function GarnishmentsPage() {
             <WorkflowField label="Case reference">
               <Input value={form.case_reference} onChange={(e) => setForm({ ...form, case_reference: e.target.value })} />
             </WorkflowField>
-            <WorkflowField label="Issuing authority" hint="Pick a curated authority for auto-populated payee defaults, or type a free-text value if not yet mapped.">
+            <WorkflowField label="Issuing authority" hint="Pick a curated authority to auto-populate payee defaults.">
               <AuthorityPicker
                 value={form.authority_id}
-                fallbackText={form.issuing_authority}
+                fallbackText={form.authority_text}
                 onChange={({ authority_id, authority_text, picked }) =>
                   setForm({
                     ...form,
                     authority_id,
-                    issuing_authority: authority_text,
+                    authority_text,
                     // Prefill payee defaults from the authority when the user hasn't set them.
                     payee_bank: form.payee_bank || picked?.default_payee_bank || "",
                     payee_account: form.payee_account || picked?.default_payee_account || "",

@@ -1,6 +1,6 @@
 /**
  * Turn F — Architecture guard: ensure the previously-orphan tables
- * (employee_garnishments, benefit_enrollment_windows, payroll_run_loan_skip_overrides)
+ * (legal_orders_records, benefit_enrollment_windows, payroll_run_loan_skip_overrides)
  * each have a hook, an admin page, and a permission-gated route.
  *
  * Removing any of these wirings flips this test red.
@@ -21,7 +21,7 @@ describe("Turn F — Orphan-table admin UIs wired end-to-end", () => {
     ]) {
       expect(existsSync(join(repo, f)), f).toBe(true);
     }
-    expect(read("src/hooks/useGarnishments.ts")).toMatch(/employee_garnishments/);
+    expect(read("src/hooks/useGarnishments.ts")).toMatch(/legal_orders_records/);
     expect(read("src/hooks/useBenefitWindows.ts")).toMatch(/benefit_enrollment_windows/);
     expect(read("src/hooks/useLoanSkipOverrides.ts")).toMatch(/payroll_run_loan_skip_overrides/);
   });

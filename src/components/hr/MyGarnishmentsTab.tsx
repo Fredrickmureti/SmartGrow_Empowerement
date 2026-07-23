@@ -1,12 +1,11 @@
 /**
- * MyGarnishmentsTab — Employee-facing view of their own garnishment orders.
+ * MyGarnishmentsTab — Employee-facing view of their own legal orders.
  *
- * Backed by the tightened RLS on `employee_garnishments` and the
- * `garnishment_ledger` view (single-source-of-truth: payslip_lines).
- * Employees see only their own rows; HR-only fields (audit log, payee account
- * detail) are intentionally omitted here — this is the worker view, not the
- * payroll-officer view.
+ * Reads from the `public.legal_orders` view (RLS enforced on the underlying
+ * `legal_orders_records` table) plus `garnishment_ledger` (payslip_lines
+ * SSOT). Employees see only their own rows; HR-only fields are omitted.
  */
+
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +19,7 @@ interface OrderRow {
   id: string;
   kind: string;
   case_reference: string | null;
-  issuing_authority: string | null;
+  authority_name: string | null;
   status: string;
   start_date: string;
   end_date: string | null;
@@ -55,8 +54,8 @@ export function MyGarnishmentsTab({ employeeId }: { employeeId: string }) {
     setLoading(true);
     (async () => {
       const { data: ord } = await supabase
-        .from("employee_garnishments")
-        .select("id, kind, case_reference, issuing_authority, status, start_date, end_date, total_owed, total_paid")
+        .from("legal_orders" as any)
+        .select("id, kind, case_reference, authority_name, status, start_date, end_date, total_owed, total_paid")
         .eq("employee_id", employeeId)
         .order("priority", { ascending: true });
       setOrders((ord ?? []) as OrderRow[]);
@@ -128,7 +127,7 @@ export function MyGarnishmentsTab({ employeeId }: { employeeId: string }) {
                   <TableRow key={o.id}>
                     <TableCell className="capitalize">{o.kind.replace(/_/g, " ")}</TableCell>
                     <TableCell>{o.case_reference ?? "—"}</TableCell>
-                    <TableCell>{o.issuing_authority ?? "—"}</TableCell>
+                    <TableCell>{o.authority_name ?? "—"}</TableCell>
                     <TableCell>
                       <Badge variant={STATUS_TONE[o.status] ?? "outline"} className="capitalize">{o.status}</Badge>
                     </TableCell>

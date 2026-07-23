@@ -1,7 +1,7 @@
 /**
  * AuthorityPicker — bound to `public.legal_order_authorities`.
  *
- * Replaces the legacy free-text `issuing_authority` input on the legal-order
+ * Replaces the legacy free-text authority input on the legal-order
  * form. The picker returns an `authority_id` (canonical) plus a fallback
  * `authority_text` for jurisdictions where the authority is not yet
  * curated. Admins/owners can register a new authority inline.
@@ -35,7 +35,7 @@ export interface AuthorityRow {
 
 interface Props {
   value: string | null;                       // authority_id
-  fallbackText: string;                       // issuing_authority (free text)
+  fallbackText: string;                       // legacy free-text label (retained for display only)
   onChange: (v: { authority_id: string | null; authority_text: string; picked?: AuthorityRow | null }) => void;
   disabled?: boolean;
 }

@@ -1,5 +1,6 @@
 /**
- * useGarnishments — Turn F admin hook for `employee_garnishments`.
+ * useGarnishments — Turn F admin hook for `legal_orders_records`
+ * (formerly `employee_garnishments`).
  *
  * Court-ordered/regulatory wage deductions. RLS already restricts to org HR.
  */
@@ -73,7 +74,7 @@ export interface Garnishment {
   kind: GarnishmentKind;
   priority: number;
   case_reference: string | null;
-  issuing_authority: string | null;
+  authority_id: string | null;
   cap_rule: GarnishmentCapRule;
   fixed_amount: number | null;
   percent_of_disposable: number | null;
@@ -108,7 +109,7 @@ export function useGarnishments(employeeId?: string) {
     queryFn: async () => {
       if (!currentOrg?.id) return [];
       let q = supabase
-        .from("employee_garnishments")
+        .from("legal_orders_records")
         .select("*")
         .eq("organization_id", currentOrg.id)
         .order("priority", { ascending: true })
@@ -132,7 +133,7 @@ export function useGarnishments(employeeId?: string) {
     ) => {
       if (!currentOrg?.id) throw new Error("No org");
       const { data, error } = await supabase
-        .from("employee_garnishments")
+        .from("legal_orders_records")
         .insert({
           organization_id: currentOrg.id,
           business_id: currentBusiness?.id ?? null,
@@ -155,7 +156,7 @@ export function useGarnishments(employeeId?: string) {
 
   const updateGarnishment = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<Garnishment> }) => {
-      const { error } = await supabase.from("employee_garnishments").update(patch).eq("id", id);
+      const { error } = await supabase.from("legal_orders_records").update(patch).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -167,7 +168,7 @@ export function useGarnishments(employeeId?: string) {
 
   const deleteGarnishment = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("employee_garnishments").delete().eq("id", id);
+      const { error } = await supabase.from("legal_orders_records").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

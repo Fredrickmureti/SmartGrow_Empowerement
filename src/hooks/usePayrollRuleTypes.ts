@@ -11,7 +11,7 @@
  *   - It is NOT a deduction. No consumer creates an employee deduction,
  *     payslip line, or GL entry from these rows. Actual deduction
  *     lifecycles live in `employee_loans`, `employee_advances`,
- *     `employee_garnishments`, and `payroll_salary_rules`.
+ *     `legal_orders_records`, and `payroll_salary_rules`.
  *
  * Tenant-authored rows live alongside pack-seeded system rows (is_system
  * = true) so historical `payroll_statutory_rules.rule_type` values keep

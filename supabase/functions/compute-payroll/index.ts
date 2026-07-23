@@ -2622,7 +2622,7 @@ Deno.serve(async (req) => {
         min_take_home_pct: pol.min_take_home_pct != null ? Number(pol.min_take_home_pct) : null,
       };
       const { data: garn } = await supabaseAdmin
-        .from("employee_garnishments")
+        .from("legal_orders_records" as any)
         .select("id, employee_id, kind, priority, cap_rule, fixed_amount, percent_of_disposable, total_owed, total_paid, total_accrued, case_reference, start_date, end_date, status, aggregate_cap_exempt, minimum_take_home_amount")
         .eq("organization_id", organization_id)
         .eq("status", "active")
@@ -4879,7 +4879,7 @@ Deno.serve(async (req) => {
       // against the parent run's payslip_lines, write them to the
       // payroll_correction_adjustments ledger (UPSERT on
       // (payroll_run_id, source_kind, source_id) — idempotent on
-      // re-compute), and mutate employee_garnishments.total_paid by the
+      // re-compute), and mutate legal_orders_records.total_paid by the
       // delta. Reimbursements are recorded in the ledger for audit but
       // never re-stamped on expenses (the parent run already did that).
       const v2 = (Deno.env.get("PAYROLL_CORRECTION_ADJUSTERS_V2") ?? "").toLowerCase() === "true";
@@ -4987,7 +4987,7 @@ Deno.serve(async (req) => {
           // [0, total_owed]. total_paid stays in sync only via real remittance.
           for (const [gid, delta] of Object.entries(garnDeltaByGid)) {
             const { data: cur, error: gErr } = await supabaseAdmin
-              .from("employee_garnishments")
+              .from("legal_orders_records" as any)
               .select("total_accrued, total_owed, status, end_date")
               .eq("id", gid)
               .single();
@@ -5022,7 +5022,7 @@ Deno.serve(async (req) => {
               newAccrued = totalOwed;
             }
             await supabaseAdmin
-              .from("employee_garnishments")
+              .from("legal_orders_records" as any)
               .update({ total_accrued: newAccrued })
               .eq("id", gid);
           }
@@ -5065,13 +5065,13 @@ Deno.serve(async (req) => {
       for (const g of garnishmentsApplied) garnTotals[g.id] = (garnTotals[g.id] || 0) + g.amount;
       for (const [gid, amt] of Object.entries(garnTotals)) {
         const { data: cur } = await supabaseAdmin
-          .from("employee_garnishments")
+          .from("legal_orders_records" as any)
           .select("total_accrued")
           .eq("id", gid)
           .single();
         const newAccrued = Math.round(((Number(cur?.total_accrued) || 0) + amt) * 100) / 100;
         await supabaseAdmin
-          .from("employee_garnishments")
+          .from("legal_orders_records" as any)
           .update({ total_accrued: newAccrued })
           .eq("id", gid);
       }

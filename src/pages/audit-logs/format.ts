@@ -31,7 +31,7 @@ const ENTITY_TYPE_OVERRIDES: Record<string, string> = {
   employee_loans: "Employee loan",
   employee_advances: "Employee advance",
   employee_benefits: "Employee benefit",
-  employee_garnishments: "Garnishment",
+  legal_orders_records: "Garnishment",
   products: "Product",
   product_categories: "Product category",
   pos_transactions: "POS transaction",

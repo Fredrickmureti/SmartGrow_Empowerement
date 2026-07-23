@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
 
     // 1) Load the order (scoped to organization) and validate payee
     const { data: order, error: ordErr } = await supabaseAdmin
-      .from("employee_garnishments")
+      .from("legal_orders_records" as any)
       .select("id, organization_id, business_id, payee_name, payee_contact_id, kind, status, total_owed, total_paid, payee_unmapped")
       .eq("id", garnishment_id)
       .maybeSingle();
