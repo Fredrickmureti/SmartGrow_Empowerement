@@ -774,12 +774,16 @@ export function PayrollRunDetailsDialog({
                 <Card>
                   <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">Deductions Breakdown</CardTitle></CardHeader>
                   <CardContent className="p-3 pt-1 space-y-1">
-                    {Object.entries(run.deductions_summary).filter(([, v]) => v > 0).map(([key, val]) => (
-                      <div key={key} className="flex justify-between text-sm">
-                        <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}</span>
-                        <span>{formatCurrency(val)}</span>
-                      </div>
-                    ))}
+                    {Object.entries(run.deductions_summary).filter(([, v]) => v > 0).map(([key, val]) => {
+                      const gm = key.match(/^garnishment_([0-9a-f-]{8,})$/i);
+                      const display = gm ? `Legal Order (${gm[1].slice(0, 8)}…)` : key.replace(/_/g, " ");
+                      return (
+                        <div key={key} className="flex justify-between text-sm">
+                          <span className="text-muted-foreground capitalize">{display}</span>
+                          <span>{formatCurrency(val)}</span>
+                        </div>
+                      );
+                    })}
                   </CardContent>
                 </Card>
                 {run.contributions_summary && Object.keys(run.contributions_summary).length > 0 && (
