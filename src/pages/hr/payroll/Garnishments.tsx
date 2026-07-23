@@ -177,7 +177,7 @@ export default function GarnishmentsPage() {
       kind: g.kind,
       priority: g.priority,
       case_reference: g.case_reference ?? "",
-      issuing_authority: g.issuing_authority ?? "",
+      authority_text: "",
       authority_id: (g as any).authority_id ?? null,
       cap_rule: g.cap_rule,
       fixed_amount: g.fixed_amount?.toString() ?? "",
