@@ -4,6 +4,9 @@
  * Moves the payroll-to-GL posting logic server-side for integrity.
  * Resolves account mappings via EXPLICIT default_account_settings ONLY.
  * No fuzzy name-matching — if a mapping is missing, posting fails loudly.
+ *
+ * Deploy-bump 2026-07-23: re-bundle so `_shared/payslipClassifier.ts`
+ * (post_tax_deduction + garnishment buckets) is inlined here.
  * 
  * After GL posting, auto-generates payroll_remittances records for
  * each statutory deduction type, enabling persistent remittance tracking.
