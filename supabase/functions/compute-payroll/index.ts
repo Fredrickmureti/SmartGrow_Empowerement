@@ -3984,6 +3984,7 @@ Deno.serve(async (req) => {
         explicit_scheme_component_id: string | null = null,
       ) => {
         if (!employee_amount && !employer_amount) return;
+        const normalizedCategory = normalizePayslipLineCategory(category);
         const finalSource = input_ref ? withInputRef(source, input_ref) : source;
         // Statutory Scheme model: structural stamp for return generators,
         // GL, dashboards. NULL for non-statutory lines (earnings, loans,
@@ -3997,13 +3998,19 @@ Deno.serve(async (req) => {
         lineRows.push({
           rule_code,
           rule_type,
-          category,
+          category: normalizedCategory,
           label: lineLabel,
           sequence: seq++,
           employee_amount,
           employer_amount,
           taxable,
-          source: finalSource,
+          source: normalizedCategory === category
+            ? finalSource
+            : {
+                ...(finalSource || {}),
+                original_category: category,
+                normalized_category: normalizedCategory,
+              },
           statutory_rule_id,
           accounting_tag,
           scheme_component_id,
