@@ -43,4 +43,13 @@ describe("payslip header totals derived from payslip_lines", () => {
     // `total_deductions:` header field in the payslips insert payload.
     expect(src).not.toMatch(/total_deductions:\s*empTotalDeductions/);
   });
+
+  it("inserts payslip headers as drafts and finalizes only after lines exist", () => {
+    // Supabase REST calls are separate DB transactions. The DB trigger skips
+    // draft construction rows, then validates when compute-payroll promotes
+    // the payslip after payslip_lines have been inserted.
+    expect(src).toMatch(/status:\s*"draft"/);
+    expect(src).toMatch(/from\("payslip_lines"\)[\s\S]{0,120}\.insert\(allLineRows\)/);
+    expect(src).toMatch(/update\(\{ status:\s*"pending" \}\)/);
+  });
 });
