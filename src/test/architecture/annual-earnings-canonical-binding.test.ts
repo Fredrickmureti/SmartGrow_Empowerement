@@ -86,4 +86,25 @@ describe("ANNUAL_EARNINGS_STATEMENT — country-neutral canonical binding", () =
       .map((c) => String(c.key));
     expect(unbound).toEqual([]);
   });
+
+  it("binds YTD employer contributions to the canonical aggregate field", () => {
+    const ytd = (body.document as any[]).find(
+      (n) => n.type === "section" && n.title?.value === "Year-to-Date Summary",
+    );
+    expect(ytd, "template must include the YTD summary section").toBeTruthy();
+    const employerContributionRow = (ytd.children as any[]).find(
+      (n) => n.type === "key_value" && n.label?.value === "Total Employer Contributions",
+    );
+    expect(employerContributionRow?.value?.path).toBe("ytd.employer_contributions_total");
+  });
+
+  it("does not mark YTD summary rows optional", () => {
+    const ytd = (body.document as any[]).find(
+      (n) => n.type === "section" && n.title?.value === "Year-to-Date Summary",
+    );
+    const optionalRows = (ytd.children as any[])
+      .filter((n) => n.type === "key_value" && n.optional === true)
+      .map((n) => n.label?.value ?? n.value?.path);
+    expect(optionalRows).toEqual([]);
+  });
 });

@@ -75,6 +75,29 @@ function makeSerial(orgId: string, employeeId: string, year: number): string {
   return `AES-${year}-${suffix}-${stamp}`;
 }
 
+function collectOptionalBindingPaths(nodes: any[]): Set<string> {
+  const paths = new Set<string>();
+  const visitValue = (value: any, optional: boolean) => {
+    if (optional && value?.kind === "binding" && value.path) paths.add(String(value.path));
+  };
+  const visitNode = (node: any) => {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "key_value") {
+      visitValue(node.value, node.optional === true);
+    }
+    if (node.type === "identity_strip") {
+      for (const kv of [...(node.left ?? []), ...(node.right ?? [])]) visitNode(kv);
+    }
+    for (const child of node.children ?? []) visitNode(child);
+    for (const child of node.slots ?? []) {
+      visitValue(child.caption, false);
+      visitValue(child.sub_caption, false);
+    }
+  };
+  for (const node of nodes) visitNode(node);
+  return paths;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
@@ -208,7 +231,30 @@ Deno.serve(async (req) => {
       document: expandedDoc,
     };
 
-    const { html } = compileCertificateHtml(v3Template as any, dto as any, { currency });
+    const optionalBindings = collectOptionalBindingPaths([
+      ...((v3Template.page_master as any)?.header ?? []),
+      ...((v3Template.page_master as any)?.footer ?? []),
+      ...v3Template.document,
+    ]);
+    const compiled = compileCertificateHtml(v3Template as any, dto as any, { currency });
+    const unresolvedReportBindings = compiled.unresolved.filter((path) =>
+      !optionalBindings.has(path) &&
+      (path === "dto_version" ||
+        path === "serial_number" ||
+        path === "generated_at" ||
+        path.startsWith("period.") ||
+        path.startsWith("employer.") ||
+        path.startsWith("employee.") ||
+        path.startsWith("ytd.") ||
+        path.startsWith("provenance."))
+    );
+    if (unresolvedReportBindings.length) {
+      console.error("[generate-annual-earnings-statement] unresolved bindings", unresolvedReportBindings);
+      return json(500, {
+        error: "template_binding_unresolved",
+        unresolved: unresolvedReportBindings,
+      });
+    }
 
     return json(200, {
       ok: true,
@@ -217,7 +263,7 @@ Deno.serve(async (req) => {
       provenance: dto.provenance,
       serial_number: dto.serial_number,
       generated_at: dto.generated_at,
-      html,
+      html: compiled.html,
     });
   } catch (e) {
     console.error("[generate-annual-earnings-statement]", e);
