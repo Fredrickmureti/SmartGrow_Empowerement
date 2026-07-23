@@ -365,11 +365,28 @@ Deno.serve(async (req) => {
       }
 
       // ─── Garnishment lines: aggregate per garnishment order ───
-      if (cat === "garnishment" && empAmt > 0) {
-        const gid: string | null =
-          (line.source && typeof line.source === "object"
-            ? (line.source as any).garnishment_id
-            : null) ?? null;
+      // Resilient detection — legacy rows had category='garnishment', current
+      // rows normalize to 'post_tax_deduction'. Both carry source.garnishment_id
+      // (and/or source.kind='garnishment' / rule_code garnishment_<uuid>). We
+      // classify a line as a garnishment when ANY of those markers is present,
+      // so GL posting can never silently skip a legal-order deduction again.
+      const srcObj = (line.source && typeof line.source === "object") ? (line.source as any) : null;
+      const gidFromSource: string | null =
+        (srcObj?.garnishment_id as string | null) ??
+        (srcObj?.input_ref?.garnishment_id as string | null) ??
+        null;
+      const isGarnishmentLine =
+        empAmt > 0 && (
+          cat === "garnishment" ||
+          gidFromSource != null ||
+          srcObj?.kind === "garnishment" ||
+          srcObj?.source === "garnishment" ||
+          srcObj?.input_ref?.kind === "garnishment" ||
+          (typeof key === "string" && key.startsWith("garnishment_"))
+        );
+      if (isGarnishmentLine) {
+        const gid = gidFromSource
+          ?? (typeof key === "string" && key.startsWith("garnishment_") ? key.slice("garnishment_".length) : null);
         if (!gid) continue;
         const existing = garnishmentMap.get(gid);
         if (existing) {
