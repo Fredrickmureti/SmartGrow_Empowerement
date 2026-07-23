@@ -343,14 +343,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Categories that produce a deduction (CR payable) on the employee side.
-    const DEDUCTION_CATEGORIES = new Set([
-      "deduction", "statutory_employee", "tax", "loan_repayment", "benefit_recovery",
-    ]);
-    // Categories that produce an employer expense + payable pair.
-    const EMPLOYER_CATEGORIES = new Set([
-      "employer_contribution", "statutory_employer",
-    ]);
+    // Category bucketing is owned by `_shared/payslipClassifier.ts` — do NOT
+    // re-declare local Sets here. A divergent local set is exactly what
+    // caused the PAY-0065 legal-order regression on the PDF renderer.
+    const { classifyPayslipLine } = await import("../_shared/payslipClassifier.ts");
 
     for (const line of payslipLines as any[]) {
       const key = line.rule_code;
@@ -425,8 +421,9 @@ Deno.serve(async (req) => {
       }
 
       if (!key) continue;
-      const isDed = DEDUCTION_CATEGORIES.has(cat) && empAmt > 0;
-      const isEr = EMPLOYER_CATEGORIES.has(cat) && erAmt > 0;
+      const bucket = classifyPayslipLine(line as any);
+      const isDed = bucket === "deduction" && empAmt > 0;
+      const isEr = bucket === "employer_contribution" && erAmt > 0;
       if (!isDed && !isEr) continue;
 
       const existing = deductionMap.get(key);
