@@ -785,6 +785,73 @@ Deno.serve(async (req) => {
           generated_at: new Date().toISOString().slice(0, 19).replace("T", " "),
         };
 
+        // ADR-0063: the Annual Earnings Statement is a *core* payroll
+        // report with its own canonical DTO (`AnnualEarningsStatementDTO`).
+        // Every binding on the ANNUAL_EARNINGS_STATEMENT template — the
+        // Year-to-Date Summary, period label, employer identifiers,
+        // employee identifiers, monthly matrix, breakdown sections — is
+        // resolved through `resolveAnnualEarnings`, which is the single
+        // writer of that DTO. Without this delegation the generic
+        // `enginePayload` above has no `ytd.*`, `period.*`, `months[]`,
+        // `breakdown.*` or statutory identifier arrays, so those bindings
+        // silently resolve to blank and the rendered PDF shows a Year-to-
+        // Date Summary of empty rows. Overlay the DTO at the top level so
+        // the existing keys (`totals`, `rollup`, `serial_number`,
+        // `generated_at`, `currency`, `monthly`) remain available to any
+        // legacy tokens that still reference them.
+        if (template.code === "ANNUAL_EARNINGS_STATEMENT") {
+          const annualDto = await resolveAnnualEarnings({
+            admin,
+            organizationId: body.organization_id,
+            businessId: body.business_id,
+            employeeId: emp.id,
+            fiscalYear: body.fiscal_year,
+            branding: {
+              name: (branding as any)?.name ?? null,
+              legal_name: (branding as any)?.legal_name ?? null,
+              address: (branding as any)?.address ?? null,
+              phone: (branding as any)?.phone ?? null,
+              email: (branding as any)?.email ?? null,
+            },
+            employee: {
+              id: emp.id,
+              full_name: payload.employee.full_name,
+              employee_number: payload.employee.employee_number || null,
+              department: payload.employee.department || null,
+              position: payload.employee.position || null,
+              employment_status: (emp as any).employment_status ?? null,
+              hire_date: (emp as any).hire_date ?? null,
+              termination_date: (emp as any).termination_date ?? null,
+            },
+            currency: orgCurrency,
+            serialNumber: serial,
+            baseTemplateCode: template.code,
+            issuer: null,
+          });
+          Object.assign(enginePayload as any, {
+            dto_version: annualDto.dto_version,
+            period: annualDto.period,
+            employer: annualDto.employer,
+            employee: annualDto.employee,
+            months: annualDto.months,
+            ytd: annualDto.ytd,
+            breakdown: annualDto.breakdown,
+            extensions: annualDto.extensions,
+            provenance: annualDto.provenance,
+            issuer: annualDto.issuer,
+          });
+          console.log("[generate-tax-certificate] annual-earnings overlay", {
+            employee_id: emp.id,
+            fiscal_year: body.fiscal_year,
+            currency: orgCurrency,
+            ytd_gross: annualDto.ytd.gross,
+            ytd_net: annualDto.ytd.net,
+            ytd_er_total: annualDto.ytd.employer_contributions_total,
+            months_with_gross: annualDto.months.filter((m) => m.gross > 0).length,
+            content_hash: annualDto.provenance.content_hash_short,
+          });
+        }
+
         // v3 data assembly: pivot the raw monthly rule-code stream into the
         // semantic matrix rows the template binds to (e.g. `p9.months`),
         // applying the pack's derived columns. The country's tax math lives
