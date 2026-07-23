@@ -2705,6 +2705,21 @@ Deno.serve(async (req) => {
     const cfConsumedIds: string[] = [];
 
     const garnishmentsApplied: { id: string; amount: number; employee_id: string }[] = [];
+    // Observability: any employee who had ≥1 in-window active legal order but
+    // whose garnishment engine result withheld nothing. Silent drops here in
+    // the past hid a Kenya-pack policy-fraction bug for weeks — surface it
+    // as a first-class run issue so it can never happen invisibly again.
+    const garnishmentZeroIssues: Array<{
+      employee_id: string;
+      order_ids: string[];
+      order_count: number;
+      disposable: number;
+      gross: number;
+      pre_garnishment_deductions: number;
+      aggregate_cap_pct: number | null;
+      min_take_home_pct: number | null;
+      min_take_home_amount: number | null;
+    }> = [];
     const reimbursementsConsumed: { id: string; employee_id: string }[] = [];
 
 
