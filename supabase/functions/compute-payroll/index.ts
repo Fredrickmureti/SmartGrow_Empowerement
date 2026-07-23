@@ -306,6 +306,51 @@ interface BracketTrace {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const pct = (n: unknown) => (Number(n) || 0) / 100;
 
+const VALID_PAYSLIP_LINE_CATEGORIES = new Set([
+  "earning",
+  "deduction",
+  "employer_contribution",
+  "statutory_employee",
+  "statutory_employer",
+  "reimbursement",
+  "benefit",
+  "loan_repayment",
+  "net",
+  "subtotal",
+  "pre_tax_deduction",
+  "tax",
+  "relief",
+  "post_tax_deduction",
+]);
+
+const LEGACY_PAYSLIP_LINE_CATEGORY_MAP: Record<string, string> = {
+  garnishment: "post_tax_deduction",
+  reimbursement: "earning",
+};
+
+function normalizePayslipLineCategory(category: unknown): string {
+  const raw = String(category ?? "").trim();
+  if (VALID_PAYSLIP_LINE_CATEGORIES.has(raw)) return raw;
+  const mapped = LEGACY_PAYSLIP_LINE_CATEGORY_MAP[raw];
+  if (mapped) return mapped;
+  console.warn(`[compute-payroll] unknown payslip line category "${raw}" normalized to deduction`);
+  return "deduction";
+}
+
+function normalizePayslipLineRow(row: Record<string, any>): Record<string, any> {
+  const normalizedCategory = normalizePayslipLineCategory(row.category);
+  if (normalizedCategory === row.category) return row;
+  return {
+    ...row,
+    category: normalizedCategory,
+    source: {
+      ...(row.source || {}),
+      original_category: row.category,
+      normalized_category: normalizedCategory,
+    },
+  };
+}
+
 function pickBase(params: Record<string, any>, ctx: CalcContext): number {
   const base = (params.base || "gross_pay").toString().toLowerCase();
   if (base === "taxable_income" || base === "taxable") return ctx.taxableIncome;
