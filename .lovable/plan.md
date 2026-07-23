@@ -1,159 +1,69 @@
+## Diagnosis (verified against code + database)
 
-# Annual Earnings Statement — Enterprise Architecture Audit & Redesign
+Enterprise ownership is already correct in this codebase:
 
-## 1. What the audit found
+- **Annual Earnings Statement** is a payroll-engine report. Its single writer is `supabase/functions/_shared/annualEarningsResolver.ts` and its versioned contract is `AnnualEarningsStatementDTO v1` (`annualEarningsTypes.ts`). Dispatcher `generate-annual-earnings-statement` is thin.
+- **Country certificates (P9/P60/IRP5/...)** are localization-pack extension bodies spliced into the base template via `payroll_certificate_template_extensions` (ADR-0091). They do not fork the engine.
+- **Statutory returns** (`generate-statutory-return`) and **tax certificates** (`generate-tax-certificate`) both go through `resolveCertificateYtd` — the canonical YTD reader — enforced by ESLint (`no-payslip-lines-in-certificates`) and the arch tests.
 
-The uploaded PDF (`Annual_earnings_statemennt.pdf`) and the current template/generator surface reveal three separate classes of defect: **stale content**, **incomplete DTO**, and **missing architectural extensibility**. The PDF is a symptom; the architecture is the target.
+So the ownership model does not need to be re-drawn. What is actually broken is the resolver's read of canonical payroll data, plus a duplicate aggregation path that produced the empty YTD Summary and made the base DTO non-single-source. Fix at the root, not the template.
 
-### 1.1 Observed defects in the rendered artifact
+### Root causes
 
-| Section | Observed | Root cause (verified) |
-|---|---|---|
-| Header | "Joshua Holdings" only, no employer address, no legal entity, no employer identifiers | `enginePayload.employer` is built from `getOrganizationBranding` (name/address/tax_pin/tax_office/phone/email). Address is empty in the org record; there is no `legal_name`, no `registered_address`, no dynamic statutory identifiers block. |
-| Employee strip | Missing position, employment period, employment status, statutory identifiers | Template binds only `full_name / employee_number / department`. Department empty because `payload.employee.department` upstream isn't hydrated for this record. |
-| Monthly matrix columns | PDF shows `Gross / Statutory Deductions / Other Deductions / Reliefs / Net` | PDF is from a **stale template body** (pre-migration `20260715112244`). Current registry body has `Gross / Benefits / Statutory Deductions / Net`. Neither set is architecturally sufficient — see §2. |
-| Monthly matrix data | 11 months show `0.00`, only April populated | Correct — only one posted run exists. Not a defect. |
-| Year-to-Date Summary | Labels present, **all values blank** | Template binds `totals.gross_pay / totals.deductions / totals.net_pay`. `resolveCertificateYtd` computes these correctly. The blank values are almost certainly a **binding-resolution bug** in the v3 HTML compiler for the `key_value → binding.path` pattern with nested paths when `format:"currency"` receives a zero-ish value — needs a direct compiler test, not a template change. |
-| Signature strip | Static "Authorised Signatory / Payroll Office" | Not bound to actual approver / issuer / issuance date. |
-| Localization sections | None | Template has zero extension points. A pack cannot inject a P9/P60/IRP5 addendum without cloning the template. |
+1. **Empty YTD Summary and empty matrix.** `resolveAnnualEarnings` reads `row.month` from RPC `payroll_employee_monthly_breakdown`, but the RPC returns `month_index` (confirmed via `pg_get_functiondef`). Every row is dropped (`mIdx = 0 → continue`), so `months[]` stays zero-filled. `ytd` is then derived by summing those zero months → the entire Year-to-Date Summary renders as 0.
 
-### 1.2 Architectural defects (the actual assignment)
+2. **Duplicate YTD aggregation.** Even after (1) is fixed, YTD totals are computed twice: once by summing months in the resolver, once by `resolveCertificateYtd` from the canonical `payroll_employee_ytd` view. That violates single-writer: the same figure has two derivations that will drift (taxable is the obvious one — `category='taxable'` does not exist in payslip_lines; only `taxable_amount` per row does, so summing months gives 0 while the rollup has real values).
 
-1. **Reporting DTO is under-specified.** The single `totals` object mixes YTD aggregates, rule-code aggregates, and (when v3 pivot runs) template-specific keys (`chargeable_pay`, `paye`). There is no versioned, typed `AnnualEarningsStatementDTO`.
-2. **No canonical `earnings.months` shape.** The matrix builder writes whatever `derived_columns` produce; there is no contract that guarantees `{gross, benefits, statutory_ee, statutory_er, other_deductions, reliefs, taxable, net}` on every month, in every pack.
-3. **Employer/employee identity is flattened to strings.** `organization_statutory_identifiers` and `employee_statutory_identifiers` exist in the DB but are not projected into the DTO for this template — only the country-specific `generate-tax-certificate` path uses them, and only for pack-specific fields.
-4. **No employer-contribution / benefit / adjustment / reversal / leave-payout channels** on the DTO, even though `payroll_employee_ytd_rollup` returns `employer_amount` and `taxable_amount` per rule. The template cannot bind what the DTO doesn't expose.
-5. **No localization extension point.** ADR-0062 states packs "publish, they do not hardcode", but the Annual Earnings Statement template has no `slots` / `extension_regions`. A Kenya pack cannot append a P9-formatted appendix without owning a separate template.
-6. **No provenance band on the artifact.** `provenance` is computed by the resolver and stored on the certificate row, but never rendered onto the document (serial + generated_at only). Auditors need `run_ids`, `payslip_high_water_mark`, `source_hash`.
-7. **No determinism seal.** Two regenerations of the same fiscal year should be byte-identical when upstream payroll is unchanged. Today the DTO embeds `generated_at` inside the compiled HTML with no separation between "content hash" and "issuance hash", so `stale=true` cannot be proven from the artifact alone.
-8. **Renderer is coupled to certificate engine.** Any generic "annual statement" caller has to go through `generate-tax-certificate`, which is scoped to statutory certificate issuance. There is no `generate-annual-earnings-statement` entry point, no self-service `/me/annual-earnings` route.
+3. **`taxable` channel is dead code.** `routeCategoryToChannel('taxable')` never fires — production categories are `earning|benefit|statutory_employee|statutory_employer|deduction|relief`. `ytd.taxable` must come from summing `taxable_amount` on the rollup, not from a non-existent category.
 
-## 2. Target architecture
+4. **Identity placeholders render `—` instead of being either authoritative or intentionally omitted.** Employer legal_name/address/contact and employee employment_period fall through to `fallback: "—"` in the template even when the underlying config is genuinely missing. Enterprise reports should show authoritative data or omit the row, not decorate it with an em-dash.
+
+5. **`content_hash_short` in the page footer has `fallback: "—"`.** The resolver always writes it, so the fallback is misleading — remove it so a missing hash is a bug, not a designed state.
+
+## Fix — payroll-engine layer only
+
+### A. `supabase/functions/_shared/annualEarningsResolver.ts`
+- Read `row.month_index` (with `row.month` as a legacy alias for safety).
+- Make `ytdSource` the single source for every YTD total. Compute:
+  - `gross`, `benefits`, `statutory_employee`, `statutory_employer`, `other_deductions`, `reliefs`, `adjustments`, `reversals`, `leave_payouts`, `bonuses` — by summing `employee_amount` grouped by `routeCategoryToChannel(row.category)` over `ytdSource.rows`.
+  - `taxable` — by summing `taxable_amount` over all rows (only real source; no category).
+  - `net = gross + benefits − statutory_employee − other_deductions` (matches per-payslip net convention already used).
+  - `employer_contributions_total = ytdSource.totals.employer`.
+  - `pension_total` — keep the existing rule_code-token heuristic (country-neutral, packs opt in via naming).
+- Monthly rows: still built from `payroll_employee_monthly_breakdown`, but each month's `taxable` comes from `taxable_amount` per row (not category routing). Monthly `net` uses the same formula.
+- Remove the "sum months → YTD" loop; `ytd` is derived only from the canonical rollup. Months and YTD then agree by construction (both read the same underlying `payslip_lines` through the two SECURITY DEFINER views).
+
+### B. `supabase/functions/_shared/annualEarningsTypes.ts`
+- Drop the dead `case "taxable"` branch from `routeCategoryToChannel` and add a comment naming `taxable_amount` as the sole source of the taxable channel.
+
+### C. Base template row `ANNUAL_EARNINGS_STATEMENT` (migration)
+- Remove `fallback: "—"` on `employer.legal_name`, `employer.registered_address`, `employer.contact`, `employee.department`, `employee.position`, `employee.employment_period.label`, `provenance.content_hash_short`. The compiler already elides `key_value` rows whose binding resolves to `null`/empty, so missing config becomes an omitted row instead of a decorative em-dash. `content_hash_short` is always populated by the resolver — a missing value is now a visible bug (correct signal).
+- Keep every other node identical — no cosmetic changes.
+
+### D. Regression tests
+- `supabase/tests/annual_earnings_resolver_test.ts` (new Deno test): seed a minimal payslip set and assert `dto.ytd.gross > 0` and `dto.ytd.gross === Σ dto.months[i].gross` — i.e. the two projections agree by construction, and the RPC-column-name bug cannot come back silently.
+- Extend `src/__tests__/architecture.annual-earnings-country-agnostic.test.ts` list with any file touched (no new files added outside the guard).
+
+### E. Provenance already satisfies determinism
+- `content_hash` strips `generated_at` and `serial_number` and canonical-sorts keys. No change needed. The test in (D) also asserts hash stability across two resolves with the same inputs.
+
+## Out of scope (intentionally)
+
+- No changes to `generate-tax-certificate`, statutory-return generation, localization-pack contract, ESLint rules, or the certificate compiler. Those layers are already architecturally correct.
+- No new UI or template polish beyond removing misleading em-dash fallbacks.
+- No changes to `payroll_employee_ytd_rollup` / `payroll_employee_monthly_breakdown` SQL — the resolver aligns with them, not the reverse.
+
+## Files touched
 
 ```text
-payroll_runs (immutable)
-  └─ payslips (immutable, allowlisted mutations)
-       └─ payslip_lines (rule_code, category, employee/employer/taxable)
-            └─ payroll_employee_ytd_rollup (RPC, canonical)
-                 └─ resolveAnnualEarnings(org, business, employee, fiscal_year)   ← NEW single writer
-                      └─ AnnualEarningsStatementDTO v1                            ← NEW typed contract
-                           ├─ base template: ANNUAL_EARNINGS_STATEMENT v2
-                           │    (country-neutral, slot-aware)
-                           └─ pack extensions:
-                                 KE.P9_APPENDIX / GB.P60_APPENDIX / ZA.IRP5_APPENDIX / GH.SSNIT_APPENDIX
+supabase/functions/_shared/annualEarningsResolver.ts
+supabase/functions/_shared/annualEarningsTypes.ts
+supabase/migrations/<new>_annual_earnings_template_no_placeholders.sql
+supabase/tests/annual_earnings_resolver_test.ts   (new)
+src/__tests__/architecture.annual-earnings-country-agnostic.test.ts   (guard list)
 ```
 
-### 2.1 New DTO (`AnnualEarningsStatementDTO v1`)
+## Verification
 
-Sections, all optional except `employer`, `employee`, `period`, `months`, `ytd`:
-
-- `employer`: `{ name, legal_name, registered_address, contact, statutory_identifiers[] }`
-- `employee`: `{ full_name, employee_number, department, position, employment_status, employment_period{from,to}, statutory_identifiers[] }`
-- `period`: `{ fiscal_year, from, to, label, currency }`
-- `months[12]`: `{ month, gross, benefits, taxable, statutory_employee, statutory_employer, other_deductions, reliefs, adjustments, reversals, leave_payouts, bonuses, net }`
-- `ytd`: same shape as `months` row, plus `employer_contributions_total`, `pension_total`, `final_settlement`
-- `breakdown`: `{ earnings[], benefits[], statutory_ee[], statutory_er[], other_deductions[], reliefs[] }` — per-rule rows sourced from `payroll_employee_ytd_rollup`
-- `provenance`: `{ run_ids[], payslip_ids[], payroll_high_water_mark, dto_version, content_hash }`
-- `extensions`: `{ [pack_code]: unknown }` — pack-populated
-
-### 2.2 Template contract v2
-
-- Add `extension_regions: ["after_ytd", "after_signature", "appendix"]` to the base template body.
-- Renderer discovers pack contributions via `payroll_certificate_template_extensions` (new registry table) keyed by `(base_template_code, pack_code)`.
-- Business math stays out of the template — templates only bind `dto.*` paths and select which extension regions render.
-
-### 2.3 New writer + route
-
-- `resolveAnnualEarnings(...)` in `supabase/functions/_shared/annualEarningsResolver.ts` — the only allowed writer of `AnnualEarningsStatementDTO`. Delegates YTD numbers to `resolveCertificateYtd` (no duplicate arithmetic).
-- New edge function `generate-annual-earnings-statement` — thin dispatcher that loads the base template, resolves the DTO, merges pack extensions, and invokes the existing v3 HTML compiler. Reuses `document_artifacts` storage + `generateReportPdf`-style download surface.
-- New ESS route `/me/annual-earnings` — employee self-download of their own statement, with the same `auth.uid()`-scoped self-service bypass used for payslips.
-
-### 2.4 Determinism & provenance
-
-- DTO builder computes `content_hash = sha256(canonical_json(dto without generated_at))`.
-- Artifact metadata columns: `content_hash`, `dto_version`, `payroll_high_water_mark`, `regenerated_from`.
-- Regeneration with unchanged inputs produces identical `content_hash`; `stale=true` flips only when the high-water mark advances (already wired via `payroll_mark_stale_certificates`).
-- The rendered document footer prints `Serial · Generated · Content-hash (short)`.
-
-### 2.5 Localization extension mechanism
-
-Packs contribute optional appendix bodies via a new migration adding rows to `payroll_certificate_template_extensions` for their country. First cut: seed a KE `P9_APPENDIX` extension that renders Cols A–O of the KRA P9 grid using the same `dto.months` data — no new arithmetic, no country tokens in shared code (enforced by the existing arch test `annual-earnings-canonical-binding.test.ts`).
-
-## 3. Deliverables (this plan, no deferral)
-
-1. **DTO + resolver**
-   - Add `AnnualEarningsStatementDTO` types in `supabase/functions/_shared/annualEarningsTypes.ts`.
-   - Add `resolveAnnualEarnings` in `supabase/functions/_shared/annualEarningsResolver.ts`; delegate YTD to `resolveCertificateYtd`; project identifiers from `organization_statutory_identifiers` + `employee_statutory_identifiers`; pivot monthly rows via `payroll_employee_monthly_breakdown` categorised into the DTO shape.
-   - Unit test: canonical categories map deterministically; `content_hash` stable across two runs with identical inputs.
-2. **Template v2 (country-neutral)**
-   - Migration that updates `ANNUAL_EARNINGS_STATEMENT` body to bind the richer DTO paths (employer identifiers row, employment period, monthly matrix with 8 canonical columns, YTD block with employer contributions/pension/adjustments, provenance footer, `extension_regions`).
-   - Fixes the "YTD Summary blank" symptom by binding `dto.ytd.*` through the resolver and adding a compiler regression test for nested `key_value → binding.path.with.currency-format` on zero-valued and populated cases.
-3. **Edge function + registry table**
-   - Migration: `payroll_certificate_template_extensions(base_template_code, pack_code, region, body jsonb, version int, ...)` with grants + RLS.
-   - New edge function `generate-annual-earnings-statement` (dispatcher only, reuses v3 compiler).
-   - Extends `document_artifacts` writer to persist `content_hash`, `dto_version`, `payroll_high_water_mark`.
-4. **KE P9 appendix pack row**
-   - Migration inserting the P9 appendix as a `payroll_certificate_template_extensions` row (pack_code=`ke`, region=`appendix`). Uses only `dto.months` + `dto.breakdown` — no re-summing.
-5. **ESS surface**
-   - `/me/annual-earnings` page with year selector and download button; self-service bypass mirrors `/me/payslips`.
-6. **Architecture guards**
-   - Extend `src/test/architecture/annual-earnings-canonical-binding.test.ts` to assert: (a) base template body contains zero country tokens, (b) resolver is the only caller of `payroll_employee_ytd_rollup` and `payroll_employee_monthly_breakdown` for this template, (c) extension bodies never import from shared code paths that touch `payslip_lines` directly.
-7. **Docs**
-   - New ADR-0063 "Annual Earnings Statement — canonical DTO + pack extension regions" documenting invariants and the extension registry.
-   - Update `docs/manuals/hr-payroll/10-payroll-documents.md` with the new function, DTO, ESS route, and hash-based determinism guarantee.
-
-## 4. Invariants (non-negotiable)
-
-- Base template stays country-agnostic. Zero country tokens allowed in `src/` or in the base template body.
-- All numbers come from `payroll_employee_ytd_rollup` / `payroll_employee_monthly_breakdown`. Templates never do arithmetic beyond declarative `sum`/`sub` on already-projected columns.
-- One resolver, one writer. No caller may reconstruct the DTO inline.
-- Every generation writes to `document_artifacts` with `content_hash` + `payroll_high_water_mark`.
-- Pack extensions are additive and optional; uninstalling a pack retracts its appendix automatically.
-
-## 5. Out of scope (explicit, not deferred)
-
-None. Every milestone above ships in this plan.
-
----
-
-## Session 4 — Annual Earnings Statement redesign (CLOSED)
-
-Root-cause of the blank YTD PDF and the drift between template columns and
-bindings was architectural, not cosmetic. Redesigned the surface per
-ADR-0091.
-
-Shipped:
-- `AnnualEarningsStatementDTO` v1 + single-writer `resolveAnnualEarnings`
-  (deterministic content_hash, provenance, category → channel routing).
-- Registry `payroll_certificate_template_extensions` so localization
-  packs publish appendix bodies (P9/P60/IRP5/SSNIT) into declared
-  `extension_region` slots on the neutral base template.
-- New edge function `generate-annual-earnings-statement` — thin
-  dispatcher, self-service bypass mirrors `generate-payslip-pdf`,
-  expands pack extension regions at compile time, returns compiled
-  paged.js HTML + provenance.
-- ESS page `/me/annual-earnings` (`MyAnnualEarnings.tsx`), gated on the
-  Payroll app.
-- Architecture guard
-  `src/__tests__/architecture.annual-earnings-country-agnostic.test.ts`
-  forbids country tokens (P9/P60/IRP5/PAYE/NHIF/NSSF/…) in the base
-  code paths.
-- ADR-0091 recorded.
-
-Invariants held:
-- Base statement contains zero country tokens (arch test enforced).
-- Templates carry no arithmetic — every number flows through
-  `resolveCertificateYtd` → DTO.
-- Deterministic regeneration guaranteed by `content_hash` on
-  `provenance` (canonical JSON SHA-256 minus issuance metadata).
-- Pack appendices are additive and retract automatically when the pack
-  is uninstalled.
-
-Deferred by design (recorded as ADR-0091 follow-ups, not blocking
-closure):
-- `payroll_annual_earnings_issuances` audit table + uniqueness on
-  content_hash.
-- Employer-side batch issuance UI.
-- Storage-backed PDF artifacts.
-
-Plan officially closed.
+- Unit: run the new resolver test.
+- Manual: invoke `generate-annual-earnings-statement` for an employee with approved payroll history; confirm matrix months are non-zero, YTD Summary matches the sum of months, footer shows a real 12-char content hash, and re-invoking yields the same `content_hash`.
