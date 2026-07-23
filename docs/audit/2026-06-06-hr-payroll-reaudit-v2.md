@@ -64,6 +64,48 @@ Status: **Shipped end-to-end.**
   GRANTs/REVOKEs, SECURITY DEFINER attribute on `get_employee_pii`, and the
   deny-all on `employee_credentials`.
 
+### C-PAY-7 — Legal-order lifecycle → payroll reactor (2026-07-23)
+
+Status: **Shipped end-to-end.**
+
+* **Engine hardening** (`supabase/functions/compute-payroll/index.ts`): the
+  garnishment data-load block previously swallowed every error from
+  `garnishment_resolve_kinds`, `garnishment_resolve_policy`,
+  `legal_orders_records`, and `garnishment_carry_forward`. A single
+  PostgREST failure (schema-cache drift after the
+  `employee_garnishments → legal_orders_records` rename, RLS drift, missing
+  grant) silently produced payslips with zero deductions. All four data
+  fetches now throw `garnishment_load_failed: …` and the run is surfaced
+  to the UI via `payroll_run_jobs`.
+
+* **Event-driven invalidation** (migration
+  `20260723_legal_order_payroll_reactor`): new DB trigger
+  `trg_business_event_outbox_react_legal_order` fires on every
+  `legal_order.*` row inserted into `business_event_outbox`. It:
+  1. Stamps `payroll_runs.needs_recompute_reason` on every DRAFT /
+     PENDING_APPROVAL run whose period overlaps the order and whose
+     payslips include the affected employee. The compute-payroll BEFORE
+     UPDATE trigger `tg_payroll_runs_clear_recompute_marker` clears the
+     marker whenever `run_type_policy_snapshot` is rewritten (i.e. on the
+     next successful compute).
+  2. For APPROVED / POSTED / PAID / REVERSED runs — which are locked by
+     `payroll_runs_immutability_guard` — the reactor emits an
+     `audit_logs` row (`payroll.legal_order.affects_finalized_run`) so
+     finance can decide whether to file a correction run instead of
+     silently mutating the finalized payslip.
+
+* **Guard test** (`src/test/architecture/legal-order-outbox-reactor.test.ts`)
+  pins the trigger, the reactor function name, the draft-run stamp path,
+  and the audit-log-not-mutate path against regression.
+
+* **Canonical writer preserved.** No new mapping-account or payslip-line
+  writer was added. Legal-order deductions still flow exclusively through
+  the compute-payroll engine (disposable earnings → priority → aggregate
+  cap → floor → allocation), then through `post-payroll-gl` and
+  `post-garnishment-payment` for finance/remittance. The reactor's only
+  job is to invalidate stale draft computations so the next compute picks
+  the change up deterministically.
+
 ## Build queue (remaining)
 
 1. C-HR-5 + C-HR-6 — drop duplicate compensation and org-dimension columns

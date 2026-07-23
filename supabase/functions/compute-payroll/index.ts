@@ -2597,7 +2597,12 @@ Deno.serve(async (req) => {
         { p_org_id: organization_id },
       );
       if (kindsErr) {
-        console.warn("[compute-payroll] garnishment_resolve_kinds failed", kindsErr);
+        // Fail loudly. A silent skip here would let the engine finish with
+        // garnKindDefaults empty, so always_first / cap-exempt flags default
+        // to permissive values and the run posts silently under-deducted.
+        throw new Error(
+          `garnishment_load_failed: garnishment_resolve_kinds → ${kindsErr.message ?? String(kindsErr)}`,
+        );
       }
       for (const d of (resolvedKinds || []) as any[]) {
         garnKindDefaults[d.kind] = {
@@ -2613,7 +2618,9 @@ Deno.serve(async (req) => {
         { p_org_id: organization_id },
       );
       if (polErr) {
-        console.warn("[compute-payroll] garnishment_resolve_policy failed", polErr);
+        throw new Error(
+          `garnishment_load_failed: garnishment_resolve_policy → ${polErr.message ?? String(polErr)}`,
+        );
       }
       const pol = (resolvedPolicy ?? {}) as Record<string, any>;
       garnPolicy = {
@@ -2621,7 +2628,7 @@ Deno.serve(async (req) => {
         min_take_home_amount: pol.min_take_home_amount != null ? Number(pol.min_take_home_amount) : null,
         min_take_home_pct: pol.min_take_home_pct != null ? Number(pol.min_take_home_pct) : null,
       };
-      const { data: garn } = await supabaseAdmin
+      const { data: garn, error: garnErr } = await supabaseAdmin
         .from("legal_orders_records" as any)
         .select("id, employee_id, kind, priority, cap_rule, fixed_amount, percent_of_disposable, total_owed, total_paid, total_accrued, case_reference, start_date, end_date, status, aggregate_cap_exempt, minimum_take_home_amount")
         .eq("organization_id", organization_id)
@@ -2629,6 +2636,15 @@ Deno.serve(async (req) => {
         .in("employee_id", employee_ids)
         .lte("start_date", pay_period_end)
         .or(`end_date.is.null,end_date.gte.${pay_period_start}`);
+      if (garnErr) {
+        // Any PostgREST error here (RLS drift, rename cache after the Phase-7
+        // employee_garnishments → legal_orders_records migration, missing
+        // grant, bad column) previously silently dropped every active order
+        // from the run. Fail so payroll_run_jobs surfaces the error to the UI.
+        throw new Error(
+          `garnishment_load_failed: legal_orders_records select → ${garnErr.message ?? String(garnErr)}`,
+        );
+      }
       const sorted = [...(garn || [])].sort((a, b) => {
         const aFirst = garnKindDefaults[a.kind]?.always_first ? 0 : 1;
         const bFirst = garnKindDefaults[b.kind]?.always_first ? 0 : 1;
@@ -2639,6 +2655,10 @@ Deno.serve(async (req) => {
       for (const g of sorted) {
         (garnishmentsByEmployee[g.employee_id] ||= []).push(g);
       }
+      const distinctEmployees = Object.keys(garnishmentsByEmployee).length;
+      console.info(
+        `[compute-payroll] loaded ${sorted.length} active legal order(s) for ${distinctEmployees} employee(s) in period ${pay_period_start}..${pay_period_end}`,
+      );
     }
     const reimbursementsByEmployee: Record<string, any[]> = {};
     {
@@ -2660,18 +2680,24 @@ Deno.serve(async (req) => {
     // floor / total_owed limits.
     const pendingCfByGarn: Record<string, { totalPending: number; ids: string[] }> = {};
     {
-      const { data: cf } = await supabaseAdmin
+      const { data: cf, error: cfErr } = await supabaseAdmin
         .from("garnishment_carry_forward")
         .select("id, garnishment_id, shortfall_amount")
         .eq("organization_id", organization_id)
         .is("consumed_by_run_id", null)
         .in("employee_id", employee_ids);
+      if (cfErr) {
+        throw new Error(
+          `garnishment_load_failed: garnishment_carry_forward select → ${cfErr.message ?? String(cfErr)}`,
+        );
+      }
       for (const row of cf || []) {
         const slot = (pendingCfByGarn[row.garnishment_id] ||= { totalPending: 0, ids: [] });
         slot.totalPending = Math.round((slot.totalPending + Number(row.shortfall_amount || 0)) * 100) / 100;
         slot.ids.push(row.id);
       }
     }
+
     const cfInserts: Array<Record<string, unknown>> = [];
     const cfConsumedIds: string[] = [];
 

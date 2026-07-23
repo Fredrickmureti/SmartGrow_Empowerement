@@ -34326,6 +34326,7 @@ export type Database = {
           localization_pack_version: string | null
           locked_at: string | null
           locked_by: string | null
+          needs_recompute_reason: string | null
           notes: string | null
           organization_id: string
           original_run_id: string | null
@@ -34381,6 +34382,7 @@ export type Database = {
           localization_pack_version?: string | null
           locked_at?: string | null
           locked_by?: string | null
+          needs_recompute_reason?: string | null
           notes?: string | null
           organization_id: string
           original_run_id?: string | null
@@ -34436,6 +34438,7 @@ export type Database = {
           localization_pack_version?: string | null
           locked_at?: string | null
           locked_by?: string | null
+          needs_recompute_reason?: string | null
           notes?: string | null
           organization_id?: string
           original_run_id?: string | null
@@ -71332,6 +71335,7 @@ export type Database = {
           localization_pack_version: string | null
           locked_at: string | null
           locked_by: string | null
+          needs_recompute_reason: string | null
           notes: string | null
           organization_id: string
           original_run_id: string | null
@@ -77220,6 +77224,7 @@ export type Database = {
           localization_pack_version: string | null
           locked_at: string | null
           locked_by: string | null
+          needs_recompute_reason: string | null
           notes: string | null
           organization_id: string
           original_run_id: string | null
