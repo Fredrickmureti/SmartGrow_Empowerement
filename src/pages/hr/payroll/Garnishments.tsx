@@ -536,11 +536,24 @@ export default function GarnishmentsPage() {
           </WorkflowSheetSection>
 
           <WorkflowSheetSection number={3} title="Effective window" subtitle="Start and optional end of garnishment.">
+            {resolvedLegalOrder?.completion_rule && (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                Completion rule: <Badge variant="outline" className="text-[10px]">{String(resolvedLegalOrder.completion_rule).replace(/_/g, " ")}</Badge>
+                {resolvedLegalOrder.completion_rule === "until_end_date" && <span className="ml-2 text-muted-foreground">End date is required.</span>}
+                {resolvedLegalOrder.completion_rule === "until_total_owed_met" && <span className="ml-2 text-muted-foreground">Total owed is required.</span>}
+                {(resolvedLegalOrder.completion_rule === "manual_release_only" || resolvedLegalOrder.completion_rule === "until_authority_release") && (
+                  <span className="ml-2 text-muted-foreground">Order runs until manually released — no end date needed.</span>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <WorkflowField label="Start date" required>
                 <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
               </WorkflowField>
-              <WorkflowField label="End date">
+              <WorkflowField
+                label="End date"
+                required={resolvedLegalOrder?.completion_rule === "until_end_date"}
+              >
                 <Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
               </WorkflowField>
             </div>
