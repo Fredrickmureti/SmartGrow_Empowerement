@@ -4527,6 +4527,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Garnishment engine withheld nothing despite active in-window orders.
+    // Emit a warning per employee so the run details panel names the reason
+    // (floor breached / cap exhausted / policy misconfig) instead of silently
+    // producing a payslip without the ordered deduction.
+    if (garnishmentZeroIssues.length > 0) {
+      const rows = garnishmentZeroIssues.map((iss) => ({
+        organization_id,
+        business_id: business_id || null,
+        payroll_run_id: payrollRun.id,
+        employee_id: iss.employee_id,
+        code: "GARNISHMENT_WITHHELD_ZERO",
+        severity: "warning",
+        message: `${iss.order_count} active legal order${iss.order_count === 1 ? "" : "s"} withheld nothing this period — check garnishment policy (protected-earnings floor / aggregate cap) or the employee's disposable income.`,
+        details: iss,
+      }));
+      for (let i = 0; i < rows.length; i += 500) {
+        await supabaseAdmin.from("payroll_run_issues").insert(rows.slice(i, i + 500));
+      }
+    }
+
+
     // Pre-existing user-recorded skip overrides for this run → info-level visibility.
     {
       const { data: skipOverrides } = await supabaseAdmin
