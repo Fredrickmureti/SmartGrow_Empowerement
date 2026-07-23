@@ -125,3 +125,51 @@ Both changes non-breaking; engine + architecture tests untouched. See `docs/audi
 
 - **Writes go to `legal_orders_records`.** Reads may use either the table (HR admin editor) or the `legal_orders` view (reporting, employee self-serve, GL hydration). The view is the read contract; the table is the write contract.
 - **`issuing_authority` no longer exists.** All authority metadata flows through `legal_order_authorities` via `authority_id`; the view surfaces the joined `authority_name` for display.
+
+---
+
+## Authoritative status — 2026-07-23 (end of session 2)
+
+### Phases complete and verified
+
+- **Phase 6a — Shared engine extensions.** DONE.
+- **Phase 6b — Localization pack + outbox topics + UI hooks.** DONE.
+- **Phase 6c — Reporting rebind to `public.legal_orders`.** DONE. GL hydration + employee self-serve tab both read the view.
+- **Approval workflow (gap B).**  DONE. Auto-seeded on pack install; `submit` auto-creates the pending `approval_requests` row.
+- **UI polish (gap 2 / Step C).** DONE. `calc_model` badges, completion-rule gating, nav renamed to "Legal Orders", `/hr/payroll/legal-orders` primary route.
+- **Phase 7 — Physical cleanup (Step D).** DONE. `employee_garnishments` renamed to `legal_orders_records`; `issuing_authority` column dropped; all 9 dependent RPCs/triggers repointed; view exposes `authority_name`; app code + edge functions + SQL tests migrated; obsolete `garnishment-engine` shim + its architecture guard test removed.
+
+### Nothing deferred
+
+Every item enumerated in Phases 1–3 above and both prior progress logs has landed. No TODO markers, no orphaned code paths, no partially wired workflows. Grep confirms zero active references to `employee_garnishments` or `issuing_authority` outside historical doc comments and old migration files (which are immutable history).
+
+### Current active phase
+
+None. The Legal Orders roadmap defined in this plan is closed.
+
+---
+
+## Handoff — instructions for the next agent
+
+**Before writing any new code, verify the current state:**
+
+1. **DB objects.** Run these read-only checks against the connected Supabase:
+   - `SELECT to_regclass('public.legal_orders_records');` → must return `legal_orders_records`.
+   - `SELECT to_regclass('public.employee_garnishments');` → must return `NULL`.
+   - `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='legal_orders_records' AND column_name='issuing_authority';` → must return zero rows.
+   - `\d+ public.legal_orders` (or `pg_get_viewdef`) → must show `authority_name` column joined from `legal_order_authorities`.
+   - `SELECT proname FROM pg_proc WHERE proname IN ('legal_order_transition','garnishment_transition','ensure_default_legal_order_workflow','install_legal_order_kind_defaults');` → all four present.
+2. **Code contract.** `rg -n "employee_garnishments|issuing_authority" src supabase/functions` should return only doc-comment mentions (the "formerly" notes) — no live `.from(...)` or column selectors.
+3. **Test suites.**
+   - `bunx vitest run src/lib/payroll/__tests__/garnishment-engine.test.ts` — engine still green (13 cases).
+   - `bunx vitest run src/test/architecture/turn-f-orphan-admin-uis.test.ts` — orphan check green.
+   - Any Deno tests in `supabase/functions/post-payroll-gl/` — green.
+4. **Runtime smoke.** Open `/hr/payroll/legal-orders`, create a draft order, submit → confirm a `pending` row appears in `approval_requests` when a workflow is configured, and `activate` is blocked until approved.
+
+**Only after all four verifications pass**, resume from the next milestone in the broader payroll roadmap. In chronological order, the natural next milestones (not yet in scope of this plan) are:
+
+- **Payroll return runs — legal-order line items.** Wire `payroll_return_runs` extract to `public.legal_orders` + `legal_order_remittance_lines` so statutory returns (KRA P10, etc.) emit correctly ordered per-authority totals using `priority_class`.
+- **Remittance batch payments UI.** Surface `legal_order_remittance_lines` in the payroll payment batch builder so HR can settle multiple orders in one bank file grouped by `authority_id`.
+- **Employee-facing document uploads.** Extend `LegalOrderDocuments.tsx` with employee-side evidence upload (currently HR-only) gated by `evidence_requirements` from the pack.
+
+Pick the first of these unless the user explicitly steers elsewhere. Do **not** start unrelated work (POS, WMS, HR onboarding, etc.) until the payroll legal-orders extraction pipeline is production-ready end-to-end.
