@@ -74,7 +74,7 @@ export interface Garnishment {
   kind: GarnishmentKind;
   priority: number;
   case_reference: string | null;
-  issuing_authority: string | null;
+  authority_id: string | null;
   cap_rule: GarnishmentCapRule;
   fixed_amount: number | null;
   percent_of_disposable: number | null;
