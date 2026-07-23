@@ -182,6 +182,10 @@ export async function resolveAnnualEarnings(
     reliefs: [] as AnnualEarningsBreakdownRow[],
   };
 
+  // Track employer amounts per month so YTD.employer_contributions_total
+  // is derived from the same monthly projection (single source of truth).
+  const monthlyEmployerTotals: number[] = Array.from({ length: 12 }, () => 0);
+
   for (const row of ((mmRows ?? []) as any[])) {
     // Canonical RPC column is `month_index`; accept `month` as a legacy
     // alias for defensive forward-compat.
@@ -190,20 +194,34 @@ export async function resolveAnnualEarnings(
     if (!mIdx) continue;
     const target = months[mIdx - 1];
     const channel = routeCategoryToChannel(row.category);
-    const amt = Number(row.employee_amount) || 0;
-    if (channel) (target as any)[channel] += amt;
+    const eeAmt = Number(row.employee_amount) || 0;
+    const erAmt = Number(row.employer_amount) || 0;
+    if (channel === "statutory_employer") {
+      // Statutory employer contributions live on `employer_amount`;
+      // `employee_amount` is 0 for these rows. Feeding the wrong column
+      // silently zeroed the "Statutory (ER)" monthly column.
+      target.statutory_employer += erAmt;
+    } else if (channel) {
+      (target as any)[channel] += eeAmt;
+    }
     // `taxable` is not a category — it is a scalar on each payslip line
     // proportionally attributed by the RPC. Sum it directly.
     target.taxable += Number(row.taxable_amount) || 0;
+    // Every row can carry an employer amount (pension employer match on
+    // a `deduction` row, for example), so accumulate independently of
+    // channel routing.
+    monthlyEmployerTotals[mIdx - 1] += erAmt;
   }
   // Compute canonical net per month: gross + benefits − statutory_ee −
-  // other_deductions. Reliefs are already netted inside PAYE (see the
-  // certificate resolver comment).
+  // other_deductions (which now includes post_tax_deduction via the
+  // routing table). Reliefs are already netted inside PAYE.
   for (const m of months) {
     m.net = m.gross + m.benefits - m.statutory_employee - m.other_deductions;
   }
 
   // Bucket breakdown rows by channel using the YTD (per rule_code) rows.
+  // `breakdown.*` is a per-rule-code table, not an aggregate — this is
+  // the only remaining use of ytdSource for presentation.
   for (const r of ytdSource.rows) {
     const channel = routeCategoryToChannel(r.category);
     const row: AnnualEarningsBreakdownRow = {
@@ -221,29 +239,37 @@ export async function resolveAnnualEarnings(
     else if (channel === "reliefs") breakdown.reliefs.push(row);
   }
 
-  // 3. YTD aggregate — derived ONLY from the canonical rollup
-  //    (`payroll_employee_ytd`). This is the single source of truth for
-  //    every YTD column; monthly rows are a projection of the same
-  //    underlying `payslip_lines`, so months and YTD agree by
-  //    construction. Summing months would introduce a parallel
-  //    aggregation path and drift (already happened once with the
-  //    `taxable` category that does not exist in payslip_lines).
+  // 3. YTD aggregate — derived by folding the canonical monthly
+  //    projection. `months[]` is the single writer; YTD reconciles by
+  //    construction. Any future divergence between RPCs cannot
+  //    reintroduce drift because there is only one aggregation path.
   const ytd: AnnualEarningsYtd = emptyYtd();
-  for (const r of ytdSource.rows) {
-    const channel = routeCategoryToChannel(r.category);
-    if (channel) (ytd as any)[channel] += r.employee_amount;
-    ytd.taxable += r.taxable_amount;
+  for (const m of months) {
+    ytd.gross += m.gross;
+    ytd.benefits += m.benefits;
+    ytd.taxable += m.taxable;
+    ytd.statutory_employee += m.statutory_employee;
+    ytd.statutory_employer += m.statutory_employer;
+    ytd.other_deductions += m.other_deductions;
+    ytd.reliefs += m.reliefs;
+    ytd.adjustments += m.adjustments;
+    ytd.reversals += m.reversals;
+    ytd.leave_payouts += m.leave_payouts;
+    ytd.bonuses += m.bonuses;
+    ytd.net += m.net;
   }
-  ytd.net = ytd.gross + ytd.benefits - ytd.statutory_employee - ytd.other_deductions;
-  ytd.employer_contributions_total = ytdSource.totals.employer;
-  // Pension total: sum employer amounts on rows whose rule_code hints at
+  ytd.employer_contributions_total = monthlyEmployerTotals.reduce((s, v) => s + v, 0);
+  // Pension total: sum both sides on rows whose rule_code hints at
   // pension — kept country-neutral by matching on a bare "pension" token
-  // that packs use in their rule_code naming convention.
+  // that packs use in their rule_code naming convention. This is a
+  // rule-code slice, not an aggregate, so it legitimately reads
+  // ytdSource.rows.
   ytd.pension_total = ytdSource.rows.reduce(
     (s, r) => s + (/pension/i.test(r.rule_code) ? r.employer_amount + r.employee_amount : 0),
     0,
   );
   ytd.final_settlement = 0; // computed post-termination when we wire the exit surface.
+
 
   // 4. Identity blocks
   const [employerIds, employeeIds] = await Promise.all([
