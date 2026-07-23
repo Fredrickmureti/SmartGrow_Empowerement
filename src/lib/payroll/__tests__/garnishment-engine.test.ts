@@ -58,7 +58,7 @@ describe("computeGarnishments", () => {
     expect(r.applied[1]).toMatchObject({ id: "cr", amount: 250 });
   });
 
-  it("respects total_owed remaining balance", () => {
+  it("respects total_owed remaining balance when no payroll has accrued yet", () => {
     const r = computeGarnishments({
       gross: 1000,
       preGarnishmentDeductions: 0,
@@ -66,7 +66,55 @@ describe("computeGarnishments", () => {
       policy: { aggregate_cap_pct: null, min_take_home_amount: null, min_take_home_pct: null },
       kindDefaults: KIND_DEFAULTS,
     });
-    expect(r.applied[0].amount).toBe(250); // remaining owed
+    expect(r.applied[0].amount).toBe(350); // remaining unaccrued balance
+  });
+
+  it("uses payroll-accrued balance, not remitted cash, when limiting remaining owed", () => {
+    const r = computeGarnishments({
+      gross: 1000,
+      preGarnishmentDeductions: 0,
+      orders: [order({
+        id: "g1",
+        kind: "creditor",
+        cap_rule: "fixed_amount",
+        fixed_amount: 500,
+        total_owed: 350,
+        total_accrued: 300,
+        total_paid: 100,
+      })],
+      policy: { aggregate_cap_pct: null, min_take_home_amount: null, min_take_home_pct: null },
+      kindDefaults: KIND_DEFAULTS,
+    });
+    expect(r.applied[0].amount).toBe(50);
+  });
+
+  it("includes an active fixed child-support legal order in the KES dry-run scenario", () => {
+    const r = computeGarnishments({
+      gross: 94000,
+      preGarnishmentDeductions: 29327.26,
+      orders: [order({
+        id: "0dfb6e04-b7bd-4e40-9507-ec56fb370f7f",
+        kind: "child_support",
+        cap_rule: "fixed_amount",
+        fixed_amount: 7000,
+        total_accrued: 0,
+        start_date: "2026-01-01",
+        end_date: "2026-12-31",
+      })],
+      policy: { aggregate_cap_pct: null, min_take_home_amount: null, min_take_home_pct: null },
+      kindDefaults: {
+        child_support: { counts_toward_aggregate_cap: false, always_first: true, aggregate_cap_membership: "always_first" },
+      },
+      period_start: "2026-07-01",
+      period_end: "2026-07-31",
+    });
+    expect(r.applied[0]).toMatchObject({
+      id: "0dfb6e04-b7bd-4e40-9507-ec56fb370f7f",
+      amount: 7000,
+      requested_amount: 7000,
+      shortfall_amount: 0,
+    });
+    expect(94000 - 29327.26 - r.totalGarnished).toBeCloseTo(57672.74, 2);
   });
 
   it("enforces a minimum take-home floor", () => {
@@ -186,6 +234,19 @@ describe("computeGarnishments", () => {
     });
     // disposable = 800, 25% = 200
     expect(r.applied[0].amount).toBe(200);
+  });
+
+  it("balance_remaining calc_model also uses payroll-accrued balance", () => {
+    const r = computeGarnishments({
+      gross: 1000,
+      preGarnishmentDeductions: 0,
+      orders: [order({ id: "g1", kind: "creditor", cap_rule: null, total_owed: 300, total_accrued: 225, total_paid: 25 })],
+      policy: { aggregate_cap_pct: null, min_take_home_amount: null, min_take_home_pct: null },
+      kindDefaults: {
+        creditor: { counts_toward_aggregate_cap: true, calc_model: "balance_remaining" },
+      },
+    });
+    expect(r.applied[0].amount).toBe(75);
   });
 
   // ────────── Phase 4c: effective-window filter ──────────

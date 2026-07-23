@@ -26,6 +26,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { type InputRef, withInputRef } from "../_shared/inputRef.ts";
 import {
+  computeGarnishments,
+  type GarnishmentOrder,
+  type KindDefault,
+} from "../_shared/garnishment-engine.ts";
+import {
   runStructureEngine,
   type SalaryRule,
   type StructureRuleTrace,
@@ -2581,13 +2586,7 @@ Deno.serve(async (req) => {
     // garnishment_kind_defaults had no org filter and would return cross-tenant
     // override rows once tenants started overriding pack defaults.
     const garnishmentsByEmployee: Record<string, any[]> = {};
-    const garnKindDefaults: Record<string, {
-      default_priority: number;
-      always_first: boolean;
-      counts_toward_aggregate_cap: boolean;
-      employer_fee_amount: number | null;
-      employer_fee_account_role: string | null;
-    }> = {};
+    const garnKindDefaults: Record<string, KindDefault> = {};
     let garnPolicy: { aggregate_cap_pct: number | null; min_take_home_amount: number | null; min_take_home_pct: number | null } = {
       aggregate_cap_pct: null, min_take_home_amount: null, min_take_home_pct: null,
     };
@@ -2611,6 +2610,10 @@ Deno.serve(async (req) => {
           counts_toward_aggregate_cap: d.counts_toward_aggregate_cap !== false,
           employer_fee_amount: d.employer_fee_amount != null ? Number(d.employer_fee_amount) : null,
           employer_fee_account_role: d.employer_fee_account_role ?? null,
+          calc_model: d.calc_model ?? null,
+          priority_class: d.priority_class != null ? Number(d.priority_class) : null,
+          aggregate_cap_membership: d.aggregate_cap_membership ?? null,
+          protected_earnings_rule: d.protected_earnings_rule ?? null,
         };
       }
       const { data: resolvedPolicy, error: polErr } = await supabaseAdmin.rpc(
@@ -3623,15 +3626,9 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ─── Turn C: garnishments (priority-ordered, capped by disposable) ───
-      // Phase 2 enforcement order, per CCPA/KE practice:
-      //   1. disposable = gross − pre-garnishment deductions
-      //   2. aggregate cap = disposable × org.aggregate_cap_pct (only counts
-      //      orders flagged counts_toward_aggregate_cap; child support is
-      //      typically exempt and consumes outside the cap)
-      //   3. floor = max(min_take_home_amount, gross × min_take_home_pct, per-order min_take_home_amount)
-      //   4. each order takes raw = cap_rule formula, clamped to remaining
-      //      disposable AND remaining capped pool AND remaining owed AND floor
+      // ─── Turn C: legal orders / garnishments ───
+      // Delegates all priority, cap, protected-earnings, effective-window and
+      // remaining-balance math to the canonical shared garnishment engine.
       const garnishmentLineMeta: Array<{ id: string; code: string; label: string; amount: number }> = [];
       // P1: Employer admin fees per garnishment order, aggregated by
       // employer_fee_account_role (defaults to "garnishment_admin_fee").
@@ -3641,65 +3638,38 @@ Deno.serve(async (req) => {
       const employerFeeByRole: Record<string, { amount: number; orderIds: string[] }> = {};
       {
         const preGarnDeductions = Object.values(deductionsDetail).reduce((s, v) => s + v, 0);
-        const disposable = Math.max(0, grossPay - preGarnDeductions);
-        let disposableRemaining = disposable;
-        const aggregateCapPool = garnPolicy.aggregate_cap_pct != null
-          ? Math.max(0, disposable * garnPolicy.aggregate_cap_pct)
-          : Number.POSITIVE_INFINITY;
-        let cappedPoolRemaining = aggregateCapPool;
-        const orgFloor = Math.max(
-          garnPolicy.min_take_home_amount ?? 0,
-          garnPolicy.min_take_home_pct != null ? grossPay * garnPolicy.min_take_home_pct : 0,
-        );
-        const garns = runTypePolicy.applies_garnishments ? (garnishmentsByEmployee[emp.id] || []) : [];
-        for (const g of garns) {
-          if (disposableRemaining <= 0) break;
-          const kd = garnKindDefaults[g.kind];
-          const countsTowardCap = !g.aggregate_cap_exempt
-            && (kd?.counts_toward_aggregate_cap ?? true);
-          if (countsTowardCap && cappedPoolRemaining <= 0) continue;
-          let raw = 0;
-          if (g.cap_rule === "fixed_amount") raw = Number(g.fixed_amount) || 0;
-          else if (g.cap_rule === "percent_disposable") raw = disposable * (Number(g.percent_of_disposable) || 0);
-          else if (g.cap_rule === "lesser_of_fixed_or_pct") {
-            raw = Math.min(
-              Number(g.fixed_amount) || 0,
-              disposable * (Number(g.percent_of_disposable) || 0),
-            );
-          }
-          // P6: bump this period's request by any prior carry-forward shortfall.
-          const cfBoost = pendingCfByGarn[g.id]?.totalPending || 0;
-          if (cfBoost > 0) raw += cfBoost;
-          if (g.total_owed != null) {
-            // Cap by the OPEN ACCRUAL balance (what we've already booked in payroll),
-            // not by cash remitted — otherwise we'd keep accruing past the order while
-            // remittance lags behind.
-            raw = Math.min(raw, Math.max(0, Number(g.total_owed) - Number(g.total_accrued || 0)));
-          }
-          const requested = Math.round(raw * 100) / 100;
-          // Per-order minimum take-home floor (rare; org floor below covers most)
-          const perOrderFloor = Number(g.minimum_take_home_amount || 0);
-          const projectedNet = grossPay - preGarnDeductions - (disposable - disposableRemaining) - raw;
-          const floorBreach = Math.max(orgFloor, perOrderFloor) - projectedNet;
-          if (floorBreach > 0) raw = Math.max(0, raw - floorBreach);
-          let capped = Math.min(raw, disposableRemaining);
-          if (countsTowardCap) capped = Math.min(capped, cappedPoolRemaining);
-          const amt = Math.round(capped * 100) / 100;
-          if (amt <= 0) continue;
-          const key = `garnishment_${g.id}`;
+        const garns = runTypePolicy.applies_garnishments
+          ? ((garnishmentsByEmployee[emp.id] || []) as GarnishmentOrder[]).map((g) => ({
+              ...g,
+              carry_forward_amount: pendingCfByGarn[g.id]?.totalPending || 0,
+            }))
+          : [];
+        const computedGarnishments = computeGarnishments({
+          gross: grossPay,
+          preGarnishmentDeductions: preGarnDeductions,
+          orders: garns,
+          policy: garnPolicy,
+          kindDefaults: garnKindDefaults,
+          period_start: pay_period_start,
+          period_end: pay_period_end,
+        });
+
+        for (const applied of computedGarnishments.applied) {
+          const g = garns.find((order) => order.id === applied.id);
+          if (!g) continue;
+          const amt = applied.amount;
+          const key = applied.code;
           deductionsDetail[key] = (deductionsDetail[key] || 0) + amt;
-          disposableRemaining -= amt;
-          if (countsTowardCap) cappedPoolRemaining -= amt;
           garnishmentLineMeta.push({
             id: g.id,
             code: key,
-            label: `${g.kind}${g.case_reference ? ` (${g.case_reference})` : ""}`,
+            label: applied.label,
             amount: amt,
           });
           garnishmentsApplied.push({ id: g.id, amount: amt, employee_id: emp.id });
 
           // P6: record residual shortfall + roll prior carry-forward forward.
-          const shortfall = Math.round(Math.max(0, requested - amt) * 100) / 100;
+          const shortfall = applied.shortfall_amount;
           const prior = pendingCfByGarn[g.id];
           if (prior && prior.ids.length > 0) {
             // We attempted to recover prior shortfall this period; collapse the
@@ -3708,10 +3678,7 @@ Deno.serve(async (req) => {
             prior.totalPending = 0;
             prior.ids = [];
           }
-          if (shortfall > 0) {
-            const reason = floorBreach > 0
-              ? "floor_breached"
-              : (countsTowardCap && cappedPoolRemaining <= 0 ? "aggregate_cap_exhausted" : "disposable_exhausted");
+          if (!dry_run && shortfall > 0) {
             cfInserts.push({
               organization_id,
               business_id: business_id || null,
@@ -3719,20 +3686,19 @@ Deno.serve(async (req) => {
               employee_id: emp.id,
               source_payroll_run_id: payrollRun.id,
               source_period_end: pay_period_end,
-              requested_amount: requested,
+              requested_amount: applied.requested_amount,
               applied_amount: amt,
               shortfall_amount: shortfall,
-              reason_code: reason,
+              reason_code: applied.shortfall_reason ?? "disposable_exhausted",
             });
           }
 
           // P1: employer admin fee — only when the order actually withheld.
           // Fee is an *employer* cost (DR expense, CR payable). It never
           // touches disposable income or the aggregate cap.
-          const feeRaw = Number(kd?.employer_fee_amount || 0);
-          if (feeRaw > 0) {
-            const fee = Math.round(feeRaw * 100) / 100;
-            const role = (kd?.employer_fee_account_role && String(kd.employer_fee_account_role).trim())
+          if (applied.employer_fee_amount > 0) {
+            const fee = applied.employer_fee_amount;
+            const role = (applied.employer_fee_account_role && String(applied.employer_fee_account_role).trim())
               || "garnishment_admin_fee";
             const slot = (employerFeeByRole[role] ||= { amount: 0, orderIds: [] });
             slot.amount = Math.round((slot.amount + fee) * 100) / 100;

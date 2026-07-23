@@ -74922,7 +74922,9 @@ export type Database = {
       garnishment_resolve_kinds: {
         Args: { p_org_id: string }
         Returns: {
+          aggregate_cap_membership: Database["public"]["Enums"]["legal_order_cap_membership"]
           always_first: boolean
+          calc_model: Database["public"]["Enums"]["legal_order_calc_model"]
           counts_toward_aggregate_cap: boolean
           default_priority: number
           employer_fee_amount: number
@@ -74930,6 +74932,8 @@ export type Database = {
           kind: string
           label: string
           max_concurrent: number
+          priority_class: number
+          protected_earnings_rule: Json
           required_identifiers: Json
           source: string
           source_pack_id: string
