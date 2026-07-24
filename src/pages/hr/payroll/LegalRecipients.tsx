@@ -53,6 +53,7 @@ function fmtMoney(n: number): string {
 
 export default function LegalRecipients() {
   const { data: recipients, isLoading } = useLegalRecipientOutstanding();
+  const [linkTarget, setLinkTarget] = useState<LegalRecipientOutstanding | null>(null);
   const [selected, setSelected] = useState<LegalRecipientOutstanding | null>(null);
   const [from, setFrom] = useState(() =>
     format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd"),
