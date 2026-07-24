@@ -274,7 +274,7 @@ export default function LegalOrderRemittanceBatch() {
                               <TableCell className="text-xs">{format(new Date(l.payment_date), "yyyy-MM-dd")}</TableCell>
                               <TableCell className="text-xs">{l.legal_orders?.kind_code ?? "—"}</TableCell>
                               <TableCell className="text-xs">{l.legal_orders?.case_reference ?? "—"}</TableCell>
-                              <TableCell className="text-xs">{l.legal_orders?.legal_recipients?.display_name ?? l.legal_orders?.payee_name ?? "—"}</TableCell>
+                              <TableCell className="text-xs">{l.legal_orders?.legal_recipients?.display_name ?? "—"}</TableCell>
                               <TableCell className="text-xs">{l.reference_number ?? "—"}</TableCell>
                               <TableCell className="text-xs text-right">{fmtMoney(Number(l.amount ?? 0))}</TableCell>
                             </TableRow>
