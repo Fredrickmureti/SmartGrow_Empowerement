@@ -419,6 +419,29 @@ export async function run(req: Request): Promise<Response> {
       legalOrderKindsError = (kindsExc as any)?.message ?? String(kindsExc);
     }
 
+    // Phase 2b (R5, ADR-0093): auto-provision jurisdiction authorities from
+    // the pack's statutory_authorities into legal_order_authorities so the
+    // tenant lands with courts / tax agencies / child-support offices already
+    // pickable in the garnishment UI. Idempotent, non-fatal.
+    let legalOrderAuthoritiesInstalled = 0;
+    let legalOrderAuthoritiesError: string | null = null;
+    try {
+      const { data: authCount, error: authErr } = await admin.rpc(
+        "install_legal_order_authorities_from_pack",
+        { p_organization_id: orgId, p_pack_id: resolvedPackId },
+      );
+      if (authErr) {
+        legalOrderAuthoritiesError = authErr.message;
+        console.warn("[install-localization-pack] legal-order authority provisioning failed", {
+          business_id, pack_id: resolvedPackId, reason: authErr.message,
+        });
+      } else {
+        legalOrderAuthoritiesInstalled = Number(authCount ?? 0);
+      }
+    } catch (authExc) {
+      legalOrderAuthoritiesError = (authExc as any)?.message ?? String(authExc);
+    }
+
 
     const result = (installResult as any) || {};
     const responseBody = {
@@ -434,8 +457,13 @@ export async function run(req: Request): Promise<Response> {
           projected: legalOrderKindsInstalled,
           error: legalOrderKindsError,
         },
+        legal_order_authorities: {
+          provisioned: legalOrderAuthoritiesInstalled,
+          error: legalOrderAuthoritiesError,
+        },
       },
     };
+
 
     // Hard-block only when real failures remain after the atomic attempt.
     if (glFailures.length > 0) {
