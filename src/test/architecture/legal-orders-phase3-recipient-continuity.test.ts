@@ -36,7 +36,7 @@ describe("Legal Orders — Phase 3 recipient financial continuity", () => {
   it("registers the Legal Recipients admin route", () => {
     expect(existsSync(join(repo, "src/pages/hr/payroll/LegalRecipients.tsx"))).toBe(true);
     const routes = read("src/apps/hr/sub/PayrollRoutes.tsx");
-    expect(routes).toMatch(/legal-orders\/recipients/);
-    expect(routes).toMatch(/LegalRecipients/);
+    // Phase 4 nested the route as path="recipients" under path="legal-orders".
+    expect(routes).toMatch(/path="recipients"[\s\S]*?LegalRecipients/);
   });
 });
