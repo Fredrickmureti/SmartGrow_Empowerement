@@ -113,6 +113,31 @@ export default function GarnishmentsPage() {
   const [ledgerFor, setLedgerFor] = useState<Garnishment | null>(null);
   const [lifecycleFor, setLifecycleFor] = useState<Garnishment | null>(null);
   const [linkContactFor, setLinkContactFor] = useState<Garnishment | null>(null);
+  const qc = useQueryClient();
+
+  const useAuthorityAsRecipient = async (orderId: string) => {
+    const { error } = await (supabase as any).rpc(
+      "legal_order_use_authority_as_recipient",
+      { p_order_id: orderId },
+    );
+    if (error) {
+      const msg = error.message ?? String(error);
+      if (msg.includes("MERGE_REQUIRED")) {
+        toast.error(
+          "A different recipient is already linked to this authority — use \"click to link\" and pick that Contact instead.",
+        );
+      } else if (msg.includes("NO_AUTHORITY")) {
+        toast.error("This order has no issuing authority set.");
+      } else {
+        toast.error(msg);
+      }
+      return;
+    }
+    toast.success("Issuing authority set as remittance recipient");
+    qc.invalidateQueries({ queryKey: ["garnishments"] });
+    qc.invalidateQueries({ queryKey: ["legal-orders"] });
+    qc.invalidateQueries({ queryKey: ["legal-recipients"] });
+  };
 
   const employeeById = useMemo(() => {
     const m = new Map<string, string>();
