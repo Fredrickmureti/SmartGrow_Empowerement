@@ -224,6 +224,21 @@ export default function LegalRecipients() {
                   <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
                 </div>
               </div>
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    printRecipientStatement({
+                      recipient: selected,
+                      from,
+                      to,
+                    })
+                  }
+                >
+                  Print / Save PDF
+                </Button>
+              </div>
               <StatementTable
                 recipientId={selected.recipient_id}
                 from={from}
