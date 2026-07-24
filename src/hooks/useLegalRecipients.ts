@@ -178,3 +178,78 @@ export function useMergeLegalRecipients() {
     onError: (e: any) => toast.error(e?.message ?? "Merge failed"),
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3 — Financial continuity: outstanding balances & statements.
+// Reads only. Writers stay in the payroll payment builder.
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface LegalRecipientOutstanding {
+  recipient_id: string;
+  organization_id: string;
+  display_name: string;
+  recipient_type_code: string;
+  contact_id: string | null;
+  jurisdiction_country: string | null;
+  jurisdiction_region: string | null;
+  is_active: boolean;
+  accrued_total: number;
+  paid_total: number;
+  outstanding_balance: number;
+  oldest_accrual_date: string | null;
+  latest_accrual_date: string | null;
+  last_remittance_date: string | null;
+  employee_count: number;
+  order_count: number;
+  is_linked_to_contact: boolean;
+}
+
+export function useLegalRecipientOutstanding() {
+  const { currentOrg } = useOrganization();
+  const orgId = currentOrg?.id ?? null;
+  return useQuery<LegalRecipientOutstanding[]>({
+    queryKey: ["legal-recipient-outstanding", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("legal_recipient_outstanding")
+        .select("*")
+        .eq("organization_id", orgId!)
+        .order("outstanding_balance", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as LegalRecipientOutstanding[];
+    },
+  });
+}
+
+export interface LegalRecipientStatementRow {
+  entry_date: string;
+  entry_kind: "accrual" | "remittance";
+  garnishment_id: string;
+  employee_id: string;
+  amount: number;
+  reference: string | null;
+  payroll_run_id: string | null;
+  payment_id: string | null;
+}
+
+export function useLegalRecipientStatement(args: {
+  recipientId: string | null;
+  from: string;
+  to: string;
+}) {
+  return useQuery<LegalRecipientStatementRow[]>({
+    queryKey: ["legal-recipient-statement", args.recipientId, args.from, args.to],
+    enabled: !!args.recipientId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("legal_recipient_statement", {
+        p_recipient_id: args.recipientId!,
+        p_from: args.from,
+        p_to: args.to,
+      });
+      if (error) throw error;
+      return (data ?? []) as LegalRecipientStatementRow[];
+    },
+  });
+}
+
