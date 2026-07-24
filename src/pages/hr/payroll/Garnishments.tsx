@@ -391,7 +391,7 @@ export default function GarnishmentsPage() {
                                       type="button"
                                       onClick={() => useAuthorityAsRecipient(g.id)}
                                       className="inline-flex"
-                                      title="Use the issuing authority (court/agency) as the remittance recipient. A recipient master record is created from the authority's details; no separate Contact needed for accrual and statement purposes. A Contact is still required later before bank-file generation."
+                                      title="Use the issuing authority (court/agency) as the remittance recipient. The authority's linked Contact is stamped on the recipient and the order in one step, so accrual, statements, and bank-file generation are all ready — no separate Contact link needed."
                                     >
                                       <Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-muted">
                                         use issuing authority as recipient
