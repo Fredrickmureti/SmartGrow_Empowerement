@@ -533,11 +533,10 @@ export default function GarnishmentsPage() {
               <AuthorityPicker
                 value={form.authority_id}
                 fallbackText={form.authority_text}
-                onChange={({ authority_id, authority_contact_id, authority_text, picked }) =>
+                onChange={({ authority_id, authority_text, picked }) =>
                   setForm({
                     ...form,
                     authority_id,
-                    authority_contact_id,
                     authority_text,
                     // Prefill payee defaults from the authority when the user hasn't set them.
                     payee_bank: form.payee_bank || picked?.default_payee_bank || "",
