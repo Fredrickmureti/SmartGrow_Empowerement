@@ -112,4 +112,53 @@ Migration applied and verified in DB. Follow-up:
 - Architecture test `legal-orders-phase6-packs.test.ts` (4 tests, all green).
 - ADR-0095 recorded.
 
-Next up: Phase 7 (remittance cycle closure) then Phase 8 (audit + historical balances). No Phase 6 work remaining.
+## Phase 7 — STATUS: IN PROGRESS
+
+### Phase 7 step 0 — Recipient linking (DELIVERED 2026-07-24)
+
+- RPCs `legal_recipient_link_contact(recipient, contact, copy_defaults)` and `legal_order_attach_contact(order, contact)` — SECURITY DEFINER, org-scoped, refuse duplicates with `MERGE_REQUIRED`.
+- Shared `LinkRecipientDialog` mounted on both Recipients and Garnishments pages; the "recipient not linked" badge is now a clickable link.
+- Cache invalidations wired for `legal-recipients`, `legal-recipient-outstanding`, `garnishments`, `legal-orders`.
+
+### Phase 7 step 1 — Remittance batch closure loop (DELIVERED 2026-07-24)
+
+Migration `20260724_phase7_remittance_batches`, verified in DB (all 6 target objects exist):
+
+- Tables `legal_order_remittance_batches` (recipient-scoped, period-scoped, status draft/generated/settled/cancelled, bank_file_format + sha256 checksum) and `legal_order_remittance_batch_lines` (per-order planned/actual with back-link to `legal_order_remittance_lines`).
+- RPCs: `legal_order_build_remittance_batch`, `legal_order_generate_remittance_bank_file` (csv / ach_stub / sepa_pain001_stub), `legal_order_settle_remittance_batch`, `legal_order_cancel_remittance_batch`, `legal_order_auto_satisfy`.
+- Settlement is idempotent (unique `source_event_id` per line), reuses the Phase 5 projection and dispatcher, and calls `apply_system_garnishment_transition` for auto-satisfy — FSM writer-guard preserved.
+- UI: new `LegalOrderRemittanceBatches.tsx` at `/hr/payroll/legal-orders/batches` (workspace tab "Batches"), with build / generate / preview & download bank file / settle / cancel actions.
+- ADR-0096 recorded.
+
+### Phase 7 remaining
+
+- **Step 2 — Bank reconciliation match.** Auto-match `bank_transactions ↔ legal_order_remittance_batches.settled_bank_transaction_id` through `bank_reconciliation_matches`; expose "match to bank" action on settled batches.
+- **Step 3 — Recipient statement PDF.** Server function producing per-recipient statement over the existing document-artifact pipeline.
+- **Step 4 — Tests.** `src/test/architecture/legal-orders-phase7-remittance-cycle.test.ts` — RPC contract shape, FSM writer-guard still active, bank-file format pluggability, settlement idempotency (double-settle returns same payment_id via unique constraint).
+- Nightly schedule (`pg_cron` in a private migration, not the standard migration path) invoking `legal_order_auto_satisfy(null)` — pending user go-ahead because it references org-specific URLs/keys.
+
+## Phase 8 — STATUS: NOT STARTED
+
+Unchanged from the design section above.
+
+---
+
+## Handoff — for the next agent
+
+**Before you touch anything, verify Phase 7 step 1 is production-grade:**
+
+1. `SELECT to_regclass('public.legal_order_remittance_batches'), to_regclass('public.legal_order_remittance_batch_lines');` — both non-null.
+2. Confirm the six RPCs exist and are SECURITY DEFINER: `legal_order_build_remittance_batch`, `legal_order_generate_remittance_bank_file`, `legal_order_settle_remittance_batch`, `legal_order_cancel_remittance_batch`, `legal_order_auto_satisfy`, plus the pre-existing `legal_order_apply_payment_remittance`.
+3. End-to-end smoke: pick a recipient with `outstanding_balance > 0` in `legal_recipient_outstanding`, `build` → `generate` → `settle`, then assert `legal_order_remittance_lines` grew by `planned_line_count` and the recipient's outstanding dropped.
+4. Confirm the batches tab renders at `/hr/payroll/legal-orders/batches` and typechecks (`bunx tsgo --noEmit` clean).
+5. FSM guard invariant: any attempt to `UPDATE legal_orders_records SET status = ...` from a non-FSM path still throws `LEGAL_ORDER_FSM_BYPASS` (existing test `legal-orders-phase2-seams` must stay green).
+
+**If any of those fails, fix that before starting step 2.** Do not skip to Phase 8.
+
+**Then resume at Phase 7 step 2 (bank reconciliation match).** After step 2, step 3 (statement PDF), step 4 (architecture tests). Phase 8 only opens once all of Phase 7 is green.
+
+Guardrails that must not be broken:
+- No new status writer path — everything goes through `garnishment_transition` / `apply_system_garnishment_transition`.
+- Every new public-schema table ships with `GRANT` + RLS in the same migration.
+- Every new outbox topic ships with a dispatcher entry.
+- No country-specific branching in engine code — pack rows only.
