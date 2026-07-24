@@ -34,6 +34,7 @@ const LegalOrderRemittanceBatch = lazy(() => import("@/pages/hr/payroll/LegalOrd
 const LegalRecipients = lazy(() => import("@/pages/hr/payroll/LegalRecipients"));
 const LegalOrdersWorkspace = lazy(() => import("@/pages/hr/payroll/LegalOrdersWorkspace"));
 const LegalOrdersTasks = lazy(() => import("@/pages/hr/payroll/LegalOrdersTasks"));
+const LegalOrderPacks = lazy(() => import("@/pages/hr/payroll/LegalOrderPacks"));
 
 interface PayrollAppProps {
   surface: "payroll" | "remittances";
