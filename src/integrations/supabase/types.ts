@@ -24661,6 +24661,236 @@ export type Database = {
           },
         ]
       }
+      legal_order_remittance_batch_lines: {
+        Row: {
+          actual_amount: number | null
+          batch_id: string
+          created_at: string
+          employee_id: string | null
+          garnishment_id: string
+          id: string
+          organization_id: string
+          planned_amount: number
+          reference_number: string | null
+          remittance_line_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          actual_amount?: number | null
+          batch_id: string
+          created_at?: string
+          employee_id?: string | null
+          garnishment_id: string
+          id?: string
+          organization_id: string
+          planned_amount: number
+          reference_number?: string | null
+          remittance_line_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actual_amount?: number | null
+          batch_id?: string
+          created_at?: string
+          employee_id?: string | null
+          garnishment_id?: string
+          id?: string
+          organization_id?: string
+          planned_amount?: number
+          reference_number?: string | null
+          remittance_line_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_order_remittance_batch_lines_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_remittance_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batch_lines_garnishment_id_fkey"
+            columns: ["garnishment_id"]
+            isOneToOne: false
+            referencedRelation: "legal_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batch_lines_garnishment_id_fkey"
+            columns: ["garnishment_id"]
+            isOneToOne: false
+            referencedRelation: "legal_orders_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batch_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batch_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batch_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batch_lines_remittance_line_id_fkey"
+            columns: ["remittance_line_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_remittance_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_order_remittance_batches: {
+        Row: {
+          bank_file_checksum: string | null
+          bank_file_format: string | null
+          bank_file_generated_at: string | null
+          batch_number: string
+          business_id: string | null
+          cancelled_at: string | null
+          cancelled_reason: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          payment_method_id: string | null
+          period_from: string
+          period_to: string
+          planned_line_count: number
+          planned_total: number
+          recipient_id: string
+          settled_at: string | null
+          settled_bank_transaction_id: string | null
+          settled_payment_date: string | null
+          settled_reference: string | null
+          status: Database["public"]["Enums"]["legal_order_remittance_batch_status"]
+          updated_at: string
+        }
+        Insert: {
+          bank_file_checksum?: string | null
+          bank_file_format?: string | null
+          bank_file_generated_at?: string | null
+          batch_number: string
+          business_id?: string | null
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          payment_method_id?: string | null
+          period_from: string
+          period_to: string
+          planned_line_count?: number
+          planned_total?: number
+          recipient_id: string
+          settled_at?: string | null
+          settled_bank_transaction_id?: string | null
+          settled_payment_date?: string | null
+          settled_reference?: string | null
+          status?: Database["public"]["Enums"]["legal_order_remittance_batch_status"]
+          updated_at?: string
+        }
+        Update: {
+          bank_file_checksum?: string | null
+          bank_file_format?: string | null
+          bank_file_generated_at?: string | null
+          batch_number?: string
+          business_id?: string | null
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          payment_method_id?: string | null
+          period_from?: string
+          period_to?: string
+          planned_line_count?: number
+          planned_total?: number
+          recipient_id?: string
+          settled_at?: string | null
+          settled_bank_transaction_id?: string | null
+          settled_payment_date?: string | null
+          settled_reference?: string | null
+          status?: Database["public"]["Enums"]["legal_order_remittance_batch_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_order_remittance_batches_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batches_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batches_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batches_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "legal_recipient_outstanding"
+            referencedColumns: ["recipient_id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_batches_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "legal_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_order_remittance_lines: {
         Row: {
           actor_user_id: string | null
@@ -78885,6 +79115,25 @@ export type Database = {
         Args: { p_contact_id: string; p_order_id: string }
         Returns: Json
       }
+      legal_order_auto_satisfy: {
+        Args: { p_organization_id?: string }
+        Returns: number
+      }
+      legal_order_build_remittance_batch: {
+        Args: {
+          p_business_id: string
+          p_notes?: string
+          p_organization_id: string
+          p_period_from: string
+          p_period_to: string
+          p_recipient_id: string
+        }
+        Returns: string
+      }
+      legal_order_cancel_remittance_batch: {
+        Args: { p_batch_id: string; p_reason: string }
+        Returns: undefined
+      }
       legal_order_check_finance_drift: {
         Args: {
           p_business: string
@@ -78893,6 +79142,10 @@ export type Database = {
           p_payload: Json
           p_topic: string
         }
+        Returns: Json
+      }
+      legal_order_generate_remittance_bank_file: {
+        Args: { p_batch_id: string; p_format?: string }
         Returns: Json
       }
       legal_order_notify_employee: {
@@ -78914,6 +79167,15 @@ export type Database = {
           p_topic: string
         }
         Returns: number
+      }
+      legal_order_settle_remittance_batch: {
+        Args: {
+          p_bank_transaction_id?: string
+          p_batch_id: string
+          p_payment_date: string
+          p_reference?: string
+        }
+        Returns: Json
       }
       legal_order_transition: {
         Args: {
@@ -85387,6 +85649,11 @@ export type Database = {
         | "by_date"
         | "by_court_order"
         | "indefinite"
+      legal_order_remittance_batch_status:
+        | "draft"
+        | "generated"
+        | "settled"
+        | "cancelled"
       offer_status:
         | "draft"
         | "sent"
@@ -86156,6 +86423,12 @@ export const Constants = {
         "by_date",
         "by_court_order",
         "indefinite",
+      ],
+      legal_order_remittance_batch_status: [
+        "draft",
+        "generated",
+        "settled",
+        "cancelled",
       ],
       offer_status: [
         "draft",
