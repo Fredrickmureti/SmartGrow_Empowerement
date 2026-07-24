@@ -62,6 +62,35 @@ columns as read-only derived data.
 - No country-specific behaviour is added; recipient types are pack data.
 - `Garnishment Payable ≠ PAYE Payable` (ADR-0092) is unaffected.
 
+## Recipient Contact roles (party-vs-role)
+
+The `contacts` row that backs a `legal_recipients` record is a **party**,
+not an accounting role. Per ADR-0038 the two role ranks
+(`customer_rank`, `supplier_rank`) express what the party has acted as;
+recipient-ness is expressed **by the `legal_recipients` linkage itself**,
+not by a third rank column. Precedent: Odoo's partner-category tag,
+SAP HCM's `GARN` vendor account group, Oracle Fusion's Third-Party
+Payment Payee, Workday's Third Party Payee.
+
+Canonical roles for a recipient-backing contact:
+
+| Rank shape                         | Role in the picker | Behaviour                                                                                   |
+| ---------------------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
+| `customer_rank = 0, supplier_rank = 0` | Party-only         | Hidden from Customers / Vendors lists (they filter `rank > 0`). Canonical for pure recipients. |
+| `supplier_rank > 0`                | Vendor             | Allowed — SACCOs / existing AP vendors already known to Finance. No duplicate contact.       |
+| `customer_rank > 0` only           | Customer           | Hidden from the recipient picker by default; an explicit "Include customers" toggle reveals it with an inline warning. |
+
+`LinkRecipientDialog` enforces this ordering and can create a
+**party-only** contact inline (rank 0/0, `type = null`, no default AR/AP
+accounts). Promotion path: if the party later becomes a vendor,
+`supplier_rank` flips to `1` and AP defaults are filled on the same row
+— no merge, no data migration. The recipient linkage is untouched.
+
+This keeps the workspace clean: a payroll recipient never pollutes AR
+or AP lists, but if it graduates into a real vendor tomorrow, the
+change is a one-column flip on the same identity.
+
+
 ## Follow-up phases
 
 - Phase 2 — canonical FSM + engine RPC consuming `recipient_id` for
