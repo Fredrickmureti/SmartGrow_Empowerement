@@ -23979,6 +23979,36 @@ export type Database = {
           },
         ]
       }
+      legal_order_subscriber_dispatch_log: {
+        Row: {
+          details: Json
+          dispatched_at: string
+          organization_id: string
+          outcome: string
+          source_event_id: string
+          subscriber: string
+          topic: string
+        }
+        Insert: {
+          details?: Json
+          dispatched_at?: string
+          organization_id: string
+          outcome?: string
+          source_event_id: string
+          subscriber: string
+          topic: string
+        }
+        Update: {
+          details?: Json
+          dispatched_at?: string
+          organization_id?: string
+          outcome?: string
+          source_event_id?: string
+          subscriber?: string
+          topic?: string
+        }
+        Relationships: []
+      }
       legal_orders_records: {
         Row: {
           aggregate_cap_exempt: boolean
@@ -76487,6 +76517,26 @@ export type Database = {
           p_payload: Json
         }
         Returns: string
+      }
+      legal_order_check_finance_drift: {
+        Args: {
+          p_business: string
+          p_event_id: string
+          p_org_id: string
+          p_payload: Json
+          p_topic: string
+        }
+        Returns: Json
+      }
+      legal_order_notify_employee: {
+        Args: {
+          p_business: string
+          p_event_id: string
+          p_org_id: string
+          p_payload: Json
+          p_topic: string
+        }
+        Returns: number
       }
       legal_order_notify_event: {
         Args: {
