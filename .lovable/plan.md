@@ -1,21 +1,68 @@
 
 # Legal Orders / Garnishments — Continuation Plan
 
+> **Status snapshot (current):** Phases 1–7 delivered end-to-end (recipient master
+> data, FSM guard, workspace shell, outbox integration, jurisdiction packs,
+> recipient linking, remittance batches, bank-file, settlement, bank-rec
+> matching, nightly auto-satisfy, recipient statement print). **Phase 8 backend
+> + UI + architecture test + ADR-0097 landed and green.** Only Phase 8 step 2
+> follow-up (seed default statutory-report definitions in jurisdiction packs)
+> remains before the roadmap is complete.
+>
+> **Active phase:** Phase 8 (closing).
+> **Next milestone:** Phase 8 step 2 follow-up — seed pack-neutral definitions
+> (`legal_orders_outstanding_by_recipient`, `legal_orders_remittance_activity`)
+> into `legal_order_statutory_report_definitions` with `organization_id = NULL`
+> via the KE / ZA / GH / DE localisation packs. After that, extend ADR-0094
+> with the audit-projection contract as noted below.
+
 ## Phase 0 — Verification of prior work (evidence-based)
 
 Verified directly against DB and codebase, not against `.lovable/plan.md` claims.
 
 | Prior claim | Verification | Status |
 |---|---|---|
-| Phases 1–5 (recipient master data, FSM guard, continuity, workspace shell, outbox + finance/ESS subscribers) | Migrations + `legal-orders-phase{2..5}` architecture tests present; ADRs 0092–0094 recorded | Accepted as done |
-| Phase 6 jurisdiction packs | `legal_order_effective_kind_defaults` view, resolver, seeded KE/ZA/GH/DE packs, workspace "Packs" tab, `legal-orders-phase6-packs.test.ts`, ADR-0095 | Accepted as done |
-| Phase 7 step 0 — recipient linking RPCs (`legal_recipient_link_contact`, `legal_order_attach_contact`) | Both functions present in `pg_proc` | Accepted as done |
-| Phase 7 step 1 — remittance batches | Tables `legal_order_remittance_batches` + `legal_order_remittance_batch_lines` exist; all 5 batch RPCs + 2 linking RPCs = 7 SECURITY DEFINER functions present; UI `LegalOrderRemittanceBatches.tsx` mounted; ADR-0096 recorded | Accepted as done |
-| Phase 7 step 4 architecture test | `legal-orders-phase7-*.test.ts` does not exist | **Missing** — must be authored before Phase 7 can be declared closed |
+| Phases 1–5 | Migrations + architecture tests present; ADRs 0092–0094 recorded | ✅ Accepted |
+| Phase 6 jurisdiction packs | Resolver, seeded KE/ZA/GH/DE packs, "Packs" tab, `legal-orders-phase6-packs.test.ts`, ADR-0095 | ✅ Accepted |
+| Phase 7 step 0 — recipient linking RPCs | Both `SECURITY DEFINER` functions present | ✅ Accepted |
+| Phase 7 step 1 — remittance batches | Tables + 7 RPCs present; UI `LegalOrderRemittanceBatches.tsx` mounted; ADR-0096 | ✅ Accepted |
+| Phase 7 step 2 — bank-rec seam | `bank_reconciliation_matches.legal_order_remittance_batch_id` + `legal_order_match_batch_to_bank_txn`; `MatchBatchDialog` in workspace | ✅ Accepted |
+| Phase 7 step 3 — nightly auto-satisfy + statement | `pg_cron` job `legal-orders-auto-satisfy-nightly` (02:15 UTC), `legal_order_recipient_statement` RPC, "Print / Save PDF" in Recipients | ✅ Accepted |
+| Phase 7 step 5 — architecture test | `legal-orders-phase7-remittance-cycle.test.ts` present + green | ✅ Accepted |
+| Phase 8 backend | `v_legal_order_audit_timeline` (security_invoker), `legal_order_statutory_report_definitions` (GRANT+RLS+partial unique indexes), `legal_order_running_balance` RPC | ✅ Accepted |
+| Phase 8 UI | `LegalOrdersAudit.tsx` mounted at `/hr/payroll/legal-orders/audit`; tab in `LegalOrdersWorkspace`; read-only (no `.update/.insert/.delete`) | ✅ Accepted |
+| Phase 8 architecture test | `legal-orders-phase8-audit.test.ts` — 6/6 green | ✅ Accepted |
+| Phase 8 ADR | `docs/adr/0097-legal-order-historical-balance-and-reporting.md` | ✅ Accepted |
+| Pack-seeded statutory definitions | Rows in `legal_order_statutory_report_definitions` with `organization_id IS NULL` | ⏳ **Pending** |
+| ADR-0094 extension for audit projection | Section on `v_legal_order_audit_timeline` shape | ⏳ **Pending** |
 
-Blocking issues found: none in shipped surface. The gap is the *remaining* Phase 7 steps (bank reconciliation match, statement PDF, phase-7 architecture test, nightly auto-satisfy schedule) plus all of Phase 8.
+## Handoff to the next agent — REQUIRED first steps
 
-Runtime smoke of `build → generate → settle` on a live recipient is performed once in build mode before authoring Phase 7 step 2, per the handoff checklist in `.lovable/plan.md`.
+Before writing any code, verify the ledger above:
+
+1. Confirm `v_legal_order_audit_timeline`, `legal_order_statutory_report_definitions`
+   and `legal_order_running_balance` exist in the live DB and behave as declared
+   (view is `security_invoker`, RPC is `SECURITY DEFINER` and calls
+   `is_org_member`, table has both partial unique indexes + RLS enabled + GRANTs
+   to `authenticated` and `service_role`).
+2. Run `bunx vitest run src/test/architecture/legal-orders-phase8-audit.test.ts`
+   and confirm 6/6 green. Then run the phase 7 test as well.
+3. Load `/hr/payroll/legal-orders/audit` in the app, pick a legal order, and
+   confirm the timeline renders lifecycle events + remittance milestones and
+   the four balance KPIs update as you change "Balance as of". If any of the
+   above fails, stop and fix the regression first — do NOT start new work on
+   top of a broken baseline.
+
+Only after verification, resume from the **Next milestone** at the top of this
+file. Do not jump to unrelated subsystems; the roadmap below is chronological.
+
+## Phase 7 — Remittance cycle closure (finish)
+
+### Step 2 — Bank reconciliation seam
+- Extend `bank_reconciliation_matches` join surface: add nullable `legal_order_remittance_batch_id` FK column + index; when a `bank_transactions` row is matched to a settled batch, populate this instead of a synthetic match.
+- Auto-match rule: recipient name / reference / amount against `legal_order_remittance_batches` where `status='settled' AND settled_bank_transaction_id IS NULL`. Rule ships as a `bank_reconciliation_rules` seed, not engine code.
+- RPC `legal_order_match_batch_to_bank_txn(_batch_id, _bank_transaction_id)` — SECURITY DEFINER, org-scoped, refuses if batch already matched or txn already reconciled; writes both the match row and stamps `settled_bank_transaction_id`.
+- UI on `LegalOrderRemittanceBatches`: "Match to bank transaction" action on settled/un-matched batches → picker over unreconciled bank txns for the batch's org+recipient bank account.
 
 ## Phase 7 — Remittance cycle closure (finish)
 
