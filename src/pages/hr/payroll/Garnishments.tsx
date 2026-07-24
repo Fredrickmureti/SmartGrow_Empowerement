@@ -171,7 +171,8 @@ export default function GarnishmentsPage() {
     case_reference: "",
     authority_text: "",
     authority_id: null as string | null,
-    authority_contact_id: null as string | null,
+    // NOTE: `authority_contact_id` on legal_orders_records is the retired
+    // overlay column (ADR-0093). `authority_id` is the sole writer path.
     cap_rule: "fixed_amount" as GarnishmentCapRule,
     fixed_amount: "",
     percent_of_disposable: "",
