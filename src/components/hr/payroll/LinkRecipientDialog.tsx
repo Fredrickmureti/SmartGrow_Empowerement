@@ -218,19 +218,44 @@ export function LinkRecipientDialog({
   });
 
   const rIds = recipientIds ?? new Set<string>();
+
+  // Merge curated authorities into the picker as first-class candidates.
+  const authorityRows = useMemo(
+    () =>
+      authorities
+        .filter((a) => !!a.contact_id)
+        .map((a) => ({
+          c: {
+            id: a.contact_id!,
+            name: a.name,
+            email: a.contact_email,
+            phone: a.contact_phone,
+            country: a.jurisdiction_country,
+            type: null,
+            customer_rank: 0,
+            supplier_rank: 0,
+          } as ContactRow,
+          role: "authority" as RoleTag,
+          authority: a,
+        })),
+    [authorities],
+  );
+
   const scored = useMemo(() => {
     // Drop contacts that are already surfaced via an authority row (avoid duplication).
     const rows = contacts
       .filter((c) => !authorityContactIds.has(c.id))
-      .map((c) => ({ c, role: roleOf(c, rIds, authorityContactIds) }));
-    const visible = includeCustomers ? rows : rows.filter((r) => r.role !== "customer");
+      .map((c) => ({ c, role: roleOf(c, rIds, authorityContactIds), authority: null as AuthorityRow | null }));
+    const combined = [...authorityRows, ...rows];
+    const visible = includeCustomers ? combined : combined.filter((r) => r.role !== "customer");
     visible.sort((a, b) => {
       const d = ROLE_ORDER[a.role] - ROLE_ORDER[b.role];
       if (d !== 0) return d;
       return a.c.name.localeCompare(b.c.name);
     });
     return visible;
-  }, [contacts, rIds, authorityContactIds, includeCustomers]);
+  }, [contacts, rIds, authorityContactIds, authorityRows, includeCustomers]);
+
 
   const hiddenCustomerCount = useMemo(
     () =>
