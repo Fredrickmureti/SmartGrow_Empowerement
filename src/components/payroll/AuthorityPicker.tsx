@@ -66,7 +66,6 @@ interface Props {
   fallbackText: string;
   onChange: (v: {
     authority_id: string | null;
-    authority_contact_id: string | null;
     authority_text: string;
     picked?: AuthorityRow | null;
   }) => void;
