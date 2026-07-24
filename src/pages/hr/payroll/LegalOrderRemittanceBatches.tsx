@@ -186,6 +186,24 @@ export default function LegalOrderRemittanceBatches() {
     onError: (e: any) => toast.error(e?.message ?? "Cancel failed"),
   });
 
+  const matchMut = useMutation({
+    mutationFn: async (v: { batch_id: string; bank_transaction_id: string }) => {
+      const { data, error } = await (supabase as any).rpc("legal_order_match_batch_to_bank_txn", {
+        _batch_id: v.batch_id,
+        _bank_transaction_id: v.bank_transaction_id,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: async () => {
+      toast.success("Matched to bank transaction");
+      setMatchTarget(null);
+      await qc.invalidateQueries({ queryKey: ["legal-order-remittance-batches"] });
+      await qc.invalidateQueries({ queryKey: ["bank-reconciliation-matches"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Match failed"),
+  });
+
   const rows = batchesQ.data ?? [];
   const totals = useMemo(() => ({
     total: rows.length,
