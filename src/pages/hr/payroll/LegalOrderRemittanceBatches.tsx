@@ -325,6 +325,16 @@ export default function LegalOrderRemittanceBatches() {
         submitting={buildMut.isPending}
       />
 
+      {/* Match to bank transaction dialog */}
+      <MatchBatchDialog
+        target={matchTarget}
+        orgId={orgId}
+        onClose={() => setMatchTarget(null)}
+        onSubmit={(v) => matchTarget && matchMut.mutate({ batch_id: matchTarget.id, bank_transaction_id: v.bank_transaction_id })}
+        submitting={matchMut.isPending}
+      />
+
+
       {/* Settle dialog */}
       <SettleBatchDialog
         target={settleTarget}
