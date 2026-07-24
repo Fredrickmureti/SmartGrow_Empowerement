@@ -46,20 +46,85 @@ quality (SAP HCM / Oracle HCM / Workday / D365 F&O / Odoo parity).
 - Architecture test `legal-orders-phase3-recipient-continuity` pins the
   migration objects, hooks, and route.
 
-## Phase 4 — Operator workspace (next)
+## Phase 4 — Operator workspace ✅
 
-- Recipients tab alongside Orders / Remittance Batches / Reports / Audit
-  in a single `/hr/payroll/legal-orders/*` shell.
-- Task-oriented dashboard: "orders awaiting approval",
-  "recipients past due", "unlinked recipients blocking bank file".
-- Bulk-link recipient-to-contact wizard using
-  `useMergeLegalRecipients` + create-contact-from-recipient shortcut.
+- `LegalOrdersWorkspace` shell renders under `/hr/payroll/legal-orders`
+  with four tabs (Tasks · Orders · Recipients · Remittances) via
+  nested react-router routes; each tab keeps its own deep-linkable URL.
+- `LegalOrdersTasks` action inbox: KPI strip (total outstanding,
+  orders awaiting approval, past-due count, unlinked count) plus four
+  task cards (approvals, unlinked recipients, past-due recipients,
+  top concentration). Read-only — no new writer paths.
+- Legacy `/hr/payroll/garnishments` now redirects to
+  `/hr/payroll/legal-orders/orders`; existing sidebar link is
+  unchanged.
+- Architecture test `legal-orders-phase4-workspace` pins the shell,
+  the nested route structure, the four tab links, and the legacy
+  redirect. Phase 3 test updated for the nested route shape.
+- Verified: `tsgo` clean on the touched files; all Phase 2/3/4
+  architecture tests green (11/11).
 
-## Phase 5 — Cross-domain integration & guardrails
+## Phase 5 — Cross-domain integration & guardrails (NEXT)
 
-- Subscribe `legal_order.status_changed` and `legal_order.payment_posted`
-  in the outbox dispatcher for finance drift alerts and ESS notifications.
-- Contract test: any new migration touching `legal_orders_records.status`
-  must go through `garnishment_transition_impl` (arch grep).
-- ESS surface: read-only "My Legal Orders" already exists — extend with
-  recipient name + running balance from `legal_recipient_statement`.
+Currently active phase for the next agent.
+
+Before starting, verify:
+- `bunx vitest run src/test/architecture/legal-orders-phase*.test.ts`
+  is green (11 tests, 3 files).
+- `/hr/payroll/legal-orders` renders the Tasks tab with the four KPI
+  cards and four task cards; each tab link deep-navigates.
+- Legacy `/hr/payroll/garnishments` redirects to
+  `/hr/payroll/legal-orders/orders`.
+- DB objects from Phases 1–3 exist: tables `legal_recipients`,
+  `legal_recipient_types`; view `legal_recipient_outstanding`;
+  functions `garnishment_transition`, `legal_recipient_merge`,
+  `legal_recipient_statement`; triggers
+  `_legal_order_fsm_guard`, `_legal_order_publish_status_event`.
+
+Then execute Phase 5:
+
+1. **Outbox dispatcher subscribers** — register two subscriptions in
+   `business_event_subscriptions` for `legal_order.status_changed`
+   and `legal_order.payment_posted`:
+   - finance drift alert (compares GL liability balance to
+     `legal_recipient_outstanding.outstanding_balance` per recipient
+     and writes to `finance_integrity_issues` on divergence beyond
+     tolerance).
+   - ESS notification (writes to `notifications` for the affected
+     employee on status transitions to
+     `active`/`suspended`/`satisfied`/`released`).
+2. **Architecture guard** — extend
+   `legal-orders-phase2-seams` (or add
+   `legal-orders-phase5-writer-guard`) to grep every migration under
+   `supabase/migrations/` for direct `UPDATE ... legal_orders_records
+   SET status` and fail unless the SQL lives inside
+   `garnishment_transition_impl` / `garnishment_transition` /
+   `apply_system_garnishment_transition` /
+   `apply_garnishment_payment_to_order`.
+3. **ESS surface extension** — the read-only "My Legal Orders" ESS
+   page must show recipient display_name and per-order running
+   balance sourced from `legal_recipient_statement` (filtered to the
+   employee). Do NOT introduce a new RPC; reuse the existing one
+   with recipient-scoped filtering already available in the hook.
+4. **ADR-0094** — document the event-driven finance/ESS integration
+   contract (event names, payload shape, subscriber responsibilities,
+   idempotency keys).
+
+Do not open Phase 6 work (localization packs, cross-country
+garnishment kinds) until Phase 5 subscribers are live and the drift
+alert has fired at least once against seed data.
+
+## Next-agent handoff instructions
+
+1. Read `.lovable/plan.md` end-to-end and confirm Phases 1–4 are marked
+   complete.
+2. Run the three architecture tests above; if any fail, fix regressions
+   before adding new work.
+3. Manually smoke-test the workspace: navigate the four tabs, open a
+   recipient statement drawer, confirm the legacy redirect.
+4. Only then proceed with Phase 5 step 1 (outbox subscribers). Ship
+   each numbered step as its own migration + test + plan update before
+   moving to the next.
+5. After every phase step, append status to this file — never leave it
+   stale.
+
