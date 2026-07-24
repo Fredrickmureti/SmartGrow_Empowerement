@@ -19,11 +19,12 @@ import { useLegalOrders } from "@/hooks/useLegalOrders";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
 import {
-  Activity, ArrowUpRight, Banknote, Bell, ClipboardList, ShieldAlert,
+  Activity, ArrowUpRight, Banknote, Bell, ClipboardList, ShieldAlert, ChevronDown, ChevronRight,
 } from "lucide-react";
 
 type TimelineRow = {
@@ -66,6 +67,148 @@ function KindIcon({ kind }: { kind: TimelineRow["entry_kind"] }) {
     case "audit_log": return <ShieldAlert className={cls} />;
     default: return <ClipboardList className={cls} />;
   }
+}
+
+const KIND_LABEL: Record<TimelineRow["entry_kind"], string> = {
+  lifecycle_event: "Lifecycle",
+  audit_log: "Audit",
+  notification: "Notification",
+  remittance_batch: "Remittance",
+};
+
+const KIND_TONE: Record<TimelineRow["entry_kind"], string> = {
+  lifecycle_event: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
+  audit_log: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
+  notification: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
+  remittance_batch: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
+};
+
+function humanizeKey(k: string) {
+  return k
+    .replace(/_/g, " ")
+    .replace(/\bid\b/gi, "ID")
+    .replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function humanizeAction(a: string | null) {
+  if (!a) return "—";
+  return a
+    .replace(/[._-]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const MONEY_KEYS = /(amount|owed|accrued|remitted|outstanding|balance|principal|interest|fee|total)/i;
+const DATE_KEYS = /(_at|_on|date|period)/i;
+
+function isPlainObj(v: any): v is Record<string, any> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function formatValue(key: string, v: any): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "number") {
+    if (MONEY_KEYS.test(key)) return fmt(v);
+    return String(v);
+  }
+  if (typeof v === "string") {
+    if (DATE_KEYS.test(key) && /^\d{4}-\d{2}-\d{2}/.test(v)) {
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) {
+        return v.length <= 10 ? d.toLocaleDateString() : d.toLocaleString();
+      }
+    }
+    if (MONEY_KEYS.test(key) && /^-?\d+(\.\d+)?$/.test(v)) return fmt(Number(v));
+    return v;
+  }
+  return JSON.stringify(v);
+}
+
+function DetailsGrid({ details }: { details: Record<string, any> }) {
+  const entries = Object.entries(details).filter(
+    ([k]) => !/^(organization_id|legal_order_id|tenant_id)$/i.test(k),
+  );
+  if (entries.length === 0) return null;
+  const scalars = entries.filter(([, v]) => !isPlainObj(v) && !Array.isArray(v));
+  const nested = entries.filter(([, v]) => isPlainObj(v) || Array.isArray(v));
+  return (
+    <div className="mt-2 space-y-2">
+      {scalars.length > 0 && (
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm rounded-md border bg-muted/30 p-3">
+          {scalars.map(([k, v]) => (
+            <div key={k} className="flex flex-col">
+              <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {humanizeKey(k)}
+              </dt>
+              <dd className={"tabular-nums " + (MONEY_KEYS.test(k) ? "font-medium" : "")}>
+                {formatValue(k, v)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {nested.map(([k, v]) => (
+        <div key={k} className="rounded-md border bg-muted/30 p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+            {humanizeKey(k)}
+          </div>
+          {Array.isArray(v) ? (
+            <ul className="text-sm space-y-1 list-disc pl-4">
+              {v.map((item, i) => (
+                <li key={i}>{isPlainObj(item) || Array.isArray(item) ? JSON.stringify(item) : String(item)}</li>
+              ))}
+            </ul>
+          ) : (
+            <DetailsGrid details={v as Record<string, any>} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TimelineEntry({ row, index }: { row: TimelineRow; index: number }) {
+  const [showRaw, setShowRaw] = useState(false);
+  const hasDetails = row.details && Object.keys(row.details).length > 0;
+  return (
+    <li key={`${row.source_table}:${row.source_row_id}:${index}`} className="relative">
+      <span className="absolute -left-[29px] top-1 inline-flex h-6 w-6 items-center justify-center rounded-full border bg-background">
+        <KindIcon kind={row.entry_kind} />
+      </span>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Badge variant="outline" className={KIND_TONE[row.entry_kind]}>
+          {KIND_LABEL[row.entry_kind]}
+        </Badge>
+        <span className="font-medium">{humanizeAction(row.action)}</span>
+        <span className="text-muted-foreground">
+          {row.occurred_at ? new Date(row.occurred_at).toLocaleString() : ""}
+        </span>
+      </div>
+      {hasDetails && <DetailsGrid details={row.details as Record<string, any>} />}
+      <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <ArrowUpRight className="h-3 w-3" /> {row.source_table}
+        </span>
+        {hasDetails && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-5 px-1.5 text-[11px]"
+            onClick={() => setShowRaw((s) => !s)}
+          >
+            {showRaw ? <ChevronDown className="h-3 w-3 mr-1" /> : <ChevronRight className="h-3 w-3 mr-1" />}
+            {showRaw ? "Hide raw" : "View raw"}
+          </Button>
+        )}
+      </div>
+      {showRaw && hasDetails && (
+        <pre className="mt-1 text-xs bg-muted/40 rounded p-2 overflow-x-auto">
+          {JSON.stringify(row.details, null, 2)}
+        </pre>
+      )}
+    </li>
+  );
 }
 
 export default function LegalOrdersAudit() {
@@ -174,30 +317,13 @@ export default function LegalOrdersAudit() {
           ) : (timelineQ.data ?? []).length === 0 ? (
             <div className="text-sm text-muted-foreground">No events recorded for this order yet.</div>
           ) : (
-            <ol className="relative border-l pl-6 space-y-4">
+            <ol className="relative border-l pl-6 space-y-5">
               {(timelineQ.data ?? []).map((row, idx) => (
-                <li key={`${row.source_table}:${row.source_row_id}:${idx}`} className="relative">
-                  <span className="absolute -left-[29px] top-1 inline-flex h-6 w-6 items-center justify-center rounded-full border bg-background">
-                    <KindIcon kind={row.entry_kind} />
-                  </span>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Badge variant="outline" className="capitalize">
-                      {row.entry_kind.replace("_", " ")}
-                    </Badge>
-                    <span className="font-medium">{row.action ?? "—"}</span>
-                    <span className="text-muted-foreground">
-                      {row.occurred_at ? new Date(row.occurred_at).toLocaleString() : ""}
-                    </span>
-                  </div>
-                  {row.details ? (
-                    <pre className="mt-1 text-xs bg-muted/40 rounded p-2 overflow-x-auto">
-                      {JSON.stringify(row.details, null, 2)}
-                    </pre>
-                  ) : null}
-                  <div className="mt-1 text-[11px] text-muted-foreground inline-flex items-center gap-1">
-                    <ArrowUpRight className="h-3 w-3" /> {row.source_table}
-                  </div>
-                </li>
+                <TimelineEntry
+                  key={`${row.source_table}:${row.source_row_id}:${idx}`}
+                  row={row}
+                  index={idx}
+                />
               ))}
             </ol>
           )}
