@@ -1103,7 +1103,7 @@ Deno.serve(async (req) => {
             status: 'open',
             liability_account_id: garnishmentPayableAcct,
             garnishment_id: garn.garnishment_id,
-            payee_contact_id: order.payee_contact_id || null,
+            payee_contact_id: order.recipient_contact_id || order.payee_contact_id || null,
             notes: `Auto-created from payroll ${payrollRun.payroll_number} (garnishment ${order.kind_code ?? ""})`.trim(),
             created_by: userId,
           });
