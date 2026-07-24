@@ -188,11 +188,8 @@ export default function LegalOrderRemittanceBatch() {
       priority_class: l.legal_orders?.priority_class ?? "",
       kind: l.legal_orders?.kind_code ?? "",
       case_reference: l.legal_orders?.case_reference ?? "",
-      // Phase R4b: resolve recipient display via master, fall back to
-      // legacy snapshot for pre-master orders.
-      recipient: l.legal_orders?.legal_recipients?.display_name
-        ?? l.legal_orders?.payee_name
-        ?? "",
+      // Recipient identity resolved from legal_recipients master (ADR-0093).
+      recipient: l.legal_orders?.legal_recipients?.display_name ?? "",
       payment_method_id: l.legal_orders?.payee_payment_method_id ?? "",
       amount: Number(l.amount ?? 0).toFixed(2),
       reference: l.reference_number ?? "",
