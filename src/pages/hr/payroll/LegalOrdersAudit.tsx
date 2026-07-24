@@ -317,30 +317,13 @@ export default function LegalOrdersAudit() {
           ) : (timelineQ.data ?? []).length === 0 ? (
             <div className="text-sm text-muted-foreground">No events recorded for this order yet.</div>
           ) : (
-            <ol className="relative border-l pl-6 space-y-4">
+            <ol className="relative border-l pl-6 space-y-5">
               {(timelineQ.data ?? []).map((row, idx) => (
-                <li key={`${row.source_table}:${row.source_row_id}:${idx}`} className="relative">
-                  <span className="absolute -left-[29px] top-1 inline-flex h-6 w-6 items-center justify-center rounded-full border bg-background">
-                    <KindIcon kind={row.entry_kind} />
-                  </span>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Badge variant="outline" className="capitalize">
-                      {row.entry_kind.replace("_", " ")}
-                    </Badge>
-                    <span className="font-medium">{row.action ?? "—"}</span>
-                    <span className="text-muted-foreground">
-                      {row.occurred_at ? new Date(row.occurred_at).toLocaleString() : ""}
-                    </span>
-                  </div>
-                  {row.details ? (
-                    <pre className="mt-1 text-xs bg-muted/40 rounded p-2 overflow-x-auto">
-                      {JSON.stringify(row.details, null, 2)}
-                    </pre>
-                  ) : null}
-                  <div className="mt-1 text-[11px] text-muted-foreground inline-flex items-center gap-1">
-                    <ArrowUpRight className="h-3 w-3" /> {row.source_table}
-                  </div>
-                </li>
+                <TimelineEntry
+                  key={`${row.source_table}:${row.source_row_id}:${idx}`}
+                  row={row}
+                  index={idx}
+                />
               ))}
             </ol>
           )}
