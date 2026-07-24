@@ -32,6 +32,8 @@ const CustomDeductionTypes = lazy(() => import("@/pages/hr/payroll/CustomDeducti
 const CustomDeductions = lazy(() => import("@/pages/hr/payroll/CustomDeductions"));
 const LegalOrderRemittanceBatch = lazy(() => import("@/pages/hr/payroll/LegalOrderRemittanceBatch"));
 const LegalRecipients = lazy(() => import("@/pages/hr/payroll/LegalRecipients"));
+const LegalOrdersWorkspace = lazy(() => import("@/pages/hr/payroll/LegalOrdersWorkspace"));
+const LegalOrdersTasks = lazy(() => import("@/pages/hr/payroll/LegalOrdersTasks"));
 
 interface PayrollAppProps {
   surface: "payroll" | "remittances";
@@ -118,11 +120,15 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           <Route path="configuration/deduction-types" element={<Navigate to="/hr/payroll/configuration/rule-types" replace />} />
           <Route path="loans"                element={gate(<LazyRoute module="Employee Loans"><EmployeeLoans /></LazyRoute>, "manageEmployeeLoans")} />
           <Route path="statutory-rules"      element={gate(<LazyRoute module="Statutory Rules"><PayrollStatutoryRules /></LazyRoute>, "manageStatutoryRules")} />
-          <Route path="garnishments"         element={gate(<LazyRoute module="Garnishments"><Garnishments /></LazyRoute>, "managePayroll")} />
-          {/* Phase 5: canonical "legal orders" alias — same shell, keeps old links working. */}
-          <Route path="legal-orders"         element={gate(<LazyRoute module="Legal Orders"><Garnishments /></LazyRoute>, "managePayroll")} />
-          <Route path="legal-orders/remittance-batch" element={gate(<LazyRoute module="Legal Order Remittance Batches"><LegalOrderRemittanceBatch /></LazyRoute>, "managePayroll")} />
-          <Route path="legal-orders/recipients" element={gate(<LazyRoute module="Legal Recipients"><LegalRecipients /></LazyRoute>, "managePayroll")} />
+          {/* Phase 4: unified operator workspace shell with tabs. */}
+          <Route path="legal-orders" element={gate(<LazyRoute module="Legal Orders"><LegalOrdersWorkspace /></LazyRoute>, "managePayroll")}>
+            <Route index element={<LazyRoute module="Legal Orders Tasks"><LegalOrdersTasks /></LazyRoute>} />
+            <Route path="orders" element={<LazyRoute module="Legal Orders Register"><Garnishments /></LazyRoute>} />
+            <Route path="recipients" element={<LazyRoute module="Legal Recipients"><LegalRecipients /></LazyRoute>} />
+            <Route path="remittance-batch" element={<LazyRoute module="Legal Order Remittance Batches"><LegalOrderRemittanceBatch /></LazyRoute>} />
+          </Route>
+          {/* Legacy path kept for existing bookmarks. */}
+          <Route path="garnishments" element={<Navigate to="/hr/payroll/legal-orders/orders" replace />} />
           <Route path="loan-skip-overrides"  element={gate(<LazyRoute module="Loan Skip Overrides"><LoanSkipOverrides /></LazyRoute>, "runPayroll")} />
         </Routes>
       ) : (
