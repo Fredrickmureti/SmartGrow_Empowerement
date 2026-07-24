@@ -1,152 +1,111 @@
-# Garnishment / Legal-Order Lifecycle Redesign
 
-Goal: one canonical business-partner spine, one liability sub-ledger, one lifecycle from legal order → payslip → GL → remittance → reconciliation → statement → audit → closure. Localization packs stay statutory-only; workflow stays in core.
+# Legal Orders / Garnishments — Verification & Correction Plan
 
-## 1. Canonical business lifecycle (target)
+## Verification of previous engineer's work (Phase 1)
+
+I read `.lovable/plan.md`, ADRs 0092–0097, the migration timeline, and the UI writers. The previous engineer's plan.md contradicts the accepted architecture on the two biggest questions.
+
+### What actually shipped and is real
+
+| Layer | Object | Status |
+|---|---|---|
+| Master data | `legal_recipient_types` catalog + `legal_recipients` (recipient master, unique `(org, contact_id, type, jurisdiction)`, `legal_recipient_merge` RPC) | ✅ ADR-0093, Phase 1 |
+| Master data | `legal_order_authorities` (+ mandatory `contact_id` FK, migration `20260724163646`) | ✅ |
+| Lifecycle | `_legal_order_fsm_guard` + `garnishment_lifecycle_events` + `apply_system_garnishment_transition` | ✅ ADR-0094 Phase 2 |
+| Financial | `garnishment_ledger` projection from `payslip_lines` | ✅ Phase 3 |
+| Events | `legal_order_event_dispatch_log`, outbox topics | ✅ ADR-0094 |
+| Packs | `garnishment_kind_defaults`, `localization_pack_garnishment_policies` (fraction-form) | ✅ ADR-0095, Phase 6 |
+| Remittance | `legal_order_remittance_batches` + `_batch_lines` + build/generate/settle/cancel RPCs + `legal_order_auto_satisfy` | ✅ ADR-0096, Phase 7 |
+| Bank rec | `bank_reconciliation_matches.settled_legal_order_remittance_batch_id` FK | ✅ Phase 7 step 2 |
+| Nightly | Auto-satisfy cron + recipient statement RPC | ✅ Phase 7 step 3 |
+| Reporting | `v_legal_order_audit_timeline`, `legal_order_running_balance`, `legal_order_statutory_report_definitions` | ✅ ADR-0097 Phase 8 |
+| Overlay (plan.md) | `contact_authority_profile`, `contact_recipient_profile`, `legal_orders_records.authority_contact_id` / `recipient_contact_id`, `party_upsert_*_from_form` RPCs, compat views | ⚠️ Landed (Phases A/B/C.1) but redundant — see below |
+| Overlay | `journal_entry_lines.contact_id` stamped for Garnishment Payable + partial index | ✅ correct, and belongs here regardless |
+
+### Where plan.md is wrong — and needs to be challenged
+
+plan.md diagnosed "three overlapping party stores" (`contacts`, `legal_recipients`, `legal_order_authorities`) and then, instead of *unifying on the ADR-blessed masters*, added a **fourth**: `contact_authority_profile` / `contact_recipient_profile` role facets on `contacts`, plus parallel FK columns `authority_contact_id` / `recipient_contact_id` on the order. This is architecturally wrong for enterprise payroll:
+
+1. **It contradicts ADR-0093 (Accepted).** Every mature enterprise payroll models garnishment recipients as a dedicated **third-party payee master**, not a role tag on the generic party table: SAP HCM "Vendor for garnishment" account group, Oracle HCM Fusion **Third-Party Payment Payee**, Workday **Third Party Payee**, Dynamics 365 F&O **Garnishment vendor account**, Odoo `l10n_*_deduction_partner`. ADR-0093 already picked the correct pattern (`legal_recipients` with `contact_id` back-link + type catalog + merge RPC + `customer_rank=0, supplier_rank=0` party-only rule so recipients don't pollute AR/AP). "Retire `legal_recipients` / `legal_order_authorities`" reverses an accepted ADR without one.
+
+2. **plan.md's Phase C.2 ("remittance = AP bill cycle") contradicts ADR-0096 (Accepted).** Enterprise systems deliberately keep third-party payroll remittances separate from generic AP: SAP HCM Third-Party Remittance Run, Workday Settlement Run, Oracle Third-Party Payroll Payments. Reasons: recipient/period scoping, one bank file per recipient covering N orders across M employees, court-mandated reference lines, distinct statutory reporting, and — critically — different reconciliation semantics. ADR-0096 already shipped the correct dedicated aggregate with idempotent settle, sha256'd bank files, back-links to `legal_order_remittance_lines`, and a bank-rec seam. Refactoring it into AP bills would delete that work and re-introduce reconciliation drift.
+
+3. **Its "smart defaults on recipient create" step overlaps** with logic that already lives on `legal_recipient_types` and `legal_recipients` (statement_cadence, always_first default, cap_exempt default, default payment method). Duplicating it on `contact_recipient_profile` is where drift begins.
+
+4. **The `authority_contact_id` / `recipient_contact_id` columns duplicate `authority_id` / `recipient_id`** (which now transitively resolve to a contact via the mandatory `legal_order_authorities.contact_id` FK and `legal_recipients.contact_id`). Two writers, one truth — the exact drift plan.md set out to fix.
+
+### Corrected direction
+
+Keep the enterprise ADR shape. Delete the fourth party store. The order continues to reference `legal_order_authorities.id` and `legal_recipients.id`; anything that needs "the Contact behind this recipient" reads `legal_recipients.contact_id` (guaranteed non-null now that `legal_order_authorities.contact_id` is required and the recipient master is contact-backed by ADR-0093).
+
+## Phase 2 — Corrected plan
+
+### Phase R1 — Unwind the redundant overlay (DB)
+- Reconcile data: for every row in `contact_authority_profile` / `contact_recipient_profile` that has no matching `legal_order_authorities` / `legal_recipients`, upsert it into the ADR-blessed master via the merge-safe path. For rows where both exist, prefer the ADR-blessed row and copy any facet-only columns onto it (`statement_cadence`, `always_first`, `aggregate_cap_exempt`, `default_payment_method_id`, `remittance_schedule`, `default_reference_template`) — add the missing columns to `legal_recipients` / `legal_order_authorities` where they don't yet exist. This makes the ADR masters the strict superset.
+- Backfill `legal_orders_records.authority_id` / `recipient_id` from `authority_contact_id` / `recipient_contact_id` on any row where the ADR FK is null.
+- Drop the compat views `legal_order_authorities_v` / `legal_recipients_v` after readers migrate (they exist only to serve the overlay).
+- Drop columns `legal_orders_records.authority_contact_id`, `legal_orders_records.recipient_contact_id`, tables `contact_authority_profile`, `contact_recipient_profile`, and functions `party_upsert_authority_from_form`, `party_upsert_recipient_from_form`.
+- Keep `journal_entry_lines.contact_id` stamping and its partial index — that lands here regardless.
+
+### Phase R2 — Rewire writers to the ADR masters (UI)
+- `AuthorityPicker`: create via `legal_order_authorities` insert wrapped in a single security-definer RPC `authority_upsert_from_form` that (a) upserts the backing Contact (party-only unless a role rank is set), (b) inserts/updates the authority row with its mandatory `contact_id`. Emit `{ authority_id }`. Delete `authority_contact_id` from the payload.
+- `LinkRecipientDialog`: create via `recipient_upsert_from_form` that upserts the party-only Contact (per ADR-0093 rank rule) and calls the existing dedupe-safe path against `legal_recipients` (respecting the unique index; on hit, offer `legal_recipient_merge`).
+- `Garnishments.tsx`: persist only `authority_id` and `recipient_id`; stop reading `authority_contact_id`/`recipient_contact_id` from the row.
+- Any consumer needing "the Contact" reads through `legal_recipients.contact_id` / `legal_order_authorities.contact_id`. Add a thin `useContactForRecipient` / `useContactForAuthority` selector so this rule is expressed once.
+
+### Phase R3 — Finish the Contact-form-quality inline creation
+The UX correctly asked for a full master-data sheet, not a mini form; keep that. Move the sheet component under `src/features/legalOrders/` and make it render `ContactRecordForm` with `role=party-only` (rank 0/0, `type = null`) plus a stacked `LegalRecipientFacetsForm` / `LegalOrderAuthorityFacetsForm` — the sheet is *one screen*, two persisted rows, one RPC.
+
+### Phase R4 — Retire the free-text payee snapshot (formerly plan.md Phase E)
+- Confirm no writer sets `payee_name / payee_bank / payee_account / payee_reference / payee_contact_id / payee_unmapped`. Add an architecture test that fails on new writers.
+- Add a one-off backfill that, for each `legal_orders_records` with `recipient_id IS NULL` and non-null `payee_*`, materialises a `legal_recipients` row (dedupe via unique index / merge) and links it, then nulls the snapshots.
+- Drop the `payee_unmapped` trigger and the `payee_*` columns. Update ADR-0092 to note that the "recipient unmapped" state ceased to exist.
+
+### Phase R5 — Auto-provisioning at install time (formerly plan.md Phase D, corrected target)
+- `install-localization-pack` seeds well-known authorities as **`legal_order_authorities`** (contact-backed, one Contact per real-world authority, idempotent by `(country, code)`) — not as `contact_authority_profile`.
+- `payroll_gl_readiness` already exposes `garnishment_payable`; verify no country hardcoding remains and add an optional per-kind override map only if a real jurisdiction demands it (do not build speculatively).
+
+### Phase R6 — FSM & event completeness audit (formerly plan.md Phase F, mostly done)
+- Verify `_legal_order_fsm_guard` covers `draft → active → paused → satisfied | terminated` and that the outbox emits every transition. `legal_order_auto_satisfy` already closes on `Σ remittance ≥ total_owed`; add a test that a `terminated` transition requires a court-reference document artifact.
+
+### Phase R7 — Reporting & audit surfaces
+- `v_legal_order_audit_timeline` and `legal_order_running_balance` shipped; add a Legal Order record page tab that consumes both (Overview + Timeline + Running balance + Related payslips + Related batches). Recipient Statement page reads from the ADR-0097 recipient statement RPC — do not build a parallel statement path.
+
+### Non-goals (explicitly excluded)
+- No merging of Garnishment Payable with PAYE Payable (ADR-0092 stands).
+- No replacement of `legal_order_remittance_batches` with AP `bills`. That is the deliberate enterprise pattern per ADR-0096 and every reference ERP.
+- No changes to the garnishment engine math (priority, aggregate cap, min take-home).
+- No new Supabase Edge Functions; server work is `createServerFn` or SQL.
+
+## Technical details
+
+### Data-flow after correction
 
 ```text
-Legal Order (draft → active → paused → satisfied/terminated)
-   ├── Issuing Authority   (Contact, role=authority)
-   ├── Recipient (payee)   (Contact, role=garnishment_recipient, vendor-like)
-   └── Employee            (Contact, role=employee)
-        ↓ payroll run (per period)
-   Payslip line (garnishment kind, priority, cap-aware)
-        ↓ approve run
-   Journal Entry: Dr Salary Expense/Net Pay clearing  Cr Garnishment Payable / <Recipient sub-ledger>
-        ↓ remittance batch (per recipient, schedule-driven)
-   Bill / Payable to Recipient (contact_id) → Bank Payment
-        ↓
-   Bank reconciliation + Recipient Statement + Employee payslip footnote
-        ↓
-   Audit trail + Statutory reporting (localization pack renders forms)
-        ↓
-   Closure when total_paid ≥ total_owed OR end_date OR court order lifted
+legal_orders_records
+   ├── authority_id  → legal_order_authorities.id
+   │                     └── contact_id (NOT NULL) → contacts.id  (party)
+   └── recipient_id  → legal_recipients.id
+                         ├── contact_id (NOT NULL) → contacts.id  (party-only 0/0)
+                         └── recipient_type_code → legal_recipient_types.code
+Payslip line → garnishment_ledger → journal_entry_lines(contact_id = recipient.contact_id)
+                                     → legal_order_remittance_batches (per recipient/period)
+                                       → bank file → payment → bank rec (settled_batch FK)
+                                       → recipient statement RPC + v_legal_order_audit_timeline
 ```
 
-Every step already has a table; the redesign eliminates drift between them.
+### Migrations required
+1. Add facet columns to `legal_recipients` / `legal_order_authorities` if any are missing (superset of `contact_*_profile`).
+2. Data copy from `contact_*_profile` → ADR masters; backfill `authority_id` / `recipient_id` from the `*_contact_id` columns.
+3. New RPCs `authority_upsert_from_form(...)`, `recipient_upsert_from_form(...)` — SECURITY DEFINER, org-scoped, single transaction.
+4. Drop `authority_contact_id`, `recipient_contact_id`, `contact_authority_profile`, `contact_recipient_profile`, `party_upsert_*_from_form`, compat views.
+5. Payee snapshot backfill + column drop + trigger drop (Phase R4).
 
-## 2. Current drift (verified)
+### Verification gates per phase
+- Architecture tests: no `src/**` references to `authority_contact_id` / `recipient_contact_id` / `contact_*_profile` / `party_upsert_*_from_form` after R2. No writes to `payee_*` after R4.
+- SQL test: every INSERT into `legal_orders_records` must set both `authority_id` and `recipient_id` (add check-trigger).
+- SQL test: every `journal_entry_lines` row against the Garnishment Payable account carries a non-null `contact_id`.
+- End-to-end (KE + one non-KE pack): fresh signup → install pack → create order (inline recipient creation) → run payroll → post GL → build batch → generate bank file → settle → bank rec → recipient statement → auto-satisfy — all green with zero manual mapping.
 
-- **Three overlapping party stores.** `contacts`, `legal_recipients`, and `legal_order_authorities` all model the same real-world entity (a court, agency, SACCO, creditor). `legal_recipients.contact_id` and `legal_order_authorities.contact_id` are *optional* back-links, so the same court can exist as three uncorrelated rows.
-- **Free-text payee on the order.** `legal_orders_records` still carries `payee_name / payee_bank / payee_account / payee_reference / payee_contact_id / payee_unmapped` in parallel with `recipient_id` and `authority_id`. Two writers, one truth.
-- **Mini-form inline creation.** `AuthorityPicker` + `LinkRecipientDialog` create thin rows that bypass the full Contact master-data lifecycle (addresses, banking, statutory IDs, jurisdictions, comms).
-- **Hardcoded GL account.** A single `Garnishment Payable` liability is shared across all recipients — no per-recipient sub-ledger — so remittance/statement reconciliation depends on free-text `payee_reference`.
-- **UI naming collides with PAYE.** ADR-0092 patched copy but did not close the model gap.
-
-## 3. Target model
-
-### 3.1 One party spine
-- **`contacts`** stays canonical. Introduce role facets on `contact_roles` (or an existing role table):
-  - `role='issuing_authority'` with facet row `contact_authority_profile` (authority_type, jurisdiction_country/region, statutory identifiers, remittance_schedule, default reference template).
-  - `role='garnishment_recipient'` with facet row `contact_recipient_profile` (aggregate_cap_exempt, always_first, default_payment_method_id, statement_cadence, linked authority_id).
-- A single Contact may play both roles (e.g. KRA is authority and recipient of PAYE-adjacent orders). Roles compose; they do not duplicate the party.
-- **Retire `legal_recipients` and `legal_order_authorities`** as independent tables. Migrate their rows into `contacts` + facet rows; keep the ids as views for one release for compatibility, then drop.
-
-### 3.2 Legal order references the party spine only
-- On `legal_orders_records`: keep `authority_contact_id` and `recipient_contact_id` (FK → contacts). Drop `payee_name/bank/account/reference/contact_id/unmapped` and the `payee_unmapped` trigger — the "recipient not linked" state disappears by construction because you cannot create an order without picking a Contact.
-- Remittance instructions (bank, account, reference template) live on the recipient facet, not the order. Per-order override only when it genuinely differs (rare; store on order as a nullable override JSON).
-
-### 3.3 Per-recipient liability sub-ledger
-- Keep one control account `Garnishment Payable` (localization-pack seeded, country-agnostic name). Post every accrual and payment with `partner_id = recipient_contact_id` on the journal line.
-- Recipient statements, remittance batches, and reconciliation all read the sub-ledger by `partner_id`, mirroring how AP works for vendors. No new account per recipient; no hardcoding.
-- If a jurisdiction requires separate control accounts (rare), the localization pack maps `garnishment_payable_by_kind` → account; the resolver picks by `garnishment_kind`.
-
-### 3.4 Remittance = AP bill cycle, specialized
-- On payroll approval, the accounting event emits a `remittance_intent` per recipient/period.
-- The existing remittance batch page groups intents by recipient + schedule and materializes an AP **Bill** (contact = recipient) with lines referencing the source orders. Payment, bank export, and reconciliation reuse the standard AP payment stack. Statements come free from the AP statement engine, filtered to `role=garnishment_recipient`.
-
-## 4. UX
-
-- **Single "Legal Order" record page** in the payroll workspace with sections: Order details → Employee → Issuing Authority → Recipient → Amounts & caps → Documents → Activity/audit → Related payslips → Related bills.
-- **Inline party creation uses the full Contact form** (`ContactRecordForm`) preloaded in a side sheet with `role=issuing_authority` / `role=garnishment_recipient` filter, not a mini dialog. Same lifecycle as any other Contact. Users never leave the order flow.
-- Tooltip on any "authority/recipient" label explicitly states it is unrelated to PAYE (retain ADR-0092 guidance).
-- Post-create smart defaults: when a recipient is created, the system auto-attaches the default payment method, seeds the reference template from the authority (if any), and pre-selects the recipient on the order.
-
-## 5. Localization boundary
-
-Pack ships:
-- statutory garnishment kinds catalog, cap policies, aggregate-cap fractions, priority defaults, minimum take-home fractions (existing `localization_pack_garnishment_policies` — keep).
-- seed rows for well-known **authorities** (courts, agencies) as `contacts` with `role=issuing_authority` at install time, idempotently.
-- default control account mapping key `garnishment_payable` (and per-kind overrides if the jurisdiction needs it).
-
-Pack does NOT ship: workflows, UI copy, remittance schedules per tenant, or business decisions.
-
-## 6. Phases
-
-Each phase ends with green tests and no regressions in the existing garnishment engine tests (`garnishment-engine.test.ts`, `garnishment_policy_fraction_invariant_test.sql`, phase 2–8 architecture tests).
-
-**Phase A — Party consolidation (DB) — ✅ DONE**
-- `contact_authority_profile`, `contact_recipient_profile` shipped with RLS, GRANTs, `updated_at` triggers.
-- `legal_orders_records.authority_contact_id` / `recipient_contact_id` added; backfilled from `legal_order_authorities` / `legal_recipients`.
-- Compatibility views `legal_order_authorities_v` / `legal_recipients_v` (`security_invoker = on`) keep legacy readers working.
-
-**Phase B — Writer switch — ✅ DONE**
-- Security-definer RPCs `party_upsert_authority_from_form` and `party_upsert_recipient_from_form` are the sole atomic writers for authority/recipient party rows + facet + legacy back-link.
-- `AuthorityPicker` and `LinkRecipientDialog`'s "New recipient" now open full master-data sheets (identity, statutory ID, address, jurisdiction, default remittance) and route writes through the RPCs.
-- `Garnishments.tsx` persists `authority_contact_id` on create/edit alongside `authority_id`.
-- Free-text `payee_*` fields are no longer written from the UI (kept readable for legacy rows; retirement lands in Phase E).
-
-**Phase C — Sub-ledger & remittance — 🚧 IN PROGRESS**
-
-_C.1 — Sub-ledger discipline — ✅ DONE_
-- `legal_orders` view extended with `recipient_contact_id` and `authority_contact_id`.
-- `garnishment_recipient_contact_for_order(uuid)` resolver: prefers Phase-A `recipient_contact_id`, falls back to `payee_contact_id` / recipient-linked contact.
-- `post-payroll-gl` stamps `journal_entry_lines.contact_id` (partner) on every Garnishment Payable CR line — one control account, per-recipient sub-ledger.
-- `payroll_liabilities.payee_contact_id` now prefers the canonical recipient contact.
-- Partial index `journal_entry_lines_contact_id_partial_idx` for sub-ledger read performance at scale.
-
-_C.2 — Remittance = AP bill cycle — ⏳ PENDING (next milestone)_
-- Refactor `LegalOrderRemittanceBatch` to materialize an AP **Bill** per recipient/period, sourced from `garnishment_ledger` grouped by `partner_id`.
-- Reuse the standard AP payment stack for bank export, payment matching, and reconciliation.
-- Recipient statements become AP statements filtered to `role=garnishment_recipient`.
-- Add a one-off repair function to backfill `journal_entry_lines.contact_id` on historical garnishment payable rows (join `payroll_liabilities.payee_contact_id` via `journal_entries.reference_id = payroll_run_id`).
-
-**Phase D — Localization pack — ⏳ PENDING**
-- `install-localization-pack` step seeds common authorities as Contacts with `role=issuing_authority`, idempotent by `(country, code)`.
-- Register `garnishment_payable` mapping key in `payroll_gl_readiness` (verify no country hardcoding).
-- Optional per-kind account override table for jurisdictions that require it.
-
-**Phase E — Retire legacy tables — ⏳ PENDING**
-- Once no writer references `legal_recipients` / `legal_order_authorities` / `payee_*`, drop the tables + trigger + `payee_unmapped` column via migration. Keep compatibility views one release, then drop.
-
-**Phase F — Lifecycle events & audit — ⏳ PENDING**
-- Explicit state transitions on `legal_orders_records.status`: `draft → active → paused → satisfied | terminated`, guarded by trigger (`_legal_order_fsm_guard` is partial).
-- Emit `legal_order.*` events to the outbox reactor.
-- Closure rule: auto-transition to `satisfied` when `total_paid ≥ total_owed`; `terminated` requires a court reference.
-
-## 7. Verification
-
-- Existing tests remain green; add:
-  - Architecture: `no reference to legal_recipients/legal_order_authorities from src/**` after Phase E.
-  - Architecture: `legal_orders_records` writers must set `recipient_contact_id`.
-  - SQL: control account posts always carry `partner_id`.
-  - SQL: create-order transaction fails when `recipient_contact_id` is null.
-- Manual walkthrough per country pack (KE + one non-KE) proves: fresh signup → install pack → create order → run payroll → post GL → generate remittance bill → pay → reconcile → statement — with zero manual account or mapping configuration.
-
-## 8. Non-goals / explicitly excluded
-
-- No merging of `Garnishment Payable` with `PAYE Payable` (ADR-0092 stands).
-- No new UI for "recipient not linked" — the state ceases to exist.
-- No changes to the garnishment computation engine's math (priority ordering, aggregate cap, min take-home) — only its inputs move to the party spine.
-- No Supabase Edge Function proliferation; new server work uses `createServerFn`.
-
-## 9. Handoff to next agent
-
-**Currently active phase:** Phase C — Sub-ledger & remittance.
-**Next milestone:** Phase C.2 — Remittance = AP bill cycle.
-
-Before writing any new code, verify Phase C.1 landed correctly to enterprise-grade standards:
-
-1. `SELECT recipient_contact_id, authority_contact_id FROM public.legal_orders LIMIT 1;` — must succeed (view exposes both columns).
-2. `SELECT public.garnishment_recipient_contact_for_order(<a real order id>);` — must return a non-null uuid for orders that have any of `recipient_contact_id` / `payee_contact_id` / `legal_recipients.contact_id`.
-3. Run `post-payroll-gl` dry-run on a run with a garnishment; inspect the returned lines — the `Garnishment Payable` CR line must carry `contact_id = <recipient contact uuid>`, and the debits/credits must still balance.
-4. Confirm `journal_entry_lines_contact_id_partial_idx` exists (`\d public.journal_entry_lines` in psql or the SQL editor).
-5. Confirm no writer in `src/**` inserts into `journal_entry_lines` for garnishments with `contact_id: null` — the sub-ledger discipline is now a category rule, not a per-run patch.
-
-Then start C.2:
-
-- Model a "remittance intent" projection from `payroll_liabilities` where `rule_code LIKE 'garnishment_%'`, grouped by `(payee_contact_id, period)`.
-- On remittance batch confirm, materialize an AP `bills` row (contact = recipient), with `bill_items` referencing the source legal orders; write the payment through the existing AP payment stack rather than the legacy `legal_order_remittance_batches` path (keep the latter as a read-only projection during transition).
-- Add an idempotent repair function that backfills `journal_entry_lines.contact_id` on historical garnishment CR rows by joining `journal_entries.reference_id = payroll_run_id` → `payroll_liabilities.payee_contact_id` where `rule_code = 'garnishment_' || <order_id>`. Ship as an SQL function invoked from a one-off admin action, not an automatic migration, so ops can review counts first.
-
-Do not skip ahead to Phase D/E/F. Do not touch the garnishment computation math. Keep the free-text `payee_*` columns readable but never write to them.
+## Handoff
+Currently active: **Phase R1 — Unwind the redundant overlay**. Do not resume plan.md's Phase C.2 (AP-bill refactor); it would delete ADR-0096. Do not resume Phase E as written until R1–R3 land, because the payee snapshot's only remaining reader today is the overlay's fallback resolver.

@@ -14,8 +14,9 @@
  *   3. Back-fills the legacy `legal_order_authorities` row for readers
  *      that still hit that table.
  *
- * Emits `{ authority_id, authority_contact_id }` on selection so callers
- * can stamp both columns on `legal_orders_records`.
+ * Emits `{ authority_id }` on selection. Callers stamp only `authority_id`
+ * on `legal_orders_records`; the retired overlay column
+ * `authority_contact_id` is no longer written (ADR-0093).
  */
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -66,7 +67,6 @@ interface Props {
   fallbackText: string;
   onChange: (v: {
     authority_id: string | null;
-    authority_contact_id: string | null;
     authority_text: string;
     picked?: AuthorityRow | null;
   }) => void;
@@ -165,7 +165,6 @@ export function AuthorityPicker({ value, fallbackText, onChange, disabled }: Pro
       await qc.invalidateQueries({ queryKey: ["legal_order_authorities"] });
       onChange({
         authority_id: res.authority_id,
-        authority_contact_id: res.contact_id,
         authority_text: draft.name.trim(),
       });
       setAddOpen(false);
@@ -184,7 +183,6 @@ export function AuthorityPicker({ value, fallbackText, onChange, disabled }: Pro
             if (v === "__free__") {
               onChange({
                 authority_id: null,
-                authority_contact_id: null,
                 authority_text: fallbackText,
                 picked: null,
               });
@@ -192,7 +190,6 @@ export function AuthorityPicker({ value, fallbackText, onChange, disabled }: Pro
               const row = byId.get(v) ?? null;
               onChange({
                 authority_id: v,
-                authority_contact_id: row?.contact_id ?? null,
                 authority_text: row?.name ?? "",
                 picked: row,
               });
@@ -234,7 +231,6 @@ export function AuthorityPicker({ value, fallbackText, onChange, disabled }: Pro
           onChange={(e) =>
             onChange({
               authority_id: null,
-              authority_contact_id: null,
               authority_text: e.target.value,
               picked: null,
             })
