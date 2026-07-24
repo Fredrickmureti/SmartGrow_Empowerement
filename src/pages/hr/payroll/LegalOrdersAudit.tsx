@@ -19,11 +19,12 @@ import { useLegalOrders } from "@/hooks/useLegalOrders";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
 import {
-  Activity, ArrowUpRight, Banknote, Bell, ClipboardList, ShieldAlert,
+  Activity, ArrowUpRight, Banknote, Bell, ClipboardList, ShieldAlert, ChevronDown, ChevronRight,
 } from "lucide-react";
 
 type TimelineRow = {
