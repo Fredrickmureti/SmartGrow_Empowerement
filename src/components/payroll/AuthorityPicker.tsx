@@ -164,7 +164,6 @@ export function AuthorityPicker({ value, fallbackText, onChange, disabled }: Pro
       await qc.invalidateQueries({ queryKey: ["legal_order_authorities"] });
       onChange({
         authority_id: res.authority_id,
-        authority_contact_id: res.contact_id,
         authority_text: draft.name.trim(),
       });
       setAddOpen(false);
