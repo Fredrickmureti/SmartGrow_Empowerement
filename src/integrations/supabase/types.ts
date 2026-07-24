@@ -78881,6 +78881,10 @@ export type Database = {
         }
         Returns: string
       }
+      legal_order_attach_contact: {
+        Args: { p_contact_id: string; p_order_id: string }
+        Returns: Json
+      }
       legal_order_check_finance_drift: {
         Args: {
           p_business: string
@@ -78992,6 +78996,14 @@ export type Database = {
           priority_class: number
           start_date: string
         }[]
+      }
+      legal_recipient_link_contact: {
+        Args: {
+          p_contact_id: string
+          p_copy_defaults?: boolean
+          p_recipient_id: string
+        }
+        Returns: Json
       }
       legal_recipient_merge: {
         Args: { p_source_id: string; p_target_id: string }

@@ -40,6 +40,7 @@ import { GarnishmentDashboard } from "@/components/payroll/GarnishmentDashboard"
 import { AuthorityPicker } from "@/components/payroll/AuthorityPicker";
 import { LegalOrderDocuments } from "@/components/payroll/LegalOrderDocuments";
 import { useLegalOrder, useLegalOrders } from "@/hooks/useLegalOrders";
+import { LinkRecipientDialog } from "@/components/hr/payroll/LinkRecipientDialog";
 
 /**
  * Allowed FSM transitions per source status. Mirrors garnishment_transition()
@@ -110,6 +111,7 @@ export default function GarnishmentsPage() {
   const [historyFor, setHistoryFor] = useState<Garnishment | null>(null);
   const [ledgerFor, setLedgerFor] = useState<Garnishment | null>(null);
   const [lifecycleFor, setLifecycleFor] = useState<Garnishment | null>(null);
+  const [linkContactFor, setLinkContactFor] = useState<Garnishment | null>(null);
 
   const employeeById = useMemo(() => {
     const m = new Map<string, string>();
@@ -347,7 +349,16 @@ export default function GarnishmentsPage() {
                                 <Badge variant="destructive" className="text-[10px]" title="Required evidence not yet attached — see the Evidence section in the editor.">no evidence</Badge>
                               )}
                               {lo.payee_unmapped && (
-                                <Badge variant="secondary" className="text-[10px]" title="The third-party recipient (e.g. court, CSA, creditor) is stored as free text only. Link it to a Contact to enable remittance payments. This is unrelated to PAYE tax.">recipient not linked</Badge>
+                                <button
+                                  type="button"
+                                  onClick={() => setLinkContactFor(g)}
+                                  className="inline-flex"
+                                  title="The third-party recipient (e.g. court, CSA, creditor) is stored as free text only. Click to pick a Contact and enable remittance payments. This is unrelated to PAYE tax."
+                                >
+                                  <Badge variant="secondary" className="text-[10px] cursor-pointer hover:bg-secondary/70">
+                                    recipient not linked — click to link
+                                  </Badge>
+                                </button>
                               )}
                             </>
                           );
@@ -623,6 +634,21 @@ export default function GarnishmentsPage() {
         g={lifecycleFor}
         onClose={() => setLifecycleFor(null)}
         onAction={(action) => lifecycleFor && runAction(lifecycleFor, action)}
+      />
+      <LinkRecipientDialog
+        open={!!linkContactFor}
+        onOpenChange={(o) => !o && setLinkContactFor(null)}
+        mode={
+          linkContactFor
+            ? {
+                kind: "order",
+                orderId: linkContactFor.id,
+                orderLabel:
+                  (linkContactFor.payee_name || linkContactFor.kind.replace(/_/g, " ")) +
+                  ` (${employeeById.get(linkContactFor.employee_id) ?? "employee"})`,
+              }
+            : null
+        }
       />
     </div>
   );

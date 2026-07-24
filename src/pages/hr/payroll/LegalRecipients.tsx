@@ -23,6 +23,7 @@ import {
   useLegalRecipientStatement,
   type LegalRecipientOutstanding,
 } from "@/hooks/useLegalRecipients";
+import { LinkRecipientDialog } from "@/components/hr/payroll/LinkRecipientDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -53,6 +54,7 @@ function fmtMoney(n: number): string {
 
 export default function LegalRecipients() {
   const { data: recipients, isLoading } = useLegalRecipientOutstanding();
+  const [linkTarget, setLinkTarget] = useState<LegalRecipientOutstanding | null>(null);
   const [selected, setSelected] = useState<LegalRecipientOutstanding | null>(null);
   const [from, setFrom] = useState(() =>
     format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd"),
@@ -177,7 +179,17 @@ export default function LegalRecipients() {
                         <Badge variant="outline">Settled</Badge>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {!r.is_linked_to_contact && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setLinkTarget(r)}
+                          title="Attach this recipient to a Contact so bank-file generation and remittance can proceed."
+                        >
+                          Link Contact
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => setSelected(r)}>
                         Statement
                       </Button>
@@ -221,6 +233,20 @@ export default function LegalRecipients() {
           )}
         </SheetContent>
       </Sheet>
+
+      <LinkRecipientDialog
+        open={!!linkTarget}
+        onOpenChange={(o) => !o && setLinkTarget(null)}
+        mode={
+          linkTarget
+            ? {
+                kind: "recipient",
+                recipientId: linkTarget.recipient_id,
+                recipientName: linkTarget.display_name,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
