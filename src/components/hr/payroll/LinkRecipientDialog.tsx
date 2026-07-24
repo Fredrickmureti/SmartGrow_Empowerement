@@ -476,8 +476,10 @@ export function LinkRecipientDialog({
               ) : scored.length === 0 ? (
                 <div className="p-3 text-sm text-muted-foreground space-y-2">
                   <p>
-                    No matching contacts. Recipients are usually courts,
-                    agencies, creditors or SACCOs — none exist yet.
+                    No matches. Recipients are usually a curated{" "}
+                    <b>issuing authority</b> (court, agency) or a{" "}
+                    <b>Contact</b> (creditor, SACCO). Create one below, or
+                    seed authorities from the Authorities admin.
                   </p>
                   <Button
                     type="button"
@@ -490,12 +492,23 @@ export function LinkRecipientDialog({
                 </div>
               ) : (
                 <ul className="divide-y">
-                  {scored.map(({ c, role }) => {
+                  {scored.map(({ c, role, authority }) => {
                     const isSel = selected?.id === c.id;
                     const badge = ROLE_BADGE[role];
+                    const subtitle = authority
+                      ? [
+                          authority.authority_type,
+                          [authority.jurisdiction_country, authority.jurisdiction_region]
+                            .filter(Boolean)
+                            .join("/"),
+                          authority.code,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : [c.email, c.phone, c.country].filter(Boolean).join(" · ") || "—";
                     return (
                       <li
-                        key={c.id}
+                        key={`${role}-${c.id}`}
                         className={`p-3 cursor-pointer hover:bg-muted/40 ${
                           isSel ? "bg-muted" : ""
                         }`}
@@ -505,9 +518,7 @@ export function LinkRecipientDialog({
                           <div className="min-w-0">
                             <div className="font-medium truncate">{c.name}</div>
                             <div className="text-xs text-muted-foreground truncate">
-                              {[c.email, c.phone, c.country]
-                                .filter(Boolean)
-                                .join(" · ") || "—"}
+                              {subtitle}
                             </div>
                             {role === "customer" && (
                               <div className="mt-1 flex items-center gap-1 text-[11px] text-destructive">
@@ -521,6 +532,7 @@ export function LinkRecipientDialog({
                           </Badge>
                         </div>
                       </li>
+
                     );
                   })}
                 </ul>
