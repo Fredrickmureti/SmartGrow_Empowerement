@@ -111,6 +111,7 @@ export default function GarnishmentsPage() {
   const [historyFor, setHistoryFor] = useState<Garnishment | null>(null);
   const [ledgerFor, setLedgerFor] = useState<Garnishment | null>(null);
   const [lifecycleFor, setLifecycleFor] = useState<Garnishment | null>(null);
+  const [linkContactFor, setLinkContactFor] = useState<Garnishment | null>(null);
 
   const employeeById = useMemo(() => {
     const m = new Map<string, string>();
