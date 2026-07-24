@@ -182,7 +182,6 @@ export function AuthorityPicker({ value, fallbackText, onChange, disabled }: Pro
             if (v === "__free__") {
               onChange({
                 authority_id: null,
-                authority_contact_id: null,
                 authority_text: fallbackText,
                 picked: null,
               });
@@ -190,7 +189,6 @@ export function AuthorityPicker({ value, fallbackText, onChange, disabled }: Pro
               const row = byId.get(v) ?? null;
               onChange({
                 authority_id: v,
-                authority_contact_id: row?.contact_id ?? null,
                 authority_text: row?.name ?? "",
                 picked: row,
               });
