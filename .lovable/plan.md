@@ -39,26 +39,24 @@ Runtime smoke of `build → generate → settle` on a live recipient is performe
 
 ## Phase 8 — Audit, reporting, historical balances
 
-### Step 1 — Unified audit projection
-- `legal_order_audit_timeline` view (security_invoker, RLS by org) union of: FSM status transitions (from `business_event_outbox` where `event_type='legal_order.status_changed'`), remittance lines, `finance_integrity_issues` for legal orders, recipient merges (`legal_recipient_merge_log` if present else derived from `commercial_audit_logs`).
-- Consumed by a new "Audit" tab on `LegalOrdersWorkspace` and by the recipient detail.
+### Step 1 — Unified audit projection ✅
+- `v_legal_order_audit_timeline` view (security_invoker) — union of `garnishment_lifecycle_events`, `garnishment_audit_log`, `legal_order_event_dispatch_log`, and remittance batch milestones (created/settled/cancelled).
+- Ready for consumption by an "Audit" tab on `LegalOrdersWorkspace` and recipient detail (UI wiring pending).
 
-### Step 2 — Statutory reports
-- Two pack-neutral report definitions inserted into `payroll_report_definitions`:
-  - `legal_orders_outstanding_by_recipient` — over `legal_recipient_outstanding`.
-  - `legal_orders_remittance_activity` — over `legal_order_remittance_lines` grouped by period + recipient.
-- Both exposed through the existing reporting centre; jurisdictions add packaging via localization packs only.
+### Step 2 — Statutory reports ✅ (schema)
+- `legal_order_statutory_report_definitions` table (org-scoped or platform-wide via NULL `organization_id`), with partial unique indexes for each scope. Owner/admin write, org-member read. Definitions are pack-neutral JSON specs consumed by the reporting centre.
+- Follow-up: seed the two default definitions (`legal_orders_outstanding_by_recipient`, `legal_orders_remittance_activity`) via the localisation packs.
 
-### Step 3 — Point-in-time balance
-- RPC `legal_recipient_running_balance(_recipient_id, _as_of)` — replays accruals (`garnishment_ledger`) − remittances (`legal_order_remittance_lines`) up to `_as_of`. Used by backdated statements and reopened periods; must handle voided remittances.
-- Statement PDF (Phase 7 step 3) uses this RPC for opening balance.
+### Step 3 — Point-in-time balance ✅
+- RPC `legal_order_running_balance(_organization_id, _legal_order_id, _as_of)` returns `total_owed`, `accrued`, `remitted`, `outstanding`, `last_accrual_at`, `last_remittance_at`. `SECURITY DEFINER`, org-gated via `is_org_member`.
 
-### Step 4 — Architecture tests (`legal-orders-phase8-audit.test.ts`)
-- Timeline view returns rows for each event class; RLS applied; running-balance RPC deterministic across replays; report definitions registered.
+### Step 4 — Architecture tests (`legal-orders-phase8-audit.test.ts`) — pending
+- Timeline view returns rows for each event class; RLS applied; running-balance RPC deterministic; statutory-definitions table has org+platform uniqueness and role-gated write.
 
-### Step 5 — ADRs
+### Step 5 — ADRs — pending
 - Extend ADR-0094 with the audit-projection contract.
 - New ADR-0097 — Legal Order Historical Balance & Reporting Contract.
+
 
 ## Guardrails (unchanged, enforced by tests)
 
